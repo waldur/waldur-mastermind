@@ -25,16 +25,16 @@ class DryRun(
             (ERRED, "erred"),
         )
 
-    order = models.ForeignKey(
+    order = models.ForeignKey[marketplace_models.Order](
         on_delete=models.SET_NULL,
         to=marketplace_models.Order,
         null=True,
     )
     order_attributes = models.JSONField(blank=True, default=dict)
-    order_plan = models.ForeignKey(
+    order_plan = models.ForeignKey[marketplace_models.Plan](
         on_delete=models.CASCADE, to=marketplace_models.Plan, blank=True, null=True
     )
-    order_offering = models.ForeignKey(
+    order_offering = models.ForeignKey[marketplace_models.Offering](
         on_delete=models.SET_NULL, null=True, to=marketplace_models.Offering
     )
     order_type = models.CharField(max_length=255)

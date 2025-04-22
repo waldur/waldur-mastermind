@@ -36,7 +36,7 @@ class CallDocument(
     core_models.UuidMixin,
     core_models.DescribableMixin,
 ):
-    call = models.ForeignKey("Call", on_delete=models.CASCADE)
+    call = models.ForeignKey["Call"]("Call", on_delete=models.CASCADE)
     file = models.FileField(
         upload_to="call_documents",
         blank=True,
@@ -83,8 +83,10 @@ class Call(
     class States(CallStates):
         pass
 
-    manager = models.ForeignKey(CallManagingOrganisation, on_delete=models.PROTECT)
-    created_by = models.ForeignKey(
+    manager = models.ForeignKey[CallManagingOrganisation](
+        CallManagingOrganisation, on_delete=models.PROTECT
+    )
+    created_by = models.ForeignKey[core_models.User](
         core_models.User,
         on_delete=models.SET_NULL,
         null=True,
@@ -98,7 +100,9 @@ class Call(
     )
     documents = models.ManyToManyField(CallDocument, related_name="call_documents")
     # It is used for mapping PROPOSAL.MEMBER role to one of project roles
-    default_project_role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True)
+    default_project_role = models.ForeignKey[Role](
+        Role, on_delete=models.SET_NULL, null=True
+    )
     external_url = models.URLField(blank=True, null=True)
     objects = managers.CallManager()
 
@@ -126,14 +130,14 @@ class RequestedOffering(
     class States(RequestedOfferingStates):
         pass
 
-    approved_by = models.ForeignKey(
+    approved_by = models.ForeignKey[core_models.User](
         core_models.User,
         on_delete=models.SET_NULL,
         null=True,
         related_name="+",
         blank=True,
     )
-    created_by = models.ForeignKey(
+    created_by = models.ForeignKey[core_models.User](
         core_models.User,
         on_delete=models.SET_NULL,
         null=True,
@@ -142,8 +146,8 @@ class RequestedOffering(
     state = models.CharField(
         default=States.REQUESTED, choices=States.CHOICES, db_index=True
     )
-    call = models.ForeignKey(Call, on_delete=models.CASCADE)
-    plan = models.ForeignKey(
+    call = models.ForeignKey[Call](Call, on_delete=models.CASCADE)
+    plan = models.ForeignKey[marketplace_models.Plan](
         on_delete=models.CASCADE, to=marketplace_models.Plan, null=True, blank=True
     )
 
@@ -217,7 +221,7 @@ class Round(
     allocation_date = models.DateTimeField(null=True, blank=True)
     start_time = models.DateTimeField()
     cutoff_time = models.DateTimeField()
-    call = models.ForeignKey(Call, on_delete=models.PROTECT)
+    call = models.ForeignKey[Call](Call, on_delete=models.PROTECT)
 
     class Permissions:
         customer_path = "call__manager__customer"
@@ -246,7 +250,7 @@ class ProposalDocumentation(
     TimeStampedModel,
     core_models.UuidMixin,
 ):
-    proposal = models.ForeignKey("Proposal", on_delete=models.CASCADE)
+    proposal = models.ForeignKey["Proposal"]("Proposal", on_delete=models.CASCADE)
     file = models.FileField(
         upload_to="proposal_project_supporting_documentation",
         blank=True,
@@ -271,11 +275,11 @@ class Proposal(
     class States(ProposalStates):
         pass
 
-    round = models.ForeignKey(Round, on_delete=models.CASCADE)
+    round = models.ForeignKey[Round](Round, on_delete=models.CASCADE)
     state = models.CharField(
         default=States.DRAFT, choices=States.CHOICES, db_index=True
     )
-    project = models.ForeignKey(
+    project = models.ForeignKey[structure_models.Project](
         structure_models.Project, on_delete=models.PROTECT, editable=False, null=True
     )
     duration_in_days = models.PositiveIntegerField(
@@ -283,14 +287,14 @@ class Proposal(
         blank=True,
         help_text="Duration in days after provisioning of resources.",
     )
-    approved_by = models.ForeignKey(
+    approved_by = models.ForeignKey[core_models.User](
         core_models.User,
         on_delete=models.SET_NULL,
         null=True,
         related_name="+",
         blank=True,
     )
-    created_by = models.ForeignKey(
+    created_by = models.ForeignKey[core_models.User](
         core_models.User,
         on_delete=models.SET_NULL,
         null=True,
@@ -330,26 +334,26 @@ class RequestedResource(
     class Permissions:
         project_path = "proposal__project"
 
-    requested_offering = models.ForeignKey(
+    requested_offering = models.ForeignKey[RequestedOffering](
         RequestedOffering,
         related_name="+",
         on_delete=models.PROTECT,
     )
     attributes = models.JSONField(blank=True, default=dict)
     limits = models.JSONField(blank=True, default=dict)
-    created_by = models.ForeignKey(
+    created_by = models.ForeignKey[core_models.User](
         core_models.User,
         on_delete=models.SET_NULL,
         null=True,
         related_name="+",
     )
-    resource = models.ForeignKey(
+    resource = models.ForeignKey[marketplace_models.Resource](
         marketplace_models.Resource,
         related_name="+",
         on_delete=models.SET_NULL,
         null=True,
     )
-    proposal = models.ForeignKey(Proposal, on_delete=models.CASCADE)
+    proposal = models.ForeignKey[Proposal](Proposal, on_delete=models.CASCADE)
 
 
 class Review(
@@ -372,7 +376,7 @@ class Review(
     class Permissions:
         customer_path = "proposal__round__call__manager__customer"
 
-    proposal = models.ForeignKey(Proposal, on_delete=models.PROTECT)
+    proposal = models.ForeignKey[Proposal](Proposal, on_delete=models.PROTECT)
     state = models.CharField(
         default=States.CREATED, choices=States.CHOICES, db_index=True
     )
@@ -397,7 +401,7 @@ class Review(
     comment_resource_requests = models.CharField(max_length=255, null=True, blank=True)
     comment_team = models.CharField(max_length=255, null=True, blank=True)
 
-    reviewer = models.ForeignKey(
+    reviewer = models.ForeignKey[core_models.User](
         to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
     )
 
@@ -421,7 +425,7 @@ class ReviewComment(
     TimeStampedModel,
     core_models.UuidMixin,
 ):
-    review = models.ForeignKey(Review, on_delete=models.CASCADE)
+    review = models.ForeignKey[Review](Review, on_delete=models.CASCADE)
     message = models.CharField(max_length=255)
 
 
@@ -430,5 +434,7 @@ class ResourceAllocator(
     core_models.UuidMixin,
     core_models.NameMixin,
 ):
-    call = models.ForeignKey(Call, on_delete=models.CASCADE)
-    project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
+    call = models.ForeignKey[Call](Call, on_delete=models.CASCADE)
+    project = models.ForeignKey[structure_models.Project](
+        structure_models.Project, on_delete=models.CASCADE
+    )

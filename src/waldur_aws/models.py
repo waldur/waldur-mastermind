@@ -19,7 +19,7 @@ class Image(structure_models.GeneralServiceProperty):
     class Meta:
         ordering = ["name"]
 
-    region = models.ForeignKey(on_delete=models.CASCADE, to=Region)
+    region = models.ForeignKey[Region](on_delete=models.CASCADE, to=Region)
 
     def __str__(self):
         return f"{self.name} | {self.region.name}"
@@ -61,7 +61,7 @@ class Size(structure_models.GeneralServiceProperty):
 
 
 class Instance(structure_models.VirtualMachine):
-    region = models.ForeignKey(on_delete=models.CASCADE, to=Region)
+    region = models.ForeignKey[Region](on_delete=models.CASCADE, to=Region)
     public_ips = JSONField(
         default=list, help_text=_("List of public IP addresses"), blank=True
     )
@@ -102,10 +102,10 @@ class Volume(RuntimeStateMixin, structure_models.BaseResource):
         ("standard", _("Magnetic volumes")),
     )
     size = models.PositiveIntegerField(help_text=_("Size of volume in gigabytes"))
-    region = models.ForeignKey(on_delete=models.CASCADE, to=Region)
+    region = models.ForeignKey[Region](on_delete=models.CASCADE, to=Region)
     volume_type = models.CharField(max_length=8, choices=VOLUME_TYPES)
     device = models.CharField(max_length=128, blank=True, null=True)
-    instance = models.ForeignKey(
+    instance = models.ForeignKey[Instance](
         on_delete=models.CASCADE, to=Instance, blank=True, null=True
     )
 

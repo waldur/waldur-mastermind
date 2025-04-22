@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 
+from waldur_core.core.models import User
 from waldur_core.structure.models import BaseResource
 
 
@@ -12,7 +13,7 @@ class Job(BaseResource):
     file = models.FileField(
         "Batch script file", upload_to="slurm_jobs", blank=True, null=True
     )
-    user = models.ForeignKey(
+    user = models.ForeignKey[User](
         help_text="Reference to user which submitted job",
         on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,

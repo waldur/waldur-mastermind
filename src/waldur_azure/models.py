@@ -26,7 +26,7 @@ class Image(structure_models.ServiceProperty):
     sku = models.CharField(max_length=255)
     offer = models.CharField(max_length=255)
     version = models.CharField(max_length=255)
-    location = models.ForeignKey(Location, on_delete=models.CASCADE)
+    location = models.ForeignKey[Location](Location, on_delete=models.CASCADE)
 
     class Meta(structure_models.ServiceProperty.Meta):
         ordering = ["publisher", "offer", "name", "sku"]
@@ -52,8 +52,8 @@ class Size(structure_models.ServiceProperty):
 
 
 class SizeAvailabilityZone(models.Model):
-    size = models.ForeignKey(Size, on_delete=models.CASCADE)
-    location = models.ForeignKey(Location, on_delete=models.CASCADE)
+    size = models.ForeignKey[Size](Size, on_delete=models.CASCADE)
+    location = models.ForeignKey[Location](Location, on_delete=models.CASCADE)
     zone = models.PositiveSmallIntegerField()
 
 
@@ -66,7 +66,7 @@ class ResourceGroup(BaseResource):
     name = models.CharField(
         max_length=90, validators=[validators.ResourceGroupNameValidator]
     )
-    location = models.ForeignKey(on_delete=models.CASCADE, to=Location)
+    location = models.ForeignKey[Location](on_delete=models.CASCADE, to=Location)
 
     @classmethod
     def get_url_name(cls):
@@ -74,7 +74,9 @@ class ResourceGroup(BaseResource):
 
 
 class BaseResourceGroupModel(BaseResource):
-    resource_group = models.ForeignKey(on_delete=models.CASCADE, to=ResourceGroup)
+    resource_group = models.ForeignKey[ResourceGroup](
+        on_delete=models.CASCADE, to=ResourceGroup
+    )
 
     class Meta:
         abstract = True
@@ -97,7 +99,7 @@ class SubNet(BaseResourceGroupModel):
     name = models.CharField(
         max_length=80, validators=[validators.NetworkingNameValidator]
     )
-    network = models.ForeignKey(on_delete=models.CASCADE, to=Network)
+    network = models.ForeignKey[Network](on_delete=models.CASCADE, to=Network)
     cidr = models.CharField(max_length=32)
 
 
@@ -111,12 +113,12 @@ class NetworkInterface(BaseResourceGroupModel):
     name = models.CharField(
         max_length=80, validators=[validators.NetworkingNameValidator]
     )
-    subnet = models.ForeignKey(on_delete=models.CASCADE, to=SubNet)
+    subnet = models.ForeignKey[SubNet](on_delete=models.CASCADE, to=SubNet)
     config_name = models.CharField(max_length=255)
-    public_ip = models.ForeignKey(
+    public_ip = models.ForeignKey["PublicIP"](
         "PublicIP", on_delete=models.SET_NULL, null=True, blank=True
     )
-    security_group = models.ForeignKey(
+    security_group = models.ForeignKey[SecurityGroup](
         SecurityGroup, on_delete=models.SET_NULL, null=True, blank=True
     )
     ip_address = models.GenericIPAddressField(
@@ -129,7 +131,7 @@ class PublicIP(BaseResourceGroupModel):
     name = models.CharField(
         max_length=80, validators=[validators.NetworkingNameValidator]
     )
-    location = models.ForeignKey(on_delete=models.CASCADE, to=Location)
+    location = models.ForeignKey[Location](on_delete=models.CASCADE, to=Location)
     ip_address = models.GenericIPAddressField(
         null=True, blank=True, protocol="IPv4", default=None
     )
@@ -141,13 +143,17 @@ class PublicIP(BaseResourceGroupModel):
 
 
 class VirtualMachine(structure_models.VirtualMachine):
-    resource_group = models.ForeignKey(on_delete=models.CASCADE, to=ResourceGroup)
-    size = models.ForeignKey(on_delete=models.CASCADE, to=Size)
-    image = models.ForeignKey(on_delete=models.CASCADE, to=Image)
-    ssh_key = models.ForeignKey(
+    resource_group = models.ForeignKey[ResourceGroup](
+        on_delete=models.CASCADE, to=ResourceGroup
+    )
+    size = models.ForeignKey[Size](on_delete=models.CASCADE, to=Size)
+    image = models.ForeignKey[Image](on_delete=models.CASCADE, to=Image)
+    ssh_key = models.ForeignKey[core_models.SshPublicKey](
         on_delete=models.CASCADE, to=core_models.SshPublicKey, null=True, blank=True
     )
-    network_interface = models.ForeignKey(on_delete=models.CASCADE, to=NetworkInterface)
+    network_interface = models.ForeignKey[NetworkInterface](
+        on_delete=models.CASCADE, to=NetworkInterface
+    )
     name = models.CharField(
         max_length=15, validators=[validators.VirtualMachineNameValidator]
     )
@@ -199,7 +205,7 @@ class SQLServer(BaseResourceGroupModel):
 
 
 class SQLDatabase(BaseResource):
-    server = models.ForeignKey(on_delete=models.CASCADE, to=SQLServer)
+    server = models.ForeignKey[SQLServer](on_delete=models.CASCADE, to=SQLServer)
     charset = models.CharField(max_length=255, blank=True, null=True, default="utf8")
     collation = models.CharField(
         max_length=255, blank=True, null=True, default="utf8_general_ci"

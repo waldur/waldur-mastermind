@@ -27,7 +27,7 @@ from reversion import revisions as reversion
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import COUNTRIES_DICT, JSONField
-from waldur_core.core.models import AbstractFieldTracker
+from waldur_core.core.models import AbstractFieldTracker, User
 from waldur_core.core.validators import (
     validate_cidr_list,
     validate_name,
@@ -131,10 +131,10 @@ class BasePermission(models.Model):
     class Meta:
         abstract = True
 
-    user = models.ForeignKey(
+    user = models.ForeignKey[User](
         on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, db_index=True
     )
-    created_by = models.ForeignKey(
+    created_by = models.ForeignKey[User](
         on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,
         null=True,
@@ -163,7 +163,7 @@ class BasePermission(models.Model):
 
 
 class OrganizationGroup(core_models.UuidMixin, core_models.NameMixin, models.Model):
-    parent = models.ForeignKey(
+    parent = models.ForeignKey["OrganizationGroup"](
         on_delete=models.CASCADE, to="OrganizationGroup", null=True, blank=True
     )
 
@@ -216,7 +216,7 @@ def validate_cidr_32(value):
 
 
 class AccessSubnet(core_models.UuidMixin, core_models.DescribableMixin, LoggableMixin):
-    customer = models.ForeignKey(
+    customer = models.ForeignKey["Customer"](
         on_delete=models.CASCADE, to="Customer", related_name="access_subnet_set"
     )
     inet = CidrAddressField(null=True, blank=True, validators=[validate_cidr_32])
@@ -516,14 +516,14 @@ class Project(
             "The date is inclusive. Once reached, all project resource will be scheduled for termination."
         ),
     )
-    end_date_requested_by = models.ForeignKey(
+    end_date_requested_by = models.ForeignKey[core_models.User](
         on_delete=models.SET_NULL,
         to=core_models.User,
         blank=True,
         null=True,
         related_name="+",
     )
-    type = models.ForeignKey(
+    type = models.ForeignKey[ProjectType](
         ProjectType,
         verbose_name=_("project type"),
         blank=True,
@@ -532,7 +532,7 @@ class Project(
     )
     is_industry = models.BooleanField(default=False)
 
-    customer = models.ForeignKey(
+    customer = models.ForeignKey[Customer](
         Customer,
         verbose_name=_("organization"),
         related_name="projects",
@@ -594,7 +594,7 @@ class CustomerPermissionReview(core_models.UuidMixin):
         customer_path = "customer"
         list_permission = PermissionEnum.LIST_CUSTOMER_PERMISSION_REVIEWS
 
-    customer = models.ForeignKey(
+    customer = models.ForeignKey[Customer](
         Customer,
         verbose_name=_("organization"),
         related_name="reviews",
@@ -603,7 +603,7 @@ class CustomerPermissionReview(core_models.UuidMixin):
     is_pending = models.BooleanField(default=True)
     created = AutoCreatedField()
     closed = models.DateTimeField(null=True, blank=True)
-    reviewer = models.ForeignKey(
+    reviewer = models.ForeignKey[User](
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
     )
 
@@ -642,7 +642,7 @@ class ServiceSettings(
         customer_path = "customer"
         build_query = build_service_settings_query
 
-    customer = models.ForeignKey(
+    customer = models.ForeignKey[Customer](
         on_delete=models.CASCADE,
         to=Customer,
         verbose_name=_("organization"),
@@ -668,7 +668,7 @@ class ServiceSettings(
     tracker = FieldTracker()
 
     # service settings scope - VM that contains service
-    content_type = models.ForeignKey(
+    content_type = models.ForeignKey[ContentType](
         on_delete=models.CASCADE, to=ContentType, null=True
     )
     object_id = models.PositiveIntegerField(null=True)
@@ -758,7 +758,7 @@ class ServiceProperty(BaseServiceProperty):
         abstract = True
         unique_together = ("settings", "backend_id")
 
-    settings = models.ForeignKey(
+    settings = models.ForeignKey[ServiceSettings](
         on_delete=models.CASCADE, to=ServiceSettings, related_name="+"
     )
     backend_id = models.CharField(max_length=255, db_index=True)
@@ -803,10 +803,12 @@ class BaseResource(
         customer_path = "project__customer"
         project_path = "project"
 
-    service_settings = models.ForeignKey(
+    service_settings = models.ForeignKey[ServiceSettings](
         on_delete=models.CASCADE, to=ServiceSettings, related_name="+"
     )
-    project = models.ForeignKey(on_delete=models.CASCADE, to=Project, related_name="+")
+    project = models.ForeignKey[Project](
+        on_delete=models.CASCADE, to=Project, related_name="+"
+    )
     backend_id = models.CharField(max_length=255, blank=True)
 
     @classmethod

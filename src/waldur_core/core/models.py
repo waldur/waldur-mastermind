@@ -476,7 +476,7 @@ class SshPublicKey(TimeStampedModel, LoggableMixin, UuidMixin, models.Model):
     Used for injection into VMs for remote access.
     """
 
-    user = models.ForeignKey(
+    user = models.ForeignKey[User](
         on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, db_index=True
     )
     # Model doesn't inherit NameMixin, because name field can be blank.

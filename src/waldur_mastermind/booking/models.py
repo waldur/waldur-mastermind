@@ -7,7 +7,9 @@ from waldur_mastermind.marketplace import models as marketplace_models
 
 
 class BusySlot(TimeStampedModel):
-    offering = models.ForeignKey(marketplace_models.Offering, on_delete=models.CASCADE)
+    offering = models.ForeignKey[marketplace_models.Offering](
+        marketplace_models.Offering, on_delete=models.CASCADE
+    )
     start = models.DateTimeField()
     end = models.DateTimeField()
     backend_id = models.CharField(max_length=255, null=True, blank=True)
@@ -17,7 +19,9 @@ class BusySlot(TimeStampedModel):
 
 
 class BookingSlot(TimeStampedModel):
-    resource = models.ForeignKey(marketplace_models.Resource, on_delete=models.CASCADE)
+    resource = models.ForeignKey[marketplace_models.Resource](
+        marketplace_models.Resource, on_delete=models.CASCADE
+    )
     start = models.DateTimeField()
     end = models.DateTimeField()
     backend_id = models.CharField(max_length=255, null=False, blank=False)
