@@ -21,7 +21,7 @@ def prepare_messages(
 
     Args:
         offering: Marketplace offering instance to generate messages for
-        offering_payload: Dictionary containing event-specific data to be included in the message
+        message_payload: Dictionary containing event-specific data to be included in the message
         affected_object: Type of event for the topic name (e.g. "order" or "user_role")
 
     Returns:

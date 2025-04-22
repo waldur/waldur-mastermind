@@ -134,8 +134,9 @@ class RegistrationManager:
     @classmethod
     def terminate(cls, source, now=None):
         """
-        Terminate invoice item that corresponds given source.
+        Terminate invoice item that corresponds to given source.
 
+        :param source: invoice item to terminate.
         :param now: time to set as end of item usage.
         """
         if now is None:

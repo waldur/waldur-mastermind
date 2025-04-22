@@ -79,10 +79,10 @@ def add_attachment(manager, issue, file):
     """
     Replace jira's method 'add_attachment' while don't well fixed this issue
     https://github.com/shazow/urllib3/issues/303
-    And we need to set filename limit equaled 252 chars.
+    And we need to set file name length limit equal to 252 chars.
     :param manager: [jira.JIRA instance]
     :param issue: [jira.JIRA.resources.Issue instance]
-    :param path: [string]
+    :param file: [File]
     :return: [jira.JIRA.resources.Attachment instance]
     """
     filename = _get_filename(file.name)

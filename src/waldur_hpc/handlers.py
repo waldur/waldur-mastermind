@@ -102,9 +102,6 @@ def get_or_create_project(customer, user, wrong_customer):
         project: Project = Project.objects.create(customer=customer, name=user.username)
         project.add_user(user, ProjectRole.ADMIN)
         return project
-    else:
-        logger.warning("Projects with name %s already exists.", user.username)
-        return
 
 
 def get_or_create_order(project: Project, user, offering, plan, limits=None):

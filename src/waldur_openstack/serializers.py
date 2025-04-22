@@ -1934,8 +1934,8 @@ class OpenStackVolumeSerializer(structure_serializers.BaseResourceSerializer):
                     }
                 )
             # type validation
-            type = attrs.get("type")
-            if type and not is_volume_type_valid_for_tenant(type, tenant):
+            volume_type = attrs.get("type")
+            if volume_type and not is_volume_type_valid_for_tenant(volume_type, tenant):
                 raise serializers.ValidationError(
                     {"type": _("Volume type is not visible in tenant.")}
                 )
@@ -2067,15 +2067,15 @@ class OpenStackVolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
         required=True,
     )
 
-    def validate_type(self, type: models.VolumeType):
+    def validate_type(self, volume_type: models.VolumeType):
         volume: models.Volume = self.instance
-        if type == volume.type:
+        if volume_type == volume.type:
             raise serializers.ValidationError(_("Volume already has requested type."))
-        if not is_volume_type_valid_for_tenant(type, volume.tenant):
+        if not is_volume_type_valid_for_tenant(volume_type, volume.tenant):
             raise serializers.ValidationError(
                 _("Volume type is not visible in tenant.")
             )
-        return type
+        return volume_type
 
     @transaction.atomic
     def update(self, instance: models.Volume, validated_data):

@@ -39,7 +39,7 @@ class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
             # validate if MTU is a valid range and pass it as a default for the first network in a tenant
             try:
                 value = int(mtu)
-                if value >= 68 and value <= 9000:
+                if 68 <= value <= 9000:
                     payload["mtu"] = value
             except ValueError:
                 logger.warning(

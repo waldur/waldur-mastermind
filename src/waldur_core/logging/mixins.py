@@ -11,7 +11,7 @@ class LoggableMixin:
     """
 
     def get_log_fields(self):
-        return ("uuid", "name")
+        return "uuid", "name"
 
     def _get_log_context(self, entity_name=None):
         context = {}
