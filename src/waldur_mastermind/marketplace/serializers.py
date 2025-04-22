@@ -4425,7 +4425,9 @@ class RobotAccountSerializer(
     url = serializers.HyperlinkedIdentityField(
         view_name="marketplace-robot-account-detail", lookup_field="uuid"
     )
-    state = serializers.CharField(source="get_state_display", read_only=True)
+    state = serializers.CharField(
+        source="get_state_display", read_only=True, allow_null=True
+    )
     error_message = serializers.CharField(read_only=True)
 
     class Meta:
