@@ -21,12 +21,11 @@ from waldur_mastermind.marketplace.serializers import OrderCreateSerializer
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
+from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.processors import (
     RemoteCreateResourceProcessor,
 )
 from waldur_mastermind.marketplace_remote.tasks import OfferingPullTask
-
-from .. import PLUGIN_NAME
 
 
 class WaldurJsonEncoder(DjangoJSONEncoder):

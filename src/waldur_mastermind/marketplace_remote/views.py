@@ -40,13 +40,18 @@ from waldur_core.structure.models import Customer
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.serializers import MarketplaceCategorySerializer
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME
+from waldur_mastermind.marketplace_remote import (
+    PLUGIN_NAME,
+    filters,
+    serializers,
+    tasks,
+    utils,
+    utils_sync_remote_offerings,
+)
 from waldur_mastermind.marketplace_remote.models import (
     ProjectUpdateRequest,
     RemoteSynchronisation,
 )
-
-from . import filters, serializers, tasks, utils, utils_sync_remote_offerings
 
 
 class RemoteView(GenericAPIView):

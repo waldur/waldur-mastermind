@@ -1,8 +1,7 @@
 import django_filters
 
 from waldur_core.core import filters as core_filters
-
-from . import models
+from waldur_mastermind.marketplace_remote import models
 
 
 class ProjectUpdateRequestFilter(django_filters.FilterSet):

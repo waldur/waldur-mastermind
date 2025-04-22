@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from . import models
+from waldur_mastermind.marketplace_remote import models
 
 
 class RemoteLocalCategoryInline(admin.StackedInline):

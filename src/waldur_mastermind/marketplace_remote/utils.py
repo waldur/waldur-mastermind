@@ -72,13 +72,12 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.enums import OfferingStates
+from waldur_mastermind.marketplace_remote import PLUGIN_NAME, models
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
     OFFERING_FIELDS,
     PLAN_FIELDS,
 )
-
-from . import PLUGIN_NAME, models
 
 logger = logging.getLogger(__name__)
 
@@ -632,7 +631,7 @@ def import_plans(
 
 
 def import_offering_thumbnail(
-    local_offering: marketplace_models.Offering, thumbnail_url: str
+    local_offering: marketplace_models.Offering, thumbnail_url: str | None
 ):
     if thumbnail_url:
         thumbnail_resp = httpx.get(thumbnail_url)

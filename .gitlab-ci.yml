@@ -110,6 +110,7 @@ Run management command test:
   extends: .Unit test runner
   script:
     - gitlab-ci-test/waldur-test MANAGEMENT
+    - mypy src/waldur_mastermind/marketplace_remote/processors.py
 
 Try building docker image:
   image:

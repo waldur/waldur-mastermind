@@ -5,8 +5,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
-
-from . import PLUGIN_NAME, constants, models
+from waldur_mastermind.marketplace_remote import PLUGIN_NAME, constants, models
 
 
 class RemoteCredentialsSerializer(serializers.Serializer):
