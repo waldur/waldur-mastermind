@@ -54,13 +54,13 @@ def publish_mqtt_messages(messages_to_send: list[dict[str, str]]) -> None:
     """Helper function to publish prepared MQTT messages"""
     mqtt_settings: dict = settings.RABBITMQ
     if not mqtt_settings.get("MQTT_PORT"):
-        logger.error("MQTT_PORT is not defined in settings")
+        logger.warning("MQTT_PORT is not defined in settings")
         return
 
     for message_info in messages_to_send:
         try:
             logger.info(
-                "Sending new message to mqtt://%s:%s, topic: %s",
+                "Sending MQTT message to mqtt://%s:%s, topic: %s",
                 mqtt_settings["HOST"],
                 mqtt_settings["MQTT_PORT"],
                 message_info["topic"],
@@ -91,7 +91,7 @@ def publish_stomp_messages(messages_to_send: list[dict[str, str]]) -> None:
     """
     rabbitmq_settings: dict = settings.RABBITMQ
     if not rabbitmq_settings.get("STOMP_PORT"):
-        logger.error("STOMP_PORT is not defined in settings")
+        logger.warning("STOMP_PORT is not defined in settings")
         return
 
     host = rabbitmq_settings["HOST"]
@@ -115,7 +115,7 @@ def publish_stomp_messages(messages_to_send: list[dict[str, str]]) -> None:
                 "content-type": "application/json",
             }
             logger.info(
-                "Sending message %s to %s", message_info["payload"], destination
+                "Sending STOMP message %s to %s", message_info["payload"], destination
             )
             connection.send(
                 destination=destination,
