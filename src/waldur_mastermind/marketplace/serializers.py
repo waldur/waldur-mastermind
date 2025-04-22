@@ -4457,7 +4457,11 @@ class RobotAccountSerializer(
                 "view_name": "marketplace-resource-detail",
             },
             users={"lookup_field": "uuid", "view_name": "user-detail"},
-            responsible_user={"lookup_field": "uuid", "view_name": "user-detail"},
+            responsible_user={
+                "lookup_field": "uuid",
+                "view_name": "user-detail",
+                "allow_null": True,
+            },
         )
 
     fingerprints = serializers.SerializerMethodField()
@@ -4541,7 +4545,9 @@ class RobotAccountErrorSerializer(serializers.Serializer):
 
 class RobotAccountDetailsSerializer(RobotAccountSerializer):
     users = structure_serializers.BasicUserSerializer(many=True, read_only=True)
-    responsible_user = structure_serializers.BasicUserSerializer(read_only=True)
+    responsible_user = structure_serializers.BasicUserSerializer(
+        read_only=True, allow_null=True
+    )
     user_keys = serializers.SerializerMethodField()
     resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
     resource_name = serializers.CharField(read_only=True, source="resource.name")
