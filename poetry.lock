@@ -5022,7 +5022,7 @@ python-dateutil = "^2.8.0"
 type = "git"
 url = "https://github.com/waldur/py-client.git"
 reference = "HEAD"
-resolved_reference = "eadd0b55e251ffa5f6f9e1ae795a01932f785c8f"
+resolved_reference = "9dfa1c443fe2c92064d4e9584ecd47d1cef65d52"
 
 [[package]]
 name = "warlock"
