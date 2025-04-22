@@ -72,6 +72,10 @@ class ProjectSection(FeatureSection):
 
     show_image_in_create_dialog = Feature("Show image field in project create dialog.")
 
+    show_credit_in_create_dialog = Feature(
+        "Show credit field in project create dialog."
+    )
+
 
 class UserSection(FeatureSection):
     class Meta:
