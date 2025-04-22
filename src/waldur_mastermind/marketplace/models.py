@@ -896,10 +896,10 @@ class CostEstimateMixin(models.Model):
 
     # Cost estimate is computed with respect to limit components
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
-    plan = models.ForeignKey[Plan](
+    plan = models.ForeignKey[Plan, Plan](
         on_delete=models.CASCADE, to=Plan, null=True, blank=True
     )
-    limits = models.JSONField(blank=True, default=dict)
+    limits: dict = models.JSONField(blank=True, default=dict)
 
     def init_cost(self):
         if not self.plan:
@@ -947,7 +947,7 @@ class SafeAttributesMixin(models.Model):
     class Meta:
         abstract = True
 
-    offering = models.ForeignKey[Offering](
+    offering = models.ForeignKey[Offering, Offering](
         Offering, related_name="+", on_delete=models.CASCADE
     )
     attributes = models.JSONField(blank=True, default=dict)
@@ -1206,10 +1206,12 @@ class Order(
     old_plan = models.ForeignKey[Plan](
         on_delete=models.CASCADE, to=Plan, related_name="+", null=True, blank=True
     )
-    project = models.ForeignKey[structure_models.Project](
+    project = models.ForeignKey[structure_models.Project, structure_models.Project](
         on_delete=models.CASCADE, to=structure_models.Project
     )
-    resource = models.ForeignKey[Resource](on_delete=models.CASCADE, to=Resource)
+    resource = models.ForeignKey[Resource, Resource](
+        on_delete=models.CASCADE, to=Resource
+    )
     state = FSMIntegerField(default=States.PENDING_CONSUMER, choices=States.CHOICES)
     activated = models.DateTimeField(_("activation date"), null=True, blank=True)
     output = models.TextField(blank=True)

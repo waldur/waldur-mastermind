@@ -1,6 +1,7 @@
 import logging
 import re
 from functools import lru_cache
+from uuid import UUID
 
 from django.apps import apps
 from django.conf import settings
@@ -126,7 +127,7 @@ class UuidMixin(models.Model):
     class Meta:
         abstract = True
 
-    uuid = UUIDField()
+    uuid: UUID = UUIDField()
 
 
 class ErrorMessageMixin(models.Model):

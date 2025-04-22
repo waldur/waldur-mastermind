@@ -12,12 +12,11 @@ from waldur_api_client.models.public_offering_details import PublicOfferingDetai
 from httpx import TimeoutException
 from waldur_core.core.client import get_waldur_client
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace_remote import PLUGIN_NAME, utils
 from waldur_mastermind.marketplace_remote import models as remote_models
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_FIELDS,
 )
-
-from . import PLUGIN_NAME, utils
 
 logger = logging.getLogger(__name__)
 

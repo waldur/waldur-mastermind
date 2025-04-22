@@ -13,10 +13,9 @@ class MarketplaceRemoteConfig(AppConfig):
         from waldur_mastermind.marketplace_remote import (
             PLUGIN_NAME,
             constants,
+            handlers,
             processors,
         )
-
-        from . import handlers
 
         ProjectUpdateRequest = self.get_model("ProjectUpdateRequest")
 

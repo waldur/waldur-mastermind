@@ -8,13 +8,8 @@ from rest_framework import test
 import respx
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_remote import (
-    PLUGIN_NAME,
-    models,
-    tasks,
-)
-
-from . import factories, fixtures
+from waldur_mastermind.marketplace_remote import PLUGIN_NAME, models, tasks
+from waldur_mastermind.marketplace_remote.tests import factories, fixtures
 
 
 class RemoteOfferingsSyncTest(test.APITransactionTestCase):

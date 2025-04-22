@@ -13,9 +13,8 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace_remote import PLUGIN_NAME, log, models, tasks, utils
 from waldur_mastermind.marketplace_remote.utils import INVALID_RESOURCE_STATES
-
-from . import PLUGIN_NAME, log, models, tasks, utils
 
 logger = logging.getLogger(__name__)
 

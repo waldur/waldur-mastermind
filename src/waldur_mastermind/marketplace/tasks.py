@@ -14,23 +14,21 @@ from django.db.models import F, Q, Sum
 from django.utils import timezone
 from rest_framework import status
 
+from waldur_core import _get_version
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.log import event_logger
-from waldur_mastermind import __version__ as mastermind_version
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
-from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import exceptions, models, plugins, utils
 from waldur_mastermind.marketplace.utils import (
     get_consumer_approvers,
     get_provider_approvers,
 )
 from waldur_mastermind.support.backend import get_active_backend
-
-from . import exceptions, models, plugins, utils
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +59,7 @@ def create_screenshot_thumbnail(uuid):
 
 @shared_task
 def notify_consumer_about_pending_order(uuid):
-    order: models.Order = models.Order.objects.get(uuid=uuid)
+    order = models.Order.objects.get(uuid=uuid)
     approvers = get_consumer_approvers(order)
 
     if not approvers:
@@ -93,7 +91,7 @@ def notify_consumer_about_pending_order(uuid):
 
 @shared_task
 def notify_provider_about_pending_order(order_uuid):
-    order: models.Order = models.Order.objects.get(uuid=order_uuid)
+    order = models.Order.objects.get(uuid=order_uuid)
 
     approvers = get_provider_approvers(order)
     if not approvers:
@@ -426,9 +424,9 @@ def notification_about_project_ending():
 def notification_about_resource_ending():
     date_1 = timezone.datetime.today().date() + datetime.timedelta(days=1)
     date_7 = timezone.datetime.today().date() + datetime.timedelta(days=7)
-    expired_resources = marketplace_models.Resource.objects.exclude(
-        end_date__isnull=True
-    ).filter(Q(end_date=date_1) | Q(end_date=date_7))
+    expired_resources = models.Resource.objects.exclude(end_date__isnull=True).filter(
+        Q(end_date=date_1) | Q(end_date=date_7)
+    )
 
     for resource in expired_resources:
         users = (
@@ -475,24 +473,24 @@ def send_metrics():
         "helpdesk_backend": get_active_backend().backend_name,
         "helpdesk_integration_status": config.WALDUR_SUPPORT_ENABLED,
         "number_of_users": core_models.User.objects.filter(is_active=True).count(),
-        "number_of_offerings": marketplace_models.Offering.objects.filter(
+        "number_of_offerings": models.Offering.objects.filter(
             state__in=(
-                marketplace_models.Offering.States.ACTIVE,
-                marketplace_models.Offering.States.PAUSED,
+                models.Offering.States.ACTIVE,
+                models.Offering.States.PAUSED,
             )
         ).count(),
         "types_of_offering": list(
-            marketplace_models.Offering.objects.filter(
+            models.Offering.objects.filter(
                 state__in=(
-                    marketplace_models.Offering.States.ACTIVE,
-                    marketplace_models.Offering.States.PAUSED,
+                    models.Offering.States.ACTIVE,
+                    models.Offering.States.PAUSED,
                 )
             )
             .order_by()
             .values_list("type", flat=True)
             .distinct()
         ),
-        "version": mastermind_version,
+        "version": _get_version(),
     }
     if installation_date_str:
         params["installation_date"] = installation_date_str
@@ -546,9 +544,9 @@ def process_pending_project_orders():
 def mark_resources_as_erred_after_timeout():
     now = timezone.now()
     two_hours_ago = now - datetime.timedelta(hours=2)
-    stale_orders = marketplace_models.Order.objects.filter(
+    stale_orders = models.Order.objects.filter(
         offering__type__in=plugins.manager.list_interruptible_offerings(),
-        state=marketplace_models.Order.States.EXECUTING,
+        state=models.Order.States.EXECUTING,
         modified__lt=two_hours_ago,
     )
 
@@ -569,7 +567,7 @@ def mark_resources_as_erred_after_timeout():
 @shared_task
 def notify_user_that_order_been_rejected(order_uuid):
     try:
-        order: models.Order = models.Order.objects.get(uuid=order_uuid)
+        order = models.Order.objects.get(uuid=order_uuid)
     except models.Order.DoesNotExist:
         logger.warning(
             f"Cannot send rejection notification: Order {order_uuid} not found."
@@ -609,8 +607,8 @@ def remove_deleted_robot_accounts():
     This task runs daily to clean up robot accounts that have been marked for deletion.
     """
     logger.info("Daily task: Removing deleted robot accounts")
-    deleted_accounts = marketplace_models.RobotAccount.objects.filter(
-        state=marketplace_models.RobotAccount.States.DELETED
+    deleted_accounts = models.RobotAccount.objects.filter(
+        state=models.RobotAccount.States.DELETED
     )
     count = deleted_accounts.count()
     deleted_accounts.delete()

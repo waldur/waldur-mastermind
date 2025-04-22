@@ -69,6 +69,11 @@ from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_state
 from waldur_mastermind.marketplace.utils import get_plan_period
+from waldur_mastermind.marketplace_remote import (
+    PLUGIN_NAME,
+    utils,
+    utils_sync_remote_offerings,
+)
 from waldur_mastermind.marketplace_remote import models as remote_models
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
@@ -82,8 +87,6 @@ from waldur_mastermind.marketplace_remote.utils import (
     pull_fields,
     sync_project_permission,
 )
-
-from . import PLUGIN_NAME, utils, utils_sync_remote_offerings
 
 logger = logging.getLogger(__name__)
 

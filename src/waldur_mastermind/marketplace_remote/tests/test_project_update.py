@@ -14,10 +14,9 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
+from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
 from waldur_mastermind.marketplace_remote.tests.utils import get_request_data
-
-from .. import PLUGIN_NAME
 
 
 @override_settings(

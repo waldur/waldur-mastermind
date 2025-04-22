@@ -1,6 +1,6 @@
 from django.urls import re_path
 
-from . import views
+from waldur_mastermind.marketplace_remote import views
 
 urlpatterns = [
     re_path(
