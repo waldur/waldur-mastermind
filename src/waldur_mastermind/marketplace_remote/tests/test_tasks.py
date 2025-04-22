@@ -555,7 +555,7 @@ class ResourceOrderImportTest(testcases.TransactionTestCase):
             f"{self.api_url}/api/marketplace-resources/{resource_uuid}/update_options/"
         ).respond(200, json=[])
 
-        self.mock_marketplace_resource_details(
+        self.mock_marketplace_resource(
             resource_uuid,
             {
                 "report": "",
