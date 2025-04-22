@@ -22,7 +22,7 @@ from waldur_api_client.api.marketplace_public_offerings import (
     marketplace_public_offerings_retrieve,
 )
 from waldur_api_client.api.marketplace_resources import (
-    marketplace_resources_details_retrieve,
+    marketplace_resources_retrieve,
 )
 from waldur_api_client.api.marketplace_robot_accounts import (
     marketplace_robot_accounts_list,
@@ -411,7 +411,7 @@ class OfferingUserListPullTask(BackgroundListPullTask):
 class ResourcePullTask(BackgroundPullTask):
     def pull(self, local_resource: models.Resource):
         client = get_client_for_offering(local_resource.offering)
-        remote_resource = marketplace_resources_details_retrieve.sync(
+        remote_resource = marketplace_resources_retrieve.sync(
             client=client, uuid=local_resource.backend_id
         )
         pull_fields(RESOURCE_FIELDS, local_resource, remote_resource.to_dict())
