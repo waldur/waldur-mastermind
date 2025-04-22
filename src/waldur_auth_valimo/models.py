@@ -30,7 +30,7 @@ class AuthResult(
             (ERRED, ERRED),
         )
 
-    user = models.ForeignKey(
+    user = models.ForeignKey[core_models.User](
         on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,
         related_name="auth_valimo_results",

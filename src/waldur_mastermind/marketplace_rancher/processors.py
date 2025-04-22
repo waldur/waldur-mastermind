@@ -211,7 +211,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             if unavailable_volume_types:
                 raise rf_serializers.ValidationError(
                     "These volume types are not available in OpenStack offering '{}': {}".format(
-                        service_setting.uuid, ", ".join(unavailable_volume_types)
+                        service_setting, ", ".join(unavailable_volume_types)
                     )
                 )
 

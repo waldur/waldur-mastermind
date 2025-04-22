@@ -177,7 +177,7 @@ class Category(
         ),
     )
 
-    group = models.ForeignKey(
+    group = models.ForeignKey[CategoryGroup](
         CategoryGroup, blank=True, null=True, on_delete=models.SET_NULL
     )
 
@@ -231,7 +231,7 @@ class CategoryColumn(
     class Meta:
         ordering = ("category", "index")
 
-    category = models.ForeignKey(
+    category = models.ForeignKey[Category](
         on_delete=models.CASCADE, to=Category, related_name="columns"
     )
     index = models.PositiveSmallIntegerField(
@@ -266,7 +266,7 @@ class CategoryColumn(
 class Section(TimeStampedModel):
     key = models.CharField(primary_key=True, max_length=255)
     title = models.CharField(blank=False, max_length=255)
-    category = models.ForeignKey(
+    category = models.ForeignKey[Category](
         on_delete=models.CASCADE, to=Category, related_name="sections"
     )
     is_standalone = models.BooleanField(
@@ -285,7 +285,7 @@ class Attribute(TimeStampedModel):
         primary_key=True, max_length=255, validators=[InternalNameValidator]
     )
     title = models.CharField(blank=False, max_length=255)
-    section = models.ForeignKey(
+    section = models.ForeignKey[Section](
         on_delete=models.CASCADE, to=Section, related_name="attributes"
     )
     type = models.CharField(max_length=255, choices=ATTRIBUTE_TYPES)
@@ -299,7 +299,7 @@ class Attribute(TimeStampedModel):
 
 
 class AttributeOption(models.Model):
-    attribute = models.ForeignKey(
+    attribute = models.ForeignKey[Attribute](
         Attribute, related_name="options", on_delete=models.CASCADE
     )
     key = models.CharField(max_length=255, validators=[InternalNameValidator])
@@ -343,7 +343,7 @@ class CategoryComponent(BaseComponent, core_models.UuidMixin):
     class Meta:
         unique_together = ("type", "category")
 
-    category = models.ForeignKey(
+    category = models.ForeignKey[Category](
         on_delete=models.CASCADE, to=Category, related_name="components"
     )
 
@@ -352,7 +352,9 @@ class CategoryComponent(BaseComponent, core_models.UuidMixin):
 
 
 class CategoryComponentUsage(core_mixins.ScopeMixin):
-    component = models.ForeignKey(on_delete=models.CASCADE, to=CategoryComponent)
+    component = models.ForeignKey[CategoryComponent](
+        on_delete=models.CASCADE, to=CategoryComponent
+    )
     date = models.DateField()
     reported_usage = models.BigIntegerField(null=True)
     fixed_usage = models.BigIntegerField(null=True)
@@ -395,16 +397,16 @@ class Offering(
     vendor_details = models.TextField(blank=True)
     getting_started = models.TextField(blank=True)
     integration_guide = models.TextField(blank=True)
-    category = models.ForeignKey(
+    category = models.ForeignKey[Category](
         on_delete=models.CASCADE, to=Category, related_name="offerings"
     )
-    customer: structure_models.Customer = models.ForeignKey(
+    customer: structure_models.Customer = models.ForeignKey[structure_models.Customer](
         on_delete=models.CASCADE,
         to=structure_models.Customer,
         related_name="+",
         null=True,
     )
-    project = models.ForeignKey(
+    project = models.ForeignKey[structure_models.Project](
         on_delete=models.CASCADE,
         to=structure_models.Project,
         related_name="+",
@@ -412,7 +414,7 @@ class Offering(
         blank=True,
     )
     # Volume offering is linked with VPC offering via parent field
-    parent = models.ForeignKey(
+    parent = models.ForeignKey["Offering"](
         on_delete=models.CASCADE,
         to="Offering",
         null=True,
@@ -642,10 +644,10 @@ class OfferingComponent(
             ),
         )
 
-    offering = models.ForeignKey(
+    offering = models.ForeignKey[Offering](
         on_delete=models.CASCADE, to=Offering, related_name="components"
     )
-    parent = models.ForeignKey(
+    parent = models.ForeignKey[CategoryComponent](
         on_delete=models.CASCADE, to=CategoryComponent, null=True, blank=True
     )
     billing_type = models.CharField(
@@ -718,7 +720,7 @@ class Plan(
     It is assumed that plan price is updated manually when plan component is managed via Django ORM.
     """
 
-    offering = models.ForeignKey(
+    offering = models.ForeignKey[Offering](
         on_delete=models.CASCADE, to=Offering, related_name="plans"
     )
     archived = models.BooleanField(
@@ -816,10 +818,10 @@ class PlanComponent(LoggableMixin, models.Model):
         unique_together = ("plan", "component")
         ordering = ("component__name",)
 
-    plan = models.ForeignKey(
+    plan = models.ForeignKey[Plan](
         on_delete=models.CASCADE, to=Plan, related_name="components"
     )
-    component = models.ForeignKey(
+    component = models.ForeignKey[OfferingComponent](
         on_delete=models.CASCADE,
         to=OfferingComponent,
         related_name="components",
@@ -870,7 +872,7 @@ class Screenshot(
 ):
     image = models.ImageField(upload_to=get_upload_path)
     thumbnail = models.ImageField(upload_to=get_upload_path, editable=False, null=True)
-    offering = models.ForeignKey(
+    offering = models.ForeignKey[Offering](
         on_delete=models.CASCADE, to=Offering, related_name="screenshots"
     )
 
@@ -894,7 +896,9 @@ class CostEstimateMixin(models.Model):
 
     # Cost estimate is computed with respect to limit components
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
-    plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan, null=True, blank=True)
+    plan = models.ForeignKey[Plan](
+        on_delete=models.CASCADE, to=Plan, null=True, blank=True
+    )
     limits = models.JSONField(blank=True, default=dict)
 
     def init_cost(self):
@@ -943,7 +947,9 @@ class SafeAttributesMixin(models.Model):
     class Meta:
         abstract = True
 
-    offering = models.ForeignKey(Offering, related_name="+", on_delete=models.CASCADE)
+    offering = models.ForeignKey[Offering](
+        Offering, related_name="+", on_delete=models.CASCADE
+    )
     attributes = models.JSONField(blank=True, default=dict)
 
     @property
@@ -977,7 +983,7 @@ class ResourceDetailsMixin(
             "The date is inclusive. Once reached, a resource will be scheduled for termination."
         ),
     )
-    end_date_requested_by = models.ForeignKey(
+    end_date_requested_by = models.ForeignKey[core_models.User](
         on_delete=models.SET_NULL,
         to=core_models.User,
         blank=True,
@@ -1024,8 +1030,10 @@ class Resource(
         unique_together = ("content_type", "object_id")
 
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
-    project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
-    parent = models.ForeignKey(
+    project = models.ForeignKey[structure_models.Project](
+        structure_models.Project, on_delete=models.CASCADE
+    )
+    parent = models.ForeignKey["Resource"](
         on_delete=models.SET_NULL,
         to="Resource",
         related_name="children",
@@ -1169,10 +1177,10 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixi
     This model allows to track billing plan for timeframes during resource lifecycle.
     """
 
-    resource = models.ForeignKey(
+    resource = models.ForeignKey[Resource](
         on_delete=models.CASCADE, to=Resource, related_name="+"
     )
-    plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan)
+    plan = models.ForeignKey[Plan](on_delete=models.CASCADE, to=Plan)
 
     def __str__(self):
         return str(self.resource.name)
@@ -1195,22 +1203,24 @@ class Order(
     class States(OrderStates):
         pass
 
-    old_plan = models.ForeignKey(
+    old_plan = models.ForeignKey[Plan](
         on_delete=models.CASCADE, to=Plan, related_name="+", null=True, blank=True
     )
-    project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project)
-    resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource)
+    project = models.ForeignKey[structure_models.Project](
+        on_delete=models.CASCADE, to=structure_models.Project
+    )
+    resource = models.ForeignKey[Resource](on_delete=models.CASCADE, to=Resource)
     state = FSMIntegerField(default=States.PENDING_CONSUMER, choices=States.CHOICES)
     activated = models.DateTimeField(_("activation date"), null=True, blank=True)
     output = models.TextField(blank=True)
     tracker = FieldTracker()
 
-    created_by = models.ForeignKey(
+    created_by = models.ForeignKey[core_models.User](
         on_delete=models.CASCADE,
         to=core_models.User,
         related_name="+",
     )
-    consumer_reviewed_by = models.ForeignKey(
+    consumer_reviewed_by = models.ForeignKey[core_models.User](
         on_delete=models.CASCADE,
         to=core_models.User,
         blank=True,
@@ -1218,7 +1228,7 @@ class Order(
         related_name="+",
     )
     consumer_reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
-    provider_reviewed_by = models.ForeignKey(
+    provider_reviewed_by = models.ForeignKey[core_models.User](
         on_delete=models.CASCADE,
         to=core_models.User,
         blank=True,
@@ -1317,10 +1327,10 @@ class Order(
 
 
 class ComponentQuota(TimeStampedModel):
-    resource = models.ForeignKey(
+    resource = models.ForeignKey[Resource](
         on_delete=models.CASCADE, to=Resource, related_name="quotas"
     )
-    component = models.ForeignKey(
+    component = models.ForeignKey[OfferingComponent](
         on_delete=models.CASCADE,
         to=OfferingComponent,
     )
@@ -1341,16 +1351,16 @@ class ComponentUsage(
     core_models.UuidMixin,
     LoggableMixin,
 ):
-    resource = models.ForeignKey(
+    resource = models.ForeignKey[Resource](
         on_delete=models.CASCADE, to=Resource, related_name="usages"
     )
-    component = models.ForeignKey(
+    component = models.ForeignKey[OfferingComponent](
         on_delete=models.CASCADE,
         to=OfferingComponent,
     )
     usage = models.DecimalField(default=0, decimal_places=2, max_digits=20)
     date = models.DateTimeField()
-    plan_period = models.ForeignKey(
+    plan_period = models.ForeignKey["ResourcePlanPeriod"](
         on_delete=models.CASCADE,
         to="ResourcePlanPeriod",
         related_name="components",
@@ -1360,7 +1370,7 @@ class ComponentUsage(
     recurring = models.BooleanField(
         default=False, help_text="Reported value is reused every month until changed."
     )
-    modified_by = models.ForeignKey(
+    modified_by = models.ForeignKey[User](
         to=User, related_name="+", blank=True, null=True, on_delete=models.SET_NULL
     )
 
@@ -1397,11 +1407,13 @@ class ComponentUserUsage(
     This model represents an amount of a component consumed by a user.
     """
 
-    user = models.ForeignKey(
+    user = models.ForeignKey["OfferingUser"](
         to="OfferingUser", on_delete=models.CASCADE, blank=True, null=True
     )
     username = models.CharField(max_length=100)
-    component_usage = models.ForeignKey(ComponentUsage, on_delete=models.CASCADE)
+    component_usage = models.ForeignKey[ComponentUsage](
+        ComponentUsage, on_delete=models.CASCADE
+    )
     usage = models.DecimalField(default=0, decimal_places=2, max_digits=20)
 
     class Meta:
@@ -1413,12 +1425,14 @@ class ComponentUserUsageLimit(
     core_models.UuidMixin,
     LoggableMixin,
 ):
-    resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource)
-    component = models.ForeignKey(
+    resource = models.ForeignKey[Resource](on_delete=models.CASCADE, to=Resource)
+    component = models.ForeignKey[OfferingComponent](
         on_delete=models.CASCADE,
         to=OfferingComponent,
     )
-    user = models.ForeignKey(to="OfferingUser", on_delete=models.CASCADE, null=False)
+    user = models.ForeignKey["OfferingUser"](
+        to="OfferingUser", on_delete=models.CASCADE, null=False
+    )
     limit = models.DecimalField(default=0, decimal_places=2, max_digits=20)
 
     class Meta:
@@ -1434,7 +1448,7 @@ class OfferingFile(
     core_models.NameMixin,
     TimeStampedModel,
 ):
-    offering = models.ForeignKey(
+    offering = models.ForeignKey[Offering](
         on_delete=models.CASCADE, to=Offering, related_name="files"
     )
     file = models.FileField(upload_to="offering_files")
@@ -1456,8 +1470,8 @@ class OfferingUser(
     common_mixins.BackendMetadataMixin,
     LoggableMixin,
 ):
-    offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    offering = models.ForeignKey[Offering](Offering, on_delete=models.CASCADE)
+    user = models.ForeignKey[User](User, on_delete=models.CASCADE)
     username = models.CharField(max_length=100, blank=True, null=True)
     is_restricted = models.BooleanField(
         default=False,
@@ -1478,7 +1492,7 @@ class OfferingUser(
 
 class OfferingUserGroup(TimeStampedModel, common_mixins.BackendMetadataMixin):
     projects = models.ManyToManyField(structure_models.Project, blank=True)
-    offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
+    offering = models.ForeignKey[Offering](Offering, on_delete=models.CASCADE)
 
     def __str__(self):
         return "Offering user group for %s" % self.offering
@@ -1518,13 +1532,13 @@ class RobotAccount(
             (ERROR, "Error"),
         )
 
-    resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
+    resource = models.ForeignKey[Resource](Resource, on_delete=models.CASCADE)
     type = models.CharField(max_length=5)
     # empty string should be allowed because name is set by
     # service provider after the account is created
     username = models.CharField(max_length=32, blank=True)
     users = models.ManyToManyField(User, blank=True)
-    responsible_user = models.ForeignKey(
+    responsible_user = models.ForeignKey[User](
         on_delete=models.SET_NULL,
         to=User,
         null=True,
@@ -1575,20 +1589,20 @@ class RobotAccount(
 
 class OfferingAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
     url = core_fields.BackendURLField()
-    offering = models.ForeignKey(
+    offering = models.ForeignKey[Offering](
         on_delete=models.CASCADE, to=Offering, related_name="endpoints"
     )
 
 
 class ResourceAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
     url = core_fields.BackendURLField()
-    resource = models.ForeignKey(
+    resource = models.ForeignKey[Resource](
         on_delete=models.CASCADE, to=Resource, related_name="endpoints"
     )
 
 
 class OfferingUserRole(core_models.UuidMixin, core_models.NameMixin):
-    offering = models.ForeignKey(
+    offering = models.ForeignKey[Offering](
         on_delete=models.CASCADE, to=Offering, related_name="roles"
     )
 
@@ -1597,13 +1611,13 @@ class OfferingUserRole(core_models.UuidMixin, core_models.NameMixin):
 
 
 class ResourceUser(TimeStampedModel, core_models.UuidMixin):
-    resource = models.ForeignKey(
+    resource = models.ForeignKey[Resource](
         on_delete=models.CASCADE, to=Resource, related_name="users"
     )
-    user = models.ForeignKey(
+    user = models.ForeignKey[core_models.User](
         core_models.User, related_name="+", on_delete=models.CASCADE
     )
-    role = models.ForeignKey(
+    role = models.ForeignKey[OfferingUserRole](
         OfferingUserRole, related_name="+", on_delete=models.CASCADE
     )
 
@@ -1648,7 +1662,7 @@ class IntegrationStatus(core_models.UuidMixin):
     agent_type = models.CharField(
         max_length=20, choices=AgentTypes.CHOICES, default=AgentTypes.ORDER_PROCESSING
     )
-    offering = models.ForeignKey(
+    offering = models.ForeignKey[Offering](
         Offering,
         on_delete=models.CASCADE,
     )

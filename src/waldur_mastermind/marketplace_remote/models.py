@@ -13,8 +13,10 @@ class ProjectUpdateRequest(core_models.UuidMixin, ReviewMixin):
     class Meta:
         ordering = ["created"]
 
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="+")
-    offering = models.ForeignKey(
+    project = models.ForeignKey[Project](
+        Project, on_delete=models.CASCADE, related_name="+"
+    )
+    offering = models.ForeignKey[marketplace_models.Offering](
         marketplace_models.Offering, on_delete=models.CASCADE, related_name="+"
     )
     tracker = FieldTracker()
@@ -32,7 +34,7 @@ class ProjectUpdateRequest(core_models.UuidMixin, ReviewMixin):
     new_oecd_fos_2007_code = models.CharField(null=True, blank=True, max_length=5)
     old_is_industry = models.BooleanField(null=True, blank=True)
     new_is_industry = models.BooleanField(null=True, blank=True)
-    created_by = models.ForeignKey(
+    created_by = models.ForeignKey[core_models.User](
         on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,
         related_name="+",
@@ -73,7 +75,7 @@ class RemoteSynchronisation(
     token = models.CharField(max_length=255)
     remote_organization_uuid = models.UUIDField()
     remote_organization_name = models.CharField(max_length=255)
-    local_service_provider = models.ForeignKey(
+    local_service_provider = models.ForeignKey[marketplace_models.ServiceProvider](
         marketplace_models.ServiceProvider, on_delete=models.CASCADE
     )
     is_active = models.BooleanField(default=True)
@@ -91,12 +93,12 @@ class RemoteSynchronisation(
 
 
 class RemoteLocalCategory(core_models.UuidMixin):
-    local_category = models.ForeignKey(
+    local_category = models.ForeignKey[marketplace_models.Category](
         marketplace_models.Category, on_delete=models.CASCADE
     )
     remote_category = models.UUIDField()
     remote_category_name = models.CharField(max_length=255, default="Unknown")
-    remote_synchronisation = models.ForeignKey(
+    remote_synchronisation = models.ForeignKey[RemoteSynchronisation](
         RemoteSynchronisation, on_delete=models.CASCADE, editable=False
     )
 

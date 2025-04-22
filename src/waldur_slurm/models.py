@@ -48,7 +48,7 @@ class Allocation(UsageMixin, structure_models.BaseResource):
 
 
 class Association(core_models.UuidMixin):
-    allocation = models.ForeignKey(
+    allocation = models.ForeignKey[Allocation](
         to=Allocation, on_delete=models.CASCADE, related_name="associations"
     )
     username = models.CharField(
@@ -71,13 +71,13 @@ class AllocationUserUsage(UsageMixin):
     Allocation usage per user. This model is responsible for the allocation usage definition for particular user.
     """
 
-    allocation = models.ForeignKey(to=Allocation, on_delete=models.CASCADE)
+    allocation = models.ForeignKey[Allocation](to=Allocation, on_delete=models.CASCADE)
     year = models.PositiveSmallIntegerField()
     month = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(12)]
     )
 
-    user = models.ForeignKey(
+    user = models.ForeignKey[core_models.User](
         to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE, blank=True, null=True
     )
 

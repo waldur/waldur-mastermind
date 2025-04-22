@@ -29,7 +29,7 @@ class SettingsMixin(models.Model):
     class Meta:
         abstract = True
 
-    settings = models.ForeignKey(
+    settings = models.ForeignKey[ServiceSettings](
         to="structure.ServiceSettings",
         on_delete=models.CASCADE,
         related_name="+",
@@ -44,14 +44,14 @@ class Cluster(SettingsMixin, BaseResource):
         ACTIVE = "active"
 
     tracker = FieldTracker()
-    tenant = models.ForeignKey(
+    tenant = models.ForeignKey[openstack_models.Tenant](
         to=openstack_models.Tenant,
         on_delete=models.CASCADE,
         null=True,
         blank=True,
     )
     runtime_state = models.CharField(max_length=255, blank=True)
-    management_security_group = models.ForeignKey(
+    management_security_group = models.ForeignKey[openstack_models.SecurityGroup](
         to=openstack_models.SecurityGroup,
         on_delete=models.SET_NULL,
         null=True,
@@ -93,14 +93,14 @@ class Node(
         REGISTERING = "registering"
         UNAVAILABLE = "unavailable"
 
-    content_type = models.ForeignKey(
+    content_type = models.ForeignKey[ContentType](
         on_delete=models.CASCADE, to=ContentType, null=True, related_name="+"
     )
     object_id = models.PositiveIntegerField(null=True)
     instance = GenericForeignKey(
         "content_type", "object_id"
     )  # a virtual machine where will deploy k8s node.
-    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
+    cluster = models.ForeignKey[Cluster](Cluster, on_delete=models.CASCADE)
     initial_data = models.JSONField(
         blank=True, default=dict, help_text=_("Initial data for instance creating.")
     )
@@ -144,9 +144,13 @@ class RancherUser(
     BackendMixin,
     structure_models.StructureLoggableMixin,
 ):
-    user = models.ForeignKey(core_models.User, on_delete=models.CASCADE)
+    user = models.ForeignKey[core_models.User](
+        core_models.User, on_delete=models.CASCADE
+    )
     clusters = models.ManyToManyField(Cluster, through="RancherUserClusterLink")
-    settings = models.ForeignKey("structure.ServiceSettings", on_delete=models.PROTECT)
+    settings = models.ForeignKey[ServiceSettings](
+        "structure.ServiceSettings", on_delete=models.PROTECT
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -195,18 +199,18 @@ class RoleTemplate(SettingsMixin, core_models.UuidMixin):
 
 
 class RancherUserClusterLink(BackendMixin):
-    user = models.ForeignKey(RancherUser, on_delete=models.CASCADE)
-    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
-    role = models.ForeignKey(RoleTemplate, on_delete=models.CASCADE)
+    user = models.ForeignKey[RancherUser](RancherUser, on_delete=models.CASCADE)
+    cluster = models.ForeignKey[Cluster](Cluster, on_delete=models.CASCADE)
+    role = models.ForeignKey[RoleTemplate](RoleTemplate, on_delete=models.CASCADE)
 
     class Meta:
         unique_together = (("user", "cluster", "role"),)
 
 
 class RancherUserProjectLink(BackendMixin):
-    user = models.ForeignKey(RancherUser, on_delete=models.CASCADE)
-    project = models.ForeignKey("Project", on_delete=models.CASCADE)
-    role = models.ForeignKey(RoleTemplate, on_delete=models.CASCADE)
+    user = models.ForeignKey[RancherUser](RancherUser, on_delete=models.CASCADE)
+    project = models.ForeignKey["Project"]("Project", on_delete=models.CASCADE)
+    role = models.ForeignKey[RoleTemplate](RoleTemplate, on_delete=models.CASCADE)
 
     class Meta:
         unique_together = (("user", "project", "role"),)
@@ -222,7 +226,7 @@ class Catalog(
     core_models.RuntimeStateMixin,
 ):
     # Rancher supports global, cluster and project scope
-    content_type = models.ForeignKey(
+    content_type = models.ForeignKey[ContentType](
         on_delete=models.CASCADE, to=ContentType, null=True, related_name="+"
     )
     object_id = models.PositiveIntegerField(null=True)
@@ -258,7 +262,7 @@ class Project(
     SettingsMixin,
     core_models.RuntimeStateMixin,
 ):
-    cluster = models.ForeignKey(
+    cluster = models.ForeignKey[Cluster](
         Cluster, on_delete=models.CASCADE, null=True, related_name="+"
     )
 
@@ -282,7 +286,7 @@ class Namespace(
     SettingsMixin,
     core_models.RuntimeStateMixin,
 ):
-    project = models.ForeignKey(
+    project = models.ForeignKey[Project](
         Project, on_delete=models.CASCADE, null=True, related_name="namespaces"
     )
 
@@ -304,13 +308,13 @@ class Template(
     SettingsMixin,
     core_models.RuntimeStateMixin,
 ):
-    catalog = models.ForeignKey(
+    catalog = models.ForeignKey[Catalog](
         Catalog, on_delete=models.CASCADE, null=True, related_name="+"
     )
-    cluster = models.ForeignKey(
+    cluster = models.ForeignKey[Cluster](
         Cluster, on_delete=models.CASCADE, null=True, related_name="+"
     )
-    project = models.ForeignKey(
+    project = models.ForeignKey[Project](
         Project, on_delete=models.CASCADE, null=True, related_name="+"
     )
     project_url = models.URLField(max_length=500, blank=True)
@@ -337,13 +341,13 @@ class Workload(
     BackendMixin,
     SettingsMixin,
 ):
-    cluster = models.ForeignKey(
+    cluster = models.ForeignKey[Cluster](
         Cluster, on_delete=models.CASCADE, null=True, related_name="+"
     )
-    project = models.ForeignKey(
+    project = models.ForeignKey[Project](
         Project, on_delete=models.CASCADE, null=True, related_name="+"
     )
-    namespace = models.ForeignKey(
+    namespace = models.ForeignKey[Namespace](
         Namespace, on_delete=models.CASCADE, null=True, related_name="+"
     )
     scale = models.PositiveSmallIntegerField()
@@ -377,16 +381,16 @@ class HPA(
     HPA stands for Horizontal Pod Autoscaler.
     """
 
-    cluster = models.ForeignKey(
+    cluster = models.ForeignKey[Cluster](
         Cluster, on_delete=models.CASCADE, null=True, related_name="+"
     )
-    project = models.ForeignKey(
+    project = models.ForeignKey[Project](
         Project, on_delete=models.CASCADE, null=True, related_name="+"
     )
-    namespace = models.ForeignKey(
+    namespace = models.ForeignKey[Namespace](
         Namespace, on_delete=models.CASCADE, null=True, related_name="+"
     )
-    workload = models.ForeignKey(
+    workload = models.ForeignKey[Workload](
         Workload, on_delete=models.CASCADE, null=True, related_name="+"
     )
     current_replicas = models.PositiveSmallIntegerField(default=0)
@@ -426,7 +430,7 @@ class ClusterTemplate(
 
 
 class ClusterTemplateNode(RoleMixin):
-    template = models.ForeignKey(
+    template = models.ForeignKey[ClusterTemplate](
         ClusterTemplate, on_delete=models.CASCADE, related_name="nodes"
     )
     min_vcpu = models.PositiveSmallIntegerField(verbose_name="Min vCPU (cores)")
@@ -438,10 +442,10 @@ class ClusterTemplateNode(RoleMixin):
 
 
 class Application(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
-    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
-    template = models.ForeignKey(Template, on_delete=models.CASCADE)
-    rancher_project = models.ForeignKey(Project, on_delete=models.CASCADE)
-    namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
+    cluster = models.ForeignKey[Cluster](Cluster, on_delete=models.CASCADE)
+    template = models.ForeignKey[Template](Template, on_delete=models.CASCADE)
+    rancher_project = models.ForeignKey[Project](Project, on_delete=models.CASCADE)
+    namespace = models.ForeignKey[Namespace](Namespace, on_delete=models.CASCADE)
     version = models.CharField(max_length=100)
     answers = models.JSONField(blank=True, default=dict)
 
@@ -458,9 +462,9 @@ class Application(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
 
 
 class Ingress(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
-    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
-    namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
-    rancher_project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    cluster = models.ForeignKey[Cluster](Cluster, on_delete=models.CASCADE)
+    namespace = models.ForeignKey[Namespace](Namespace, on_delete=models.CASCADE)
+    rancher_project = models.ForeignKey[Project](Project, on_delete=models.CASCADE)
     rules = models.JSONField(blank=True, default=list)
 
     @classmethod
@@ -472,7 +476,7 @@ class Ingress(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
 
 
 class Service(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
-    namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
+    namespace = models.ForeignKey[Namespace](Namespace, on_delete=models.CASCADE)
     cluster_ip = models.GenericIPAddressField(protocol="IPv4", blank=True, null=True)
     target_workloads = models.ManyToManyField(Workload)
     selector = models.JSONField(blank=True, null=True)
@@ -492,7 +496,7 @@ class KeycloakGroup(
 ):
     name = models.CharField(_("Group name"), max_length=150, blank=True)
     scope_uuid = models.UUIDField(help_text=_("UUID of the cluster or project"))
-    role = models.ForeignKey(RoleTemplate, on_delete=models.CASCADE)
+    role = models.ForeignKey[RoleTemplate](RoleTemplate, on_delete=models.CASCADE)
 
     class Meta:
         unique_together = (("scope_uuid", "role"),)
@@ -511,7 +515,7 @@ class KeycloakUserGroupMembership(
         default=KeycloakUserGroupMembershipState.PENDING,
     )
     last_checked = models.DateTimeField(auto_now=True)
-    group = models.ForeignKey(to=KeycloakGroup, on_delete=models.CASCADE)
+    group = models.ForeignKey[KeycloakGroup](to=KeycloakGroup, on_delete=models.CASCADE)
     first_name = models.CharField(max_length=100, blank=True)
     last_name = models.CharField(max_length=100, blank=True)
 

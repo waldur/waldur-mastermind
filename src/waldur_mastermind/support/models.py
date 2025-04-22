@@ -61,7 +61,7 @@ class Issue(
     resolution = models.CharField(max_length=255, blank=True)
     priority = models.CharField(max_length=255, blank=True)
 
-    caller = models.ForeignKey(
+    caller = models.ForeignKey[core_models.User](
         settings.AUTH_USER_MODEL,
         related_name="created_issues",
         blank=True,
@@ -69,7 +69,7 @@ class Issue(
         help_text=_("Waldur user who has reported the issue."),
         on_delete=models.SET_NULL,
     )
-    reporter = models.ForeignKey(
+    reporter = models.ForeignKey["SupportUser"](
         "SupportUser",
         related_name="reported_issues",
         blank=True,
@@ -79,7 +79,7 @@ class Issue(
         ),
         on_delete=models.PROTECT,
     )
-    assignee = models.ForeignKey(
+    assignee = models.ForeignKey["SupportUser"](
         "SupportUser",
         related_name="issues",
         blank=True,
@@ -88,7 +88,7 @@ class Issue(
         on_delete=models.PROTECT,
     )
 
-    customer = models.ForeignKey(
+    customer = models.ForeignKey[structure_models.Customer](
         structure_models.Customer,
         verbose_name=_("organization"),
         related_name="issues",
@@ -96,7 +96,7 @@ class Issue(
         null=True,
         on_delete=models.CASCADE,
     )
-    project = models.ForeignKey(
+    project = models.ForeignKey[structure_models.Project](
         structure_models.Project,
         related_name="issues",
         blank=True,
@@ -104,7 +104,7 @@ class Issue(
         on_delete=models.CASCADE,
     )
 
-    resource_content_type = models.ForeignKey(
+    resource_content_type = models.ForeignKey[ContentType](
         on_delete=models.CASCADE, to=ContentType, null=True
     )
     resource_object_id = models.PositiveIntegerField(null=True)
@@ -112,7 +112,7 @@ class Issue(
 
     first_response_sla = models.DateTimeField(blank=True, null=True)
     resolution_date = models.DateTimeField(blank=True, null=True)
-    template = models.ForeignKey(
+    template = models.ForeignKey["Template"](
         "Template",
         related_name="issues",
         blank=True,
@@ -224,7 +224,7 @@ class SupportUser(
         ordering = ["name"]
         unique_together = ("backend_name", "backend_id", "user")
 
-    user = models.ForeignKey(
+    user = models.ForeignKey[core_models.User](
         on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,
         related_name="+",
@@ -265,10 +265,10 @@ class Comment(
         customer_path = "issue__customer"
         project_path = "issue__project"
 
-    issue = models.ForeignKey(
+    issue = models.ForeignKey[Issue](
         on_delete=models.CASCADE, to=Issue, related_name="comments"
     )
-    author = models.ForeignKey(
+    author = models.ForeignKey[SupportUser](
         on_delete=models.CASCADE, to=SupportUser, related_name="comments"
     )
     description = models.TextField()
@@ -356,12 +356,12 @@ class Attachment(
     class Meta:
         unique_together = ("backend_name", "backend_id")
 
-    issue = models.ForeignKey(
+    issue = models.ForeignKey[Issue](
         on_delete=models.CASCADE, to=Issue, related_name="attachments"
     )
     file = models.FileField(upload_to="support_attachments")
     backend_id = models.CharField(max_length=255)
-    author = models.ForeignKey(
+    author = models.ForeignKey[SupportUser](
         on_delete=models.CASCADE,
         to=SupportUser,
         related_name="attachments",
@@ -411,7 +411,7 @@ class Template(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
 class TemplateAttachment(
     FileMixin, core_models.UuidMixin, core_models.NameMixin, TimeStampedModel
 ):
-    template = models.ForeignKey(
+    template = models.ForeignKey[Template](
         Template, on_delete=models.CASCADE, related_name="attachments"
     )
     file = models.FileField(upload_to="support_template_attachments")

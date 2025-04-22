@@ -25,7 +25,9 @@ class DailyQuotaHistory(models.Model):
     https://martinfowler.com/bliki/ReportingDatabase.html
     """
 
-    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ct_models.ContentType)
+    content_type = models.ForeignKey[ct_models.ContentType](
+        on_delete=models.CASCADE, to=ct_models.ContentType
+    )
     object_id = models.PositiveIntegerField()
     scope = ct_fields.GenericForeignKey("content_type", "object_id")
     objects = QuotaManager()
