@@ -304,6 +304,7 @@ class PortFactory(
     service_settings = factory.SubFactory(SettingsFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
     tenant = factory.SubFactory(TenantFactory)
+    network = factory.SubFactory(NetworkFactory)
 
     @classmethod
     def get_url(cls, port=None):
