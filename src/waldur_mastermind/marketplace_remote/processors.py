@@ -57,13 +57,14 @@ class RemoteCreateResourceProcessor(RemoteClientMixin):
             self.order.offering, self.order.project, self.client
         )
         remote_project_uuid = cast(UUID, remote_project.uuid).hex
+        base_url = self.client._base_url
         response = marketplace_orders_create.sync(
             client=self.client,
             body=OrderCreateRequest(
-                project=f"{self.client._base_url}/projects/{remote_project_uuid}/",
-                offering=f"{self.client._base_url}/marketplace-public-offerings/{self.order.offering.backend_id}/",
+                project=f"{base_url}/api/projects/{remote_project_uuid}/",
+                offering=f"{base_url}/api/marketplace-public-offerings/{self.order.offering.backend_id}/",
                 plan=self.order.plan
-                and f"{self.client._base_url}/marketplace-public-offerings/{self.order.offering.backend_id}/plans/{self.order.plan.backend_id}/"
+                and f"{base_url}/api/marketplace-public-offerings/{self.order.offering.backend_id}/plans/{self.order.plan.backend_id}/"
                 or UNSET,
                 attributes=self.order.attributes,
                 limits=OrderCreateRequestLimits.from_dict(self.order.limits),
