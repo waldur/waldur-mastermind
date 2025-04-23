@@ -1144,12 +1144,15 @@ def add_customer_credit(sender, fields, **kwargs):
 
 def get_customer_unallocated_credit(serializer, customer) -> float | None:
     try:
-        return (
-            models.CustomerCredit.objects.get(customer=customer).value
-            - models.ProjectCredit.objects.filter(project__customer=customer).aggregate(
+        customer_credit = models.CustomerCredit.objects.get(customer=customer).value
+        project_credits_sum = (
+            models.ProjectCredit.objects.filter(project__customer=customer).aggregate(
                 sum=Sum("value")
             )["sum"]
+            or 0
         )
+
+        return customer_credit - project_credits_sum
     except models.CustomerCredit.DoesNotExist:
         return None
 
