@@ -518,6 +518,9 @@ class ExistingTenantPullExecutor(core_executors.ActionExecutor):
             ),
             core_tasks.BackendMethodTask().si(serialized_tenant, "pull_subnets"),
             core_tasks.BackendMethodTask().si(
+                serialized_tenant, "pull_tenant_network_rbac_policies"
+            ),
+            core_tasks.BackendMethodTask().si(
                 serialized_tenant, backend_method="pull_tenant_routers"
             ),
             core_tasks.BackendMethodTask().si(

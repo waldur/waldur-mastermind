@@ -1760,3 +1760,14 @@ class VolumeAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
     serializer_class = serializers.OpenStackVolumeAvailabilityZoneSerializer
     lookup_field = "uuid"
     filterset_class = filters.VolumeAvailabilityZoneFilter
+
+
+class NetworkRBACPolicyViewSet(core_views.ReadOnlyActionsViewSet):
+    queryset = models.NetworkRBACPolicy.objects.all().order_by("-created")
+    serializer_class = serializers.NetworkRBACPolicySerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
+    filterset_class = filters.NetworkRBACPolicyFilter
+
+    def get_queryset(self):
+        return filter_queryset_for_user(self.queryset, self.request.user)

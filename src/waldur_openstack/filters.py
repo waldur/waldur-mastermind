@@ -319,3 +319,19 @@ class VolumeAvailabilityZoneFilter(
 ):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.VolumeAvailabilityZone
+
+
+class NetworkRBACPolicyFilter(django_filters.FilterSet):
+    network_uuid = django_filters.UUIDFilter(field_name="network__uuid")
+    network = core_filters.URLFilter(
+        view_name="openstack-network-detail", field_name="network__uuid"
+    )
+
+    target_tenant_uuid = django_filters.UUIDFilter(field_name="target_tenant__uuid")
+    target_tenant = core_filters.URLFilter(
+        view_name="openstack-tenant-detail", field_name="target_tenant__uuid"
+    )
+
+    class Meta:
+        model = models.NetworkRBACPolicy
+        fields = ["policy_type"]

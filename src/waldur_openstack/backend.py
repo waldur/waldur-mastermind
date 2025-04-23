@@ -4585,6 +4585,9 @@ class OpenStackBackend(ServiceBackend):
             "security_groups": security_groups,
         }
 
+        if port.mac_address:
+            port_payload["mac_address"] = port.mac_address
+
         if port.fixed_ips:
             port_payload["fixed_ips"] = port.fixed_ips
 
@@ -4874,6 +4877,105 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
 
         self._pull_zones(tenant, backend_zones, models.VolumeAvailabilityZone)
+
+    @log_backend_action()
+    def pull_tenant_network_rbac_policies(self, tenant: models.Tenant):
+        """Pull network RBAC policies from OpenStack for a tenant."""
+        # Use admin session to get full access to all RBAC policies
+        neutron = get_neutron_client(self.admin_session)
+
+        try:
+            # Get all networks that belong to this tenant
+            tenant_networks = models.Network.objects.filter(tenant=tenant)
+            if not tenant_networks.exists():
+                return
+
+            # Get network backend IDs for filtering
+            network_backend_ids = list(
+                tenant_networks.values_list("backend_id", flat=True)
+            )
+
+            # Get all network RBAC policies from OpenStack
+            backend_policies = neutron.list_rbac_policies(object_type="network")[
+                "rbac_policies"
+            ]
+
+            # Filter policies that are:
+            # 2. For networks belonging to this tenant
+            relevant_policies = [
+                p for p in backend_policies if p["object_id"] in network_backend_ids
+            ]
+
+            # Create a mapping of network backend_ids to model instances for faster lookup
+            networks_map = {network.backend_id: network for network in tenant_networks}
+
+            # Track processed policies for cleanup
+            processed_policy_ids = []
+
+            # Process each policy
+            for backend_policy in relevant_policies:
+                network = networks_map.get(backend_policy["object_id"])
+                if not network:
+                    # Skip if network doesn't exist (should not happen given our filtering)
+                    continue
+
+                try:
+                    target_tenant = models.Tenant.objects.get(
+                        backend_id=backend_policy["target_tenant"],
+                        service_settings=tenant.service_settings,
+                    )
+                except models.Tenant.DoesNotExist:
+                    # Skip policies whose target tenant doesn't exist in Waldur
+                    logger.debug(
+                        "Skipping RBAC policy %s because target tenant %s doesn't exist in Waldur",
+                        backend_policy["id"],
+                        backend_policy["target_tenant"],
+                    )
+                    continue
+
+                # Create or update the RBAC policy
+                policy, created = models.NetworkRBACPolicy.objects.update_or_create(
+                    backend_id=backend_policy["id"],
+                    defaults={
+                        "network": network,
+                        "target_tenant": target_tenant,
+                        "policy_type": backend_policy["action"],
+                    },
+                )
+
+                if created:
+                    logger.info(
+                        "Created NetworkRBACPolicy from backend: %s (network: %s, target: %s)",
+                        backend_policy["id"],
+                        network.name,
+                        target_tenant.name,
+                    )
+
+                processed_policy_ids.append(backend_policy["id"])
+
+            # Clean up stale policies
+            stale_policies = models.NetworkRBACPolicy.objects.filter(
+                network__in=tenant_networks
+            ).exclude(backend_id__in=processed_policy_ids)
+
+            # Log and delete stale policies
+            for policy in stale_policies:
+                logger.info(
+                    "Deleting stale NetworkRBACPolicy: %s (network: %s, target: %s)",
+                    policy.backend_id,
+                    policy.network.name,
+                    policy.target_tenant.name,
+                )
+
+            stale_count = stale_policies.count()
+            stale_policies.delete()
+
+            if stale_count:
+                logger.info("Deleted %d stale NetworkRBACPolicy objects", stale_count)
+
+        except neutron_exceptions.NeutronClientException as e:
+            logger.error("Error pulling network RBAC policies: %s", e)
+            raise OpenStackBackendError(e)
 
     @reraise_exceptions
     def create_network_rbac_policy(

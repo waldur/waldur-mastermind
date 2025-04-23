@@ -48,6 +48,7 @@ def get_create_ports_tasks(src_tenant, dst_tenant, network_uuids=None):
                     port_security_enabled=src_port.port_security_enabled,
                     subnet=dst_subnet,
                     fixed_ips=src_port.fixed_ips,
+                    mac_address=src_port.mac_address,
                 )
 
                 if src_port.security_groups.exists():
