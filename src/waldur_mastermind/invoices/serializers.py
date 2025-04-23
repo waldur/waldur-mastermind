@@ -1142,9 +1142,31 @@ def add_customer_credit(sender, fields, **kwargs):
     setattr(sender, "get_customer_credit", get_customer_credit)
 
 
+def get_customer_unallocated_credit(serializer, customer) -> float | None:
+    try:
+        return (
+            models.CustomerCredit.objects.get(customer=customer).value
+            - models.ProjectCredit.objects.filter(project__customer=customer).aggregate(
+                sum=Sum("value")
+            )["sum"]
+        )
+    except models.CustomerCredit.DoesNotExist:
+        return None
+
+
+def add_customer_unallocated_credit(sender, fields, **kwargs):
+    fields["customer_unallocated_credit"] = serializers.SerializerMethodField()
+    setattr(sender, "get_customer_unallocated_credit", get_customer_unallocated_credit)
+
+
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,
     receiver=add_customer_credit,
+)
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_customer_unallocated_credit,
 )
 
 
