@@ -4425,9 +4425,7 @@ class RobotAccountSerializer(
     url = serializers.HyperlinkedIdentityField(
         view_name="marketplace-robot-account-detail", lookup_field="uuid"
     )
-    state = serializers.CharField(
-        source="get_state_display", read_only=True, allow_null=True
-    )
+    state = serializers.SerializerMethodField()
     error_message = serializers.CharField(read_only=True)
 
     class Meta:
@@ -4471,6 +4469,9 @@ class RobotAccountSerializer(
         )
 
     fingerprints = serializers.SerializerMethodField()
+
+    def get_state(self, robot_account: models.RobotAccount) -> str | None:
+        return robot_account.get_state_display()
 
     @extend_schema_field(FingerprintSerializer(many=True))
     def get_fingerprints(self, robot_account):

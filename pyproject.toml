@@ -258,3 +258,4 @@ section-order = [
 include = ["src"]
 exclude = ["**/tests/**"]
 typeCheckingMode = "standard"
+reportIncompatibleMethodOverride = "none"

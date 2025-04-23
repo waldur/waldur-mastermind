@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -1549,6 +1550,7 @@ class RobotAccount(
     )
     keys = models.JSONField(blank=True, default=list)
     state = FSMIntegerField(default=States.REQUESTED, choices=States.CHOICES)
+    get_state_display: Callable[[], str]
 
     tracker = FieldTracker(
         fields=["resource", "type", "username", "users", "state", "keys"]
