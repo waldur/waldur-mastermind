@@ -14,6 +14,7 @@ from django.db import transaction
 from django.db.models import Count, QuerySet, Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.drainage import set_override
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
@@ -4532,10 +4533,7 @@ class RobotAccountSerializer(
         return validated_data
 
 
-class RobotAccountStateSerializer(serializers.Serializer):
-    """Base serializer for state transitions, we don't need to add any fields since there is no payload"""
-
-    pass
+set_override(RobotAccountSerializer, "optional_fields", ["state"])
 
 
 class StateTransitionErrorSerializer(serializers.Serializer):

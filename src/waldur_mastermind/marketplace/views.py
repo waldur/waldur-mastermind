@@ -4703,7 +4703,7 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
         instance.save()
 
     @extend_schema(
-        request=serializers.RobotAccountStateSerializer,
+        request=None,
         responses={
             200: serializers.RobotAccountDetailsSerializer,
             400: serializers.StateTransitionErrorSerializer,
@@ -4724,7 +4724,7 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
             return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
-        request=serializers.RobotAccountStateSerializer,
+        request=None,
         responses=serializers.RobotAccountDetailsSerializer,
     )
     @action(detail=True, methods=["post"])
@@ -4744,7 +4744,7 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
             return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
-        request=serializers.RobotAccountStateSerializer,
+        request=None,
         responses=serializers.RobotAccountDetailsSerializer,
     )
     @action(detail=True, methods=["post"])
@@ -4764,7 +4764,7 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
             return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
-        request=serializers.RobotAccountStateSerializer,
+        request=None,
         responses=serializers.RobotAccountDetailsSerializer,
     )
     @action(detail=True, methods=["post"])

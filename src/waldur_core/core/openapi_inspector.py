@@ -1,3 +1,4 @@
+from drf_spectacular.drainage import get_override
 from drf_spectacular.openapi import AutoSchema
 from drf_spectacular.plumbing import (
     OpenApiTypes,
@@ -6,7 +7,7 @@ from drf_spectacular.plumbing import (
     get_doc,
 )
 from drf_spectacular.utils import OpenApiParameter
-from rest_framework import serializers
+from rest_framework.serializers import ListSerializer
 
 from waldur_core.core.serializers import RestrictedSerializerMixin
 
@@ -40,7 +41,7 @@ class WaldurOpenApiInspector(AutoSchema):
         serializer = self.get_response_serializers()
         if not isinstance(serializer, RestrictedSerializerMixin):
             return []
-        if isinstance(serializer, serializers.ListSerializer):
+        if isinstance(serializer, ListSerializer):
             serializer = serializer.child
         try:
             fields = serializer.fields.keys()
@@ -56,3 +57,13 @@ class WaldurOpenApiInspector(AutoSchema):
                 enum=sorted(fields),
             )
         ]
+
+    def _postprocess_serializer_schema(self, schema, serializer, direction):
+        schema = super()._postprocess_serializer_schema(schema, serializer, direction)
+        required = schema.get("required", [])
+        optional_fields = get_override(serializer, "optional_fields", [])
+        if optional_fields:
+            schema["required"] = [
+                field for field in required if field not in optional_fields
+            ]
+        return schema
