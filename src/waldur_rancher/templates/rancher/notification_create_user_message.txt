@@ -1,4 +1,0 @@
-Hello!
-
-User with login {{ user.username }} and temporary password {{ password }} has been created.
-Please go to management console {{ rancher_url }} to change the password.

@@ -1,11 +1,9 @@
 from unittest import mock
 
-from django.core import mail
 from rest_framework import test
 
-import waldur_core.structure.tests.factories as structure_factories
 from waldur_core.permissions.fixtures import ProjectRole
-from waldur_rancher import models, tasks, utils
+from waldur_rancher import models, utils
 from waldur_rancher.tests import factories, fixtures
 from waldur_rancher.tests.base import override_rancher_settings
 
@@ -48,26 +46,6 @@ class UserSyncTest(test.APITransactionTestCase):
         utils.SyncUser.run()
         self.assertEqual(mock_backend_class().delete_cluster_role.call_count, 1)
         self.assertEqual(mock_backend_class().create_cluster_user_role.call_count, 4)
-
-    @mock.patch("waldur_rancher.utils.RancherBackend.client")
-    @mock.patch("waldur_rancher.handlers.tasks")
-    def test_notification(self, mock_tests, mock_client):
-        mock_client.create_user.return_value = {"id": "ID"}
-        mock_client.create_cluster_user_role.return_value = {"id": "ID"}
-        utils.SyncUser.run()
-        self.assertEqual(models.RancherUser.objects.all().count(), 3)
-        self.assertEqual(mock_tests.notify_create_user.delay.call_count, 3)
-
-    def test_notification_message(self):
-        event_type = "notification_create_user"
-        structure_factories.NotificationFactory(key=f"rancher.{event_type}")
-        rancher_user = factories.RancherUserFactory()
-        password = "password"
-        url = "http//example.com"
-        tasks.notify_create_user(rancher_user.id, password, url)
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, [rancher_user.user.email])
-        self.assertTrue(url in mail.outbox[0].body)
 
     @mock.patch("waldur_rancher.utils.RancherBackend")
     def test_create_project_role(self, mock_backend_class):

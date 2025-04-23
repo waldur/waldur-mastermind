@@ -13,16 +13,9 @@ class RancherConfig(AppConfig):
         from waldur_openstack.models import Instance
 
         from . import handlers, models
-        from . import signals as rancher_signals
         from .backend import RancherBackend
 
         SupportedServices.register_backend(RancherBackend)
-
-        rancher_signals.rancher_user_created.connect(
-            handlers.notify_create_user,
-            sender=models.RancherUser,
-            dispatch_uid="waldur_rancher.notify_create_user",
-        )
 
         signals.post_delete.connect(
             handlers.delete_node_if_related_instance_has_been_deleted,

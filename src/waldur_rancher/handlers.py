@@ -2,23 +2,14 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
-from django.db import transaction
 
 from keycloak import exceptions as keycloak_exceptions
 from waldur_core.core.models import StateMixin
 from waldur_rancher.exceptions import RancherException
 
-from . import backend, enums, models, tasks, utils
+from . import backend, enums, models, utils
 
 logger = logging.getLogger(__name__)
-
-
-def notify_create_user(sender, instance, password, created=False, **kwargs):
-    transaction.on_commit(
-        lambda: tasks.notify_create_user.delay(
-            instance.id, password, instance.settings.backend_url
-        )
-    )
 
 
 def delete_node_if_related_instance_has_been_deleted(sender, instance, **kwargs):
