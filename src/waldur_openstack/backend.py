@@ -4483,9 +4483,9 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
 
         # delete stale ports
-        exist_ids = instance.ports.values_list("backend_id", flat=True)
+        existing_instance_ids = instance.ports.values_list("backend_id", flat=True)
         for backend_port in backend_ports:
-            if backend_port["id"] not in exist_ids:
+            if backend_port["id"] not in existing_instance_ids:
                 try:
                     logger.info(
                         "About to delete network port with ID %s.",

@@ -3058,7 +3058,7 @@ class OpenStackInstancePortsUpdateSerializer(serializers.Serializer):
         ports = validated_data["ports"]
         new_subnets = [ip.subnet for ip in ports]
         # delete stale ports
-        models.Port.objects.filter(instance=instance).exclude(
+        models.Port.objects.filter(instance=instance, network__isnull=False).exclude(
             subnet__in=new_subnets
         ).delete()
         # create new ports
