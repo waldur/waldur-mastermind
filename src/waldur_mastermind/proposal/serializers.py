@@ -185,6 +185,7 @@ class ProposalReviewSerializer(
     reviewer_uuid = serializers.UUIDField(read_only=True, source="reviewer.uuid")
 
     proposal_name = serializers.ReadOnlyField(source="proposal.name")
+    proposal_uuid = serializers.UUIDField(read_only=True, source="proposal.uuid")
 
     class Meta:
         model = models.Review
@@ -192,6 +193,8 @@ class ProposalReviewSerializer(
             "url",
             "uuid",
             "proposal",
+            "proposal_name",
+            "proposal_uuid",
             "reviewer",
             "reviewer_full_name",
             "reviewer_uuid",
@@ -200,7 +203,6 @@ class ProposalReviewSerializer(
             "summary_score",
             "summary_public_comment",
             "summary_private_comment",
-            "proposal_name",
             "round_uuid",
             "round_name",
             "round_cutoff_time",
@@ -768,6 +770,7 @@ class ProposalSerializer(
     )
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_uuid = serializers.UUIDField(source="created_by.uuid", read_only=True)
+    project_name = serializers.ReadOnlyField(source="project.name")
 
     class Meta:
         model = models.Proposal
@@ -776,6 +779,7 @@ class ProposalSerializer(
             "url",
             "name",
             "description",
+            "project_name",
             "project_summary",
             "project_is_confidential",
             "project_has_civilian_purpose",
