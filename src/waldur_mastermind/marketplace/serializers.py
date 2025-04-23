@@ -4470,7 +4470,7 @@ class RobotAccountSerializer(
 
     fingerprints = serializers.SerializerMethodField()
 
-    def get_state(self, robot_account: models.RobotAccount) -> str | None:
+    def get_state(self, robot_account: models.RobotAccount) -> str:
         return robot_account.get_state_display()
 
     @extend_schema_field(FingerprintSerializer(many=True))
