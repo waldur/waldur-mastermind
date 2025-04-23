@@ -1025,6 +1025,7 @@ SPECTACULAR_SETTINGS = {
         "waldur_core.core.schema_hooks.make_fields_optional",
         "waldur_core.core.schema_hooks.remove_waldur_cookie_auth",
         "waldur_core.core.schema_hooks.adjust_request_body_content_types",
+        "waldur_core.core.schema_hooks.make_field_non_required",
     ],
     "DEFAULT_GENERATOR_CLASS": "waldur_core.core.openapi_generators.WaldurSchemaGenerator",
     "ENUM_GENERATE_CHOICE_DESCRIPTION": False,

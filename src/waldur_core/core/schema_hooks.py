@@ -236,3 +236,8 @@ def adjust_request_body_content_types(result, generator, **kwargs):
                 request_body["content"].pop("application/x-www-form-urlencoded", None)
                 request_body["content"].pop("multipart/form-data", None)
     return result
+
+
+def make_field_non_required(result, generator, **kwargs):
+    result["components"]["schemas"]["RobotAccountDetails"]["required"].remove("state")
+    return result
