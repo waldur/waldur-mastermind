@@ -27,7 +27,7 @@ from waldur_rancher.enums import (
 )
 from waldur_rancher.exceptions import NotFound, RancherException, VaultException
 
-from . import client, models, signals, utils
+from . import client, models, utils
 
 logger = logging.getLogger(__name__)
 
@@ -381,11 +381,6 @@ class RancherBackend(ServiceBackend):
         user.backend_id = user_id
         user.save()
         self.client.create_global_role(user.backend_id, GlobalRoles.user_base)
-        signals.rancher_user_created.send(
-            sender=models.RancherUser,
-            instance=user,
-            password=password,
-        )
 
     def delete_user(self, user):
         if user.backend_id:
