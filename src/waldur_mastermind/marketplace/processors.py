@@ -430,16 +430,16 @@ class BasicCreateResourceProcessor(AbstractCreateResourceProcessor):
 
 
 class BasicDeleteResourceProcessor(AbstractDeleteResourceProcessor):
-    def send_request(self, user, resource):
+    def send_request(self, user, resource) -> bool:
         return True
 
 
 class BasicUpdateResourceProcessor(AbstractUpdateResourceProcessor):
-    def send_request(self, user):
+    def send_request(self, user) -> bool:
         return True
 
     def validate_request(self, request):
         pass
 
-    def update_limits_process(self, user):
+    def update_limits_process(self, user) -> bool:
         return True

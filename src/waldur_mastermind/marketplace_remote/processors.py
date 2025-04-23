@@ -22,6 +22,7 @@ from waldur_api_client.models.resource_update_limits_request import (
 from waldur_api_client.models.resource_update_limits_request_limits import (
     ResourceUpdateLimitsRequestLimits,
 )
+from waldur_api_client.types import UNSET
 
 from waldur_core.core.models import User
 from waldur_core.core.utils import serialize_instance
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 19
 
 
-class RemoteClientMixin:
+class RemoteClientMixin(processors.BaseOrderProcessor):
     @cached_property
     def client(self):
         return utils.get_client_for_offering(self.order.offering)
@@ -46,7 +47,7 @@ def build_callback_url(order: models.Order):
     return base_url + reverse("pull_remote_order", kwargs={"uuid": order.uuid.hex})
 
 
-class RemoteCreateResourceProcessor(RemoteClientMixin, processors.BaseOrderProcessor):
+class RemoteCreateResourceProcessor(RemoteClientMixin):
     def validate_order(self, request):
         # TODO: Implement validation
         pass
@@ -61,9 +62,11 @@ class RemoteCreateResourceProcessor(RemoteClientMixin, processors.BaseOrderProce
             body=OrderCreateRequest(
                 project=f"{self.client._base_url}/projects/{remote_project_uuid}/",
                 offering=f"{self.client._base_url}/marketplace-public-offerings/{self.order.offering.backend_id}/",
-                plan=f"{self.client._base_url}/marketplace-public-offerings/{self.order.offering.backend_id}/plans/{self.order.plan.backend_id}/",
+                plan=self.order.plan
+                and f"{self.client._base_url}/marketplace-public-offerings/{self.order.offering.backend_id}/plans/{self.order.plan.backend_id}/"
+                or UNSET,
                 attributes=self.order.attributes,
-                limits=OrderCreateRequestLimits(**self.order.limits),
+                limits=OrderCreateRequestLimits.from_dict(self.order.limits),
                 callback_url=build_callback_url(self.order),
                 accepting_terms_of_service=True,
             ),
@@ -97,7 +100,7 @@ class RemoteUpdateResourceProcessor(
             client=self.client,
             uuid=UUID(self.order.resource.backend_id),
             body=ResourceUpdateLimitsRequest(
-                limits=ResourceUpdateLimitsRequestLimits(**self.order.limits),
+                limits=ResourceUpdateLimitsRequestLimits.from_dict(self.order.limits),
             ),
         )
         if response:

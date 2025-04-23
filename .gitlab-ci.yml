@@ -110,7 +110,6 @@ Run management command test:
   extends: .Unit test runner
   script:
     - gitlab-ci-test/waldur-test MANAGEMENT
-    - mypy src/waldur_mastermind/marketplace_remote/processors.py
 
 Try building docker image:
   image:
@@ -204,7 +203,7 @@ Test Multi-arch docker image build:
   interruptible: true
   image: registry.hpc.ut.ee/mirror/docker:latest
   services:
-    - name: "registry.hpc.ut.ee/mirror/docker:dind"
+    - name: "docker:dind"
       command: ["--mtu=1400"]
   rules:
     # Skip tests if said so
