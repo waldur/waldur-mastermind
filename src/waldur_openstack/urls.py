@@ -68,5 +68,11 @@ def register_in(router):
         basename="openstack-volume-availability-zone",
     )
 
+    router.register(
+        r"openstack-network-rbac-policies",
+        views.NetworkRBACPolicyViewSet,
+        basename="openstack-network-rbac-policy",
+    )
+
 
 urlpatterns = []

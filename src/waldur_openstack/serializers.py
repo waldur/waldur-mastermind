@@ -1316,13 +1316,23 @@ class NetworkRBACPolicySerializer(
         lookup_field="uuid",
         queryset=models.Tenant.objects.filter(state=models.Tenant.States.OK).all(),
     )
+    url = serializers.HyperlinkedIdentityField(
+        view_name="openstack-network-rbac-policy-detail", lookup_field="uuid"
+    )
+    network_name = serializers.CharField(source="network.name", read_only=True)
+    target_tenant_name = serializers.CharField(
+        source="target_tenant.name", read_only=True
+    )
 
     class Meta:
         model = models.NetworkRBACPolicy
         fields = (
+            "url",
             "uuid",
             "network",
+            "network_name",
             "target_tenant",
+            "target_tenant_name",
             "backend_id",
             "policy_type",
             "created",
@@ -1330,8 +1340,11 @@ class NetworkRBACPolicySerializer(
         read_only_fields = ("uuid", "created", "backend_id")
 
     def validate_target_tenant(self, target_tenant):
-        network = self.context["network"]
-        if target_tenant.service_settings != network.tenant.service_settings:
+        network = self.context.get("network")
+        if (
+            network
+            and target_tenant.service_settings != network.tenant.service_settings
+        ):
             raise serializers.ValidationError(
                 _(
                     "Target tenant must belong to the same service settings as the network's tenant."
@@ -1341,19 +1354,20 @@ class NetworkRBACPolicySerializer(
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        network = self.context["network"]
-        target_tenant = attrs["target_tenant"]
-        policy_type = attrs["policy_type"]
+        network = self.context.get("network")
+        if network:
+            target_tenant = attrs["target_tenant"]
+            policy_type = attrs["policy_type"]
 
-        # Check if policy with the same network, tenant and type already exists
-        if models.NetworkRBACPolicy.objects.filter(
-            network=network, target_tenant=target_tenant, policy_type=policy_type
-        ).exists():
-            raise serializers.ValidationError(
-                _(
-                    "Policy with this network, target tenant and policy type already exists."
+            # Check if policy with the same network, tenant and type already exists
+            if models.NetworkRBACPolicy.objects.filter(
+                network=network, target_tenant=target_tenant, policy_type=policy_type
+            ).exists():
+                raise serializers.ValidationError(
+                    _(
+                        "Policy with this network, target tenant and policy type already exists."
+                    )
                 )
-            )
 
         return attrs
 

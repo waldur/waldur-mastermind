@@ -959,6 +959,10 @@ class BackupRestoration(core_models.UuidMixin, TimeStampedModel):
 class NetworkRBACPolicy(
     core_models.UuidMixin, core_models.BackendMixin, core_models.TimeStampedModel
 ):
+    class Permissions:
+        customer_path = "network__tenant__project__customer"
+        project_path = "network__tenant__project"
+
     class NetworkShareType:
         SHARED = "access_as_shared"
         EXTERNAL = "access_as_external"
@@ -991,10 +995,6 @@ class NetworkRBACPolicy(
         verbose_name_plural = "Network RBAC Policies"
         unique_together = ("network", "target_tenant", "policy_type")
         ordering = ["-created"]
-
-    class Permissions:
-        customer_path = "network__tenant__project__customer"
-        project_path = "network__tenant__project"
 
     def __str__(self):
         return f"RBAC policy for {self.network} to {self.target_tenant}"
