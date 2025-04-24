@@ -4451,7 +4451,6 @@ class RobotAccountSerializer(
         read_only_fields = [
             "backend_id",
             "state",
-            "state_display",
             "error_message",
             "error_traceback",
         ]
@@ -4533,7 +4532,11 @@ class RobotAccountSerializer(
         return validated_data
 
 
-set_override(RobotAccountSerializer, "optional_fields", ["state"])
+set_override(
+    RobotAccountSerializer,
+    "optional_fields",
+    ["state", "error_message", "error_traceback"],
+)
 
 
 class StateTransitionErrorSerializer(serializers.Serializer):
