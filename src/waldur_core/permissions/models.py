@@ -22,6 +22,8 @@ class RoleManager(models.Manager):
 
 
 class Role(DescribableMixin, UuidMixin):
+    permissions: models.Manager["RolePermission"]
+
     name = models.CharField(unique=True, db_index=True, max_length=150)
     is_system_role = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)

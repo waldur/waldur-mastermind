@@ -269,6 +269,8 @@ class OfferingEstimatedCostPolicy(EstimatedCostPolicyMixin, OfferingPolicy):
 
 
 class OfferingUsagePolicy(invoices_models.PeriodMixin, OfferingPolicy):
+    component_limits_set: models.Manager["OfferingComponentLimit"]
+
     trigger_class = marketplace_models.ComponentUsage
 
     component_limit = models.ManyToManyField(
