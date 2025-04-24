@@ -651,6 +651,7 @@ class RoleTemplateViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.RoleTemplate.objects.all().order_by("scope_type")
     serializer_class = serializers.RoleTemplateSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.RoleTemplateFilter
     lookup_field = "uuid"
 
 
