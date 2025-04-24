@@ -147,6 +147,7 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
         return response.Response(status.HTTP_200_OK)
 
     import_yaml_serializer_class = serializers.RancherImportYamlSerializer
+    import_yaml_permissions = [structure_permissions.is_staff]
 
     @decorators.action(detail=True, methods=["post"])
     def create_management_security_group(self, request, uuid=None):
