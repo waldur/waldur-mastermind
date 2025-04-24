@@ -211,7 +211,6 @@ class KeycloakUserGroupMembershipFilter(django_filters.FilterSet):
     email = django_filters.CharFilter()
     first_name = django_filters.CharFilter()
     last_name = django_filters.CharFilter()
-    state = django_filters.CharFilter()
     state = django_filters.MultipleChoiceFilter(
         choices=enums.KeycloakUserGroupMembershipState.CHOICES
     )
