@@ -13,10 +13,8 @@ class ProjectUpdateRequest(core_models.UuidMixin, ReviewMixin):
     class Meta:
         ordering = ["created"]
 
-    project = models.ForeignKey[Project](
-        Project, on_delete=models.CASCADE, related_name="+"
-    )
-    offering = models.ForeignKey[marketplace_models.Offering](
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="+")
+    offering = models.ForeignKey(
         marketplace_models.Offering, on_delete=models.CASCADE, related_name="+"
     )
     tracker = FieldTracker()
@@ -75,7 +73,7 @@ class RemoteSynchronisation(
     token = models.CharField(max_length=255)
     remote_organization_uuid = models.UUIDField()
     remote_organization_name = models.CharField(max_length=255)
-    local_service_provider = models.ForeignKey[marketplace_models.ServiceProvider](
+    local_service_provider = models.ForeignKey(
         marketplace_models.ServiceProvider, on_delete=models.CASCADE
     )
     is_active = models.BooleanField(default=True)
@@ -93,12 +91,12 @@ class RemoteSynchronisation(
 
 
 class RemoteLocalCategory(core_models.UuidMixin):
-    local_category = models.ForeignKey[marketplace_models.Category](
+    local_category = models.ForeignKey(
         marketplace_models.Category, on_delete=models.CASCADE
     )
     remote_category = models.UUIDField()
     remote_category_name = models.CharField(max_length=255, default="Unknown")
-    remote_synchronisation = models.ForeignKey[RemoteSynchronisation](
+    remote_synchronisation = models.ForeignKey(
         RemoteSynchronisation, on_delete=models.CASCADE, editable=False
     )
 

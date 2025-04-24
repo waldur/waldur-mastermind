@@ -102,9 +102,7 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
         url = factories.CustomerCreditFactory.get_list_url()
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        credit: models.CustomerCredit = models.CustomerCredit.objects.get(
-            uuid=response.data["uuid"]
-        )
+        credit = models.CustomerCredit.objects.get(uuid=response.data["uuid"])
         self.assertEqual(credit.expected_consumption, payload["expected_consumption"])
         self.assertEqual(credit.end_date, datetime.date(year=2025, month=10, day=31))
 

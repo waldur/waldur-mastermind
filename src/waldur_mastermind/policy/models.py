@@ -149,9 +149,7 @@ class ProjectPolicy(Policy):
         "request_pausing",
     }
 
-    scope = models.ForeignKey[structure_models.Project](
-        structure_models.Project, on_delete=models.CASCADE
-    )
+    scope = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     actions = models.CharField(max_length=255)
 
     @staticmethod
@@ -195,9 +193,7 @@ class CustomerPolicy(Policy):
         "request_pausing",
     }
 
-    scope = models.ForeignKey[structure_models.Customer](
-        structure_models.Customer, on_delete=models.CASCADE
-    )
+    scope = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     actions = models.CharField(max_length=255)
 
     @staticmethod
@@ -238,9 +234,7 @@ class OfferingPolicy(Policy):
     }
     observable_classes = []
 
-    scope = models.ForeignKey[marketplace_models.Offering](
-        marketplace_models.Offering, on_delete=models.CASCADE
-    )
+    scope = models.ForeignKey(marketplace_models.Offering, on_delete=models.CASCADE)
     organization_groups = models.ManyToManyField(structure_models.OrganizationGroup)
     actions = models.CharField(max_length=255)
 
@@ -326,13 +320,13 @@ class OfferingUsagePolicy(invoices_models.PeriodMixin, OfferingPolicy):
 
 
 class OfferingComponentLimit(TimeStampedModel):
-    policy = models.ForeignKey[OfferingUsagePolicy](
+    policy = models.ForeignKey(
         OfferingUsagePolicy,
         on_delete=models.CASCADE,
         null=False,
         related_name="component_limits_set",
     )
-    component = models.ForeignKey[marketplace_models.OfferingComponent](
+    component = models.ForeignKey(
         marketplace_models.OfferingComponent, on_delete=models.CASCADE, null=False
     )
     limit = models.IntegerField()

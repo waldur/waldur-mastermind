@@ -36,7 +36,7 @@ class Checklist(
     core_models.DescribableMixin,
     TimeStampedModel,
 ):
-    category = models.ForeignKey[Category](
+    category = models.ForeignKey(
         to=Category,
         on_delete=models.SET_NULL,
         null=True,
@@ -54,13 +54,13 @@ class Checklist(
 
 
 class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMixin):
-    checklist = models.ForeignKey[Checklist](
+    checklist = models.ForeignKey(
         to=Checklist,
         on_delete=models.CASCADE,
         related_name="questions",
     )
     order = models.PositiveIntegerField(default=0)
-    category = models.ForeignKey[marketplace_models.Category](
+    category = models.ForeignKey(
         to=marketplace_models.Category,
         on_delete=models.CASCADE,
         null=True,
@@ -84,8 +84,6 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMi
 
 
 class Answer(TimeStampedModel):
-    user = models.ForeignKey[core_models.User](
-        to=core_models.User, on_delete=models.CASCADE
-    )
-    question = models.ForeignKey[Question](to=Question, on_delete=models.CASCADE)
+    user = models.ForeignKey(to=core_models.User, on_delete=models.CASCADE)
+    question = models.ForeignKey(to=Question, on_delete=models.CASCADE)
     value = models.BooleanField(null=True)

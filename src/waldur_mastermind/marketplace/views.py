@@ -2887,7 +2887,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
 
 class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
-    queryset: ResourceQuerySet = models.Resource.objects.all()
+    queryset = models.Resource.objects.all()
     filter_backends = (DjangoFilterBackend, filters.ResourceScopeFilterBackend)
     filterset_class = filters.ResourceFilter
     lookup_field = "uuid"

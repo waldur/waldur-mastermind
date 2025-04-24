@@ -126,8 +126,8 @@ class VirtualMachine(
 
 
 class Port(core_models.RuntimeStateMixin, structure_models.BaseResource):
-    vm = models.ForeignKey[VirtualMachine](on_delete=models.CASCADE, to=VirtualMachine)
-    network = models.ForeignKey["Network"](on_delete=models.CASCADE, to="Network")
+    vm = models.ForeignKey(on_delete=models.CASCADE, to=VirtualMachine)
+    network = models.ForeignKey(on_delete=models.CASCADE, to="Network")
     mac_address = models.CharField(
         max_length=32, blank=True, verbose_name=_("MAC address")
     )
@@ -146,7 +146,7 @@ class Port(core_models.RuntimeStateMixin, structure_models.BaseResource):
 
 class Disk(structure_models.BaseResource):
     size = models.PositiveIntegerField(help_text=_("Size in MiB"))
-    vm = models.ForeignKey[VirtualMachine](
+    vm = models.ForeignKey(
         on_delete=models.CASCADE, to=VirtualMachine, related_name="disks"
     )
 
@@ -186,9 +186,7 @@ class Cluster(structure_models.ServiceProperty):
 
 
 class CustomerCluster(models.Model):
-    customer = models.ForeignKey[structure_models.Customer](
-        structure_models.Customer, on_delete=models.CASCADE
-    )
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     cluster = models.ForeignKey["Cluster"]("Cluster", on_delete=models.CASCADE)
 
     def __str__(self):
@@ -211,9 +209,7 @@ class Network(structure_models.ServiceProperty):
 
 class CustomerNetwork(models.Model):
     # This model allows to specify allowed networks for VM provision
-    customer = models.ForeignKey[structure_models.Customer](
-        structure_models.Customer, on_delete=models.CASCADE
-    )
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     network = models.ForeignKey["Network"]("Network", on_delete=models.CASCADE)
 
     def __str__(self):
@@ -225,9 +221,7 @@ class CustomerNetwork(models.Model):
 
 class CustomerNetworkPair(models.Model):
     # This model allows to specify allowed networks for existing VM NIC provision
-    customer = models.ForeignKey[structure_models.Customer](
-        structure_models.Customer, on_delete=models.CASCADE
-    )
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     network = models.ForeignKey["Network"]("Network", on_delete=models.CASCADE)
 
     def __str__(self):
@@ -255,9 +249,7 @@ class Datastore(structure_models.ServiceProperty):
 
 
 class CustomerDatastore(models.Model):
-    customer = models.ForeignKey[structure_models.Customer](
-        structure_models.Customer, on_delete=models.CASCADE
-    )
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     datastore = models.ForeignKey["Datastore"]("Datastore", on_delete=models.CASCADE)
 
     def __str__(self):
@@ -277,9 +269,7 @@ class Folder(structure_models.ServiceProperty):
 
 
 class CustomerFolder(models.Model):
-    customer = models.ForeignKey[structure_models.Customer](
-        structure_models.Customer, on_delete=models.CASCADE
-    )
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     folder = models.ForeignKey["Folder"]("Folder", on_delete=models.CASCADE)
 
     def __str__(self):

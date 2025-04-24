@@ -27,11 +27,11 @@ class BaseInvitation(core_models.UuidMixin, core_mixins.ScopeMixin, TimeStampedM
         null=True,
     )
 
-    customer = models.ForeignKey[Customer](
+    customer = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Customer,
     )
-    role = models.ForeignKey[Role](
+    role = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Role,
     )
@@ -163,9 +163,7 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
         customer_path = "invitation__customer"
         build_query = filter_own_requests
 
-    invitation = models.ForeignKey[GroupInvitation](
-        on_delete=models.PROTECT, to=GroupInvitation
-    )
+    invitation = models.ForeignKey(on_delete=models.PROTECT, to=GroupInvitation)
 
     created_by = models.ForeignKey[core_models.User](
         on_delete=models.CASCADE,

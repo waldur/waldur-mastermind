@@ -71,7 +71,7 @@ class Invoice(
     state = models.CharField(
         max_length=30, choices=States.CHOICES, default=States.PENDING
     )
-    customer = models.ForeignKey[structure_models.Customer](
+    customer = models.ForeignKey(
         structure_models.Customer,
         verbose_name=_("organization"),
         related_name="+",
@@ -267,7 +267,7 @@ class InvoiceItem(
     class Permissions:
         customer_path = "invoice__customer"
 
-    invoice = models.ForeignKey[Invoice](
+    invoice = models.ForeignKey(
         on_delete=models.CASCADE, to=Invoice, related_name="items"
     )
     quantity = models.DecimalField(
@@ -278,7 +278,7 @@ class InvoiceItem(
     measured_unit = models.CharField(
         max_length=30, help_text=_("Unit of measurement, for example, GB."), blank=True
     )
-    resource = models.ForeignKey[marketplace_models.Resource](
+    resource = models.ForeignKey(
         on_delete=models.SET_NULL,
         to=marketplace_models.Resource,
         related_name="invoice_items",
@@ -299,7 +299,7 @@ class InvoiceItem(
     )
 
     # Project name and UUID should be stored separately because project is not available after removal
-    project = models.ForeignKey[structure_models.Project](
+    project = models.ForeignKey(
         structure_models.Project, on_delete=models.SET_NULL, null=True
     )
     project_name = models.CharField(
@@ -477,7 +477,7 @@ class PaymentType(models.CharField):
 
 
 class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model):
-    organization = models.ForeignKey[structure_models.Customer](
+    organization = models.ForeignKey(
         structure_models.Customer, on_delete=models.PROTECT
     )
     payment_type = PaymentType()
@@ -512,7 +512,7 @@ class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model)
 
 
 class Payment(core_models.UuidMixin, core_models.TimeStampedModel):
-    profile = models.ForeignKey[PaymentProfile](
+    profile = models.ForeignKey(
         PaymentProfile, on_delete=models.PROTECT, null=False, blank=False
     )
     sum = models.DecimalField(
@@ -523,7 +523,7 @@ class Payment(core_models.UuidMixin, core_models.TimeStampedModel):
         blank=False,
     )
     proof = models.FileField(upload_to="proof_of_payment", null=True, blank=True)
-    invoice = models.ForeignKey[Invoice](
+    invoice = models.ForeignKey(
         Invoice, on_delete=models.SET_NULL, null=True, blank=True
     )
 

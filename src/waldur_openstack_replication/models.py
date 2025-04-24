@@ -18,13 +18,11 @@ class Migration(TimeStampedModel, StateMixin, UuidMixin):
     class Permissions:
         build_query = build_migration_query
 
-    created_by = models.ForeignKey[User](
-        to=User, related_name="+", on_delete=models.CASCADE
-    )
-    src_resource = models.ForeignKey[Resource](
+    created_by = models.ForeignKey(to=User, related_name="+", on_delete=models.CASCADE)
+    src_resource = models.ForeignKey(
         to=Resource, related_name="+", on_delete=models.CASCADE
     )
-    dst_resource = models.ForeignKey[Resource](
+    dst_resource = models.ForeignKey(
         to=Resource, related_name="+", on_delete=models.CASCADE
     )
     mappings = JSONField(null=True, blank=True)

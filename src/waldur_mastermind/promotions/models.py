@@ -66,7 +66,7 @@ class Campaign(UuidMixin, DescribableMixin, NameMixin):
     )
     auto_apply = django_models.BooleanField(default=True, blank=True)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
-    service_provider = django_models.ForeignKey[marketplace_models.ServiceProvider](
+    service_provider = django_models.ForeignKey(
         marketplace_models.ServiceProvider, on_delete=django_models.CASCADE
     )
     tracker = FieldTracker()
@@ -145,9 +145,7 @@ class DiscountedResource(TimeStampedModel):
     # We add resource in this model when it approved and
     # after checking coupon, stock, state, start/end dates and offerings.
 
-    campaign = django_models.ForeignKey[Campaign](
-        Campaign, on_delete=django_models.CASCADE
-    )
+    campaign = django_models.ForeignKey(Campaign, on_delete=django_models.CASCADE)
     resource = django_models.ForeignKey[marketplace_models.Resource](
         "marketplace.Resource", on_delete=django_models.CASCADE
     )

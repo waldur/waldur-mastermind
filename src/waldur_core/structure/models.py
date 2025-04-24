@@ -523,7 +523,7 @@ class Project(
         null=True,
         related_name="+",
     )
-    type = models.ForeignKey[ProjectType](
+    type = models.ForeignKey(
         ProjectType,
         verbose_name=_("project type"),
         blank=True,
@@ -532,7 +532,7 @@ class Project(
     )
     is_industry = models.BooleanField(default=False)
 
-    customer = models.ForeignKey[Customer](
+    customer = models.ForeignKey(
         Customer,
         verbose_name=_("organization"),
         related_name="projects",
@@ -594,7 +594,7 @@ class CustomerPermissionReview(core_models.UuidMixin):
         customer_path = "customer"
         list_permission = PermissionEnum.LIST_CUSTOMER_PERMISSION_REVIEWS
 
-    customer = models.ForeignKey[Customer](
+    customer = models.ForeignKey(
         Customer,
         verbose_name=_("organization"),
         related_name="reviews",
@@ -642,7 +642,7 @@ class ServiceSettings(
         customer_path = "customer"
         build_query = build_service_settings_query
 
-    customer = models.ForeignKey[Customer](
+    customer = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Customer,
         verbose_name=_("organization"),
@@ -668,7 +668,7 @@ class ServiceSettings(
     tracker = FieldTracker()
 
     # service settings scope - VM that contains service
-    content_type = models.ForeignKey[ContentType](
+    content_type = models.ForeignKey(
         on_delete=models.CASCADE, to=ContentType, null=True
     )
     object_id = models.PositiveIntegerField(null=True)
@@ -758,7 +758,7 @@ class ServiceProperty(BaseServiceProperty):
         abstract = True
         unique_together = ("settings", "backend_id")
 
-    settings = models.ForeignKey[ServiceSettings](
+    settings = models.ForeignKey(
         on_delete=models.CASCADE, to=ServiceSettings, related_name="+"
     )
     backend_id = models.CharField(max_length=255, db_index=True)
@@ -803,12 +803,10 @@ class BaseResource(
         customer_path = "project__customer"
         project_path = "project"
 
-    service_settings = models.ForeignKey[ServiceSettings](
+    service_settings = models.ForeignKey(
         on_delete=models.CASCADE, to=ServiceSettings, related_name="+"
     )
-    project = models.ForeignKey[Project](
-        on_delete=models.CASCADE, to=Project, related_name="+"
-    )
+    project = models.ForeignKey(on_delete=models.CASCADE, to=Project, related_name="+")
     backend_id = models.CharField(max_length=255, blank=True)
 
     @classmethod

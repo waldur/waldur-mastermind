@@ -25,7 +25,7 @@ class QuotaLimit(models.Model):
     name = models.CharField(max_length=150, db_index=True)
     value = models.BigIntegerField(default=-1)
 
-    content_type = models.ForeignKey[ct_models.ContentType](
+    content_type = models.ForeignKey(
         on_delete=models.CASCADE, to=ct_models.ContentType, null=True
     )
     object_id = models.PositiveIntegerField(null=True)
@@ -42,7 +42,7 @@ class QuotaUsage(models.Model):
     name = models.CharField(max_length=150, db_index=True)
     delta = models.BigIntegerField(default=0)
 
-    content_type = models.ForeignKey[ct_models.ContentType](
+    content_type = models.ForeignKey(
         on_delete=models.CASCADE, to=ct_models.ContentType, null=True
     )
     object_id = models.PositiveIntegerField(null=True)

@@ -183,7 +183,7 @@ class ServerGroup(structure_models.BaseResource):
 
     policy = models.CharField(max_length=40, blank=True, choices=POLICIES)
 
-    tenant = models.ForeignKey[Tenant](
+    tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="server_groups"
     )
 
@@ -205,7 +205,7 @@ class ServerGroup(structure_models.BaseResource):
 
 
 class SecurityGroup(structure_models.BaseResource):
-    tenant = models.ForeignKey[Tenant](
+    tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="security_groups"
     )
 
@@ -285,10 +285,10 @@ class SecurityGroupRule(LoggableMixin, core_models.DescribableMixin, models.Mode
     def __str__(self):
         return f"{self.security_group} ({self.protocol}): {self.cidr} ({self.from_port} -> {self.to_port})"
 
-    security_group = models.ForeignKey[SecurityGroup](
+    security_group = models.ForeignKey(
         on_delete=models.CASCADE, to=SecurityGroup, related_name="rules"
     )
-    remote_group = models.ForeignKey[SecurityGroup](
+    remote_group = models.ForeignKey(
         on_delete=models.CASCADE,
         to=SecurityGroup,
         related_name="+",
@@ -311,7 +311,7 @@ class SecurityGroupRule(LoggableMixin, core_models.DescribableMixin, models.Mode
 
 
 class FloatingIP(core_models.RuntimeStateMixin, structure_models.BaseResource):
-    tenant = models.ForeignKey[Tenant](
+    tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="floating_ips"
     )
     address = models.GenericIPAddressField(
@@ -368,7 +368,7 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.BaseResource):
 
 
 class Router(structure_models.BaseResource):
-    tenant: Tenant = models.ForeignKey[Tenant](
+    tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="routers"
     )
     routes = JSONField(default=list)
@@ -385,7 +385,7 @@ class Router(structure_models.BaseResource):
 
 
 class Network(core_models.RuntimeStateMixin, structure_models.BaseResource):
-    tenant = models.ForeignKey[Tenant](
+    tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="networks"
     )
     is_external = models.BooleanField(default=False)
@@ -429,10 +429,8 @@ class Network(core_models.RuntimeStateMixin, structure_models.BaseResource):
 
 
 class SubNet(structure_models.BaseResource):
-    tenant: Tenant = models.ForeignKey[Tenant](
-        on_delete=models.CASCADE, to=Tenant, related_name="+"
-    )
-    network = models.ForeignKey[Network](
+    tenant = models.ForeignKey(on_delete=models.CASCADE, to=Tenant, related_name="+")
+    network = models.ForeignKey(
         on_delete=models.CASCADE, to=Network, related_name="subnets"
     )
     disable_gateway = models.BooleanField(default=False)
@@ -490,10 +488,10 @@ class SubNet(structure_models.BaseResource):
 
 
 class Port(structure_models.BaseResource):
-    tenant: Tenant = models.ForeignKey[Tenant](
+    tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="ports"
     )
-    network = models.ForeignKey[Network](
+    network = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Network,
         related_name="ports",
@@ -509,7 +507,7 @@ class Port(structure_models.BaseResource):
         null=True,
         blank=True,
     )
-    subnet = models.ForeignKey[SubNet](
+    subnet = models.ForeignKey(
         on_delete=models.CASCADE,
         to=SubNet,
         related_name="ports",
@@ -564,14 +562,12 @@ class Port(structure_models.BaseResource):
 
 
 class CustomerOpenStack(TimeStampedModel):
-    settings = models.ForeignKey[structure_models.ServiceSettings](
+    settings = models.ForeignKey(
         structure_models.ServiceSettings,
         on_delete=models.CASCADE,
         limit_choices_to={"shared": True, "type": "OpenStack"},
     )
-    customer = models.ForeignKey[structure_models.Customer](
-        on_delete=models.CASCADE, to=structure_models.Customer
-    )
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer)
     external_network_id = models.CharField(
         _("OpenStack external network ID"), max_length=255
     )
@@ -592,10 +588,10 @@ class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
 
 
 class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
-    tenant = models.ForeignKey[Tenant](
+    tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="volume_availability_zones"
     )
-    settings = models.ForeignKey[structure_models.ServiceSettings](
+    settings = models.ForeignKey(
         on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name="+"
     )
     available = models.BooleanField(default=True)
@@ -612,7 +608,7 @@ class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
 
 
 class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage):
-    tenant = models.ForeignKey[Tenant](
+    tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="volumes"
     )
     # backend_id is nullable on purpose, otherwise
@@ -639,18 +635,16 @@ class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage
     )
     bootable = models.BooleanField(default=False)
     metadata = JSONField(blank=True)
-    image = models.ForeignKey[Image](
-        Image, blank=True, null=True, on_delete=models.SET_NULL
-    )
+    image = models.ForeignKey(Image, blank=True, null=True, on_delete=models.SET_NULL)
     image_name = models.CharField(max_length=150, blank=True)
     image_metadata = JSONField(blank=True)
-    type: VolumeType = models.ForeignKey[VolumeType](
+    type = models.ForeignKey(
         VolumeType, blank=True, null=True, on_delete=models.SET_NULL
     )
-    availability_zone = models.ForeignKey[VolumeAvailabilityZone](
+    availability_zone = models.ForeignKey(
         VolumeAvailabilityZone, blank=True, null=True, on_delete=models.SET_NULL
     )
-    source_snapshot = models.ForeignKey["Snapshot"](
+    source_snapshot = models.ForeignKey(
         "Snapshot",
         related_name="volumes",
         blank=True,
@@ -698,14 +692,14 @@ class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage
 
 
 class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage):
-    tenant = models.ForeignKey[Tenant](
+    tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="snapshots"
     )
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
     backend_id = models.CharField(max_length=255, blank=True, null=True)
 
-    source_volume: Volume = models.ForeignKey[Volume](
+    source_volume = models.ForeignKey(
         Volume, related_name="snapshots", null=True, on_delete=models.CASCADE
     )
     metadata = JSONField(blank=True)
@@ -745,7 +739,7 @@ class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Stora
 
 
 class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
-    snapshot = models.ForeignKey[Snapshot](
+    snapshot = models.ForeignKey(
         on_delete=models.CASCADE, to=Snapshot, related_name="restorations"
     )
     volume = models.OneToOneField(
@@ -758,10 +752,10 @@ class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
 
 
 class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
-    tenant = models.ForeignKey[Tenant](
+    tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="instance_availability_zones"
     )
-    settings = models.ForeignKey[structure_models.ServiceSettings](
+    settings = models.ForeignKey(
         on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name="+"
     )
     available = models.BooleanField(default=True)
@@ -802,14 +796,14 @@ class Instance(
         SUSPENDED = "SUSPENDED"
         VERIFY_RESIZE = "VERIFY_RESIZE"
 
-    tenant = models.ForeignKey[Tenant](
+    tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="instances"
     )
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
     backend_id = models.CharField(max_length=255, blank=True, null=True)
 
-    availability_zone = models.ForeignKey[InstanceAvailabilityZone](
+    availability_zone = models.ForeignKey(
         InstanceAvailabilityZone, blank=True, null=True, on_delete=models.SET_NULL
     )
     flavor_name = models.CharField(max_length=255, blank=True)
@@ -819,7 +813,7 @@ class Instance(
     security_groups = models.ManyToManyField(
         SecurityGroup, related_name="instances", blank=True
     )
-    server_group = models.ForeignKey[ServerGroup](
+    server_group = models.ForeignKey(
         ServerGroup, blank=True, null=True, on_delete=models.SET_NULL
     )
     subnets = models.ManyToManyField(SubNet, through=Port)
@@ -914,10 +908,10 @@ class Instance(
 
 
 class Backup(structure_models.BaseResource):
-    tenant = models.ForeignKey[Tenant](
+    tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="backups"
     )
-    instance = models.ForeignKey[Instance](
+    instance = models.ForeignKey(
         Instance, related_name="backups", on_delete=models.CASCADE
     )
     kept_until = models.DateTimeField(
@@ -941,13 +935,13 @@ class Backup(structure_models.BaseResource):
 class BackupRestoration(core_models.UuidMixin, TimeStampedModel):
     """This model corresponds to instance restoration from backup."""
 
-    backup = models.ForeignKey[Backup](
+    backup = models.ForeignKey(
         on_delete=models.CASCADE, to=Backup, related_name="restorations"
     )
     instance = models.OneToOneField(
         Instance, related_name="+", on_delete=models.CASCADE
     )
-    flavor = models.ForeignKey[Flavor](
+    flavor = models.ForeignKey(
         Flavor, related_name="+", null=True, blank=True, on_delete=models.SET_NULL
     )
 
@@ -972,7 +966,7 @@ class NetworkRBACPolicy(
             (EXTERNAL, "External"),
         )
 
-    network = models.ForeignKey[Network](
+    network = models.ForeignKey(
         Network,
         on_delete=models.CASCADE,
         related_name="rbac_policies",

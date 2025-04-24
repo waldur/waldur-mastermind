@@ -178,7 +178,7 @@ class EmailHook(BaseHook):
 class SystemNotification(EventTypesMixin, models.Model):
     # Model doesn't inherit NameMixin, because this is circular dependence.
     name = models.CharField(_("name"), max_length=150)
-    hook_content_type = models.ForeignKey[ct_models.ContentType](
+    hook_content_type = models.ForeignKey(
         on_delete=models.CASCADE, to=ct_models.ContentType, related_name="+"
     )
     roles = JSONField("List of roles", default=list)
@@ -253,8 +253,8 @@ class FeedManager(GenericKeyMixin, models.Manager):
 
 
 class Feed(models.Model):
-    event = models.ForeignKey[Event](on_delete=models.CASCADE, to=Event)
-    content_type = models.ForeignKey[ct_models.ContentType](
+    event = models.ForeignKey(on_delete=models.CASCADE, to=Event)
+    content_type = models.ForeignKey(
         on_delete=models.CASCADE, to=ct_models.ContentType, db_index=True
     )
     object_id = models.PositiveIntegerField(db_index=True)
@@ -266,9 +266,7 @@ class Feed(models.Model):
 
 
 class EventSubscription(UuidMixin, TimeStampedModel, core_models.DescribableMixin):
-    user = models.ForeignKey[core_models.User](
-        to=core_models.User, on_delete=models.CASCADE
-    )
+    user = models.ForeignKey(to=core_models.User, on_delete=models.CASCADE)
     source_ip = models.GenericIPAddressField(protocol="IPv4", null=True, blank=True)
     # observable_objects is a list of dicts, where each dict contains:
     # object_type - string with model name of an observable object

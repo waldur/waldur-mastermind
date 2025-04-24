@@ -88,7 +88,7 @@ class Issue(
         on_delete=models.PROTECT,
     )
 
-    customer = models.ForeignKey[structure_models.Customer](
+    customer = models.ForeignKey(
         structure_models.Customer,
         verbose_name=_("organization"),
         related_name="issues",
@@ -96,7 +96,7 @@ class Issue(
         null=True,
         on_delete=models.CASCADE,
     )
-    project = models.ForeignKey[structure_models.Project](
+    project = models.ForeignKey(
         structure_models.Project,
         related_name="issues",
         blank=True,
@@ -104,7 +104,7 @@ class Issue(
         on_delete=models.CASCADE,
     )
 
-    resource_content_type = models.ForeignKey[ContentType](
+    resource_content_type = models.ForeignKey(
         on_delete=models.CASCADE, to=ContentType, null=True
     )
     resource_object_id = models.PositiveIntegerField(null=True)
@@ -265,10 +265,10 @@ class Comment(
         customer_path = "issue__customer"
         project_path = "issue__project"
 
-    issue = models.ForeignKey[Issue](
+    issue = models.ForeignKey(
         on_delete=models.CASCADE, to=Issue, related_name="comments"
     )
-    author = models.ForeignKey[SupportUser](
+    author = models.ForeignKey(
         on_delete=models.CASCADE, to=SupportUser, related_name="comments"
     )
     description = models.TextField()
@@ -356,12 +356,12 @@ class Attachment(
     class Meta:
         unique_together = ("backend_name", "backend_id")
 
-    issue = models.ForeignKey[Issue](
+    issue = models.ForeignKey(
         on_delete=models.CASCADE, to=Issue, related_name="attachments"
     )
     file = models.FileField(upload_to="support_attachments")
     backend_id = models.CharField(max_length=255)
-    author = models.ForeignKey[SupportUser](
+    author = models.ForeignKey(
         on_delete=models.CASCADE,
         to=SupportUser,
         related_name="attachments",
@@ -411,7 +411,7 @@ class Template(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
 class TemplateAttachment(
     FileMixin, core_models.UuidMixin, core_models.NameMixin, TimeStampedModel
 ):
-    template = models.ForeignKey[Template](
+    template = models.ForeignKey(
         Template, on_delete=models.CASCADE, related_name="attachments"
     )
     file = models.FileField(upload_to="support_template_attachments")

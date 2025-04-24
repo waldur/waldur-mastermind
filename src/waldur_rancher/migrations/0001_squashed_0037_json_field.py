@@ -10,7 +10,6 @@ import waldur_core.core.fields
 import waldur_core.core.models
 import waldur_core.core.validators
 import waldur_core.structure.models
-import waldur_rancher.models
 
 
 class Migration(migrations.Migration):
@@ -201,7 +200,7 @@ class Migration(migrations.Migration):
                 ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
                     "role",
-                    waldur_rancher.models.ClusterRole(
+                    models.CharField(
                         choices=[
                             ("owner", "Cluster owner"),
                             ("member", "Cluster member"),

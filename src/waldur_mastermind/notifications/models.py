@@ -32,7 +32,7 @@ class BroadcastMessage(UuidMixin):
         max_length=30, choices=States.CHOICES, default=States.DRAFT
     )
     send_at = models.DateField(null=True)
-    author = models.ForeignKey[User](to=User, on_delete=models.SET_NULL, null=True)
+    author = models.ForeignKey(to=User, on_delete=models.SET_NULL, null=True)
     created = AutoCreatedField()
     subject = models.CharField(max_length=1000, validators=[validate_name])
     body = models.TextField(validators=[validate_name])

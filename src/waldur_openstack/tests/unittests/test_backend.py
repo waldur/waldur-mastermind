@@ -712,7 +712,7 @@ class PullPortsTest(BaseBackendTestCase):
         self.call_backend()
 
         self.assertEqual(models.Port.objects.count(), 1)
-        created_port: models.Port = models.Port.objects.get(
+        created_port = models.Port.objects.get(
             tenant=self.tenant, backend_id=port.backend_id
         )
 

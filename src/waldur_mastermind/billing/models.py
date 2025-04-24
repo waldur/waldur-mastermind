@@ -13,7 +13,7 @@ from . import managers
 
 
 class PriceEstimate(core_models.UuidMixin, models.Model):
-    content_type = models.ForeignKey[ContentType](
+    content_type = models.ForeignKey(
         on_delete=models.CASCADE, to=ContentType, null=True, related_name="+"
     )
     object_id = models.PositiveIntegerField(null=True)
