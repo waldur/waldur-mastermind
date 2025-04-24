@@ -5,7 +5,7 @@ from django.db.models import Q
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
 
-from . import models
+from . import enums, models
 
 
 class ClusterFilter(structure_filters.BaseResourceFilter):
@@ -211,6 +211,10 @@ class KeycloakUserGroupMembershipFilter(django_filters.FilterSet):
     email = django_filters.CharFilter()
     first_name = django_filters.CharFilter()
     last_name = django_filters.CharFilter()
+    state = django_filters.CharFilter()
+    state = django_filters.MultipleChoiceFilter(
+        choices=enums.KeycloakUserGroupMembershipState.CHOICES
+    )
 
     class Meta:
         model = models.KeycloakUserGroupMembership
@@ -223,4 +227,19 @@ class KeycloakUserGroupMembershipFilter(django_filters.FilterSet):
             "email",
             "first_name",
             "last_name",
+            "state",
+        )
+
+
+class RoleTemplateFilter(django_filters.FilterSet):
+    scope_type = django_filters.CharFilter(field_name="scope_type")
+    name = django_filters.CharFilter(field_name="name")
+    settings_uuid = django_filters.UUIDFilter(field_name="settings__uuid")
+
+    class Meta:
+        model = models.RoleTemplate
+        fields = (
+            "scope_type",
+            "name",
+            "settings_uuid",
         )
