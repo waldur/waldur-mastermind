@@ -15,6 +15,8 @@ class Category(
     core_models.NameMixin,
     core_models.DescribableMixin,
 ):
+    checklists: models.Manager["Checklist"]
+
     icon = models.FileField(
         upload_to="marketplace_checklist_category_icons",
         blank=True,
@@ -36,6 +38,8 @@ class Checklist(
     core_models.DescribableMixin,
     TimeStampedModel,
 ):
+    questions: models.Manager["Question"]
+
     category = models.ForeignKey(
         to=Category,
         on_delete=models.SET_NULL,

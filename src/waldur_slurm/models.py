@@ -24,6 +24,8 @@ class UsageMixin(models.Model):
 
 
 class Allocation(UsageMixin, structure_models.BaseResource):
+    associations: models.Manager["Association"]
+
     is_active = models.BooleanField(default=True)
     tracker = FieldTracker()
 

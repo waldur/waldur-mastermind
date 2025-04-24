@@ -150,6 +150,12 @@ class Category(
     quotas_models.QuotaModelMixin,
     TimeStampedModel,
 ):
+    columns: models.Manager["CategoryColumn"]
+    sections: models.Manager["Section"]
+    components: models.Manager["CategoryComponent"]
+    offerings: models.Manager["Offering"]
+    articles: models.Manager["CategoryHelpArticle"]
+
     title = models.CharField(blank=False, max_length=255)
     icon = models.FileField(
         upload_to="marketplace_category_icons",
@@ -265,6 +271,8 @@ class CategoryColumn(
 
 
 class Section(TimeStampedModel):
+    attributes: models.Manager["Attribute"]
+
     key = models.CharField(primary_key=True, max_length=255)
     title = models.CharField(blank=False, max_length=255)
     category = models.ForeignKey(
@@ -282,6 +290,8 @@ InternalNameValidator = RegexValidator(r"^[a-zA-Z0-9_\-\/:]+$")
 
 
 class Attribute(TimeStampedModel):
+    options: models.Manager["AttributeOption"]
+
     key = models.CharField(
         primary_key=True, max_length=255, validators=[InternalNameValidator]
     )
@@ -383,6 +393,14 @@ class Offering(
     waldur_core.media.mixins.ImageModelMixin,
     common_mixins.BackendMetadataMixin,
 ):
+    children: models.Manager["Offering"]
+    components: models.Manager["OfferingComponent"]
+    plans: models.Manager["Plan"]
+    screenshots: models.Manager["Screenshot"]
+    files: models.Manager["OfferingFile"]
+    endpoints: models.Manager["OfferingAccessEndpoint"]
+    roles: models.Manager["OfferingUserRole"]
+
     class States(OfferingStates):
         pass
 
@@ -596,6 +614,8 @@ class OfferingComponent(
     core_mixins.ScopeMixin,
     core_models.BackendMixin,
 ):
+    components: models.Manager["PlanComponent"]
+
     class Meta:
         unique_together = ("type", "offering")
         ordering = ("name",)
@@ -718,6 +738,8 @@ class Plan(
     is created via REST API. Usage-based components don't contribute to plan price.
     It is assumed that plan price is updated manually when plan component is managed via Django ORM.
     """
+
+    components: models.Manager["PlanComponent"]
 
     offering = models.ForeignKey(
         on_delete=models.CASCADE, to=Offering, related_name="plans"
@@ -1012,6 +1034,12 @@ class Resource(
     marketplace resource model as a primary mean.
     """
 
+    children: models.Manager["Resource"]
+    quotas: models.Manager["ComponentQuota"]
+    usages: models.Manager["ComponentUsage"]
+    endpoints: models.Manager["ResourceAccessEndpoint"]
+    users: models.Manager["ResourceUser"]
+
     class States(ResourceStates):
         pass
 
@@ -1169,6 +1197,8 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixi
     """
     This model allows to track billing plan for timeframes during resource lifecycle.
     """
+
+    components: models.Manager["ComponentUsage"]
 
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name="+"

@@ -33,6 +33,23 @@ class Tenant(
     core_models.RuntimeStateMixin,
     structure_models.BaseResource,
 ):
+    flavors: models.Manager["Flavor"]
+    images: models.Manager["Image"]
+    volume_types: models.Manager["VolumeType"]
+    server_groups: models.Manager["ServerGroup"]
+    security_groups: models.Manager["SecurityGroup"]
+    floating_ips: models.Manager["FloatingIP"]
+    routers: models.Manager["Router"]
+    networks: models.Manager["Network"]
+    ports: models.Manager["Port"]
+    volume_availability_zones: models.Manager["VolumeAvailabilityZone"]
+    volumes: models.Manager["Volume"]
+    snapshots: models.Manager["Snapshot"]
+    instance_availability_zones: models.Manager["InstanceAvailabilityZone"]
+    instances: models.Manager["Instance"]
+    backups: models.Manager["Backup"]
+    network_rbac_policies: models.Manager["NetworkRBACPolicy"]
+
     class Quotas(QuotaModelMixin.Quotas):
         vcpu = QuotaField(default_limit=20, is_backend=True)
         ram = QuotaField(default_limit=51200, is_backend=True)
@@ -205,6 +222,10 @@ class ServerGroup(structure_models.BaseResource):
 
 
 class SecurityGroup(structure_models.BaseResource):
+    rules: models.Manager["SecurityGroupRule"]
+    ports: models.Manager["Port"]
+    instances: models.Manager["Instance"]
+
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="security_groups"
     )
@@ -385,6 +406,10 @@ class Router(structure_models.BaseResource):
 
 
 class Network(core_models.RuntimeStateMixin, structure_models.BaseResource):
+    subnets: models.Manager["SubNet"]
+    ports: models.Manager["Port"]
+    rbac_policies: models.Manager["NetworkRBACPolicy"]
+
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="networks"
     )
@@ -429,6 +454,8 @@ class Network(core_models.RuntimeStateMixin, structure_models.BaseResource):
 
 
 class SubNet(structure_models.BaseResource):
+    ports: models.Manager["Port"]
+
     tenant = models.ForeignKey(on_delete=models.CASCADE, to=Tenant, related_name="+")
     network = models.ForeignKey(
         on_delete=models.CASCADE, to=Network, related_name="subnets"
@@ -488,6 +515,8 @@ class SubNet(structure_models.BaseResource):
 
 
 class Port(structure_models.BaseResource):
+    floating_ips: models.Manager["FloatingIP"]
+
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="ports"
     )
@@ -608,6 +637,9 @@ class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
 
 
 class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage):
+    snapshots: models.Manager["Snapshot"]
+    restoration: models.Manager["SnapshotRestoration"]
+
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="volumes"
     )
@@ -692,6 +724,10 @@ class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage
 
 
 class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage):
+    volumes: models.Manager["Volume"]
+    restorations: models.Manager["SnapshotRestoration"]
+    backups: models.Manager["Backup"]
+
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="snapshots"
     )
@@ -774,6 +810,10 @@ class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
 class Instance(
     core_models.ActionMixin, TenantQuotaMixin, structure_models.VirtualMachine
 ):
+    ports: models.Manager["Port"]
+    volumes: models.Manager["Volume"]
+    backups: models.Manager["Backup"]
+
     class RuntimeStates:
         # All possible OpenStack Instance states on backend.
         # See https://docs.openstack.org/developer/nova/vmstates.html
@@ -908,6 +948,8 @@ class Instance(
 
 
 class Backup(structure_models.BaseResource):
+    restorations: models.Manager["BackupRestoration"]
+
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="backups"
     )

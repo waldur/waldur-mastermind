@@ -36,6 +36,8 @@ class CallDocument(
     core_models.UuidMixin,
     core_models.DescribableMixin,
 ):
+    call_documents: models.Manager["Call"]
+
     call = models.ForeignKey["Call"]("Call", on_delete=models.CASCADE)
     file = models.FileField(
         upload_to="call_documents",

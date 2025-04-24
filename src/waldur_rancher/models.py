@@ -245,6 +245,8 @@ class Project(
     SettingsMixin,
     core_models.RuntimeStateMixin,
 ):
+    namespaces: models.Manager["Namespace"]
+
     cluster = models.ForeignKey(
         Cluster, on_delete=models.CASCADE, null=True, related_name="+"
     )
@@ -404,6 +406,8 @@ class ClusterTemplate(
     core_models.DescribableMixin,
     TimeStampedModel,
 ):
+    nodes: models.Manager["ClusterTemplateNode"]
+
     class Meta:
         ordering = ("name",)
 

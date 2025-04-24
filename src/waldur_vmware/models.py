@@ -32,6 +32,8 @@ class VirtualMachineMixin(models.Model):
 class VirtualMachine(
     VirtualMachineMixin, core_models.RuntimeStateMixin, structure_models.BaseResource
 ):
+    disks: models.Manager["Disk"]
+
     class RuntimeStates:
         POWERED_OFF = "POWERED_OFF"
         POWERED_ON = "POWERED_ON"

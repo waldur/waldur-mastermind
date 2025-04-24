@@ -43,6 +43,8 @@ class Invoice(
 ):
     """Invoice describes billing information about purchased resources for customers on a monthly basis"""
 
+    items: models.Manager["InvoiceItem"]
+
     class Permissions:
         customer_path = "customer"
 

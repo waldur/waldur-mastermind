@@ -36,6 +36,9 @@ class Issue(
     TimeStampedModel,
     core_models.StateMixin,
 ):
+    comments: models.Manager["Comment"]
+    attachments: models.Manager["Attachment"]
+
     class Meta:
         ordering = ["-created"]
         unique_together = ("backend_name", "backend_id")
@@ -220,6 +223,11 @@ class SupportUser(
     core_models.NameMixin,
     models.Model,
 ):
+    reported_issues: models.Manager["Issue"]
+    issues: models.Manager["Issue"]
+    comments: models.Manager["Comment"]
+    attachments: models.Manager["Attachment"]
+
     class Meta:
         ordering = ["name"]
         unique_together = ("backend_name", "backend_id", "user")
@@ -382,6 +390,9 @@ class Attachment(
 
 
 class Template(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
+    issues: models.Manager["Issue"]
+    attachments: models.Manager["TemplateAttachment"]
+
     class IssueTypes:
         INFORMATIONAL = "INFORMATIONAL"
         SERVICE_REQUEST = "SERVICE_REQUEST"

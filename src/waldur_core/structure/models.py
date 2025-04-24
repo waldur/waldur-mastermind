@@ -163,6 +163,8 @@ class BasePermission(models.Model):
 
 
 class OrganizationGroup(core_models.UuidMixin, core_models.NameMixin, models.Model):
+    customers: models.Manager["Customer"]
+
     parent = models.ForeignKey["OrganizationGroup"](
         on_delete=models.CASCADE, to="OrganizationGroup", null=True, blank=True
     )
@@ -289,6 +291,11 @@ class Customer(
     ImageModelMixin,
     TimeStampedModel,
 ):
+    access_subnet_set: models.Manager["AccessSubnet"]
+    projects: models.Manager["Project"]
+    reviews: models.Manager["CustomerPermissionReview"]
+    service_settings: models.Manager["ServiceSettings"]
+
     class Permissions:
         customer_path = "self"
         project_path = "projects"
