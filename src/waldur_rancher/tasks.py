@@ -27,7 +27,6 @@ from waldur_rancher.enums import (
     LONGHORN_NAMESPACE,
     KeycloakUserGroupMembershipState,
 )
-from waldur_rancher.utils import SyncUser
 
 from . import backend, enums, exceptions, models, utils
 
@@ -237,13 +236,6 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
             )
 
         return node
-
-
-@shared_task(name="waldur_rancher.sync_users")
-def sync_users():
-    if settings.WALDUR_RANCHER["READ_ONLY_MODE"]:
-        return
-    SyncUser.run()
 
 
 class PollLonghornApplicationTask(core_tasks.Task):

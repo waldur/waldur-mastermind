@@ -164,57 +164,6 @@ class RancherClient:
     def list_users(self):
         return self._get("users")["data"]
 
-    def create_user(self, name, username, password, mustChangePassword=True):
-        return self._post(
-            "users",
-            json={
-                "name": name,
-                "mustChangePassword": mustChangePassword,
-                "password": password,
-                "username": username,
-                "type": "user",
-                "enabled": True,
-            },
-        )
-
-    def enable_user(self, user_id):
-        return self._put(
-            f"users/{user_id}",
-            json={
-                "enabled": True,
-            },
-        )
-
-    def disable_user(self, user_id):
-        return self._put(
-            f"users/{user_id}",
-            json={
-                "enabled": False,
-            },
-        )
-
-    def create_global_role(self, user_id, role):
-        return self._post(
-            "globalrolebindings",
-            json={
-                "globalRoleId": role,
-                "userId": user_id,
-            },
-        )
-
-    def delete_global_role(self, role_id):
-        return self._delete(f"globalrolebindings/{role_id}")
-
-    def create_cluster_user_role(self, user_id, cluster_id, role):
-        return self._post(
-            "clusterroletemplatebindings",
-            json={
-                "roleTemplateId": role,
-                "clusterId": cluster_id,
-                "userId": user_id,
-            },
-        )
-
     def create_cluster_group_role(self, group_id, cluster_id, role):
         return self._post(
             "clusterroletemplatebindings",
@@ -299,12 +248,6 @@ class RancherClient:
 
     def list_role_templates(self):
         return self._get("roletemplates")["data"]
-
-    def delete_user(self, user_id):
-        return self._delete(f"users/{user_id}")
-
-    def delete_cluster_role(self, cluster_role_id):
-        return self._delete(f"clusterroletemplatebindings/{cluster_role_id}")
 
     def list_global_catalogs(self):
         return self._get("catalogs", params={"limit": -1})["data"]
