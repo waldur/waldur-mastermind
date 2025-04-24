@@ -23,7 +23,6 @@ from waldur_mastermind.common.utils import parse_datetime
 from waldur_rancher.enums import (
     LONGHORN_NAME,
     LONGHORN_NAMESPACE,
-    GlobalRoles,
 )
 from waldur_rancher.exceptions import NotFound, RancherException, VaultException
 
@@ -369,37 +368,6 @@ class RancherBackend(ServiceBackend):
 
         return node.save()
 
-    def create_user(self, user):
-        if user.backend_id:
-            return
-
-        password = core_utils.make_random_password
-        response = self.client.create_user(
-            name=user.user.username, username=user.user.username, password=password
-        )
-        user_id = response["id"]
-        user.backend_id = user_id
-        user.save()
-        self.client.create_global_role(user.backend_id, GlobalRoles.user_base)
-
-    def delete_user(self, user):
-        if user.backend_id:
-            self.client.delete_user(user_id=user.backend_id)
-
-        user.delete()
-
-    def block_user(self, user):
-        if user.is_active:
-            self.client.disable_user(user.backend_id)
-            user.is_active = False
-            user.save()
-
-    def activate_user(self, user):
-        if not user.is_active:
-            self.client.enable_user(user.backend_id)
-            user.is_active = True
-            user.save()
-
     def get_or_create_cluster_group_role(self, group_id, cluster_id, role):
         if not self.client.get_cluster_group_role(group_id, cluster_id, role):
             self.client.create_cluster_group_role(group_id, cluster_id, role)
@@ -435,28 +403,6 @@ class RancherBackend(ServiceBackend):
             self.client.create_project_group_role(group_id, project_id, role)
             return True
         return False
-
-    def create_cluster_user_role(self, link: models.RancherUserClusterLink):
-        role = link.role
-        role_name = role.name if role else None
-
-        response = self.client.create_cluster_user_role(
-            link.user.backend_id, link.cluster.backend_id, role_name
-        )
-        link_id = response["id"]
-        link.backend_id = link_id
-        link.save()
-
-    def delete_cluster_role(self, link):
-        if link.backend_id:
-            try:
-                self.client.delete_cluster_role(cluster_role_id=link.backend_id)
-            except NotFound:
-                logger.debug(
-                    "Cluster role %s is not present in the backend " % link.backend_id
-                )
-
-        link.delete()
 
     def list_roles(self):
         return self.client.list_role_templates()

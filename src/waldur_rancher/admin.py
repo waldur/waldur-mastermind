@@ -1,13 +1,9 @@
-from django.conf import settings
 from django.contrib import admin
-from django.shortcuts import redirect
-from django.urls import reverse
-from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import admin as core_admin
 from waldur_core.structure import admin as structure_admin
 
-from . import models, tasks
+from . import models
 
 
 class RancherUserClusterLinkInline(admin.TabularInline):
@@ -18,25 +14,13 @@ class RancherUserProjectLinkInline(admin.TabularInline):
     model = models.RancherUserProjectLink
 
 
-class RancherUserAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
+class RancherUserAdmin(admin.ModelAdmin):
     list_display = ("__str__", "settings", "is_active")
 
     inlines = [
         RancherUserClusterLinkInline,
         RancherUserProjectLinkInline,
     ]
-
-    def get_extra_actions(self):
-        if settings.WALDUR_RANCHER["READ_ONLY_MODE"]:
-            return []
-        return [
-            self.sync_users,
-        ]
-
-    def sync_users(self, request):
-        tasks.sync_users.delay()
-        self.message_user(request, _("Users' synchronization has been scheduled."))
-        return redirect(reverse("admin:waldur_rancher_rancheruser_changelist"))
 
 
 class CatalogAdmin(admin.ModelAdmin):
