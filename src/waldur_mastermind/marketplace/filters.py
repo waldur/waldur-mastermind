@@ -102,6 +102,13 @@ class OfferingFilter(
     accessible_via_calls = django_filters.BooleanFilter(
         label="Accessible via calls", method="filter_accessible_via_calls"
     )
+    resource_customer_uuid = django_filters.UUIDFilter(
+        method="filter_resource_customer_uuid", label="Resource customer UUID"
+    )
+    resource_project_uuid = django_filters.UUIDFilter(
+        method="filter_resource_project_uuid", label="Resource project UUID"
+    )
+
     o = django_filters.OrderingFilter(
         fields=(
             "name",
@@ -153,6 +160,24 @@ class OfferingFilter(
             | Q(customer__abbreviation__icontains=value)
             | Q(customer__native_name__icontains=value)
         )
+
+    def filter_resource_customer_uuid(self, queryset, name, value):
+        valid_ids = (
+            models.Resource.objects.filter(project__customer__uuid=value)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values_list("offering_id", flat=True)
+            .distinct()
+        )
+        return queryset.filter(id__in=valid_ids)
+
+    def filter_resource_project_uuid(self, queryset, name, value):
+        valid_ids = (
+            models.Resource.objects.filter(project__uuid=value)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values_list("offering_id", flat=True)
+            .distinct()
+        )
+        return queryset.filter(id__in=valid_ids)
 
     def filter_queryset(self, queryset):
         for name, value in self.form.cleaned_data.items():
