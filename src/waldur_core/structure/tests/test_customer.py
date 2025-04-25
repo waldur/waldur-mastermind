@@ -1114,7 +1114,6 @@ class CustomerResourceQuotasTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         components = response.data["components"]
-        print(components)
 
         # Check component stats for CPU
         cpu_component = next(

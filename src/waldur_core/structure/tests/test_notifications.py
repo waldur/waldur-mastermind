@@ -65,8 +65,7 @@ class NotificationChangeTest(test.APITransactionTestCase):
         valid_data = {"key": "appname.template_name"}
 
         response = self.client.put(self.url, valid_data)
-        print(f"{response=}")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     @data("user")
     def test_other_can_not_change_customer_organization_group(self, user):
