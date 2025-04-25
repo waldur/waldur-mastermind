@@ -1,3 +1,5 @@
+from typing import cast
+
 from rest_framework import serializers as rf_serializers
 from rest_framework.reverse import reverse
 
@@ -101,8 +103,8 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         project: Project,
         tenants: list[os_models.Tenant],
     ) -> rancher_models.Cluster:
-        offering: Offering = self.order.offering
-        rancher_offering: Offering = offering.scope
+        offering = self.order.offering
+        rancher_offering = cast(Offering, offering.scope)
         if not rancher_offering:
             rancher_offering = Offering.objects.create(
                 type=PLUGIN_NAME,
@@ -120,7 +122,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             )
             offering.scope = rancher_offering
             offering.save()
-            settings: ServiceSettings = rancher_offering.scope
+            settings = cast(ServiceSettings, rancher_offering.scope)
             settings.begin_creating()
             settings.save()
             backend = settings.get_backend()
@@ -137,7 +139,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
         worker_nodes_count = self.order.attributes["worker_nodes_count"]
         server_nodes_count = 3  # TODO: Make it configurable
-        service_settings: ServiceSettings = offering.scope
+        service_settings = cast(ServiceSettings, offering.scope)
 
         worker_node_flavor_name = self.order.attributes["worker_nodes_flavor_name"]
         worker_node_flavor = os_models.Flavor.objects.get(
@@ -235,7 +237,9 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             user, rancher_offering, plan, project, attributes
         )
         wait_for_order(order_uuid)
-        return Order.objects.get(uuid=order_uuid).resource.scope
+        return cast(
+            rancher_models.Cluster, Order.objects.get(uuid=order_uuid).resource.scope
+        )
 
     def validate_order(self, request):
         available_service_settings = self.validate_openstack_offerings()
@@ -319,7 +323,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
     ) -> dict[str, int]:
         worker_nodes_count = self.order.attributes["worker_nodes_count"]
         server_nodes_count = 3  # TODO: Make it configurable
-        service_settings: ServiceSettings = os_offering.scope
+        service_settings = cast(ServiceSettings, os_offering.scope)
 
         worker_node_flavor_name = self.order.attributes["worker_nodes_flavor_name"]
         worker_node_flavor = os_models.Flavor.objects.get(
