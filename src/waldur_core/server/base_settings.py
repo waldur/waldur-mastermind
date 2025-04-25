@@ -241,7 +241,7 @@ CELERY_TASK_QUEUES = {
     "background": {"exchange": "background"},
 }
 CELERY_TASK_DEFAULT_QUEUE = "tasks"
-CELERY_TASK_ROUTES = ("waldur_core.server.celery.PriorityRouter",)
+CELERY_TASK_ROUTES = ("waldur_core.server.celeryconf.PriorityRouter",)
 CELERY_TRACK_STARTED = True
 CELERY_SEND_EVENTS = True
 
