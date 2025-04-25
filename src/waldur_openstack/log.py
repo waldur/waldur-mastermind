@@ -175,6 +175,7 @@ class PortLogger(EventLogger):
             "openstack_port_pulled",
             "openstack_port_deleted",
             "openstack_port_cleaned",
+            "openstack_port_updated",
         )
         event_groups = {
             "resources": event_types,

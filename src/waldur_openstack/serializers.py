@@ -1193,7 +1193,7 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
     tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
     network_name = serializers.CharField(source="network.name", read_only=True)
     network_uuid = serializers.UUIDField(source="network.uuid", read_only=True)
-    allowed_address_pairs = OpenStackAllowedAddressPairField(read_only=True)
+    allowed_address_pairs = OpenStackAllowedAddressPairField(required=False)
     floating_ips = serializers.HyperlinkedRelatedField(
         view_name="openstack-fip-detail",
         lookup_field="uuid",
@@ -1202,7 +1202,7 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
     )
     fixed_ips = OpenStackFixedIpField(required=False)
     security_groups = OpenStackPortNestedSecurityGroupSerializer(
-        many=True, read_only=True
+        many=True, required=False
     )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
@@ -1223,30 +1223,46 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
             "port_security_enabled",
             "security_groups",
         )
+        protected_fields = (
+            structure_serializers.BaseResourceSerializer.Meta.protected_fields
+            + (
+                "network",
+                "port_security_enabled",
+                "fixed_ips",
+                "mac_address",
+                "allowed_address_pairs",
+            )
+        )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
             + (
                 "tenant",
                 "allowed_address_pairs",
-                "service_settings",
-                "project",
                 "device_id",
                 "device_owner",
-                "port_security_enabled",
                 "security_groups",
             )
         )
+        # Network and subnet should be writable for creation
         extra_kwargs = dict(
             url={"lookup_field": "uuid", "view_name": "openstack-port-detail"},
             tenant={"lookup_field": "uuid", "view_name": "openstack-tenant-detail"},
             network={"lookup_field": "uuid", "view_name": "openstack-network-detail"},
+            subnet={"lookup_field": "uuid", "view_name": "openstack-subnet-detail"},
         )
 
     def validate(self, attrs):
         if self.instance:
             return attrs
+
         fixed_ips = attrs.get("fixed_ips")
-        network: models.Network = self.context["view"].get_object()
+        network = attrs.get("network")
+
+        if not network:
+            raise serializers.ValidationError(
+                _("Network must be specified for creation of a port.")
+            )
+
         if fixed_ips:
             for fixed_ip in fixed_ips:
                 if "ip_address" not in fixed_ip and "subnet_id" not in fixed_ip:
@@ -1268,13 +1284,6 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
                         _("ip_address field must not be blank. Got %(fixed_ip)s.")
                         % {"fixed_ip": fixed_ip}
                     )
-
-                if fixed_ip.get("subnet_id") == "":
-                    raise serializers.ValidationError(
-                        _("subnet_id field must not be blank. Got %(fixed_ip)s.")
-                        % {"fixed_ip": fixed_ip}
-                    )
-
                 if "ip_address" in fixed_ip:
                     validate_ipv46_address(fixed_ip["ip_address"])
 
@@ -1294,6 +1303,7 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
                                 }
                             }
                         )
+
         attrs["service_settings"] = network.service_settings
         attrs["project"] = network.project
         attrs["network"] = network

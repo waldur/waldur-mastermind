@@ -2891,18 +2891,20 @@ class OpenStackBackend(ServiceBackend):
         return storage
 
     @log_backend_action()
-    def create_port(self, port: models.Port, serialized_network: models.Network):
+    def create_port(self, port: models.Port):
         session = get_tenant_session(port.tenant)
         neutron = get_neutron_client(session)
-        network = core_utils.deserialize_instance(serialized_network)
+        network = port.network
 
         port_payload = {
             "name": port.name,
             "description": port.description,
             "network_id": network.backend_id,
-            "fixed_ips": port.fixed_ips,
             "tenant_id": port.tenant.backend_id,
         }
+        if port.fixed_ips:
+            port_payload["fixed_ips"]: port.fixed_ips
+
         if port.mac_address:
             port_payload["mac_address"] = port.mac_address
 
@@ -2916,7 +2918,7 @@ class OpenStackBackend(ServiceBackend):
             port.fixed_ips = port_response["fixed_ips"]
             port.save(update_fields=["backend_id", "mac_address", "fixed_ips"])
 
-            event_logger.opentask_port.info(
+            event_logger.openstack_port.info(
                 f"Port [{port}] has been created in the backend for network [{network}].",
                 event_type="openstack_port_created",
                 event_context={"port": port},
@@ -4470,6 +4472,9 @@ class OpenStackBackend(ServiceBackend):
                 logger.info("About to delete ports with IDs %s", stale_ids)
                 instance.ports.filter(backend_id__in=stale_ids).delete()
 
+            # finally, mark all instance ports with backend_id as OK
+            instance.ports.exclude(backend_id="").update(state=models.Port.States.OK)
+
     @log_backend_action()
     def push_instance_ports(self, instance: models.Instance):
         session = get_tenant_session(instance.tenant)
@@ -4600,6 +4605,27 @@ class OpenStackBackend(ServiceBackend):
         port.fixed_ips = backend_port["fixed_ips"]
         port.backend_id = backend_port["id"]
         port.save()
+
+    @log_backend_action()
+    def update_port_name_and_description(self, port: models.Port):
+        session = get_tenant_session(port.tenant)
+        neutron = get_neutron_client(session)
+
+        port_payload = {
+            "name": port.name,
+            "description": port.description,
+        }
+
+        try:
+            neutron.update_port(port.backend_id, {"port": port_payload})
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        else:
+            event_logger.openstack_port.info(
+                f"Port [{port}] name and description have been updated in the backend.",
+                event_type="openstack_port_updated",
+                event_context={"port": port},
+            )
 
     @log_backend_action()
     def delete_instance_ports(self, instance: models.Instance):

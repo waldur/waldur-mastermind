@@ -587,7 +587,29 @@ class Port(structure_models.BaseResource):
         return "openstack-port"
 
     def __str__(self):
-        return ",".join([fixed_ip.get("ip_address") for fixed_ip in self.fixed_ips])
+        """
+        Return a string representation of the port.
+
+        If fixed_ips exists and has IP addresses, return a comma-separated list of IP addresses.
+        Otherwise, return a generic representation with the name and ID.
+        """
+        if self.fixed_ips:
+            ips = []
+            for fixed_ip in self.fixed_ips:
+                ip_address = (
+                    fixed_ip.get("ip_address") if isinstance(fixed_ip, dict) else None
+                )
+                if ip_address:
+                    ips.append(ip_address)
+
+            if ips:
+                return ",".join(ips)
+
+        # Fallback if there are no fixed_ips, or they don't have ip_address
+        if self.name:
+            return f"Port {self.name}"
+        else:
+            return f"Port {self.uuid.hex}"
 
 
 class CustomerOpenStack(TimeStampedModel):

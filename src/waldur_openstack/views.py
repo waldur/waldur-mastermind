@@ -760,7 +760,8 @@ class PortViewSet(structure_views.ResourceViewSet):
     filterset_class = filters.PortFilter
     serializer_class = serializers.OpenStackPortSerializer
 
-    disabled_actions = ["create", "update", "partial_update"]
+    create_executor = executors.PortCreateExecutor
+    update_executor = executors.PortUpdateNameAndDescriptionExecutor
     delete_executor = executors.PortDeleteExecutor
 
 
@@ -797,22 +798,6 @@ class NetworkViewSet(structure_views.ResourceViewSet):
 
     set_mtu_validators = [core_validators.StateValidator(models.Network.States.OK)]
     set_mtu_serializer_class = serializers.SetMtuSerializer
-
-    @decorators.action(detail=True, methods=["post"])
-    def create_port(self, request, uuid=None):
-        network: models.Network = self.get_object()
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        port: models.Port = serializer.save()
-
-        executors.PortCreateExecutor().execute(
-            port, network=core_utils.serialize_instance(network)
-        )
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    create_port_serializer_class = serializers.OpenStackPortSerializer
-
-    create_port_validators = [core_validators.StateValidator(models.Network.States.OK)]
 
     def _check_rbac_policy_permissions(self, user, network, target_tenant):
         if user.is_staff:
