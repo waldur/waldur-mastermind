@@ -763,7 +763,16 @@ class PortCreateExecutor(core_executors.CreateExecutor):
             serialized_port,
             "create_port",
             state_transition="begin_creating",
-            serialized_network=kwargs.get("network"),
+        )
+
+
+class PortUpdateNameAndDescriptionExecutor(core_executors.UpdateExecutor):
+    @classmethod
+    def get_task_signature(cls, port, serialized_port, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_port,
+            "update_port_name_and_description",
+            state_transition="begin_updating",
         )
 
 

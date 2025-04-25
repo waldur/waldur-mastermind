@@ -1,5 +1,6 @@
 from unittest import mock
 
+import factory
 from django.utils.functional import cached_property
 
 from waldur_core.structure.models import ServiceSettings
@@ -41,6 +42,7 @@ class OpenStackFixture(ProjectFixture):
             service_settings=self.settings,
             project=self.project,
             state=models.SubNet.States.OK,
+            backend_id=factory.Sequence(lambda n: "subnet_%s" % n),
         )
 
     @cached_property
