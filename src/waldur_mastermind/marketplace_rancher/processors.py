@@ -84,7 +84,10 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
     def create_tenants(self, user, project: Project) -> list[os_models.Tenant]:
         orders = []
-        for offering_uuid in self.order.attributes["openstack_offering_uuid_list"]:
+        openstack_offering_uuid_list = cast(
+            list[str], self.order.attributes["openstack_offering_uuid_list"]
+        )
+        for offering_uuid in openstack_offering_uuid_list:
             offering = Offering.objects.get(uuid=offering_uuid)
             plan = Plan.objects.filter(offering=offering).first()
             attributes = {
@@ -95,7 +98,10 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 submit_creation_order(user, offering, plan, project, attributes, limits)
             )
 
-        return [order.resource.scope for order in Order.objects.filter(uuid__in=orders)]
+        return [
+            cast(os_models.Tenant, order.resource.scope)
+            for order in Order.objects.filter(uuid__in=orders)
+        ]
 
     def create_cluster(
         self,
@@ -258,7 +264,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     settings_id=service_setting, name=flavor_name
                 ).exists():
                     raise rf_serializers.ValidationError(
-                        f"Flavor is not available in OpenStack offering '{service_setting.uuid}': {flavor_name}"
+                        f"Flavor is not available in OpenStack offering '{service_setting}': {flavor_name}"
                     )
 
     def validate_volume_types(self, available_service_settings: list[int]):
@@ -408,7 +414,8 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
 
 class ManagedRancherDeleteProcessor(processors.AbstractDeleteResourceProcessor):
-    def send_request(self, user, resource):
-        tenant_resource = Resource.objects.filter(scope=resource.scope.tenant)
+    def send_request(self, user, resource: Resource) -> None:
+        cluster = cast(rancher_models.Cluster, resource.scope)
+        tenant_resource = Resource.objects.get(scope=cluster.tenant)
         submit_termination_order(resource)
         submit_termination_order(tenant_resource)
