@@ -175,7 +175,6 @@ lint.select = [
   "F",   # pyflakes
   "UP",  # pyupgrade
   "I001",# isort
-  "T201",# print
 ]
 
 target-version = "py311"
