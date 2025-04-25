@@ -636,7 +636,7 @@ class CeleryStatsViewSet(generics.GenericAPIView):
     serializer_class = EmptySerializer
 
     def get(self, request, *args, **kwargs):
-        from waldur_core.server.celery import app
+        from waldur_core.server.celeryconf import app
 
         inspect = app.control.inspect()
         data = {
