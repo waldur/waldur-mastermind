@@ -101,27 +101,6 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     ]
     pull_executor = executors.ClusterPullExecutor
 
-    @extend_schema(
-        request=None,
-        filters=False,
-        description="Returns kubeconfig file for the cluster.",
-    )
-    @decorators.action(detail=True, methods=["get"])
-    def kubeconfig_file(self, request, uuid=None):
-        cluster = self.get_object()
-        backend = cluster.get_backend()
-        try:
-            config = backend.get_kubeconfig_file(cluster)
-        except exceptions.RancherException:
-            raise ValidationError("Unable to get kubeconfig file.")
-
-        return response.Response({"config": config}, status=status.HTTP_200_OK)
-
-    kubeconfig_file_validators = [
-        core_validators.StateValidator(models.Cluster.States.OK)
-    ]
-    kubeconfig_file_permissions = [structure_permissions.is_staff]
-
     @decorators.action(detail=True, methods=["post"])
     def import_yaml(self, request, uuid=None):
         cluster = self.get_object()
