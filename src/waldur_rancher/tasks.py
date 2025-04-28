@@ -79,11 +79,15 @@ class CreateNodeTask(core_tasks.Task):
                 vault_token,
                 vault_tls_verify,
             )
+            # TODO: add task for switching to "server" and "worker" roles
+            node_role = "server" if node.controlplane_role else "agent"
             cloud_init_extra_params.update(
                 {
                     "vault_secret_path": f"rancher/cluster-{node.cluster.uuid.hex}",
                     "vault_role_id": role_id,
                     "vault_role_secret_id": role_secret_id,
+                    "vault_addr": f"https://{vault_host}:{vault_port}",
+                    "rke_role": node_role,
                 }
             )
 

@@ -339,6 +339,69 @@ class ManagedRancherSecretOptionsSerializer(serializers.Serializer):
 
     cloud_init_template = serializers.CharField(required=False)
 
+    vault_host = serializers.CharField(
+        help_text=_("Host of the Vault server"),
+        required=False,
+    )
+
+    vault_port = serializers.IntegerField(
+        help_text=_("Port of the Vault server"),
+        required=False,
+    )
+    vault_token = serializers.CharField(
+        help_text=_("Token for the Vault server"),
+        required=False,
+    )
+    vault_tls_verify = serializers.BooleanField(
+        help_text=_("Whether to verify the Vault server certificate"),
+        required=False,
+    )
+
+    keycloak_url = serializers.CharField(
+        help_text=_("URL of the Keycloak server"),
+        required=False,
+    )
+
+    keycloak_realm = serializers.CharField(
+        help_text=_("Keycloak realm for Rancher"),
+        required=False,
+    )
+
+    keycloak_user_realm = serializers.CharField(
+        help_text=_("Keycloak user realm for auth"),
+        required=False,
+    )
+
+    keycloak_username = serializers.CharField(
+        help_text=_("Username of the Keycloak integration user"),
+        required=False,
+    )
+
+    keycloak_password = serializers.CharField(
+        help_text=_("Password of the Keycloak integration user"),
+        required=False,
+    )
+
+    keycloak_sync_frequency = serializers.IntegerField(
+        help_text=_("Frequency in minutes for syncing Keycloak users"),
+        required=False,
+    )
+
+    keycloak_ssl_verify = serializers.BooleanField(
+        help_text=_("Indicates whether verify SSL certificates"),
+        required=False,
+    )
+
+    argocd_k8s_namespace = serializers.CharField(
+        help_text=_("Namespace where ArgoCD is deployed"),
+        required=False,
+    )
+
+    argocd_k8s_kubeconfig = serializers.CharField(
+        help_text=_("Kubeconfig with access to namespace where ArgoCD is deployed"),
+        required=False,
+    )
+
 
 class GenericSecretOptionsSerializer(serializers.Serializer):
     pass
@@ -1653,6 +1716,8 @@ class ProviderOfferingDetailsSerializer(
             return {}
         if isinstance(service, structure_models.BaseResource):
             service = service.service_settings
+        if isinstance(service, models.Offering):
+            return {}
         if not service:
             return {}
         return {

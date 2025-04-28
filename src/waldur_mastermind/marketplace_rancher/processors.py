@@ -138,6 +138,8 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             backend.sync()
             settings.set_ok()
             settings.save()
+            rancher_offering.activate()
+            rancher_offering.save()
 
         # Sync plans from the offering to the rancher_offering
         for plan in offering.plans.all():
@@ -154,11 +156,16 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
         worker_nodes_count = self.order.attributes["worker_nodes_count"]
         server_nodes_count = 3  # TODO: Make it configurable
-        service_settings = cast(ServiceSettings, rancher_offering.scope)
+
+        os_offering = Offering.objects.get(
+            uuid=self.order.attributes["openstack_offering_uuid_list"][0]
+        )
+
+        os_service_settings = cast(ServiceSettings, os_offering.scope)
 
         worker_node_flavor_name = self.order.attributes["worker_nodes_flavor_name"]
         worker_node_flavor = os_models.Flavor.objects.get(
-            settings=service_settings,
+            settings=os_service_settings,
             name=worker_node_flavor_name,
         )
 
@@ -166,7 +173,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             "managed_rancher_server_flavor_name"
         ]
         server_node_flavor = os_models.Flavor.objects.get(
-            settings=service_settings,
+            settings=os_service_settings,
             name=server_flavor_name,
         )
 
@@ -184,24 +191,21 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             "worker_system_volume_type_name"
         )
 
-        os_offering = Offering.objects.get(
-            uuid=self.order.attributes["openstack_offering_uuid_list"][0]
-        )
         storage_mode = (
             os_offering.plugin_options.get("storage_mode") or STORAGE_MODE_FIXED
         )
 
         server_system_volume_type = os_models.VolumeType.objects.get(
-            settings=service_settings, name=server_system_volume_type_name
+            settings=os_service_settings, name=server_system_volume_type_name
         )
-        worker_system_volume_type = os_models.VolumeType.objects.get(
-            settings=service_settings, name=worker_system_volume_type_name
-        )
+        worker_system_volume_type = os_models.VolumeType.objects.filter(
+            settings=os_service_settings, name=worker_system_volume_type_name
+        ).first()
 
         def format_node(
             flavor: os_models.Flavor,
             volume_size: int,
-            volume_type: os_models.VolumeType,
+            volume_type: os_models.VolumeType | None,
             roles: list[str],
         ):
             result = {
@@ -213,7 +217,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     "openstack-flavor-detail", kwargs={"uuid": flavor.uuid.hex}
                 ),
             }
-            if storage_mode == STORAGE_MODE_DYNAMIC:
+            if storage_mode == STORAGE_MODE_DYNAMIC and volume_type is not None:
                 result["system_volume_type"] = reverse(
                     "openstack-volume-type-detail",
                     kwargs={"uuid": volume_type.uuid.hex},
@@ -244,8 +248,10 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         attributes = {
             "name": "k8s-cluster",
             "nodes": nodes,
-            "tenant": tenants[0].uuid.hex,
-            "install_longhorn": self.order.attributes["install_longhorn"],
+            "tenant": reverse(
+                "openstack-tenant-detail", kwargs={"uuid": tenants[0].uuid.hex}
+            ),
+            "install_longhorn": self.order.attributes.get("install_longhorn", False),
         }
 
         order_uuid = submit_creation_order(
