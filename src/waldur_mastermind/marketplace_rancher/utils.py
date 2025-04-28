@@ -49,13 +49,16 @@ def submit_creation_order(
             kwargs={"uuid": offering.uuid.hex},
         ),
         "attributes": dict(effective_user_uuid=user.uuid.hex, **attributes),
-        "limits": limits,
     }
     if plan:
         post_data["plan"] = reverse(
             "marketplace-public-offering-plan-detail",
             kwargs={"uuid": plan.uuid.hex, "plan_uuid": plan.uuid.hex},
         )
+
+    if limits:
+        post_data["limits"] = limits
+
     view = OrderViewSet.as_view({"post": "create"})
     response = create_request(view, get_system_robot(), post_data)
     data = cast(dict, response.data)
