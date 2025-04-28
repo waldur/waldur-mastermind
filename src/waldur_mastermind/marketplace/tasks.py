@@ -24,6 +24,7 @@ from waldur_core.structure.log import event_logger
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import exceptions, models, plugins, utils
+from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace.utils import (
     get_consumer_approvers,
     get_provider_approvers,
@@ -608,7 +609,7 @@ def remove_deleted_robot_accounts():
     """
     logger.info("Daily task: Removing deleted robot accounts")
     deleted_accounts = models.RobotAccount.objects.filter(
-        state=models.RobotAccount.States.DELETED
+        state=RobotAccountStates.DELETED
     )
     count = deleted_accounts.count()
     deleted_accounts.delete()

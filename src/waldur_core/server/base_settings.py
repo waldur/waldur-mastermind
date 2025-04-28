@@ -22,6 +22,7 @@ from waldur_mastermind.marketplace.enums import (
     OrderStates,
     RequestTypes,
     ResourceStates,
+    RobotAccountStates,
 )
 from waldur_mastermind.proposal.enums import (
     CallStates,
@@ -1046,5 +1047,6 @@ SPECTACULAR_SETTINGS = {
         "RancherRoleScopeType": RoleScopeType.CHOICES,
         "KeycloakUserGroupMembershipState": KeycloakUserGroupMembershipState.CHOICES,
         "RancherCatalogScopeType": CatalogScopeTypeChoices,
+        "RobotAccountStates": RobotAccountStates.CHOICES,
     },
 }

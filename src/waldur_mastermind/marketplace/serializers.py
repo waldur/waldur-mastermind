@@ -33,7 +33,11 @@ from waldur_core.core.models import User, get_ssh_key_fingerprints
 from waldur_core.core.validators import BackendURLValidator, validate_ssh_public_key
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import count_users, get_permissions, has_permission
+from waldur_core.permissions.utils import (
+    count_users,
+    get_permissions,
+    has_permission,
+)
 from waldur_core.quotas.serializers import QuotaSerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -4420,41 +4424,108 @@ class FingerprintSerializer(serializers.Serializer):
     sha512 = serializers.CharField(read_only=True)
 
 
-class RobotAccountSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+class BaseServiceAccountSerializer(
+    serializers.HyperlinkedModelSerializer, core_serializers.AugmentedSerializerMixin
 ):
-    url = serializers.HyperlinkedIdentityField(
-        view_name="marketplace-robot-account-detail", lookup_field="uuid"
-    )
-    state = serializers.SerializerMethodField()
     error_message = serializers.CharField(read_only=True)
 
     class Meta:
-        model = models.RobotAccount
+        model = models.BaseServiceAccount
         fields = (
             "url",
             "uuid",
             "created",
             "modified",
-            "type",
             "username",
-            "resource",
-            "users",
-            "keys",
-            "backend_id",
-            "responsible_user",
-            "fingerprints",
-            "state",
+            "description",
             "error_message",
             "error_traceback",
         )
         read_only_fields = [
             "backend_id",
-            "state",
             "error_message",
             "error_traceback",
         ]
+
+
+class BaseScopedServiceAccountSerializer(BaseServiceAccountSerializer):
+    token = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.ScopedServiceAccount
+        fields = BaseServiceAccountSerializer.Meta.fields + (
+            "token",
+            "email",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-service-account-detail",
+            },
+        }
+
+    def get_token(self, obj) -> str | None:
+        if hasattr(obj, "_token"):
+            return obj._token
+        return None
+
+
+class ProjectServiceAccountSerializer(BaseScopedServiceAccountSerializer):
+    project = serializers.SlugRelatedField(
+        queryset=structure_models.Project.objects.all(), slug_field="uuid"
+    )
+
+    class Meta(BaseScopedServiceAccountSerializer.Meta):
+        model = models.ProjectServiceAccount
+        fields = BaseScopedServiceAccountSerializer.Meta.fields + ("project",)
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-project-service-account-detail",
+            },
+        }
+
+
+class CustomerServiceAccountSerializer(BaseScopedServiceAccountSerializer):
+    customer = serializers.SlugRelatedField(
+        queryset=structure_models.Customer.objects.all(), slug_field="uuid"
+    )
+
+    class Meta(BaseScopedServiceAccountSerializer.Meta):
+        model = models.CustomerServiceAccount
+        fields = BaseScopedServiceAccountSerializer.Meta.fields + ("customer",)
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-customer-service-account-detail",
+            },
+        }
+
+
+class RobotAccountSerializer(BaseServiceAccountSerializer):
+    url = serializers.HyperlinkedIdentityField(
+        view_name="marketplace-robot-account-detail", lookup_field="uuid"
+    )
+
+    class Meta:
+        model = models.RobotAccount
+        fields = BaseServiceAccountSerializer.Meta.fields + (
+            "resource",
+            "type",
+            "users",
+            "keys",
+            "backend_id",
+            "fingerprints",
+            "responsible_user",
+            "state",
+        )
+
+        state = serializers.CharField(source="get_state_display", read_only=True)
+
         protected_fields = ["resource"]
+        read_only_fields = BaseServiceAccountSerializer.Meta.read_only_fields + [
+            "state",
+        ]
         extra_kwargs = dict(
             resource={
                 "lookup_field": "uuid",

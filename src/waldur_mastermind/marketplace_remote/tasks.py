@@ -68,6 +68,7 @@ from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_state
+from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace.utils import get_plan_period
 from waldur_mastermind.marketplace_remote import (
     PLUGIN_NAME,
@@ -801,7 +802,7 @@ class ResourceRobotAccountPullTask(BackgroundPullTask):
                 keys=remote_account.keys,
             )
             # Set state to OK
-            robot_account.state = models.RobotAccount.States.OK
+            robot_account.state = RobotAccountStates.OK
             robot_account.save()
 
         existing_accounts = [

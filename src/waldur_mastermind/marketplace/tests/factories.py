@@ -537,6 +537,56 @@ class RobotAccountFactory(
         return "http://testserver" + reverse("marketplace-robot-account-list")
 
 
+class ProjectServiceAccountFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ProjectServiceAccount],
+):
+    class Meta:
+        model = models.ProjectServiceAccount
+
+    project = factory.SubFactory(structure_factories.ProjectFactory)
+    username = "waldur"
+
+    @classmethod
+    def get_url(cls, account=None):
+        if account is None:
+            account = ProjectServiceAccountFactory()
+        return "http://testserver" + reverse(
+            "marketplace-project-service-account-detail",
+            kwargs={"uuid": account.uuid.hex},
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("marketplace-project-service-account-list")
+
+
+class CustomerServiceAccountFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CustomerServiceAccount],
+):
+    customer = factory.SubFactory(structure_factories.CustomerFactory)
+    username = "waldur"
+
+    class Meta:
+        model = models.CustomerServiceAccount
+
+    @classmethod
+    def get_url(cls, account=None):
+        if account is None:
+            account = CustomerServiceAccountFactory()
+        return "http://testserver" + reverse(
+            "marketplace-customer-service-account-detail",
+            kwargs={"uuid": account.uuid.hex},
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse(
+            "marketplace-customer-service-account-list"
+        )
+
+
 class IntegrationStatusFactory(
     factory.django.DjangoModelFactory,
     metaclass=BaseMetaFactory[models.IntegrationStatus],

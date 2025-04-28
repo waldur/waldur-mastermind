@@ -1,6 +1,7 @@
 import logging
 
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import RobotAccountStates
 
 from . import executors, models
 
@@ -17,7 +18,7 @@ def request_ssh_key_for_heappe_robot_account(
         return
 
     # This should only process if RobotAccount gets the OK state
-    if instance.state != marketplace_models.RobotAccount.States.OK:
+    if instance.state != RobotAccountStates.OK:
         return
 
     try:

@@ -30,6 +30,9 @@ OFFERING_USER_ALLOWED_OFFERING_TYPES = [
     SCRIPT_PLUGIN_NAME,
 ]
 
+ROBOT_ACCOUNT_TYPE = "Robot account"
+SERVICE_ACCOUNT_TYPE = "Service account"
+
 
 def create_screenshot_thumbnail(sender, instance, created=False, **kwargs):
     if not created:
@@ -858,29 +861,61 @@ def log_offering_user_deleted(sender, instance, **kwargs):
     log.log_offering_user_deleted(instance)
 
 
-def generate_changes_string(changed_dict, instance):
+def generate_changes_string(changed_dict, instance, account_type):
     changes_string = ""
     if "username" in changed_dict:
-        changes_string += f"Robot account {changed_dict['username']} has been updated. "
+        changes_string += (
+            f"{account_type} {changed_dict['username']} has been updated. "
+        )
     else:
-        changes_string += f"Robot account {instance.username} has been updated. "
-
+        changes_string += f"{account_type} {instance.username} has been updated. "
     for key in changed_dict:
         if key == "state":
-            old_state = models.RobotAccount(state=changed_dict[key]).get_state_display()
+            if account_type == ROBOT_ACCOUNT_TYPE:
+                old_state = models.RobotAccount(
+                    state=changed_dict[key]
+                ).get_state_display()
             new_state = instance.get_state_display()
-            change_string = f"Robot account '{instance.username}' state changed from '{old_state}' to '{new_state}'."
+            change_string = f"{account_type} '{instance.username}' state changed from '{old_state}' to '{new_state}'."
         else:
             change_string = f"{key} had changed from {changed_dict[key]} to {getattr(instance, key)}. "
         changes_string += change_string
     return changes_string
 
 
+def log_service_account_created_or_updated(sender, instance, created=False, **kwargs):
+    if not created:
+        changed_string = generate_changes_string(
+            instance.tracker.changed(), instance, SERVICE_ACCOUNT_TYPE
+        )
+        event_logger.marketplace_service_account.info(
+            changed_string,
+            event_type="service_account_updated",
+            event_context={"service_account": instance},
+        )
+        return
+    event_logger.marketplace_service_account.info(
+        "Service account {service_account_username} has been created.",
+        event_type="service_account_created",
+        event_context={"service_account": instance},
+    )
+
+
+def log_service_account_deleted(sender, instance, **kwargs):
+    event_logger.marketplace_service_account.info(
+        "Service account {service_account_username} has been deleted.",
+        event_type="service_account_deleted",
+        event_context={"service_account": instance},
+    )
+
+
 def log_resource_robot_account_created_or_updated(
     sender, instance, created=False, **kwargs
 ):
     if not created:
-        changed_string = generate_changes_string(instance.tracker.changed(), instance)
+        changed_string = generate_changes_string(
+            instance.tracker.changed(), instance, ROBOT_ACCOUNT_TYPE
+        )
         event_logger.marketplace_robot_account.info(
             changed_string,
             event_type="resource_robot_account_updated",

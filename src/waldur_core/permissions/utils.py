@@ -14,7 +14,6 @@ def has_permission(request, permission, scope):
         user = request
     else:
         user = request.user
-
     if user.is_staff:
         return True
 
