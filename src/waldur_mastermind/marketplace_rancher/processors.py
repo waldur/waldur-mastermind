@@ -202,6 +202,12 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             settings=os_service_settings, name=worker_system_volume_type_name
         ).first()
 
+        subnet = os_models.SubNet.objects.filter(tenant=tenants[0]).first()
+        if not subnet:
+            raise rf_serializers.ValidationError(
+                f'Subnets for tenant "{tenants[0].name}" not found'
+            )
+
         def format_node(
             flavor: os_models.Flavor,
             volume_size: int,
@@ -215,6 +221,9 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 "cpu": flavor.cores,
                 "flavor": reverse(
                     "openstack-flavor-detail", kwargs={"uuid": flavor.uuid.hex}
+                ),
+                "subnet": reverse(
+                    "openstack-subnet-detail", kwargs={"uuid": subnet.uuid.hex}
                 ),
             }
             if storage_mode == STORAGE_MODE_DYNAMIC and volume_type is not None:
