@@ -5,7 +5,6 @@ import traceback
 import kubernetes
 import yaml
 from celery import shared_task
-from django.conf import settings
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
@@ -601,11 +600,16 @@ def sync_rancher_group_bindings():
         cluster: models.Cluster,
         local_cluster_groups: list[models.KeycloakGroup],
     ):
-        remote_cluster_groups = rancher_backend.client.get_cluster_group_role(
+        remote_cluster_groups_all = rancher_backend.client.get_cluster_group_role(
             cluster_id=cluster.backend_id
         )
+        remote_cluster_groups_filtered = [
+            item
+            for item in remote_cluster_groups_all
+            if item["groupPrincipalId"] is not None
+        ]
         remote_cluster_groups = {
-            group["groupPrincipalId"]: group for group in remote_cluster_groups
+            group["groupPrincipalId"]: group for group in remote_cluster_groups_filtered
         }
         local_cluster_group_principal_names = [
             f"keycloakoidc_group://{group.name}" for group in local_cluster_groups
@@ -617,7 +621,7 @@ def sync_rancher_group_bindings():
             try:
                 remote_group = remote_cluster_groups[remote_stale_group_id]
                 rancher_backend.delete_cluster_group_role(
-                    remote_group["name"],
+                    remote_stale_group_id,
                     cluster.backend_id,
                     remote_group["roleTemplateId"],
                 )
@@ -657,11 +661,16 @@ def sync_rancher_group_bindings():
         project: models.Project,
         local_project_groups: list[models.KeycloakGroup],
     ):
-        remote_project_groups = rancher_backend.client.get_project_group_role(
+        remote_project_groups_all = rancher_backend.client.get_project_group_role(
             project_id=project.backend_id
         )
+        remote_cluster_groups_filtered = [
+            item
+            for item in remote_project_groups_all
+            if item["groupPrincipalId"] is not None
+        ]
         remote_project_groups = {
-            group["groupPrincipalId"]: group for group in remote_project_groups
+            group["groupPrincipalId"]: group for group in remote_cluster_groups_filtered
         }
         local_project_group_principal_names = [
             f"keycloakoidc_group://{group.name}" for group in local_project_groups
@@ -673,7 +682,7 @@ def sync_rancher_group_bindings():
             try:
                 remote_group = remote_project_groups[remote_stale_group_id]
                 rancher_backend.delete_project_group_role(
-                    remote_group["name"],
+                    remote_stale_group_id,
                     project.backend_id,
                     remote_group["roleTemplateId"],
                 )
@@ -689,7 +698,8 @@ def sync_rancher_group_bindings():
     for cluster in clusters:
         rancher_backend: backend.RancherBackend = cluster.get_backend()
         local_cluster_groups = models.KeycloakGroup.objects.filter(
-            role__settings=settings, role__scope_type=enums.RoleScopeType.CLUSTER
+            role__settings=cluster.settings,
+            role__scope_type=enums.RoleScopeType.CLUSTER,
         )
         # Create missing cluster groups in Rancher
         create_missing_cluster_groups(rancher_backend, cluster, local_cluster_groups)
@@ -703,6 +713,8 @@ def sync_rancher_group_bindings():
                 role__scope_type=enums.RoleScopeType.CLUSTER,
             )
             # Create missing project groups in Rancher
-            create_missing_project_groups(rancher_backend, local_project_groups)
+            create_missing_project_groups(
+                rancher_backend, project, local_project_groups
+            )
             # Delete stale project groups in Rancher
             remote_stale_project_groups(rancher_backend, project, local_project_groups)

@@ -102,7 +102,12 @@ def delete_keycloak_group_from_backend(sender, instance, **kwargs):
 
 
 def delete_keycloak_user_group_membership_from_backend(sender, instance, **kwargs):
-    group = instance.group
+    try:
+        group = instance.group
+    except models.KeycloakGroup.DoesNotExist:
+        # Skip removal if the group does not exist anymore
+        return
+
     _, settings = utils.get_keycloak_group_scope_and_settings(group)
     try:
         keycloak = backend.KeycloakBackend(settings)
