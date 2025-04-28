@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ("structure", "0052_accesssubnet_description"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("marketplace", "0159_robot_account_state"),
+        ("marketplace", "0160_offering_remote_image_uuid_screenshot_backend_id"),
     ]
 
     operations = [
