@@ -1,4 +1,6 @@
+import io
 import json
+import uuid
 from unittest import mock, skip
 from uuid import uuid4
 
@@ -7,6 +9,7 @@ from django.test import override_settings
 from rest_framework import status, test
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
+from waldur_api_client.models.public_offering_details import PublicOfferingDetails
 
 import respx
 from waldur_core.core.fields import StringUUID
@@ -17,7 +20,10 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.serializers import OrderCreateSerializer
+from waldur_mastermind.marketplace.serializers import (
+    OrderCreateSerializer,
+    ScreenshotSerializer,
+)
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
@@ -26,6 +32,10 @@ from waldur_mastermind.marketplace_remote.processors import (
     RemoteCreateResourceProcessor,
 )
 from waldur_mastermind.marketplace_remote.tasks import OfferingPullTask
+from waldur_mastermind.marketplace_remote.utils import (
+    import_offering_image,
+    import_offering_screenshots,
+)
 
 
 class WaldurJsonEncoder(DjangoJSONEncoder):
@@ -415,8 +425,17 @@ class OfferingCreateTest(test.APITransactionTestCase):
 
     def tearDown(self):
         super().tearDown()
-        mock.patch.stopall()
         respx.stop()
+
+    def screenshot_update_mock_response(self):
+        # Mock for remote-waldur.com
+        respx.get("https://remote-waldur.com/api/marketplace-screenshots/").respond(
+            json=[]
+        )
+        # Mock for other-remote-waldur.com
+        respx.get(
+            "https://other-remote-waldur.com/api/marketplace-screenshots/"
+        ).respond(json=[])
 
     def mock_public_offering_retrieve(self, api_url, offering_uuid):
         return respx.get(
@@ -448,6 +467,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_offering_with_correct_permissions(self) -> None:
+        self.screenshot_update_mock_response()
         public_offering_retrieve = self.mock_public_offering_retrieve(
             self.api_url, self.remote_offering_uuid
         )
@@ -462,6 +482,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
     def test_multiple_remote_offerings_can_be_mapped_to_single_local_category(
         self,
     ) -> None:
+        self.screenshot_update_mock_response()
         self.mock_public_offering_retrieve(self.api_url, self.remote_offering_uuid)
         self.client.force_authenticate(self.user)
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
@@ -498,3 +519,199 @@ class OfferingCreateTest(test.APITransactionTestCase):
         )
         offering = marketplace_models.Offering.objects.get(uuid=response.data["uuid"])
         self.assertEqual(offering.category.uuid.hex, new_payload["local_category_uuid"])
+
+
+class OfferingImageTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.type = PLUGIN_NAME
+        self.offering.save()
+
+        respx.start()
+
+        self.remote_offering_screenshot = factories.ScreenshotFactory(
+            name="Screenshot 1",
+            description="Description 1",
+            offering=OfferingFactory(
+                state=marketplace_models.Offering.States.ACTIVE,
+                name="Test Offering",
+            ),
+        )
+        self.new_uuid = uuid.uuid4()
+        self.remote_offering_image_url = f"https://example.com/{self.new_uuid}/"
+        self.remote_offering = PublicOfferingDetails(
+            name="Test Offering", image=self.remote_offering_image_url
+        )
+
+    def tearDown(self):
+        respx.stop()
+
+    def test_import_offering_image_success(self):
+        # Mock the HTTP request with real image content
+        image_content = b"test-image-data"
+        respx.get(self.remote_offering_image_url).respond(200, content=image_content)
+
+        # Act
+        import_offering_image(self.offering, self.remote_offering)
+
+        # Verify image was saved
+        self.offering.refresh_from_db()
+        self.assertIsNotNone(self.offering.image)
+
+    def test_import_offering_image_http_error(self):
+        # Mock the HTTP request to fail
+        respx.get(self.remote_offering_image_url).respond(404)
+        # Act
+        import_offering_image(self.offering, self.remote_offering)
+
+        # Verify that no image was saved in this case
+        self.offering.refresh_from_db()
+        self.assertFalse(self.offering.image.name)
+
+    def test_import_offering_image_no_image_url(self):
+        # Remove image URL from the remote offering
+        remote_offering_without_image = self.remote_offering
+        remote_offering_without_image.image = None
+
+        # Act
+        import_offering_image(self.offering, remote_offering_without_image)
+
+        # Verify that no image was saved in this case
+        self.offering.refresh_from_db()
+        self.assertFalse(self.offering.image.name)
+
+    def test_import_offering_does_not_update_existing_image_uuid(self):
+        old_filename = f"old-{self.offering.uuid.hex}"
+        self.remote_offering.image = self.remote_offering_image_url
+
+        self.offering.image.name = old_filename
+        self.offering.image.save(
+            name=old_filename, content=io.BytesIO(b"old-image-data")
+        )
+        self.offering.remote_image_uuid = self.new_uuid
+        self.offering.save(update_fields=["remote_image_uuid"])
+        # Act
+        import_offering_image(self.offering, self.remote_offering)
+
+        self.offering.refresh_from_db()
+        self.assertIsNotNone(self.offering.image)
+
+        self.assertEqual(self.offering.remote_image_uuid, self.new_uuid)
+
+
+class OfferingScreenshotsTest(test.APITransactionTestCase):
+    def setUp(self):
+        respx.start()
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.type = PLUGIN_NAME
+        self.api_url = "https://remote-waldur.com"
+        self.offering.secret_options = {
+            "api_url": self.api_url,
+            "token": uuid4().hex,
+        }
+        self.offering.save()
+
+        # Create a remote offering dictionary with screenshots
+        self.remote_offering = OfferingFactory(
+            state=marketplace_models.Offering.States.ACTIVE,
+            name="Test Offering",
+        )
+        self.offering.backend_id = self.remote_offering.uuid.hex
+        self.offering.save()
+        self.remote_offering_screenshots = [
+            factories.ScreenshotFactory(
+                name="Screenshot 1",
+                description="Description 1",
+                offering=self.offering,
+            )
+        ]
+        self.screenshot = self.remote_offering_screenshots[0]
+        self.serialized_screenshot = serialize_data(
+            ScreenshotSerializer, self.screenshot
+        )
+
+    def tearDown(self):
+        respx.stop()
+
+    def mock_screenshots_list(self):
+        """Mock the marketplace-screenshots-list endpoint"""
+        return respx.get(f"{self.api_url}/api/marketplace-screenshots/").respond(
+            json=[self.serialized_screenshot]
+        )
+
+    def mock_image_download(self):
+        return respx.get(self.serialized_screenshot["image"]).respond(
+            200,
+            content=b"test-image-data",
+        )
+
+    def test_import_screenshots_success(self):
+        """Test that screenshots are imported successfully"""
+        # Mock the API endpoints
+        mock_screenshots = self.mock_screenshots_list()
+
+        # Mock the image downloads with real content
+        image_content = b"test-image-data"
+        mock_image = respx.get(self.serialized_screenshot["image"]).respond(
+            200,
+            content=image_content,
+        )
+
+        # Act
+        import_offering_screenshots(self.offering)
+
+        # Verify API calls
+        self.assertTrue(mock_screenshots.called)
+        self.assertTrue(mock_image.called)
+
+        # Verify screenshot was created
+        screenshots = marketplace_models.Screenshot.objects.filter(
+            offering=self.offering
+        )
+        self.assertEqual(screenshots.count(), 1)
+        self.assertEqual(screenshots.first().name, "Screenshot 1")
+        self.assertEqual(screenshots.first().description, "Description 1")
+
+    def test_import_screenshots_http_error(self):
+        """Test that HTTP error is handled"""
+        # Mock the API endpoints
+        mock_screenshots = self.mock_screenshots_list()
+        mock_image = respx.get(self.serialized_screenshot["image"]).respond(404)
+
+        # Act
+        import_offering_screenshots(self.offering)
+
+        # Verify API calls
+        self.assertTrue(mock_screenshots.called)
+        self.assertTrue(mock_image.called)
+
+        # Verify no screenshots were created
+        self.assertFalse(
+            marketplace_models.Screenshot.objects.filter(
+                offering=self.offering
+            ).exists()
+        )
+
+    def test_import_screenshots_delete_stale(self):
+        """Test that stale screenshots are deleted"""
+        self.mock_image_download()
+        # Create a screenshot that won't exist in remote data
+        stale_screenshot = marketplace_models.Screenshot.objects.create(
+            offering=self.offering,
+            name="Stale Screenshot",
+            description="Will be deleted",
+        )
+        stale_screenshot.image.save("stale.png", io.BytesIO(b"stale-image-data"))
+        stale_screenshot.save()
+        self.mock_screenshots_list()
+        # Act
+        import_offering_screenshots(self.offering)
+
+        # Verify the stale screenshot was deleted
+        self.assertFalse(
+            marketplace_models.Screenshot.objects.filter(
+                uuid=stale_screenshot.uuid
+            ).exists()
+        )

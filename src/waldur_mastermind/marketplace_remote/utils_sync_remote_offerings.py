@@ -130,6 +130,12 @@ class RemoteSynchronisationRunner:
             category=local_category,
             **utils.extract_fields(OFFERING_FIELDS, remote_offering.to_dict()),
         )
+        # Refresh local offering to get the updated state
+        local_offering.refresh_from_db()
+        # Import offering image and thumbnail
+        utils.import_offering_image(local_offering, remote_offering)
+        utils.import_offering_thumbnail(local_offering, remote_offering.thumbnail)
+        utils.import_offering_screenshots(local_offering)
         self.sync.last_output += f"The offering {local_offering} / {local_category.title} has been updated successfully. \n"
         logger.info(
             "The offering %s has been updated successfully.",

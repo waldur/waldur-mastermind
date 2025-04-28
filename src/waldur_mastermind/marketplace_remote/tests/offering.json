@@ -77,7 +77,7 @@
       ]
     }
   ],
-  "thumbnail": "thumbnail.gif",
+  "thumbnail": "http://test-thumbnail.example.com/thumbnail.gif",
   "terms_of_service_link": "",
   "privacy_policy_link": "",
   "getting_started": "",
