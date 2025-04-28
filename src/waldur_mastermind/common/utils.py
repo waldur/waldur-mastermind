@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 
 from dateutil import parser
 from django.utils.timezone import get_current_timezone
+from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
 
 from waldur_core.core.authentication import refresh_token
@@ -31,20 +32,20 @@ def get_headers(user):
     )
 
 
-def get_request(view, user, **extra):
+def get_request(view, user, **extra) -> Response:
     factory = APIRequestFactory()
     request = factory.get("/", **get_headers(user))
     return view(request, **extra)
 
 
-def create_request(view, user, post_data, query_params=None, **kwargs):
+def create_request(view, user, post_data, query_params=None, **kwargs) -> Response:
     factory = APIRequestFactory()
     path = "/" if not query_params else "/" + "?" + urlencode(query_params)
     request = factory.post(path, data=json.dumps(post_data), **get_headers(user))
     return view(request, **kwargs)
 
 
-def delete_request(view, user, query_params="", **extra):
+def delete_request(view, user, query_params="", **extra) -> Response:
     factory = APIRequestFactory()
     path = ""
     if query_params:

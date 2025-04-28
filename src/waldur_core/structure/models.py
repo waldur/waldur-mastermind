@@ -649,6 +649,7 @@ class ServiceSettings(
         customer_path = "customer"
         build_query = build_service_settings_query
 
+    id: int
     customer = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Customer,

@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 
 import kubernetes as k8s
 import yaml
@@ -53,10 +54,12 @@ class KubernetesBackend:
         self,
         name: str,
         namespace: str,
-        data: dict = None,
-        labels: dict = None,
+        data: dict | None = None,
+        labels: dict | None = None,
     ):
-        secret_object: k8s.client.V1Secret = self.get_k8s_secret(name, namespace)
+        secret_object = cast(
+            k8s.client.V1Secret | None, self.get_k8s_secret(name, namespace)
+        )
         if secret_object is None:
             raise django_exceptions.ObjectDoesNotExist(
                 f"Secret {name} not found in namespace {namespace}"
