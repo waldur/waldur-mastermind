@@ -43,6 +43,7 @@ class Cluster(SettingsMixin, BaseResource):
     class RuntimeStates:
         ACTIVE = "active"
 
+    id: int
     tracker = FieldTracker()
     tenant = models.ForeignKey(
         to=openstack_models.Tenant,
@@ -57,6 +58,8 @@ class Cluster(SettingsMixin, BaseResource):
         null=True,
         blank=True,
     )
+
+    node_set: models.Manager["Node"]
 
     @classmethod
     def get_url_name(cls):

@@ -741,6 +741,7 @@ class Plan(
     It is assumed that plan price is updated manually when plan component is managed via Django ORM.
     """
 
+    id: int
     components: models.Manager["PlanComponent"]
 
     offering = models.ForeignKey(

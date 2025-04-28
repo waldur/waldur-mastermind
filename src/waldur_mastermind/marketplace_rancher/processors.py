@@ -63,12 +63,12 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         For each cluster dedicated project is created to limit what
         operations users would be able to perform on underlying nodes.
         """
-        offering: Offering = self.order.offering
+        offering = self.order.offering
         provider_customer = Customer.objects.get(
             uuid=offering.secret_options["customer_uuid"]
         )
-        consumer_project: Project = self.order.project
-        consumer_customer: Customer = consumer_project.customer
+        consumer_project = self.order.project
+        consumer_customer = consumer_project.customer
         project_name = " / ".join(
             [
                 consumer_customer.abbreviation or consumer_customer.name,
@@ -76,10 +76,13 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 self.order.attributes["name"],
             ]
         )
-        return Project.objects.create(
-            customer=provider_customer,
-            name=project_name,
-            description="Automatically created project for Rancher cluster",
+        return cast(
+            Project,
+            Project.objects.create(
+                customer=provider_customer,
+                name=project_name,
+                description="Automatically created project for Rancher cluster",
+            ),
         )
 
     def create_tenants(self, user, project: Project) -> list[os_models.Tenant]:
@@ -136,16 +139,22 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             settings.set_ok()
             settings.save()
 
-        plan = Plan.objects.get(
-            offering=rancher_offering,
-            name=offering.attributes["rancher_plan_name"],
-        )
+        # Sync plans from the offering to the rancher_offering
+        for plan in offering.plans.all():
+            rancher_offering.plans.update_or_create(
+                name=plan.name,
+                defaults={
+                    "backend_id": plan.id,
+                },
+            )
+
+        plan = Plan.objects.filter(offering=rancher_offering).first()
 
         nodes = []
 
         worker_nodes_count = self.order.attributes["worker_nodes_count"]
         server_nodes_count = 3  # TODO: Make it configurable
-        service_settings = cast(ServiceSettings, offering.scope)
+        service_settings = cast(ServiceSettings, rancher_offering.scope)
 
         worker_node_flavor_name = self.order.attributes["worker_nodes_flavor_name"]
         worker_node_flavor = os_models.Flavor.objects.get(

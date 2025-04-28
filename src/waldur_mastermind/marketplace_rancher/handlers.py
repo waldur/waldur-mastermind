@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 
 import kubernetes as k8s
 from django.core import exceptions as django_exceptions
@@ -14,12 +15,13 @@ from waldur_mastermind.marketplace_rancher import (
     MANAGED_RANCHER_PLUGIN,
     NODES_COMPONENT_TYPE,
 )
+from waldur_rancher.models import Cluster, Node, RancherUser
 
 logger = logging.getLogger(__name__)
 
 
 def create_marketplace_resource_for_imported_cluster(
-    sender, instance, offering=None, plan=None, **kwargs
+    sender, instance: Cluster, offering=None, plan=None, **kwargs
 ):
     if not offering:
         # When cluster is imported directly (ie without marketplace),
@@ -39,7 +41,7 @@ def create_marketplace_resource_for_imported_cluster(
     resource.save()
 
 
-def update_node_usage(sender, instance, created=False, **kwargs):
+def update_node_usage(sender, instance: Node, created=False, **kwargs):
     if not instance.tracker.has_changed("state"):
         return
 
@@ -64,7 +66,9 @@ def update_node_usage(sender, instance, created=False, **kwargs):
     import_current_usages(resource)
 
 
-def create_offering_user_for_rancher_user(sender, instance, created=False, **kwargs):
+def create_offering_user_for_rancher_user(
+    sender, instance: RancherUser, created=False, **kwargs
+):
     if not created:
         return
 
@@ -85,7 +89,7 @@ def create_offering_user_for_rancher_user(sender, instance, created=False, **kwa
     )
 
 
-def drop_offering_user_for_rancher_user(sender, instance, **kwargs):
+def drop_offering_user_for_rancher_user(sender, instance: RancherUser, **kwargs):
     try:
         offering = marketplace_models.Offering.objects.get(scope=instance.settings)
     except marketplace_models.Offering.DoesNotExist:
@@ -113,10 +117,11 @@ def update_argocd_secret_when_resource_options_changed(sender, instance, **kwarg
         return
 
     options = resource.options
-    service_settings = resource.offering.secret_options
-    kubeconfig_str = service_settings.options.get("argocd_k8s_kubeconfig")
-    namespace = service_settings.options.get("argocd_k8s_namespace")
-    secret_name = f"cluster-{resource.scope.uuid}"
+    secret_options = resource.offering.secret_options
+    kubeconfig_str = secret_options.get("argocd_k8s_kubeconfig")
+    namespace = secret_options.get("argocd_k8s_namespace")
+    cluster = cast(Cluster, resource.scope)
+    secret_name = f"cluster-{cluster.uuid}"
     k8s_backend = KubernetesBackend(kubeconfig_str)
     try:
         k8s_backend.update_k8s_secret(secret_name, namespace, data=None, labels=options)
