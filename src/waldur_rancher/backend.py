@@ -370,6 +370,12 @@ class RancherBackend(ServiceBackend):
 
     def get_or_create_cluster_group_role(self, group_id, cluster_id, role):
         if not self.client.get_cluster_group_role(group_id, cluster_id, role):
+            logger.info(
+                "Creating group role binding %s in cluster %s and role %s",
+                group_id,
+                cluster_id,
+                role,
+            )
             self.client.create_cluster_group_role(group_id, cluster_id, role)
             return True
         return False
@@ -380,7 +386,7 @@ class RancherBackend(ServiceBackend):
         )
         if existing_bindings:
             binding_name = existing_bindings[0]["name"]
-            logger.info("Deleting project group role binding %s", binding_name)
+            logger.info("Deleting cluster group role binding %s", binding_name)
             self.client.delete_cluster_group_role(cluster_id, binding_name)
             return True
         return False
@@ -400,6 +406,12 @@ class RancherBackend(ServiceBackend):
 
     def get_or_create_project_group_role(self, group_id, project_id, role):
         if not self.client.get_project_group_role(group_id, project_id, role):
+            logger.info(
+                "Creating group role binding %s in project %s and role %s",
+                group_id,
+                project_id,
+                role,
+            )
             self.client.create_project_group_role(group_id, project_id, role)
             return True
         return False
