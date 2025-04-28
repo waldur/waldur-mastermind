@@ -286,10 +286,27 @@ class MarketplaceServiceProviderLogger(EventLogger):
         event_groups = {"providers": event_types}
 
 
+class ScopedServiceAccountEventLogger(EventLogger):
+    service_account = models.ScopedServiceAccount
+
+    class Meta:
+        event_types = (
+            "service_account_created",
+            "service_account_updated",
+            "service_account_deleted",
+        )
+
+    @staticmethod
+    def get_scopes(event_context):
+        service_account: models.ScopedServiceAccount = event_context["service_account"]
+        return {service_account, service_account.scope}
+
+
 event_logger.register("marketplace_order", MarketplaceOrderLogger)
 event_logger.register("marketplace_resource", MarketplaceResourceLogger)
 event_logger.register("marketplace_offering_user", MarketplaceOfferingUserEventLogger)
 event_logger.register("marketplace_robot_account", RobotAccountEventLogger)
+event_logger.register("marketplace_service_account", ScopedServiceAccountEventLogger)
 event_logger.register("marketplace_service_provider", MarketplaceServiceProviderLogger)
 event_logger.register("marketplace_plan_component", MarketplacePlanComponentLogger)
 event_logger.register(

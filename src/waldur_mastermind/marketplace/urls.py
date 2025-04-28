@@ -133,6 +133,16 @@ def register_in(router):
         basename="marketplace-robot-account",
     )
     router.register(
+        r"marketplace-project-service-accounts",
+        views.ProjectServiceAccountViewSet,
+        basename="marketplace-project-service-account",
+    )
+    router.register(
+        r"marketplace-customer-service-accounts",
+        views.CustomerServiceAccountViewSet,
+        basename="marketplace-customer-service-account",
+    )
+    router.register(
         r"marketplace-sections",
         views.SectionViewSet,
         basename="marketplace-section",

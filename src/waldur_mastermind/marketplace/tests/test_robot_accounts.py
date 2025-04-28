@@ -6,7 +6,7 @@ from rest_framework import status, test
 from waldur_core.core.models import get_ssh_key_fingerprints
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -158,17 +158,17 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
                 # Check that the state change log call is made
                 self.assertEqual(len(state_change_calls), 1)
 
-                from_state = models.RobotAccount.States.CHOICES[initial_state - 1][1]
-                to_state = models.RobotAccount.States.CHOICES[expected_state - 1][1]
+                from_state = RobotAccountStates.CHOICES[initial_state - 1][1]
+                to_state = RobotAccountStates.CHOICES[expected_state - 1][1]
                 expected_message = f"Robot account waldur has been updated. Robot account 'waldur' state changed from '{from_state}' to '{to_state}'."
                 self.assertEqual(state_change_calls[0][0][0], expected_message)
 
     def test_requested_to_creating_transition(self):
         """Test transition from REQUESTED to CREATING"""
         self.verify_state_transition(
-            initial_state=models.RobotAccount.States.REQUESTED,
+            initial_state=RobotAccountStates.REQUESTED,
             action="set_state_creating",
-            expected_state=models.RobotAccount.States.CREATING,
+            expected_state=RobotAccountStates.CREATING,
         )
 
     def test_invalid_transition_fails(self):
@@ -187,34 +187,34 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
     def test_ok_to_requested_deletion_transition(self):
         """Test transition from OK to REQUESTED_DELETION"""
         self.verify_state_transition(
-            initial_state=models.RobotAccount.States.OK,
+            initial_state=RobotAccountStates.OK,
             action="set_state_request_deletion",
-            expected_state=models.RobotAccount.States.REQUESTED_DELETION,
+            expected_state=RobotAccountStates.REQUESTED_DELETION,
         )
 
     def test_requested_deletion_to_deleted_transition(self):
         """Test transition from REQUESTED_DELETION to DELETED"""
         self.verify_state_transition(
-            initial_state=models.RobotAccount.States.REQUESTED_DELETION,
+            initial_state=RobotAccountStates.REQUESTED_DELETION,
             action="set_state_deleted",
-            expected_state=models.RobotAccount.States.DELETED,
+            expected_state=RobotAccountStates.DELETED,
         )
 
     def test_transition_to_error_state(self):
         """Test transition to ERROR state with error message"""
         self.verify_state_transition(
-            initial_state=models.RobotAccount.States.OK,
+            initial_state=RobotAccountStates.OK,
             action="set_state_erred",
-            expected_state=models.RobotAccount.States.ERROR,
+            expected_state=RobotAccountStates.ERROR,
             data={"error_message": "Something went wrong"},
         )
 
     def test_invalid_transitions(self):
         """Test various invalid state transitions"""
         invalid_transitions = [
-            (models.RobotAccount.States.REQUESTED, "set_state_deleted"),
-            (models.RobotAccount.States.CREATING, "set_state_request_deletion"),
-            (models.RobotAccount.States.DELETED, "set_state_ok"),
+            (RobotAccountStates.REQUESTED, "set_state_deleted"),
+            (RobotAccountStates.CREATING, "set_state_request_deletion"),
+            (RobotAccountStates.DELETED, "set_state_ok"),
         ]
 
         for initial_state, action in invalid_transitions:
@@ -229,9 +229,9 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
         """Test that error message is correctly stored"""
         error_message = "Test error message"
         self.verify_state_transition(
-            initial_state=models.RobotAccount.States.OK,
+            initial_state=RobotAccountStates.OK,
             action="set_state_erred",
-            expected_state=models.RobotAccount.States.ERROR,
+            expected_state=RobotAccountStates.ERROR,
             data={"error_message": error_message},
         )
         self.robot_account.refresh_from_db()
@@ -240,9 +240,9 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
     def test_error_state_without_message(self):
         """Test transition to error state without providing message"""
         self.verify_state_transition(
-            initial_state=models.RobotAccount.States.OK,
+            initial_state=RobotAccountStates.OK,
             action="set_state_erred",
-            expected_state=models.RobotAccount.States.ERROR,
+            expected_state=RobotAccountStates.ERROR,
             data={},
         )
         self.robot_account.refresh_from_db()
@@ -253,11 +253,11 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
         """Test endpoint filtering robot accounts by state"""
         # Create accounts in different states
         ok_account = factories.RobotAccountFactory(
-            resource=self.resource, state=models.RobotAccount.States.OK, type="test1"
+            resource=self.resource, state=RobotAccountStates.OK, type="test1"
         )
         creating_account = factories.RobotAccountFactory(
             resource=self.resource,
-            state=models.RobotAccount.States.CREATING,
+            state=RobotAccountStates.CREATING,
             type="test2",
         )
 
@@ -265,7 +265,7 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
         self.client.force_login(self.fixture.staff)
 
         # Test filtering for OK state
-        response = self.client.get(url, {"state": models.RobotAccount.States.OK})
+        response = self.client.get(url, {"state": RobotAccountStates.OK})
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK,
@@ -283,7 +283,7 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
         )
 
         # Test filtering for CREATING state
-        response = self.client.get(url, {"state": models.RobotAccount.States.CREATING})
+        response = self.client.get(url, {"state": RobotAccountStates.CREATING})
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK,
@@ -365,7 +365,7 @@ class RobotAccountAccessTest(test.APITransactionTestCase):
     def test_service_owner_state_transition(self):
         """Test that service owner can perform state transitions"""
         self.client.force_login(self.fixture.service_owner)
-        self.robot_account.state = models.RobotAccount.States.CREATING
+        self.robot_account.state = RobotAccountStates.CREATING
         self.robot_account.save()
 
         url = self.get_action_url(self.robot_account, "set_state_ok")

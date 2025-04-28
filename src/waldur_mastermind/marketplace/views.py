@@ -45,6 +45,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import Serializer
 
+import httpx
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
@@ -101,6 +102,7 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from waldur_mastermind.marketplace import callbacks
+from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
     filter_offering_permissions,
@@ -407,8 +409,8 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     def robot_account_customers(self, request, uuid=None):
         service_provider = self.get_object()
         valid_states = [
-            models.RobotAccount.States.OK,
-            models.RobotAccount.States.REQUESTED_DELETION,
+            RobotAccountStates.OK,
+            RobotAccountStates.REQUESTED_DELETION,
         ]
         qs = models.RobotAccount.objects.filter(
             resource__offering__customer=service_provider.customer,
@@ -445,8 +447,8 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     def robot_account_projects(self, request, uuid=None):
         service_provider = self.get_object()
         valid_states = [
-            models.RobotAccount.States.OK,
-            models.RobotAccount.States.REQUESTED_DELETION,
+            RobotAccountStates.OK,
+            RobotAccountStates.REQUESTED_DELETION,
         ]
         qs = models.RobotAccount.objects.filter(
             resource__offering__customer=service_provider.customer,
@@ -4653,6 +4655,104 @@ def can_mutate_robot_account(request, view, obj=None):
         raise PermissionDenied("Remote robot account is synchronized.")
 
 
+class BaseServiceAccountViewSet(core_views.ActionsViewSet):
+    lookup_field = "uuid"
+
+    def perform_create(self, serializer):
+        serializer.save()
+        try:
+            instance = serializer.instance
+            response_data = utils.create_service_account(instance)
+            if response_data and "token" in response_data:
+                instance._token = response_data["token"]
+            else:
+                instance.error_message = (
+                    "Service account creation is disabled or returned no token."
+                )
+                instance.save(update_fields=["error_message"])
+                raise ValidationError({"detail": instance.error_message})
+        except httpx.HTTPError:
+            raise ValidationError({"detail": instance.error_message})
+
+    def perform_destroy(self, instance):
+        utils.remove_service_account(instance)
+
+
+class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
+    queryset = models.ProjectServiceAccount.objects.all()
+    serializer_class = serializers.ProjectServiceAccountSerializer
+    filterset_class = filters.ProjectServiceAccountFilter
+    filter_backends = (DjangoFilterBackend,)
+    destroy_permissions = partial_update_permissions = update_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_SERVICE_ACCOUNT,
+            ["project", "project.customer"],
+        )
+    ]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return qs
+
+        projects = get_connected_projects_by_permission(
+            user, PermissionEnum.MANAGE_SERVICE_ACCOUNT
+        )
+        if projects:
+            return qs.filter(project__in=projects)
+        return qs.none()
+
+    def check_create_permissions(request, view, obj=None):
+        serializer = view.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        project = serializer.validated_data.get("project")
+        if not (
+            has_permission(request, PermissionEnum.MANAGE_SERVICE_ACCOUNT, project)
+            or has_permission(
+                request, PermissionEnum.MANAGE_SERVICE_ACCOUNT, project.customer
+            )
+        ):
+            raise PermissionDenied()
+
+    create_permissions = [check_create_permissions]
+
+
+class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
+    queryset = models.CustomerServiceAccount.objects.all()
+    serializer_class = serializers.CustomerServiceAccountSerializer
+    filterset_class = filters.CustomerServiceAccountFilter
+    filter_backends = (DjangoFilterBackend,)
+
+    destroy_permissions = partial_update_permissions = update_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_SERVICE_ACCOUNT,
+            ["customer"],
+        )
+    ]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return qs
+        customers = get_connected_customers_by_permission(
+            user, PermissionEnum.MANAGE_SERVICE_ACCOUNT
+        )
+        if customers:
+            return qs.filter(customer__in=customers)
+        return qs.none()
+
+    def check_create_permissions(request, view, obj=None):
+        serializer = view.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        customer = serializer.validated_data.get("customer")
+        if not has_permission(request, PermissionEnum.MANAGE_SERVICE_ACCOUNT, customer):
+            raise PermissionDenied()
+
+    create_permissions = [check_create_permissions]
+
+
 class RobotAccountViewSet(core_views.ActionsViewSet):
     queryset = models.RobotAccount.objects.all()
     lookup_field = "uuid"
@@ -4821,19 +4921,29 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
 
     # Validators for state transitions
     set_state_creating_validators = [
-        core_validators.StateValidator(models.RobotAccount.States.REQUESTED)
+        core_validators.StateValidator(
+            RobotAccountStates.REQUESTED, state_enum=RobotAccountStates
+        )
     ]
     set_state_ok_validators = [
-        core_validators.StateValidator(models.RobotAccount.States.CREATING)
+        core_validators.StateValidator(
+            RobotAccountStates.CREATING, state_enum=RobotAccountStates
+        )
     ]
     set_state_request_deletion_validators = [
-        core_validators.StateValidator(models.RobotAccount.States.OK)
+        core_validators.StateValidator(
+            RobotAccountStates.OK, state_enum=RobotAccountStates
+        )
     ]
     set_state_deleted_validators = [
-        core_validators.StateValidator(models.RobotAccount.States.REQUESTED_DELETION)
+        core_validators.StateValidator(
+            RobotAccountStates.REQUESTED_DELETION, state_enum=RobotAccountStates
+        )
     ]
     set_state_erred_validators = [
-        core_validators.StateValidator(models.RobotAccount.States.OK)
+        core_validators.StateValidator(
+            RobotAccountStates.OK, state_enum=RobotAccountStates
+        )
     ]
 
 

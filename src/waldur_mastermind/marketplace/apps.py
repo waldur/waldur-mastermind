@@ -253,10 +253,22 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_core.marketplace.handlers.log_resource_robot_account_created_or_updated",
         )
 
+        signals.post_save.connect(
+            handlers.log_service_account_created_or_updated,
+            sender=models.ScopedServiceAccount,
+            dispatch_uid="waldur_core.marketplace.handlers.log_service_account_created_or_updated",
+        )
+
         signals.post_delete.connect(
             handlers.log_resource_robot_account_deleted,
             sender=models.RobotAccount,
             dispatch_uid="waldur_core.marketplace.handlers.log_resource_robot_account_deleted",
+        )
+
+        signals.post_delete.connect(
+            handlers.log_service_account_deleted,
+            sender=models.ScopedServiceAccount,
+            dispatch_uid="waldur_core.marketplace.handlers.log_service_account_deleted",
         )
 
         permission_signals.role_granted.connect(

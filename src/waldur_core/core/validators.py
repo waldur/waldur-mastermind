@@ -34,12 +34,17 @@ def validate_name(value):
 
 
 class StateValidator:
-    def __init__(self, *valid_states):
+    # Use state_enum to validate states of a model that has custom state field (e.g. RobotAccounts use RobotAccountStates)
+    def __init__(self, *valid_states, state_enum=None):
+        self.state_enum = state_enum
         self.valid_states = valid_states
 
     def __call__(self, resource):
         if resource.state not in self.valid_states:
-            states_names = dict(resource.States.CHOICES)
+            if self.state_enum:
+                states_names = dict(self.state_enum.CHOICES)
+            else:
+                states_names = dict(resource.States.CHOICES)
             valid_states_names = [
                 str(states_names[state]) for state in self.valid_states
             ]

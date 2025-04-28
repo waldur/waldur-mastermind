@@ -14,6 +14,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, tasks
+from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_openstack.tests.fixtures import OpenStackFixture
 
@@ -503,7 +504,7 @@ class RemoveDeletedRobotAccountsTest(test.APITransactionTestCase):
         self.resource = self.fixture.resource
         self.robot_account = models.RobotAccount.objects.create(
             username="test-robot",
-            state=models.RobotAccount.States.OK,
+            state=RobotAccountStates.OK,
             resource=self.resource,
         )
 
@@ -512,7 +513,7 @@ class RemoveDeletedRobotAccountsTest(test.APITransactionTestCase):
         Test that robot accounts with state DELETED are removed from the database.
         """
         # Set robot account to DELETED state
-        self.robot_account.state = models.RobotAccount.States.DELETED
+        self.robot_account.state = RobotAccountStates.DELETED
         self.robot_account.save()
 
         # Call task to remove deleted robot accounts
@@ -534,7 +535,7 @@ class RemoveDeletedRobotAccountsTest(test.APITransactionTestCase):
         Test that robot accounts with other states, for example REQUESTED, are not removed from the database.
         """
         # Set robot account to OK state
-        self.robot_account.state = models.RobotAccount.States.REQUESTED
+        self.robot_account.state = RobotAccountStates.REQUESTED
         self.robot_account.save()
 
         # Call task to remove deleted robot accounts
@@ -544,6 +545,6 @@ class RemoveDeletedRobotAccountsTest(test.APITransactionTestCase):
         self.robot_account.refresh_from_db()
         self.assertEqual(
             self.robot_account.state,
-            models.RobotAccount.States.REQUESTED,
+            RobotAccountStates.REQUESTED,
             f"Robot account {self.robot_account.uuid.hex} should not be removed from the database",
         )

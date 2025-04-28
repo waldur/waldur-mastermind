@@ -7,6 +7,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ServiceProviderRole
 from waldur_lexis import models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -173,7 +174,7 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
             type="hl001",
             resource=self.resource,
             keys=[self.ssh_key],
-            state=marketplace_models.RobotAccount.States.OK,
+            state=RobotAccountStates.OK,
         )
 
         lexis_link = models.LexisLink.objects.create(
@@ -194,6 +195,6 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
         robot_account.set_deleted()
         robot_account.save()
         self.assertEqual(
-            marketplace_models.RobotAccount.States.DELETED,
+            RobotAccountStates.DELETED,
             robot_account.state,
         )

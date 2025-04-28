@@ -17,6 +17,26 @@ class OfferingStates:
     VALUES = [val for (_, val) in CHOICES]
 
 
+class RobotAccountStates:
+    REQUESTED = 1
+    CREATING = 2
+    OK = 3
+    REQUESTED_DELETION = 4
+    DELETED = 5
+    ERROR = 6
+
+    CHOICES = (
+        (REQUESTED, "Requested"),
+        (CREATING, "Creating"),
+        (OK, "OK"),
+        (REQUESTED_DELETION, "Requested deletion"),
+        (DELETED, "Deleted"),
+        (ERROR, "Error"),
+    )
+
+    VALUES = [val for (_, val) in CHOICES]
+
+
 class RequestTypes:
     CREATE = 1
     UPDATE = 2

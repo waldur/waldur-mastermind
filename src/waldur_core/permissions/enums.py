@@ -185,6 +185,8 @@ class PermissionEnum(str, Enum):
     LIST_ROUNDS = "ROUND.LIST"
     LIST_PROPOSALS = "PROPOSAL.LIST"
 
+    MANAGE_SERVICE_ACCOUNT = "SERVICE_ACCOUNT.MANAGE"
+
 
 CREATE_PERMISSIONS = {
     "customer": PermissionEnum.CREATE_CUSTOMER_PERMISSION,
@@ -436,6 +438,10 @@ PERMISSION_DESCRIPTION = [
             {
                 "value": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_PROJECTS",
                 "label": "Get service provider robot account projects",
+            },
+            {
+                "label": "Manage service account",
+                "value": "SERVICE_ACCOUNT.MANAGE",
             },
         ],
     },

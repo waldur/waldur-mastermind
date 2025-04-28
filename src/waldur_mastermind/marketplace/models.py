@@ -37,6 +37,7 @@ from waldur_mastermind.marketplace.enums import (
     OrderStates,
     RequestTypes,
     ResourceStates,
+    RobotAccountStates,
 )
 from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_pid import mixins as pid_mixins
@@ -1526,37 +1527,71 @@ class CategoryHelpArticle(models.Model):
         return self.title
 
 
-class RobotAccount(
+class BaseServiceAccount(
     TimeStampedModel,
     core_models.UuidMixin,
     LoggableMixin,
-    common_mixins.BackendMetadataMixin,
-    core_models.BackendMixin,
     core_models.ErrorMessageMixin,
 ):
-    class States:
-        REQUESTED = 1
-        CREATING = 2
-        OK = 3
-        REQUESTED_DELETION = 4
-        DELETED = 5
-        ERROR = 6
-
-        CHOICES = (
-            (REQUESTED, "Requested"),
-            (CREATING, "Creating"),
-            (OK, "OK"),
-            (REQUESTED_DELETION, "Requested deletion"),
-            (DELETED, "Deleted"),
-            (ERROR, "Error"),
-        )
-
-    resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
-    type = models.CharField(max_length=5)
-    # empty string should be allowed because name is set by
-    # service provider after the account is created
     username = models.CharField(max_length=32, blank=True)
-    users = models.ManyToManyField(User, blank=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        abstract = True
+        ordering = ["created"]
+
+    def get_log_fields(self):
+        return ("username",)
+
+
+class ScopedServiceAccount(BaseServiceAccount):
+    class Meta:
+        abstract = True
+
+    email = models.EmailField(max_length=320, default="")
+
+    def __str__(self):
+        return f"Service account {self.username} for {self.scope}"
+
+    tracker = FieldTracker(fields=["username", "email", "description"])
+
+
+class ProjectServiceAccount(ScopedServiceAccount):
+    project = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=structure_models.Project,
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = _("Project service account")
+
+    def __str__(self):
+        return f"Project service account {self.username} for {self.project}"
+
+
+class CustomerServiceAccount(ScopedServiceAccount):
+    customer = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=structure_models.Customer,
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = _("Customer service account")
+
+    def __str__(self):
+        return f"Customer service account {self.username} for {self.customer}"
+
+
+class RobotAccount(
+    BaseServiceAccount, common_mixins.BackendMetadataMixin, core_models.BackendMixin
+):
+    resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
+    keys = models.JSONField(blank=True, default=list)
+    get_state_display: Callable[[], str]
     responsible_user = models.ForeignKey(
         on_delete=models.SET_NULL,
         to=User,
@@ -1564,31 +1599,53 @@ class RobotAccount(
         blank=True,
         related_name="+",
     )
-    keys = models.JSONField(blank=True, default=list)
-    state = FSMIntegerField(default=States.REQUESTED, choices=States.CHOICES)
-    get_state_display: Callable[[], str]
 
-    tracker = FieldTracker(
-        fields=["resource", "type", "username", "users", "state", "keys"]
+    # Get base fields from BaseServiceAccount's tracker and add new ones
+    tracker = FieldTracker(fields=["username", "state", "resource", "type", "keys"])
+
+    users = models.ManyToManyField(
+        User, blank=True, help_text=_("Users who have access to this robot account.")
     )
 
-    @transition(field=state, source=States.REQUESTED, target=States.CREATING)
+    type = models.CharField(max_length=5, help_text=_("Type of the robot account."))
+
+    state = FSMIntegerField(
+        default=RobotAccountStates.REQUESTED, choices=RobotAccountStates.CHOICES
+    )
+
+    @transition(
+        field=state,
+        source=RobotAccountStates.REQUESTED,
+        target=RobotAccountStates.CREATING,
+    )
     def begin_creating(self):
         pass
 
-    @transition(field=state, source=[States.CREATING, States.ERROR], target=States.OK)
+    @transition(
+        field=state,
+        source=[RobotAccountStates.CREATING, RobotAccountStates.ERROR],
+        target=RobotAccountStates.OK,
+    )
     def set_ok(self):
         pass
 
-    @transition(field=state, source=States.OK, target=States.REQUESTED_DELETION)
+    @transition(
+        field=state,
+        source=RobotAccountStates.OK,
+        target=RobotAccountStates.REQUESTED_DELETION,
+    )
     def request_deletion(self):
         pass
 
-    @transition(field=state, source=States.REQUESTED_DELETION, target=States.DELETED)
+    @transition(
+        field=state,
+        source=RobotAccountStates.REQUESTED_DELETION,
+        target=RobotAccountStates.DELETED,
+    )
     def set_deleted(self):
         pass
 
-    @transition(field=state, source="*", target=States.ERROR)
+    @transition(field=state, source="*", target=RobotAccountStates.ERROR)
     def set_error(self):
         pass
 
@@ -1597,11 +1654,7 @@ class RobotAccount(
         ordering = ["created"]
 
     def get_log_fields(self):
-        return (
-            "type",
-            "username",
-            "state",
-        )
+        return super().get_log_fields() + ("type",)
 
     def __str__(self):
         return f"Robot account {self.username} for {self.resource}"

@@ -113,6 +113,15 @@ class WaldurCore(BaseModel):
     INVITATION_WEBHOOK_TOKEN_URL = Field(
         "", description="Keycloak URL to get access token."
     )
+    SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL = Field(
+        "", description="Webhook URL for getting service account token."
+    )
+    SERVICE_ACCOUNT_WEBHOOK_TOKEN_CLIENT_ID = Field(
+        "", description="Client ID to get access token for service account."
+    )
+    SERVICE_ACCOUNT_WEBHOOK_TOKEN_SECRET = Field(
+        "", description="Client secret to get access for service account."
+    )
     INVITATION_WEBHOOK_TOKEN_CLIENT_ID = Field(
         "", description="Client ID to get access token from Keycloak."
     )
@@ -210,6 +219,10 @@ class WaldurCore(BaseModel):
         False,
         description="Field oecd_fos_2007_code must be required for project.",
     )
+    SERVICE_ACCOUNT_USE_WEBHOOKS = Field(
+        False,
+        description="Send service account creation and deletion events to webhook.",
+    )
 
     class Meta:
         public_settings = [
@@ -232,6 +245,7 @@ class WaldurCore(BaseModel):
             "HOMEPORT_SENTRY_TRACES_SAMPLE_RATE",
             "OECD_FOS_2007_CODE_MANDATORY",
             "INVITATION_USE_WEBHOOKS",
+            "SERVICE_ACCOUNT_USE_WEBHOOKS",
         ]
 
 

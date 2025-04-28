@@ -27,6 +27,7 @@ from waldur_core.structure.managers import (
 )
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import plugins
+from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
     get_connected_offerings,
@@ -497,6 +498,37 @@ class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
         return "scope"
 
 
+class BaseScopedServiceAccountFilter(django_filters.FilterSet):
+    username = django_filters.CharFilter(field_name="username")
+    email = django_filters.CharFilter(lookup_expr="icontains")
+
+    class Meta:
+        model = models.ScopedServiceAccount
+        fields = ["username", "email"]
+
+
+class CustomerServiceAccountFilter(BaseScopedServiceAccountFilter):
+    customer = core_filters.URLFilter(
+        view_name="customer-detail", field_name="customer__uuid"
+    )
+    customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
+
+    class Meta(BaseScopedServiceAccountFilter.Meta):
+        model = models.CustomerServiceAccount
+        fields = BaseScopedServiceAccountFilter.Meta.fields
+
+
+class ProjectServiceAccountFilter(BaseScopedServiceAccountFilter):
+    project = core_filters.URLFilter(
+        view_name="project-detail", field_name="project__uuid"
+    )
+    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
+
+    class Meta(BaseScopedServiceAccountFilter.Meta):
+        model = models.ProjectServiceAccount
+        fields = BaseScopedServiceAccountFilter.Meta.fields
+
+
 class RobotAccountFilter(core_filters.CreatedModifiedFilter, django_filters.FilterSet):
     resource = core_filters.URLFilter(
         view_name="marketplace-resource-detail", field_name="resource__uuid"
@@ -509,7 +541,7 @@ class RobotAccountFilter(core_filters.CreatedModifiedFilter, django_filters.Filt
     provider_uuid = django_filters.UUIDFilter(
         field_name="resource__offering__customer__uuid"
     )
-    state = django_filters.ChoiceFilter(choices=models.RobotAccount.States.CHOICES)
+    state = django_filters.ChoiceFilter(choices=RobotAccountStates.CHOICES)
 
     class Meta:
         model = models.RobotAccount

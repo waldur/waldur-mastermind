@@ -12,6 +12,7 @@ from enum import Enum
 from io import BytesIO
 
 from constance import config
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -27,6 +28,7 @@ from PIL import Image
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers, status
 
+import httpx
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
@@ -48,6 +50,7 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
+from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
@@ -1168,8 +1171,8 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
 def generate_glauth_records_for_robot_accounts(offering, robot_accounts):
     # make sure that only accounts in OK and requested_deletion are exposed e.g. in glauth
     valid_states = [
-        models.RobotAccount.States.OK,
-        models.RobotAccount.States.REQUESTED_DELETION,
+        RobotAccountStates.OK,
+        RobotAccountStates.REQUESTED_DELETION,
     ]
     robot_accounts = robot_accounts.filter(state__in=valid_states)
 
@@ -1634,3 +1637,104 @@ def notification_about_project_ending(end_date):
             context,
             [user.email],
         )
+
+
+def post_service_account_to_url(url: str, service_account: models.ScopedServiceAccount):
+    token_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL"]
+    client_id = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_CLIENT_ID"]
+    client_secret = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_SECRET"]
+
+    token_request_headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+    token_params = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+    }
+
+    try:
+        token_response = httpx.post(
+            token_url, data=token_params, headers=token_request_headers
+        )
+        token_response.raise_for_status()
+
+        # Extract the token
+        token_data = token_response.json()
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise ValueError("Access token not found in token response.")
+        # Use the token for subsequent API calls
+    except httpx.HTTPError as e:
+        logger.error("Error obtaining token: %s", e)
+        raise
+
+    if isinstance(service_account, models.ProjectServiceAccount):
+        customer = service_account.project.customer
+    elif isinstance(service_account, models.CustomerServiceAccount):
+        customer = service_account.customer
+
+    payload = {
+        "username": service_account.username,
+        "customer_uuid": customer.uuid.hex,
+        "customer_name": customer.name,
+        "description": service_account.description,
+    }
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        response = httpx.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        logger.info("Service account has been successfully updated at %s", url)
+        return response
+    except httpx.HTTPError as e:
+        logger.error("Request to %s failed: %s", url, e)
+        raise
+
+
+def create_service_account(service_account: models.ScopedServiceAccount):
+    """
+    Makes a synchronous call to the webhook URL to create a service account.
+    Raises exceptions on failure which should be handled by the viewset.
+    """
+    if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_WEBHOOKS"):
+        return
+
+    webhook_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL"]
+    if not webhook_url:
+        raise ValueError("Webhook URL for service accounts is not configured")
+
+    try:
+        response = post_service_account_to_url(webhook_url, service_account)
+        return response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.error(exc)
+        service_account.error_message = str(exc)
+        service_account.error_traceback = traceback.format_exc()
+        service_account.save(update_fields=["error_message", "error_traceback"])
+        raise
+
+
+def remove_service_account(service_account):
+    """
+    Makes a synchronous call to the webhook URL to remove a service account.
+    Raises exceptions on failure which should be handled by the viewset.
+    """
+    if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_WEBHOOKS"):
+        return
+
+    webhook_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL"]
+    if not webhook_url:
+        raise RuntimeError("Webhook URL for service accounts is not configured")
+
+    try:
+        response = post_service_account_to_url(webhook_url, service_account)
+        response.raise_for_status()
+        if response.status_code == 200:
+            service_account.delete()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.error(exc)
+        service_account.error_message = str(exc)
+        service_account.error_traceback = traceback.format_exc()
+        service_account.save(update_fields=["error_message", "error_traceback"])
+        raise

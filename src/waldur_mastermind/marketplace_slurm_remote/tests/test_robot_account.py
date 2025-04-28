@@ -5,6 +5,7 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
@@ -28,7 +29,7 @@ class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
         self.resource.save()
 
         self.robot_account = marketplace_factories.RobotAccountFactory(
-            state=marketplace_models.RobotAccount.States.OK, resource=self.resource
+            state=RobotAccountStates.OK, resource=self.resource
         )
         marketplace_utils.setup_linux_related_data(self.robot_account, self.offering)
         self.robot_account.save()
@@ -71,14 +72,14 @@ class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
         requested_deletion_account = marketplace_factories.RobotAccountFactory(
             resource=self.resource,
             username="test2",
-            state=marketplace_models.RobotAccount.States.REQUESTED_DELETION,
+            state=RobotAccountStates.REQUESTED_DELETION,
             type="test2",
         )
         # This should not be exposed in glauth
         creating_account = marketplace_factories.RobotAccountFactory(
             resource=self.resource,
             username="test3",
-            state=marketplace_models.RobotAccount.States.CREATING,
+            state=RobotAccountStates.CREATING,
             type="test3",
         )
         # Set up Linux-related data for new accounts
