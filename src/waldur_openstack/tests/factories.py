@@ -556,7 +556,10 @@ class SnapshotFactory(
         return url if action is None else url + action + "/"
 
 
-class SnapshotRestorationFactory(factory.django.DjangoModelFactory):
+class SnapshotRestorationFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.SnapshotRestoration],
+):
     class Meta:
         model = models.SnapshotRestoration
 
@@ -589,7 +592,10 @@ class VolumeAvailabilityZoneFactory(
         return "http://testserver" + reverse("openstack-volume-availability-zone-list")
 
 
-class NetworkRBACPolicyFactory(factory.django.DjangoModelFactory):
+class NetworkRBACPolicyFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.NetworkRBACPolicy],
+):
     class Meta:
         model = models.NetworkRBACPolicy
 

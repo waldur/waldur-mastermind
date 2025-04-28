@@ -3,6 +3,7 @@ import datetime
 import factory
 from django.urls import reverse
 
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import ProjectFactory
@@ -18,7 +19,9 @@ class VMwareServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
     customer = factory.SubFactory(structure_factories.CustomerFactory)
 
 
-class TemplateFactory(factory.django.DjangoModelFactory):
+class TemplateFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Template]
+):
     class Meta:
         model = models.Template
 
@@ -41,7 +44,9 @@ class TemplateFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("vmware-template-list")
 
 
-class ClusterFactory(factory.django.DjangoModelFactory):
+class ClusterFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Cluster]
+):
     class Meta:
         model = models.Cluster
 
@@ -62,7 +67,9 @@ class ClusterFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("vmware-cluster-list")
 
 
-class CustomerClusterFactory(factory.django.DjangoModelFactory):
+class CustomerClusterFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.CustomerCluster]
+):
     class Meta:
         model = models.CustomerCluster
 
@@ -70,7 +77,9 @@ class CustomerClusterFactory(factory.django.DjangoModelFactory):
     cluster = factory.SubFactory(ClusterFactory)
 
 
-class VirtualMachineFactory(factory.django.DjangoModelFactory):
+class VirtualMachineFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.VirtualMachine]
+):
     class Meta:
         model = models.VirtualMachine
 
@@ -101,7 +110,9 @@ class VirtualMachineFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("vmware-virtual-machine-list")
 
 
-class DiskFactory(factory.django.DjangoModelFactory):
+class DiskFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Disk]
+):
     class Meta:
         model = models.Disk
 
@@ -127,7 +138,9 @@ class DiskFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("vmware-disk-list")
 
 
-class NetworkFactory(factory.django.DjangoModelFactory):
+class NetworkFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Network]
+):
     class Meta:
         model = models.Network
 
@@ -149,7 +162,9 @@ class NetworkFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("vmware-network-list")
 
 
-class PortFactory(factory.django.DjangoModelFactory):
+class PortFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Port]
+):
     class Meta:
         model = models.Port
 
@@ -173,7 +188,9 @@ class PortFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("vmware-port-list")
 
 
-class CustomerNetworkFactory(factory.django.DjangoModelFactory):
+class CustomerNetworkFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.CustomerNetwork]
+):
     class Meta:
         model = models.CustomerNetwork
 
@@ -181,7 +198,10 @@ class CustomerNetworkFactory(factory.django.DjangoModelFactory):
     network = factory.SubFactory(NetworkFactory)
 
 
-class CustomerNetworkPairFactory(factory.django.DjangoModelFactory):
+class CustomerNetworkPairFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CustomerNetworkPair],
+):
     class Meta:
         model = models.CustomerNetworkPair
 
@@ -189,7 +209,9 @@ class CustomerNetworkPairFactory(factory.django.DjangoModelFactory):
     network = factory.SubFactory(NetworkFactory)
 
 
-class DatastoreFactory(factory.django.DjangoModelFactory):
+class DatastoreFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Datastore]
+):
     class Meta:
         model = models.Datastore
 
@@ -212,7 +234,10 @@ class DatastoreFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("vmware-datastore-list")
 
 
-class CustomerDatastoreFactory(factory.django.DjangoModelFactory):
+class CustomerDatastoreFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CustomerDatastore],
+):
     class Meta:
         model = models.CustomerDatastore
 
@@ -220,7 +245,9 @@ class CustomerDatastoreFactory(factory.django.DjangoModelFactory):
     datastore = factory.SubFactory(DatastoreFactory)
 
 
-class FolderFactory(factory.django.DjangoModelFactory):
+class FolderFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Folder]
+):
     class Meta:
         model = models.Folder
 
@@ -241,7 +268,9 @@ class FolderFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("vmware-folder-list")
 
 
-class CustomerFolderFactory(factory.django.DjangoModelFactory):
+class CustomerFolderFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.CustomerFolder]
+):
     class Meta:
         model = models.CustomerFolder
 

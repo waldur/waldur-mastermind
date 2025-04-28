@@ -4,11 +4,14 @@ import factory
 from django.utils import timezone
 from rest_framework.reverse import reverse
 
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import models
 
 
-class InvoiceFactory(factory.django.DjangoModelFactory):
+class InvoiceFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Invoice]
+):
     class Meta:
         model = models.Invoice
 
@@ -29,7 +32,9 @@ class InvoiceFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("invoice-list")
 
 
-class InvoiceItemFactory(factory.django.DjangoModelFactory):
+class InvoiceItemFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.InvoiceItem]
+):
     class Meta:
         model = models.InvoiceItem
 
@@ -51,7 +56,9 @@ class InvoiceItemFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class PaymentProfileFactory(factory.django.DjangoModelFactory):
+class PaymentProfileFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.PaymentProfile]
+):
     class Meta:
         model = models.PaymentProfile
 
@@ -72,7 +79,9 @@ class PaymentProfileFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("payment-profile-list")
 
 
-class PaymentFactory(factory.django.DjangoModelFactory):
+class PaymentFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Payment]
+):
     class Meta:
         model = models.Payment
 
@@ -94,7 +103,9 @@ class PaymentFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("payment-list")
 
 
-class CustomerCreditFactory(factory.django.DjangoModelFactory):
+class CustomerCreditFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.CustomerCredit]
+):
     class Meta:
         model = models.CustomerCredit
 
@@ -115,7 +126,9 @@ class CustomerCreditFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("customer-credit-list")
 
 
-class ProjectCreditFactory(factory.django.DjangoModelFactory):
+class ProjectCreditFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.ProjectCredit]
+):
     class Meta:
         model = models.ProjectCredit
 

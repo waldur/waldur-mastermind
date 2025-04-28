@@ -1,12 +1,15 @@
 import factory
 from django.urls import reverse
 
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 
 from .. import models
 
 
-class SupportUserFactory(factory.django.DjangoModelFactory):
+class SupportUserFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.SupportUser]
+):
     class Meta:
         model = models.SupportUser
 
@@ -19,7 +22,9 @@ class SupportUserFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("support-user-list")
 
 
-class IssueFactory(factory.django.DjangoModelFactory):
+class IssueFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Issue]
+):
     class Meta:
         model = models.Issue
 
@@ -43,7 +48,9 @@ class IssueFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("support-issue-list")
 
 
-class CommentFactory(factory.django.DjangoModelFactory):
+class CommentFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Comment]
+):
     class Meta:
         model = models.Comment
 
@@ -67,7 +74,9 @@ class CommentFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("support-comment-list")
 
 
-class AttachmentFactory(factory.django.DjangoModelFactory):
+class AttachmentFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Attachment]
+):
     class Meta:
         model = models.Attachment
 
@@ -89,7 +98,9 @@ class AttachmentFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("support-attachment-list")
 
 
-class TemplateFactory(factory.django.DjangoModelFactory):
+class TemplateFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Template]
+):
     class Meta:
         model = models.Template
 
@@ -110,14 +121,20 @@ class TemplateFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("support-template-list")
 
 
-class IgnoredIssueStatusFactory(factory.django.DjangoModelFactory):
+class IgnoredIssueStatusFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.IgnoredIssueStatus],
+):
     class Meta:
         model = models.IgnoredIssueStatus
 
     name = factory.Sequence(lambda n: "status_%s" % n)
 
 
-class TemplateStatusNotificationFactory(factory.django.DjangoModelFactory):
+class TemplateStatusNotificationFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.TemplateStatusNotification],
+):
     class Meta:
         model = models.TemplateStatusNotification
 
@@ -127,7 +144,9 @@ class TemplateStatusNotificationFactory(factory.django.DjangoModelFactory):
     subject = "Test template {{issue.summary}}"
 
 
-class PriorityFactory(factory.django.DjangoModelFactory):
+class PriorityFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Priority]
+):
     class Meta:
         model = models.Priority
 
@@ -147,7 +166,9 @@ class PriorityFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("support-priority-list")
 
 
-class RequestTypeFactory(factory.django.DjangoModelFactory):
+class RequestTypeFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.RequestType]
+):
     class Meta:
         model = models.RequestType
 
@@ -156,7 +177,9 @@ class RequestTypeFactory(factory.django.DjangoModelFactory):
     issue_type_name = factory.Sequence(lambda n: "issue_type_%s" % n)
 
 
-class SupportCustomerFactory(factory.django.DjangoModelFactory):
+class SupportCustomerFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.SupportCustomer]
+):
     class Meta:
         model = models.SupportCustomer
 
@@ -164,17 +187,24 @@ class SupportCustomerFactory(factory.django.DjangoModelFactory):
     backend_id = factory.Sequence(lambda n: "qm:%s" % n)
 
 
-class IssueStatusFactory(factory.django.DjangoModelFactory):
+class IssueStatusFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.IssueStatus]
+):
     class Meta:
         model = models.IssueStatus
 
 
-class TemplateConfirmationCommentFactory(factory.django.DjangoModelFactory):
+class TemplateConfirmationCommentFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.TemplateConfirmationComment],
+):
     class Meta:
         model = models.TemplateConfirmationComment
 
 
-class FeedbackFactory(factory.django.DjangoModelFactory):
+class FeedbackFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Feedback]
+):
     issue = factory.SubFactory(IssueFactory)
     evaluation = 10
 

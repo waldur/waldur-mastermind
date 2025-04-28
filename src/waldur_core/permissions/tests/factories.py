@@ -1,9 +1,10 @@
 from factory import django, fuzzy
 
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.permissions import models
 
 
-class RoleFactory(django.DjangoModelFactory):
+class RoleFactory(django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Role]):
     class Meta:
         model = models.Role
 

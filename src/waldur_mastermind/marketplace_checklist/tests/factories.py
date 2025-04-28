@@ -1,17 +1,23 @@
 import factory
 from django.urls import reverse
 
+from waldur_core.core.tests.types import BaseMetaFactory
+
 from .. import models
 
 
-class CategoryFactory(factory.django.DjangoModelFactory):
+class CategoryFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Category]
+):
     class Meta:
         model = models.Category
 
     name = factory.Sequence(lambda n: "category-%s" % n)
 
 
-class ChecklistFactory(factory.django.DjangoModelFactory):
+class ChecklistFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Checklist]
+):
     class Meta:
         model = models.Checklist
 
@@ -27,7 +33,9 @@ class ChecklistFactory(factory.django.DjangoModelFactory):
         )
 
 
-class QuestionFactory(factory.django.DjangoModelFactory):
+class QuestionFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Question]
+):
     class Meta:
         model = models.Question
 

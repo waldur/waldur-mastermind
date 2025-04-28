@@ -2,12 +2,15 @@ import factory
 from django.contrib.contenttypes import models as ct_models
 from django.urls import reverse
 
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.logging import models
 from waldur_core.logging.loggers import get_valid_events
 from waldur_core.structure.tests import factories as structure_factories
 
 
-class EventFactory(factory.django.DjangoModelFactory):
+class EventFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Event]
+):
     class Meta:
         model = models.Event
 
@@ -40,14 +43,18 @@ class EventFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("events-stats-list")
 
 
-class FeedFactory(factory.django.DjangoModelFactory):
+class FeedFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Feed]
+):
     class Meta:
         model = models.Feed
 
     event = factory.SubFactory(EventFactory)
 
 
-class WebHookFactory(factory.django.DjangoModelFactory):
+class WebHookFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.WebHook]
+):
     class Meta:
         model = models.WebHook
 
@@ -67,7 +74,10 @@ class WebHookFactory(factory.django.DjangoModelFactory):
         )
 
 
-class SystemNotificationFactory(factory.django.DjangoModelFactory):
+class SystemNotificationFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.SystemNotification],
+):
     class Meta:
         model = models.SystemNotification
 
@@ -80,14 +90,19 @@ class SystemNotificationFactory(factory.django.DjangoModelFactory):
     )
 
 
-class EventSubscriptionFactory(factory.django.DjangoModelFactory):
+class EventSubscriptionFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.EventSubscription],
+):
     class Meta:
         model = models.EventSubscription
 
     user = factory.SubFactory(structure_factories.UserFactory)
 
 
-class EmailLogFactory(factory.django.DjangoModelFactory):
+class EmailLogFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.EmailLog]
+):
     class Meta:
         model = models.EmailLog
 

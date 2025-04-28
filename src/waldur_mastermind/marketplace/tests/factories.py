@@ -610,7 +610,9 @@ class IntegrationStatusFactory(
         return url if action is None else url + action + "/"
 
 
-class OfferingUserFactory(factory.django.DjangoModelFactory):
+class OfferingUserFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.OfferingUser]
+):
     offering = factory.SubFactory(OfferingFactory)
     user = factory.SubFactory(structure_factories.UserFactory)
     username = factory.Sequence(lambda n: "username-%s" % n)
@@ -634,7 +636,10 @@ class OfferingUserFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class ComponentUserUsageLimitFactory(factory.django.DjangoModelFactory):
+class ComponentUserUsageLimitFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ComponentUserUsageLimit],
+):
     resource = factory.SubFactory(ResourceFactory)
     component = factory.LazyAttribute(lambda o: o.resource.offering.components.first())
     user = factory.SubFactory(OfferingUserFactory)

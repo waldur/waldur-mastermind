@@ -2,6 +2,7 @@ import factory
 from django.urls import reverse
 from factory import fuzzy
 
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.tests.factories import (
     CustomerFactory,
@@ -19,7 +20,9 @@ class DigitalOceanServiceSettingsFactory(ServiceSettingsFactory):
     customer = factory.SubFactory(CustomerFactory)
 
 
-class RegionFactory(factory.django.DjangoModelFactory):
+class RegionFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Region]
+):
     class Meta:
         model = models.Region
 
@@ -35,7 +38,9 @@ class RegionFactory(factory.django.DjangoModelFactory):
         )
 
 
-class ImageFactory(factory.django.DjangoModelFactory):
+class ImageFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Image]
+):
     class Meta:
         model = models.Image
 
@@ -55,7 +60,9 @@ class ImageFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("digitalocean-image-list")
 
 
-class SizeFactory(factory.django.DjangoModelFactory):
+class SizeFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Size]
+):
     class Meta:
         model = models.Size
 
@@ -77,7 +84,9 @@ class SizeFactory(factory.django.DjangoModelFactory):
         )
 
 
-class DropletFactory(factory.django.DjangoModelFactory):
+class DropletFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Droplet]
+):
     class Meta:
         model = models.Droplet
 

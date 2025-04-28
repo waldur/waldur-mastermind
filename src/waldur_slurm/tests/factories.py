@@ -2,6 +2,7 @@ import factory
 from django.urls import reverse
 from factory import fuzzy
 
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
 from waldur_slurm import models
 
@@ -10,7 +11,9 @@ class SlurmServiceSettingsFactory(ServiceSettingsFactory):
     type = "SLURM"
 
 
-class AllocationFactory(factory.django.DjangoModelFactory):
+class AllocationFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Allocation]
+):
     class Meta:
         model = models.Allocation
 
@@ -38,7 +41,9 @@ class AllocationFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("slurm-allocation-list")
 
 
-class AssociationFactory(factory.django.DjangoModelFactory):
+class AssociationFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Association]
+):
     class Meta:
         model = models.Association
 

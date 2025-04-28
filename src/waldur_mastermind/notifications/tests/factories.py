@@ -1,12 +1,16 @@
 import factory
 from django.urls import reverse
 
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 
 from .. import models
 
 
-class BroadcastMessageFactory(factory.django.DjangoModelFactory):
+class BroadcastMessageFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.BroadcastMessage],
+):
     class Meta:
         model = models.BroadcastMessage
 
@@ -20,7 +24,10 @@ class BroadcastMessageFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class AdminAnnouncementFactory(factory.django.DjangoModelFactory):
+class AdminAnnouncementFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.AdminAnnouncement],
+):
     class Meta:
         model = models.AdminAnnouncement
 

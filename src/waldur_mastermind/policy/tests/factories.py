@@ -1,13 +1,17 @@
 import factory
 from rest_framework.reverse import reverse
 
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 from .. import models
 
 
-class ProjectEstimatedCostPolicyFactory(factory.django.DjangoModelFactory):
+class ProjectEstimatedCostPolicyFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ProjectEstimatedCostPolicy],
+):
     class Meta:
         model = models.ProjectEstimatedCostPolicy
 
@@ -33,7 +37,10 @@ class ProjectEstimatedCostPolicyFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class CustomerEstimatedCostPolicyFactory(factory.django.DjangoModelFactory):
+class CustomerEstimatedCostPolicyFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CustomerEstimatedCostPolicy],
+):
     class Meta:
         model = models.CustomerEstimatedCostPolicy
 
@@ -59,7 +66,10 @@ class CustomerEstimatedCostPolicyFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class OfferingEstimatedCostPolicyFactory(factory.django.DjangoModelFactory):
+class OfferingEstimatedCostPolicyFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.OfferingEstimatedCostPolicy],
+):
     class Meta:
         model = models.OfferingEstimatedCostPolicy
 
@@ -85,7 +95,10 @@ class OfferingEstimatedCostPolicyFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class OfferingUsagePolicyFactory(factory.django.DjangoModelFactory):
+class OfferingUsagePolicyFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.OfferingUsagePolicy],
+):
     class Meta:
         model = models.OfferingUsagePolicy
 
@@ -108,7 +121,10 @@ class OfferingUsagePolicyFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class OfferingUsageComponentLimitFactory(factory.django.DjangoModelFactory):
+class OfferingUsageComponentLimitFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.OfferingComponentLimit],
+):
     class Meta:
         model = models.OfferingComponentLimit
 

@@ -3,12 +3,15 @@ import datetime
 import factory
 from django.urls import reverse
 
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 from .. import models
 
 
-class CampaignFactory(factory.django.DjangoModelFactory):
+class CampaignFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Campaign]
+):
     class Meta:
         model = models.Campaign
 
@@ -34,7 +37,10 @@ class CampaignFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class DiscountedResourceFactory(factory.django.DjangoModelFactory):
+class DiscountedResourceFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.DiscountedResource],
+):
     class Meta:
         model = models.DiscountedResource
 
