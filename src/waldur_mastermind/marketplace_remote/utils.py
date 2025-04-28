@@ -1,6 +1,7 @@
 import datetime
 import io
 import logging
+import uuid
 from collections import defaultdict
 from decimal import Decimal
 
@@ -21,6 +22,7 @@ from waldur_api_client.api.marketplace_resources import (
     marketplace_resources_retrieve,
     marketplace_resources_update_options,
 )
+from waldur_api_client.api.marketplace_screenshots import marketplace_screenshots_list
 from waldur_api_client.api.projects import (
     projects_add_user,
     projects_create,
@@ -62,7 +64,7 @@ import httpx
 from httpx import TimeoutException
 from waldur_auth_social.models import ProviderChoices
 from waldur_core.core.client import get_waldur_client
-from waldur_core.core.utils import get_system_robot
+from waldur_core.core.utils import get_system_robot, validate_uuid
 from waldur_core.media import models as media_models
 from waldur_core.media import utils as media_utils
 from waldur_core.permissions.enums import RoleEnum
@@ -716,9 +718,187 @@ def upsert_offering(
             "billable": True,
         },
     )
-    import_offering_thumbnail(local_offering, remote_offering.thumbnail)
-    local_components_map = import_offering_components(
-        local_offering, remote_offering.components
+    # Update related data
+    update_offering_related_data(local_offering, remote_offering)
+    return local_offering
+
+
+def import_offering_image(
+    local_offering: marketplace_models.Offering, remote_offering: PublicOfferingDetails
+):
+    """Import offering image from remote offering"""
+    image_url = remote_offering.image
+    # If image URL is not provided, delete the local image
+    if not image_url:
+        logger.info("No image URL provided for offering %s", local_offering)
+        if local_offering.image:
+            local_offering.image.delete()
+            local_offering.save(update_fields=["image"])
+        return
+
+    image_uuid = image_url.strip("/").split("/")[-1]
+
+    try:
+        validate_uuid(image_uuid)
+    except ValidationError:
+        logger.error(
+            "Invalid image UUID for offering's image during sync: %s", image_uuid
+        )
+        return
+
+    # Check if the image is already set by uuid
+    if (
+        local_offering.remote_image_uuid
+        and local_offering.remote_image_uuid == uuid.UUID(image_uuid)
+    ):
+        return
+
+    try:
+        # Download the image from the remote offering
+        image_resp = httpx.get(image_url)
+        image_resp.raise_for_status()
+    except httpx.HTTPError as e:
+        logger.error(
+            "Failed to download image for offering %s: %s",
+            local_offering,
+            e,
+        )
+        return
+
+    # Create a BytesIO object from the image content
+    content = io.BytesIO(image_resp.content)
+    # Generate a unique file name for the image
+    file_name = local_offering.uuid.hex
+
+    try:
+        local_offering.remote_image_uuid = image_uuid
+        local_offering.image.save(file_name, content)
+        local_offering.save(update_fields=["image", "remote_image_uuid"])
+    except ValueError as e:
+        logger.error(
+            "Failed to save image for offering %s: %s",
+            local_offering,
+            e,
+        )
+
+
+def _download_image(url: str) -> bytes:
+    """Download image and return its content and hash"""
+    response = httpx.get(url)
+    response.raise_for_status()
+    content = response.content
+    return content
+
+
+def import_offering_screenshots(local_offering: marketplace_models.Offering):
+    """Import offering screenshots from remote offering"""
+    remote_offering_uuid = local_offering.backend_id
+    client = get_client_for_offering(local_offering)
+    try:
+        remote_screenshots = marketplace_screenshots_list.sync(
+            client=client,
+            offering_uuid=remote_offering_uuid,
+        )
+    except (UnexpectedStatus, TimeoutException) as e:
+        logger.error(
+            "Error fetching screenshots for offering %s: %s",
+            remote_offering_uuid,
+            e,
+        )
+        return
+
+    if not remote_screenshots:
+        # If no remote screenshots, delete all local ones and return
+        marketplace_models.Screenshot.objects.filter(offering=local_offering).delete()
+        return
+
+    remote_screenshots_uuids = {
+        remote_screenshot.uuid.hex for remote_screenshot in remote_screenshots
+    }
+
+    existing_screenshot_uuids = set(
+        marketplace_models.Screenshot.objects.filter(
+            offering=local_offering
+        ).values_list("backend_id", flat=True)
     )
-    import_plans(local_offering, remote_offering.plans, local_components_map)
+    new_screenshot_uuids = remote_screenshots_uuids - existing_screenshot_uuids
+    # Process each remote screenshot
+    for remote_screenshot in remote_screenshots:
+        remote_screenshot_uuid = remote_screenshot.uuid.hex
+        if remote_screenshot_uuid not in new_screenshot_uuids:
+            continue
+        try:
+            # Download remote image
+            response = httpx.get(remote_screenshot.image)
+            response.raise_for_status()
+            remote_image_content = response.content
+        except httpx.HTTPError as e:
+            logger.error(
+                "Failed to download image for remote screenshot uuid %s, with image url %s, error: %s",
+                remote_screenshot.uuid.hex,
+                remote_screenshot.image,
+                e,
+            )
+            continue
+        try:
+            # Create new screenshot
+            content = io.BytesIO(remote_image_content)
+            screenshot = marketplace_models.Screenshot.objects.create(
+                offering=local_offering,
+                name=remote_screenshot.name,
+                description=remote_screenshot.description,
+                backend_id=remote_screenshot_uuid,
+            )
+            screenshot.image.save(f"{screenshot.uuid.hex}", content)
+        except ValueError as e:
+            logger.error(
+                "Failed to save image for remote screenshot uuid %s, with image url %s, error: %s",
+                remote_screenshot.uuid.hex,
+                remote_screenshot.image,
+                e,
+            )
+            continue
+
+        # Handle image thumbnail if present
+        image_thumbnail_url = remote_screenshot.thumbnail
+        if image_thumbnail_url:
+            try:
+                response = httpx.get(image_thumbnail_url)
+                response.raise_for_status()
+                thumbnail_content = response.content
+                screenshot.thumbnail.save(
+                    screenshot.uuid.hex, io.BytesIO(thumbnail_content)
+                )
+            except httpx.HTTPError as e:
+                logger.error(
+                    "Failed to download thumbnail for remote screenshot uuid %s, with thumbnail url %s, error: %s",
+                    remote_screenshot.uuid.hex,
+                    image_thumbnail_url,
+                    e,
+                )
+
+        screenshot.save()
+
+    # Delete local screenshots that don't exist in remote offering
+    marketplace_models.Screenshot.objects.filter(offering=local_offering).exclude(
+        backend_id__in=remote_screenshots_uuids
+    ).delete()
+
+
+def update_offering_related_data(
+    local_offering: marketplace_models.Offering,
+    remote_offering: PublicOfferingDetails,
+):
+    import_offering_image(local_offering, remote_offering)
+    import_offering_screenshots(local_offering)
+    import_offering_thumbnail(local_offering, remote_offering.thumbnail)
+
+    local_components_map = import_offering_components(
+        local_offering=local_offering, remote_components=remote_offering.components
+    )
+    import_plans(
+        local_offering=local_offering,
+        remote_plans=remote_offering.plans,
+        local_components_map=local_components_map,
+    )
     return local_offering

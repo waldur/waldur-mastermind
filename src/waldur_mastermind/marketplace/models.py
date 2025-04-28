@@ -410,6 +410,7 @@ class Offering(
         null=True,
         validators=[ImageValidator],
     )
+    remote_image_uuid = models.UUIDField(null=True, blank=True, default=None)
     full_description = models.TextField(blank=True)
     vendor_details = models.TextField(blank=True)
     getting_started = models.TextField(blank=True)
@@ -890,6 +891,7 @@ class Screenshot(
     core_models.DescribableMixin,
     TimeStampedModel,
     core_models.NameMixin,
+    core_models.BackendMixin,
 ):
     image = models.ImageField(upload_to=get_upload_path)
     thumbnail = models.ImageField(upload_to=get_upload_path, editable=False, null=True)

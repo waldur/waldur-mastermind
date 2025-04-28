@@ -24,3 +24,5 @@ pytest.ini
 
 /static
 __pycache__/
+
+.vscode/

@@ -24,13 +24,8 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         with open(self.offering_file_path, encoding="utf-8") as file:
             self.remote_offering = json.load(file)
 
-        mock.patch(
-            "waldur_mastermind.marketplace_remote.utils.import_offering_thumbnail"
-        ).start()
-        mock.patch(
-            "waldur_mastermind.marketplace_remote.utils.import_offering_thumbnail"
-        ).start()
         respx.start()
+        self.mock_thumbnail()
         self.mock_marketplace_categories()
         mock.patch("waldur_mastermind.marketplace_remote.utils.import_plans").start()
 
@@ -60,6 +55,14 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
             200, json=offerings
         )
 
+    def mock_marketplace_screenshots(self):
+        respx.get(f"{self.api_url}/api/marketplace-screenshots/").respond(json=[])
+
+    def mock_thumbnail(self):
+        respx.get(self.remote_offering["thumbnail"]).respond(
+            200, content=b"test-image-data"
+        )
+
     def _create_local_offering(self, **kwargs):
         params = dict(
             customer=self.fixture.service_provider.customer,
@@ -77,6 +80,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         return offering
 
     def test_sync_updates_existing_offerings(self):
+        self.mock_marketplace_screenshots()
         self.mock_public_offerings([self.remote_offering])
         offering = self._create_local_offering()
         tasks.remote_offerings_sync()
@@ -89,6 +93,8 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         self.assertEqual(offering.name, self.remote_offering["name"])
 
     def test_sync_creates_new_offerings(self):
+        # Mock the marketplace-screenshots-list endpoint success response
+        self.mock_marketplace_screenshots()
         self.mock_public_offerings([self.remote_offering])
 
         tasks.remote_offerings_sync()
@@ -121,6 +127,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         )
 
     def test_sync_removes_stale_offerings(self):
+        self.mock_marketplace_screenshots()
         self.remote_offering["state"] = "Archived"
         self.mock_public_offerings([self.remote_offering])
 
@@ -158,12 +165,12 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         )
 
     def test_category_of_sync_has_been_changed(self):
+        self.mock_marketplace_screenshots()
         self.mock_public_offerings([self.remote_offering])
         stale_offering = self._create_local_offering(
             state=marketplace_models.Offering.States.ARCHIVED,
             category=marketplace_factories.CategoryFactory(),
         )
-
         tasks.remote_offerings_sync()
 
         stale_offering.refresh_from_db()
@@ -181,6 +188,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         )
 
     def test_two_service_providers_import_the_same_offerings(self):
+        self.mock_marketplace_screenshots()
         self.mock_public_offerings([self.remote_offering])
         remote_organization_uuid = (
             self.fixture.remote_synchronisation.remote_organization_uuid
@@ -209,6 +217,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         )
 
     def test_imports_multiple_offerings_into_same_local_category(self):
+        self.mock_marketplace_screenshots()
         with open(self.offering_file_path, encoding="utf-8") as file:
             second_remote_offering = json.load(file)
 
