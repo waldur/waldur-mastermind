@@ -575,16 +575,16 @@ Upload OpenAPI schema and schema diff to docs:
     - cp $CI_PROJECT_DIR/waldur-openapi-schema.yaml docs/API/waldur-openapi-schema-${CI_COMMIT_TAG}.yaml
     - ls -la docs/API
     # Upload OpenAPI schema diff
-    - mkdir -p docs/about/api-changes
+    - mkdir -p docs/integrator-guide/APIs/api-changes
     - |
       if [ -s "$CI_PROJECT_DIR/openapi-diff.md" ]; then
-        cp $CI_PROJECT_DIR/openapi-diff.md docs/about/api-changes/waldur-openapi-schema-${CI_COMMIT_TAG}-diff.md
+        cp $CI_PROJECT_DIR/openapi-diff.md docs/integrator-guide/APIs/api-changes/waldur-openapi-schema-${CI_COMMIT_TAG}-diff.md
       else
         echo "No API changes detected, skipping diff file upload"
       fi
-    - ls -la docs/about/api-changes
+    - ls -la docs/integrator-guide/APIs/api-changes
     # Commit and push changes
-    - git add docs/API docs/about/api-changes
+    - git add docs/API docs/integrator-guide/APIs/api-changes
     - git commit -m "Add Waldur OpenAPI schema and diff for ${CI_COMMIT_TAG}" || exit 0
     - git branch new-api-schema-${CI_COMMIT_TAG}
     - git push --set-upstream origin new-api-schema-${CI_COMMIT_TAG}:master
