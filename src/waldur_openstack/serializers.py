@@ -1222,6 +1222,7 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
             "device_owner",
             "port_security_enabled",
             "security_groups",
+            "admin_state_up",
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
@@ -1241,6 +1242,7 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
                 "device_id",
                 "device_owner",
                 "security_groups",
+                "admin_state_up",
             )
         )
         # Network and subnet should be writable for creation
