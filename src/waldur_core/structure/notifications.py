@@ -220,16 +220,6 @@ class MarketplaceSection(NotificationSection):
     )
 
 
-class RancherSection(NotificationSection):
-    class Meta:
-        key = "rancher"
-
-    notification_create_user = Notification(
-        "notification_create_user",
-        "A notification for created rancher user. The recipients is the user who requested the creation.",
-    )
-
-
 class MarketplaceRemoteSection(NotificationSection):
     class Meta:
         key = "marketplace_remote"
