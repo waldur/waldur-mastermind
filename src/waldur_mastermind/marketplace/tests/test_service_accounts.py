@@ -1,5 +1,3 @@
-from unittest import mock
-
 from ddt import data, ddt
 from rest_framework import status, test
 
@@ -20,6 +18,69 @@ WEBHOOK_TOKEN_CLIENT_ID = "test-client-id"
 WEBHOOK_TOKEN_SECRET = "test-client-secret"
 
 
+class BaseServiceAccountTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+        # Setup respx
+        respx.start()
+        self.token = "test-token"
+
+        # Mock token request
+        respx.post(
+            WEBHOOK_URL,
+            content=f"grant_type=client_credentials&client_id={WEBHOOK_TOKEN_CLIENT_ID}&client_secret={WEBHOOK_TOKEN_SECRET}",
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+        ).mock(return_value=httpx.Response(200, json={"access_token": self.token}))
+
+        # Mock service account creation request
+        respx.post(
+            WEBHOOK_URL,
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "serviceAccount": {
+                        "status": "active",
+                        "username": "test-user",
+                        "email": "test@example.com",
+                        "description": "test description",
+                        "unixUid": 1000,
+                        "unixGid": 1000,
+                        "scopeType": "scope",
+                        "scopeName": "Test scope",
+                        "scopeSlug": "test-scope",
+                        "owner": {
+                            "username": "test-owner",
+                            "email": "owner@example.com",
+                        },
+                    },
+                    "apiKey": {
+                        "apiKey": self.token,
+                        "createdAt": "2025-04-28T12:00:00Z",
+                        "expiresAt": "2025-05-28T12:00:00Z",
+                        "ttl": 2592000,
+                    },
+                },
+            )
+        )
+        self.account_username = "waldur"
+
+        # Mock service account deletion request
+        respx.delete(
+            f"{WEBHOOK_URL}{self.account_username}",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(return_value=httpx.Response(200, json={}))
+
+    def tearDown(self):
+        respx.stop()
+        super().tearDown()
+
+
 @override_waldur_core_settings(
     SERVICE_ACCOUNT_USE_WEBHOOKS=True,
     SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL=WEBHOOK_URL,
@@ -27,9 +88,9 @@ WEBHOOK_TOKEN_SECRET = "test-client-secret"
     SERVICE_ACCOUNT_WEBHOOK_TOKEN_SECRET=WEBHOOK_TOKEN_SECRET,
 )
 @ddt
-class ServiceAccountPermissionTest(test.APITransactionTestCase):
+class ServiceAccountPermissionTest(BaseServiceAccountTest):
     def setUp(self):
-        self.fixture = fixtures.MarketplaceFixture()
+        super().setUp()
         # Add MANAGE_SERVICE_ACCOUNT permission to relevant roles
         CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_SERVICE_ACCOUNT)
         ServiceProviderRole.MANAGER.add_permission(
@@ -39,43 +100,17 @@ class ServiceAccountPermissionTest(test.APITransactionTestCase):
         ProjectRole.ADMIN.add_permission(PermissionEnum.MANAGE_SERVICE_ACCOUNT)
 
         # Setup users with appropriate roles
-        # Add service_manager to project and customer
         self.fixture.project.customer.add_user(
             self.fixture.service_manager, ServiceProviderRole.MANAGER
         )
         self.fixture.project.add_user(self.fixture.service_manager, ProjectRole.MANAGER)
-
-        # Add service_owner to project and customer
         self.fixture.project.customer.add_user(
             self.fixture.service_owner, CustomerRole.OWNER
         )
         self.fixture.project.add_user(self.fixture.service_owner, ProjectRole.ADMIN)
-
-        # Add service_manager to offering_customer
         self.fixture.offering_customer.add_user(
             self.fixture.service_manager, CustomerRole.OWNER
         )
-
-        # Setup mock responses
-        token = "test-token"
-        respx.start()
-        respx.post(
-            WEBHOOK_URL,
-            content=f"grant_type=client_credentials&client_id={WEBHOOK_TOKEN_CLIENT_ID}&client_secret={WEBHOOK_TOKEN_SECRET}",
-            headers={
-                "Accept": "application/json",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-        ).mock(return_value=httpx.Response(200, json={"access_token": token}))
-
-        respx.post(
-            WEBHOOK_URL,
-            headers={"Authorization": f"Bearer {token}"},
-        ).mock(return_value=httpx.Response(200, json={"token": token}))
-
-    def tearDown(self):
-        super().tearDown()
-        respx.stop()
 
     @data("staff", "service_manager", "service_owner", "manager", "admin")
     def test_user_can_create_project_service_account(self, user):
@@ -85,7 +120,7 @@ class ServiceAccountPermissionTest(test.APITransactionTestCase):
             url,
             {
                 "project": self.fixture.project.uuid,
-                "username": "project-user",
+                "username": self.account_username,
                 "description": "project test",
             },
         )
@@ -248,7 +283,6 @@ class ServiceAccountPermissionTest(test.APITransactionTestCase):
     def test_project_manager_with_permission_can_manage_service_account(self, user):
         """Test that project manager with correct permission can create and delete service accounts"""
         self.client.force_authenticate(getattr(self.fixture, user))
-        self.account_username = "project-user"
         url = factories.ProjectServiceAccountFactory.get_list_url()
         response = self.client.post(
             url,
@@ -361,50 +395,103 @@ class ServiceAccountPermissionTest(test.APITransactionTestCase):
 
 @override_waldur_core_settings(
     SERVICE_ACCOUNT_USE_WEBHOOKS=True,
-    SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL="http://example.com/api/",
-    SERVICE_ACCOUNT_WEBHOOK_TOKEN_CLIENT_ID="test-client-id",
-    SERVICE_ACCOUNT_WEBHOOK_TOKEN_SECRET="test-client-secret",
+    SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL=WEBHOOK_URL,
+    SERVICE_ACCOUNT_WEBHOOK_TOKEN_CLIENT_ID=WEBHOOK_TOKEN_CLIENT_ID,
+    SERVICE_ACCOUNT_WEBHOOK_TOKEN_SECRET=WEBHOOK_TOKEN_SECRET,
 )
-class ScopedServiceAccountAPITest(test.APITransactionTestCase):
+class ScopedServiceAccountAPITest(BaseServiceAccountTest):
     def setUp(self):
-        self.fixture = fixtures.MarketplaceFixture()
+        super().setUp()
         self.client.force_authenticate(self.fixture.staff)
+
         self.url = factories.ProjectServiceAccountFactory.get_list_url()
 
-    @mock.patch("waldur_mastermind.marketplace.utils.post_service_account_to_url")
-    def test_create_service_account_success(self, mock_post):
-        """Test that service account creation succeeds"""
-        # Mock successful API response
-        mock_post.return_value.json.return_value = {"token": "test-token"}
-        mock_post.return_value.status_code = 200
+        self.payload = {
+            "project": self.fixture.project.uuid,
+            "username": "test-account",
+            "description": "Test account",
+        }
+        self.new_api_key = "new-rotated-key-123"
+        self.new_expires_at = "2025-05-28T12:00:00Z"
 
+    def test_create_service_account_success(self):
+        """Test that service account creation succeeds"""
         response = self.client.post(
             self.url,
-            {
-                "project": self.fixture.project.uuid,
-                "username": "test-account",
-                "description": "Test account",
-            },
+            self.payload,
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEqual(response.data["token"], "test-token")
-        mock_post.assert_called_once()
+        self.assertEqual(response.data["token"], self.token)
 
-    @mock.patch("waldur_mastermind.marketplace.utils.post_service_account_to_url")
-    def test_create_service_account_failure(self, mock_post):
+    def test_create_service_account_failure(self):
         """Test that service account creation fails when API call fails"""
-        # Mock failed API response
-        mock_post.side_effect = httpx.HTTPError("API Error")
+        # Mock token request (failure)
+        respx.post(
+            WEBHOOK_URL,
+            content=f"grant_type=client_credentials&client_id={WEBHOOK_TOKEN_CLIENT_ID}&client_secret={WEBHOOK_TOKEN_SECRET}",
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+        ).mock(return_value=httpx.Response(400))
 
         response = self.client.post(
             self.url,
-            {
-                "project": self.fixture.project.uuid,
-                "username": "test-account",
-                "description": "Test account",
-            },
+            self.payload,
         )
-
+        expected_error = "Client error '400 Bad Request'"
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         account = models.ProjectServiceAccount.objects.get(username="test-account")
-        self.assertEqual(account.error_message, "API Error")
+        self.assertIn(expected_error, account.error_message)
+
+    def test_rotate_project_service_account_api_key(self):
+        """Test that service account API key rotation succeeds"""
+        account = factories.ProjectServiceAccountFactory(project=self.fixture.project)
+        url = factories.ProjectServiceAccountFactory.get_url(account)
+
+        # Mock API key rotation response
+        respx.put(
+            f"{WEBHOOK_URL}{account.username}/rotate-api-key/",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "apiKey": {
+                        "apiKey": self.new_api_key,
+                        "expiresAt": self.new_expires_at,
+                    }
+                },
+            )
+        )
+        response = self.client.post(f"{url}rotate_api_key/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["token"], self.new_api_key)
+        self.assertEqual(response.data["expiresAt"], self.new_expires_at)
+
+    def test_rotate_customer_service_account_api_key(self):
+        """Test that service account API key rotation succeeds"""
+        account = factories.CustomerServiceAccountFactory(
+            customer=self.fixture.offering_customer
+        )
+        url = factories.CustomerServiceAccountFactory.get_url(account)
+
+        # Mock API key rotation response
+        respx.put(
+            f"{WEBHOOK_URL}{account.username}/rotate-api-key/",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "apiKey": {
+                        "apiKey": self.new_api_key,
+                        "expiresAt": self.new_expires_at,
+                    }
+                },
+            )
+        )
+        response = self.client.post(f"{url}rotate_api_key/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["token"], self.new_api_key)
+        self.assertEqual(response.data["expiresAt"], self.new_expires_at)

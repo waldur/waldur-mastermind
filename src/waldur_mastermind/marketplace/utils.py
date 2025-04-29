@@ -1639,7 +1639,7 @@ def notification_about_project_ending(end_date):
         )
 
 
-def post_service_account_to_url(url: str, service_account: models.ScopedServiceAccount):
+def get_service_account_api_token():
     token_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL"]
     client_id = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_CLIENT_ID"]
     client_secret = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_SECRET"]
@@ -1653,46 +1653,80 @@ def post_service_account_to_url(url: str, service_account: models.ScopedServiceA
         "client_id": client_id,
         "client_secret": client_secret,
     }
-
     try:
         token_response = httpx.post(
             token_url, data=token_params, headers=token_request_headers
         )
         token_response.raise_for_status()
-
         # Extract the token
         token_data = token_response.json()
         access_token = token_data.get("access_token")
         if not access_token:
             raise ValueError("Access token not found in token response.")
-        # Use the token for subsequent API calls
+        return access_token
     except httpx.HTTPError as e:
         logger.error("Error obtaining token: %s", e)
         raise
 
-    if isinstance(service_account, models.ProjectServiceAccount):
-        customer = service_account.project.customer
-    elif isinstance(service_account, models.CustomerServiceAccount):
-        customer = service_account.customer
 
-    payload = {
-        "username": service_account.username,
-        "customer_uuid": customer.uuid.hex,
-        "customer_name": customer.name,
-        "description": service_account.description,
-    }
-    headers = {"Authorization": f"Bearer {access_token}"}
+def rotate_service_account_api_key(service_account: models.ScopedServiceAccount):
+    webhook_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL"]
+    if not webhook_url:
+        raise ValueError("Webhook URL for service accounts is not configured")
     try:
+        api_access_token = get_service_account_api_token()
+
+        response = httpx.put(
+            f"{webhook_url}{service_account.username}/rotate-api-key/",
+            headers={"Authorization": f"Bearer {api_access_token}"},
+        )
+        response.raise_for_status()
+        return response.json()
+    except (httpx.HTTPError, ValueError) as e:
+        logger.error("Error obtaining token: %s", e)
+        raise
+
+
+def post_service_account_to_url(
+    url: str, service_account: models.ScopedServiceAccount, username: str = ""
+):
+    try:
+        api_access_token = get_service_account_api_token()
+        if isinstance(service_account, models.ProjectServiceAccount):
+            customer = service_account.project.customer
+            scope_name = service_account.project.name
+            scope_slug = service_account.project.slug
+            scope_type = "project"
+        elif isinstance(service_account, models.CustomerServiceAccount):
+            customer = service_account.customer
+            scope_name = customer.name
+            scope_slug = customer.slug
+            scope_type = "customer"
+        else:
+            raise ValueError(
+                f"Unsupported service account type: {type(service_account)}"
+            )
+
+        payload = {
+            "ownerUsername": username,
+            "email": customer.email,
+            "description": service_account.description,
+            "scopeType": scope_type,
+            "scopeName": scope_name,
+            "scopeSlug": scope_slug,
+        }
+
+        headers = {"Authorization": f"Bearer {api_access_token}"}
         response = httpx.post(url, json=payload, headers=headers)
         response.raise_for_status()
         logger.info("Service account has been successfully updated at %s", url)
         return response
-    except httpx.HTTPError as e:
+    except (httpx.HTTPError, ValueError) as e:
         logger.error("Request to %s failed: %s", url, e)
         raise
 
 
-def create_service_account(service_account: models.ScopedServiceAccount):
+def create_service_account(service_account: models.ScopedServiceAccount, username: str):
     """
     Makes a synchronous call to the webhook URL to create a service account.
     Raises exceptions on failure which should be handled by the viewset.
@@ -1705,7 +1739,7 @@ def create_service_account(service_account: models.ScopedServiceAccount):
         raise ValueError("Webhook URL for service accounts is not configured")
 
     try:
-        response = post_service_account_to_url(webhook_url, service_account)
+        response = post_service_account_to_url(webhook_url, service_account, username)
         return response.json()
     except (httpx.HTTPError, ValueError) as exc:
         logger.error(exc)
@@ -1715,7 +1749,7 @@ def create_service_account(service_account: models.ScopedServiceAccount):
         raise
 
 
-def remove_service_account(service_account):
+def delete_service_account(service_account):
     """
     Makes a synchronous call to the webhook URL to remove a service account.
     Raises exceptions on failure which should be handled by the viewset.
@@ -1728,7 +1762,11 @@ def remove_service_account(service_account):
         raise RuntimeError("Webhook URL for service accounts is not configured")
 
     try:
-        response = post_service_account_to_url(webhook_url, service_account)
+        api_access_token = get_service_account_api_token()
+        response = httpx.delete(
+            f"{webhook_url}{service_account.username}",
+            headers={"Authorization": f"Bearer {api_access_token}"},
+        )
         response.raise_for_status()
         if response.status_code == 200:
             service_account.delete()
