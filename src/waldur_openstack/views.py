@@ -766,25 +766,64 @@ class PortViewSet(structure_views.ResourceViewSet):
 
     @extend_schema(
         description="Enable port security for the port",
-        responses={status.HTTP_202_ACCEPTED: None},
+        responses={status.HTTP_200_OK: None},
     )
     @decorators.action(detail=True, methods=["post"])
     def enable_port_security(self, request, uuid=None):
         port = self.get_object()
         backend = port.get_backend()
         backend.enable_port_security(port)
-        return response.Response(status=status.HTTP_202_ACCEPTED)
+
+        port.port_security_enabled = True
+        port.save(update_fields=["port_security_enabled"])
+
+        return response.Response(status=status.HTTP_200_OK)
 
     @extend_schema(
         description="Disable port security for the port",
-        responses={status.HTTP_202_ACCEPTED: None},
+        responses={status.HTTP_200_OK: None},
     )
     @decorators.action(detail=True, methods=["post"])
     def disable_port_security(self, request, uuid=None):
         port = self.get_object()
         backend = port.get_backend()
         backend.disable_port_security(port)
-        return response.Response(status=status.HTTP_202_ACCEPTED)
+
+        port.port_security_enabled = False
+        port.security_groups.clear()  # Remove all security groups
+        port.save(update_fields=["port_security_enabled"])
+
+        return response.Response(status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Enable port.",
+        responses={status.HTTP_200_OK: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def enable_port(self, request, uuid=None):
+        port = self.get_object()
+        backend = port.get_backend()
+        backend.enable_port(port)
+
+        port.admin_state_up = True
+        port.save(update_fields=["admin_state_up"])
+
+        return response.Response(status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Disable port.",
+        responses={status.HTTP_200_OK: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def disable_port(self, request, uuid=None):
+        port = self.get_object()
+        backend = port.get_backend()
+        backend.disable_port(port)
+
+        port.admin_state_up = False
+        port.save(update_fields=["admin_state_up"])
+
+        return response.Response(status=status.HTTP_200_OK)
 
 
 class NetworkViewSet(structure_views.ResourceViewSet):

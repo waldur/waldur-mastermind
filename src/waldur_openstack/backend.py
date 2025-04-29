@@ -3139,6 +3139,9 @@ class OpenStackBackend(ServiceBackend):
             mac_address=remote_port["mac_address"],
             fixed_ips=fixed_ips,
             allowed_address_pairs=remote_port.get("allowed_address_pairs", []),
+            admin_state_up=remote_port["admin_state_up"],
+            name=remote_port["name"],
+            description=remote_port["description"],
         )
 
         for field, value in kwargs.items():
@@ -5052,6 +5055,26 @@ class OpenStackBackend(ServiceBackend):
         neutron.update_port(port.backend_id, {"port": {"port_security_enabled": False}})
         logger.info(
             "Port security has been disabled for port %s (backend_id: %s).",
+            port.uuid.hex,
+            port.backend_id,
+        )
+
+    def enable_port(self, port):
+        session = get_tenant_session(port.tenant)
+        neutron = get_neutron_client(session)
+        neutron.update_port(port.backend_id, {"port": {"admin_state_up": True}})
+        logger.info(
+            "Port %s (backend_id: %s) has been enabled.",
+            port.uuid.hex,
+            port.backend_id,
+        )
+
+    def disable_port(self, port):
+        session = get_tenant_session(port.tenant)
+        neutron = get_neutron_client(session)
+        neutron.update_port(port.backend_id, {"port": {"admin_state_up": False}})
+        logger.info(
+            "Port %s (backend_id: %s) has been disabled.",
             port.uuid.hex,
             port.backend_id,
         )

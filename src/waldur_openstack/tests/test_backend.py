@@ -453,6 +453,9 @@ class PullInstancePortsTest(BaseBackendTest):
                     "mac_address": "DC-D6-5E-9B-49-70",
                     "device_id": device_id,
                     "device_owner": "compute:nova",
+                    "admin_state_up": True,
+                    "name": "port_1",
+                    "description": "",
                     "fixed_ips": [
                         {
                             "ip_address": "10.0.0.2",

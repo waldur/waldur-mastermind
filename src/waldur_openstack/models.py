@@ -571,6 +571,11 @@ class Port(structure_models.BaseResource):
         null=True,
         blank=True,
     )
+    admin_state_up = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+    )
 
     @classmethod
     def get_backend_fields(cls):
@@ -580,6 +585,9 @@ class Port(structure_models.BaseResource):
             "allowed_address_pairs",
             "device_id",
             "device_owner",
+            "admin_state_up",
+            "name",
+            "description",
         )
 
     @classmethod
