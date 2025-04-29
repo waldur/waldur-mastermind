@@ -5,6 +5,7 @@ import uuid
 from collections import defaultdict
 from decimal import Decimal
 
+from django.core.files.base import ContentFile
 from django.db.models import Q
 from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import ValidationError
@@ -637,7 +638,7 @@ def import_offering_thumbnail(
 ):
     if thumbnail_url:
         thumbnail_resp = httpx.get(thumbnail_url)
-        content = io.BytesIO(thumbnail_resp.content)
+        content = ContentFile(thumbnail_resp.content)
         file_name = local_offering.uuid.hex
         if local_offering.thumbnail:
             file_object = media_models.File.objects.get(

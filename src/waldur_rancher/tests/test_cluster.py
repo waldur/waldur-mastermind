@@ -1,3 +1,4 @@
+from typing import cast
 from unittest import mock
 
 from ddt import data, ddt
@@ -267,10 +268,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
                     "system_volume_size": 1024,
                     "memory": 1,
                     "cpu": 1,
-                    "roles": [
-                        "controlplane",
-                        "etcd",
-                    ],
+                    "roles": ["controlplane", "etcd"],
                 },
             ]
         }
@@ -342,10 +340,14 @@ class ClusterCreateTest(BaseClusterCreateTest):
     @mock.patch("waldur_rancher.client.RancherClient._post")
     def test_create_private_cluster(self, mock_client_post):
         self.mock_backend()
-
-        self.fixture.settings.options["private_registry_url"] = "http://example.com"
-        self.fixture.settings.options["private_registry_user"] = "user"
-        self.fixture.settings.options["private_registry_password"] = "1234"
+        options = cast(dict, self.fixture.settings.options)
+        options.update(
+            {
+                "private_registry_url": "http://example.com",
+                "private_registry_user": "user",
+                "private_registry_password": "1234",
+            }
+        )
         self.fixture.settings.save()
         self.fixture.cluster.backend_id = ""
         self.fixture.cluster.save()
@@ -423,6 +425,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
     def test_create_cluster_with_longhorn_using_rest(self, mock_core_tasks):
         self.client.force_authenticate(self.fixture.owner)
         response = self._create_request_("new-cluster", install_longhorn=True)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         cluster = models.Cluster.objects.get(name="new-cluster")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Cluster.objects.filter(name="new-cluster").exists())
@@ -764,12 +767,13 @@ class ClusterDeleteTest(test.APITransactionTestCase):
     ):
         mock_delete_request.return_value = Response(status=status.HTTP_202_ACCEPTED)
         tasks.DeleteNodeTask().execute(self.fixture.node, user_id=self.fixture.owner.id)
+        vm = cast(openstack_models.Instance, self.fixture.node.instance)
         self.assertEqual(mock_delete_request.call_count, 1)
         self.assertEqual(mock_delete_request.call_args[0][1], self.fixture.owner)
         self.assertEqual(
             mock_delete_request.call_args[1],
             {
-                "uuid": self.fixture.node.instance.uuid.hex,
+                "uuid": vm.uuid.hex,
                 "query_params": {"delete_volumes": True},
             },
         )

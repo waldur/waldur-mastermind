@@ -151,6 +151,7 @@ class Category(
     quotas_models.QuotaModelMixin,
     TimeStampedModel,
 ):
+    id: int
     columns: models.Manager["CategoryColumn"]
     sections: models.Manager["Section"]
     components: models.Manager["CategoryComponent"]

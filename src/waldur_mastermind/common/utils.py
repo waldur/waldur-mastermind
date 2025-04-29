@@ -45,7 +45,7 @@ def create_request(view, user, post_data, query_params=None, **kwargs) -> Respon
     return view(request, **kwargs)
 
 
-def delete_request(view, user, query_params="", **extra) -> Response:
+def delete_request(view, user, query_params: dict | None = None, **extra) -> Response:
     factory = APIRequestFactory()
     path = ""
     if query_params:

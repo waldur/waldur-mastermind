@@ -1,6 +1,7 @@
 import logging
 import re
 import traceback
+from typing import cast
 
 import kubernetes
 import yaml
@@ -45,7 +46,7 @@ class CreateNodeTask(core_tasks.Task):
         return role_id, role_secret_id
 
     def execute(self, instance, user_id):
-        node = instance
+        node: models.Node = instance
         content_type = ContentType.objects.get_for_model(openstack_models.Instance)
         flavor = node.initial_data["flavor"]
         system_volume_size = node.initial_data["system_volume_size"]
@@ -78,7 +79,6 @@ class CreateNodeTask(core_tasks.Task):
                 vault_token,
                 vault_tls_verify,
             )
-            # TODO: add task for switching to "server" and "worker" roles
             node_role = "server" if node.controlplane_role else "agent"
             cloud_init_extra_params.update(
                 {
@@ -143,7 +143,8 @@ class CreateNodeTask(core_tasks.Task):
         if response.status_code != status.HTTP_201_CREATED:
             raise exceptions.RancherException(response.data)
 
-        instance_uuid = response.data["uuid"]
+        data = cast(dict, response.data)
+        instance_uuid = data["uuid"]
         instance = openstack_models.Instance.objects.get(uuid=instance_uuid)
         node.content_type = content_type
         node.object_id = instance.id
@@ -157,20 +158,21 @@ class CreateNodeTask(core_tasks.Task):
 
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
-        return 'Create nodes for k8s cluster "%s".' % instance
+        return f'Create nodes for k8s cluster "{instance}".'
 
 
 class DeleteNodeTask(core_tasks.Task):
-    def execute(self, instance, user_id):
+    def execute(self, instance: models.Node, user_id: str):
         node = instance
         user = auth.get_user_model().objects.get(pk=user_id)
+        vm = cast(openstack_models.Instance, node.instance)
 
-        if node.instance:
+        if vm:
             view = MarketplaceInstanceViewSet.as_view({"delete": "force_destroy"})
             response = common_utils.delete_request(
                 view,
                 user,
-                uuid=node.instance.uuid.hex,
+                uuid=vm.uuid.hex,
                 query_params={"delete_volumes": True},
             )
 
@@ -213,10 +215,10 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
 
     @classmethod
     def get_description(cls, node, *args, **kwargs):
-        node = core_utils.deserialize_instance(node)
-        return 'Poll node "%s"' % node.name
+        node = cast(models.Node, core_utils.deserialize_instance(node))
+        return f'Poll node "{node.name}"'
 
-    def execute(self, node):
+    def execute(self, node: models.Node):
         pull_cluster_nodes(node.cluster_id)
         node.refresh_from_db()
 
@@ -247,8 +249,8 @@ class PollLonghornApplicationTask(core_tasks.Task):
 
     @classmethod
     def get_description(cls, cluster, *args, **kwargs):
-        cluster = core_utils.deserialize_instance(cluster)
-        return 'Poll Longhorn application runtime state for cluster "%s"' % cluster.name
+        cluster = cast(models.Cluster, core_utils.deserialize_instance(cluster))
+        return f'Poll Longhorn application runtime state for cluster "{cluster.name}"'
 
     def execute(self, cluster):
         app = models.Application.objects.get(
@@ -291,6 +293,18 @@ class CreateVaultCredentialsTask(core_tasks.Task):
         vault_tls_verify = (
             vault_tls_verify_raw if vault_tls_verify_raw is not None else True
         )
+        if not vault_host:
+            raise exceptions.RancherException(
+                "Unable to get vault host from the cluster settings"
+            )
+        if not vault_port:
+            raise exceptions.RancherException(
+                "Unable to get vault port from the cluster settings"
+            )
+        if not vault_token:
+            raise exceptions.RancherException(
+                "Unable to get vault token from the cluster settings"
+            )
         vault_backend = backend.VaultBackend(
             vault_host, vault_port, vault_token, vault_tls_verify
         )
@@ -352,6 +366,10 @@ class CreateArgoCDClusterSecretTask(core_tasks.Task):
             """
             % user_info["user"]["token"],
         }
+        if not argocd_namespace:
+            raise exceptions.RancherException(
+                "Unable to get argocd namespace from the cluster settings"
+            )
         secret_labels = {"argocd.argoproj.io/secret-type": "cluster"}
         try:
             k8s.create_k8s_secret(
@@ -433,8 +451,8 @@ def sync_rancher_roles():
         role.save()
 
     def sync_roles(
-        remote_roles_all: dict[str, dict],
-        scope_type: enums.RoleScopeType,
+        remote_roles_all: list[dict],
+        scope_type: enums.CatalogScopeType,
         settings: structure_models.ServiceSettings,
     ):
         # Collecting roles
@@ -697,9 +715,11 @@ def sync_rancher_group_bindings():
     clusters = models.Cluster.objects.filter(state=core_models.StateMixin.States.OK)
     for cluster in clusters:
         rancher_backend: backend.RancherBackend = cluster.get_backend()
-        local_cluster_groups = models.KeycloakGroup.objects.filter(
-            role__settings=cluster.settings,
-            role__scope_type=enums.RoleScopeType.CLUSTER,
+        local_cluster_groups = list(
+            models.KeycloakGroup.objects.filter(
+                role__settings=cluster.settings,
+                role__scope_type=enums.RoleScopeType.CLUSTER,
+            )
         )
         # Create missing cluster groups in Rancher
         create_missing_cluster_groups(rancher_backend, cluster, local_cluster_groups)
@@ -708,9 +728,11 @@ def sync_rancher_group_bindings():
 
         projects = models.Project.objects.filter(cluster=cluster)
         for project in projects:
-            local_project_groups = models.KeycloakGroup.objects.filter(
-                role__settings=project.settings,
-                role__scope_type=enums.RoleScopeType.CLUSTER,
+            local_project_groups = list(
+                models.KeycloakGroup.objects.filter(
+                    role__settings=project.settings,
+                    role__scope_type=enums.RoleScopeType.CLUSTER,
+                )
             )
             # Create missing project groups in Rancher
             create_missing_project_groups(

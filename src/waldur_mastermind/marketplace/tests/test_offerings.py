@@ -7,7 +7,6 @@ import uuid
 from itertools import product
 from unittest import mock
 
-import pkg_resources
 from constance.test.unittest import override_config
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -20,6 +19,7 @@ from rest_framework import exceptions as rest_exceptions
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
@@ -2027,9 +2027,7 @@ class OfferingExportImportTest(test.APITransactionTestCase):
 
     def _get_data(self):
         path = os.path.abspath(os.path.dirname(__file__))
-        data = json.loads(
-            pkg_resources.resource_stream(__name__, "offering.json").read().decode()
-        )
+        data = load_json_resource("offering.json", __name__)
         category = factories.CategoryFactory()
         data["category_id"] = category.id
 
@@ -2042,11 +2040,7 @@ class OfferingExportImportTest(test.APITransactionTestCase):
 
 class OfferingDoiTest(test.APITransactionTestCase):
     def setUp(self):
-        self.dc_resp = json.loads(
-            pkg_resources.resource_stream(__name__, "datacite-resp.json")
-            .read()
-            .decode()
-        )["data"]
+        self.dc_resp = load_json_resource("datacite-resp.json", __name__)["data"]
         self.ref_pids = [
             x["relatedIdentifier"]
             for x in self.dc_resp["attributes"]["relatedIdentifiers"]

@@ -118,8 +118,9 @@ Run type checkings:
     - pip3 install --upgrade setuptools==78.1.0
     - poetry install -vvv
     - pyright src/waldur_mastermind/marketplace_remote/processors.py
-    - pyright src/waldur_mastermind/marketplace_rancher/processors.py
-    - pyright src/waldur_mastermind/marketplace_rancher/utils.py
+    - pyright src/waldur_mastermind/marketplace_rancher/
+    - pyright src/waldur_rancher/utils.py
+    - pyright src/waldur_rancher/tasks.py
 
 Try building docker image:
   image:

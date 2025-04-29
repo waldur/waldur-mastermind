@@ -9,13 +9,13 @@ from jira.resources import IssueType, RequestType
 from rest_framework import status, test
 
 from waldur_core.core.authentication import TokenAuthentication
+from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests.factories import ResourceFactory
 from waldur_mastermind.support import models, utils
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.log import get_issue_scopes
 from waldur_mastermind.support.tests import base, factories
-from waldur_mastermind.support.tests.base import load_resource
 from waldur_openstack.tests import (
     fixtures as openstack_fixtures,
 )
@@ -123,11 +123,16 @@ class IssueCreateBaseTest(base.BaseTest):
         mock.patch.stopall()
         mock_patch = mock.patch("waldur_mastermind.support.backend.atlassian.JIRA")
         self.mock_jira = mock_patch.start()
-        self.mock_jira().fields.return_value = json.loads(
-            load_resource("jira_fields.json")
+
+        self.mock_jira().fields.return_value = load_json_resource(
+            "jira_fields.json", __name__
         )
-        issue_raw = json.loads(load_resource("jira_issue_raw.json"))
-        mock_backend_issue = Issue({"server": ""}, None, raw=issue_raw)
+
+        mock_backend_issue = Issue(
+            {"server": ""},
+            None,
+            raw=load_json_resource("jira_issue_raw.json", __name__),
+        )
         mock_backend_issue.update = mock.MagicMock()
         self.mock_jira().create_customer_request.return_value = mock_backend_issue
         self.mock_jira().waldur_create_customer_request.return_value = (

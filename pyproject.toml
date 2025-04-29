@@ -230,7 +230,6 @@ known-first-party = [
   "novaclient",
   "oauthlib",
   "PIL",
-  "pkg_resources",
   "pycountry",
   "pydantic",
   "python_freeipa",
@@ -264,3 +263,4 @@ section-order = [
 include = ["src"]
 typeCheckingMode = "standard"
 reportIncompatibleMethodOverride = "none"
+reportIncompatibleVariableOverride = "none"

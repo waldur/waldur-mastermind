@@ -6,11 +6,11 @@ from django.test import TestCase
 from django.utils import timezone
 from jira import User
 
+from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.core.utils import datetime_to_timestamp
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import factories, fixtures
-from waldur_mastermind.support.tests.base import load_resource
 
 
 class BaseBackendTest(TestCase):
@@ -23,8 +23,8 @@ class BaseBackendTest(TestCase):
         jira_patcher = mock.patch("waldur_mastermind.support.backend.atlassian.JIRA")
         self.mocked_jira = jira_patcher.start()()
 
-        self.mocked_jira.fields.return_value = json.loads(
-            load_resource("jira_fields.json")
+        self.mocked_jira.fields.return_value = load_json_resource(
+            "jira_fields.json", "waldur_mastermind.support.tests"
         )
 
         mock_backend_users = [
@@ -228,9 +228,12 @@ class CommentCreateTest(BaseBackendTest):
 
     def test_of_author_when_create_comment_from_jira(self):
         issue = factories.IssueFactory()
-        backend_comment_raw = json.loads(load_resource("jira_comment_raw.json"))
         self.backend_comment = jira.resources.Comment(
-            {"server": "example.com"}, None, backend_comment_raw
+            {"server": "example.com"},
+            None,
+            load_json_resource(
+                "jira_comment_raw.json", "waldur_mastermind.support.tests"
+            ),
         )
         self.mocked_jira.comment.return_value = self.backend_comment
         self.backend.create_comment_from_jira(issue, self.backend_comment.id)

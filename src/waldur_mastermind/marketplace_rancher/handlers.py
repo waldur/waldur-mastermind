@@ -3,6 +3,7 @@ from typing import cast
 
 import kubernetes as k8s
 from django.core import exceptions as django_exceptions
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import models as core_models
 from waldur_kubernetes.backend import KubernetesBackend
@@ -15,6 +16,7 @@ from waldur_mastermind.marketplace_rancher import (
     MANAGED_RANCHER_PLUGIN,
     NODES_COMPONENT_TYPE,
 )
+from waldur_rancher.exceptions import RancherException
 from waldur_rancher.models import Cluster, Node, RancherUser
 
 logger = logging.getLogger(__name__)
@@ -42,7 +44,9 @@ def create_marketplace_resource_for_imported_cluster(
 
 
 def update_node_usage(sender, instance: Node, created=False, **kwargs):
-    if not instance.tracker.has_changed("state"):
+    tracker = cast(FieldInstanceTracker, instance.tracker)
+
+    if not tracker.has_changed("state"):
         return
 
     cluster = instance.cluster
@@ -105,9 +109,12 @@ def drop_offering_user_for_rancher_user(sender, instance: RancherUser, **kwargs)
     ).delete()
 
 
-def update_argocd_secret_when_resource_options_changed(sender, instance, **kwargs):
-    resource: marketplace_models.Resource = instance
-    if not resource.tracker.has_changed("options"):
+def update_argocd_secret_when_resource_options_changed(
+    sender, instance: marketplace_models.Resource, **kwargs
+):
+    resource = instance
+    tracker = cast(FieldInstanceTracker, resource.tracker)
+    if not tracker.has_changed("options"):
         return
 
     if resource.offering.type != MANAGED_RANCHER_PLUGIN:
@@ -116,12 +123,20 @@ def update_argocd_secret_when_resource_options_changed(sender, instance, **kwarg
     if resource.state != marketplace_models.Resource.States.OK:
         return
 
-    options = resource.options
-    secret_options = resource.offering.secret_options
+    options = cast(dict, resource.options)
+    secret_options = cast(dict, resource.offering.secret_options)
+
     kubeconfig_str = secret_options.get("argocd_k8s_kubeconfig")
     namespace = secret_options.get("argocd_k8s_namespace")
+    if not kubeconfig_str or not namespace:
+        raise RancherException(
+            'Failed to update the ArgoCD secret because "argocd_k8s_kubeconfig" or '
+            '"argocd_k8s_namespace" is not set in the offering.'
+        )
+
     cluster = cast(Cluster, resource.scope)
     secret_name = f"cluster-{cluster.uuid}"
+
     k8s_backend = KubernetesBackend(kubeconfig_str)
     try:
         k8s_backend.update_k8s_secret(secret_name, namespace, data=None, labels=options)

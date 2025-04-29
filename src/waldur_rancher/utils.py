@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 
 import yaml
 from constance import config
@@ -9,8 +10,10 @@ from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils
 from waldur_core.quotas import exceptions as quotas_exceptions
+from waldur_core.quotas.models import QuotaModelMixin
+from waldur_core.structure.models import Project
 from waldur_openstack import models as openstack_models
-from waldur_openstack.models import Flavor, Image, SecurityGroup, Tenant
+from waldur_openstack.models import Flavor, Image, SecurityGroup, SubNet, Tenant
 from waldur_openstack.utils import (
     is_flavor_valid_for_tenant,
     is_volume_type_valid_for_tenant,
@@ -18,6 +21,7 @@ from waldur_openstack.utils import (
 from waldur_openstack.views import InstanceViewSet
 from waldur_rancher.enums import (
     KeycloakUserGroupMembershipState,
+    NodeRoleType,
     RoleScopeType,
 )
 
@@ -77,11 +81,11 @@ def expand_added_nodes(
             raise serializers.ValidationError(_("Default security group is not found."))
 
     for node in nodes:
-        memory = node.pop("memory", None)
-        cpu = node.pop("cpu", None)
-        subnet = node.pop("subnet")
-        flavor = node.pop("flavor", None)
-        roles = node.pop("roles")
+        memory = cast(int | None, node.pop("memory", None))
+        cpu = cast(int | None, node.pop("cpu", None))
+        subnet = cast(SubNet, node.pop("subnet"))
+        flavor = cast(Flavor, node.pop("flavor", None))
+        roles = cast(list[NodeRoleType], node.pop("roles"))
         system_volume_size = node.pop("system_volume_size", None)
         system_volume_type = node.pop("system_volume_type", None)
         data_volumes = node.pop("data_volumes", [])
@@ -117,11 +121,11 @@ def expand_added_nodes(
             ],
         }
 
-        if "controlplane" in list(roles):
+        if "controlplane" in roles:
             node["controlplane_role"] = True
-        if "etcd" in list(roles):
+        if "etcd" in roles:
             node["etcd_role"] = True
-        if "worker" in list(roles):
+        if "worker" in roles:
             node["worker_role"] = True
 
         node["name"] = get_unique_node_name(
@@ -155,7 +159,9 @@ def validate_data_volumes(data_volumes, tenant):
         )
 
 
-def validate_flavor(flavor, roles, tenant: Tenant, cpu=None, memory=None):
+def validate_flavor(
+    flavor, roles: list[NodeRoleType], tenant: Tenant, cpu=None, memory=None
+):
     if flavor:
         if cpu or memory:
             raise serializers.ValidationError(
@@ -184,7 +190,7 @@ def validate_flavor(flavor, roles, tenant: Tenant, cpu=None, memory=None):
 
     requirements = list(
         filter(
-            lambda x: x[0] in list(roles),
+            lambda x: x[0] in roles,
             settings.WALDUR_RANCHER["ROLE_REQUIREMENT"].items(),
         )
     )
@@ -204,8 +210,8 @@ def validate_flavor(flavor, roles, tenant: Tenant, cpu=None, memory=None):
     return flavor
 
 
-def validate_quotas(nodes, tenant, project):
-    quota_sources = [
+def validate_quotas(nodes, tenant: Tenant, project: Project):
+    quota_sources: list[QuotaModelMixin] = [
         project,
         project.customer,
         tenant,
@@ -249,10 +255,12 @@ def format_disk_id(index):
 
 def format_node_cloud_config(
     node: models.Node,
-    cloud_init_extra_params: dict = None,
+    cloud_init_extra_params: dict | None = None,
 ):
     cloud_init_extra_params = cloud_init_extra_params or {}
-    config_template = node.cluster.service_settings.get_option("cloud_init_template")
+    config_template = cast(
+        str, node.cluster.service_settings.get_option("cloud_init_template")
+    )
     user_data = config_template.format(
         **cloud_init_extra_params,
     )
@@ -367,4 +375,4 @@ def get_keycloak_group_scope_and_settings(group: models.KeycloakGroup):
         return scope, scope.settings
     else:
         scope = models.Project.objects.get(uuid=scope_uuid)
-        return scope, scope.cluster.settings
+        return scope, scope.cluster and scope.cluster.settings
