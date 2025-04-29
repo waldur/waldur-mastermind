@@ -286,6 +286,7 @@ class RancherBaseNodeSerializer(
             "error_message",
             "etcd_role",
             "worker_role",
+            "controlplane_role",
             "initial_data",
             "runtime_state",
             "k8s_version",
@@ -450,7 +451,11 @@ class RancherClusterSerializer(
         return attrs
 
     def validate_nodes(self, nodes):
-        if len([node for node in nodes if "etcd" in node["roles"]]) not in [1, 3, 5]:
+        if len([node for node in nodes if "etcd" in node["roles"]]) not in [
+            1,
+            3,
+            5,
+        ]:
             raise serializers.ValidationError(
                 _("Total count of etcd nodes must be 1, 3 or 5. You have got %s nodes.")
                 % len(nodes)
@@ -1034,7 +1039,7 @@ class RancherClusterTemplateNodeSerializer(serializers.HyperlinkedModelSerialize
 
     roles = serializers.SerializerMethodField()
 
-    def get_roles(self, node) -> list[NodeRoleType]:
+    def get_roles(self, node: models.Node) -> list[NodeRoleType]:
         roles = []
         if node.controlplane_role:
             roles.append("controlplane")

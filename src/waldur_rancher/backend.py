@@ -1,11 +1,12 @@
-import io
 import logging
 import time
+from typing import cast
 from urllib.parse import parse_qs, urlparse
 
 import requests
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.core.files.base import ContentFile
+from django.db.models import Q, QuerySet
 from django.utils.functional import cached_property
 
 import hvac
@@ -20,6 +21,7 @@ from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
+from waldur_openstack.models import Instance
 from waldur_rancher.enums import (
     LONGHORN_NAME,
     LONGHORN_NAMESPACE,
@@ -112,10 +114,10 @@ class RancherBackend(ServiceBackend):
             state=models.Cluster.States.ERRED, error_message="Resource is gone."
         )
 
-    def get_kubeconfig_file(self, cluster):
+    def get_kubeconfig_file(self, cluster: models.Cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
 
-    def create_cluster(self, cluster):
+    def create_cluster(self, cluster: models.Cluster):
         mtu = self.settings.get_option("default_mtu")
         private_registry = None
         private_registry_url = self.settings.get_option("private_registry_url")
@@ -139,7 +141,7 @@ class RancherBackend(ServiceBackend):
         self.client.create_cluster_registration_token(cluster.backend_id)
         cluster.save()
 
-    def delete_cluster(self, cluster):
+    def delete_cluster(self, cluster: models.Cluster):
         if cluster.backend_id:
             try:
                 self.client.delete_cluster(cluster.backend_id)
@@ -150,7 +152,7 @@ class RancherBackend(ServiceBackend):
 
         cluster.delete()
 
-    def delete_node(self, node):
+    def delete_node(self, node: models.Node):
         if node.backend_id:
             try:
                 self.client.delete_node(node.backend_id)
@@ -158,19 +160,19 @@ class RancherBackend(ServiceBackend):
                 logger.debug("Node %s is not present in the backend " % node.backend_id)
         node.delete()
 
-    def update_cluster(self, cluster):
+    def update_cluster(self, cluster: models.Cluster):
         backend_cluster = self._cluster_to_backend_cluster(cluster)
         self.client.update_cluster(cluster.backend_id, backend_cluster)
 
-    def _backend_cluster_to_cluster(self, backend_cluster, cluster):
+    def _backend_cluster_to_cluster(self, backend_cluster, cluster: models.Cluster):
         cluster.backend_id = backend_cluster["id"]
         cluster.name = backend_cluster["name"]
         cluster.runtime_state = backend_cluster["state"]
 
-    def _cluster_to_backend_cluster(self, cluster):
+    def _cluster_to_backend_cluster(self, cluster: models.Cluster):
         return {"name": cluster.name}
 
-    def _backend_node_to_node(self, backend_node):
+    def _backend_node_to_node(self, backend_node: dict):
         return {
             "backend_id": backend_node["id"],
             "name": backend_node["requestedHostname"],
@@ -180,7 +182,7 @@ class RancherBackend(ServiceBackend):
             "runtime_state": backend_node.get("state", ""),
         }
 
-    def get_nodes_count(self, remote_cluster):
+    def get_nodes_count(self, remote_cluster: dict):
         spec = remote_cluster.get("appliedSpec", {})
         config = spec.get("rancherKubernetesEngineConfig", {})
         backend_nodes = config.get("nodes", [])
@@ -236,7 +238,7 @@ class RancherBackend(ServiceBackend):
         self.pull_cluster_apps(cluster)
         self.pull_cluster_ingresses(cluster)
 
-    def pull_cluster_details(self, cluster, backend_cluster=None):
+    def pull_cluster_details(self, cluster: models.Cluster, backend_cluster=None):
         backend_cluster = backend_cluster or self.client.get_cluster(cluster.backend_id)
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         cluster.save()
@@ -271,7 +273,7 @@ class RancherBackend(ServiceBackend):
         # Update nodes states.
         utils.update_cluster_nodes_states(cluster.id)
 
-    def check_cluster_nodes(self, cluster):
+    def check_cluster_nodes(self, cluster: models.Cluster):
         self.pull_cluster_details(cluster)
 
         if cluster.runtime_state == models.Cluster.RuntimeStates.ACTIVE:
@@ -281,8 +283,9 @@ class RancherBackend(ServiceBackend):
         for node in cluster.node_set.filter(
             Q(controlplane_role=True) | Q(etcd_role=True)
         ):
+            vm = cast(Instance, node.instance)
             controlplane_role = etcd_role = False
-            if node.instance.state not in [
+            if vm.state not in [
                 core_models.StateMixin.States.ERRED,
                 core_models.StateMixin.States.DELETING,
                 core_models.StateMixin.States.DELETION_SCHEDULED,
@@ -292,7 +295,7 @@ class RancherBackend(ServiceBackend):
                 if node.etcd_role:
                     etcd_role = True
                 if controlplane_role and etcd_role:
-                    # We make a return if one or more VMs with 'controlplane' and 'etcd' roles exist
+                    # Return if one or more VMs with 'controlplane' and 'etcd' roles exist
                     # and they haven't a state 'error' or 'delete'.
                     # Here 'return' means that cluster state checking must be retry later.
                     return
@@ -312,7 +315,7 @@ class RancherBackend(ServiceBackend):
         backend_node = self.client.get_node(backend_id)
         return backend_node["state"] == models.Node.RuntimeStates.ACTIVE
 
-    def pull_node(self, node):
+    def pull_node(self, node: models.Node):
         if not node.backend_id:
             return
 
@@ -391,7 +394,7 @@ class RancherBackend(ServiceBackend):
             return True
         return False
 
-    def delete_project_group_role(self, group_id, project_id, role):
+    def delete_project_group_role(self, group_id: str, project_id: str, role):
         existing_bindings = self.client.get_project_group_role(
             group_id, project_id, role
         )
@@ -416,18 +419,18 @@ class RancherBackend(ServiceBackend):
             return True
         return False
 
-    def list_roles(self):
+    def list_roles(self) -> list[dict]:
         return self.client.list_role_templates()
 
     def pull_catalogs_for_cluster(self, cluster: models.Cluster):
         self.pull_cluster_catalogs_for_cluster(cluster)
         self.pull_project_catalogs_for_cluster(cluster)
 
-    def pull_cluster_catalogs_for_cluster(self, cluster):
+    def pull_cluster_catalogs_for_cluster(self, cluster: models.Cluster):
         remote_catalogs = self.client.list_cluster_catalogs(cluster.backend_id)
         self.pull_catalogs_for_scope(remote_catalogs, cluster)
 
-    def pull_project_catalogs_for_cluster(self, cluster):
+    def pull_project_catalogs_for_cluster(self, cluster: models.Cluster):
         for project in models.Project.objects.filter(cluster=cluster):
             self.pull_project_catalogs_for_project(project)
 
@@ -512,7 +515,7 @@ class RancherBackend(ServiceBackend):
             settings=self.settings,
         )
 
-    def refresh_catalog(self, catalog):
+    def refresh_catalog(self, catalog: models.Catalog):
         if isinstance(catalog.scope, ServiceSettings):
             return self.client.refresh_global_catalog(catalog.backend_id)
         elif isinstance(catalog.scope, models.Cluster):
@@ -520,7 +523,7 @@ class RancherBackend(ServiceBackend):
         else:
             return self.client.refresh_project_catalog(catalog.backend_id)
 
-    def delete_catalog(self, catalog):
+    def delete_catalog(self, catalog: models.Catalog):
         try:
             if isinstance(catalog.scope, ServiceSettings):
                 return self.client.delete_global_catalog(catalog.backend_id)
@@ -533,7 +536,7 @@ class RancherBackend(ServiceBackend):
                 "Catalog %s is not present in the backend ", catalog.backend_id
             )
 
-    def get_catalog_spec(self, catalog):
+    def get_catalog_spec(self, catalog: models.Catalog):
         spec = {
             "name": catalog.name,
             "description": catalog.description,
@@ -546,7 +549,7 @@ class RancherBackend(ServiceBackend):
             spec["password"] = catalog.password
         return spec
 
-    def create_catalog(self, catalog):
+    def create_catalog(self, catalog: models.Catalog):
         spec = self.get_catalog_spec(catalog)
 
         if isinstance(catalog.scope, ServiceSettings):
@@ -555,14 +558,15 @@ class RancherBackend(ServiceBackend):
             spec["clusterId"] = catalog.scope.backend_id
             remote_catalog = self.client.create_cluster_catalog(spec)
         else:
-            spec["projectId"] = catalog.scope.backend_id
+            project = cast(models.Project, catalog.scope)
+            spec["projectId"] = project.backend_id
             remote_catalog = self.client.create_project_catalog(spec)
 
         catalog.backend_id = remote_catalog["id"]
         catalog.runtime_state = remote_catalog["state"]
         catalog.save()
 
-    def update_catalog(self, catalog):
+    def update_catalog(self, catalog: models.Catalog):
         spec = self.get_catalog_spec(catalog)
         if isinstance(catalog.scope, ServiceSettings):
             return self.client.update_global_catalog(catalog.backend_id, spec)
@@ -717,7 +721,7 @@ class RancherBackend(ServiceBackend):
         remote_templates = self.client.list_templates()
         local_templates = models.Template.objects.filter(settings=self.settings)
         local_catalogs = models.Catalog.objects.filter(settings=self.settings)
-        local_clusters = models.Cluster.objects.filter(settings=self.settings)
+        local_clusters = list(models.Cluster.objects.filter(settings=self.settings))
         local_projects = models.Project.objects.filter(settings=self.settings)
         self._pull_templates(
             local_templates,
@@ -729,11 +733,11 @@ class RancherBackend(ServiceBackend):
 
     def _pull_templates(
         self,
-        local_templates,
-        local_catalogs,
-        local_clusters,
-        local_projects,
-        remote_templates,
+        local_templates: QuerySet[models.Template],
+        local_catalogs: QuerySet[models.Catalog],
+        local_clusters: list[models.Cluster],
+        local_projects: QuerySet[models.Project],
+        remote_templates: list[dict],
     ):
         local_catalog_map = {catalog.backend_id: catalog for catalog in local_catalogs}
         local_cluster_map = {cluster.backend_id: cluster for cluster in local_clusters}
@@ -826,7 +830,7 @@ class RancherBackend(ServiceBackend):
                 content = self._get_external_template_icon(template.icon_url)
             if not content:
                 # Clear icon field so that default icon would be rendered
-                template.icon = None
+                template.icon.delete()
                 template.save()
                 continue
             extension = guess_image_extension(content)
@@ -835,12 +839,12 @@ class RancherBackend(ServiceBackend):
             # Overwrite existing file
             if template.icon:
                 template.icon.delete()
-            template.icon.save(f"{template.uuid}.{extension}", io.BytesIO(content))
+            template.icon.save(f"{template.uuid}.{extension}", ContentFile(content))
 
-    def list_project_secrets(self, project):
+    def list_project_secrets(self, project: models.Project):
         return self.client.list_project_secrets(project.backend_id)
 
-    def pull_cluster_workloads(self, cluster):
+    def pull_cluster_workloads(self, cluster: models.Cluster):
         for project in models.Project.objects.filter(cluster=cluster):
             self.pull_project_workloads(project)
 
@@ -856,7 +860,7 @@ class RancherBackend(ServiceBackend):
                     cluster.backend_id,
                 )
 
-    def pull_project_workloads(self, project):
+    def pull_project_workloads(self, project: models.Project):
         remote_workloads = self.client.list_workloads(project.backend_id)
         local_workloads = models.Workload.objects.filter(project=project)
         local_namespaces = models.Namespace.objects.filter(project=project)
@@ -897,7 +901,9 @@ class RancherBackend(ServiceBackend):
         models.Workload.objects.bulk_create(new_workloads)
         local_workloads.filter(backend_id__in=stale_workloads).delete()
 
-    def remote_workload_to_local(self, remote_workload, project, local_namespaces_map):
+    def remote_workload_to_local(
+        self, remote_workload, project: models.Project, local_namespaces_map
+    ):
         return models.Workload(
             backend_id=remote_workload["id"],
             name=remote_workload["name"],
@@ -911,22 +917,38 @@ class RancherBackend(ServiceBackend):
         )
 
     def redeploy_workload(self, workload: models.Workload):
+        if not workload.project:
+            raise RancherException(
+                f"Workload {workload.backend_id} does not have a project."
+            )
         self.client.redeploy_workload(workload.project.backend_id, workload.backend_id)
 
     def delete_workload(self, workload: models.Workload):
+        if not workload.project:
+            raise RancherException(
+                f"Workload {workload.backend_id} does not have a project."
+            )
         self.client.delete_workload(workload.project.backend_id, workload.backend_id)
 
     def get_workload_yaml(self, workload: models.Workload):
+        if not workload.project:
+            raise RancherException(
+                f"Workload {workload.backend_id} does not have a project."
+            )
         return self.client.get_workload_yaml(
             workload.project.backend_id, workload.backend_id
         )
 
     def put_workload_yaml(self, workload: models.Workload, yaml: str):
+        if not workload.project:
+            raise RancherException(
+                f"Workload {workload.backend_id} does not have a project."
+            )
         return self.client.put_workload_yaml(
             workload.project.backend_id, workload.backend_id, yaml
         )
 
-    def pull_cluster_hpas(self, cluster):
+    def pull_cluster_hpas(self, cluster: models.Cluster):
         for project in models.Project.objects.filter(cluster=cluster):
             self.pull_project_hpas(project)
 
@@ -942,7 +964,7 @@ class RancherBackend(ServiceBackend):
                     cluster.backend_id,
                 )
 
-    def pull_project_hpas(self, project):
+    def pull_project_hpas(self, project: models.Project):
         local_workloads = models.Workload.objects.filter(project=project)
         local_workloads_map = {
             workload.backend_id: workload for workload in local_workloads
@@ -1001,7 +1023,16 @@ class RancherBackend(ServiceBackend):
             state=models.HPA.States.OK,
         )
 
-    def create_hpa(self, hpa):
+    def create_hpa(self, hpa: models.HPA):
+        if not hpa.project:
+            raise RancherException(f"HPA {hpa.backend_id} does not have a project.")
+
+        if not hpa.workload:
+            raise RancherException(f"HPA {hpa.backend_id} does not have a workload.")
+
+        if not hpa.namespace:
+            raise RancherException(f"HPA {hpa.backend_id} does not have a workload.")
+
         remote_hpa = self.client.create_hpa(
             hpa.project.backend_id,
             hpa.namespace.backend_id,
@@ -1016,7 +1047,16 @@ class RancherBackend(ServiceBackend):
         hpa.runtime_state = remote_hpa["state"]
         hpa.save(update_fields=["backend_id", "runtime_state"])
 
-    def update_hpa(self, hpa):
+    def update_hpa(self, hpa: models.HPA):
+        if not hpa.project:
+            raise RancherException(f"HPA {hpa.backend_id} does not have a project.")
+
+        if not hpa.workload:
+            raise RancherException(f"HPA {hpa.backend_id} does not have a workload.")
+
+        if not hpa.namespace:
+            raise RancherException(f"HPA {hpa.backend_id} does not have a workload.")
+
         self.client.update_hpa(
             hpa.project.backend_id,
             hpa.backend_id,
@@ -1036,9 +1076,13 @@ class RancherBackend(ServiceBackend):
             logger.debug("HPA %s is not present in the backend." % hpa.backend_id)
 
     def get_hpa_yaml(self, hpa: models.HPA):
+        if not hpa.project:
+            raise RancherException(f"HPA {hpa.backend_id} does not have a project.")
         return self.client.get_hpa_yaml(hpa.project.backend_id, hpa.backend_id)
 
     def put_hpa_yaml(self, hpa: models.HPA, yaml: str):
+        if not hpa.project:
+            raise RancherException(f"HPA {hpa.backend_id} does not have a project.")
         return self.client.put_hpa_yaml(hpa.project.backend_id, hpa.backend_id, yaml)
 
     def pull_apps(self):
@@ -1093,7 +1137,13 @@ class RancherBackend(ServiceBackend):
         models.Application.objects.bulk_create(new_apps)
         local_apps.filter(backend_id__in=stale_apps).delete()
 
-    def remote_app_to_local(self, remote_app, rancher_project, local_namespaces_map):
+    def remote_app_to_local(
+        self, remote_app, rancher_project: models.Project, local_namespaces_map
+    ):
+        if not rancher_project.cluster:
+            raise RancherException(
+                f"Application {remote_app['id']} does not have a cluster."
+            )
         parts = urlparse(remote_app["externalId"])
         params = parse_qs(parts.query)
 
@@ -1120,6 +1170,14 @@ class RancherBackend(ServiceBackend):
         )
 
     def create_app(self, app: models.Application):
+        if not app.rancher_project.cluster:
+            raise RancherException(
+                f"Application {app.backend_id} does not have a cluster."
+            )
+        if not app.template.catalog:
+            raise RancherException(
+                f"Application {app.backend_id} does not have a catalog."
+            )
         if not app.namespace.backend_id:
             remote_response = self.client.create_namespace(
                 app.rancher_project.cluster.backend_id,
@@ -1142,14 +1200,14 @@ class RancherBackend(ServiceBackend):
         app.runtime_state = remote_app["state"]
         app.save()
 
-    def check_application_state(self, app):
+    def check_application_state(self, app: models.Application):
         remote_app = self.client.get_application(
             app.rancher_project.backend_id, app.backend_id
         )
         app.runtime_state = remote_app["state"]
         app.save()
 
-    def delete_app(self, app):
+    def delete_app(self, app: models.Application):
         try:
             self.client.destroy_application(
                 app.rancher_project.backend_id, app.backend_id
@@ -1157,7 +1215,7 @@ class RancherBackend(ServiceBackend):
         except NotFound:
             logger.debug("App %s is not present in the backend." % app.backend_id)
 
-    def install_longhorn_to_cluster(self, cluster):
+    def install_longhorn_to_cluster(self, cluster: models.Cluster):
         catalog_name = "library"
 
         system_project = models.Project.objects.filter(
@@ -1187,6 +1245,12 @@ class RancherBackend(ServiceBackend):
             cluster.backend_id,
         )
         template = available_templates.first()
+
+        if not template:
+            raise RancherException(f"Template with name={LONGHORN_NAME} is not found")
+
+        if not template.catalog:
+            raise RancherException(f"Template with name={LONGHORN_NAME} has no catalog")
 
         try:
             namespace = models.Namespace.objects.get(
@@ -1274,7 +1338,7 @@ class RancherBackend(ServiceBackend):
         for project in models.Project.objects.filter(cluster=cluster):
             self.pull_project_ingresses(project)
 
-    def pull_project_ingresses(self, project):
+    def pull_project_ingresses(self, project: models.Project):
         remote_ingresses = self.client.list_ingresses(project.backend_id)
         local_ingresses = models.Ingress.objects.filter(rancher_project=project)
         local_namespaces = models.Namespace.objects.filter(project=project)
@@ -1283,10 +1347,13 @@ class RancherBackend(ServiceBackend):
             namespace.backend_id: namespace for namespace in local_namespaces
         }
         remote_ingress_map = {
-            ingress["id"]: self.remote_ingress_to_local(
-                ingress, project, local_namespaces_map
-            )
+            ingress["id"]: self.remote_ingress_to_local(ingress, local_namespaces_map)
             for ingress in remote_ingresses
+        }
+        remote_ingress_map = {
+            ingress_id: ingress
+            for ingress_id, ingress in remote_ingress_map.items()
+            if ingress is not None
         }
         local_ingress_map = {ingress.backend_id: ingress for ingress in local_ingresses}
         remote_ingress_ids = set(remote_ingress_map.keys())
@@ -1313,8 +1380,30 @@ class RancherBackend(ServiceBackend):
         models.Ingress.objects.bulk_create(new_ingresses)
         local_ingresses.filter(backend_id__in=stale_ingresses).delete()
 
-    def remote_ingress_to_local(self, remote_ingress, project, local_namespaces_map):
+    def remote_ingress_to_local(
+        self, remote_ingress, local_namespaces_map: dict[str, models.Namespace]
+    ):
         namespace = local_namespaces_map.get(remote_ingress["namespaceId"])
+        if not namespace:
+            logger.debug(
+                "Namespace %s is not present in the local database. "
+                "Skipping ingress %s",
+                remote_ingress["namespaceId"],
+                remote_ingress["id"],
+            )
+            return None
+        if not namespace.project:
+            logger.debug(
+                "Project is not present in the local database. Skipping ingress %s",
+                remote_ingress["id"],
+            )
+            return None
+        if not namespace.project.cluster:
+            logger.debug(
+                "Cluster is not present in the local database. Skipping ingress %s",
+                remote_ingress["id"],
+            )
+            return None
         return models.Ingress(
             backend_id=remote_ingress["id"],
             name=remote_ingress["name"],
@@ -1361,7 +1450,7 @@ class RancherBackend(ServiceBackend):
         for project in models.Project.objects.filter(cluster=cluster):
             self.pull_project_services(project)
 
-    def pull_project_services(self, project):
+    def pull_project_services(self, project: models.Project):
         remote_services = self.client.list_services(project.backend_id)
         local_services = models.Service.objects.filter(namespace__project=project)
         local_namespaces = models.Namespace.objects.filter(project=project)
@@ -1434,6 +1523,27 @@ class RancherBackend(ServiceBackend):
 
         for remote_service in new_services:
             namespace = local_namespaces_map.get(remote_service["namespaceId"])
+            if not namespace:
+                logger.debug(
+                    "Namespace %s is not present in the local database. "
+                    "Skipping service %s",
+                    remote_service["namespaceId"],
+                    remote_service["id"],
+                )
+                return None
+            if not namespace.project:
+                logger.debug(
+                    "Project is not present in the local database. Skipping service %s",
+                    remote_service["id"],
+                )
+                return None
+            if not namespace.project.cluster:
+                logger.debug(
+                    "Cluster is not present in the local database. Skipping service %s",
+                    remote_service["id"],
+                )
+                return None
+
             local_service = models.Service(
                 backend_id=remote_service["id"],
                 name=remote_service["name"],
@@ -1457,16 +1567,28 @@ class RancherBackend(ServiceBackend):
         local_services.filter(backend_id__in=stale_services).delete()
 
     def get_service_yaml(self, service: models.Service):
+        if not service.namespace.project:
+            raise RancherException(
+                f"Service {service.uuid} does not have a project backend ID"
+            )
         return self.client.get_service_yaml(
             service.namespace.project.backend_id, service.backend_id
         )
 
     def put_service_yaml(self, service: models.Service, yaml: str):
+        if not service.namespace.project:
+            raise RancherException(
+                f"Service {service.uuid} does not have a project backend ID"
+            )
         return self.client.put_service_yaml(
             service.namespace.project.backend_id, service.backend_id, yaml
         )
 
     def delete_service(self, service: models.Service):
+        if not service.namespace.project:
+            raise RancherException(
+                f"Service {service.uuid} does not have a project backend ID"
+            )
         return self.client.delete_service(
             service.namespace.project.backend_id, service.backend_id
         )
@@ -1475,8 +1597,8 @@ class RancherBackend(ServiceBackend):
         self,
         cluster: models.Cluster,
         yaml: str,
-        default_namespace: models.Namespace = None,
-        namespace: models.Namespace = None,
+        default_namespace: models.Namespace | None = None,
+        namespace: models.Namespace | None = None,
     ):
         return self.client.import_yaml(
             cluster.backend_id,
@@ -1611,7 +1733,7 @@ class KeycloakBackend:
             logger.error("Failed to fetch the group %s in Keycloak: %s", group_id, e)
             raise
 
-    def create_group(self, group_name: str, parent_id: str = None):
+    def create_group(self, group_name: str, parent_id: str | None = None):
         """
         Creating group in Keycloak
         """

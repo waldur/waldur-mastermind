@@ -1,10 +1,12 @@
 import copy
 import datetime
+from typing import cast
 from unittest import mock
 
 from freezegun import freeze_time
 from rest_framework import test
 
+from waldur_core.core.tests.helpers import load_json_resource
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -21,7 +23,6 @@ from waldur_rancher import models as rancher_models
 from waldur_rancher import tasks, utils
 from waldur_rancher.tests import factories as rancher_factories
 from waldur_rancher.tests.factories import RancherServiceSettingsFactory
-from waldur_rancher.tests.utils import backend_node_response
 
 
 class InvoiceTest(test.APITransactionTestCase):
@@ -37,7 +38,10 @@ class InvoiceTest(test.APITransactionTestCase):
 
         self.patcher_client = mock.patch("waldur_rancher.backend.RancherBackend.client")
         self.mock_client = self.patcher_client.start()
-        self.mock_client.get_node.return_value = backend_node_response
+
+        self.mock_client.get_node.return_value = load_json_resource(
+            "backend_node.json", root="waldur_rancher.tests"
+        )
 
         service_settings = RancherServiceSettingsFactory()
         self.offering = marketplace_factories.OfferingFactory(
@@ -65,8 +69,8 @@ class InvoiceTest(test.APITransactionTestCase):
         openstack_factories.SecurityGroupFactory(
             name="default", tenant=self.fixture.tenant
         )
-        service_settings.options["base_image_name"] = image.name
-        service_settings.options["cloud_init_template"] = ""
+        options = cast(dict, service_settings.options)
+        options.update({"base_image_name": image.name, "cloud_init_template": ""})
         service_settings.save()
 
         self.resource = None
@@ -149,7 +153,8 @@ class InvoiceTest(test.APITransactionTestCase):
                 plan_period=self.plan_period,
             ).exists()
         )
-        invoice = invoices_models.Invoice.objects.get(customer=self.cluster.customer)
+        cluster = cast(rancher_models.Cluster, self.cluster)
+        invoice = invoices_models.Invoice.objects.get(customer=cluster.customer)
         self.assertEqual(invoice.items.count(), 1)
         self.assertEqual(invoice.price, self.plan_component.price)
 
@@ -194,13 +199,14 @@ class InvoiceTest(test.APITransactionTestCase):
                 plan_period=self.plan_period,
             ).exists()
         )
-        rancher_factories.NodeFactory(cluster=self.cluster, name="second node")
+        cluster = cast(rancher_models.Cluster, self.cluster)
+        rancher_factories.NodeFactory(cluster=cluster, name="second node")
         self.mocked_get_cluster_nodes.return_value = [
             {"backend_id": "node_backend_id", "name": "name-rancher-node"},
             {"backend_id": "second_node_backend_id", "name": "second node"},
         ]
-        tasks.pull_cluster_nodes(self.cluster.id)
-        utils.update_cluster_nodes_states(self.cluster.id)
+        tasks.pull_cluster_nodes(cluster.id)
+        utils.update_cluster_nodes_states(cluster.id)
         self.assertTrue(
             marketplace_models.ComponentUsage.objects.filter(
                 resource=self.resource,
@@ -221,7 +227,7 @@ class InvoiceTest(test.APITransactionTestCase):
             ).count(),
             1,
         )
-        invoice = invoices_models.Invoice.objects.get(customer=self.cluster.customer)
+        invoice = invoices_models.Invoice.objects.get(customer=cluster.customer)
         self.assertEqual(invoice.items.count(), 1)
         self.assertEqual(invoice.price, self.plan_component.price * 2)
 
@@ -242,13 +248,14 @@ class InvoiceTest(test.APITransactionTestCase):
                 plan_period=self.plan_period,
             ).exists()
         )
-        rancher_factories.NodeFactory(cluster=self.cluster, name="second node")
+        cluster = cast(rancher_models.Cluster, self.cluster)
+        rancher_factories.NodeFactory(cluster=cluster, name="second node")
         self.mocked_get_cluster_nodes.return_value = [
             {"backend_id": "node_backend_id", "name": "name-rancher-node"},
             {"backend_id": "second_node_backend_id", "name": "second node"},
         ]
-        tasks.pull_cluster_nodes(self.cluster.id)
-        utils.update_cluster_nodes_states(self.cluster.id)
+        tasks.pull_cluster_nodes(cluster.id)
+        utils.update_cluster_nodes_states(cluster.id)
         self.assertTrue(
             marketplace_models.ComponentUsage.objects.filter(
                 resource=self.resource,
@@ -262,7 +269,7 @@ class InvoiceTest(test.APITransactionTestCase):
         return_value = copy.copy(self.mock_client.get_node.return_value)
         return_value["state"] = "error"
         self.mock_client.get_node.return_value = return_value
-        tasks.pull_cluster_nodes(self.cluster.id)
+        tasks.pull_cluster_nodes(cluster.id)
         self.assertTrue(
             marketplace_models.ComponentUsage.objects.filter(
                 resource=self.resource,
@@ -274,6 +281,6 @@ class InvoiceTest(test.APITransactionTestCase):
             ).exists()
         )
 
-        invoice = invoices_models.Invoice.objects.get(customer=self.cluster.customer)
+        invoice = invoices_models.Invoice.objects.get(customer=cluster.customer)
         self.assertEqual(invoice.items.count(), 1)
         self.assertEqual(invoice.price, self.plan_component.price * 2)

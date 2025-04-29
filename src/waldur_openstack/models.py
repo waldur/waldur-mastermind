@@ -840,6 +840,7 @@ class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
 class Instance(
     core_models.ActionMixin, TenantQuotaMixin, structure_models.VirtualMachine
 ):
+    id: int
     ports: models.Manager["Port"]
     volumes: models.Manager["Volume"]
     backups: models.Manager["Backup"]

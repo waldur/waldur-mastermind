@@ -14,8 +14,10 @@ def dummy_image(filetype="gif"):
     return open(tmp_file.name, "rb")
 
 
-def guess_image_extension(content: bytes) -> str:
+def guess_image_extension(content: bytes | str) -> str | None:
     mime_type = magic.from_buffer(content[:1024], mime=True)
+    if not mime_type:
+        return
     return {
         "image/svg": "svg",
         "image/svg+xml": "svg",
@@ -25,5 +27,5 @@ def guess_image_extension(content: bytes) -> str:
     }.get(mime_type)
 
 
-def get_image_hash(content: str):
+def get_image_hash(content: bytes):
     return hashlib.sha256(content).hexdigest()

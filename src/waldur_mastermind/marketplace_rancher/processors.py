@@ -28,6 +28,7 @@ from waldur_openstack import models as os_models
 from waldur_openstack.utils import volume_type_name_to_quota_name
 from waldur_rancher import models as rancher_models
 from waldur_rancher import views as rancher_views
+from waldur_rancher.enums import NodeRoleType
 
 from . import PLUGIN_NAME, serializers
 
@@ -212,7 +213,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             flavor: os_models.Flavor,
             volume_size: int,
             volume_type: os_models.VolumeType | None,
-            roles: list[str],
+            roles: list[NodeRoleType],
         ):
             result = {
                 "roles": roles,

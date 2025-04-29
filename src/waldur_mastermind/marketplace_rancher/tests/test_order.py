@@ -1,3 +1,5 @@
+from typing import cast
+
 from rest_framework import test
 
 from waldur_core.structure.tests.factories import ProjectFactory, SshPublicKeyFactory
@@ -35,7 +37,8 @@ class OrderProcessedTest(test.APITransactionTestCase):
         openstack_factories.SecurityGroupFactory(
             name="default", tenant=self.fixture.tenant
         )
-        service_settings.options["base_image_name"] = image.name
+        options = cast(dict, service_settings.options)
+        options["base_image_name"] = image.name
         service_settings.save()
 
         ssh_public_key = SshPublicKeyFactory(user=self.fixture.staff)

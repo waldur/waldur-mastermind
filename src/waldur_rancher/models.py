@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 from urllib.parse import urljoin
 
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -124,6 +125,8 @@ class Node(
 
     tracker = FieldTracker()
 
+    cluster_id: int
+
     class Meta:
         ordering = ("name",)
         unique_together = (("content_type", "object_id"), ("cluster", "name"))
@@ -224,7 +227,8 @@ class Catalog(
     password = models.CharField(max_length=255, blank=True)
 
     def get_backend(self):
-        return self.scope.get_backend()
+        scope = cast(ServiceSettings | Cluster, self.scope)
+        return scope.get_backend()
 
     @property
     def scope_type(self) -> CatalogScopeType:

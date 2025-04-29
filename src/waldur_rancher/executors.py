@@ -1,9 +1,10 @@
 from celery import chain
+from django.db.models import QuerySet
 
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
-from waldur_core.core.models import StateMixin
+from waldur_core.core.models import StateMixin, User
 
 from . import models, tasks
 
@@ -68,9 +69,9 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
         return chain(*_tasks)
 
     @classmethod
-    def create_nodes(cls, nodes, user):
+    def create_nodes(cls, nodes: QuerySet[models.Node], user: User):
         _tasks = []
-        # schedule first controlplane nodes so that Rancher would be able to register other nodes
+        # schedule first server nodes so that Rancher would be able to register other nodes
         # TODO: need to assure that also etcd is registered - probably parallel Node creation can be a solution
         # TODO: need to validate once controlled deployment is working
         for node in nodes.order_by("-controlplane_role"):
@@ -90,7 +91,9 @@ class ClusterDeleteExecutor(core_executors.DeleteExecutor):
         return None
 
     @classmethod
-    def get_task_signature(cls, instance, serialized_instance, user):
+    def get_task_signature(
+        cls, instance: models.Cluster, serialized_instance, user: User
+    ):
         if instance.node_set.count():
             instance.begin_deleting()
             instance.save()

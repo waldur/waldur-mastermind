@@ -1,6 +1,5 @@
 from unittest import mock
 
-import pkg_resources
 import pytest
 from rest_framework import test
 
@@ -51,7 +50,3 @@ class BaseTest(test.APITransactionTestCase):
 
     def tearDown(self):
         mock.patch.stopall()
-
-
-def load_resource(path):
-    return pkg_resources.resource_stream(__name__, path).read().decode()
