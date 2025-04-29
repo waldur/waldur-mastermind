@@ -4581,6 +4581,8 @@ class OpenStackBackend(ServiceBackend):
             security_groups = instance_security_groups
 
         port_payload = {
+            "name": port.name,
+            "description": port.description,
             "network_id": port.subnet.network.backend_id,
             "fixed_ips": [
                 {
