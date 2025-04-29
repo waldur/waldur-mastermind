@@ -192,54 +192,56 @@ tracing = ["opentelemetry-api (>=1.26,<2.0)"]
 
 [[package]]
 name = "azure-identity"
-version = "1.16.1"
+version = "1.21.0"
 description = "Microsoft Azure Identity Library for Python"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "azure-identity-1.16.1.tar.gz", hash = "sha256:6d93f04468f240d59246d8afde3091494a5040d4f141cad0f49fc0c399d0d91e"},
-    {file = "azure_identity-1.16.1-py3-none-any.whl", hash = "sha256:8fb07c25642cd4ac422559a8b50d3e77f73dcc2bbfaba419d06d6c9d7cff6726"},
+    {file = "azure_identity-1.21.0-py3-none-any.whl", hash = "sha256:258ea6325537352440f71b35c3dffe9d240eae4a5126c1b7ce5efd5766bd9fd9"},
+    {file = "azure_identity-1.21.0.tar.gz", hash = "sha256:ea22ce6e6b0f429bc1b8d9212d5b9f9877bd4c82f1724bfa910760612c07a9a6"},
 ]
 
 [package.dependencies]
-azure-core = ">=1.23.0"
+azure-core = ">=1.31.0"
 cryptography = ">=2.5"
-msal = ">=1.24.0"
-msal-extensions = ">=0.3.0"
+msal = ">=1.30.0"
+msal-extensions = ">=1.2.0"
+typing-extensions = ">=4.0.0"
 
 [[package]]
 name = "azure-mgmt-compute"
-version = "20.0.0"
+version = "34.1.0"
 description = "Microsoft Azure Compute Management Client Library for Python"
 optional = false
-python-versions = "*"
+python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "azure-mgmt-compute-20.0.0.zip", hash = "sha256:7920bea2e11d78fa616992813aea470a8fb50eab2e646e032e138f93d53b70e8"},
-    {file = "azure_mgmt_compute-20.0.0-py2.py3-none-any.whl", hash = "sha256:497c16bdcc69dced0f571f3b4c62d5420a1c1a3f86d82cf4a9dd21a95b8b087b"},
+    {file = "azure_mgmt_compute-34.1.0-py3-none-any.whl", hash = "sha256:5de9c4ba12a79c69e2db3d880f93869a0a80e5c99d8232dbebf6c19b1ada3638"},
+    {file = "azure_mgmt_compute-34.1.0.tar.gz", hash = "sha256:cd9d35d1cc1b8cb0bd241ad55c91b77d14e04ae73c632ada1140135f9c217fe1"},
 ]
 
 [package.dependencies]
-azure-common = ">=1.1,<2.0"
-azure-mgmt-core = ">=1.2.0,<2.0.0"
-msrest = ">=0.6.21"
+azure-common = ">=1.1"
+azure-mgmt-core = ">=1.3.2"
+isodate = ">=0.6.1"
+typing-extensions = ">=4.6.0"
 
 [[package]]
 name = "azure-mgmt-consumption"
-version = "9.0.0"
+version = "10.0.0"
 description = "Microsoft Azure Consumption Client Library for Python"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.6"
 groups = ["main"]
 files = [
-    {file = "azure-mgmt-consumption-9.0.0.zip", hash = "sha256:76f9566390721226add96c9d3020ab986d3e5fd81e3143c098f57262c6ce4a51"},
-    {file = "azure_mgmt_consumption-9.0.0-py3-none-any.whl", hash = "sha256:a0f269178d6336371fe4ce1f8f1c29ad2a99d94071079762e177722e8d587f65"},
+    {file = "azure-mgmt-consumption-10.0.0.zip", hash = "sha256:06a086436c1737f77ab86894d51f5973b6e0fa5edf56558e4c296589ebab9130"},
+    {file = "azure_mgmt_consumption-10.0.0-py3-none-any.whl", hash = "sha256:507059238cba2dcafc19866c24c53c5e145cafd721a39ab8c605590a3f169e81"},
 ]
 
 [package.dependencies]
 azure-common = ">=1.1,<2.0"
-azure-mgmt-core = ">=1.3.0,<2.0.0"
+azure-mgmt-core = ">=1.3.1,<2.0.0"
 msrest = ">=0.6.21"
 
 [[package]]
@@ -259,20 +261,21 @@ azure-core = ">=1.31.0"
 
 [[package]]
 name = "azure-mgmt-network"
-version = "19.0.0"
+version = "28.1.0"
 description = "Microsoft Azure Network Management Client Library for Python"
 optional = false
-python-versions = "*"
+python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "azure-mgmt-network-19.0.0.zip", hash = "sha256:5e39a26ae81fa58c13c02029700f8c7b22c3fd832a294c543e3156a91b9459e8"},
-    {file = "azure_mgmt_network-19.0.0-py2.py3-none-any.whl", hash = "sha256:4585c5eedcb8783c2840feef1d66843849f39835d7e3f2ec8a5af834fd7b949e"},
+    {file = "azure_mgmt_network-28.1.0-py3-none-any.whl", hash = "sha256:8ddb0e9ec8f10c9c152d60fc945908d113e4591f397ea3e40b92290ec2b01658"},
+    {file = "azure_mgmt_network-28.1.0.tar.gz", hash = "sha256:8c84bffb5ec75c6e0244e58ecf07c00d5fc421d616b0cb369c6fe585af33cf87"},
 ]
 
 [package.dependencies]
-azure-common = ">=1.1,<2.0"
-azure-mgmt-core = ">=1.2.0,<2.0.0"
-msrest = ">=0.6.21"
+azure-common = ">=1.1"
+azure-mgmt-core = ">=1.3.2"
+isodate = ">=0.6.1"
+typing-extensions = ">=4.6.0"
 
 [[package]]
 name = "azure-mgmt-nspkg"
@@ -292,48 +295,49 @@ azure-nspkg = ">=3.0.0"
 
 [[package]]
 name = "azure-mgmt-rdbms"
-version = "8.0.0"
+version = "10.1.0"
 description = "Microsoft Azure RDBMS Management Client Library for Python"
 optional = false
-python-versions = "*"
+python-versions = ">=3.6"
 groups = ["main"]
 files = [
-    {file = "azure-mgmt-rdbms-8.0.0.zip", hash = "sha256:8b018543048fc4fddb4155d9f22246ad0c4be2fb582a29dbb21ec4022724a119"},
-    {file = "azure_mgmt_rdbms-8.0.0-py2.py3-none-any.whl", hash = "sha256:910955a5517f44e81cd6b7ba03aba038f3e7105fd651df2f1452bd24625775bd"},
+    {file = "azure-mgmt-rdbms-10.1.0.zip", hash = "sha256:a87d401c876c84734cdd4888af551e4a1461b4b328d9816af60cb8ac5979f035"},
+    {file = "azure_mgmt_rdbms-10.1.0-py3-none-any.whl", hash = "sha256:8eac17d1341a91d7ed914435941ba917b5ef1568acabc3e65653603966a7cc88"},
 ]
 
 [package.dependencies]
 azure-common = ">=1.1,<2.0"
-azure-mgmt-core = ">=1.2.0,<2.0.0"
-msrest = ">=0.5.0"
-
-[[package]]
-name = "azure-mgmt-resource"
-version = "18.0.0"
-description = "Microsoft Azure Resource Management Client Library for Python"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "azure-mgmt-resource-18.0.0.zip", hash = "sha256:551036e592f409ef477d30937ea7cc4dda5126576965d9c816fdb8401bbd774c"},
-    {file = "azure_mgmt_resource-18.0.0-py2.py3-none-any.whl", hash = "sha256:16ce031825e6b7c0cbf580aaca004d0d68ee5630501defe07a5561705037b455"},
-]
-
-[package.dependencies]
-azure-common = ">=1.1,<2.0"
-azure-mgmt-core = ">=1.2.0,<2.0.0"
+azure-mgmt-core = ">=1.3.0,<2.0.0"
 msrest = ">=0.6.21"
 
 [[package]]
+name = "azure-mgmt-resource"
+version = "23.3.0"
+description = "Microsoft Azure Resource Management Client Library for Python"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "azure_mgmt_resource-23.3.0-py3-none-any.whl", hash = "sha256:ab216ee28e29db6654b989746e0c85a1181f66653929d2cb6e48fba66d9af323"},
+    {file = "azure_mgmt_resource-23.3.0.tar.gz", hash = "sha256:fc4f1fd8b6aad23f8af4ed1f913df5f5c92df117449dc354fea6802a2829fea4"},
+]
+
+[package.dependencies]
+azure-common = ">=1.1"
+azure-mgmt-core = ">=1.3.2"
+isodate = ">=0.6.1"
+typing-extensions = ">=4.6.0"
+
+[[package]]
 name = "azure-mgmt-sql"
-version = "2.0.0"
+version = "3.0.1"
 description = "Microsoft Azure SQL Management Client Library for Python"
 optional = false
 python-versions = "*"
 groups = ["main"]
 files = [
-    {file = "azure-mgmt-sql-2.0.0.zip", hash = "sha256:191accd6e5b47f93a10cebb94e2ca5086f0b6f4afd0290b8596206cd4acb0d5c"},
-    {file = "azure_mgmt_sql-2.0.0-py2.py3-none-any.whl", hash = "sha256:899fa0be1520d7f6a5089b7cc84fe01b8dc2bfeadabd1b88d33b7b9caa29e018"},
+    {file = "azure-mgmt-sql-3.0.1.zip", hash = "sha256:129042cc011225e27aee6ef2697d585fa5722e5d1aeb0038af6ad2451a285457"},
+    {file = "azure_mgmt_sql-3.0.1-py2.py3-none-any.whl", hash = "sha256:1d1dd940d4d41be4ee319aad626341251572a5bf4a2addec71779432d9a1381f"},
 ]
 
 [package.dependencies]
@@ -343,20 +347,21 @@ msrest = ">=0.6.21"
 
 [[package]]
 name = "azure-mgmt-storage"
-version = "18.0.0"
+version = "22.2.0"
 description = "Microsoft Azure Storage Management Client Library for Python"
 optional = false
-python-versions = "*"
+python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "azure-mgmt-storage-18.0.0.zip", hash = "sha256:d17beb34273797fa89863632ff0e1eb9b6a55198abb8c7f05d84980762e5f71f"},
-    {file = "azure_mgmt_storage-18.0.0-py2.py3-none-any.whl", hash = "sha256:ec11d6aef47f8489559055e4c1a1891567828b9864f63ee8c7a81c9d911015b6"},
+    {file = "azure_mgmt_storage-22.2.0-py3-none-any.whl", hash = "sha256:7ae98fd6850487d1f7dc88b8922b5a50e223b49586addb65410ed46ad829d501"},
+    {file = "azure_mgmt_storage-22.2.0.tar.gz", hash = "sha256:7fed433d244e276d06ddf34f9fa7b9b87134f085fc634601af5b67f2a0084d86"},
 ]
 
 [package.dependencies]
-azure-common = ">=1.1,<2.0"
-azure-mgmt-core = ">=1.2.0,<2.0.0"
-msrest = ">=0.6.21"
+azure-common = ">=1.1"
+azure-mgmt-core = ">=1.3.2"
+isodate = ">=0.6.1"
+typing-extensions = ">=4.6.0"
 
 [[package]]
 name = "azure-nspkg"
@@ -5164,4 +5169,4 @@ requests = ">=2.25.1,<3.0.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10,<3.12"
-content-hash = "c3f27ab02b2dca3d5b35cba61d7eb32eaec11086c6a65c66df987ce5ce693f9d"
+content-hash = "c5e6dbae714fe7cbd0dc3189cf897e0a44e24232d47d06ff99ff95c2b5d80ae2"
