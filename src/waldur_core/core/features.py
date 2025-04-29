@@ -161,6 +161,8 @@ class RancherSection(FeatureSection):
         "Allow to select mount point for data volume when Rancher cluster is provisioned."
     )
 
+    apps = Feature("Render Rancher apps as a separate tab in resource details page.")
+
 
 class SlurmSection(FeatureSection):
     class Meta:
