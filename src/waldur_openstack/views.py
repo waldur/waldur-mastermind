@@ -764,6 +764,28 @@ class PortViewSet(structure_views.ResourceViewSet):
     update_executor = executors.PortUpdateNameAndDescriptionExecutor
     delete_executor = executors.PortDeleteExecutor
 
+    @extend_schema(
+        description="Enable port security for the port",
+        responses={status.HTTP_202_ACCEPTED: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def enable_port_security(self, request, uuid=None):
+        port = self.get_object()
+        backend = port.get_backend()
+        backend.enable_port_security(port)
+        return response.Response(status=status.HTTP_202_ACCEPTED)
+
+    @extend_schema(
+        description="Disable port security for the port",
+        responses={status.HTTP_202_ACCEPTED: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def disable_port_security(self, request, uuid=None):
+        port = self.get_object()
+        backend = port.get_backend()
+        backend.disable_port_security(port)
+        return response.Response(status=status.HTTP_202_ACCEPTED)
+
 
 class NetworkViewSet(structure_views.ResourceViewSet):
     queryset = models.Network.objects.all().order_by("name")

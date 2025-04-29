@@ -5023,3 +5023,33 @@ class OpenStackBackend(ServiceBackend):
     def delete_network_rbac_policy(self, rbac_id):
         neutron = get_neutron_client(self.admin_session)
         neutron.delete_rbac_policy(rbac_id)
+
+    @reraise_exceptions
+    def enable_port_security(self, port):
+        session = get_tenant_session(port.tenant)
+        neutron = get_neutron_client(session)
+        neutron.update_port(port.backend_id, {"port": {"port_security_enabled": True}})
+        logger.info(
+            "Port security has been enabled for port %s (backend_id: %s).",
+            port.uuid.hex,
+            port.backend_id,
+        )
+
+    @reraise_exceptions
+    def disable_port_security(self, port):
+        session = get_tenant_session(port.tenant)
+        neutron = get_neutron_client(session)
+
+        neutron.update_port(port.backend_id, {"port": {"security_groups": []}})
+        logger.info(
+            "Security groups have been removed from port %s (backend_id: %s).",
+            port.uuid.hex,
+            port.backend_id,
+        )
+
+        neutron.update_port(port.backend_id, {"port": {"port_security_enabled": False}})
+        logger.info(
+            "Port security has been disabled for port %s (backend_id: %s).",
+            port.uuid.hex,
+            port.backend_id,
+        )
