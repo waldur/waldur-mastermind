@@ -39,7 +39,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
     @action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
 
         with transaction.atomic():
             order = resource_creation_canceled(resource, validate=True)
@@ -48,7 +48,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
     @action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
 
         with transaction.atomic():
             order = resource_creation_succeeded(resource, validate=True)
@@ -81,7 +81,7 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
     @extend_schema(request=None, responses=None)
     @action(detail=True, methods=["post"])
     def google_calendar_sync(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         self._get_or_create_google_calendar(offering)
         transaction.on_commit(
             lambda: executors.GoogleCalendarSyncExecutor.execute(
@@ -93,7 +93,7 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
     @extend_schema(request=None, responses=None)
     @action(detail=True, methods=["post"])
     def share_google_calendar(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         self._get_or_create_google_calendar(offering)
         transaction.on_commit(
             lambda: executors.GoogleCalendarShareExecutor.execute(
@@ -105,7 +105,7 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
     @extend_schema(request=None, responses=None)
     @action(detail=True, methods=["post"])
     def unshare_google_calendar(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         self._get_or_create_google_calendar(offering)
         transaction.on_commit(
             lambda: executors.GoogleCalendarUnShareExecutor.execute(

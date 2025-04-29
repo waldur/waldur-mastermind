@@ -233,7 +233,7 @@ class ProjectUpdateRequestViewSet(ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def approve(self, request, **kwargs):
-        review_request = self.get_object()
+        review_request: ProjectUpdateRequest = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         comment = serializer.validated_data.get("comment")
@@ -247,7 +247,7 @@ class ProjectUpdateRequestViewSet(ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def reject(self, request, **kwargs):
-        review_request = self.get_object()
+        review_request: ProjectUpdateRequest = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         comment = serializer.validated_data.get("comment")
@@ -391,7 +391,7 @@ class RemoteSynchronisationViewSet(core_views.ActionsViewSet):
     @extend_schema(request=None)
     @action(detail=True, methods=["post"])
     def run_synchronisation(self, request, **kwargs):
-        sync = self.get_object()
+        sync: RemoteSynchronisation = self.get_object()
         utils_sync_remote_offerings.RemoteSynchronisationRunner(sync).run()
         sync.refresh_from_db()
         return Response(

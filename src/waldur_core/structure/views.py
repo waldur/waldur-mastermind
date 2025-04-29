@@ -150,7 +150,7 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         if not self.request.user.is_staff:
             raise PermissionDenied()
 
-        customer = serializer.save()
+        customer: models.Customer = serializer.save()
 
         if django_settings.WALDUR_CORE.get(
             "CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION", False
@@ -255,7 +255,7 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
     )
     @action(detail=True)
     def stats(self, request, *args, **kwargs):
-        customer = self.get_object()
+        customer: models.Customer = self.get_object()
 
         resources = marketplace_models.Resource.objects.filter(
             project__customer=customer
@@ -286,7 +286,7 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
     def update_organization_groups(self, request, uuid):
         if not self.request.user.is_staff:
             raise PermissionDenied()
-        customer = self.get_object()
+        customer: models.Customer = self.get_object()
         serializer = marketplace_serializers.OrganizationGroupsSerializer(
             instance=customer, context={"request": request}, data=request.data
         )
@@ -925,7 +925,7 @@ class NotificationTemplateViewSet(ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def override(self, request, uuid=None):
-        template = self.get_object()
+        template: core_models.NotificationTemplate = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         new_content = serializer.validated_data["content"]

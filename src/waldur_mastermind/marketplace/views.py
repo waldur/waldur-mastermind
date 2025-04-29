@@ -283,7 +283,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     @action(detail=True, methods=["GET"])
     def stat(self, request, uuid=None):
         to_day = timezone.datetime.today().date()
-        service_provider = self.get_object()
+        service_provider: models.ServiceProvider = self.get_object()
 
         active_campaigns = promotions_models.Campaign.objects.filter(
             service_provider=service_provider,
@@ -371,7 +371,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     @action(detail=True, methods=["GET"])
     def revenue(self, request, uuid=None):
         start = month_start(timezone.datetime.today()) - relativedelta(years=1)
-        service_provider = self.get_object()
+        service_provider: models.ServiceProvider = self.get_object()
         customer = service_provider.customer
 
         data = (
@@ -407,7 +407,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     )
     @action(detail=True, methods=["GET"])
     def robot_account_customers(self, request, uuid=None):
-        service_provider = self.get_object()
+        service_provider: models.ServiceProvider = self.get_object()
         valid_states = [
             RobotAccountStates.OK,
             RobotAccountStates.REQUESTED_DELETION,
@@ -445,7 +445,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     )
     @action(detail=True, methods=["GET"])
     def robot_account_projects(self, request, uuid=None):
-        service_provider = self.get_object()
+        service_provider: models.ServiceProvider = self.get_object()
         valid_states = [
             RobotAccountStates.OK,
             RobotAccountStates.REQUESTED_DELETION,
@@ -1025,7 +1025,7 @@ class ProviderOfferingViewSet(
     ]
 
     def destroy(self, request, *args, **kwargs):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         serializer = serializers.ProviderOfferingSerializer(
             offering, many=False, context=self.get_serializer_context()
         )
@@ -1072,7 +1072,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["get"], filter_backends=[])
     def orders(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         # Only allow staff, support and offering managers
         if not (request.user.is_staff or request.user.is_support):
             if not (
@@ -1092,7 +1092,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(responses=serializers.OrderDetailsSerializer)
     def order_detail(self, request, uuid=None, order_uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         if not (request.user.is_staff or request.user.is_support):
             if not (
                 offering.has_user(request.user, OfferingRole.MANAGER)
@@ -1137,7 +1137,7 @@ class ProviderOfferingViewSet(
         return self._update_state("archive")
 
     def _update_state(self, action, request=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
 
         try:
             getattr(offering, action)()
@@ -1150,7 +1150,7 @@ class ProviderOfferingViewSet(
                     offering, data=request.data, partial=True
                 )
                 serializer.is_valid(raise_exception=True)
-                offering = serializer.save()
+                offering: models.Offering = serializer.save()
 
             offering.save(update_fields=["state"])
             reversion.set_user(self.request.user)
@@ -1216,7 +1216,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["get"])
     def importable_resources(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         method = plugins.manager.get_importable_resources_backend_method(offering.type)
         if (
             not method
@@ -1263,7 +1263,7 @@ class ProviderOfferingViewSet(
         project = import_resource_serializer.validated_data["project"]
         backend_id = import_resource_serializer.validated_data["backend_id"]
 
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         backend = offering.scope.get_backend()
         method = plugins.manager.import_resource_backend_method(offering.type)
         if not method:
@@ -1324,7 +1324,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["post"])
     def update_attributes(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         if not isinstance(request.data, dict):
             raise rf_exceptions.ValidationError("Dictionary is expected.")
         validate_attributes(request.data, offering.category)
@@ -1344,7 +1344,7 @@ class ProviderOfferingViewSet(
     update_attributes_validators = update_validators
 
     def _update_action(self, request):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         serializer = self.get_serializer(offering, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -1457,7 +1457,7 @@ class ProviderOfferingViewSet(
         self, request: Request, serializer_class: type[Serializer]
     ) -> Response:
         """Helper for updating offering media."""
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         serializer = serializer_class(instance=offering, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -1465,7 +1465,7 @@ class ProviderOfferingViewSet(
 
     def _delete_media(self, media_field: str) -> Response:
         """Helper for deleting offering media."""
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         getattr(offering, media_field).delete()
         offering.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -1517,7 +1517,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True)
     def customers(self, request, uuid):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         active_customers = utils.get_active_customers(request, self)
         customer_queryset = utils.get_offering_customers(offering, active_customers)
         serializer_class = serializers.ProviderOfferingCustomerSerializer
@@ -1530,7 +1530,7 @@ class ProviderOfferingViewSet(
     customers_permissions = [structure_permissions.is_owner]
 
     def get_stats(self, get_queryset, serializer, serializer_context=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         active_customers = utils.get_active_customers(self.request, self)
         start, end = utils.get_start_and_end_dates_from_request(self.request)
         invoice_items = invoice_models.InvoiceItem.objects.filter(
@@ -1597,7 +1597,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True)
     def component_stats(self, *args, **kwargs):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         offering_components_map = {
             component.type: component for component in offering.components.all()
         }
@@ -1633,7 +1633,7 @@ class ProviderOfferingViewSet(
 
     @action(detail=True)
     def stats(self, *args, **kwargs):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         resources_count = (
             models.Resource.objects.filter(offering=offering)
             .exclude(state=models.Resource.States.TERMINATED)
@@ -1663,7 +1663,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["post"])
     def update_organization_groups(self, request, uuid):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         serializer = serializers.OrganizationGroupsSerializer(
             instance=offering, context={"request": request}, data=request.data
         )
@@ -1681,7 +1681,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["post"])
     def delete_organization_groups(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         offering.organization_groups.clear()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -1695,7 +1695,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["post"])
     def add_endpoint(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         endpoint = models.OfferingAccessEndpoint.objects.create(
@@ -1725,7 +1725,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["post"])
     def delete_endpoint(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         offering.endpoints.filter(uuid=serializer.validated_data["uuid"]).delete()
@@ -1791,7 +1791,7 @@ class ProviderOfferingViewSet(
         It is assumed that the config is used by an external agent,
         which synchronizes data from Waldur to GLauth
         """
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         if not offering.plugin_options.get(
             "service_provider_can_create_offering_user", False
         ):
@@ -1864,7 +1864,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["GET"])
     def user_has_resource_access(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         username = request.query_params.get("username")
         if username is None:
             raise rf_exceptions.ValidationError(
@@ -1891,7 +1891,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["post"])
     def update_offering_component(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
 
         component_to_update_uuid = request.data.get("uuid")
 
@@ -1930,7 +1930,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["post"])
     def remove_offering_component(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         resources_exist = models.Resource.objects.filter(offering=offering).exists()
 
         component_to_remove_uuid = request.data.get("uuid")
@@ -1992,7 +1992,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["post"])
     def create_offering_component(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         component_data = request.data
         serializer: serializers.OfferingComponentSerializer = self.get_serializer(
             data=component_data
@@ -2016,7 +2016,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["post"])
     def sync(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         if not offering.scope or not isinstance(
             offering.scope, structure_models.ServiceSettings
         ):
@@ -2057,7 +2057,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["POST"])
     def set_backend_metadata(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         offering_data = request.data
         serializer = self.get_serializer(offering, data=offering_data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -2086,7 +2086,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["GET"])
     def list_customer_projects(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         project_ids = (
             models.Resource.objects.filter(offering=offering)
             .exclude(state=models.Resource.States.TERMINATED)
@@ -2108,7 +2108,7 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["GET"])
     def list_customer_users(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         project_ids = (
             models.Resource.objects.filter(offering=offering)
             .exclude(state=models.Resource.States.TERMINATED)
@@ -2131,7 +2131,7 @@ class ProviderOfferingViewSet(
 
     @action(detail=True, methods=["post"])
     def refresh_offering_usernames(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         offering_users = models.OfferingUser.objects.filter(
             is_restricted=False,
             offering=offering,
@@ -2180,7 +2180,7 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
     )
     @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
     def plans(self, request, uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
         return Response(
             serializers.PublicOfferingDetailsSerializer(
                 context=self.get_serializer_context()
@@ -2190,7 +2190,7 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
 
     @extend_schema(responses=serializers.BasePublicPlanSerializer)
     def plan_detail(self, request, uuid=None, plan_uuid=None):
-        offering = self.get_object()
+        offering: models.Offering = self.get_object()
 
         try:
             plan = utils.get_plans_available_for_user(
@@ -2427,7 +2427,7 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     )
     @action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
-        plan = self.get_object()
+        plan: models.Plan = self.get_object()
         with reversion.create_revision():
             plan.archived = True
             plan.save(update_fields=["archived"])
@@ -2459,7 +2459,7 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     )
     @action(detail=True, methods=["post"])
     def update_organization_groups(self, request, uuid):
-        plan = self.get_object()
+        plan: models.Plan = self.get_object()
         serializer = serializers.OrganizationGroupsSerializer(
             instance=plan, context={"request": request}, data=request.data
         )
@@ -2475,7 +2475,7 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     )
     @action(detail=True, methods=["post"])
     def delete_organization_groups(self, request, uuid=None):
-        plan = self.get_object()
+        plan: models.Plan = self.get_object()
         plan.organization_groups.clear()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -2875,7 +2875,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     def unlink(self, request, uuid=None):
         if not request.user.is_staff:
             raise PermissionDenied()
-        obj = self.get_object()
+        obj: models.Order = self.get_object()
         logger.info("Starting unlink for order %s", obj.uuid)
         log.log_order_unlink(obj)
         try:
@@ -2925,7 +2925,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     )
     @action(detail=True, methods=["get"])
     def details(self, request, uuid=None):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
         if not resource.scope:
             return Response(status=status.HTTP_404_NOT_FOUND)
         resource_type = get_resource_type(resource.scope)
@@ -2948,7 +2948,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         and without checking current state of the resource. It is intended to be used
         for removing resource stuck in transitioning state.
         """
-        obj = self.get_object()
+        obj: models.Resource = self.get_object()
         log.log_resource_unlink(obj)
         logger.info("Starting unlink for resource %s", obj.uuid)
         try:
@@ -3017,7 +3017,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     )
     @action(detail=True, methods=["get"], pagination_class=None)
     def plan_periods(self, request, uuid=None):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
         qs = models.ResourcePlanPeriod.objects.filter(resource=resource)
         qs = qs.filter(Q(end=None) | Q(end__gte=month_start(timezone.now())))
         serializer = serializers.ResourcePlanPeriodSerializer(qs, many=True)
@@ -3030,7 +3030,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     )
     @action(detail=True, methods=["post"])
     def move_resource(self, request, uuid=None):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         project = serializer.validated_data["project"]
@@ -3056,7 +3056,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     )
     @action(detail=True, methods=["post"])
     def set_slug(self, request, uuid=None):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         new_slug = serializer.validated_data["slug"]
@@ -3086,7 +3086,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     set_slug_serializer_class = serializers.ResourceSlugSerializer
 
     def _set_end_date(self, request, is_staff_action):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
         serializer = serializers.ResourceEndDateByProviderSerializer(
             data=request.data, instance=resource, context={"request": request}
         )
@@ -3205,7 +3205,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     )
     @action(detail=True, methods=["get"], pagination_class=None)
     def offering_for_subresources(self, request, uuid=None):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
 
         try:
             scope = structure_models.ServiceSettings.objects.get(
@@ -3228,7 +3228,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     )
     @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
     def team(self, request, uuid=None):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
         project = resource.project
 
         return Response(
@@ -3700,7 +3700,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
 
     @action(detail=True, methods=["post"])
     def set_user_usage(self, request, *args, **kwargs):
-        component_usage = self.get_object()
+        component_usage: models.ComponentUsage = self.get_object()
         serializer = self.get_serializer(
             data=request.data,
         )
@@ -3873,7 +3873,7 @@ class OfferingUsersViewSet(
     )
     @action(detail=True, methods=["post"])
     def update_restricted(self, request, uuid=None):
-        offering_user = self.get_object()
+        offering_user: models.OfferingUser = self.get_object()
         serializer = serializers.OfferingUserUpdateRestrictionSerializer(
             data=request.data, context={"request": request}, instance=offering_user
         )
@@ -4846,7 +4846,7 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
         return qs.filter(subquery)
 
     def perform_create(self, serializer):
-        instance = serializer.save()
+        instance: models.RobotAccount = serializer.save()
         offering = instance.resource.offering
         utils.setup_linux_related_data(instance, offering)
         # Set state to CREATING and OK since setup is complete
@@ -4855,7 +4855,7 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
         instance.save()
 
     def perform_update(self, serializer):
-        instance = serializer.save()
+        instance: models.RobotAccount = serializer.save()
         offering = instance.resource.offering
         utils.setup_linux_related_data(instance, offering)
         instance.save()
@@ -4869,7 +4869,7 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def set_state_creating(self, request, uuid=None):
-        robot_account = self.get_object()
+        robot_account: models.RobotAccount = self.get_object()
         try:
             robot_account.begin_creating()
             robot_account.save()
@@ -4887,7 +4887,7 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def set_state_ok(self, request, uuid=None):
-        robot_account = self.get_object()
+        robot_account: models.RobotAccount = self.get_object()
         try:
             robot_account.set_ok()
             robot_account.save()
@@ -4907,7 +4907,7 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def set_state_request_deletion(self, request, uuid=None):
-        robot_account = self.get_object()
+        robot_account: models.RobotAccount = self.get_object()
         try:
             robot_account.request_deletion()
             robot_account.save()
@@ -4927,7 +4927,7 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def set_state_deleted(self, request, uuid=None):
-        robot_account = self.get_object()
+        robot_account: models.RobotAccount = self.get_object()
         try:
             robot_account.set_deleted()
             robot_account.save()
@@ -4947,7 +4947,7 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def set_state_erred(self, request, uuid=None):
-        robot_account = self.get_object()
+        robot_account: models.RobotAccount = self.get_object()
         error_serializer = serializers.RobotAccountErrorSerializer(data=request.data)
         error_serializer.is_valid(raise_exception=True)
 

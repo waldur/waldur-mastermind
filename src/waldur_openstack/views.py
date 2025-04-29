@@ -229,7 +229,7 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        security_group = self.get_object()
+        security_group: models.SecurityGroup = self.get_object()
         old_rules = serializers.DebugSecurityGroupRuleSerializer(
             security_group.rules.all(), many=True
         )
@@ -452,7 +452,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
         In this case REST client is advised to repeat the request after some time.
         On successful completion the task will synchronize quotas with the backend.
         """
-        tenant = self.get_object()
+        tenant: models.Tenant = self.get_object()
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -523,7 +523,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def pull_floating_ips(self, request, uuid=None):
-        tenant = self.get_object()
+        tenant: models.Tenant = self.get_object()
 
         executors.TenantPullFloatingIPsExecutor.execute(tenant)
         return response.Response(status=status.HTTP_202_ACCEPTED)
@@ -714,7 +714,7 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
 
     @decorators.action(detail=True, methods=["POST"])
     def set_routes(self, request, uuid=None):
-        router = self.get_object()
+        router: models.Router = self.get_object()
         serializer = self.get_serializer(router, data=request.data)
         serializer.is_valid(raise_exception=True)
         old_routes = router.routes
@@ -814,7 +814,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
     def set_mtu(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
-        network = serializer.save()
+        network: models.Network = serializer.save()
         executors.SetMtuExecutor.execute(network)
         return response.Response(serializer.data, status=status.HTTP_202_ACCEPTED)
 
@@ -845,7 +845,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def rbac_policy_create(self, request, uuid=None):
-        network = self.get_object()
+        network: models.Network = self.get_object()
         serializer = self.get_serializer(
             data=request.data, context={"request": request, "network": network}
         )
@@ -902,7 +902,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
         url_path="rbac_policy_delete/(?P<rbac_policy_uuid>[^/.]+)",
     )
     def rbac_policy_delete(self, request, uuid=None, rbac_policy_uuid=None):
-        network = self.get_object()
+        network: models.Network = self.get_object()
         backend = network.tenant.get_backend()
 
         try:
@@ -992,7 +992,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def extend(self, request, uuid=None):
-        volume = self.get_object()
+        volume: models.Volume = self.get_object()
         old_size = volume.size
         serializer = self.get_serializer(volume, data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -1038,7 +1038,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def attach(self, request, uuid=None):
-        volume = self.get_object()
+        volume: models.Volume = self.get_object()
         serializer = self.get_serializer(volume, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -1061,7 +1061,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def detach(self, request, uuid=None):
-        volume = self.get_object()
+        volume: models.Volume = self.get_object()
         executors.VolumeDetachExecutor().execute(volume)
         return response.Response(
             {"status": _("detach was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -1081,7 +1081,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def retype(self, request, uuid=None):
-        volume = self.get_object()
+        volume: models.Volume = self.get_object()
         serializer = self.get_serializer(volume, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -1140,7 +1140,7 @@ class SnapshotViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["get"])
     def restorations(self, request, uuid=None):
-        snapshot = self.get_object()
+        snapshot: models.Snapshot = self.get_object()
         serializer = self.get_serializer(snapshot.restorations.all(), many=True)
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -1222,7 +1222,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def change_flavor(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         old_flavor_name = instance.flavor_name
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -1260,7 +1260,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         executors.InstanceStartExecutor().execute(instance)
         return response.Response(
             {"status": _("start was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -1289,7 +1289,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         executors.InstanceStopExecutor().execute(instance)
         return response.Response(
             {"status": _("stop was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -1318,7 +1318,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         executors.InstanceRestartExecutor().execute(instance)
         return response.Response(
             {"status": _("restart was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -1347,7 +1347,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def update_security_groups(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -1389,7 +1389,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def update_allowed_address_pairs(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -1432,7 +1432,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def update_ports(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -1456,7 +1456,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["get"])
     def ports(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         serializer = self.get_serializer(instance.ports.all(), many=True)
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -1469,7 +1469,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def update_floating_ips(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -1495,7 +1495,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["get"])
     def floating_ips(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         serializer = serializers.OpenStackNestedFloatingIPSerializer(
             instance=instance.floating_ips.all(),
             queryset=models.FloatingIP.objects.all(),
@@ -1512,7 +1512,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["get"])
     def console(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         backend = instance.get_backend()
         try:
             url = backend.get_console_url(instance)
@@ -1546,7 +1546,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["get"])
     def console_log(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         backend = instance.get_backend()
         serializer = self.get_serializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
@@ -1604,7 +1604,7 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
         delete_volumes = serializer.validated_data["delete_volumes"]
         release_floating_ips = serializer.validated_data["release_floating_ips"]
 
-        resource = self.get_object()
+        resource: models.Instance = self.get_object()
         force = resource.state == models.Instance.States.ERRED
         executors.InstanceDeleteExecutor.execute(
             resource,
@@ -1644,7 +1644,7 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
     force_destroy_serializer_class = destroy_serializer_class
 
     def perform_create(self, serializer):
-        instance = serializer.save()
+        instance: models.Instance = serializer.save()
         executors.InstanceCreateExecutor.execute(
             instance,
             ssh_key=serializer.validated_data.get("ssh_public_key"),
@@ -1705,7 +1705,7 @@ class BackupViewSet(structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def restore(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Backup = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         backup_restoration = serializer.save()

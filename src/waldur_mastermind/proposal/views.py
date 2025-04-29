@@ -53,7 +53,7 @@ class CallManagingOrganisationViewSet(
     filterset_class = filters.CallManagingOrganisationFilter
 
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
+        instance: models.CallManagingOrganisation = self.get_object()
         try:
             self.perform_destroy(instance)
             return response.Response(status=status.HTTP_204_NO_CONTENT)
@@ -72,7 +72,7 @@ class CallManagingOrganisationViewSet(
     )
     @decorators.action(detail=True)
     def stats(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.CallManagingOrganisation = self.get_object()
         now = timezone.now()
         one_week_from_now = now + timedelta(weeks=1)
 
@@ -200,7 +200,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     )
     @decorators.action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
-        call = self.get_object()
+        call: models.Call = self.get_object()
         if call.round_set.count() == 0:
             raise exceptions.ValidationError(
                 _("Call must have a round to be activated.")
@@ -225,7 +225,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     )
     @decorators.action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
-        call = self.get_object()
+        call: models.Call = self.get_object()
         call.state = models.Call.States.ARCHIVED
         call.save()
         return response.Response(
@@ -257,7 +257,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @decorators.action(detail=True, methods=["get", "post"])
     def rounds(self, request, uuid=None):
         # TODO: Will be better move this to method of serializer and add tests.
-        call = self.get_object()
+        call: models.Call = self.get_object()
         method = self.request.method
 
         if method == "POST":
@@ -345,7 +345,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     round_detail_serializer_class = serializers.ProtectedRoundSerializer
 
     def close_round(self, request, uuid=None, obj_uuid=None):
-        call = self.get_object()
+        call: models.Call = self.get_object()
 
         try:
             call_round = call.round_set.get(uuid=obj_uuid)
@@ -379,7 +379,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     )
     @decorators.action(detail=True, methods=["post"])
     def attach_documents(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Call = self.get_object()
 
         documents = request.data.getlist("documents", [])
         description = request.data.get("description", "")
@@ -411,7 +411,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     )
     @decorators.action(detail=True, methods=["post"])
     def detach_documents(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Call = self.get_object()
         documents = request.data.getlist("documents", [])
         for file_data in documents:
             models.CallDocument.objects.get(
@@ -703,7 +703,7 @@ class ReviewViewSet(ActionsViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
-        review = self.get_object()
+        review: models.Review = self.get_object()
         review.state = models.Review.States.IN_REVIEW
         review.save()
         return response.Response(
@@ -722,7 +722,7 @@ class ReviewViewSet(ActionsViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
-        review = self.get_object()
+        review: models.Review = self.get_object()
         review.state = models.Review.States.REJECTED
         review.save()
         return response.Response(
@@ -743,7 +743,7 @@ class ReviewViewSet(ActionsViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
-        review = self.get_object()
+        review: models.Review = self.get_object()
         serializer = ReviewSubmitSerializer(
             instance=review, data=request.data, partial=True
         )
@@ -778,7 +778,7 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
-        requested_offering = self.get_object()
+        requested_offering: models.RequestedOffering = self.get_object()
         requested_offering.state = models.RequestedOffering.States.ACCEPTED
         requested_offering.approved_by = self.request.user
         requested_offering.save()
@@ -798,7 +798,7 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def cancel(self, request, uuid=None):
-        requested_offering = self.get_object()
+        requested_offering: models.RequestedOffering = self.get_object()
         requested_offering.state = models.RequestedOffering.States.CANCELED
         requested_offering.approved_by = self.request.user
         requested_offering.save()

@@ -74,7 +74,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @transaction.atomic()
     def perform_create(self, serializer):
-        issue = serializer.save()
+        issue: models.Issue = serializer.save()
         try:
             backend.get_active_backend().create_issue(issue)
             backend.get_active_backend().create_confirmation_comment(issue)
@@ -85,7 +85,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @transaction.atomic()
     def perform_update(self, serializer):
-        issue = serializer.save()
+        issue: models.Issue = serializer.save()
         backend.get_active_backend().update_issue(issue)
 
     def _update_is_available_validator(issue):
@@ -143,7 +143,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def sync(self, request, uuid=None):
-        issue = self.get_object()
+        issue: models.Issue = self.get_object()
         backend.get_active_backend().sync_issues(issue.id)
         return response.Response(status=status.HTTP_200_OK)
 
@@ -171,7 +171,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @transaction.atomic()
     def perform_update(self, serializer):
-        comment = serializer.save()
+        comment: models.Comment = serializer.save()
         backend.get_active_backend().update_comment(comment)
 
     def _update_is_available_validator(comment):
@@ -285,7 +285,7 @@ class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @transaction.atomic()
     def perform_create(self, serializer):
-        attachment = serializer.save()
+        attachment: models.Attachment = serializer.save()
         backend.get_active_backend().create_attachment(attachment)
 
     def get_queryset(self):
@@ -306,7 +306,7 @@ class TemplateViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def create_attachments(self, request, uuid=None):
-        template = self.get_object()
+        template: models.Template = self.get_object()
         attachments = request.FILES.getlist("attachments")
 
         if not attachments:
@@ -328,7 +328,7 @@ class TemplateViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     @extend_schema(request=serializers.DeleteAttachmentsSerializer, responses=None)
     @decorators.action(detail=True, methods=["post"])
     def delete_attachments(self, request, uuid=None):
-        template = self.get_object()
+        template: models.Template = self.get_object()
         attachment_ids = request.data.get("attachment_ids", [])
         attachments = models.TemplateAttachment.objects.filter(
             uuid__in=attachment_ids, template=template

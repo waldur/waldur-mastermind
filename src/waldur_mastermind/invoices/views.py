@@ -65,7 +65,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     )
     @action(detail=True)
     def items(self, request, uuid=None):
-        invoice = self.get_object()
+        invoice: models.Invoice = self.get_object()
         queryset = invoice.items.all()
         query = request.query_params.get("query", "").strip()
         provider_uuid = request.query_params.get("provider_uuid", None)
@@ -94,7 +94,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def send_notification(self, request, uuid=None):
-        invoice = self.get_object()
+        invoice: models.Invoice = self.get_object()
         tasks.send_invoice_notification.delay(invoice.uuid.hex)
 
         return Response(
@@ -170,7 +170,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     )
     @action(detail=True)
     def stats(self, request, uuid=None):
-        invoice = self.get_object()
+        invoice: models.Invoice = self.get_object()
         offerings = {}
         requested_provider_uuid = request.query_params.get("provider_uuid")
         if requested_provider_uuid:
@@ -685,7 +685,7 @@ class PaymentProfileViewSet(core_views.ActionsViewSet):
 
     @action(detail=True, methods=["post"])
     def enable(self, request, uuid=None):
-        profile = self.get_object()
+        profile: models.PaymentProfile = self.get_object()
         profile.is_active = True
         profile.save(update_fields=["is_active"])
 
@@ -849,7 +849,7 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
     @transaction.atomic
     @action(detail=True, methods=["post"])
     def apply_compensations(self, request, uuid=None):
-        customer_credit = self.get_object()
+        customer_credit: models.CustomerCredit = self.get_object()
         compensations.MonthlyCompensation(
             customer_credit.customer
         ).apply_compensations()
@@ -857,7 +857,7 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
     @transaction.atomic
     @action(detail=True, methods=["post"])
     def clear_compensations(self, request, uuid=None):
-        customer_credit = self.get_object()
+        customer_credit: models.CustomerCredit = self.get_object()
         compensations.MonthlyCompensation(
             customer_credit.customer
         ).clear_compensations()

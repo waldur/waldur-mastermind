@@ -44,7 +44,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     ]
 
     def perform_create(self, serializer):
-        instance = serializer.save()
+        instance: models.Instance = serializer.save()
         volume = instance.volume_set.first()
 
         self.create_executor.execute(
@@ -57,7 +57,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         executors.InstanceStartExecutor().execute(instance)
         return response.Response(
             {"status": _("start was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -71,7 +71,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         executors.InstanceStopExecutor().execute(instance)
         return response.Response(
             {"status": _("stop was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -85,7 +85,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         executors.InstanceRestartExecutor().execute(instance)
         return response.Response(
             {"status": _("restart was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -99,7 +99,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def resize(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()

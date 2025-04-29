@@ -22,7 +22,7 @@ class MigrationViewSet(ActionsViewSet):
     @extend_schema(request=None, responses=None)
     @action(detail=True, methods=["post"])
     def run(self, request, uuid=None):
-        migration = self.get_object()
+        migration: models.Migration = self.get_object()
         executors.MigrationExecutor.execute(migration)
         return Response(status=status.HTTP_200_OK)
 

@@ -28,7 +28,7 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @transaction.atomic()
     def perform_create(self, serializer):
-        profile = serializer.save()
+        profile: models.Profile = serializer.save()
         try:
             backend.FreeIPABackend().create_profile(profile)
             tasks.schedule_sync()
@@ -44,7 +44,7 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def update_ssh_keys(self, request, uuid=None):
-        profile = self.get_object()
+        profile: models.Profile = self.get_object()
         try:
             backend.FreeIPABackend().update_ssh_keys(profile)
         except freeipa_exceptions.NotFound:

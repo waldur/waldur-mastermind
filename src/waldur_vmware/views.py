@@ -62,7 +62,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
     @action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.VirtualMachine = self.get_object()
         executors.VirtualMachineStartExecutor().execute(instance)
         return Response(
             {"status": _("start was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -79,7 +79,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
     @action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.VirtualMachine = self.get_object()
         executors.VirtualMachineStopExecutor().execute(instance)
         return Response(
             {"status": _("stop was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -96,7 +96,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
     @action(detail=True, methods=["post"])
     def reset(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.VirtualMachine = self.get_object()
         executors.VirtualMachineResetExecutor().execute(instance)
         return Response(
             {"status": _("reset was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -112,7 +112,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
     @action(detail=True, methods=["post"])
     def suspend(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.VirtualMachine = self.get_object()
         executors.VirtualMachineSuspendExecutor().execute(instance)
         return Response(
             {"status": _("suspend was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -132,7 +132,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
     @action(detail=True, methods=["post"])
     def shutdown_guest(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.VirtualMachine = self.get_object()
         executors.VirtualMachineShutdownGuestExecutor().execute(instance)
         return Response(
             {"status": _("shutdown was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -149,7 +149,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
     @action(detail=True, methods=["post"])
     def reboot_guest(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.VirtualMachine = self.get_object()
         executors.VirtualMachineRebootGuestExecutor().execute(instance)
         return Response(
             {"status": _("reboot was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -212,7 +212,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
     )
     @action(detail=True, methods=["get"])
     def console(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.VirtualMachine = self.get_object()
         backend = instance.get_backend()
         try:
             url = backend.get_console_url(instance)
@@ -233,7 +233,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
     )
     @action(detail=True, methods=["get"])
     def web_console(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.VirtualMachine = self.get_object()
         backend = instance.get_backend()
         try:
             url = backend.get_web_console_url(instance)
@@ -270,7 +270,7 @@ class DiskViewSet(structure_views.ResourceViewSet):
     @action(detail=True, methods=["post"])
     def extend(self, request, uuid=None):
         """Increase disk capacity"""
-        disk = self.get_object()
+        disk: models.Disk = self.get_object()
         serializer = self.get_serializer(disk, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()

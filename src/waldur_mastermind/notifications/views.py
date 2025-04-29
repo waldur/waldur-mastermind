@@ -27,7 +27,7 @@ class BroadcastMessageViewSet(ActionsViewSet):
     @extend_schema(request=None, responses=None)
     @decorators.action(detail=True, methods=["post"])
     def send(self, request, *args, **kwargs):
-        broadcast_message = self.get_object()
+        broadcast_message: models.BroadcastMessage = self.get_object()
         tasks.send_broadcast_message_email.delay(broadcast_message.uuid)
         return Response(status=status.HTTP_202_ACCEPTED)
 

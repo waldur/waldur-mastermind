@@ -58,7 +58,7 @@ class DryRunView(ActionsViewSet):
     def run(self, request, *args, **kwargs):
         serializer = DryRunSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        offering = self.get_object()
+        offering: marketplace_models.Offering = self.get_object()
         order = marketplace_models.Order(**serializer.validated_data)
         order.offering = offering
         order_type = DryRunTypes.get_type_display(order.type)
@@ -99,7 +99,7 @@ class DryRunView(ActionsViewSet):
     def async_run(self, request, *args, **kwargs):
         serializer = DryRunSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        offering = self.get_object()
+        offering: marketplace_models.Offering = self.get_object()
         project = structure_models.Project.objects.create(
             name="Dry-run project", customer=offering.customer
         )

@@ -63,7 +63,7 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     update_executor = executors.ClusterUpdateExecutor
 
     def perform_create(self, serializer):
-        cluster = serializer.save()
+        cluster: models.Cluster = serializer.save()
         user = self.request.user
         nodes = serializer.validated_data.get("node_set")
         install_longhorn = serializer.validated_data["install_longhorn"]
@@ -83,7 +83,7 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
 
     def destroy(self, request, *args, **kwargs):
         user = self.request.user
-        instance = self.get_object()
+        instance: models.Cluster = self.get_object()
         executors.ClusterDeleteExecutor.execute(
             instance,
             user=user,
@@ -103,7 +103,7 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def import_yaml(self, request, uuid=None):
-        cluster = self.get_object()
+        cluster: models.Cluster = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         yaml = serializer.validated_data["yaml"]
@@ -134,7 +134,7 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
             data=request.data, many=True
         )
         serializer.is_valid(raise_exception=True)
-        cluster = self.get_object()
+        cluster: models.Cluster = self.get_object()
         user = request.user
         tenant = utils.get_management_tenant(cluster)
         port = cluster.settings.get_option("management_tenant_access_port")
@@ -199,7 +199,7 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     pull_executor = executors.NodePullExecutor
 
     def perform_create(self, serializer):
-        node = serializer.save()
+        node: models.Node = serializer.save()
         user = self.request.user
         transaction.on_commit(
             lambda: executors.NodeCreateExecutor.execute(
@@ -210,7 +210,7 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
         )
 
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
+        instance: models.Node = self.get_object()
         user = self.request.user
         executors.NodeDeleteExecutor.execute(
             instance,
@@ -226,7 +226,7 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def link_openstack(self, request, uuid=None):
-        node = self.get_object()
+        node: models.Node = self.get_object()
 
         if node.content_type and node.object_id:
             raise ValidationError(_("Node is already linked to OpenStack instance."))
@@ -258,7 +258,7 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["post"])
     def unlink_openstack(self, request, uuid=None):
-        node = self.get_object()
+        node: models.Node = self.get_object()
         if not node.content_type or not node.object_id:
             raise ValidationError(
                 _("Node is not linked to any OpenStack instance yet.")
@@ -277,7 +277,7 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["get"])
     def console(self, request, uuid=None):
-        node = self.get_object()
+        node: models.Node = self.get_object()
 
         if not node.instance:
             return response.Response(status=status.HTTP_404_NOT_FOUND)
@@ -306,7 +306,7 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     )
     @decorators.action(detail=True, methods=["get"])
     def console_log(self, request, uuid=None):
-        node = self.get_object()
+        node: models.Node = self.get_object()
 
         if not node.instance:
             return response.Response(status=status.HTTP_404_NOT_FOUND)
@@ -397,7 +397,7 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def refresh(self, request, uuid=None):
-        catalog = self.get_object()
+        catalog: models.Catalog = self.get_object()
         backend = catalog.get_backend()
         backend.refresh_catalog(catalog)
         return response.Response(status=status.HTTP_200_OK)
@@ -417,7 +417,7 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
         else:
             raise ValidationError(_("Invalid scope provided."))
 
-        catalog = serializer.save(settings=service_settings)
+        catalog: models.Catalog = serializer.save(settings=service_settings)
         backend = catalog.get_backend()
         backend.create_catalog(catalog)
 
@@ -426,7 +426,7 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
     def perform_update(self, serializer):
         scope = serializer.instance.scope
         self.check_catalog_permissions(scope)
-        catalog = serializer.save()
+        catalog: models.Catalog = serializer.save()
         backend = catalog.get_backend()
         backend.update_catalog(catalog)
 
@@ -455,7 +455,7 @@ class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
     @extend_schema(filters=False, description="Returns project's secrets.")
     @decorators.action(detail=True, methods=["get"])
     def secrets(self, request, uuid=None):
-        project = self.get_object()
+        project: models.Project = self.get_object()
         backend = project.get_backend()
         secrets = backend.list_project_secrets(project)
         data = [{"name": secret["name"], "id": secret["id"]} for secret in secrets]
@@ -570,7 +570,7 @@ class WorkloadViewSet(
     @extend_schema(request=None, responses=None)
     @decorators.action(detail=True, methods=["post"])
     def redeploy(self, request, *args, **kwargs):
-        workload = self.get_object()
+        workload: models.Workload = self.get_object()
         backend = workload.get_backend()
         backend.redeploy_workload(workload)
         return response.Response(status=status.HTTP_200_OK)

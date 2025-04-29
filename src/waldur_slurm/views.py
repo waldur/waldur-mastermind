@@ -28,7 +28,7 @@ class AllocationViewSet(structure_views.ResourceViewSet):
 
     @action(detail=True, methods=["post"])
     def set_limits(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Allocation = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()

@@ -57,7 +57,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
-        virtual_machine = self.get_object()
+        virtual_machine: models.VirtualMachine = self.get_object()
         executors.VirtualMachineStartExecutor().execute(virtual_machine)
         return response.Response(
             {"status": _("start was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -71,7 +71,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
-        virtual_machine = self.get_object()
+        virtual_machine: models.VirtualMachine = self.get_object()
         executors.VirtualMachineStopExecutor().execute(virtual_machine)
         return response.Response(
             {"status": _("stop was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -85,7 +85,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
-        virtual_machine = self.get_object()
+        virtual_machine: models.VirtualMachine = self.get_object()
         executors.VirtualMachineRestartExecutor().execute(virtual_machine)
         return response.Response(
             {"status": _("restart was scheduled")}, status=status.HTTP_202_ACCEPTED

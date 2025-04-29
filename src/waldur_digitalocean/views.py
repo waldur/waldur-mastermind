@@ -53,7 +53,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         size = serializer.validated_data["size"]
         ssh_key = serializer.validated_data.get("ssh_public_key")
 
-        droplet = serializer.save(
+        droplet: models.Droplet = serializer.save(
             cores=size.cores, ram=size.ram, disk=size.disk, transfer=size.transfer
         )
 
@@ -70,7 +70,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Droplet = self.get_object()
         executors.DropletStartExecutor().execute(instance)
         return response.Response(
             {"status": _("start was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -84,7 +84,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Droplet = self.get_object()
         executors.DropletStopExecutor().execute(instance)
         return response.Response(
             {"status": _("stop was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -98,7 +98,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
-        instance = self.get_object()
+        instance: models.Droplet = self.get_object()
         executors.DropletRestartExecutor().execute(instance)
         return response.Response(
             {"status": _("restart was scheduled")}, status=status.HTTP_202_ACCEPTED
@@ -135,7 +135,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
 
         Note that instance must be OFFLINE.
         """
-        droplet = self.get_object()
+        droplet: models.Droplet = self.get_object()
         serializer = self.get_serializer(droplet, data=request.data)
         serializer.is_valid(raise_exception=True)
 

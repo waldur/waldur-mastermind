@@ -43,7 +43,7 @@ class CampaignViewSet(core_views.ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
-        campaign = self.get_object()
+        campaign: models.Campaign = self.get_object()
         campaign.activate()
         campaign.save()
         return Response("Campaign has been activated", status=status.HTTP_200_OK)
@@ -57,7 +57,7 @@ class CampaignViewSet(core_views.ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def terminate(self, request, uuid=None):
-        campaign = self.get_object()
+        campaign: models.Campaign = self.get_object()
         campaign.terminate()
         campaign.save()
         return Response("Campaign has been terminated", status=status.HTTP_200_OK)
@@ -76,7 +76,7 @@ class CampaignViewSet(core_views.ActionsViewSet):
     )
     @action(detail=True, methods=["get"])
     def orders(self, request, uuid=None):
-        campaign = self.get_object()
+        campaign: models.Campaign = self.get_object()
         resources = models.DiscountedResource.objects.filter(
             campaign=campaign
         ).values_list("resource", flat=True)
@@ -94,7 +94,7 @@ class CampaignViewSet(core_views.ActionsViewSet):
     )
     @action(detail=True, methods=["get"])
     def resources(self, request, uuid=None):
-        campaign = self.get_object()
+        campaign: models.Campaign = self.get_object()
         discounted_resources = models.DiscountedResource.objects.filter(
             campaign=campaign
         ).values_list("resource", flat=True)

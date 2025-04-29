@@ -27,7 +27,7 @@ class GoogleAuthViewSet(core_views.ReadOnlyActionsViewSet):
     @extend_schema(filters=False)
     @action(detail=True, methods=["get"])
     def authorize(self, request, uuid=None):
-        service_provider = self.get_object()
+        service_provider: marketplace_models.ServiceProvider = self.get_object()
         redirect_uri = request.build_absolute_uri("../../") + "callback/"
         backend = GoogleAuthorize(service_provider, redirect_uri)
         url = backend.get_authorization_url(service_provider.uuid.hex)
