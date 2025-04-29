@@ -4660,11 +4660,13 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
 
     def perform_create(self, serializer):
         serializer.save()
+        username = self.request.user.username
         try:
             instance = serializer.instance
-            response_data = utils.create_service_account(instance)
-            if response_data and "token" in response_data:
-                instance._token = response_data["token"]
+            response_data = utils.create_service_account(instance, username)
+            if response_data and "apiKey" in response_data:
+                instance._token = response_data["apiKey"]["apiKey"]
+                instance._expiresAt = response_data["apiKey"]["expiresAt"]
             else:
                 instance.error_message = (
                     "Service account creation is disabled or returned no token."
@@ -4675,7 +4677,7 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
             raise ValidationError({"detail": instance.error_message})
 
     def perform_destroy(self, instance):
-        utils.remove_service_account(instance)
+        utils.delete_service_account(instance)
 
 
 class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
@@ -4717,6 +4719,34 @@ class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
 
     create_permissions = [check_create_permissions]
 
+    @extend_schema(
+        request=None,
+        responses=serializers.ProjectServiceAccountSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def rotate_api_key(self, request, uuid=None):
+        service_account = self.get_object()
+        try:
+            response_data = utils.rotate_service_account_api_key(service_account)
+            if response_data and "apiKey" in response_data:
+                service_account._token = response_data["apiKey"]["apiKey"]
+                service_account._expiresAt = response_data["apiKey"]["expiresAt"]
+                serializer = self.get_serializer(service_account)
+                return Response(serializer.data)
+            else:
+                raise ValidationError(
+                    {"detail": "API key rotation failed - no token returned"}
+                )
+        except httpx.HTTPError as e:
+            raise ValidationError({"detail": str(e)})
+
+    rotate_api_key_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_SERVICE_ACCOUNT,
+            ["project", "project.customer"],
+        )
+    ]
+
 
 class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
     queryset = models.CustomerServiceAccount.objects.all()
@@ -4751,6 +4781,34 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
             raise PermissionDenied()
 
     create_permissions = [check_create_permissions]
+
+    @extend_schema(
+        request=None,
+        responses=serializers.CustomerServiceAccountSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def rotate_api_key(self, request, uuid=None):
+        service_account = self.get_object()
+        try:
+            response_data = utils.rotate_service_account_api_key(service_account)
+            if response_data and "apiKey" in response_data:
+                service_account._token = response_data["apiKey"]["apiKey"]
+                service_account._expiresAt = response_data["apiKey"]["expiresAt"]
+                serializer = self.get_serializer(service_account)
+                return Response(serializer.data)
+            else:
+                raise ValidationError(
+                    {"detail": "API key rotation failed - no token returned"}
+                )
+        except httpx.HTTPError as e:
+            raise ValidationError({"detail": str(e)})
+
+    rotate_api_key_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_SERVICE_ACCOUNT,
+            ["customer"],
+        )
+    ]
 
 
 class RobotAccountViewSet(core_views.ActionsViewSet):

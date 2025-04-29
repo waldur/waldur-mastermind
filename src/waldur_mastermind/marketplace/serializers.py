@@ -4515,12 +4515,14 @@ class BaseServiceAccountSerializer(
 
 class BaseScopedServiceAccountSerializer(BaseServiceAccountSerializer):
     token = serializers.SerializerMethodField()
+    expiresAt = serializers.SerializerMethodField()
 
     class Meta:
         model = models.ScopedServiceAccount
         fields = BaseServiceAccountSerializer.Meta.fields + (
             "token",
             "email",
+            "expiresAt",
         )
         extra_kwargs = {
             "url": {
@@ -4532,6 +4534,11 @@ class BaseScopedServiceAccountSerializer(BaseServiceAccountSerializer):
     def get_token(self, obj) -> str | None:
         if hasattr(obj, "_token"):
             return obj._token
+        return None
+
+    def get_expiresAt(self, obj) -> str | None:
+        if hasattr(obj, "_expiresAt"):
+            return obj._expiresAt
         return None
 
 
