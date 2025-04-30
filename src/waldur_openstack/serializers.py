@@ -3474,3 +3474,38 @@ class OpenStackBackendVolumesSerializer(serializers.ModelSerializer):
 
 class OpenStackInstanceFloatingIpsSerializer(serializers.ListSerializer):
     child = OpenStackNestedFloatingIPSerializer(read_only=True)
+
+
+class OpenStackPortIPUpdateSerializer(serializers.Serializer):
+    subnet = serializers.HyperlinkedRelatedField(
+        queryset=models.SubNet.objects.all(),
+        view_name="openstack-subnet-detail",
+        lookup_field="uuid",
+        write_only=True,
+    )
+    ip_address = serializers.IPAddressField()
+
+    def validate(self, attrs):
+        subnet = attrs.get("subnet")
+        ip = attrs.get("ip_address")
+
+        port = self.context.get("port")
+        if port and subnet.network_id != port.network_id:
+            raise serializers.ValidationError(
+                {"subnet": "Subnet does not belong to the same network as the port."}
+            )
+
+        if subnet.allocation_pools:
+            ip_addr = ip_address(ip)
+            in_pool = False
+            for pool in subnet.allocation_pools:
+                start_ip = ip_address(pool["start"])
+                end_ip = ip_address(pool["end"])
+                if start_ip <= ip_addr and ip_addr <= end_ip:
+                    in_pool = True
+                    break
+            if not in_pool:
+                raise serializers.ValidationError(
+                    {"ip_address": "IP address is outside of allocation pools."}
+                )
+        return attrs
