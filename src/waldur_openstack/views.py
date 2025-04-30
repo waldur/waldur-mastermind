@@ -825,6 +825,26 @@ class PortViewSet(structure_views.ResourceViewSet):
 
         return response.Response(status=status.HTTP_200_OK)
 
+    @extend_schema(
+        description="Update port IP address.",
+        request=serializers.OpenStackPortIPUpdateSerializer,
+        responses={status.HTTP_200_OK: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def update_port_ip(self, request, uuid=None):
+        port = self.get_object()
+        serializer = self.get_serializer(data=request.data, context={"port": port})
+        serializer.is_valid(raise_exception=True)
+        subnet = serializer.validated_data["subnet"]
+        ip_address = serializer.validated_data["ip_address"]
+        backend = port.get_backend()
+        backend.update_port_ip(port, subnet.backend_id, ip_address)
+        port.fixed_ips = [{"subnet_id": subnet.backend_id, "ip_address": ip_address}]
+        port.save(update_fields=["fixed_ips"])
+        return response.Response(status=status.HTTP_200_OK)
+
+    update_port_ip_serializer_class = serializers.OpenStackPortIPUpdateSerializer
+
 
 class NetworkViewSet(structure_views.ResourceViewSet):
     queryset = models.Network.objects.all().order_by("name")

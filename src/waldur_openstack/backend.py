@@ -5059,6 +5059,7 @@ class OpenStackBackend(ServiceBackend):
             port.backend_id,
         )
 
+    @reraise_exceptions
     def enable_port(self, port):
         session = get_tenant_session(port.tenant)
         neutron = get_neutron_client(session)
@@ -5069,6 +5070,7 @@ class OpenStackBackend(ServiceBackend):
             port.backend_id,
         )
 
+    @reraise_exceptions
     def disable_port(self, port):
         session = get_tenant_session(port.tenant)
         neutron = get_neutron_client(session)
@@ -5077,4 +5079,29 @@ class OpenStackBackend(ServiceBackend):
             "Port %s (backend_id: %s) has been disabled.",
             port.uuid.hex,
             port.backend_id,
+        )
+
+    @reraise_exceptions
+    def update_port_ip(self, port, subnet_backend_id, ip_address):
+        session = get_tenant_session(port.tenant)
+        neutron = get_neutron_client(session)
+        neutron.update_port(
+            port.backend_id,
+            {
+                "port": {
+                    "fixed_ips": [
+                        {
+                            "subnet_id": subnet_backend_id,
+                            "ip_address": ip_address,
+                        }
+                    ]
+                }
+            },
+        )
+        logger.info(
+            "Port %s (backend_id: %s) IP changed to %s in subnet %s.",
+            port.name or port.uuid.hex,
+            port.backend_id,
+            ip_address,
+            subnet_backend_id,
         )

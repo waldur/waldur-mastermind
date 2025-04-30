@@ -3,7 +3,10 @@ from unittest import mock
 from rest_framework import status, test
 
 from waldur_openstack.models import Port
-from waldur_openstack.serializers import OpenStackPortSerializer
+from waldur_openstack.serializers import (
+    OpenStackPortIPUpdateSerializer,
+    OpenStackPortSerializer,
+)
 
 from . import factories, fixtures
 
@@ -265,3 +268,45 @@ class PortExecutorTest(test.APITransactionTestCase):
             "update_port_name_and_description",
             state_transition="begin_updating",
         )
+
+
+class PortIPUpdateValidationTest(BasePortTest):
+    def setUp(self):
+        super().setUp()
+        self.fixture.subnet.allocation_pools = [
+            {"start": "192.168.1.10", "end": "192.168.1.20"},
+            {"start": "192.168.1.30", "end": "192.168.1.40"},
+        ]
+        self.fixture.subnet.save()
+
+    def test_ip_in_allocation_pool_valid(self):
+        data = {
+            "subnet": factories.SubNetFactory.get_url(self.fixture.subnet),
+            "ip_address": "192.168.1.15",
+        }
+        serializer = OpenStackPortIPUpdateSerializer(
+            data=data, context={"port": self.fixture.port}
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_ip_not_in_allocation_pool(self):
+        data = {
+            "subnet": factories.SubNetFactory.get_url(self.fixture.subnet),
+            "ip_address": "192.168.1.25",
+        }
+        serializer = OpenStackPortIPUpdateSerializer(
+            data=data, context={"port": self.fixture.port}
+        )
+        self.assertFalse(serializer.is_valid())
+
+    def test_subnet_network_mismatch(self):
+        new_subnet = factories.SubNetFactory()
+        data = {
+            "subnet": factories.SubNetFactory.get_url(new_subnet),
+            "ip_address": "192.168.1.15",
+        }
+        serializer = OpenStackPortIPUpdateSerializer(
+            data=data, context={"port": self.fixture.port}
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("subnet", serializer.errors)
