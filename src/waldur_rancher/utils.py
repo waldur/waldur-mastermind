@@ -5,13 +5,14 @@ import yaml
 from constance import config
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
-from django.utils.translation import gettext_lazy as _
+from django.utils.translation import gettext as _
 from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.models import SshPublicKey
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.quotas.models import QuotaModelMixin
-from waldur_core.structure.models import Project
+from waldur_core.structure.models import Project, ServiceSettings
 from waldur_openstack import models as openstack_models
 from waldur_openstack.models import Flavor, Image, SecurityGroup, SubNet, Tenant
 from waldur_openstack.utils import (
@@ -56,12 +57,12 @@ def get_unique_node_name(
 
 
 def expand_added_nodes(
-    cluster_name,
-    nodes,
-    project,
-    rancher_settings,
-    tenant,
-    ssh_public_key,
+    cluster_name: str,
+    nodes: list[dict],
+    project: Project,
+    rancher_settings: ServiceSettings,
+    tenant: Tenant,
+    ssh_public_key: SshPublicKey | None,
     security_groups=None,
 ):
     valid_images = Image.objects.filter(tenants=tenant)
@@ -85,7 +86,7 @@ def expand_added_nodes(
         cpu = cast(int | None, node.pop("cpu", None))
         subnet = cast(SubNet, node.pop("subnet"))
         flavor = cast(Flavor, node.pop("flavor", None))
-        roles = cast(list[NodeRoleType], node.pop("roles"))
+        role = cast(NodeRoleType, node.pop("role"))
         system_volume_size = node.pop("system_volume_size", None)
         system_volume_type = node.pop("system_volume_type", None)
         data_volumes = node.pop("data_volumes", [])
@@ -97,7 +98,7 @@ def expand_added_nodes(
             )
 
         validate_data_volumes(data_volumes, tenant)
-        flavor = validate_flavor(flavor, roles, tenant, cpu, memory)
+        flavor = validate_flavor(flavor, role, tenant, cpu, memory)
 
         node["initial_data"] = {
             "flavor": flavor.uuid.hex,
@@ -120,13 +121,6 @@ def expand_added_nodes(
                 for volume in data_volumes
             ],
         }
-
-        if "controlplane" in roles:
-            node["controlplane_role"] = True
-        if "etcd" in roles:
-            node["etcd_role"] = True
-        if "worker" in roles:
-            node["worker_role"] = True
 
         node["name"] = get_unique_node_name(
             cluster_name + "-rancher-node",
@@ -160,7 +154,11 @@ def validate_data_volumes(data_volumes, tenant):
 
 
 def validate_flavor(
-    flavor, roles: list[NodeRoleType], tenant: Tenant, cpu=None, memory=None
+    flavor: Flavor | None,
+    role: NodeRoleType,
+    tenant: Tenant,
+    cpu: int | None = None,
+    memory: int | None = None,
 ):
     if flavor:
         if cpu or memory:
@@ -188,15 +186,10 @@ def validate_flavor(
             _("Flavor %s is not visible in tenant %s.") % (flavor.name, tenant)
         )
 
-    requirements = list(
-        filter(
-            lambda x: x[0] in roles,
-            settings.WALDUR_RANCHER["ROLE_REQUIREMENT"].items(),
-        )
-    )
+    requirements = settings.WALDUR_RANCHER["ROLE_REQUIREMENT"].get(role)
     if requirements:
-        cpu_requirements = max([t[1]["CPU"] for t in requirements])
-        ram_requirements = max([t[1]["RAM"] for t in requirements])
+        cpu_requirements = requirements["CPU"]
+        ram_requirements = requirements["RAM"]
         if flavor.cores < cpu_requirements:
             raise serializers.ValidationError(
                 _("Flavor %s does not meet requirements. CPU requirement is %s")

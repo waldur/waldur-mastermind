@@ -18,6 +18,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import BaseResource, ServiceSettings
 from waldur_openstack import models as openstack_models
 from waldur_rancher.enums import (
+    ROLE_CHOICES,
     CatalogScopeType,
     KeycloakUserGroupMembershipState,
     RoleScopeType,
@@ -76,9 +77,7 @@ class Cluster(SettingsMixin, BaseResource):
 
 
 class RoleMixin(models.Model):
-    controlplane_role = models.BooleanField(default=False)
-    etcd_role = models.BooleanField(default=False)
-    worker_role = models.BooleanField(default=False)
+    role = models.CharField(choices=ROLE_CHOICES, max_length=10, db_index=True)
 
     class Meta:
         abstract = True

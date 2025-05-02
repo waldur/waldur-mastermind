@@ -5,9 +5,8 @@ class RancherExtension(WaldurExtension):
     class Settings:
         WALDUR_RANCHER = {
             "ROLE_REQUIREMENT": {
-                "controllplane": {"CPU": 2, "RAM": 4096},
-                "etcd": {"CPU": 2, "RAM": 4096},
-                "worker": {"CPU": 1, "RAM": 1024},
+                "server": {"CPU": 2, "RAM": 4096},
+                "agent": {"CPU": 1, "RAM": 1024},
             },
             "MOUNT_POINT_CHOICES": (
                 "/var/lib/docker",
