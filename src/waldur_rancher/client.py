@@ -246,7 +246,7 @@ class RancherClient:
             params=params,
         )["data"]
 
-    def list_role_templates(self):
+    def list_role_templates(self) -> list[dict]:
         return self._get("roletemplates")["data"]
 
     def list_global_catalogs(self):
@@ -317,7 +317,7 @@ class RancherClient:
             params["clusterId"] = cluster_id
         return self._get("templates", params=params)["data"]
 
-    def get_template_icon(self, template_id):
+    def get_template_icon(self, template_id) -> bytes | None:
         return self._get(f"templates/{template_id}/icon")
 
     def get_template_version_details(self, template_id, template_version):

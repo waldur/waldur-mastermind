@@ -5,6 +5,7 @@ from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import StateMixin, User
+from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE
 
 from . import models, tasks
 
@@ -74,13 +75,11 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
         # schedule first server nodes so that Rancher would be able to register other nodes
         # TODO: need to assure that also etcd is registered - probably parallel Node creation can be a solution
         # TODO: need to validate once controlled deployment is working
-        for node in nodes.order_by("-controlplane_role"):
-            _tasks.append(
-                NodeCreateExecutor.as_signature(
-                    node,
-                    user_id=user.id,
-                )
-            )
+        server_nodes = nodes.filter(role=SERVER_ROLE)
+        agent_nodes = nodes.exclude(role=AGENT_ROLE)
+        for group in (server_nodes, agent_nodes):
+            for node in group:
+                _tasks.append(NodeCreateExecutor.as_signature(node, user_id=user.id))
         return _tasks
 
 

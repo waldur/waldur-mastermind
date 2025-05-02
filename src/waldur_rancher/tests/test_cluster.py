@@ -18,6 +18,7 @@ from waldur_openstack.tests import (
     factories as openstack_factories,
 )
 from waldur_rancher import exceptions, models, tasks
+from waldur_rancher.enums import AGENT_ROLE
 from waldur_rancher.tests import factories, fixtures, utils
 
 
@@ -32,13 +33,13 @@ class ClusterGetTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(list(response.data)), 2)
+        self.assertEqual(len(response.data), 2)
 
     def test_user_cannot_get_strangers_clusters(self):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(list(response.data)), 1)
+        self.assertEqual(len(response.data), 1)
 
     def test_rancher_cluster_is_exposed_for_openstack_instance(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -107,44 +108,29 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         self.fixture.settings.save()
 
     def _create_request_(
-        self, name, disk=1024, memory=1, cpu=2, add_payload=None, install_longhorn=False
+        self,
+        name,
+        disk=1024,
+        memory=1,
+        cpu=2,
+        add_payload=None,
+        install_longhorn=False,
+        agent_count=1,
+        server_count=3,
     ):
         add_payload = add_payload or {}
+        default_conf = {
+            "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
+            "system_volume_size": disk,
+            "memory": memory,
+            "cpu": cpu,
+        }
         payload = {
             "name": name,
             "service_settings": ServiceSettingsFactory.get_url(self.fixture.settings),
             "project": ProjectFactory.get_url(self.fixture.project),
             "tenant": openstack_factories.TenantFactory.get_url(self.fixture.tenant),
-            "nodes": [
-                {
-                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
-                    "system_volume_size": disk,
-                    "memory": memory,
-                    "cpu": cpu,
-                    "roles": ["worker"],
-                },
-                {
-                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
-                    "system_volume_size": disk,
-                    "memory": memory,
-                    "cpu": cpu,
-                    "roles": ["controlplane", "worker"],
-                },
-                {
-                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
-                    "system_volume_size": disk,
-                    "memory": memory,
-                    "cpu": cpu,
-                    "roles": ["controlplane", "etcd"],
-                },
-                {
-                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
-                    "system_volume_size": disk,
-                    "memory": memory,
-                    "cpu": cpu,
-                    "roles": ["worker"],
-                },
-            ],
+            "nodes": utils.format_nodes(default_conf, server_count, agent_count),
             "install_longhorn": install_longhorn,
         }
         payload.update(add_payload)
@@ -152,6 +138,15 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
 
 
 class ClusterCreateTest(BaseClusterCreateTest):
+    def setUp(self):
+        super().setUp()
+        self.default_conf = {
+            "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
+            "system_volume_size": 1024,
+            "memory": 1,
+            "cpu": 1,
+        }
+
     def tearDown(self):
         mock.patch.stopall()
 
@@ -179,27 +174,21 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.tenant.service_settings.save()
         volume_type = openstack_factories.VolumeTypeFactory()
         volume_type.tenants.add(self.tenant)
-        payload = {
-            "nodes": [
+        default_conf = {
+            **self.default_conf,
+            "data_volumes": [
                 {
-                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
-                    "system_volume_size": 1024,
-                    "memory": 1,
-                    "cpu": 1,
-                    "roles": ["controlplane", "etcd", "worker"],
-                    "data_volumes": [
-                        {
-                            "size": 12 * 1024,
-                            "volume_type": openstack_factories.VolumeTypeFactory.get_url(
-                                volume_type
-                            ),
-                            "mount_point": "/var/lib/etcd",
-                        }
-                    ],
+                    "size": 12 * 1024,
+                    "volume_type": openstack_factories.VolumeTypeFactory.get_url(
+                        volume_type
+                    ),
+                    "mount_point": "/var/lib/etcd",
                 }
-            ]
+            ],
         }
-        response = self._create_request_("new-cluster", add_payload=payload)
+        response = self._create_request_(
+            "new-cluster", add_payload={"nodes": utils.format_nodes(default_conf, 3, 1)}
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertTrue(models.Cluster.objects.filter(name="new-cluster").exists())
         cluster = models.Cluster.objects.get(name="new-cluster")
@@ -207,25 +196,10 @@ class ClusterCreateTest(BaseClusterCreateTest):
 
     def test_node_name_uniqueness(self):
         self.client.force_authenticate(self.fixture.owner)
-        payload = {
-            "nodes": [
-                {
-                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
-                    "system_volume_size": 1024,
-                    "memory": 1,
-                    "cpu": 1,
-                    "roles": ["controlplane", "etcd", "worker"],
-                },
-                {
-                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
-                    "system_volume_size": 1024,
-                    "memory": 1,
-                    "cpu": 1,
-                    "roles": ["worker"],
-                },
-            ]
-        }
-        response = self._create_request_("new-cluster", add_payload=payload)
+        response = self._create_request_(
+            "new-cluster",
+            add_payload={"nodes": utils.format_nodes(self.default_conf, 3, 1)},
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Cluster.objects.filter(name="new-cluster").exists())
         cluster = models.Cluster.objects.get(name="new-cluster")
@@ -233,68 +207,27 @@ class ClusterCreateTest(BaseClusterCreateTest):
             cluster.node_set.all()[0].name, cluster.node_set.all()[1].name
         )
 
-    def test_validate_etcd_node_count(self):
+    def test_validate_server_node_count(self):
         self.client.force_authenticate(self.fixture.owner)
-        payload = {
-            "nodes": [
-                {
-                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
-                    "system_volume_size": 1024,
-                    "memory": 1,
-                    "cpu": 1,
-                    "roles": ["controlplane", "etcd", "worker"],
-                },
-                {
-                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
-                    "system_volume_size": 1024,
-                    "memory": 1,
-                    "cpu": 1,
-                    "roles": ["controlplane", "etcd", "worker"],
-                },
-            ]
-        }
-        response = self._create_request_("new-cluster", add_payload=payload)
+        response = self._create_request_(
+            "new-cluster",
+            add_payload={"nodes": utils.format_nodes(self.default_conf, 2, 1)},
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue(
-            "Total count of etcd nodes must be 1, 3 or 5." in response.data["nodes"][0]
+            "Total count of server nodes must be 1, 3 or 5."
+            in response.data["nodes"][0]
         )
 
-    def test_validate_worker_node_count(self):
+    def test_validate_agent_node_count(self):
         self.client.force_authenticate(self.fixture.owner)
-        payload = {
-            "nodes": [
-                {
-                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
-                    "system_volume_size": 1024,
-                    "memory": 1,
-                    "cpu": 1,
-                    "roles": ["controlplane", "etcd"],
-                },
-            ]
-        }
-        response = self._create_request_("new-cluster", add_payload=payload)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue(
-            "Count of workers roles must be min 1." in response.data["nodes"][0]
+        response = self._create_request_(
+            "new-cluster",
+            add_payload={"nodes": utils.format_nodes(self.default_conf, 3, 0)},
         )
-
-    def test_validate_controlplane_node_count(self):
-        self.client.force_authenticate(self.fixture.owner)
-        payload = {
-            "nodes": [
-                {
-                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
-                    "system_volume_size": 1024,
-                    "memory": 1,
-                    "cpu": 1,
-                    "roles": ["etcd", "worker"],
-                },
-            ]
-        }
-        response = self._create_request_("new-cluster", add_payload=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue(
-            "Count of controlplane nodes must be min 1." in response.data["nodes"][0]
+            "Count of agent nodes must be min 1." in response.data["nodes"][0]
         )
 
     def test_validate_name_uniqueness(self):
@@ -469,7 +402,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
 
         self.fixture.cluster.backend_id = ""
         self.fixture.cluster.save()
-        self.fixture.node.worker_role = True
+        self.fixture.node.role = AGENT_ROLE
         self.fixture.node.save()
         backend = self.fixture.cluster.get_backend()
         backend.create_cluster(self.fixture.cluster)
@@ -590,27 +523,21 @@ class ClusterCreateTest(BaseClusterCreateTest):
             settings=self.tenant.service_settings
         )
         volume_type.tenants.add(self.tenant)
-        payload = {
-            "nodes": [
+        default_conf = {
+            **self.default_conf,
+            "data_volumes": [
                 {
-                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
-                    "system_volume_size": 1024,
-                    "memory": 1,
-                    "cpu": 1,
-                    "roles": ["controlplane", "etcd", "worker"],
-                    "data_volumes": [
-                        {
-                            "size": 12 * 1024,
-                            "volume_type": openstack_factories.VolumeTypeFactory.get_url(
-                                volume_type
-                            ),
-                            "mount_point": "/var/lib/etcd",
-                        }
-                    ],
+                    "size": 12 * 1024,
+                    "volume_type": openstack_factories.VolumeTypeFactory.get_url(
+                        volume_type
+                    ),
+                    "mount_point": "/var/lib/etcd",
                 }
-            ]
+            ],
         }
-        response = self._create_request_("new-cluster", add_payload=payload)
+        response = self._create_request_(
+            "new-cluster", add_payload={"nodes": utils.format_nodes(default_conf, 3, 1)}
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Cluster.objects.filter(name="new-cluster").exists())
         cluster = models.Cluster.objects.get(name="new-cluster")

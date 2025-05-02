@@ -45,8 +45,8 @@ class CreateNodeTask(core_tasks.Task):
         role_secret_id = vault_backend.generate_role_secret_id(role_name)
         return role_id, role_secret_id
 
-    def execute(self, instance, user_id):
-        node: models.Node = instance
+    def execute(self, instance: models.Node, user_id):
+        node = instance
         content_type = ContentType.objects.get_for_model(openstack_models.Instance)
         flavor = node.initial_data["flavor"]
         system_volume_size = node.initial_data["system_volume_size"]
@@ -79,14 +79,13 @@ class CreateNodeTask(core_tasks.Task):
                 vault_token,
                 vault_tls_verify,
             )
-            node_role = "server" if node.controlplane_role else "agent"
             cloud_init_extra_params.update(
                 {
                     "vault_secret_path": f"rancher/cluster-{node.cluster.uuid.hex}",
                     "vault_role_id": role_id,
                     "vault_role_secret_id": role_secret_id,
                     "vault_addr": f"https://{vault_host}:{vault_port}",
-                    "rke_role": node_role,
+                    "rke_role": node.role,
                 }
             )
 
@@ -145,15 +144,15 @@ class CreateNodeTask(core_tasks.Task):
 
         data = cast(dict, response.data)
         instance_uuid = data["uuid"]
-        instance = openstack_models.Instance.objects.get(uuid=instance_uuid)
+        vm = openstack_models.Instance.objects.get(uuid=instance_uuid)
         node.content_type = content_type
-        node.object_id = instance.id
+        node.object_id = vm.id
         node.state = models.Node.States.CREATING
         node.save()
 
         resource_imported.send(
-            sender=instance.__class__,
-            instance=instance,
+            sender=vm.__class__,
+            instance=vm,
         )
 
     @classmethod

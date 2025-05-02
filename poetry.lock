@@ -1412,15 +1412,19 @@ name = "djangorestframework-types"
 version = "0.9.0"
 description = "Type stubs for Django Rest Framework"
 optional = false
-python-versions = "<4.0,>=3.8"
+python-versions = "^3.8"
 groups = ["dev"]
-files = [
-    {file = "djangorestframework_types-0.9.0-py3-none-any.whl", hash = "sha256:5e4258fe43774d0a3d018780170bd702bf615407fe244453ea5ec6e6676b98c4"},
-    {file = "djangorestframework_types-0.9.0.tar.gz", hash = "sha256:aa6b27fbdab5ff4ab1dfa5376f3b6ec45713ce48dbcdd4226bf3e1410f0deaca"},
-]
+files = []
+develop = false
 
 [package.dependencies]
-typing_extensions = {version = ">=4.6,<5.0", markers = "python_version < \"3.11\""}
+typing_extensions = {version = "^4.6", markers = "python_version < \"3.11\""}
+
+[package.source]
+type = "git"
+url = "https://github.com/waldur/djangorestframework-types.git"
+reference = "HEAD"
+resolved_reference = "a244bb689e07b1a5cf7aa13e890f2f9f652abc71"
 
 [[package]]
 name = "djangosaml2"
@@ -5169,4 +5173,4 @@ requests = ">=2.25.1,<3.0.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10,<3.12"
-content-hash = "c5e6dbae714fe7cbd0dc3189cf897e0a44e24232d47d06ff99ff95c2b5d80ae2"
+content-hash = "63cf960f681e016c32e5f840b0c105ab93d70e65facaec89683129695aaf8e0d"

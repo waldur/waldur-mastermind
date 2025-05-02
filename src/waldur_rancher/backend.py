@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlparse
 import requests
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
-from django.db.models import Q, QuerySet
+from django.db.models import QuerySet
 from django.utils.functional import cached_property
 
 import hvac
@@ -23,8 +23,10 @@ from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_openstack.models import Instance
 from waldur_rancher.enums import (
+    AGENT_ROLE,
     LONGHORN_NAME,
     LONGHORN_NAMESPACE,
+    SERVER_ROLE,
 )
 from waldur_rancher.exceptions import NotFound, RancherException, VaultException
 
@@ -60,10 +62,7 @@ class RancherBackend(ServiceBackend):
         "keycloak_sync_frequency": 15,
     }
 
-    def __init__(self, settings):
-        """
-        :type settings: :class:`waldur_core.structure.models.ServiceSettings`
-        """
+    def __init__(self, settings: ServiceSettings):
         self.settings = settings
 
     @cached_property
@@ -77,7 +76,8 @@ class RancherBackend(ServiceBackend):
 
     @cached_property
     def host(self):
-        return self.settings.backend_url.strip("/")
+        if self.settings.backend_url:
+            return self.settings.backend_url.strip("/")
 
     def pull_service_properties(self):
         self.pull_clusters()
@@ -176,9 +176,6 @@ class RancherBackend(ServiceBackend):
         return {
             "backend_id": backend_node["id"],
             "name": backend_node["requestedHostname"],
-            "controlplane_role": backend_node.get("controlPlane", False),
-            "etcd_role": backend_node.get("etcd", False),
-            "worker_role": backend_node.get("worker", False),
             "runtime_state": backend_node.get("state", ""),
         }
 
@@ -253,19 +250,13 @@ class RancherBackend(ServiceBackend):
                 cluster=cluster,
                 defaults=dict(
                     backend_id=backend_node["backend_id"],
-                    controlplane_role=backend_node["controlplane_role"],
-                    etcd_role=backend_node["etcd_role"],
-                    worker_role=backend_node["worker_role"],
                 ),
             )
 
             if not node.backend_id:
                 # If the node has been requested from Waldur, but it has not been synchronized
                 node.backend_id = backend_node["backend_id"]
-                node.controlplane_role = backend_node["controlplane_role"]
-                node.etcd_role = backend_node["etcd_role"]
-                node.worker_role = backend_node["worker_role"]
-                node.save()
+                node.save(update_fields=["backend_id"])
 
             # Update details in all cases.
             self.pull_node(node)
@@ -280,29 +271,21 @@ class RancherBackend(ServiceBackend):
             # We don't need change cluster state here, because it will make in an executor.
             return
 
-        for node in cluster.node_set.filter(
-            Q(controlplane_role=True) | Q(etcd_role=True)
-        ):
+        for node in cluster.node_set.filter(role=SERVER_ROLE):
             vm = cast(Instance, node.instance)
-            controlplane_role = etcd_role = False
             if vm.state not in [
                 core_models.StateMixin.States.ERRED,
                 core_models.StateMixin.States.DELETING,
                 core_models.StateMixin.States.DELETION_SCHEDULED,
             ]:
-                if node.controlplane_role:
-                    controlplane_role = True
-                if node.etcd_role:
-                    etcd_role = True
-                if controlplane_role and etcd_role:
-                    # Return if one or more VMs with 'controlplane' and 'etcd' roles exist
-                    # and they haven't a state 'error' or 'delete'.
-                    # Here 'return' means that cluster state checking must be retry later.
-                    return
+                # Return if one or more VMs with 'server' role exist
+                # and they haven't a state 'error' or 'delete'.
+                # Here 'return' means that cluster state checking must be retry later.
+                return
 
         cluster.error_message = (
             "The cluster is not connected with any "
-            "non-failed VM's with 'controlplane' or 'etcd' roles."
+            "non-failed VM's with 'server' role."
         )
         cluster.runtime_state = "error"
         cluster.save()
@@ -802,7 +785,7 @@ class RancherBackend(ServiceBackend):
             settings=self.settings,
         )
 
-    def _get_external_template_icon(self, icon_url):
+    def _get_external_template_icon(self, icon_url) -> bytes | None:
         try:
             response = requests.get(icon_url, timeout=3)
         except requests.RequestException as e:
@@ -1283,7 +1266,7 @@ class RancherBackend(ServiceBackend):
             namespace.name,
             namespace.backend_id,
         )
-        worker_node_count = cluster.node_set.filter(worker_role=True).count()
+        worker_node_count = cluster.node_set.filter(role=AGENT_ROLE).count()
         replica_count = min(3, worker_node_count)
         application = self.client.create_application(
             catalog_id=template.catalog.backend_id,

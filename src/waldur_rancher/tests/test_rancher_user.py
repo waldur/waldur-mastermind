@@ -26,13 +26,13 @@ class RancherUserGetTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(list(response.data)), 2)
+        self.assertEqual(len(response.data), 2)
 
     def test_user_cannot_get_strangers_rancher_users(self):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(list(response.data)), 1)
+        self.assertEqual(len(response.data), 1)
 
     def test_cluster_filter(self):
         url = self.url + "?cluster_uuid=%s" % self.fixture.cluster.uuid.hex
@@ -40,5 +40,5 @@ class RancherUserGetTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(list(response.data)), 1)
+        self.assertEqual(len(response.data), 1)
         self.assertEqual(len(response.data[0]["cluster_roles"]), 1)

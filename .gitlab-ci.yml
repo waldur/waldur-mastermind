@@ -121,6 +121,8 @@ Run type checkings:
     - pyright src/waldur_mastermind/marketplace_rancher/
     - pyright src/waldur_rancher/utils.py
     - pyright src/waldur_rancher/tasks.py
+    - pyright src/waldur_rancher/backend.py
+    - pyright src/waldur_rancher/serializers.py
 
 Try building docker image:
   image:

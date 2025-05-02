@@ -28,7 +28,7 @@ from waldur_openstack import models as os_models
 from waldur_openstack.utils import volume_type_name_to_quota_name
 from waldur_rancher import models as rancher_models
 from waldur_rancher import views as rancher_views
-from waldur_rancher.enums import NodeRoleType
+from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE, NodeRoleType
 
 from . import PLUGIN_NAME, serializers
 
@@ -213,10 +213,10 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             flavor: os_models.Flavor,
             volume_size: int,
             volume_type: os_models.VolumeType | None,
-            roles: list[NodeRoleType],
+            role: NodeRoleType,
         ):
             result = {
-                "roles": roles,
+                "role": role,
                 "system_volume_size": volume_size * 1024,
                 "memory": flavor.ram,
                 "cpu": flavor.cores,
@@ -239,7 +239,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             nodes.append(
                 format_node(
                     flavor=server_node_flavor,
-                    roles=["etcd", "controlplane"],
+                    role=SERVER_ROLE,
                     volume_size=server_system_volume_size_gb,
                     volume_type=server_system_volume_type,
                 ),
@@ -249,7 +249,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             nodes.append(
                 format_node(
                     flavor=worker_node_flavor,
-                    roles=["worker"],
+                    role=AGENT_ROLE,
                     volume_size=worker_system_volume_size_gb,
                     volume_type=worker_system_volume_type,
                 ),

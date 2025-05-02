@@ -7,6 +7,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_rancher import PLUGIN_NAME
+from waldur_openstack.models import Tenant
 from waldur_openstack.tests import (
     factories as openstack_factories,
 )
@@ -15,6 +16,7 @@ from waldur_openstack.tests import (
 )
 from waldur_rancher import models as rancher_models
 from waldur_rancher.tests import factories as rancher_factories
+from waldur_rancher.tests.utils import format_nodes
 
 
 class OrderProcessedTest(test.APITransactionTestCase):
@@ -42,6 +44,13 @@ class OrderProcessedTest(test.APITransactionTestCase):
         service_settings.save()
 
         ssh_public_key = SshPublicKeyFactory(user=self.fixture.staff)
+        default_conf = {
+            "subnet": openstack_factories.SubNetFactory.get_url(self.fixture.subnet),
+            "system_volume_size": 1024,
+            "memory": 1,
+            "cpu": 1,
+        }
+        self.fixture.tenant.set_quota_limit(Tenant.Quotas.vcpu, 100)
         order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
             created_by=self.fixture.owner,
@@ -53,17 +62,7 @@ class OrderProcessedTest(test.APITransactionTestCase):
                 ),
                 "project": ProjectFactory.get_url(self.fixture.project),
                 "ssh_public_key": SshPublicKeyFactory.get_url(ssh_public_key),
-                "nodes": [
-                    {
-                        "subnet": openstack_factories.SubNetFactory.get_url(
-                            self.fixture.subnet
-                        ),
-                        "system_volume_size": 1024,
-                        "memory": 1,
-                        "cpu": 1,
-                        "roles": ["controlplane", "etcd", "worker"],
-                    }
-                ],
+                "nodes": format_nodes(default_conf, 3, 1),
             },
             state=marketplace_models.Order.States.EXECUTING,
         )

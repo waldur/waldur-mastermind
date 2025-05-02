@@ -13,11 +13,18 @@ LONGHORN_NAMESPACE = "longhorn-system"
 
 RANCHER_TEMPLATE_QUESTION_TYPE = ["boolean", "string", "enum", "secret"]
 
-NodeRoleType = Literal["controlplane", "etcd", "worker"]
+NodeRoleType = Literal["agent", "server"]
 
 CatalogScopeType = Literal["global", "cluster", "project"]
 
 CatalogScopeTypeChoices = ["global", "cluster", "project"]
+
+
+AGENT_ROLE = "agent"
+
+SERVER_ROLE = "server"
+
+ROLE_CHOICES = ((AGENT_ROLE, AGENT_ROLE), (SERVER_ROLE, SERVER_ROLE))
 
 
 class RoleScopeType:
