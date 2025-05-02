@@ -463,7 +463,7 @@ class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
 
 
 class NamespaceViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Namespace.objects.all().order_by("name")
+    queryset = models.Namespace.objects.exclude(project__name="System").order_by("name")
     serializer_class = serializers.RancherNamespaceSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.NamespaceFilter
@@ -471,7 +471,7 @@ class NamespaceViewSet(structure_views.BaseServicePropertyViewSet):
 
 
 class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Template.objects.all()
+    queryset = models.Template.objects.exclude(project__name="System")
     serializer_class = serializers.RancherTemplateSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.TemplateFilter
@@ -502,7 +502,9 @@ class TemplateVersionView(generics.GenericAPIView):
 
 
 class ApplicationViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
-    queryset = models.Application.objects.all().order_by("name")
+    queryset = models.Application.objects.exclude(
+        rancher_project__name="System"
+    ).order_by("name")
     serializer_class = serializers.RancherApplicationSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ApplicationFilter
@@ -558,7 +560,7 @@ class SyncDestroyMixin:
 class WorkloadViewSet(
     OptionalReadonlyViewset, YamlMixin, SyncDestroyMixin, core_views.ActionsViewSet
 ):
-    queryset = models.Workload.objects.all()
+    queryset = models.Workload.objects.exclude(project__name="System")
     serializer_class = serializers.RancherWorkloadSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.WorkloadFilter
@@ -577,7 +579,7 @@ class WorkloadViewSet(
 
 
 class HPAViewSet(OptionalReadonlyViewset, YamlMixin, structure_views.ResourceViewSet):
-    queryset = models.HPA.objects.all()
+    queryset = models.HPA.objects.exclude(project__name="System")
     serializer_class = serializers.RancherHPASerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.HPAFilter
@@ -601,7 +603,9 @@ class IngressViewSet(
     SyncDestroyMixin,
     structure_views.ResourceViewSet,
 ):
-    queryset = models.Ingress.objects.all().order_by("name")
+    queryset = models.Ingress.objects.exclude(rancher_project__name="System").order_by(
+        "name"
+    )
     serializer_class = serializers.RancherIngressSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.IngressFilter
