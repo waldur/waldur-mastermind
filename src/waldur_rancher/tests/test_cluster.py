@@ -122,8 +122,7 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         default_conf = {
             "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
             "system_volume_size": disk,
-            "memory": memory,
-            "cpu": cpu,
+            "flavor": openstack_factories.FlavorFactory.get_url(self.flavor),
         }
         payload = {
             "name": name,
@@ -143,8 +142,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.default_conf = {
             "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
             "system_volume_size": 1024,
-            "memory": 1,
-            "cpu": 1,
+            "flavor": openstack_factories.FlavorFactory.get_url(self.flavor),
         }
 
     def tearDown(self):

@@ -268,6 +268,13 @@ class OpenstackSecretOptionsSerializer(serializers.Serializer):
         required=False,
         validators=[core_validators.validate_x509_certificate],
     )
+    dns_nameservers = serializers.ListField(
+        child=serializers.CharField(),
+        help_text=_(
+            "Default value for new subnets DNS name servers. Should be defined as list."
+        ),
+        required=False,
+    )
 
 
 class GLAuthSecretOptionsSerializer(serializers.Serializer):
@@ -399,6 +406,11 @@ class ManagedRancherSecretOptionsSerializer(serializers.Serializer):
 
     argocd_k8s_kubeconfig = serializers.CharField(
         help_text=_("Kubeconfig with access to namespace where ArgoCD is deployed"),
+        required=False,
+    )
+
+    base_image_name = serializers.CharField(
+        help_text=_("Base image name"),
         required=False,
     )
 

@@ -139,8 +139,6 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             backend.sync()
             settings.set_ok()
             settings.save()
-            rancher_offering.activate()
-            rancher_offering.save()
 
         # Sync plans from the offering to the rancher_offering
         for plan in offering.plans.all():
@@ -150,6 +148,10 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     "backend_id": plan.id,
                 },
             )
+
+        if rancher_offering.state != Offering.States.ACTIVE:
+            rancher_offering.activate()
+            rancher_offering.save()
 
         plan = Plan.objects.filter(offering=rancher_offering).first()
 
@@ -218,8 +220,6 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             result = {
                 "role": role,
                 "system_volume_size": volume_size * 1024,
-                "memory": flavor.ram,
-                "cpu": flavor.cores,
                 "flavor": reverse(
                     "openstack-flavor-detail", kwargs={"uuid": flavor.uuid.hex}
                 ),
@@ -256,7 +256,8 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             )
 
         attributes = {
-            "name": "k8s-cluster",
+            # TODO: implement better naming
+            "name": f"k8s-{self.order.resource.slug}",
             "nodes": nodes,
             "tenant": reverse(
                 "openstack-tenant-detail", kwargs={"uuid": tenants[0].uuid.hex}
@@ -400,7 +401,8 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         )
         if storage_mode == STORAGE_MODE_FIXED:
             total_storage = (
-                server_system_volume_size_gb + worker_system_volume_size_gb
+                server_system_volume_size_gb * server_nodes_count
+                + worker_system_volume_size_gb * worker_nodes_count
             ) * 1024
             limits[STORAGE_TYPE] = total_storage
         else:

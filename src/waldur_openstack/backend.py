@@ -772,12 +772,15 @@ class OpenStackBackend(ServiceBackend):
         local_default_group: models.SecurityGroup = tenant.security_groups.filter(
             name="default"
         ).first()
-        if backend_default_group and local_default_group:
-            local_default_group.backend_id = backend_default_group["id"]
-            local_default_group.save(update_fields=["backend_id"])
-            self.push_security_group_rules(local_default_group)
-            local_default_group.set_ok()
-            local_default_group.save()
+        if backend_default_group:
+            if local_default_group:
+                local_default_group.backend_id = backend_default_group["id"]
+                local_default_group.save(update_fields=["backend_id"])
+                self.push_security_group_rules(local_default_group)
+                local_default_group.set_ok()
+                local_default_group.save()
+            else:
+                self._update_tenant_security_groups(tenant, [backend_default_group])
         else:
             logger.debug(
                 "Default security group for tenant %s is not found.", tenant.backend_id
