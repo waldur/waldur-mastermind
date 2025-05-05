@@ -3,6 +3,7 @@ import json
 import logging
 import re
 from collections import OrderedDict
+from collections.abc import Iterable, Mapping
 
 from constance import LazyConfig, settings
 from django import forms
@@ -343,7 +344,7 @@ class AugmentedSerializerMixin:
 
         return fields
 
-    def _get_related_paths(self):
+    def _get_related_paths(self) -> Mapping[str, Iterable]:
         try:
             related_paths = self.Meta.related_paths
         except AttributeError:
@@ -368,13 +369,24 @@ class AugmentedSerializerMixin:
             for attribute in attributes
         }
 
-        try:
-            return (
-                serializers.ReadOnlyField,
-                {"source": related_field_source_map[field_name]},
+        related_field_nullable_map = {
+            "{}_{}".format(path.split(".")[-1], attribute): getattr(
+                model_class._meta.get_field(path), "null", False
             )
-        except KeyError:
+            for path, attributes in related_paths.items()
+            for attribute in attributes
+        }
+
+        if field_name not in related_field_source_map:
             return super().build_unknown_field(field_name, model_class)
+
+        return (
+            serializers.ReadOnlyField,
+            {
+                "source": related_field_source_map[field_name],
+                "allow_null": related_field_nullable_map[field_name],
+            },
+        )
 
     def get_extra_kwargs(self):
         extra_kwargs = super().get_extra_kwargs()
