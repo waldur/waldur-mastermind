@@ -66,6 +66,7 @@ class PlanComponentsTest(test.APITransactionTestCase):
         fixture = structure_fixtures.ProjectFixture()
         url = marketplace_factories.OfferingFactory.get_list_url()
         self.client.force_authenticate(fixture.owner)
+        marketplace_factories.ServiceProviderFactory(customer=fixture.customer)
         payload = {
             "name": "offering",
             "category": marketplace_factories.CategoryFactory.get_url(self.category),
@@ -247,6 +248,7 @@ class OfferingCreateTest(BaseBackendTestCase):
         self.customer_url = structure_factories.CustomerFactory.get_url(
             customer=self.fixture.customer
         )
+        marketplace_factories.ServiceProviderFactory(customer=self.fixture.customer)
         self.category_url = marketplace_factories.CategoryFactory.get_url()
         self.url = marketplace_factories.OfferingFactory.get_list_url()
         patcher = mock.patch(

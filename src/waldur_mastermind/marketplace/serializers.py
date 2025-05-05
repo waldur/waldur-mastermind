@@ -1793,6 +1793,7 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
             ):
                 raise PermissionDenied()
 
+        self._validate_customer(attrs)
         self._validate_attributes(attrs)
         self._validate_plans(attrs)
 
@@ -1838,6 +1839,18 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
             attributes = dict()
 
         validate_attributes(attributes, category)
+
+    def _validate_customer(self, attrs):
+        customer = attrs.get("customer")
+
+        service_provider = models.ServiceProvider.objects.filter(
+            customer=customer
+        ).first()
+
+        if service_provider is None:
+            raise serializers.ValidationError(
+                {"customer": _("Customer should be a service provider.")}
+            )
 
     def validate_options(self, options):
         serializer = OfferingOptionsSerializer(data=options)
