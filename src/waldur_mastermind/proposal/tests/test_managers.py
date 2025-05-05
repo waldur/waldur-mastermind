@@ -188,3 +188,17 @@ class ManagerDeleteTest(test.APITransactionTestCase):
         url = factories.CallManagingOrganisationFactory.get_url(self.call_manager)
         response = self.client.delete(url)
         return response
+
+
+class OrganizationVisibilityTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+
+    def test_call_organizer_sees_organization(self):
+        customer = self.fixture.customer
+        url = structure_factories.CustomerFactory.get_url(customer)
+
+        self.client.force_authenticate(self.fixture.call_organizer_user)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

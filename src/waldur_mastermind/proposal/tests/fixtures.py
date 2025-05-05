@@ -1,10 +1,12 @@
 import datetime
 
+from django.contrib.contenttypes.models import ContentType
 from django.utils.functional import cached_property
 
 from waldur_core.permissions import enums
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
+from waldur_core.permissions.models import Role
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
@@ -49,6 +51,21 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
             state=proposal_models.Call.States.ACTIVE,
             created_by=self.owner,
         )
+
+    @property
+    def call_organizer_role(self):
+        return Role.objects.get_system_role(
+            "CUSTOMER.CALL_ORGANIZER",
+            content_type=ContentType.objects.get_for_model(
+                proposal_models.CallManagingOrganisation
+            ),
+        )
+
+    @property
+    def call_organizer_user(self):
+        user = structure_factories.UserFactory()
+        self.manager.add_user(user, self.call_organizer_role)
+        return user
 
     @cached_property
     def new_call(self):
