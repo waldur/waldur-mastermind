@@ -41,8 +41,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
             "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
             "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
             "system_volume_size": 1024,
-            "memory": 1,
-            "cpu": 1,
+            "flavor": openstack_factories.FlavorFactory.get_url(self.flavor),
             "role": AGENT_ROLE,
         }
 
@@ -191,19 +190,8 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         response = self.client.post(self.node_url, self.default_conf)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_staff_cannot_create_node_if_cpu_has_not_been_specified(self):
-        del self.default_conf["cpu"]
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(self.node_url, self.default_conf)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
     @mock.patch("waldur_rancher.executors.tasks")
     def test_create_node_if_flavor_has_been_specified(self, mock_tasks):
-        del self.default_conf["cpu"]
-        del self.default_conf["memory"]
-        self.default_conf["flavor"] = openstack_factories.FlavorFactory.get_url(
-            self.flavor
-        )
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.node_url, self.default_conf)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -215,11 +203,6 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.flavor.ram = 1024
         self.flavor.save()
 
-        del self.default_conf["cpu"]
-        del self.default_conf["memory"]
-        self.default_conf["flavor"] = openstack_factories.FlavorFactory.get_url(
-            self.flavor
-        )
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.node_url, self.default_conf)
 

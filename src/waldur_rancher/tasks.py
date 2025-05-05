@@ -324,7 +324,9 @@ class CreateVaultCredentialsTask(core_tasks.Task):
         }
         vault_backend.create_or_update_role(role_name, policy_name, role_params)
 
-        all_tokens = [{"clusterId": "test-00", "token": "secretdata"}]
+        # Fetch the cluster registration token and put it into the Vault secret
+        rancher_backend: backend.RancherBackend = cluster.get_backend()
+        all_tokens = rancher_backend.client.list_cluster_registration_tokens()
         cluster_tokens = [
             token for token in all_tokens if token["clusterId"] == cluster.backend_id
         ]

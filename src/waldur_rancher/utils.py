@@ -82,10 +82,8 @@ def expand_added_nodes(
             raise serializers.ValidationError(_("Default security group is not found."))
 
     for node in nodes:
-        memory = cast(int | None, node.pop("memory", None))
-        cpu = cast(int | None, node.pop("cpu", None))
         subnet = cast(SubNet, node.pop("subnet"))
-        flavor = cast(Flavor, node.pop("flavor", None))
+        flavor = cast(Flavor, node.pop("flavor"))
         role = cast(NodeRoleType, node.pop("role"))
         system_volume_size = node.pop("system_volume_size", None)
         system_volume_type = node.pop("system_volume_type", None)
@@ -98,7 +96,7 @@ def expand_added_nodes(
             )
 
         validate_data_volumes(data_volumes, tenant)
-        flavor = validate_flavor(flavor, role, tenant, cpu, memory)
+        flavor = validate_flavor(flavor, role, tenant)
 
         node["initial_data"] = {
             "flavor": flavor.uuid.hex,
@@ -154,33 +152,10 @@ def validate_data_volumes(data_volumes, tenant):
 
 
 def validate_flavor(
-    flavor: Flavor | None,
+    flavor: Flavor,
     role: NodeRoleType,
     tenant: Tenant,
-    cpu: int | None = None,
-    memory: int | None = None,
 ):
-    if flavor:
-        if cpu or memory:
-            raise serializers.ValidationError(
-                _("Either flavor or cpu and memory should be specified.")
-            )
-    else:
-        if not cpu or not memory:
-            raise serializers.ValidationError(
-                _("Either flavor or cpu and memory should be specified.")
-            )
-
-    if not flavor:
-        flavor = (
-            Flavor.objects.filter(tenants=tenant, cores__gte=cpu, ram__gte=memory)
-            .order_by("cores", "ram")
-            .first()
-        )
-
-    if not flavor:
-        raise serializers.ValidationError(_("No matching flavor found."))
-
     if not is_flavor_valid_for_tenant(flavor, tenant):
         raise serializers.ValidationError(
             _("Flavor %s is not visible in tenant %s.") % (flavor.name, tenant)

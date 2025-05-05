@@ -47,8 +47,7 @@ class OrderProcessedTest(test.APITransactionTestCase):
         default_conf = {
             "subnet": openstack_factories.SubNetFactory.get_url(self.fixture.subnet),
             "system_volume_size": 1024,
-            "memory": 1,
-            "cpu": 1,
+            "flavor": openstack_factories.FlavorFactory.get_url(flavor),
         }
         self.fixture.tenant.set_quota_limit(Tenant.Quotas.vcpu, 100)
         order = marketplace_factories.OrderFactory(

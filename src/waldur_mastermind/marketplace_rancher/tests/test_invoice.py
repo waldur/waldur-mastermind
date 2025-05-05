@@ -85,11 +85,14 @@ class RancherInvoiceTest(test.APITransactionTestCase):
         mock.patch.stopall()
 
     def _create_usage(self, mock_executors):
+        flavor = self.fixture.flavor
+        flavor.cores = 2
+        flavor.ram = 4096
+        flavor.save()
         default_conf = {
             "subnet": openstack_factories.SubNetFactory.get_url(self.fixture.subnet),
             "system_volume_size": 10240,
-            "memory": 1,
-            "cpu": 1,
+            "flavor": openstack_factories.FlavorFactory.get_url(flavor),
         }
         order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
