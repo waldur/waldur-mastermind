@@ -98,6 +98,9 @@ class ReviewFilter(django_filters.FilterSet):
         view_name="proposal-proposal-detail", field_name="proposal__uuid"
     )
     proposal_uuid = django_filters.UUIDFilter(field_name="proposal__uuid")
+    proposal_name = django_filters.CharFilter(
+        field_name="proposal__name", lookup_expr="icontains"
+    )
     organization_uuid = django_filters.UUIDFilter(
         field_name="proposal__round__call__manager__customer__uuid"
     )
