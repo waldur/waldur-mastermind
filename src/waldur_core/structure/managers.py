@@ -42,6 +42,12 @@ def filter_queryset_for_user(queryset: QuerySet[T], user) -> QuerySet[T]:
             connected_projects = get_connected_projects(user)
         return build_filter(path, connected_projects)
 
+    def get_call_organizer_subquery(path):
+        from waldur_mastermind.proposal.managers import get_connected_call_organizers
+
+        connected_call_organizers = get_connected_call_organizers(user)
+        return build_filter(path, connected_call_organizers)
+
     if user is None or not user.is_authenticated or user.is_staff or user.is_support:
         return queryset
 
@@ -59,6 +65,7 @@ def filter_queryset_for_user(queryset: QuerySet[T], user) -> QuerySet[T]:
 
     customer_path = getattr(permissions, "customer_path", None)
     project_path = getattr(permissions, "project_path", None)
+    call_organizer_path = getattr(permissions, "call_organizer_path", None)
 
     if customer_path:
         if isinstance(customer_path, list | tuple):
@@ -73,6 +80,13 @@ def filter_queryset_for_user(queryset: QuerySet[T], user) -> QuerySet[T]:
                 subquery |= get_project_subquery(p)
         else:
             subquery |= get_project_subquery(project_path)
+
+    if call_organizer_path:
+        if isinstance(call_organizer_path, list | tuple):
+            for p in call_organizer_path:
+                subquery |= get_call_organizer_subquery(p)
+        else:
+            subquery |= get_call_organizer_subquery(call_organizer_path)
 
     build_query = getattr(permissions, "build_query", None)
     if build_query:

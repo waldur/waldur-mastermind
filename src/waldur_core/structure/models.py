@@ -299,6 +299,7 @@ class Customer(
     class Permissions:
         customer_path = "self"
         project_path = "projects"
+        call_organizer_path = "callmanagingorganisation"
 
     accounting_start_date = models.DateTimeField(
         _("Start date of accounting"), default=timezone.now

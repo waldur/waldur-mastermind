@@ -48,6 +48,7 @@ class CallDocument(
 
 
 class CallManagingOrganisation(
+    PermissionMixin,
     core_models.UuidMixin,
     core_models.DescribableMixin,
     waldur_core.media.mixins.ImageModelMixin,
