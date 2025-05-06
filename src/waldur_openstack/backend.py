@@ -1049,6 +1049,7 @@ class OpenStackBackend(ServiceBackend):
                 "allowed_address_pairs": backend_port.get("allowed_address_pairs", []),
                 "network_id": network_mapping.get(backend_port["network_id"]),
                 "device_id": device_id,
+                "admin_state_up": backend_port["admin_state_up"],
                 "device_owner": backend_port.get("device_owner"),
                 "port_security_enabled": backend_port.get(
                     "port_security_enabled", True
@@ -2919,7 +2920,17 @@ class OpenStackBackend(ServiceBackend):
             port.mac_address = port_response["mac_address"]
             port.backend_id = port_response["id"]
             port.fixed_ips = port_response["fixed_ips"]
-            port.save(update_fields=["backend_id", "mac_address", "fixed_ips"])
+            port.admin_state_up = port_response["admin_state_up"]
+            port.port_security_enabled = port_response["port_security_enabled"]
+            port.save(
+                update_fields=[
+                    "backend_id",
+                    "mac_address",
+                    "fixed_ips",
+                    "admin_state_up",
+                    "port_security_enabled",
+                ]
+            )
 
             event_logger.openstack_port.info(
                 f"Port [{port}] has been created in the backend for network [{network}].",

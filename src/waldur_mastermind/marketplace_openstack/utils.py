@@ -356,8 +356,8 @@ def create_offerings_for_volume_and_instance(tenant: openstack_models.Tenant):
         resource = marketplace_models.Resource.objects.get(scope=tenant)
     except ObjectDoesNotExist:
         logger.debug(
-            "Skipping offering creation for tenant because order "
-            "item does not exist. OpenStack tenant ID: %s",
+            "Skipping offering creation for tenant because its marketplace resource "
+            "does not exist. OpenStack tenant ID: %s",
             tenant.id,
         )
         return
