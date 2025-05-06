@@ -2,6 +2,7 @@ from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 
 from .. import tasks
 from . import fixtures
@@ -30,9 +31,7 @@ class TaskTest(test.APITransactionTestCase):
         self.fixture.resource.save()
         tasks.reject_past_bookings()
         self.fixture.resource.refresh_from_db()
-        self.assertEqual(
-            self.fixture.resource.state, marketplace_models.Resource.States.TERMINATED
-        )
+        self.assertEqual(self.fixture.resource.state, ResourceStates.TERMINATED)
 
     def test_do_not_reject_actual_booking(self):
         self.fixture.resource.attributes["schedules"] = [
@@ -50,6 +49,4 @@ class TaskTest(test.APITransactionTestCase):
         self.fixture.resource.save()
         tasks.reject_past_bookings()
         self.fixture.resource.refresh_from_db()
-        self.assertEqual(
-            self.fixture.resource.state, marketplace_models.Resource.States.CREATING
-        )
+        self.assertEqual(self.fixture.resource.state, ResourceStates.CREATING)

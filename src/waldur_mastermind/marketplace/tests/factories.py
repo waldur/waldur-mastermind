@@ -12,6 +12,7 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_pid import models as pid_models
 
@@ -428,7 +429,7 @@ class ResourceFactory(
     project = factory.SubFactory(structure_factories.ProjectFactory)
     backend_metadata = factory.Sequence(backend_metadata_generator)
     name = factory.Sequence(lambda n: "resource-%s" % n)
-    state = models.Resource.States.CREATING
+    state = ResourceStates.CREATING
 
     @classmethod
     def get_url(cls, resource=None, action=None):

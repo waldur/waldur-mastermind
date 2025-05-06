@@ -57,6 +57,7 @@ from waldur_core.structure.managers import (
 from waldur_core.structure.utils import get_components_usage_data_from_resources
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
+from waldur_mastermind.marketplace.enums import ResourceStates
 
 logger = logging.getLogger(__name__)
 
@@ -259,7 +260,7 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
 
         resources = marketplace_models.Resource.objects.filter(
             project__customer=customer
-        ).exclude(state=marketplace_models.Resource.States.TERMINATED)
+        ).exclude(state=ResourceStates.TERMINATED)
         resources = filter_queryset_for_user(resources, request.user)
 
         for_current_month = request.query_params.get("for_current_month", False)
@@ -432,7 +433,7 @@ class ProjectViewSet(
         project = self.get_object()
 
         resources = marketplace_models.Resource.objects.filter(project=project).exclude(
-            state=marketplace_models.Resource.States.TERMINATED
+            state=ResourceStates.TERMINATED
         )
         resources = filter_queryset_for_user(resources, request.user)
 

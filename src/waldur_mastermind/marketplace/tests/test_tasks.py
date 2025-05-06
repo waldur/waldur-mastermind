@@ -14,7 +14,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, tasks
-from waldur_mastermind.marketplace.enums import RobotAccountStates
+from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_openstack.tests.fixtures import OpenStackFixture
 
@@ -304,7 +304,7 @@ class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
         self.owner = project_fixture.owner
         project = project_fixture.project
         self.resource = factories.ResourceFactory(
-            project=project, name="Test resource", state=models.Resource.States.OK
+            project=project, name="Test resource", state=ResourceStates.OK
         )
         self.resource.offering.type = "Test.Type"
         self.resource.offering.save()
@@ -444,7 +444,7 @@ class MarkResourcesAsErredAfterTimeoutTest(test.APITransactionTestCase):
         self.resource = factories.ResourceFactory(
             offering=self.offering,
             scope=self.fixture.instance,
-            state=models.Resource.States.CREATING,
+            state=ResourceStates.CREATING,
         )
         self.order.resource = self.resource
         self.order.save()
@@ -466,7 +466,7 @@ class MarkResourcesAsErredAfterTimeoutTest(test.APITransactionTestCase):
 
         self.assertEqual(self.order.state, models.Order.States.ERRED)
         self.assertEqual(self.order.error_message, "Execution has timed out.")
-        self.assertEqual(self.resource.state, models.Resource.States.ERRED)
+        self.assertEqual(self.resource.state, ResourceStates.ERRED)
         self.assertEqual(self.resource.backend_metadata["state"], "ERRED")
         self.assertEqual(
             self.fixture.instance.state, self.fixture.instance.States.ERRED
@@ -488,7 +488,7 @@ class MarkResourcesAsErredAfterTimeoutTest(test.APITransactionTestCase):
         self.fixture.instance.refresh_from_db()
 
         self.assertEqual(self.order.state, models.Order.States.EXECUTING)
-        self.assertNotEqual(self.resource.state, models.Resource.States.ERRED)
+        self.assertNotEqual(self.resource.state, ResourceStates.ERRED)
         self.assertNotEqual(
             self.fixture.instance.state, self.fixture.instance.States.ERRED
         )

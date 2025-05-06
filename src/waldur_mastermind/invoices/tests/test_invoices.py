@@ -17,7 +17,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.invoices.tests import factories, fixtures
-from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
@@ -233,14 +233,14 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         )
 
         self.resource_1 = marketplace_factories.ResourceFactory(
-            state=marketplace_models.Resource.States.OK,
+            state=ResourceStates.OK,
             offering=self.offering,
             plan=self.plan,
             limits={"cpu": 1},
         )
 
         self.resource_2 = marketplace_factories.ResourceFactory(
-            state=marketplace_models.Resource.States.OK,
+            state=ResourceStates.OK,
             offering=self.offering,
             project=self.resource_1.project,
             plan=self.plan,
@@ -248,7 +248,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         )
 
         self.resource_3 = marketplace_factories.ResourceFactory(
-            state=marketplace_models.Resource.States.OK,
+            state=ResourceStates.OK,
             offering=self.offering_2,
             project=self.resource_1.project,
             plan=self.plan_2,
@@ -276,7 +276,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             plan=self.marketplace_support_plan,
         )
         self.resource_4 = marketplace_factories.ResourceFactory(
-            state=marketplace_models.Resource.States.OK,
+            state=ResourceStates.OK,
             offering=self.marketplace_support_offering,
             project=self.resource_1.project,
             plan=self.marketplace_support_plan,

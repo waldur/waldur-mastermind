@@ -6,6 +6,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 from .. import PLUGIN_NAME, tasks
@@ -33,7 +34,7 @@ class NotificationsTest(test.APITransactionTestCase):
         marketplace_utils.process_order(self.order, fixture.staff)
 
         self.resource = self.order.resource
-        self.resource.state = marketplace_models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
 
     @freeze_time("2019-01-02")

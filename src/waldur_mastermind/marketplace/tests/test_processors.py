@@ -4,6 +4,7 @@ from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import PLUGIN_NAME, models, utils
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories
 
@@ -44,7 +45,7 @@ class ProcessorsTest(test.APITransactionTestCase):
         resource.refresh_from_db()
 
         self.assertEqual(models.Order.States.ERRED, order.state)
-        self.assertEqual(models.Resource.States.ERRED, resource.state)
+        self.assertEqual(ResourceStates.ERRED, resource.state)
 
     @mock.patch(
         "waldur_mastermind.marketplace.processors.BasicCreateResourceProcessor.process_order"
@@ -66,7 +67,7 @@ class ProcessorsTest(test.APITransactionTestCase):
         resource.refresh_from_db()
 
         self.assertEqual(models.Order.States.ERRED, order.state)
-        self.assertEqual(models.Resource.States.ERRED, resource.state)
+        self.assertEqual(ResourceStates.ERRED, resource.state)
 
     def test_set_resource_options(self):
         user = structure_factories.UserFactory()

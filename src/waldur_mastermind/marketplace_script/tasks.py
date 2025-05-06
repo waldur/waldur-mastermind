@@ -10,6 +10,7 @@ from waldur_core.core.utils import get_fake_context, get_system_robot
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import serializers as marketplace_serializer
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace_script import PLUGIN_NAME, serializers, utils
 from waldur_mastermind.marketplace_script import models as marketplace_script_models
 
@@ -21,7 +22,7 @@ def pull_resources():
     for resource in models.Resource.objects.filter(
         offering__type=PLUGIN_NAME,
         offering__secret_options__has_key="pull",
-        state__in=[models.Resource.States.OK, models.Resource.States.ERRED],
+        state__in=[ResourceStates.OK, ResourceStates.ERRED],
     ):
         pull_resource.delay(resource.id)
 
@@ -93,7 +94,7 @@ def pull_resource(resource_id):
             resource.error_message = str(e).splitlines()[0]
             resource.error_traceback = str(e)
     else:
-        if resource.state != models.Resource.States.OK:
+        if resource.state != ResourceStates.OK:
             resource.set_state_ok()
             resource.error_message = ""
             resource.error_traceback = ""
@@ -163,7 +164,7 @@ def resource_options_have_been_changed(resource_id, options_old):
             resource.error_message = str(e).splitlines()[0]
             resource.error_traceback = str(e)
     else:
-        if resource.state != models.Resource.States.OK:
+        if resource.state != ResourceStates.OK:
             resource.set_state_ok()
             resource.error_message = ""
             resource.error_traceback = ""

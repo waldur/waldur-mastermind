@@ -11,7 +11,8 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
-from waldur_mastermind.marketplace.models import OfferingUser, Resource
+from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.models import OfferingUser
 
 from . import factories, fixtures
 
@@ -173,7 +174,7 @@ class ListUsersTest(test.APITransactionTestCase):
         self.fixture.offering.shared = True
         self.fixture.offering.save()
 
-        self.fixture.resource.state = Resource.States.TERMINATED
+        self.fixture.resource.state = ResourceStates.TERMINATED
         self.fixture.resource.save()
 
         self.client.force_authenticate(user=getattr(self.fixture, user))

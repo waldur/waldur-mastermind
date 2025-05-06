@@ -2,6 +2,7 @@ from unittest import mock
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE, VOLUME_TYPE
 from waldur_openstack import models as openstack_models
@@ -66,7 +67,7 @@ class TaskSyncTenantTest(BaseOpenStackTest):
             core_utils.serialize_instance(self.tenant)
         )
         resource.refresh_from_db()
-        self.assertEqual(resource.state, marketplace_models.Resource.States.TERMINATED)
+        self.assertEqual(resource.state, ResourceStates.TERMINATED)
         self.assertRaises(
             openstack_models.Instance.DoesNotExist, self.instance.refresh_from_db
         )
@@ -92,7 +93,7 @@ class TaskSyncTenantTest(BaseOpenStackTest):
             core_utils.serialize_instance(self.tenant)
         )
         resource.refresh_from_db()
-        self.assertEqual(resource.state, marketplace_models.Resource.States.TERMINATED)
+        self.assertEqual(resource.state, ResourceStates.TERMINATED)
         self.assertRaises(
             openstack_models.Volume.DoesNotExist, self.volume.refresh_from_db
         )

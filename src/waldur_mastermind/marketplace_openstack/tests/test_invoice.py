@@ -8,6 +8,7 @@ from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.signals import resource_limit_update_succeeded
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import (
@@ -63,7 +64,7 @@ class BaseTenantInvoiceTest(test.APITransactionTestCase):
             offering=self.offering,
             plan=plan,
             limits=limits,
-            state=marketplace_models.Resource.States.CREATING,
+            state=ResourceStates.CREATING,
         )
         callbacks.resource_creation_succeeded(resource)
         return resource
@@ -161,7 +162,7 @@ class StorageModeInvoiceTest(BaseTenantInvoiceTest):
             offering=self.offering,
             plan=plan,
             limits=self.limits,
-            state=marketplace_models.Resource.States.CREATING,
+            state=ResourceStates.CREATING,
         )
 
         callbacks.resource_creation_succeeded(self.resource)

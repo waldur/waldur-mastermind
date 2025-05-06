@@ -18,6 +18,7 @@ from waldur_core.structure.tests.factories import (
 )
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, tasks, utils
 from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
@@ -35,7 +36,7 @@ class SyncRemoteProjectPermissionsTest(testcases.TransactionTestCase):
 
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
         self.resource.offering.type = PLUGIN_NAME
         self.api_url = "https://example.com"
@@ -96,7 +97,7 @@ class SyncRemoteProjectPermissionsTest(testcases.TransactionTestCase):
 
     def test_project_is_not_created_if_there_are_no_valid_resources(self):
         self.fixture.manager
-        self.resource.state = models.Resource.States.TERMINATED
+        self.resource.state = ResourceStates.TERMINATED
         self.resource.save()
 
         router = self.mock_project_creation()
@@ -538,12 +539,12 @@ class ResourceOrderImportTest(testcases.TransactionTestCase):
         self.mock_marketplace_resource(resource_uuid, {"state": "Erred"})
         utils.pull_resource_state(self.fixture.resource)
         self.fixture.resource.refresh_from_db()
-        self.assertEqual(self.fixture.resource.state, models.Resource.States.ERRED)
+        self.assertEqual(self.fixture.resource.state, ResourceStates.ERRED)
 
     @respx.mock
     def test_remote_resource_backend_id_is_saved_as_local_resource_effective_id(self):
         # Arrange
-        self.fixture.resource.state = models.Resource.States.OK
+        self.fixture.resource.state = ResourceStates.OK
         self.fixture.resource.save()
         resource_uuid = self.resource.backend_id
 

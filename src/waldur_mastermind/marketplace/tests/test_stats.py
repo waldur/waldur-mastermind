@@ -14,6 +14,7 @@ from waldur_mastermind.common.utils import parse_date, parse_datetime
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
 from waldur_mastermind.marketplace import models, tasks, utils
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
@@ -177,7 +178,7 @@ class CostsStatsTest(StatsBaseTest):
 
         self.resource = factories.ResourceFactory(
             offering=self.offering,
-            state=models.Resource.States.OK,
+            state=ResourceStates.OK,
             plan=self.plan,
             limits={"cores": 1},
         )
@@ -198,7 +199,7 @@ class CostsStatsTest(StatsBaseTest):
 
     def test_offering_costs_stats_if_resource_has_been_failed(self):
         with freeze_time("2020-03-01"):
-            self.resource.state = models.Resource.States.ERRED
+            self.resource.state = ResourceStates.ERRED
             self.resource.save()
             self._check_stats()
 
@@ -245,7 +246,7 @@ class ComponentStatsTest(StatsBaseTest):
 
         self.resource = factories.ResourceFactory(
             offering=self.offering,
-            state=models.Resource.States.OK,
+            state=ResourceStates.OK,
             plan=self.plan,
             limits={"cores": 1},
         )
@@ -431,15 +432,15 @@ class LimitsStatsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.resource_1 = factories.ResourceFactory(
-            limits={"cpu": 5}, state=models.Resource.States.OK
+            limits={"cpu": 5}, state=ResourceStates.OK
         )
         factories.ResourceFactory(
             limits={"cpu": 2},
-            state=models.Resource.States.OK,
+            state=ResourceStates.OK,
             offering=self.resource_1.offering,
         )
         self.resource_2 = factories.ResourceFactory(
-            limits={"cpu": 10, "ram": 1}, state=models.Resource.States.OK
+            limits={"cpu": 10, "ram": 1}, state=ResourceStates.OK
         )
         self.url = "/api/marketplace-stats/resources_limits/"
 
@@ -618,7 +619,7 @@ class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderTest(
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
-        self.fixture.resource.state = models.Resource.States.OK
+        self.fixture.resource.state = ResourceStates.OK
         self.fixture.resource.save()
 
         response = self.client.get(self.url)
@@ -643,7 +644,7 @@ class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderTest(
     def test_do_not_count_users_twice(self):
         user = self.fixture.staff
         self.client.force_authenticate(user)
-        self.fixture.resource.state = models.Resource.States.OK
+        self.fixture.resource.state = ResourceStates.OK
         self.fixture.resource.save()
 
         # Have one user
@@ -654,7 +655,7 @@ class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderTest(
 
         # the number of users has not increased
         new_resource = factories.ResourceFactory(
-            offering=self.fixture.offering, state=models.Resource.States.OK
+            offering=self.fixture.offering, state=ResourceStates.OK
         )
         new_resource.project.add_user(self.fixture.manager, ProjectRole.MANAGER)
         response = self.client.get(self.url)
@@ -699,7 +700,7 @@ class CountCustomersTest(test.APITransactionTestCase):
             resource=resource,
             type=models.Order.Types.TERMINATE,
         )
-        resource.state = models.Resource.States.TERMINATED
+        resource.state = ResourceStates.TERMINATED
         return resource.save()
 
     def test_count_customers_number_change(self):
@@ -815,7 +816,7 @@ class OfferingStatsTest(test.APITransactionTestCase):
         self.assertEqual(response.data["resources_count"], 2)
         self.assertEqual(response.data["customers_count"], 2)
 
-        new_resource.state = models.Resource.States.TERMINATED
+        new_resource.state = ResourceStates.TERMINATED
         new_resource.save()
         response = self.client.get(self.url)
         self.assertEqual(response.data["resources_count"], 1)

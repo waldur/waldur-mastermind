@@ -20,6 +20,7 @@ from waldur_mastermind.marketplace.callbacks import (
     resource_creation_canceled,
     resource_creation_succeeded,
 )
+from waldur_mastermind.marketplace.enums import ResourceStates
 
 from . import PLUGIN_NAME, executors, filters, permissions, serializers
 
@@ -56,7 +57,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         return Response({"order_uuid": order.uuid.hex}, status=status.HTTP_200_OK)
 
     reject_validators = accept_validators = [
-        core_validators.StateValidator(models.Resource.States.CREATING)
+        core_validators.StateValidator(ResourceStates.CREATING)
     ]
 
     accept_permissions = [

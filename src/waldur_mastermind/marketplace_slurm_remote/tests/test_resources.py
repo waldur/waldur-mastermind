@@ -1,6 +1,6 @@
 from rest_framework import status, test
 
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace_slurm_remote.tests import (
     fixtures as marketplace_slurm_remote_fixtures,
@@ -23,7 +23,7 @@ class UnlinkTest(test.APITransactionTestCase):
 
     def test_unlink_erred_resource(self):
         self.client.force_authenticate(self.fixture.staff)
-        self.fixture.resource.state = models.Resource.States.ERRED
+        self.fixture.resource.state = ResourceStates.ERRED
         self.fixture.resource.save()
         self.fixture.resource.scope.state = slurm_models.Allocation.States.ERRED
         self.fixture.resource.scope.save()

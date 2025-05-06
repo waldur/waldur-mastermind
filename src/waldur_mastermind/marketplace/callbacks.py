@@ -8,6 +8,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.core.models import StateMixin
+from waldur_mastermind.marketplace.enums import ResourceStates
 
 from . import log, models, signals, tasks, utils
 
@@ -107,7 +108,7 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
         "support_phone": config.SITE_PHONE,
     }
 
-    if resource.state != models.Resource.States.OK:
+    if resource.state != ResourceStates.OK:
         resource.set_state_ok()
         resource.save(update_fields=["state"])
 
@@ -254,7 +255,7 @@ def resource_deletion_canceled(resource: models.Resource, validate=False):
 
 
 def resource_erred_on_backend(resource: models.Resource, validate=False):
-    if resource.state == models.Resource.States.ERRED:
+    if resource.state == ResourceStates.ERRED:
         return
 
     resource.set_state_erred()

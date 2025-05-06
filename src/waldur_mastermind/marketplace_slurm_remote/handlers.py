@@ -5,6 +5,7 @@ from waldur_core.logging import utils as logging_utils
 from waldur_core.permissions import models as permission_models
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, utils
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ def process_role_changed(permission: permission_models.UserRole, granted: bool):
     project = permission.scope
     offering_ids = set(
         project.resource_set.filter(
-            state=marketplace_models.Resource.States.OK,
+            state=ResourceStates.OK,
             offering__type=PLUGIN_NAME,
         ).values_list("offering", flat=True)
     )

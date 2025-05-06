@@ -3,6 +3,7 @@ from rest_framework import test
 
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.marketplace import callbacks, models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories
 from waldur_openstack.tests.factories import InstanceFactory
 
@@ -98,16 +99,14 @@ class CallbacksTest(test.APITransactionTestCase):
         end = parse_datetime("2018-11-01")
 
         plan = factories.PlanFactory()
-        resource = factories.ResourceFactory(
-            plan=plan, state=models.Resource.States.ERRED
-        )
+        resource = factories.ResourceFactory(plan=plan, state=ResourceStates.ERRED)
 
         period = models.ResourcePlanPeriod.objects.create(
             resource=resource, plan=plan, start=start, end=None
         )
 
         # Act
-        resource.state = models.Resource.States.TERMINATED
+        resource.state = ResourceStates.TERMINATED
         resource.save()
 
         # Assert

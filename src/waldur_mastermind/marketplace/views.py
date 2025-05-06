@@ -102,7 +102,7 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from waldur_mastermind.marketplace import callbacks
-from waldur_mastermind.marketplace.enums import RobotAccountStates
+from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
     filter_offering_permissions,
@@ -247,7 +247,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
 
         user_projects_ids = get_connected_projects(user)
         offering_ids = (
-            models.Resource.objects.exclude(state=models.Resource.States.TERMINATED)
+            models.Resource.objects.exclude(state=ResourceStates.TERMINATED)
             .filter(
                 project_id__in=user_projects_ids,
                 offering__customer=self.get_object().customer,
@@ -296,7 +296,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
             models.Resource.objects.filter(
                 offering__customer=service_provider.customer,
             )
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .order_by()
             .values_list("project__customer", flat=True)
             .distinct()
@@ -305,7 +305,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
 
         active_resources = models.Resource.objects.filter(
             offering__customer=service_provider.customer,
-        ).exclude(state=models.Resource.States.TERMINATED)
+        ).exclude(state=ResourceStates.TERMINATED)
 
         active_and_paused_offerings = models.Offering.objects.filter(
             customer=service_provider.customer,
@@ -335,7 +335,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
 
         erred_resources = models.Resource.objects.filter(
             offering__customer=service_provider.customer,
-            state=models.Resource.States.ERRED,
+            state=ResourceStates.ERRED,
         ).count()
 
         return Response(
@@ -949,9 +949,9 @@ class ProviderOfferingViewSet(
                 models.Resource.objects.filter(
                     offering=OuterRef("pk"),
                     state__in=(
-                        models.Resource.States.OK,
-                        models.Resource.States.UPDATING,
-                        models.Resource.States.TERMINATING,
+                        ResourceStates.OK,
+                        ResourceStates.UPDATING,
+                        ResourceStates.TERMINATING,
                     ),
                 )
                 .order_by()
@@ -1636,12 +1636,12 @@ class ProviderOfferingViewSet(
         offering: models.Offering = self.get_object()
         resources_count = (
             models.Resource.objects.filter(offering=offering)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .count()
         )
         customers_count = (
             models.Resource.objects.filter(offering=offering)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .values("project__customer")
             .distinct()
             .count()
@@ -2089,7 +2089,7 @@ class ProviderOfferingViewSet(
         offering: models.Offering = self.get_object()
         project_ids = (
             models.Resource.objects.filter(offering=offering)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .values_list("project_id", flat=True)
         )
         projects = structure_models.Project.objects.filter(id__in=project_ids)
@@ -2111,7 +2111,7 @@ class ProviderOfferingViewSet(
         offering: models.Offering = self.get_object()
         project_ids = (
             models.Resource.objects.filter(offering=offering)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .values_list("project_id", flat=True)
         )
         ctype = ContentType.objects.get_for_model(structure_models.Project)
@@ -2298,7 +2298,7 @@ class PlanUsageReporter:
             plans = self.apply_filters(query, plans)
 
         resources = models.Resource.objects.filter(plan_id=OuterRef("pk")).exclude(
-            state=models.Resource.States.TERMINATED
+            state=ResourceStates.TERMINATED
         )
         remaining = ExpressionWrapper(
             F("limit") - F("usage"), output_field=PositiveSmallIntegerField()
@@ -3005,9 +3005,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     terminate_permissions = [permissions.user_can_terminate_resource]
 
     terminate_validators = [
-        core_validators.StateValidator(
-            models.Resource.States.OK, models.Resource.States.ERRED
-        ),
+        core_validators.StateValidator(ResourceStates.OK, ResourceStates.ERRED),
     ]
 
     @extend_schema(
@@ -3325,7 +3323,7 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     ]
 
     switch_plan_validators = update_limits_validators = [
-        core_validators.StateValidator(models.Resource.States.OK),
+        core_validators.StateValidator(ResourceStates.OK),
     ]
 
     @action(detail=True, methods=["post"])
@@ -3570,7 +3568,7 @@ class ResourceOfferingsViewSet(ListAPIView):
         offerings = (
             qs.filter_for_service_consumer(user)
             .filter(offering__category=category)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .values_list("offering_id", flat=True)
         )
         return models.Offering.objects.filter(pk__in=offerings)
@@ -4006,7 +4004,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
     @action(detail=False, methods=["get"])
     def organization_resource_count(self, request, *args, **kwargs):
         data = (
-            models.Resource.objects.filter(state=models.Resource.States.OK)
+            models.Resource.objects.filter(state=ResourceStates.OK)
             .values(
                 "project__customer__abbreviation",
                 "project__customer__name",
@@ -4025,7 +4023,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
     @action(detail=False, methods=["get"])
     def customer_member_count(self, request, *args, **kwargs):
         has_resources = models.Resource.objects.filter(
-            state__in=(models.Resource.States.OK, models.Resource.States.UPDATING),
+            state__in=(ResourceStates.OK, ResourceStates.UPDATING),
             project__customer_id=OuterRef("pk"),
         )
 
@@ -4048,7 +4046,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
         data = []
 
         for resource in (
-            models.Resource.objects.filter(state=models.Resource.States.OK)
+            models.Resource.objects.filter(state=ResourceStates.OK)
             .exclude(limits={})
             .values("offering__uuid", "limits")
         ):
@@ -4322,7 +4320,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
             for resource in (
                 models.Resource.objects.filter(
-                    state=models.Resource.States.OK, project__id__in=ids
+                    state=ResourceStates.OK, project__id__in=ids
                 )
                 .exclude(limits={})
                 .values("offering__uuid", "limits")
@@ -4482,9 +4480,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             cursor.execute(
                 raw_query,
                 [
-                    models.Resource.States.OK,
-                    models.Resource.States.UPDATING,
-                    models.Resource.States.TERMINATING,
+                    ResourceStates.OK,
+                    ResourceStates.UPDATING,
+                    ResourceStates.TERMINATING,
                     ctype.id,
                 ],
             )
@@ -4505,9 +4503,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
     def get_active_resources(self):
         return models.Resource.objects.filter(
             state__in=(
-                models.Resource.States.OK,
-                models.Resource.States.UPDATING,
-                models.Resource.States.TERMINATING,
+                ResourceStates.OK,
+                ResourceStates.UPDATING,
+                ResourceStates.TERMINATING,
             )
         )
 
@@ -4593,9 +4591,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             structure_models.Project.objects.filter(is_removed=False)
             .filter(
                 resource__state__in=(
-                    models.Resource.States.OK,
-                    models.Resource.States.UPDATING,
-                    models.Resource.States.TERMINATING,
+                    ResourceStates.OK,
+                    ResourceStates.UPDATING,
+                    ResourceStates.TERMINATING,
                 )
             )
             .values(
@@ -5052,7 +5050,7 @@ class GlobalCategoriesViewSet(views.APIView):
         resources = (
             qs.order_by()
             .filter_for_service_consumer(request.user)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
         )
 
         project_uuid = request.query_params.get("project_uuid")

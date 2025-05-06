@@ -18,6 +18,7 @@ from waldur_core.structure.tests import fixtures
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.marketplace_support.utils import get_order_issue
@@ -269,9 +270,7 @@ class RequestDeleteTest(RequestActionBaseTest):
             self.mock_get_active_backend().create_issue_links.call_count, 1
         )
         self.resource.refresh_from_db()
-        self.assertEqual(
-            self.resource.state, marketplace_models.Resource.States.TERMINATED
-        )
+        self.assertEqual(self.resource.state, ResourceStates.TERMINATED)
         self.assertEqual(order.state, marketplace_models.Order.States.DONE)
 
     def test_fail_termination_order_if_issue_is_canceled(self):
@@ -357,7 +356,7 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
             self.mock_get_active_backend().create_issue_links.call_count, 1
         )
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(self.resource.state, ResourceStates.OK)
         self.assertEqual(self.resource.plan, self.plan)
 
     def test_add_links_to_previous_issues(self):
@@ -376,14 +375,14 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         order = self.get_order(self.success_issue_status)
         self.assertEqual(order.state, marketplace_models.Order.States.DONE)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(self.resource.state, ResourceStates.OK)
         self.assertEqual(self.resource.plan, self.plan)
 
     def test_fail_switch_plan_if_issue_is_fail(self):
         order = self.get_order(self.error_issue_status)
         self.assertEqual(order.state, marketplace_models.Order.States.ERRED)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.ERRED)
+        self.assertEqual(self.resource.state, ResourceStates.ERRED)
         self.assertEqual(self.resource.plan, self.current_plan)
 
     @freeze_time("2019-01-15")
@@ -525,14 +524,14 @@ class UpdateLimitsTest(BaseTest):
             self.mock_get_active_backend().create_issue_links.call_count, 1
         )
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(self.resource.state, ResourceStates.OK)
         self.assertEqual(self.resource.limits, self.new_limits)
 
     def test_fail_case(self):
         order = self.get_order(self.error_issue_status)
         self.assertEqual(order.state, marketplace_models.Order.States.ERRED)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.ERRED)
+        self.assertEqual(self.resource.state, ResourceStates.ERRED)
         self.assertEqual(self.resource.limits, self.old_limits)
 
     def test_description_formatting(self):

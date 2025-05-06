@@ -10,6 +10,7 @@ from waldur_core.logging import utils as logging_utils
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, tasks
@@ -93,7 +94,7 @@ class AllocationDeleteTest(test.APITransactionTestCase):
         )
         self.assertEqual(
             self.resource.state,
-            marketplace_models.Resource.States.TERMINATING,
+            ResourceStates.TERMINATING,
             f"Resource {self.resource.id} should be TERMINATING, but got {self.resource.state}",
         )
         self.assertEqual(
@@ -117,7 +118,7 @@ class AllocationDeleteTest(test.APITransactionTestCase):
         )
         self.assertEqual(
             self.resource.state,
-            marketplace_models.Resource.States.TERMINATED,
+            ResourceStates.TERMINATED,
             f"Resource {self.resource.id} should be TERMINATED, but got {self.resource.state}",
         )
         self.assertRaises(ObjectDoesNotExist, self.allocation.refresh_from_db)
@@ -202,7 +203,7 @@ class AllocationCreationFailureTest(test.APITransactionTestCase):
         # Resource should be ERRED (state 3), as set in resource_creation_failed in callbacks.py
         self.assertEqual(
             self.order.resource.state,
-            marketplace_models.Resource.States.ERRED,
+            ResourceStates.ERRED,
             f"Resource {self.order.resource.id} should be ERRED, but got {self.order.resource.state}",
         )
         # Order should be ERRED
@@ -225,7 +226,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
 
         # Set resource to ERRED state with backend_id
         self.resource.backend_id = "something"
-        self.resource.state = marketplace_models.Resource.States.ERRED
+        self.resource.state = ResourceStates.ERRED
         self.resource.save()
 
         # Set project end date to past date
@@ -292,7 +293,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         """
         # Set resource to ERRED state with empty backend_id
         self.resource.backend_id = ""
-        self.resource.state = marketplace_models.Resource.States.ERRED
+        self.resource.state = ResourceStates.ERRED
         self.resource.save()
         # Create a failed create order
         failed_create_order = marketplace_factories.OrderFactory(
@@ -312,7 +313,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.assertEqual(
             self.resource.state,
-            marketplace_models.Resource.States.ERRED,
+            ResourceStates.ERRED,
             f"Resource {self.resource.id} should be ERRED, but got {self.resource.state}",
         )
 
@@ -370,7 +371,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.assertEqual(
             self.resource.state,
-            marketplace_models.Resource.States.ERRED,
+            ResourceStates.ERRED,
             f"Resource {self.resource.id} should be ERRED, but got {self.resource.state}",
         )
 
@@ -399,7 +400,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.assertEqual(
             self.resource.state,
-            marketplace_models.Resource.States.ERRED,
+            ResourceStates.ERRED,
             f"Resource {self.resource.id} should not be deleted, but it is",
         )
 
@@ -422,7 +423,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.assertEqual(
             self.resource.state,
-            marketplace_models.Resource.States.ERRED,
+            ResourceStates.ERRED,
             f"Resource {self.resource.id} should be ERRED, but got {self.resource.state}",
         )
 
@@ -451,6 +452,6 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.assertEqual(
             self.resource.state,
-            marketplace_models.Resource.States.ERRED,
+            ResourceStates.ERRED,
             f"Resource {self.resource.id} should not be deleted, but it is",
         )

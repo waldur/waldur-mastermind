@@ -34,6 +34,7 @@ from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, serializers, utils
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.management.commands.export_offering import (
     export_offering,
 )
@@ -127,7 +128,7 @@ class OfferingExtraFieldsTest(test.APITransactionTestCase):
 
         factories.ResourceFactory(
             offering=self.offering_2,
-            state=models.Resource.States.OK,
+            state=ResourceStates.OK,
         )
 
         self._check_field_after_set_of_it("total_customers", 1)
@@ -139,7 +140,7 @@ class OfferingExtraFieldsTest(test.APITransactionTestCase):
         resource = factories.ResourceFactory(
             project=invoice_item.project,
             offering=self.offering_2,
-            state=models.Resource.States.OK,
+            state=ResourceStates.OK,
         )
         invoice_item.resource = resource
         invoice_item.unit_price = 10
@@ -155,7 +156,7 @@ class OfferingExtraFieldsTest(test.APITransactionTestCase):
         resource = factories.ResourceFactory(
             project=invoice_item.project,
             offering=self.offering_2,
-            state=models.Resource.States.OK,
+            state=ResourceStates.OK,
         )
         invoice_item.resource = resource
         invoice_item.unit_price = 10
@@ -2409,7 +2410,7 @@ class OfferingBackendMetadataTest(test.APITransactionTestCase):
 class ListCustomerProjectsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
-        self.fixture.resource.state = models.Resource.States.OK
+        self.fixture.resource.state = ResourceStates.OK
         self.fixture.resource.save()
 
     @data("staff", "offering_owner")
@@ -2436,7 +2437,7 @@ class ListCustomerProjectsTest(test.APITransactionTestCase):
 class ListCustomerUsersTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
-        self.fixture.resource.state = models.Resource.States.OK
+        self.fixture.resource.state = ResourceStates.OK
         self.fixture.resource.save()
         self.fixture.admin
 

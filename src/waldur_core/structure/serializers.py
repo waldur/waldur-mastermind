@@ -37,6 +37,7 @@ from waldur_core.structure.managers import (
 )
 from waldur_core.structure.models import CUSTOMER_DETAILS_FIELDS
 from waldur_core.structure.registry import get_resource_type, get_service_type
+from waldur_mastermind.marketplace.enums import ResourceStates
 
 User = auth.get_user_model()
 logger = logging.getLogger(__name__)
@@ -202,7 +203,7 @@ class PermissionProjectSerializer(BasicProjectSerializer):
             marketplace_models.Resource.objects.filter(
                 project=project,
             )
-            .exclude(state=marketplace_models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .count()
         )
 
@@ -349,10 +350,7 @@ class ProjectSerializer(
         from waldur_mastermind.marketplace import models as marketplace_models
 
         return marketplace_models.Resource.objects.filter(
-            state__in=(
-                marketplace_models.Resource.States.OK,
-                marketplace_models.Resource.States.UPDATING,
-            ),
+            state__in=(ResourceStates.OK, ResourceStates.UPDATING),
             project=project,
         ).count()
 

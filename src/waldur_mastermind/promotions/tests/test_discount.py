@@ -5,7 +5,7 @@ from ddt import ddt
 from rest_framework import test
 
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.promotions import models
 from waldur_mastermind.promotions.tests import fixtures
 
@@ -19,9 +19,9 @@ class DiscountTest(test.APITransactionTestCase):
         self.fixture.discounted_resource.delete()
 
     def activate_resource(self):
-        self.resource.state = marketplace_models.Resource.States.CREATING
+        self.resource.state = ResourceStates.CREATING
         self.resource.save()
-        self.resource.state = marketplace_models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
 
     def test_discount_price_if_campaign_exists(self):

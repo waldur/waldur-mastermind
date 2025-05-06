@@ -15,6 +15,7 @@ from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.invoices.utils import get_current_month_end, get_full_days
 from waldur_mastermind.marketplace import PLUGIN_NAME, utils
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.promotions import models as promotions_models
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,6 @@ logger = logging.getLogger(__name__)
 BillingTypes = marketplace_models.OfferingComponent.BillingTypes
 LimitPeriods = marketplace_models.OfferingComponent.LimitPeriods
 OrderTypes = marketplace_models.Order.Types
-ResourceStates = marketplace_models.Resource.States
 
 
 class MarketplaceRegistrator(registrators.BaseRegistrator):
@@ -53,12 +53,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 offering__type=self.plugin_name,
                 project__customer=customer,
             )
-            .exclude(
-                state__in=[
-                    marketplace_models.Resource.States.CREATING,
-                    marketplace_models.Resource.States.TERMINATED,
-                ]
-            )
+            .exclude(state__in=[ResourceStates.CREATING, ResourceStates.TERMINATED])
             .distinct()
         )
 
@@ -352,18 +347,16 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         ):
             registrators.RegistrationManager.terminate(resource, timezone.now())
 
-        if (
-            resource.state != marketplace_models.Resource.States.CREATING
-            and resource.tracker.has_changed("plan_id")
+        if resource.state != ResourceStates.CREATING and resource.tracker.has_changed(
+            "plan_id"
         ):
             registrators.RegistrationManager.terminate(resource, timezone.now())
             registrators.RegistrationManager.register(
                 resource, timezone.now(), order_type=OrderTypes.UPDATE
             )
 
-        if (
-            resource.state != marketplace_models.Resource.States.CREATING
-            and resource.tracker.has_changed("limits")
+        if resource.state != ResourceStates.CREATING and resource.tracker.has_changed(
+            "limits"
         ):
             today = timezone.now()
             invoice, _ = registrators.RegistrationManager.get_or_create_invoice(

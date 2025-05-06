@@ -18,6 +18,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import PLUGIN_NAME, models, tasks
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tasks import process_order
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
@@ -155,7 +156,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
         self.approve_order(self.fixture.owner, order)
         order.resource.refresh_from_db()
 
-        self.assertEqual(order.resource.state, models.Resource.States.OK)
+        self.assertEqual(order.resource.state, ResourceStates.OK)
         self.assertEqual(order.resource.limits, new_limits)
         self.assertEqual(order.resource.plan, plan)
 
@@ -176,7 +177,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
         )
         self.approve_order(self.fixture.owner, order)
         order.refresh_from_db()
-        self.assertEqual(order.resource.state, models.Resource.States.TERMINATED)
+        self.assertEqual(order.resource.state, ResourceStates.TERMINATED)
 
     def test_when_order_with_basic_offering_is_approved_resource_is_marked_as_ok(self):
         offering = factories.OfferingFactory(
@@ -190,7 +191,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
         )
         self.approve_order(self.fixture.owner, order)
         order.refresh_from_db()
-        self.assertEqual(order.resource.state, models.Resource.States.OK)
+        self.assertEqual(order.resource.state, ResourceStates.OK)
 
     def approve_order(self, user, order):
         self.client.force_authenticate(user)
@@ -302,7 +303,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
 
         self.reject_order("owner")
         self.order.refresh_from_db()
-        self.assertEqual(models.Resource.States.TERMINATED, self.order.resource.state)
+        self.assertEqual(ResourceStates.TERMINATED, self.order.resource.state)
 
     def test_when_update_order_with_basic_offering_is_rejected_resource_is_marked_as_erred(
         self,
@@ -328,7 +329,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
 
         self.reject_order("owner")
         self.order.refresh_from_db()
-        self.assertEqual(models.Resource.States.OK, self.order.resource.state)
+        self.assertEqual(ResourceStates.OK, self.order.resource.state)
         self.assertEqual(old_plan, self.order.resource.plan)
         self.assertEqual(old_limits, self.order.resource.limits)
 
@@ -342,7 +343,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
 
         self.reject_order("owner")
         self.order.refresh_from_db()
-        self.assertEqual(models.Resource.States.OK, self.order.resource.state)
+        self.assertEqual(ResourceStates.OK, self.order.resource.state)
 
     def reject_order(self, user):
         user = getattr(self.fixture, user)
