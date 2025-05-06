@@ -1,10 +1,13 @@
 from typing import cast
 
 from rest_framework import serializers as rf_serializers
+from rest_framework import status
 from rest_framework.reverse import reverse
 
 from waldur_core.core.models import User
+from waldur_core.core.utils import get_system_robot
 from waldur_core.structure.models import Customer, Project, ServiceSettings
+from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.marketplace import (
     processors,
 )
@@ -12,6 +15,7 @@ from waldur_mastermind.marketplace import (
     serializers as marketplace_serializers,
 )
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
+from waldur_mastermind.marketplace.views import OrderViewSet
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
     INSTANCE_TYPE,
@@ -25,6 +29,7 @@ from waldur_mastermind.marketplace_rancher.utils import (
     submit_creation_order,
     submit_termination_order,
     wait_for_order,
+    wait_for_tenant,
 )
 from waldur_openstack import models as os_models
 from waldur_openstack.utils import volume_type_name_to_quota_name
@@ -33,6 +38,8 @@ from waldur_rancher import views as rancher_views
 from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE, NodeRoleType
 
 from . import PLUGIN_NAME, serializers
+
+SECURITY_GROUPS = ["k8s_admin", "k8s_public"]
 
 
 class RancherCreateProcessor(processors.BaseCreateResourceProcessor):
@@ -60,6 +67,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         project = self.create_project()
         tenants = self.create_tenants(user, project)
         cluster = self.create_cluster(user, project, tenants)
+        self.create_security_groups(tenants)
         self.create_load_balancers(user, project, tenants)
         return cluster
 
@@ -287,6 +295,24 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             rancher_models.Cluster, Order.objects.get(uuid=order_uuid).resource.scope
         )
 
+    def create_security_groups(
+        self,
+        tenants: list[os_models.Tenant],
+    ):
+        # TODO: Introduce cluster security groups as
+        # source of truth for SG replication to different tenants
+        view = OrderViewSet.as_view({"post": "create_security_group"})
+        for tenant in tenants:
+            for group in SECURITY_GROUPS:
+                response = create_request(
+                    view, get_system_robot(), {"name": group, "rules": []}
+                )
+                data = cast(dict, response.data)
+
+                if response.status_code != status.HTTP_201_CREATED:
+                    raise rf_serializers.ValidationError(data)
+                wait_for_tenant(tenant.uuid)
+
     def create_load_balancers(
         self,
         user: User,
@@ -352,7 +378,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             )
             security_groups = os_models.SecurityGroup.objects.filter(
                 tenant=tenant,
-                name__in=["k8s_admin", "k8s_public"],
+                name__in=SECURITY_GROUPS,
             )
 
             attributes = {
@@ -371,7 +397,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     "openstack-volume-type-detail",
                     kwargs={"uuid": data_volume_type.uuid.hex},
                 ),
-                # TODO: inject subnet allocation pool into initi_template
+                # TODO: inject subnet allocation pool into cloud_init_template
                 "user_data": cloud_init_template,
                 "security_groups": [group.uuid.hex for group in security_groups],
                 "ports": [
