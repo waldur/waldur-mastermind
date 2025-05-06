@@ -690,6 +690,7 @@ class PullPortsTest(BaseBackendTestCase):
                     "network_id": port.network.backend_id,
                     "fixed_ips": port.fixed_ips,
                     "description": port.description,
+                    "admin_state_up": True,
                     "mac_address": port.mac_address,
                     "security_groups": [],
                     "port_security_enabled": True,
