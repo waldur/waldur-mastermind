@@ -11,6 +11,7 @@ from waldur_core.structure.models import Project
 from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace.views import BaseResourceViewSet, OrderViewSet
+from waldur_openstack.models import Tenant
 from waldur_rancher.exceptions import RancherException
 
 
@@ -32,6 +33,24 @@ def wait_for_order(uuid, interval=10, timeout=600):
             raise RancherException(
                 f'Order id "{uuid}" has not changed state to stable.'
             )
+
+
+def is_tenant_ready(uuid):
+    tenant = Tenant.objects.get(uuid=uuid)
+    if tenant.state == Tenant.States.ERRED:
+        raise RancherException("Tenant is in erred state.")
+    return tenant.state == Tenant.States.OK
+
+
+def wait_for_tenant(uuid, interval=10, timeout=600):
+    ready = is_tenant_ready(uuid)
+    waited = 0
+    while not ready:
+        time.sleep(interval)
+        ready = is_tenant_ready(uuid)
+        waited += interval
+        if waited >= timeout:
+            raise RancherException(f'Tenant "{uuid}" has not changed state to stable.')
 
 
 def submit_creation_order(
