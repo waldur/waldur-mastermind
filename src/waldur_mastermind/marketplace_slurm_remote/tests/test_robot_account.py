@@ -3,9 +3,8 @@ import textwrap
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import RobotAccountStates
+from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
@@ -25,7 +24,7 @@ class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
         self.offering.save()
 
         self.resource = self.fixture.resource
-        self.resource.state = marketplace_models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
 
         self.robot_account = marketplace_factories.RobotAccountFactory(

@@ -8,6 +8,7 @@ from model_utils.tracker import FieldInstanceTracker
 from waldur_core.core import models as core_models
 from waldur_kubernetes.backend import KubernetesBackend
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.utils import (
     get_resource_state,
     import_current_usages,
@@ -120,7 +121,7 @@ def update_argocd_secret_when_resource_options_changed(
     if resource.offering.type != MANAGED_RANCHER_PLUGIN:
         return
 
-    if resource.state != marketplace_models.Resource.States.OK:
+    if resource.state != ResourceStates.OK:
         return
 
     options = cast(dict, resource.options)

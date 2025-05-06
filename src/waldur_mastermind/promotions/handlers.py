@@ -1,5 +1,6 @@
 import logging
 
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.promotions import models
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ def apply_campaign_to_pending_invoices(sender, instance, created=False, **kwargs
     #  check if there are resources that match the campaign.
     #  If there are, then we create object of DiscountedResource
     for resource in marketplace_models.Resource.objects.filter(
-        state=marketplace_models.Resource.States.OK,
+        state=ResourceStates.OK,
     ):
         if campaign.check_resource_on_conditions_of_campaign(resource):
             models.DiscountedResource.objects.create(

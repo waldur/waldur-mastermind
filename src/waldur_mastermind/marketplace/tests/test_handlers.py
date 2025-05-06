@@ -10,6 +10,7 @@ from waldur_core.structure.tests import models as structure_tests_models
 from waldur_mastermind.marketplace import PLUGIN_NAME, callbacks, utils
 from waldur_mastermind.marketplace import handlers as marketplace_handlers
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -42,7 +43,7 @@ class ResourceHandlerTest(APITransactionTestCase):
 
         # Set initial resource state
         fixture.resource.limits = {offering_component.type: 20}
-        fixture.resource.state = marketplace_models.Resource.States.OK
+        fixture.resource.state = ResourceStates.OK
         fixture.resource.plan = fixture.plan
         fixture.resource.save()  # Save initial state
 

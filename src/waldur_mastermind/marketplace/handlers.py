@@ -11,6 +11,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.users import models as users_models
 from waldur_core.users.tasks import process_invitation
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
 )
@@ -76,7 +77,7 @@ def log_order_events(sender, instance, created=False, **kwargs):
 def log_resource_events(sender, instance, created=False, **kwargs):
     resource = instance
     # Skip logging for imported resource
-    if created and instance.state == models.Resource.States.CREATING:
+    if created and instance.state == ResourceStates.CREATING:
         log.log_resource_creation_requested(resource)
 
 
@@ -203,11 +204,11 @@ def update_resource_when_order_is_rejected_or_erred(
         if order.type == models.Order.Types.CREATE:
             resource.set_state_terminated()
             resource.save(update_fields=["state"])
-        elif resource.state != models.Resource.States.OK:
+        elif resource.state != ResourceStates.OK:
             resource.set_state_ok()
             resource.save(update_fields=["state"])
     elif order.state == models.Order.States.ERRED:
-        if resource.state != models.Resource.States.CREATING:
+        if resource.state != ResourceStates.CREATING:
             return
         if resource.backend_id in [None, ""]:
             logger.info("Terminating %s", resource)
@@ -223,7 +224,7 @@ def sync_resource_limit_when_order(sender, instance, created=False, **kwargs):
     order: models.Order = instance
     if order.type != models.Order.Types.CREATE:
         return
-    if order.resource.state != models.Resource.States.CREATING:
+    if order.resource.state != ResourceStates.CREATING:
         return
     update_fields = set()
     for prop in ("limits", "attributes", "plan_id"):
@@ -290,10 +291,10 @@ def create_resource_plan_period_when_resource_is_created(
     if not instance.tracker.has_changed("state"):
         return
 
-    if instance.state != models.Resource.States.OK:
+    if instance.state != ResourceStates.OK:
         return
 
-    if instance.tracker.previous("state") != models.Resource.States.CREATING:
+    if instance.tracker.previous("state") != ResourceStates.CREATING:
         return
 
     if not instance.plan:
@@ -315,7 +316,7 @@ def close_resource_plan_period_when_resource_is_terminated(
     if not instance.tracker.has_changed("state"):
         return
 
-    if instance.state != models.Resource.States.TERMINATED:
+    if instance.state != ResourceStates.TERMINATED:
         return
 
     if not instance.plan:
@@ -472,7 +473,7 @@ def limit_update_succeeded(sender, order: models.Order, **kwargs):
     resource = order.resource
     old_limits = resource.limits
     resource.limits = order.limits
-    if resource.state != models.Resource.States.OK:
+    if resource.state != ResourceStates.OK:
         resource.set_state_ok()
     resource.save()
     order.complete()
@@ -532,7 +533,7 @@ def disable_empty_service_settings(offering):
 
     if (
         not models.Resource.objects.filter(offering=offering)
-        .exclude(state=models.Resource.States.TERMINATED)
+        .exclude(state=ResourceStates.TERMINATED)
         .exists()
     ):
         service_settings.is_active = False
@@ -549,7 +550,7 @@ def enable_nonempty_service_settings(offering):
 
     if (
         models.Resource.objects.filter(offering=offering)
-        .exclude(state=models.Resource.States.TERMINATED)
+        .exclude(state=ResourceStates.TERMINATED)
         .exists()
     ):
         service_settings.is_active = True
@@ -565,7 +566,7 @@ def disable_archived_service_settings_without_existing_resource(
     if not instance.tracker.has_changed("state"):
         return
 
-    if instance.state != models.Resource.States.TERMINATED:
+    if instance.state != ResourceStates.TERMINATED:
         return
 
     offering: models.Offering = instance.offering
@@ -601,8 +602,8 @@ def enable_service_settings_with_existing_resource(
         return
 
     if instance.state in [
-        models.Resource.States.TERMINATED,
-        models.Resource.States.TERMINATING,
+        ResourceStates.TERMINATED,
+        ResourceStates.TERMINATING,
     ]:
         return
 
@@ -809,8 +810,8 @@ def resource_state_has_been_changed(sender, instance, created=False, **kwargs):
         return
 
     if (
-        resource.state == models.Resource.States.OK
-        and resource.tracker.previous("state") == models.Resource.States.ERRED
+        resource.state == ResourceStates.OK
+        and resource.tracker.previous("state") == ResourceStates.ERRED
         and resource.error_traceback
     ):
         resource.error_traceback = ""
@@ -826,7 +827,7 @@ def delete_expired_project_if_every_resource_has_been_terminated(
     if not instance.tracker.has_changed("state"):
         return
 
-    if instance.state != models.Resource.States.TERMINATED:
+    if instance.state != ResourceStates.TERMINATED:
         return
 
     project = instance.project
@@ -836,8 +837,8 @@ def delete_expired_project_if_every_resource_has_been_terminated(
             models.Resource.objects.filter(project=project)
             .exclude(
                 state__in=(
-                    models.Resource.States.ERRED,
-                    models.Resource.States.TERMINATED,
+                    ResourceStates.ERRED,
+                    ResourceStates.TERMINATED,
                 )
             )
             .exists()
@@ -943,7 +944,7 @@ def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
     project = instance.scope
     user = instance.user
     resources = project.resource_set.filter(
-        state=models.Resource.States.OK,
+        state=ResourceStates.OK,
         offering__type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
     )
     offering_ids = set(resources.values_list("offering_id", flat=True))

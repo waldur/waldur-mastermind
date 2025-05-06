@@ -57,7 +57,11 @@ from waldur_mastermind.common.utils import prices_are_equal
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
-from waldur_mastermind.marketplace.enums import OrderStatesType, ResourceStatesType
+from waldur_mastermind.marketplace.enums import (
+    OrderStatesType,
+    ResourceStates,
+    ResourceStatesType,
+)
 from waldur_mastermind.marketplace.fields import PublicPlanField
 from waldur_mastermind.marketplace.managers import ResourceQuerySet
 from waldur_mastermind.marketplace.plugins import manager
@@ -2952,7 +2956,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         except ObjectDoesNotExist:
             return False
         validator = core_validators.StateValidator(
-            models.Resource.States.OK, models.Resource.States.ERRED
+            ResourceStates.OK, ResourceStates.ERRED
         )
         try:
             validator(resource)
@@ -3572,7 +3576,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             )
         offering = resource.offering
 
-        States = models.Resource.States
+        States = ResourceStates
         if resource.state not in (States.OK, States.UPDATING, States.TERMINATING):
             raise rf_exceptions.ValidationError(
                 {"resource": _("Resource is not in valid state.")}
@@ -4020,7 +4024,7 @@ def get_marketplace_resource_count(
 ) -> dict[str, int]:
     counts = (
         models.Resource.objects.order_by()
-        .exclude(state__in=(models.Resource.States.TERMINATED,))
+        .exclude(state__in=(ResourceStates.TERMINATED,))
         .filter(
             project=project,
         )
@@ -4498,7 +4502,7 @@ class ProviderOfferingSerializer(
 
     def get_resources(self, offering: models.Offering):
         return models.Resource.objects.filter(offering=offering).exclude(
-            state=models.Resource.States.TERMINATED
+            state=ResourceStates.TERMINATED
         )
 
     def get_resources_count(self, offering: models.Offering) -> int:

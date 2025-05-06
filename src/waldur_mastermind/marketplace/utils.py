@@ -50,7 +50,7 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
-from waldur_mastermind.marketplace.enums import RobotAccountStates
+from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
@@ -237,7 +237,7 @@ def get_info_about_missing_usage_reports():
         billing_period=billing_period
     ).values_list("resource", flat=True)
     resources_without_usages = models.Resource.objects.filter(
-        state=models.Resource.States.OK, offering_id__in=offering_ids
+        state=ResourceStates.OK, offering_id__in=offering_ids
     ).exclude(id__in=resource_with_usages)
     result = []
 
@@ -472,7 +472,7 @@ def create_offering_components(offering, custom_components=None):
 
 def get_resource_state(state):
     SrcStates = core_models.StateMixin.States
-    DstStates = models.Resource.States
+    DstStates = ResourceStates
     mapping = {
         SrcStates.CREATION_SCHEDULED: DstStates.CREATING,
         SrcStates.CREATING: DstStates.CREATING,
@@ -615,7 +615,7 @@ def get_offering_customers(offering, active_customers):
 def get_offering_projects(offering):
     related_project_ids = (
         models.Resource.objects.filter(offering=offering)
-        .exclude(state=models.Resource.States.TERMINATED)
+        .exclude(state=ResourceStates.TERMINATED)
         .values_list("project", flat=True)
         .distinct()
         .order_by()
@@ -632,7 +632,7 @@ def is_user_related_to_offering(offering, user):
         models.Resource.objects.filter(
             offering=offering, project__in=connected_projects
         )
-        .exclude(state=models.Resource.States.TERMINATED)
+        .exclude(state=ResourceStates.TERMINATED)
         .exists()
     )
 
@@ -825,7 +825,7 @@ def schedule_resources_termination(resources, termination_comment=None, user=Non
 def get_service_provider_resources(service_provider):
     return models.Resource.objects.filter(
         offering__customer=service_provider.customer, offering__shared=True
-    ).exclude(state=models.Resource.States.TERMINATED)
+    ).exclude(state=ResourceStates.TERMINATED)
 
 
 def get_service_provider_customer_ids(service_provider):
@@ -979,7 +979,7 @@ def count_customers_number_change(service_provider):
                 project__customer_id=customer_id,
                 created__lt=core_utils.month_start(to_day),
             )
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .exists()
         ):
             new_customers.append(customer_id)
@@ -1000,7 +1000,7 @@ def count_customers_number_change(service_provider):
                 offering__customer=service_provider.customer,
                 project__customer=customer_id,
             )
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .exists()
         ):
             lost_customers.append(customer_id)
@@ -1296,7 +1296,7 @@ def generate_username(user, offering):
 
 def user_offerings_mapping(offerings):
     resources = models.Resource.objects.filter(
-        state=models.Resource.States.OK, offering__in=offerings
+        state=ResourceStates.OK, offering__in=offerings
     )
     resource_ids = resources.values_list("id", flat=True)
 

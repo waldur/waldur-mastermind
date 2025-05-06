@@ -39,6 +39,7 @@ from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.models import Customer
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_mastermind.marketplace import callbacks, models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.serializers import MarketplaceCategorySerializer
 from waldur_mastermind.marketplace_remote import (
     PLUGIN_NAME,
@@ -414,11 +415,11 @@ class SyncResourceView(GenericAPIView):
             return Response(
                 status=status.HTTP_404_NOT_FOUND, data="A resource is not found"
             )
-        if resource.state == models.Resource.States.TERMINATED:
+        if resource.state == ResourceStates.TERMINATED:
             return Response(
                 status=status.HTTP_400_BAD_REQUEST, data="The resource is terminated"
             )
-        if resource.state == models.Resource.States.UPDATING:
+        if resource.state == ResourceStates.UPDATING:
             return Response(
                 status=status.HTTP_400_BAD_REQUEST, data="The resource is updating"
             )

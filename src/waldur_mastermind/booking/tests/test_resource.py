@@ -7,6 +7,7 @@ from rest_framework.reverse import reverse
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 from .. import PLUGIN_NAME
@@ -28,7 +29,7 @@ class MarketplaceFixture(fixtures.BookingFixture):
     def resource(self) -> marketplace_models.Resource:
         return marketplace_factories.ResourceFactory(
             offering=self.offering,
-            state=marketplace_models.Resource.States.CREATING,
+            state=ResourceStates.CREATING,
             project=self.project,
             plan=self.plan,
         )
@@ -110,9 +111,7 @@ class OrderAcceptTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
 
         self.fixture.resource.refresh_from_db()
-        self.assertEqual(
-            self.fixture.resource.state, marketplace_models.Resource.States.OK
-        )
+        self.assertEqual(self.fixture.resource.state, ResourceStates.OK)
 
         self.fixture.order.refresh_from_db()
         self.assertEqual(self.fixture.order.state, marketplace_models.Order.States.DONE)
@@ -156,9 +155,7 @@ class OrderRejectTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
 
         self.fixture.resource.refresh_from_db()
-        self.assertEqual(
-            self.fixture.resource.state, marketplace_models.Resource.States.TERMINATED
-        )
+        self.assertEqual(self.fixture.resource.state, ResourceStates.TERMINATED)
 
         self.fixture.order.refresh_from_db()
         self.assertEqual(
@@ -175,9 +172,7 @@ class OrderRejectTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
 
         self.fixture.resource.refresh_from_db()
-        self.assertEqual(
-            self.fixture.resource.state, marketplace_models.Resource.States.TERMINATED
-        )
+        self.assertEqual(self.fixture.resource.state, ResourceStates.TERMINATED)
 
         self.fixture.order.refresh_from_db()
         self.assertEqual(

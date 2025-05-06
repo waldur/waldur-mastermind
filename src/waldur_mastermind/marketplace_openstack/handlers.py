@@ -7,6 +7,7 @@ from django.db import transaction
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_openstack import models as openstack_models
 from waldur_openstack.utils import volume_type_name_to_quota_name
 
@@ -20,7 +21,6 @@ from . import (
 )
 
 logger = logging.getLogger(__name__)
-States = marketplace_models.Resource.States
 
 
 def create_offering_from_tenant(sender, instance, created=False, **kwargs):
@@ -419,7 +419,7 @@ def synchronize_limits_when_storage_mode_is_switched(
     )
 
     resources = marketplace_models.Resource.objects.filter(offering=offering).exclude(
-        state__in=(States.TERMINATED, States.TERMINATING)
+        state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING)
     )
 
     for resource in resources:

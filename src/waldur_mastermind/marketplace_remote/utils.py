@@ -74,7 +74,7 @@ from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
-from waldur_mastermind.marketplace.enums import OfferingStates
+from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, models
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
@@ -85,8 +85,8 @@ from waldur_mastermind.marketplace_remote.constants import (
 logger = logging.getLogger(__name__)
 
 INVALID_RESOURCE_STATES = (
-    marketplace_models.Resource.States.CREATING,
-    marketplace_models.Resource.States.TERMINATED,
+    ResourceStates.CREATING,
+    ResourceStates.TERMINATED,
 )
 
 
@@ -488,9 +488,7 @@ def collect_local_permissions(
 
 
 def parse_resource_state(serialized_state: str) -> int:
-    return {v: k for (k, v) in marketplace_models.Resource.States.CHOICES}[
-        serialized_state
-    ]
+    return {v: k for (k, v) in ResourceStates.CHOICES}[serialized_state]
 
 
 def parse_order_state(serialized_state: str) -> int:

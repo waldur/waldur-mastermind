@@ -22,6 +22,7 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, log, models, plugins
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
@@ -179,7 +180,7 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
             project=self.project,
             offering=self.offering,
             plan=self.plan1,
-            state=models.Resource.States.OK,
+            state=ResourceStates.OK,
         )
         self.resource2 = models.Resource.objects.create(
             project=self.project,
@@ -210,7 +211,7 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
 
     def test_plan_switch_is_available_if_resource_is_terminated(self):
         # Arrange
-        self.resource2.state = models.Resource.States.TERMINATED
+        self.resource2.state = ResourceStates.TERMINATED
         self.resource2.save()
 
         self.plan2.max_amount = 1
@@ -244,7 +245,7 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
 
     def test_plan_switch_is_not_available_if_resource_is_not_OK(self):
         # Arrange
-        self.resource1.state = models.Resource.States.UPDATING
+        self.resource1.state = ResourceStates.UPDATING
         self.resource1.save()
 
         # Act
@@ -339,7 +340,7 @@ class ResourceTerminateTest(test.APITransactionTestCase):
             project=self.project,
             offering=self.offering,
             plan=self.plan,
-            state=models.Resource.States.OK,
+            state=ResourceStates.OK,
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.TERMINATE_RESOURCE)
         ProjectRole.ADMIN.add_permission(PermissionEnum.TERMINATE_RESOURCE)
@@ -385,9 +386,9 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         self.assertEqual(order.project, self.project)
 
     @data(
-        models.Resource.States.CREATING,
-        models.Resource.States.UPDATING,
-        models.Resource.States.TERMINATING,
+        ResourceStates.CREATING,
+        ResourceStates.UPDATING,
+        ResourceStates.TERMINATING,
     )
     def test_termination_request_is_not_accepted_if_resource_is_not_ok_or_erred(
         self, state
@@ -402,7 +403,7 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    @data(models.Resource.States.OK, models.Resource.States.ERRED)
+    @data(ResourceStates.OK, ResourceStates.ERRED)
     def test_termination_request_is_accepted_if_resource_is_ok_or_erred(self, state):
         # Arrange
         self.resource.state = state
@@ -473,7 +474,7 @@ class PlanUsageTest(test.APITransactionTestCase):
             project=self.project,
             offering=self.offering,
             plan=self.plan1,
-            state=models.Resource.States.OK,
+            state=ResourceStates.OK,
         )
 
         factories.ResourceFactory.create_batch(
@@ -481,7 +482,7 @@ class PlanUsageTest(test.APITransactionTestCase):
             project=self.project,
             offering=self.offering,
             plan=self.plan2,
-            state=models.Resource.States.OK,
+            state=ResourceStates.OK,
         )
 
         factories.ResourceFactory.create_batch(
@@ -489,7 +490,7 @@ class PlanUsageTest(test.APITransactionTestCase):
             project=self.project,
             offering=self.offering,
             plan=self.plan2,
-            state=models.Resource.States.TERMINATED,
+            state=ResourceStates.TERMINATED,
         )
 
     def get_stats(self, data=None):
@@ -545,7 +546,7 @@ class PlanUsageTest(test.APITransactionTestCase):
             project=self.project,
             offering=plan.offering,
             plan=plan,
-            state=models.Resource.States.OK,
+            state=ResourceStates.OK,
         )
 
         response = self.get_stats({"offering_uuid": plan.offering.uuid.hex})
@@ -561,7 +562,7 @@ class PlanUsageTest(test.APITransactionTestCase):
             project=self.project,
             offering=plan.offering,
             plan=plan,
-            state=models.Resource.States.OK,
+            state=ResourceStates.OK,
         )
 
         response = self.get_stats(
@@ -835,10 +836,10 @@ class ResourceUpdateTest(test.APITransactionTestCase):
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_reset_error_traceback(self):
-        self.resource.state = models.Resource.States.ERRED
+        self.resource.state = ResourceStates.ERRED
         self.resource.error_traceback = "error_traceback"
         self.resource.save()
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
         self.resource.refresh_from_db()
         self.assertFalse(self.resource.error_traceback)
@@ -898,7 +899,7 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
     def test_resource_is_not_used_for_last_3_months_and_end_date_is_7_days_in_future(
         self,
     ):
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
         with freeze_time("2020-05-01"):
             response = self.make_request(
@@ -919,7 +920,7 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
     def test_resource_is_not_used_for_last_3_months_and_end_date_is_not_7_days_in_future(
         self,
     ):
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
         with freeze_time("2020-05-01"):
             response = self.make_request(
@@ -931,7 +932,7 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
     def test_resource_is_used_for_last_3_months_and_end_date_is_not_7_days_in_future(
         self,
     ):
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
         response = self.make_request(
             self.fixture.offering_owner, {"end_date": "2020-01-05"}
@@ -942,7 +943,7 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
     def test_resource_is_used_for_last_3_months_and_end_date_is_more_than_7_days_in_future(
         self,
     ):
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
         response = self.make_request(
             self.fixture.offering_owner, {"end_date": "2020-01-10"}
@@ -952,7 +953,7 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
     @data("staff", "offering_owner", "service_manager", "global_support")
     @freeze_time("2020-01-01")
     def test_permission_positive(self, user):
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
 
         with freeze_time("2020-05-01"):
@@ -968,7 +969,7 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
     @data("admin", "manager", "member", "owner", "customer_support")
     @freeze_time("2020-01-01")
     def test_permission_negative(self, user):
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
 
         with freeze_time("2020-05-01"):
@@ -1001,7 +1002,7 @@ class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
         "staff",
     )
     def test_user_can_set_end_date(self, user):
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
         with freeze_time("2020-05-01"):
             response = self.make_request(
@@ -1025,7 +1026,7 @@ class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
     @freeze_time("2020-01-01")
     @data("offering_owner", "service_manager")
     def test_user_cannot_set_end_date(self, user):
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
         with freeze_time("2020-05-01"):
             response = self.make_request(
@@ -1045,7 +1046,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
 
         self.fixture = fixtures.ServiceFixture()
         self.resource = factories.ResourceFactory()
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.project.customer = self.fixture.customer
         self.resource.project.save()
         self.resource.limits = {"vcpu": 1}
@@ -1068,7 +1069,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
 
     def test_update_limits_is_not_available_if_resource_is_not_OK(self):
         # Arrange
-        self.resource.state = models.Resource.States.UPDATING
+        self.resource.state = ResourceStates.UPDATING
         self.resource.save()
 
         # Act
@@ -1329,7 +1330,7 @@ class ResourceSetStateErredTest(test.APITransactionTestCase):
         response = self.make_request(getattr(self.fixture, user))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource.refresh_from_db()
-        self.assertEqual(models.Resource.States.ERRED, self.resource.state)
+        self.assertEqual(ResourceStates.ERRED, self.resource.state)
         self.assertEqual("", self.resource.error_message)
         self.assertEqual("", self.resource.error_traceback)
 
@@ -1342,7 +1343,7 @@ class ResourceSetStateErredTest(test.APITransactionTestCase):
         response = self.make_request(getattr(self.fixture, user), payload)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource.refresh_from_db()
-        self.assertEqual(models.Resource.States.ERRED, self.resource.state)
+        self.assertEqual(ResourceStates.ERRED, self.resource.state)
         self.assertEqual(payload["error_message"], self.resource.error_message)
         self.assertEqual(payload["error_traceback"], self.resource.error_traceback)
 
@@ -1479,7 +1480,7 @@ class ResourceUsageLimitsTest(test.APITransactionTestCase):
         self.user = self.fixture.staff
 
         self.resource = factories.ResourceFactory()
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.limits = {"cpu": 100}
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.resource.offering,
@@ -1544,7 +1545,7 @@ class ResourceForceTerminateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
 
         CustomerRole.OWNER.add_permission(PermissionEnum.TERMINATE_RESOURCE)
@@ -1576,7 +1577,7 @@ class ResourceForceTerminateTest(test.APITransactionTestCase):
     def test_user_can_force_terminate_resource(self, user):
         order_state, resource_state = self._terminate_order(user)
         self.assertEqual(order_state, models.Order.States.ERRED)
-        self.assertEqual(resource_state, models.Resource.States.TERMINATED)
+        self.assertEqual(resource_state, ResourceStates.TERMINATED)
 
     @data(
         "owner",
@@ -1588,10 +1589,10 @@ class ResourceForceTerminateTest(test.APITransactionTestCase):
         if user == "service_owner":
             # user connected to the resource with offering customer cannot get data from marketplace resource endpoint
             self.assertIsNone(order_state)
-            self.assertEqual(resource_state, models.Resource.States.OK)
+            self.assertEqual(resource_state, ResourceStates.OK)
         else:
             self.assertEqual(order_state, models.Order.States.ERRED)
-            self.assertEqual(resource_state, models.Resource.States.ERRED)
+            self.assertEqual(resource_state, ResourceStates.ERRED)
 
     def _terminate_order(self, user):
         user = getattr(self.fixture, user)

@@ -825,7 +825,7 @@ class Plan(
             return True
         usage = (
             Resource.objects.filter(plan=self)
-            .exclude(state=Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .count()
         )
         return self.max_amount > usage

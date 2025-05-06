@@ -13,6 +13,7 @@ from waldur_auth_social.models import IdentityProvider, ProviderChoices
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.signals import project_moved
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +187,7 @@ def project_is_empty(obj):
 
     if (
         Resource.objects.filter(project=obj)
-        .exclude(state=Resource.States.TERMINATED)
+        .exclude(state=ResourceStates.TERMINATED)
         .exists()
     ):
         raise ValidationError(

@@ -13,6 +13,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.marketplace import callbacks, models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories
 
 
@@ -226,7 +227,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         )
 
     def test_it_should_be_possible_to_submit_usage_for_terminating_resource(self):
-        self.resource.state = models.Resource.States.TERMINATING
+        self.resource.state = ResourceStates.TERMINATING
         self.resource.save()
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(
@@ -234,7 +235,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @data(models.Resource.States.CREATING, models.Resource.States.TERMINATED)
+    @data(ResourceStates.CREATING, ResourceStates.TERMINATED)
     def test_it_should_not_be_possible_to_submit_usage_for_pending_resource(
         self, state
     ):

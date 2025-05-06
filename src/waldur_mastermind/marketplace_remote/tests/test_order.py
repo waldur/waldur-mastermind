@@ -14,7 +14,8 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.models import Order, Resource
+from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.models import Order
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace.tests.factories import (
@@ -186,7 +187,7 @@ class OrderPullTest(test.APITransactionTestCase):
         self.assertEqual(self.order.state, Order.States.DONE)
 
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.state, Resource.States.OK)
+        self.assertEqual(self.resource.state, ResourceStates.OK)
 
     def test_when_order_fails_resource_is_updated(self):
         # Arrange
@@ -201,7 +202,7 @@ class OrderPullTest(test.APITransactionTestCase):
         self.assertEqual(self.order.error_message, "Invalid credentials")
 
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.state, Resource.States.ERRED)
+        self.assertEqual(self.resource.state, ResourceStates.ERRED)
 
     def test_when_creation_order_succeeds_resource_is_created(self):
         # Arrange
@@ -215,4 +216,4 @@ class OrderPullTest(test.APITransactionTestCase):
         # Assert
         self.order.refresh_from_db()
         self.assertIsNotNone(self.order.resource)
-        self.assertEqual(Resource.States.OK, self.order.resource.state)
+        self.assertEqual(ResourceStates.OK, self.order.resource.state)

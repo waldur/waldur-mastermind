@@ -5,6 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from waldur_azure import models as azure_models
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 
 from . import utils
 
@@ -44,7 +45,7 @@ def create_marketplace_resource_for_imported_resources(
     marketplace_models.Resource.objects.create(
         backend_id=instance.backend_id,
         project=instance.project,
-        state=marketplace_models.Resource.States.OK,
+        state=ResourceStates.OK,
         name=instance.name,
         scope=instance,
         created=instance.created,

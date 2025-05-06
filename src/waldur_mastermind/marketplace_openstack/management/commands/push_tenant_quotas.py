@@ -1,6 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 
 from waldur_core.core.utils import DryRunCommand
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.marketplace_openstack import utils
 from waldur_openstack.models import Tenant
@@ -13,8 +14,8 @@ class Command(DryRunCommand):
         ct = ContentType.objects.get_for_model(Tenant)
         for resource in Resource.objects.filter(content_type=ct).exclude(
             state__in=(
-                Resource.States.TERMINATED,
-                Resource.States.TERMINATING,
+                ResourceStates.TERMINATED,
+                ResourceStates.TERMINATING,
             )
         ):
             utils.push_tenant_limits(resource)

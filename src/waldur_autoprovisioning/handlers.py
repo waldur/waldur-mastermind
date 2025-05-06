@@ -7,6 +7,7 @@ from waldur_autoprovisioning.models import Rule
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Order, Resource
 from waldur_mastermind.marketplace.tasks import (
     process_order_on_commit,
@@ -77,7 +78,7 @@ def get_or_create_order(
         ]:
             return order, False
         if order.state == Order.States.DONE:
-            if order.resource.state != Resource.States.ERRED:
+            if order.resource.state != ResourceStates.ERRED:
                 return order, False
 
     name = marketplace_utils.generate_resource_name(project, offering)
@@ -91,7 +92,7 @@ def get_or_create_order(
             limits=limits,
             attributes=attributes,
             name=name,
-            state=Resource.States.CREATING,
+            state=ResourceStates.CREATING,
         )
         resource.init_cost()
         resource.save()

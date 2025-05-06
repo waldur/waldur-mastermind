@@ -11,6 +11,7 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 
 from . import log, models, registrators
 
@@ -175,7 +176,7 @@ def create_recurring_usage_if_invoice_has_been_created(
         resource__project__customer=invoice.customer,
         recurring=True,
         billing_period__gte=prev_month_start,
-    ).exclude(resource__state=marketplace_models.Resource.States.TERMINATED)
+    ).exclude(resource__state=ResourceStates.TERMINATED)
 
     if not usages:
         return

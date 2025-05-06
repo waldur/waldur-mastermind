@@ -1,6 +1,7 @@
 from django.core.exceptions import MultipleObjectsReturned
 from django.core.management.base import BaseCommand
 
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Offering, Resource
 from waldur_openstack.session import get_keystone_client
 
@@ -31,7 +32,7 @@ class Command(BaseCommand):
     def collect_leftovers_by_id(self, offering, remote_projects):
         remote_project_ids = {project.id for project in remote_projects}
         local_project_ids = set(
-            Resource.objects.filter(offering=offering, state=Resource.States.TERMINATED)
+            Resource.objects.filter(offering=offering, state=ResourceStates.TERMINATED)
             .exclude(backend_id="")
             .values_list("backend_id", flat=True)
         )
@@ -45,11 +46,11 @@ class Command(BaseCommand):
         # Some resources do not have backend_id so we use name instead
         # Since name can be reused names of existing resources are filtered out
         local_resources = Resource.objects.filter(
-            offering=offering, state=Resource.States.TERMINATED
+            offering=offering, state=ResourceStates.TERMINATED
         )
         local_project_names = set(local_resources.values_list("name", flat=True)) - set(
             Resource.objects.filter(
-                offering=offering, state=Resource.States.OK
+                offering=offering, state=ResourceStates.OK
             ).values_list("name", flat=True)
         )
         leftovers = set()

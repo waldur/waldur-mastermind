@@ -2,7 +2,7 @@ from unittest import mock
 
 from rest_framework import test
 
-from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace_script.tasks import (
     pull_resource,
     resource_options_have_been_changed,
@@ -23,16 +23,16 @@ class PullResourceTest(test.APITransactionTestCase):
         execute_script.side_effect = Exception("Container exception")
         pull_resource(self.fixture.resource.id)
         self.fixture.resource.refresh_from_db()
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.ERRED)
+        self.assertEqual(self.resource.state, ResourceStates.ERRED)
         self.assertEqual(self.resource.error_message, "Container exception")
 
     def test_set_state_ok(self, execute_script):
-        self.resource.state = marketplace_models.Resource.States.ERRED
+        self.resource.state = ResourceStates.ERRED
         self.resource.save()
         execute_script.return_value = ""
         pull_resource(self.fixture.resource.id)
         self.fixture.resource.refresh_from_db()
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(self.resource.state, ResourceStates.OK)
         self.assertEqual(self.resource.error_message, "")
 
 

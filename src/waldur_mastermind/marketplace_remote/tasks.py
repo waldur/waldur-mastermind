@@ -68,7 +68,7 @@ from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_state
-from waldur_mastermind.marketplace.enums import RobotAccountStates
+from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
 from waldur_mastermind.marketplace.utils import get_plan_period
 from waldur_mastermind.marketplace_remote import (
     PLUGIN_NAME,
@@ -764,7 +764,7 @@ class ResourceInvoiceListPullTask(BackgroundListPullTask):
     def get_pulled_objects(self):
         return (
             models.Resource.objects.filter(offering__type=PLUGIN_NAME)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .exclude(backend_id="")
         )
 
@@ -833,7 +833,7 @@ class ResourceRobotAccountListPullTask(BackgroundListPullTask):
     def get_pulled_objects(self):
         return (
             models.Resource.objects.filter(offering__type=PLUGIN_NAME)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .exclude(backend_id="")
         )
 
@@ -843,7 +843,7 @@ def pull_offering_robot_accounts(serialized_offering):
     offering = deserialize_instance(serialized_offering)
     resources = (
         models.Resource.objects.filter(offering=offering)
-        .exclude(state=models.Resource.States.TERMINATED)
+        .exclude(state=ResourceStates.TERMINATED)
         .exclude(backend_id="")
     )
     for resource in resources:
@@ -855,7 +855,7 @@ def pull_offering_invoices(serialized_offering):
     offering = deserialize_instance(serialized_offering)
     resources = (
         models.Resource.objects.filter(offering=offering)
-        .exclude(state=models.Resource.States.TERMINATED)
+        .exclude(state=ResourceStates.TERMINATED)
         .exclude(backend_id="")
     )
     for resource in resources:
@@ -1266,7 +1266,7 @@ class RemoteProjectDataPushTask(BackgroundPullTask):
         offering = instance
         project_ids = (
             models.Resource.objects.filter(offering=offering)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .values_list("project_id", flat=True)
             .distinct()
         )

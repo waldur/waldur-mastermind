@@ -4,6 +4,7 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
@@ -50,7 +51,7 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
         self.offering.save()
 
         # Set up resource and offering user
-        self.resource.state = marketplace_models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
 
         self.offering_user = marketplace_models.OfferingUser.objects.get(
@@ -120,7 +121,7 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
         marketplace_factories.ResourceFactory(
             offering=offering,
             project=project,
-            state=marketplace_models.Resource.States.TERMINATED,
+            state=ResourceStates.TERMINATED,
         )
 
         # Create offering user

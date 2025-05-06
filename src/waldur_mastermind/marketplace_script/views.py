@@ -13,6 +13,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.managers import ResourceQuerySet
 from waldur_mastermind.marketplace_script import (
     executors as marketplace_script_executors,
@@ -81,7 +82,7 @@ class DryRunView(ActionsViewSet):
             plan=serializer.validated_data.get("plan"),
             attributes=serializer.validated_data["attributes"],
             name=serializer.validated_data["attributes"].get("name", "test-resource"),
-            state=marketplace_models.Resource.States.CREATING,
+            state=ResourceStates.CREATING,
         )
         resource.init_cost()
         resource.save()
@@ -110,7 +111,7 @@ class DryRunView(ActionsViewSet):
             plan=serializer.validated_data.get("plan"),
             attributes=attributes,
             name=attributes.get("name", "test-resource"),
-            state=marketplace_models.Resource.States.CREATING,
+            state=ResourceStates.CREATING,
         )
         resource.init_cost()
         resource.save()

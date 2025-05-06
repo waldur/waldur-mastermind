@@ -24,6 +24,7 @@ from waldur_core.structure.models import (
     SharedServiceSettings,
 )
 from waldur_mastermind.google.models import GoogleCalendar, GoogleCredentials
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace_openstack import (
     executors as marketplace_openstack_executors,
 )
@@ -673,10 +674,7 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
         confirmation = True
 
         def validate(self, resource):
-            if resource.state not in (
-                models.Resource.States.OK,
-                models.Resource.States.ERRED,
-            ):
+            if resource.state not in (ResourceStates.OK, ResourceStates.ERRED):
                 raise ValidationError(_("Resource has to be in OK or ERRED state."))
 
         def get_execute_params(self, request, instance):
@@ -691,7 +689,7 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
         confirmation = True
 
         def validate(self, resource):
-            if resource.state != models.Resource.States.OK:
+            if resource.state != ResourceStates.OK:
                 raise ValidationError(_("Resource has to be in OK state."))
 
     restore_limits = RestoreLimits()

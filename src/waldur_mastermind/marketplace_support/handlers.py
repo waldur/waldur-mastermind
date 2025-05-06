@@ -8,6 +8,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.marketplace_support import utils as marketplace_support_utils
 
@@ -126,7 +127,7 @@ def _create_issue_if_membership_changed(instance, summary):
     )
 
     resources = marketplace_models.Resource.objects.exclude(
-        state=marketplace_models.Resource.States.TERMINATED
+        state=ResourceStates.TERMINATED
     ).filter(
         project=project,
         offering__type=PLUGIN_NAME,

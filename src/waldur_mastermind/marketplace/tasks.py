@@ -24,7 +24,7 @@ from waldur_core.structure.log import event_logger
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import exceptions, models, plugins, utils
-from waldur_mastermind.marketplace.enums import RobotAccountStates
+from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
 from waldur_mastermind.marketplace.utils import (
     get_consumer_approvers,
     get_provider_approvers,
@@ -230,9 +230,7 @@ def terminate_resources_if_project_end_date_has_been_reached():
 
     for project in expired_projects:
         project_resources = models.Resource.objects.filter(project=project)
-        active_resources = project_resources.exclude(
-            state=models.Resource.States.TERMINATED
-        )
+        active_resources = project_resources.exclude(state=ResourceStates.TERMINATED)
 
         if not active_resources:
             event_logger.project.info(
@@ -245,7 +243,7 @@ def terminate_resources_if_project_end_date_has_been_reached():
 
         # We expect that resources with parents will be removed when parents are removed
         terminatable_resources = project_resources.filter(
-            state__in=(models.Resource.States.OK, models.Resource.States.ERRED),
+            state__in=(ResourceStates.OK, ResourceStates.ERRED),
             offering__parent=None,
         )
         logger.info(
@@ -264,7 +262,7 @@ def terminate_resources_if_project_end_date_has_been_reached():
 def terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_order():
     termination_offerings_types = ["Marketplace.Slurm"]
     resources = models.Resource.objects.filter(
-        state=models.Resource.States.ERRED,
+        state=ResourceStates.ERRED,
         backend_id="",
         offering__type__in=termination_offerings_types,
     )
@@ -331,9 +329,9 @@ def notify_about_stale_resource():
     resources = (
         models.Resource.objects.exclude(id__in=actual_resources_ids)
         .exclude(
-            Q(state=models.Resource.States.TERMINATED)
-            | Q(state=models.Resource.States.TERMINATING)
-            | Q(state=models.Resource.States.CREATING)
+            Q(state=ResourceStates.TERMINATED)
+            | Q(state=ResourceStates.TERMINATING)
+            | Q(state=ResourceStates.CREATING)
         )
         .exclude(offering__billable=False)
     )
@@ -365,7 +363,7 @@ def notify_about_stale_resource():
 def terminate_expired_resources():
     expired_resources = models.Resource.objects.filter(
         end_date__lte=timezone.datetime.today(),
-        state__in=(models.Resource.States.OK, models.Resource.States.ERRED),
+        state__in=(ResourceStates.OK, ResourceStates.ERRED),
     )
     logger.info(
         "About to terminate expired resources: %s",

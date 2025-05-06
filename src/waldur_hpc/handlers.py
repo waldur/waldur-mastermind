@@ -8,6 +8,7 @@ from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.utils import move_project
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace.tasks import (
     notify_consumer_about_pending_order,
@@ -132,7 +133,7 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
         ]:
             return order, False
         if order.state == Order.States.DONE:
-            if order.resource.state != Resource.States.ERRED:
+            if order.resource.state != ResourceStates.ERRED:
                 return order, False
 
     name = sanitize_allocation_name(user.username)
@@ -145,7 +146,7 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
             limits=limits,
             attributes={"name": name},
             name=name,
-            state=Resource.States.CREATING,
+            state=ResourceStates.CREATING,
         )
         resource.init_cost()
         resource.save()

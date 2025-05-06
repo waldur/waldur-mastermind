@@ -27,7 +27,7 @@ from waldur_core.structure.managers import (
 )
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import plugins
-from waldur_mastermind.marketplace.enums import RobotAccountStates
+from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
     get_connected_offerings,
@@ -165,7 +165,7 @@ class OfferingFilter(
     def filter_resource_customer_uuid(self, queryset, name, value):
         valid_ids = (
             models.Resource.objects.filter(project__customer__uuid=value)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .values_list("offering_id", flat=True)
             .distinct()
         )
@@ -174,7 +174,7 @@ class OfferingFilter(
     def filter_resource_project_uuid(self, queryset, name, value):
         valid_ids = (
             models.Resource.objects.filter(project__uuid=value)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .values_list("offering_id", flat=True)
             .distinct()
         )
@@ -396,7 +396,7 @@ class ResourceFilter(
     category_uuid = django_filters.UUIDFilter(field_name="offering__category__uuid")
     provider_uuid = django_filters.UUIDFilter(field_name="offering__customer__uuid")
     backend_id = django_filters.CharFilter(label="Backend ID")
-    state = core_filters.MappedMultipleChoiceFilter(models.Resource.States.CHOICES)
+    state = core_filters.MappedMultipleChoiceFilter(ResourceStates.CHOICES)
     runtime_state = django_filters.CharFilter(
         field_name="backend_metadata__runtime_state", label="Runtime state"
     )
@@ -835,7 +835,7 @@ class CategoryFilter(django_filters.FilterSet):
     def filter_resource_customer_uuid(self, queryset, name, value):
         valid_ids = (
             models.Resource.objects.filter(project__customer__uuid=value)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .values_list("offering__category_id", flat=True)
             .distinct()
         )
@@ -844,7 +844,7 @@ class CategoryFilter(django_filters.FilterSet):
     def filter_resource_project_uuid(self, queryset, name, value):
         valid_ids = (
             models.Resource.objects.filter(project__uuid=value)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .values_list("offering__category_id", flat=True)
             .distinct()
         )
@@ -961,7 +961,7 @@ def user_extra_query(user):
 
     project_ids = (
         models.Resource.objects.filter(offering_id__in=offering_ids)
-        .exclude(state=models.Resource.States.TERMINATED)
+        .exclude(state=ResourceStates.TERMINATED)
         .values_list("project_id", flat=True)
     )
     user_ids = get_project_users(project_ids)

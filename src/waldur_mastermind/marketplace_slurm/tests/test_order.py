@@ -2,6 +2,7 @@ from rest_framework import test
 
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
@@ -83,9 +84,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
         self.assertEqual(self.order.state, marketplace_models.Order.States.DONE)
 
         self.order.resource.refresh_from_db()
-        self.assertEqual(
-            self.order.resource.state, marketplace_models.Resource.States.OK
-        )
+        self.assertEqual(self.order.resource.state, ResourceStates.OK)
 
     def trigger_creation(self):
         marketplace_utils.process_order(self.order, self.fixture.staff)

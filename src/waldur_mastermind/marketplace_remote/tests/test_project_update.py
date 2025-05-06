@@ -12,7 +12,7 @@ from waldur_core.core import middleware
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests.factories import ProjectFactory
-from waldur_mastermind.marketplace.models import Resource
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
@@ -27,7 +27,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         fixture = MarketplaceFixture()
 
-        fixture.resource.state = Resource.States.OK
+        fixture.resource.state = ResourceStates.OK
         fixture.resource.save()
 
         self.project = fixture.project

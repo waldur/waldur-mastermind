@@ -5,6 +5,7 @@ from waldur_azure.tests import factories as azure_factories
 from waldur_azure.tests import fixtures as azure_fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_azure import SQL_SERVER_TYPE, VIRTUAL_MACHINE_TYPE
 
@@ -35,7 +36,7 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         self.assertEqual(order.state, order.States.DONE)
 
         order.resource.refresh_from_db()
-        self.assertEqual(order.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(order.resource.state, ResourceStates.OK)
 
         order.refresh_from_db()
         self.assertEqual(order.state, marketplace_models.Order.States.DONE)
@@ -96,7 +97,7 @@ class SQLServerCreateTest(test.APITransactionTestCase):
         self.assertEqual(order.state, order.States.DONE)
 
         order.resource.refresh_from_db()
-        self.assertEqual(order.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(order.resource.state, ResourceStates.OK)
 
         order.refresh_from_db()
         self.assertEqual(order.state, marketplace_models.Order.States.DONE)
