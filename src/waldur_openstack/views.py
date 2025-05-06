@@ -1077,7 +1077,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     @extend_schema(
         description="Create snapshot from volume",
         request=serializers.OpenStackSnapshotSerializer,
-        responses=serializers.OpenStackSnapshotSerializer,
+        responses={201: serializers.OpenStackSnapshotSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def snapshot(self, request, uuid=None):
