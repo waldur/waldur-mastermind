@@ -2548,7 +2548,7 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
         queryset=models.SecurityGroup.objects.all(), many=True, required=False
     )
     server_group = OpenStackNestedServerGroupSerializer(
-        queryset=models.ServerGroup.objects.all(), required=False
+        queryset=models.ServerGroup.objects.all(), required=False, allow_null=True
     )
     ports = OpenStackNestedPortSerializer(many=True, required=True)
     floating_ips = OpenStackNestedFloatingIPSerializer(

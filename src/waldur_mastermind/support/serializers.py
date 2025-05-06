@@ -106,7 +106,7 @@ class IssueSerializer(
         write_only=True,
         help_text=_("Set true if issue is created by regular user via portal."),
     )
-    feedback = NestedFeedbackSerializer(required=False, read_only=True)
+    feedback = NestedFeedbackSerializer(required=False, read_only=True, allow_null=True)
     update_is_available = serializers.SerializerMethodField()
     destroy_is_available = serializers.SerializerMethodField()
     add_comment_is_available = serializers.SerializerMethodField()
