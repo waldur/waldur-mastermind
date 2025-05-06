@@ -3,6 +3,7 @@ from typing import cast
 from rest_framework import serializers as rf_serializers
 from rest_framework.reverse import reverse
 
+from waldur_core.core.models import User
 from waldur_core.structure.models import Customer, Project, ServiceSettings
 from waldur_mastermind.marketplace import (
     processors,
@@ -13,6 +14,7 @@ from waldur_mastermind.marketplace import (
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
+    INSTANCE_TYPE,
     RAM_TYPE,
     STORAGE_MODE_DYNAMIC,
     STORAGE_MODE_FIXED,
@@ -57,7 +59,9 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
         project = self.create_project()
         tenants = self.create_tenants(user, project)
-        return self.create_cluster(user, project, tenants)
+        cluster = self.create_cluster(user, project, tenants)
+        self.create_load_balancers(user, project, tenants)
+        return cluster
 
     def create_project(self) -> Project:
         """
@@ -109,7 +113,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
     def create_cluster(
         self,
-        user,
+        user: User,
         project: Project,
         tenants: list[os_models.Tenant],
     ) -> rancher_models.Cluster:
@@ -213,13 +217,15 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
         def format_node(
             flavor: os_models.Flavor,
-            volume_size: int,
-            volume_type: os_models.VolumeType | None,
             role: NodeRoleType,
+            system_volume_size: int,
+            system_volume_type: os_models.VolumeType | None,
+            data_volume_size: int | None = None,
+            data_volume_type: os_models.VolumeType | None = None,
         ):
             result = {
                 "role": role,
-                "system_volume_size": volume_size * 1024,
+                "system_volume_size": system_volume_size * 1024,
                 "flavor": reverse(
                     "openstack-flavor-detail", kwargs={"uuid": flavor.uuid.hex}
                 ),
@@ -227,11 +233,19 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     "openstack-subnet-detail", kwargs={"uuid": subnet.uuid.hex}
                 ),
             }
-            if storage_mode == STORAGE_MODE_DYNAMIC and volume_type is not None:
+            if storage_mode == STORAGE_MODE_DYNAMIC and system_volume_type is not None:
                 result["system_volume_type"] = reverse(
                     "openstack-volume-type-detail",
-                    kwargs={"uuid": volume_type.uuid.hex},
+                    kwargs={"uuid": system_volume_type.uuid.hex},
                 )
+            if data_volume_size:
+                data_volume_spec: dict[str, int | str] = {"size": data_volume_size}
+                if storage_mode == STORAGE_MODE_DYNAMIC and data_volume_type:
+                    data_volume_spec["volume_type"] = reverse(
+                        "openstack-volume-type-detail",
+                        kwargs={"uuid": data_volume_type.uuid.hex},
+                    )
+                result["data_volumes"] = [data_volume_spec]
             return result
 
         nodes = []
@@ -240,8 +254,8 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 format_node(
                     flavor=server_node_flavor,
                     role=SERVER_ROLE,
-                    volume_size=server_system_volume_size_gb,
-                    volume_type=server_system_volume_type,
+                    system_volume_size=server_system_volume_size_gb,
+                    system_volume_type=server_system_volume_type,
                 ),
             )
 
@@ -250,8 +264,8 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 format_node(
                     flavor=worker_node_flavor,
                     role=AGENT_ROLE,
-                    volume_size=worker_system_volume_size_gb,
-                    volume_type=worker_system_volume_type,
+                    system_volume_size=worker_system_volume_size_gb,
+                    system_volume_type=worker_system_volume_type,
                 ),
             )
 
@@ -273,6 +287,113 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             rancher_models.Cluster, Order.objects.get(uuid=order_uuid).resource.scope
         )
 
+    def create_load_balancers(
+        self,
+        user: User,
+        project: Project,
+        tenants: list[os_models.Tenant],
+    ) -> list[os_models.Instance]:
+        instances = []
+        for tenant in tenants:
+            try:
+                vm_offering = Offering.objects.get(scope=tenant, type=INSTANCE_TYPE)
+            except Offering.DoesNotExist:
+                raise rf_serializers.ValidationError(
+                    "Unable to create load balance because OpenStack instance offering for tenant does not exist."
+                )
+            plan = Plan.objects.filter(offerign=vm_offering).first()
+
+            flavor_name = self.order.offering.plugin_options[
+                "managed_rancher_load_balancer_flavor_name"
+            ]
+            try:
+                flavor = os_models.Flavor.objects.get(tenant=tenant, name=flavor_name)
+            except os_models.Flavor.DoesNotExist:
+                raise rf_serializers.ValidationError(
+                    "Unable to create load balance because OpenStack flavor does not exist."
+                )
+
+            base_image_name = self.order.offering.secret_options["base_image_name"]
+            try:
+                image = os_models.Image.objects.get(tenant=tenant, name=base_image_name)
+            except os_models.Image.DoesNotExist:
+                raise rf_serializers.ValidationError(
+                    "Unable to create load balance because OpenStack image does not exist."
+                )
+
+            subnet = os_models.SubNet.objects.filter(tenant=tenant).first()
+            if not subnet:
+                raise rf_serializers.ValidationError(
+                    "Unable to create load balance because OpenStack subnet does not exist."
+                )
+
+            system_volume_size_gb = self.order.offering.plugin_options[
+                "managed_rancher_load_balancer_system_volume_size_gb"
+            ]
+            system_volume_type_name = self.order.offering.plugin_options.get(
+                "managed_rancher_load_balancer_system_volume_type_name"
+            )
+
+            data_volume_size_gb = self.order.offering.plugin_options[
+                "managed_rancher_load_balancer_data_volume_size_gb"
+            ]
+            data_volume_type_name = self.order.offering.plugin_options.get(
+                "managed_rancher_load_balancer_data_volume_type_name"
+            )
+            cloud_init_template = self.order.offering.plugin_options.get(
+                "managed_rancher_load_balancer_cloud_init_template"
+            )
+
+            system_volume_type = os_models.VolumeType.objects.get(
+                tenant=tenant, name=system_volume_type_name
+            )
+            data_volume_type = os_models.VolumeType.objects.get(
+                tenant=tenant, name=data_volume_type_name
+            )
+            security_groups = os_models.SecurityGroup.objects.filter(
+                tenant=tenant,
+                name__in=["k8s_admin", "k8s_public"],
+            )
+
+            attributes = {
+                "name": f"k8s-lb-{self.order.resource.slug}",
+                "flavor": reverse(
+                    "openstack-flavor-detail", kwargs={"uuid": flavor.uuid.hex}
+                ),
+                "image": reverse("openstack-image-detail", kwargs={"uuid": image}),
+                "system_volume_size": system_volume_size_gb * 1024,
+                "system_volume_type": reverse(
+                    "openstack-volume-type-detail",
+                    kwargs={"uuid": system_volume_type.uuid.hex},
+                ),
+                "data_volume_size": data_volume_size_gb * 1024,
+                "data_volume_type": reverse(
+                    "openstack-volume-type-detail",
+                    kwargs={"uuid": data_volume_type.uuid.hex},
+                ),
+                # TODO: inject subnet allocation pool into initi_template
+                "user_data": cloud_init_template,
+                "security_groups": [group.uuid.hex for group in security_groups],
+                "ports": [
+                    {
+                        "subnet": reverse(
+                            "openstack-subnet-detail", kwargs={"uuid": subnet}
+                        )
+                    }
+                ],
+            }
+            order_uuid = submit_creation_order(
+                user, vm_offering, plan, project, attributes
+            )
+            wait_for_order(order_uuid)
+            instances.append(
+                cast(
+                    os_models.Instance,
+                    Order.objects.get(uuid=order_uuid).resource.scope,
+                )
+            )
+        return instances
+
     def validate_order(self, request):
         available_service_settings = self.validate_openstack_offerings()
         self.validate_flavors(available_service_settings)
@@ -283,9 +404,18 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         server_flavor_name = self.order.offering.plugin_options[
             "managed_rancher_server_flavor_name"
         ]
+        load_balancer_flavor_name = self.order.offering.plugin_options[
+            "managed_rancher_load_balancer_flavor_name"
+        ]
 
         for service_setting in available_service_settings:
-            for flavor_name in (worker_nodes_flavor_name, server_flavor_name):
+            for flavor_name in (
+                worker_nodes_flavor_name,
+                server_flavor_name,
+                load_balancer_flavor_name,
+            ):
+                if not flavor_name:
+                    continue
                 if not os_models.Flavor.objects.filter(
                     settings_id=service_setting, name=flavor_name
                 ).exists():
@@ -306,12 +436,22 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         worker_system_volume_type_name = self.order.attributes.get(
             "worker_system_volume_type_name"
         )
+        load_balancer_system_volume_type_name = self.order.offering.plugin_options.get(
+            "managed_rancher_load_balancer_system_volume_type_name"
+        )
+        load_balancer_data_volume_type_name = self.order.offering.plugin_options.get(
+            "managed_rancher_load_balancer_data_volume_type_name"
+        )
 
         for service_setting in available_service_settings:
             for volume_type_name in (
                 server_system_volume_type_name,
                 worker_system_volume_type_name,
+                load_balancer_system_volume_type_name,
+                load_balancer_data_volume_type_name,
             ):
+                if not volume_type_name:
+                    continue
                 if not os_models.VolumeType.objects.filter(
                     settings_id=service_setting, name=volume_type_name
                 ).exists():
@@ -358,29 +498,27 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         service_settings = cast(ServiceSettings, os_offering.scope)
 
         worker_node_flavor_name = self.order.attributes["worker_nodes_flavor_name"]
-        worker_node_flavor = os_models.Flavor.objects.get(
-            settings=service_settings,
-            name=worker_node_flavor_name,
-        )
-
         server_flavor_name = self.order.offering.plugin_options[
             "managed_rancher_server_flavor_name"
         ]
-        server_node_flavor = os_models.Flavor.objects.get(
-            settings=service_settings,
-            name=server_flavor_name,
-        )
-
-        limits = {
-            CORES_TYPE: (
-                worker_node_flavor.cores * worker_nodes_count
-                + server_node_flavor.cores * server_nodes_count
-            ),
-            RAM_TYPE: (
-                worker_node_flavor.ram * worker_nodes_count
-                + server_node_flavor.ram * server_nodes_count
-            ),
+        load_balancer_flavor_name = self.order.offering.plugin_options[
+            "managed_rancher_load_balancer_flavor_name"
+        ]
+        flavors = {
+            worker_node_flavor_name: worker_nodes_count,
+            server_flavor_name: server_nodes_count,
+            load_balancer_flavor_name: 1,
         }
+        limits = {}
+        for flavor_name, node_count in flavors.items():
+            flavor = os_models.Flavor.objects.get(
+                settings=service_settings,
+                name=flavor_name,
+            )
+            limits.setdefault(CORES_TYPE, 0)
+            limits.setdefault(RAM_TYPE, 0)
+            limits[CORES_TYPE] += flavor.cores * node_count
+            limits[RAM_TYPE] += flavor.ram * node_count
 
         server_system_volume_size_gb = self.order.offering.plugin_options[
             "managed_rancher_server_system_volume_size_gb"
@@ -396,6 +534,20 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             "worker_system_volume_type_name"
         )
 
+        load_balancer_system_volume_size_gb = self.order.offering.plugin_options[
+            "managed_rancher_load_balancer_system_volume_size_gb"
+        ]
+        load_balancer_system_volume_type_name = self.order.offering.plugin_options.get(
+            "managed_rancher_load_balancer_system_volume_type_name"
+        )
+
+        load_balancer_data_volume_size_gb = self.order.offering.plugin_options[
+            "managed_rancher_load_balancer_data_volume_size_gb"
+        ]
+        load_balancer_data_volume_type_name = self.order.offering.plugin_options.get(
+            "managed_rancher_load_balancer_data_volume_type_name"
+        )
+
         storage_mode = (
             os_offering.plugin_options.get("storage_mode") or STORAGE_MODE_FIXED
         )
@@ -403,40 +555,25 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             total_storage = (
                 server_system_volume_size_gb * server_nodes_count
                 + worker_system_volume_size_gb * worker_nodes_count
+                + load_balancer_system_volume_size_gb
+                + load_balancer_data_volume_size_gb
             ) * 1024
             limits[STORAGE_TYPE] = total_storage
         else:
-            try:
-                os_models.VolumeType.objects.get(
-                    settings=service_settings, name=server_system_volume_type_name
+            volumes = {
+                server_system_volume_type_name: server_nodes_count
+                * server_system_volume_size_gb,
+                worker_system_volume_type_name: worker_nodes_count
+                * worker_system_volume_size_gb,
+                load_balancer_system_volume_type_name: load_balancer_system_volume_size_gb,
+                load_balancer_data_volume_type_name: load_balancer_data_volume_size_gb,
+            }
+            for volume_type_name, volume_size in volumes.items():
+                volume_type_quota_name = volume_type_name_to_quota_name(
+                    volume_type_name
                 )
-            except os_models.VolumeType.DoesNotExist:
-                raise rf_serializers.ValidationError(
-                    f'Server volume type "{server_system_volume_type_name}" does not exist'
-                )
-
-            try:
-                os_models.VolumeType.objects.get(
-                    settings=service_settings, name=worker_system_volume_type_name
-                )
-            except os_models.VolumeType.DoesNotExist:
-                raise rf_serializers.ValidationError(
-                    f'Worker volume type "{worker_system_volume_type_name}" does not exist'
-                )
-            worker_system_volume_type_quota_name = volume_type_name_to_quota_name(
-                worker_system_volume_type_name
-            )
-            server_system_volume_type_quota_name = volume_type_name_to_quota_name(
-                server_system_volume_type_name
-            )
-            limits.setdefault(worker_system_volume_type_quota_name, 0)
-            limits.setdefault(server_system_volume_type_quota_name, 0)
-            limits[worker_system_volume_type_quota_name] += (
-                worker_nodes_count * worker_system_volume_size_gb * 1024
-            )
-            limits[server_system_volume_type_quota_name] += (
-                server_nodes_count * server_system_volume_size_gb * 1024
-            )
+                limits.setdefault(volume_type_quota_name, 0)
+                limits[volume_type_quota_name] += volume_size * 1024
         return limits
 
 
