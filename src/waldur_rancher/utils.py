@@ -227,8 +227,10 @@ def format_node_cloud_config(
 ):
     cloud_init_extra_params = cloud_init_extra_params or {}
     config_template = cast(
-        str, node.cluster.service_settings.get_option("cloud_init_template")
+        str | None, node.cluster.service_settings.get_option("cloud_init_template")
     )
+    if not config_template:
+        return ""
     user_data = config_template.format(
         **cloud_init_extra_params,
     )
