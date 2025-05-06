@@ -331,10 +331,11 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
 
 class CallDocumentSerializer(serializers.ModelSerializer):
     file_name = serializers.CharField(source="file.name", read_only=True)
+    file_size = serializers.IntegerField(source="file.size", read_only=True)
 
     class Meta:
         model = models.CallDocument
-        fields = ["uuid", "file", "file_name", "description", "created"]
+        fields = ["uuid", "file", "file_name", "file_size", "description", "created"]
 
 
 class PublicCallSerializer(
@@ -733,10 +734,11 @@ class ProtectedRoundSerializer(
 
 class ProposalDocumentationSerializer(serializers.ModelSerializer):
     file_name = serializers.CharField(source="file.name", read_only=True)
+    file_size = serializers.IntegerField(source="file.size", read_only=True)
 
     class Meta:
         model = models.ProposalDocumentation
-        fields = ["file", "file_name", "created"]
+        fields = ["file", "file_name", "file_size", "created"]
 
 
 class ProposalUpdateProjectDetailsSerializer(serializers.ModelSerializer):
