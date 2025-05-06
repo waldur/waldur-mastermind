@@ -670,6 +670,7 @@ class PullPortsTest(BaseBackendTest):
                     "device_id": instance.backend_id,
                     "network_id": "network_id",
                     "device_owner": "compute:nova",
+                    "admin_state_up": True,
                     "fixed_ips": [],  # Empty fixed_ips array
                     "security_groups": [],
                 }
@@ -697,6 +698,7 @@ class PullPortsTest(BaseBackendTest):
                     "device_id": instance.backend_id,
                     "network_id": "network_id",
                     "device_owner": "compute:nova",
+                    "admin_state_up": True,
                     "fixed_ips": [
                         {
                             "ip_address": "10.0.0.2",
