@@ -586,6 +586,7 @@ class PullPortsTest(BaseBackendTest):
                     "device_id": device_id,
                     "network_id": "network_id",
                     "device_owner": "compute:nova",
+                    "admin_state_up": True,
                     "fixed_ips": [
                         {
                             "ip_address": "10.0.0.2",
@@ -741,6 +742,7 @@ class PullPortsTest(BaseBackendTest):
                     ],
                     "name": "",
                     "description": "",
+                    "admin_state_up": True,
                     "network_id": "network_id",
                     "security_groups": [],
                 },
@@ -757,6 +759,7 @@ class PullPortsTest(BaseBackendTest):
                     ],
                     "name": "",
                     "description": "",
+                    "admin_state_up": True,
                     "network_id": "network_id",
                     "security_groups": [],
                 },
@@ -814,6 +817,7 @@ class PullPortsTest(BaseBackendTest):
                     ],
                     "name": "",
                     "description": "",
+                    "admin_state_up": True,
                     "network_id": "network_id",
                     "security_groups": [],
                 }

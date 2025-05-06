@@ -305,6 +305,7 @@ class PortFactory(
     project = factory.SubFactory(structure_factories.ProjectFactory)
     tenant = factory.SubFactory(TenantFactory)
     network = factory.SubFactory(NetworkFactory)
+    admin_state_up = True
 
     @classmethod
     def get_url(cls, port=None):
