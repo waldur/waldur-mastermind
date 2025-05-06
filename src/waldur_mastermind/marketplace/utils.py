@@ -493,7 +493,7 @@ def get_marketplace_offering_uuid(serializer, scope) -> str:
         return
 
 
-def get_marketplace_offering_plugin_options(serializer, scope) -> dict:
+def get_marketplace_offering_plugin_options(serializer, scope) -> dict | None:
     try:
         return models.Resource.objects.get(scope=scope).offering.plugin_options
     except ObjectDoesNotExist:
