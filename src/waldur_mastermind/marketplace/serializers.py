@@ -224,6 +224,16 @@ class ManagedRancherPluginOptionsSerializer(serializers.Serializer):
     managed_rancher_server_system_volume_type_name = serializers.CharField(
         required=False
     )
+    managed_rancher_server_data_volume_size_gb = serializers.IntegerField(
+        required=False
+    )
+    managed_rancher_server_data_volume_type_name = serializers.CharField(required=False)
+    managed_rancher_worker_system_volume_size_gb = serializers.IntegerField(
+        required=False
+    )
+    managed_rancher_worker_system_volume_type_name = serializers.CharField(
+        required=False
+    )
     managed_rancher_load_balancer_cloud_init_template = serializers.CharField(
         required=False
     )

@@ -8,14 +8,17 @@ class RancherExtension(WaldurExtension):
                 "server": {"CPU": 2, "RAM": 4096},
                 "agent": {"CPU": 1, "RAM": 1024},
             },
+            # TODO: consider removing this
             "MOUNT_POINT_CHOICES": (
                 "/var/lib/docker",
                 "/var/lib/etcd",
                 "/opt/media01",
+                "/opt/rke2_storage",
             ),
             "MOUNT_POINT_MIN_SIZE": {
                 "/var/lib/docker": 64,
                 "/var/lib/etcd": 10,
+                "/opt/rke2_storage": 10,
             },
             "SYSTEM_VOLUME_MIN_SIZE": 64,
             "READ_ONLY_MODE": False,

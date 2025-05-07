@@ -199,22 +199,42 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             "managed_rancher_server_system_volume_type_name"
         )
 
-        worker_system_volume_size_gb = self.order.attributes[
+        server_data_volume_size_gb = offering.plugin_options[
+            "managed_rancher_server_data_volume_size_gb"
+        ]
+        server_data_volume_type_name = offering.plugin_options.get(
+            "managed_rancher_server_data_volume_type_name"
+        )
+
+        worker_system_volume_size_gb = offering.plugin_options[
+            "managed_rancher_worker_system_volume_size_gb"
+        ]
+        worker_system_volume_type_name = offering.plugin_options.get(
+            "managed_rancher_worker_system_volume_type_name"
+        )
+
+        worker_data_volume_size_gb = self.order.attributes[
             "worker_nodes_data_volume_size"
         ]
-        worker_system_volume_type_name = self.order.attributes.get(
-            "worker_system_volume_type_name"
+        worker_data_volume_type_name = self.order.attributes.get(
+            "worker_nodes_data_volume_type_name"
         )
 
         storage_mode = (
             os_offering.plugin_options.get("storage_mode") or STORAGE_MODE_FIXED
         )
 
-        server_system_volume_type = os_models.VolumeType.objects.get(
+        server_system_volume_type = os_models.VolumeType.objects.filter(
             settings=os_service_settings, name=server_system_volume_type_name
-        )
+        ).first()
+        server_data_volume_type = os_models.VolumeType.objects.filter(
+            settings=os_service_settings, name=server_data_volume_type_name
+        ).first()
         worker_system_volume_type = os_models.VolumeType.objects.filter(
             settings=os_service_settings, name=worker_system_volume_type_name
+        ).first()
+        worker_data_volume_type = os_models.VolumeType.objects.filter(
+            settings=os_service_settings, name=worker_data_volume_type_name
         ).first()
 
         subnet = os_models.SubNet.objects.filter(tenant=tenants[0]).first()
@@ -247,7 +267,11 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     kwargs={"uuid": system_volume_type.uuid.hex},
                 )
             if data_volume_size:
-                data_volume_spec: dict[str, int | str] = {"size": data_volume_size}
+                data_volume_spec: dict[str, int | str] = {
+                    "size": data_volume_size * 1024,
+                    "mount_point": "/opt/rke2_storage",
+                    "filesystem": "btrfs",
+                }
                 if storage_mode == STORAGE_MODE_DYNAMIC and data_volume_type:
                     data_volume_spec["volume_type"] = reverse(
                         "openstack-volume-type-detail",
@@ -264,6 +288,8 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     role=SERVER_ROLE,
                     system_volume_size=server_system_volume_size_gb,
                     system_volume_type=server_system_volume_type,
+                    data_volume_size=server_data_volume_size_gb,
+                    data_volume_type=server_data_volume_type,
                 ),
             )
 
@@ -274,11 +300,12 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     role=AGENT_ROLE,
                     system_volume_size=worker_system_volume_size_gb,
                     system_volume_type=worker_system_volume_type,
+                    data_volume_size=worker_data_volume_size_gb,
+                    data_volume_type=worker_data_volume_type,
                 ),
             )
 
         attributes = {
-            # TODO: implement better naming
             "name": f"k8s-{self.order.resource.slug}",
             "nodes": nodes,
             "tenant": reverse(
@@ -459,8 +486,14 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         server_system_volume_type_name = self.order.offering.plugin_options.get(
             "managed_rancher_server_system_volume_type_name"
         )
-        worker_system_volume_type_name = self.order.attributes.get(
-            "worker_system_volume_type_name"
+        server_data_volume_type_name = self.order.offering.plugin_options.get(
+            "managed_rancher_server_data_volume_type_name"
+        )
+        worker_system_volume_type_name = self.order.offering.plugin_options.get(
+            "managed_rancher_worker_system_volume_type_name"
+        )
+        worker_data_volume_type_name = self.order.attributes.get(
+            "worker_nodes_data_volume_type_name"
         )
         load_balancer_system_volume_type_name = self.order.offering.plugin_options.get(
             "managed_rancher_load_balancer_system_volume_type_name"
@@ -472,7 +505,9 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         for service_setting in available_service_settings:
             for volume_type_name in (
                 server_system_volume_type_name,
+                server_data_volume_type_name,
                 worker_system_volume_type_name,
+                worker_data_volume_type_name,
                 load_balancer_system_volume_type_name,
                 load_balancer_data_volume_type_name,
             ):
@@ -530,11 +565,13 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         load_balancer_flavor_name = self.order.offering.plugin_options[
             "managed_rancher_load_balancer_flavor_name"
         ]
-        flavors = {
-            worker_node_flavor_name: worker_nodes_count,
-            server_flavor_name: server_nodes_count,
-            load_balancer_flavor_name: 1,
-        }
+        flavors = {}
+        flavors.setdefault(worker_node_flavor_name, 0)
+        flavors.setdefault(server_flavor_name, 0)
+        flavors.setdefault(load_balancer_flavor_name, 0)
+        flavors[worker_node_flavor_name] += worker_nodes_count
+        flavors[server_flavor_name] += server_nodes_count
+        flavors[load_balancer_flavor_name] += 1
         limits = {}
         for flavor_name, node_count in flavors.items():
             flavor = os_models.Flavor.objects.get(
@@ -546,32 +583,51 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             limits[CORES_TYPE] += flavor.cores * node_count
             limits[RAM_TYPE] += flavor.ram * node_count
 
-        server_system_volume_size_gb = self.order.offering.plugin_options[
+        server_system_volume_size_gb: int = self.order.offering.plugin_options[
             "managed_rancher_server_system_volume_size_gb"
         ]
-        server_system_volume_type_name = self.order.offering.plugin_options.get(
+        server_system_volume_type_name: str = self.order.offering.plugin_options.get(
             "managed_rancher_server_system_volume_type_name"
         )
 
-        worker_system_volume_size_gb = self.order.attributes[
+        server_data_volume_size_gb: int = self.order.offering.plugin_options.get(
+            "managed_rancher_server_data_volume_size_gb"
+        )
+        server_data_volume_type_name: str = self.order.offering.plugin_options.get(
+            "managed_rancher_server_data_volume_type_name"
+        )
+
+        worker_system_volume_size_gb: int = self.order.offering.plugin_options.get(
+            "managed_rancher_worker_system_volume_size_gb"
+        )
+        worker_system_volume_type_name: str = self.order.offering.plugin_options.get(
+            "managed_rancher_worker_system_volume_type_name"
+        )
+
+        worker_data_volume_size_gb: int = self.order.attributes[
             "worker_nodes_data_volume_size"
         ]
-        worker_system_volume_type_name = self.order.attributes.get(
-            "worker_system_volume_type_name"
+
+        worker_data_volume_type_name: str = self.order.attributes.get(
+            "worker_nodes_data_volume_type_name"
         )
 
-        load_balancer_system_volume_size_gb = self.order.offering.plugin_options[
+        load_balancer_system_volume_size_gb: int = self.order.offering.plugin_options[
             "managed_rancher_load_balancer_system_volume_size_gb"
         ]
-        load_balancer_system_volume_type_name = self.order.offering.plugin_options.get(
-            "managed_rancher_load_balancer_system_volume_type_name"
+        load_balancer_system_volume_type_name: str = (
+            self.order.offering.plugin_options.get(
+                "managed_rancher_load_balancer_system_volume_type_name"
+            )
         )
 
-        load_balancer_data_volume_size_gb = self.order.offering.plugin_options[
+        load_balancer_data_volume_size_gb: int = self.order.offering.plugin_options[
             "managed_rancher_load_balancer_data_volume_size_gb"
         ]
-        load_balancer_data_volume_type_name = self.order.offering.plugin_options.get(
-            "managed_rancher_load_balancer_data_volume_type_name"
+        load_balancer_data_volume_type_name: str = (
+            self.order.offering.plugin_options.get(
+                "managed_rancher_load_balancer_data_volume_type_name"
+            )
         )
 
         storage_mode = (
@@ -579,22 +635,42 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         )
         if storage_mode == STORAGE_MODE_FIXED:
             total_storage = (
-                server_system_volume_size_gb * server_nodes_count
-                + worker_system_volume_size_gb * worker_nodes_count
+                (server_system_volume_size_gb + server_data_volume_size_gb)
+                * server_nodes_count
+                + (worker_system_volume_size_gb + worker_data_volume_size_gb)
+                * worker_nodes_count
                 + load_balancer_system_volume_size_gb
                 + load_balancer_data_volume_size_gb
             ) * 1024
             limits[STORAGE_TYPE] = total_storage
         else:
-            volumes = {
-                server_system_volume_type_name: server_nodes_count
-                * server_system_volume_size_gb,
-                worker_system_volume_type_name: worker_nodes_count
-                * worker_system_volume_size_gb,
-                load_balancer_system_volume_type_name: load_balancer_system_volume_size_gb,
-                load_balancer_data_volume_type_name: load_balancer_data_volume_size_gb,
-            }
-            for volume_type_name, volume_size in volumes.items():
+            volumes = (
+                (
+                    server_system_volume_type_name,
+                    server_nodes_count * server_system_volume_size_gb,
+                ),
+                (
+                    worker_system_volume_type_name,
+                    worker_nodes_count * worker_system_volume_size_gb,
+                ),
+                (
+                    server_data_volume_type_name,
+                    server_nodes_count * server_data_volume_size_gb,
+                ),
+                (
+                    worker_data_volume_type_name,
+                    worker_nodes_count * worker_data_volume_size_gb,
+                ),
+                (
+                    load_balancer_system_volume_type_name,
+                    load_balancer_system_volume_size_gb,
+                ),
+                (
+                    load_balancer_data_volume_type_name,
+                    load_balancer_data_volume_size_gb,
+                ),
+            )
+            for volume_type_name, volume_size in volumes:
                 volume_type_quota_name = volume_type_name_to_quota_name(
                     volume_type_name
                 )

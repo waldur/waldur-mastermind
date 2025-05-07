@@ -36,34 +36,35 @@ logger = logging.getLogger(__name__)
 
 CLOUD_INIT_TEMPLATE = """\
 #cloud-config
+
 package_update: true
 package_upgrade: true
 
 cloud_init_modules:
-- migrator
-- seed_random
-- bootcmd
-- write_files
-- growpart
-#- resizefs  # commented out to disable
-- disk_setup
-- set_hostname
-- update_hostname
-- update_etc_hosts
-- ca_certs
-- rsyslog
-- users_groups
-- ssh
-- mounts
+ - migrator
+ - seed_random
+ - bootcmd
+ - write_files
+ - growpart
+ #- resizefs  # commented out to disable
+ - disk_setup
+ - set_hostname
+ - update_hostname
+ - update_etc_hosts
+ - ca_certs
+ - rsyslog
+ - users_groups
+ - ssh
+ - mounts
 
 disk_setup:
-/dev/sdb:
+  /dev/sdb:
     table_type: gpt
     layout: true
     overwrite: false
 
 fs_setup:
-- label: longhorn_data
+  - label: longhorn_data
     filesystem: btrfs
     device: /dev/sdb1
     overwrite: false
@@ -77,256 +78,259 @@ users:
     ssh_authorized_keys: []
 
 write_files:
-- path: /etc/rancher/rke2/config.yaml.template
+  - path: /etc/rancher/rke2/config.yaml.template
     content: |
-    server: https://rancher-aio.cloud.ut.ee:9345
-    token: $RKE_TOKEN
-    cni: cilium
-    node-label:
+      server: https://rancher-aio.cloud.ut.ee:9345
+      token: $RKE_TOKEN
+      cni: cilium
+      node-label:
         - "node.longhorn.io/create-default-disk=true"
 
-- path: /etc/vault/role-id
+  - path: /etc/vault/role-id
     content: |
-    {vault_role_id}
+      {vault_role_id}
 
-- path: /etc/vault/secret-id
+  - path: /etc/vault/secret-id
     content: |
-    {vault_role_secret_id}
+      {vault_role_secret_id}
 
 
-- path: /etc/sysctl.d/90-kubernetes.conf
+  - path: /etc/sysctl.d/90-kubernetes.conf
     content: |
-    # Kubernetes recommended settings
-    net.ipv4.conf.all.forwarding=1
-    net.ipv6.conf.all.forwarding=1
-    net.ipv4.ip_forward=1
+      # Kubernetes recommended settings
+      net.ipv4.conf.all.forwarding=1
+      net.ipv6.conf.all.forwarding=1
+      net.ipv4.ip_forward=1
 
-    # OOM settings
-    vm.panic_on_oom=0
-    vm.overcommit_memory=1
+      # OOM settings
+      vm.panic_on_oom=0
+      vm.overcommit_memory=1
 
-    # Kernel panic settings
-    kernel.panic=10
-    kernel.panic_on_oops=1
-    kernel.keys.root_maxbytes=25000000
+      # Kernel panic settings
+      kernel.panic=10
+      kernel.panic_on_oops=1
+      kernel.keys.root_maxbytes=25000000
 
-    # For large scale environments
-    fs.inotify.max_user_watches=524288
-    fs.inotify.max_user_instances=512
+      # For large scale environments
+      fs.inotify.max_user_watches=524288
+      fs.inotify.max_user_instances=512
 
-    # Improve network performance
-    net.core.somaxconn=32768
-    net.ipv4.tcp_tw_reuse=1
-    net.ipv4.tcp_fin_timeout=15
-    net.core.netdev_max_backlog=16384
+      # Improve network performance
+      net.core.somaxconn=32768
+      net.ipv4.tcp_tw_reuse=1
+      net.ipv4.tcp_fin_timeout=15
+      net.core.netdev_max_backlog=16384
 
-    # Prevent ip spoofing
-    net.ipv4.conf.all.rp_filter=1
-    net.ipv4.conf.default.rp_filter=1
+      # Prevent ip spoofing
+      net.ipv4.conf.all.rp_filter=1
+      net.ipv4.conf.default.rp_filter=1
 
-    # Ensure source routing is disabled
-    net.ipv4.conf.all.accept_source_route=0
-    net.ipv4.conf.default.accept_source_route=0
+      # Ensure source routing is disabled
+      net.ipv4.conf.all.accept_source_route=0
+      net.ipv4.conf.default.accept_source_route=0
 
-    # Bridge netfilter
-    net.bridge.bridge-nf-call-iptables=1
-    net.bridge.bridge-nf-call-ip6tables=1
+      # Bridge netfilter
+      net.bridge.bridge-nf-call-iptables=1
+      net.bridge.bridge-nf-call-ip6tables=1
 
-# Custom transactional update service
-- path: /etc/systemd/system/custom-transactional-update.service
+  # Custom transactional update service
+  - path: /etc/systemd/system/custom-transactional-update.service
     content: |
-    [Unit]
-    Description=Custom Transactional Update
-    Requires=network-online.target
-    After=network-online.target
+      [Unit]
+      Description=Custom Transactional Update
+      Requires=network-online.target
+      After=network-online.target
 
-    [Service]
-    Type=oneshot
-    ExecStart=/var/opt/scripts/custom-update.sh
+      [Service]
+      Type=oneshot
+      ExecStart=/var/opt/scripts/custom-update.sh
 
-    [Install]
-    WantedBy=multi-user.target
+      [Install]
+      WantedBy=multi-user.target
 
-# Custom update timer (daily at 2am)
-- path: /etc/systemd/system/custom-transactional-update.timer
+  # Custom update timer (daily at 2am)
+  - path: /etc/systemd/system/custom-transactional-update.timer
     content: |
-    [Unit]
-    Description=Custom Timer for Transactional Update
+      [Unit]
+      Description=Custom Timer for Transactional Update
 
-    [Timer]
-    OnCalendar=*-*-* 02:00:00
-    RandomizedDelaySec=1800
+      [Timer]
+      OnCalendar=*-*-* 02:00:00
+      RandomizedDelaySec=1800
 
-    [Install]
-    WantedBy=timers.target
+      [Install]
+      WantedBy=timers.target
 
-- path: /var/opt/scripts/custom-update.sh
+  - path: /var/opt/scripts/custom-update.sh
     permissions: '0755'
     content: |
-    #!/bin/bash
-    # Run transactional update without rebooting
-    /usr/sbin/transactional-update cleanup dup --non-interactive
+      #!/bin/bash
+      # Run transactional update without rebooting
+      /usr/sbin/transactional-update cleanup dup --non-interactive
 
-    # Check if reboot is needed and notify kured
-    if [ -f /var/run/reboot-needed ]; then
+      # Check if reboot is needed and notify kured
+      if [ -f /var/run/reboot-needed ]; then
         touch /run/reboot-required
-    fi
+      fi
 
-- path: /etc/modules-load.d/k8s.conf
+  - path: /etc/modules-load.d/k8s.conf
     permissions: '0644'
     content: |
-    overlay
-    br_netfilter
+      overlay
+      br_netfilter
 
-- path: /etc/systemd/system/rke2-setup.service
+  - path: /etc/systemd/system/rke2-setup.service
     content: |
-    [Unit]
-    Description=RKE2 Installation and Setup
-    Wants=network-online.target
-    After=network-online.target
-    # Run only once after first boot
-    ConditionPathExists=!/var/lib/rke2-setup.done
+      [Unit]
+      Description=RKE2 Installation and Setup
+      Wants=network-online.target
+      After=network-online.target
+      # Run only once after first boot
+      ConditionPathExists=!/var/lib/rke2-setup.done
 
-    [Service]
-    Type=oneshot
-    ExecStart=/bin/bash /var/opt/scripts/rke-install.sh
-    ExecStartPost=/bin/touch /var/lib/rke2-setup.done
-    RemainAfterExit=yes
+      [Service]
+      Type=oneshot
+      ExecStart=/bin/bash /var/opt/scripts/rke-install.sh
+      ExecStartPost=/bin/touch /var/lib/rke2-setup.done
+      RemainAfterExit=yes
 
-    [Install]
-    WantedBy=multi-user.target
+      [Install]
+      WantedBy=multi-user.target
 
-- path: /tmp/first-boot-packages.sh
+  - path: /tmp/first-boot-packages.sh
     permissions: '0755'
     content: |
-    #!/bin/bash
-    zypper refresh
-    zypper install -y qemu-guest-agent nano htop container-selinux open-iscsi nfs-client unzip curl ca-certificates jq
+      #!/bin/bash
+      zypper refresh
+      zypper install -y qemu-guest-agent nano htop container-selinux open-iscsi nfs-client unzip curl ca-certificates jq
 
-- path: /etc/profile.d/kube.sh
+  - path: /etc/profile.d/kube.sh
     append: true
     content: |
-    export PATH=$PATH:/var/opt/bin:/opt/rke2/bin:/var/lib/rancher/rke2/bin/
-    export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+      export PATH=$PATH:/var/opt/bin:/opt/rke2/bin:/var/lib/rancher/rke2/bin/
+      export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 
-- path: /var/lib/rancher/rke2/server/manifests/rke2-ingress-nginx-config.yaml
+  - path: /var/lib/rancher/rke2/server/manifests/rke2-ingress-nginx-config.yaml
     permissions: '0640'
     content: |
-    apiVersion: helm.cattle.io/v1
-    kind: HelmChartConfig
-    metadata:
+      apiVersion: helm.cattle.io/v1
+      kind: HelmChartConfig
+      metadata:
         name: rke2-ingress-nginx
         namespace: kube-system
-    spec:
+      spec:
         valuesContent: |-
-        controller:
+          controller:
             config:
-            allow-snippet-annotations: "true"
-            proxy-buffering: "off"
-            proxy-buffers: 100 "2M"
-            proxy-buffer-size: "2M"
-            use-forwarded-headers: "true"
+              allow-snippet-annotations: "true"
+              proxy-buffering: "off"
+              proxy-buffers: 100 "2M"
+              proxy-buffer-size: "2M"
+              use-forwarded-headers: "true"
 
-- path: /var/opt/scripts/rke-install.sh
+  - path: /var/opt/scripts/rke-install.sh
     permissions: '0755'
     content: |
-    #!/bin/bash
-    # --- Install Vault CLI ---
-    VAULT_VERSION="1.19.0"
-    mkdir -p /var/opt/bin
-    curl -s -L -o /tmp/vault.zip "https://releases.hashicorp.com/vault/$VAULT_VERSION/vault_$VAULT_VERSION_linux_amd64.zip"
-    unzip -o /tmp/vault.zip -d /var/opt/bin/ vault
-    rm -f /tmp/vault.zip
-    chmod 755 /var/opt/bin/vault
-    /var/opt/bin/vault --version || echo "Vault CLI installation failed"; exit 1;
+      #!/bin/bash
+      # --- Install Vault CLI ---
+      VAULT_VERSION="1.19.0"
+      mkdir -p /var/opt/bin
+      curl -s -L -o /tmp/vault.zip "https://releases.hashicorp.com/vault/${{VAULT_VERSION}}/vault_${{VAULT_VERSION}}_linux_amd64.zip"
+      unzip -o /tmp/vault.zip -d /var/opt/bin/ vault
+      rm -f /tmp/vault.zip
+      chmod 755 /var/opt/bin/vault
+      /var/opt/bin/vault --version || {{ echo "Vault CLI installation failed"; exit 1; }}
 
-    # --- Fetch variables from metadata server ---
-    RKE_ROLE="{rke_role}"
-    VAULT_ADDR="{vault_addr}"
+      # --- Fetch variables from metadata server ---
+      RKE_ROLE="{rke_role}"
+      VAULT_ADDR="{vault_addr}"
 
-    VAULT_ROLE_ID="{vault_role_id}"
-    VAULT_SECRET_ID="{vault_role_secret_id}"
+      VAULT_ROLE_ID="{vault_role_id}"
+      VAULT_SECRET_ID="{vault_role_secret_id}"
 
-    export VAULT_ADDR
+      export VAULT_ADDR
 
-    # Ensure PATH includes our custom bin directory
-    export PATH=$PATH:/var/opt/bin
+      # Ensure PATH includes our custom bin directory
+      export PATH=$PATH:/var/opt/bin
 
-    # --- Get token from Vault ---
+      # --- Get token from Vault ---
 
-    echo "[DEBUG] Using Vault Address: $VAULT_ADDR"
-    echo "[DEBUG] Using Vault Role ID: $VAULT_ROLE_ID"
-    export VAULT_TOKEN=$(/var/opt/bin/vault write -tls-skip-verify --field=token auth/approle/login role_id=$VAULT_ROLE_ID secret_id=$VAULT_SECRET_ID)
+      echo "[DEBUG] Using Vault Address: ${{VAULT_ADDR}}"
+      echo "[DEBUG] Using Vault Role ID: ${{VAULT_ROLE_ID}}"
+      export VAULT_TOKEN=$(/var/opt/bin/vault write -tls-skip-verify --field=token auth/approle/login role_id=${{VAULT_ROLE_ID}} secret_id=${{VAULT_SECRET_ID}})
 
-    if [ -z "$VAULT_TOKEN" ]; then
+      if [ -z "$VAULT_TOKEN" ]; then
         echo "[ERROR] Failed to obtain Vault token. Exiting."
         exit 1
-    else
+      else
         echo "[INFO] Successfully obtained Vault token."
-    fi
+      fi
 
-    RKE_TOKEN=$(/var/opt/bin/vault kv get -tls-skip-verify -field=token {vault_secret_path})
-    export RKE_TOKEN
+      RKE_TOKEN=$(/var/opt/bin/vault kv get -tls-skip-verify -field=token {vault_secret_path})
+      export RKE_TOKEN
 
-    if [ -z "$RKE_TOKEN" ]; then
+      if [ -z "$RKE_TOKEN" ]; then
         echo "[ERROR] Failed to obtain RKE token from Vault. Exiting."
         exit 1
-    else
+      else
         echo "[INFO] Successfully obtained RKE token."
-    fi
+      fi
 
-    # --- Template the secret to RKE config file ---
+      # --- Template the secret to RKE config file ---
 
-    envsubst < /etc/rancher/rke2/config.yaml.template > /etc/rancher/rke2/config.yaml
+      envsubst < /etc/rancher/rke2/config.yaml.template > /etc/rancher/rke2/config.yaml
 
-    # --- Install RKE2 ---
+      # --- Install RKE2 ---
 
-    if [ "$RKE_ROLE" == "server" ]; then
+      if [ "$RKE_ROLE" == "server" ]; then
         curl https://get.rke2.io | INSTALL_RKE2_VERSION="v1.31.7+rke2r1" INSTALL_RKE2_TYPE=server sh -s -
         systemctl enable --now rke2-server
-    else
+      else
         curl https://get.rke2.io | INSTALL_RKE2_VERSION="v1.31.7+rke2r1" INSTALL_RKE2_TYPE=agent sh -s -
         systemctl enable --now rke2-agent
-    fi
+      fi
 
-- path: /tmp/system-config.sh
+
+  - path: /tmp/system-config.sh
     permissions: '0755'
     content: |
-    #!/bin/bash
+      #!/bin/bash
 
-    # --- Setup GRUB config for faster reboot ---
-    sed -i "s/GRUB_TIMEOUT=10/GRUB_TIMEOUT=1/g" /etc/default/grub
-    grub2-mkconfig > /boot/grub2/grub.cfg
+      # --- Setup GRUB config for faster reboot ---
+      sed -i "s/GRUB_TIMEOUT=10/GRUB_TIMEOUT=1/g" /etc/default/grub
+      grub2-mkconfig > /boot/grub2/grub.cfg
 
-    # --- Setup Kured reboot method ---
-    echo "REBOOT_METHOD=kured" > /etc/transactional-update.conf
+      # --- Setup Kured reboot method ---
+      echo "REBOOT_METHOD=kured" > /etc/transactional-update.conf
+
 
 runcmd:
-# Create necessary directories
-- mkdir -p /var/opt/bin /var/opt/scripts
-- chmod 755 /var/opt/bin /var/opt/scripts
+  # Create necessary directories
+  - mkdir -p /var/opt/bin /var/opt/scripts
+  - chmod 755 /var/opt/bin /var/opt/scripts
 
-# Disable default update mechanisms
-- systemctl disable rebootmgr.service || echo "Failed to disable rebootmgr"
-- systemctl disable transactional-update.timer || echo "Failed to disable transactional-update.timer"
-- systemctl mask rebootmgr transactional-update.timer || echo "Failed to mask default update timers"
+  # Disable default update mechanisms
+  - systemctl disable rebootmgr.service || echo "Failed to disable rebootmgr"
+  - systemctl disable transactional-update.timer || echo "Failed to disable transactional-update.timer"
+  - systemctl mask rebootmgr transactional-update.timer || echo "Failed to mask default update timers"
 
-# Enable our custom update service and timer
-- systemctl enable custom-transactional-update.timer
+  # Enable our custom update service and timer
+  - systemctl enable custom-transactional-update.timer
 
-# Install basic packages first (they go into the base snapshot)
-# NB! DO NOT TRY TO REMOVE THE `sh -c $(cat <file>)` workaround!
-## The `transactional-update` shell does not see files from `/tmp`, making this fail without cat redirection.
-- transactional-update run sh -c "$(cat /tmp/first-boot-packages.sh)"
-- transactional-update --continue run sh -c "$(cat /tmp/system-config.sh)"
+  # Install basic packages first (they go into the base snapshot)
+  # NB! DO NOT TRY TO REMOVE THE `sh -c $(cat <file>)` workaround!
+  ## The `transactional-update` shell does not see files from `/tmp`, making this fail without cat redirection.
+  - transactional-update run sh -c "$(cat /tmp/first-boot-packages.sh)"
+  - transactional-update --continue run sh -c "$(cat /tmp/system-config.sh)"
 
-# Enable and disable services
-- systemctl enable iscsid
-- systemctl disable podman || echo "podman not found or already disabled"
-- systemctl mask podman || echo "podman not found or already masked"
-- systemctl enable rke2-setup.service
+  # Enable and disable services
+  - systemctl enable iscsid
+  - systemctl disable podman || echo "podman not found or already disabled"
+  - systemctl mask podman || echo "podman not found or already masked"
+  - systemctl enable rke2-setup.service
 
-- reboot -h now
+  - reboot -h now
+
 """
 
 
