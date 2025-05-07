@@ -9,7 +9,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.utils import move_project
 from waldur_mastermind.marketplace import models, tasks
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -119,7 +119,7 @@ class ProjectStartDateTest(test.APITransactionTestCase):
         self.project.start_date = datetime.date.today()
         self.project.save()
         self.order = self.fixture.order
-        self.order.state = models.Order.States.PENDING_PROJECT
+        self.order.state = OrderStates.PENDING_PROJECT
         self.order.save()
 
     def test_order_process_when_project_start_date_unset(self):
@@ -127,7 +127,7 @@ class ProjectStartDateTest(test.APITransactionTestCase):
         self.project.save()
 
         self.order.refresh_from_db()
-        self.assertEqual(models.Order.States.PENDING_PROVIDER, self.order.state)
+        self.assertEqual(OrderStates.PENDING_PROVIDER, self.order.state)
 
     @override_settings(task_always_eager=True)
     def test_order_process_when_project_started(self):
@@ -139,5 +139,5 @@ class ProjectStartDateTest(test.APITransactionTestCase):
 
         self.order.refresh_from_db()
 
-        self.assertEqual(models.Order.States.DONE, self.order.state)
+        self.assertEqual(OrderStates.DONE, self.order.state)
         self.assertEqual(ResourceStates.OK, self.order.resource.state)

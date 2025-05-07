@@ -5,6 +5,7 @@ from rest_framework import test
 from waldur_core.structure.tests.factories import ProjectFactory, SshPublicKeyFactory
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_rancher import PLUGIN_NAME
 from waldur_openstack.models import Tenant
@@ -63,7 +64,7 @@ class OrderProcessedTest(test.APITransactionTestCase):
                 "ssh_public_key": SshPublicKeyFactory.get_url(ssh_public_key),
                 "nodes": format_nodes(default_conf, 3, 1),
             },
-            state=marketplace_models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
         marketplace_utils.process_order(order, self.fixture.staff)
         self.assertTrue(

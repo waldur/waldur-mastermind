@@ -18,7 +18,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import PLUGIN_NAME, models, tasks
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tasks import process_order
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
@@ -52,7 +52,7 @@ class OrderApproveByConsumerTest(test.APITransactionTestCase):
         self.ensure_user_can_approve_order(self.fixture.admin)
 
     def test_user_can_not_reapprove_active_order(self):
-        self.order.state = models.Order.States.EXECUTING
+        self.order.state = OrderStates.EXECUTING
         self.order.save()
         response = self.approve_order(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -77,7 +77,7 @@ class OrderApproveByConsumerTest(test.APITransactionTestCase):
         )
         self.approve_order(self.fixture.owner, order)
         order.refresh_from_db()
-        self.assertEqual(order.state, models.Order.States.PENDING_PROVIDER)
+        self.assertEqual(order.state, OrderStates.PENDING_PROVIDER)
 
     def test_user_cannot_approve_order_if_project_is_expired(self):
         self.project.end_date = datetime.datetime(year=2020, month=1, day=1).date()
@@ -146,7 +146,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
             project=self.project,
             created_by=self.manager,
             type=models.Order.Types.UPDATE,
-            state=models.Order.States.PENDING_PROVIDER,
+            state=OrderStates.PENDING_PROVIDER,
             resource=resource,
             attributes=dict(old_limits=old_limits),
             limits=new_limits,
@@ -173,7 +173,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
             created_by=self.manager,
             type=models.Order.Types.TERMINATE,
             resource=resource,
-            state=models.Order.States.PENDING_PROVIDER,
+            state=OrderStates.PENDING_PROVIDER,
         )
         self.approve_order(self.fixture.owner, order)
         order.refresh_from_db()
@@ -187,7 +187,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
             offering=offering,
             project=self.project,
             created_by=self.manager,
-            state=models.Order.States.PENDING_PROVIDER,
+            state=OrderStates.PENDING_PROVIDER,
         )
         self.approve_order(self.fixture.owner, order)
         order.refresh_from_db()
@@ -226,7 +226,7 @@ class OrderRejectByConsumerTest(test.APITransactionTestCase):
         self.order.refresh_from_db()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(self.order.state, models.Order.States.REJECTED)
+        self.assertEqual(self.order.state, OrderStates.REJECTED)
 
     def test_support_users_can_not_reject_order(self):
         response = self.reject_order(self.fixture.global_support)
@@ -261,7 +261,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
             created_by=self.manager,
             resource=resource,
             offering=self.offering,
-            state=models.Order.States.PENDING_PROVIDER,
+            state=OrderStates.PENDING_PROVIDER,
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.REJECT_ORDER)
 
@@ -273,7 +273,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
         response = self.reject_order(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.order.refresh_from_db()
-        self.assertEqual(self.order.state, models.Order.States.REJECTED)
+        self.assertEqual(self.order.state, OrderStates.REJECTED)
 
     @data(
         "admin",
@@ -284,8 +284,8 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data(
-        models.Order.States.CANCELED,
-        models.Order.States.EXECUTING,
+        OrderStates.CANCELED,
+        OrderStates.EXECUTING,
     )
     def test_order_cannot_be_rejected_if_it_is_in_canceled_or_executing_state(
         self, state
@@ -357,7 +357,7 @@ class ApproveOrderAsProviderFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.order = self.fixture.order
-        self.order.state = models.Order.States.PENDING_PROVIDER
+        self.order.state = OrderStates.PENDING_PROVIDER
         self.order.save()
 
     def test_provider_owner_can_approve(self):
@@ -370,7 +370,7 @@ class ApproveOrderAsProviderFilterTest(test.APITransactionTestCase):
 
     def test_can_not_approve_executing_order(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
-        self.order.state = models.Order.States.EXECUTING
+        self.order.state = OrderStates.EXECUTING
         self.order.save()
         self.assert_result("offering_owner", 0)
 
@@ -387,7 +387,7 @@ class ApproveOrderAsProviderFilterTest(test.APITransactionTestCase):
 class ApproveOrderAsConsumerFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
-        self.fixture.order.state = models.Order.States.PENDING_CONSUMER
+        self.fixture.order.state = OrderStates.PENDING_CONSUMER
         self.fixture.order.save()
         self.url = factories.OrderFactory.get_list_url()
 
@@ -453,7 +453,7 @@ class OrderApprovalByProviderNotificationTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.order = self.fixture.order
-        self.order.state = models.Order.States.PENDING_PROVIDER
+        self.order.state = OrderStates.PENDING_PROVIDER
         self.order.save()
 
     def test_offering_owner(self):

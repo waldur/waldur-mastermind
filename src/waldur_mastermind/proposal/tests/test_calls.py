@@ -7,6 +7,7 @@ from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.utils import add_user
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models
+from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
 from waldur_mastermind.proposal.tests import fixtures
 
 from . import factories
@@ -269,7 +270,7 @@ class CallActivateTest(test.APITransactionTestCase):
         add_user(self.draft_call, self.fixture.user, CallRole.REVIEWER)
         response = self.activate_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(self.draft_call.state, models.Call.States.ACTIVE)
+        self.assertEqual(self.draft_call.state, CallStates.ACTIVE)
 
     @data("staff")
     def test_user_can_not_activate_call_without_round(self, user):
@@ -277,7 +278,7 @@ class CallActivateTest(test.APITransactionTestCase):
         self.assertEqual(
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
-        self.assertEqual(self.draft_call.state, models.Call.States.DRAFT)
+        self.assertEqual(self.draft_call.state, CallStates.DRAFT)
 
     @data("staff")
     def test_user_can_activate_call_without_reviewer(self, user):
@@ -286,7 +287,7 @@ class CallActivateTest(test.APITransactionTestCase):
         )
         response = self.activate_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(self.draft_call.state, models.Call.States.ACTIVE)
+        self.assertEqual(self.draft_call.state, CallStates.ACTIVE)
 
     @data(
         "staff",
@@ -295,7 +296,7 @@ class CallActivateTest(test.APITransactionTestCase):
     def test_user_can_not_activate_active_call(self, user):
         response = self.activate_call(user, self.active_call)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
-        self.assertEqual(self.active_call.state, models.Call.States.ACTIVE)
+        self.assertEqual(self.active_call.state, CallStates.ACTIVE)
 
     @data(
         "user",
@@ -305,7 +306,7 @@ class CallActivateTest(test.APITransactionTestCase):
     def test_user_can_not_activate_call(self, user):
         response = self.activate_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
-        self.assertEqual(self.active_call.state, models.Call.States.ACTIVE)
+        self.assertEqual(self.active_call.state, CallStates.ACTIVE)
 
     def activate_call(self, user, call):
         user = getattr(self.fixture, user)
@@ -332,7 +333,7 @@ class CallArchiveTest(test.APITransactionTestCase):
     def test_user_can_archive_call(self, user):
         response = self.archive_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(self.draft_call.state, models.Call.States.ARCHIVED)
+        self.assertEqual(self.draft_call.state, CallStates.ARCHIVED)
 
     @data(
         "user",
@@ -342,7 +343,7 @@ class CallArchiveTest(test.APITransactionTestCase):
     def test_user_can_not_archive_call(self, user):
         response = self.archive_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
-        self.assertEqual(self.draft_call.state, models.Call.States.DRAFT)
+        self.assertEqual(self.draft_call.state, CallStates.DRAFT)
 
     def archive_call(self, user, call):
         user = getattr(self.fixture, user)
@@ -469,7 +470,7 @@ class RequestedOfferingsUpdateTest(test.APITransactionTestCase):
         "call_manager",
     )
     def test_user_can_not_update_accepted_offering(self, user):
-        self.requested_offering.state = models.RequestedOffering.States.ACCEPTED
+        self.requested_offering.state = RequestedOfferingStates.ACCEPTED
         self.requested_offering.save()
         response = self.update_requested_offering(user)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)

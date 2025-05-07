@@ -8,6 +8,7 @@ from django.utils import timezone
 
 import respx
 from waldur_auth_social.models import ProviderChoices
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import format_text, serialize_instance
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole
@@ -18,7 +19,7 @@ from waldur_core.structure.tests.factories import (
 )
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, tasks, utils
 from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
@@ -351,7 +352,7 @@ class DeleteRemoteProjectsTest(testcases.TransactionTestCase):
         self.api_url = "http://example.com"
         self.offering = factories.OfferingFactory(
             type=PLUGIN_NAME,
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             secret_options={"api_url": self.api_url, "token": "token"},
         )
         self.remote_project_uuid = uuid.uuid4().hex
@@ -594,7 +595,7 @@ class NotificationAboutPendingProjectUpdatesTest(testcases.TransactionTestCase):
             offering=self.offering,
             old_name="old name",
             new_name="new name",
-            state=ProjectUpdateRequest.States.PENDING,
+            state=ReviewStates.PENDING,
             created=self.week_ago,
         )
 
@@ -617,7 +618,7 @@ class NotificationAboutPendingProjectUpdatesTest(testcases.TransactionTestCase):
             offering=self.offering,
             old_name="old name",
             new_name="new name",
-            state=ProjectUpdateRequest.States.PENDING,
+            state=ReviewStates.PENDING,
         )
 
         event_type = "notification_about_pending_project_updates"
@@ -640,12 +641,12 @@ class NotificationAboutProjectUpdatesTest(testcases.TransactionTestCase):
             offering=self.offering,
             old_name="old name",
             new_name="new_name",
-            state=ProjectUpdateRequest.States.PENDING,
+            state=ReviewStates.PENDING,
             created_by=self.owner,
             reviewed_by=self.owner,
         )
 
-        project_update.state = ProjectUpdateRequest.States.APPROVED
+        project_update.state = ReviewStates.APPROVED
         project_update.save()
 
         serialized_project = serialize_instance(project_update)
@@ -679,7 +680,7 @@ class OfferingListPullTaskTest(testcases.TransactionTestCase):
             f"{self.api_url}/api/marketplace-public-offerings/{self.offering.backend_id}/"
         ).respond(404)
 
-        self.offering.state = models.Offering.States.ARCHIVED
+        self.offering.state = OfferingStates.ARCHIVED
         self.offering.save()
 
         pulled_objects = tasks.OfferingListPullTask().get_pulled_objects()
@@ -697,7 +698,7 @@ class OfferingListPullTaskTest(testcases.TransactionTestCase):
 
         # Check that the offering is still archived
         self.offering.refresh_from_db()
-        self.assertEqual(self.offering.state, models.Offering.States.ARCHIVED)
+        self.assertEqual(self.offering.state, OfferingStates.ARCHIVED)
 
         # Check that the logger was called with the correct arguments
         mock_logger.debug.assert_called_once_with(
@@ -710,7 +711,7 @@ class OfferingListPullTaskTest(testcases.TransactionTestCase):
         """
         Test that active offerings that do not exist raise an exception when pulled.
         """
-        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.state = OfferingStates.ACTIVE
         self.offering.save()
 
         respx.get(
@@ -732,7 +733,7 @@ class OfferingListPullTaskTest(testcases.TransactionTestCase):
 
         # Check that the offering is set to archived
         self.offering.refresh_from_db()
-        self.assertEqual(self.offering.state, models.Offering.States.ARCHIVED)
+        self.assertEqual(self.offering.state, OfferingStates.ARCHIVED)
 
         # Check that the logger was called with the correct arguments
         mock_logger.warning.assert_called_once()
@@ -742,7 +743,7 @@ class OfferingListPullTaskTest(testcases.TransactionTestCase):
         Test that active offerings are pulled by remote pull task.
         """
         # Set offering to active state
-        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.state = OfferingStates.ACTIVE
         self.offering.save()
 
         # Pull offerings

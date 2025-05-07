@@ -7,6 +7,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 
 from waldur_core.core import utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure import tasks
 from waldur_core.structure.tests import factories, models
 
@@ -22,12 +23,12 @@ class ThrottleProvisionTaskTest(TestCase):
         project = factories.ProjectFactory()
         factories.TestNewInstanceFactory.create_batch(
             size=params["size"],
-            state=models.TestNewInstance.States.CREATING,
+            state=CoreStates.CREATING,
             service_settings=service_settings,
             project=project,
         )
         vm = factories.TestNewInstanceFactory(
-            state=models.TestNewInstance.States.CREATION_SCHEDULED,
+            state=CoreStates.CREATION_SCHEDULED,
             service_settings=service_settings,
             project=project,
         )
@@ -43,9 +44,7 @@ class ThrottleProvisionTaskTest(TestCase):
 class SetErredProvisioningResourcesTaskTest(TestCase):
     def test_stuck_resource_becomes_erred(self):
         with freeze_time(timezone.now() - timedelta(hours=4)):
-            stuck_vm = factories.TestNewInstanceFactory(
-                state=models.TestNewInstance.States.CREATING
-            )
+            stuck_vm = factories.TestNewInstanceFactory(state=CoreStates.CREATING)
             stuck_volume = factories.TestVolumeFactory(
                 state=models.TestVolume.States.CREATING
             )
@@ -55,12 +54,12 @@ class SetErredProvisioningResourcesTaskTest(TestCase):
         stuck_vm.refresh_from_db()
         stuck_volume.refresh_from_db()
 
-        self.assertEqual(stuck_vm.state, models.TestNewInstance.States.ERRED)
+        self.assertEqual(stuck_vm.state, CoreStates.ERRED)
         self.assertEqual(stuck_volume.state, models.TestVolume.States.ERRED)
 
     def test_ok_vm_unchanged(self):
         ok_vm = factories.TestNewInstanceFactory(
-            state=models.TestNewInstance.States.CREATING,
+            state=CoreStates.CREATING,
             modified=timezone.now() - timedelta(minutes=1),
         )
         ok_volume = factories.TestVolumeFactory(
@@ -72,7 +71,7 @@ class SetErredProvisioningResourcesTaskTest(TestCase):
         ok_vm.refresh_from_db()
         ok_volume.refresh_from_db()
 
-        self.assertEqual(ok_vm.state, models.TestNewInstance.States.CREATING)
+        self.assertEqual(ok_vm.state, CoreStates.CREATING)
         self.assertEqual(ok_volume.state, models.TestVolume.States.CREATING)
 
 

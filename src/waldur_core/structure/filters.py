@@ -13,6 +13,7 @@ from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.filters import ExternalFilterBackend
 from waldur_core.core.utils import get_ordering, is_uuid_like, order_with_nulls
 from waldur_core.permissions.enums import RoleEnum
@@ -492,9 +493,7 @@ class ServiceTypeFilter(django_filters.Filter):
 
 class ServiceSettingsFilter(NameFilterSet):
     type = ServiceTypeFilter()
-    state = core_filters.MappedMultipleChoiceFilter(
-        core_models.StateMixin.States.CHOICES
-    )
+    state = core_filters.MappedMultipleChoiceFilter(CoreStates.CHOICES)
     customer = django_filters.UUIDFilter(field_name="customer__uuid")
     customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
     scope_uuid = django_filters.UUIDFilter(
@@ -553,9 +552,7 @@ class BaseResourceFilter(NameFilterSet):
     )
     # resource
     description = django_filters.CharFilter(lookup_expr="icontains")
-    state = core_filters.MappedMultipleChoiceFilter(
-        core_models.StateMixin.States.CHOICES
-    )
+    state = core_filters.MappedMultipleChoiceFilter(CoreStates.CHOICES)
     uuid = django_filters.UUIDFilter(lookup_expr="exact")
     backend_id = django_filters.CharFilter(field_name="backend_id", lookup_expr="exact")
     external_ip = core_filters.EmptyFilter()

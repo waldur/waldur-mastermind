@@ -5,7 +5,7 @@ from waldur_core.permissions.fixtures import ProjectRole, ProposalRole
 from waldur_core.permissions.utils import add_user, has_user
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.proposal import models
+from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.tests import fixtures
 
 from . import factories
@@ -16,7 +16,7 @@ class ManualApproveTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
-        self.proposal.state = models.Proposal.States.SUBMITTED
+        self.proposal.state = ProposalStates.SUBMITTED
         self.proposal.save()
         self.approve_url = factories.ProposalFactory.get_url(self.proposal, "approve")
         self.reject_url = factories.ProposalFactory.get_url(self.proposal, "reject")
@@ -31,7 +31,7 @@ class ManualApproveTest(test.APITransactionTestCase):
         response = self.client.post(self.approve_url, {"allocation_comment": "done"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.proposal.refresh_from_db()
-        self.assertEqual(self.proposal.state, models.Proposal.States.ACCEPTED)
+        self.assertEqual(self.proposal.state, ProposalStates.ACCEPTED)
         self.assertEqual(self.proposal.allocation_comment, "done")
         self.assertTrue(self.proposal.requestedresource_set.first().resource)
         resource = self.proposal.requestedresource_set.first().resource
@@ -81,7 +81,7 @@ class ManualApproveTest(test.APITransactionTestCase):
         response = self.client.post(self.reject_url, {"allocation_comment": "done"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.proposal.refresh_from_db()
-        self.assertEqual(self.proposal.state, models.Proposal.States.REJECTED)
+        self.assertEqual(self.proposal.state, ProposalStates.REJECTED)
         self.assertEqual(self.proposal.allocation_comment, "done")
 
     @data(

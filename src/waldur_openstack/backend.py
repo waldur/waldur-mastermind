@@ -21,6 +21,7 @@ from requests import ConnectionError
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.utils import create_batch_fetcher, pwgen
 from waldur_core.structure.backend import ServiceBackend, log_backend_action
 from waldur_core.structure.models import ServiceSettings
@@ -277,7 +278,7 @@ class OpenStackBackend(ServiceBackend):
         logger.info("Retrieved %d tenants from backend", len(backend_tenants_mapping))
 
         tenants = models.Tenant.objects.filter(
-            state__in=[models.Tenant.States.OK, models.Tenant.States.ERRED],
+            state__in=[CoreStates.OK, CoreStates.ERRED],
             service_settings=self.settings,
         )
         logger.info("Found %d tenants in database to sync", tenants.count())
@@ -305,7 +306,7 @@ class OpenStackBackend(ServiceBackend):
                 name=backend_tenant.name,
                 description=backend_tenant.description,
                 backend_id=backend_tenant.id,
-                state=models.Tenant.States.OK,
+                state=CoreStates.OK,
             )
             update_pulled_fields(
                 tenant, imported_backend_tenant, models.Tenant.get_backend_fields()
@@ -1381,7 +1382,7 @@ class OpenStackBackend(ServiceBackend):
         if save and service_settings:
             tenant.service_settings = service_settings
             tenant.project = project
-            tenant.state = models.Tenant.States.OK
+            tenant.state = CoreStates.OK
             tenant.save()
         return tenant
 
@@ -3175,10 +3176,7 @@ class OpenStackBackend(ServiceBackend):
         backend_volumes = self.get_volumes(tenant)
         volumes = models.Volume.objects.filter(
             tenant=tenant,
-            state__in=[
-                models.Volume.States.OK,
-                models.Volume.States.ERRED,
-            ],
+            state__in=[CoreStates.OK, CoreStates.ERRED],
         )
         backend_volumes_map = {
             backend_volume.backend_id: backend_volume
@@ -3227,10 +3225,7 @@ class OpenStackBackend(ServiceBackend):
         backend_instances = self.get_instances(tenant)
         instances = models.Instance.objects.filter(
             tenant=tenant,
-            state__in=[
-                models.Instance.States.OK,
-                models.Instance.States.ERRED,
-            ],
+            state__in=[CoreStates.OK, CoreStates.ERRED],
         )
         backend_instances_map = {
             backend_instance.backend_id: backend_instance
@@ -3494,7 +3489,7 @@ class OpenStackBackend(ServiceBackend):
             type=volume_type,
             bootable=backend_volume.bootable == "true",
             runtime_state=backend_volume.status,
-            state=models.Volume.States.OK,
+            state=CoreStates.OK,
             availability_zone=availability_zone,
         )
         if getattr(backend_volume, "volume_image_metadata", False):
@@ -4172,7 +4167,7 @@ class OpenStackBackend(ServiceBackend):
             name=backend_instance.name or backend_instance.id,
             key_name=backend_instance.key_name or "",
             start_time=launch_time,
-            state=models.Instance.States.OK,
+            state=CoreStates.OK,
             runtime_state=backend_instance.status,
             created=dateparse.parse_datetime(backend_instance.created),
             backend_id=backend_instance.id,

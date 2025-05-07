@@ -20,6 +20,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.serializers import (
     OrderCreateSerializer,
     ScreenshotSerializer,
@@ -360,9 +361,7 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
     def test_creating_remote_order(self):
         self.client.force_authenticate(user=self.fixture.staff)
 
-        remote_offering = OfferingFactory(
-            state=marketplace_models.Offering.States.ACTIVE
-        )
+        remote_offering = OfferingFactory(state=OfferingStates.ACTIVE)
         self.offering.secret_options = {
             "token": "0b67edfecdda37fe4b6e7d6c3e6360acb3a1f2bf",
             "api_url": self.api_url,
@@ -534,7 +533,7 @@ class OfferingImageTest(test.APITransactionTestCase):
             name="Screenshot 1",
             description="Description 1",
             offering=OfferingFactory(
-                state=marketplace_models.Offering.States.ACTIVE,
+                state=OfferingStates.ACTIVE,
                 name="Test Offering",
             ),
         )
@@ -615,7 +614,7 @@ class OfferingScreenshotsTest(test.APITransactionTestCase):
 
         # Create a remote offering dictionary with screenshots
         self.remote_offering = OfferingFactory(
-            state=marketplace_models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             name="Test Offering",
         )
         self.offering.backend_id = self.remote_offering.uuid.hex

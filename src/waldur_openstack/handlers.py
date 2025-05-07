@@ -3,7 +3,7 @@ import logging
 from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
-from waldur_core.core.models import StateMixin
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -185,15 +185,15 @@ def log_action(sender, instance, created=False, **kwargs):
     resource = instance
     if created or not resource.tracker.has_changed("action"):
         return
-    if resource.state == StateMixin.States.UPDATE_SCHEDULED:
+    if resource.state == CoreStates.UPDATE_SCHEDULED:
         _log_scheduled_action(resource, resource.action, resource.action_details)
-    if resource.state == StateMixin.States.OK:
+    if resource.state == CoreStates.OK:
         _log_succeeded_action(
             resource,
             resource.tracker.previous("action"),
             resource.tracker.previous("action_details"),
         )
-    elif resource.state == StateMixin.States.ERRED:
+    elif resource.state == CoreStates.ERRED:
         _log_failed_action(
             resource,
             resource.tracker.previous("action"),

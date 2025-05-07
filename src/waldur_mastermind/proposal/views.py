@@ -12,6 +12,7 @@ from rest_framework import decorators, exceptions, response, status, viewsets
 from rest_framework import permissions as rf_permissions
 
 from waldur_core.core import validators as core_validators
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.utils import SubqueryCount
 from waldur_core.core.views import (
@@ -35,6 +36,11 @@ from waldur_mastermind.proposal import (
     utils,
 )
 from waldur_mastermind.proposal import permissions as proposal_permissions
+from waldur_mastermind.proposal.enums import (
+    CallStates,
+    ProposalStates,
+    RequestedOfferingStates,
+)
 
 from . import log
 from .managers import get_connected_call_organizers
@@ -77,50 +83,50 @@ class CallManagingOrganisationViewSet(
         one_week_from_now = now + timedelta(weeks=1)
 
         open_calls = models.Call.objects.filter(
-            state=models.Call.States.ACTIVE, manager=instance
+            state=CallStates.ACTIVE, manager=instance
         ).count()
         active_rounds = models.Round.objects.filter(
             cutoff_time__gte=now,
             call__manager=instance,
-            call__state=models.Call.States.ACTIVE,
+            call__state=CallStates.ACTIVE,
         ).count()
         accepted_proposals = models.Proposal.objects.filter(
-            state=models.Proposal.States.ACCEPTED,
+            state=ProposalStates.ACCEPTED,
             round__call__manager=instance,
-            round__call__state=models.Call.States.ACTIVE,
+            round__call__state=CallStates.ACTIVE,
         ).count()
         pending_proposals = models.Proposal.objects.filter(
             state__in=[
-                models.Proposal.States.IN_REVIEW,
-                models.Proposal.States.SUBMITTED,
+                ProposalStates.IN_REVIEW,
+                ProposalStates.SUBMITTED,
             ],
             round__call__manager=instance,
-            round__call__state=models.Call.States.ACTIVE,
+            round__call__state=CallStates.ACTIVE,
         ).count()
         pending_review = models.Review.objects.filter(
             state=models.Review.States.SUBMITTED,
             proposal__round__call__manager=instance,
-            proposal__round__call__state=models.Call.States.ACTIVE,
+            proposal__round__call__state=CallStates.ACTIVE,
         ).count()
 
         rounds_closing_in_one_week = models.Round.objects.filter(
             cutoff_time__gte=now,
             cutoff_time__lte=one_week_from_now,
             call__manager=instance,
-            call__state=models.Call.States.ACTIVE,
+            call__state=CallStates.ACTIVE,
         ).count()
 
         calls_closing_in_one_week = models.Call.objects.filter(
-            state=models.Call.States.ACTIVE,
+            state=CallStates.ACTIVE,
             round__cutoff_time__gte=now,
             round__cutoff_time__lte=one_week_from_now,
             manager=instance,
         ).count()
 
         offering_requests_pending = models.RequestedOffering.objects.filter(
-            state=models.RequestedOffering.States.REQUESTED,
+            state=RequestedOfferingStates.REQUESTED,
             call__manager=instance,
-            call__state=models.Call.States.ACTIVE,
+            call__state=CallStates.ACTIVE,
         ).count()
 
         return response.Response(
@@ -141,7 +147,7 @@ class CallManagingOrganisationViewSet(
 class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = "uuid"
     queryset = models.Call.objects.filter(
-        state__in=[models.Call.States.ACTIVE, models.Call.States.ARCHIVED]
+        state__in=[CallStates.ACTIVE, CallStates.ARCHIVED]
     ).order_by("created")
     serializer_class = serializers.PublicCallSerializer
     filterset_class = filters.CallFilter
@@ -153,7 +159,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     serializer_class = serializers.ProtectedCallSerializer
     filterset_class = filters.CallFilter
     filter_backends = [DjangoFilterBackend]
-    destroy_validators = [core_validators.StateValidator(models.Call.States.DRAFT)]
+    destroy_validators = [core_validators.StateValidator(CallStates.DRAFT)]
 
     queryset = models.Call.objects.all()
 
@@ -205,7 +211,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             raise exceptions.ValidationError(
                 _("Call must have a round to be activated.")
             )
-        call.state = models.Call.States.ACTIVE
+        call.state = CallStates.ACTIVE
         call.save()
         return response.Response(
             "Call has been activated.",
@@ -213,9 +219,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
 
     activate_validators = [
-        core_validators.StateValidator(
-            models.Call.States.DRAFT, models.Call.States.ARCHIVED
-        )
+        core_validators.StateValidator(CallStates.DRAFT, CallStates.ARCHIVED)
     ]
 
     @extend_schema(
@@ -226,7 +230,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @decorators.action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
         call: models.Call = self.get_object()
-        call.state = models.Call.States.ARCHIVED
+        call.state = CallStates.ARCHIVED
         call.save()
         return response.Response(
             "Call has been archived.",
@@ -234,9 +238,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
 
     archive_validators = [
-        core_validators.StateValidator(
-            models.Call.States.DRAFT, models.Call.States.ACTIVE
-        )
+        core_validators.StateValidator(CallStates.DRAFT, CallStates.ACTIVE)
     ]
 
     @extend_schema(
@@ -324,14 +326,14 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     def round_detail(self, request, uuid=None, obj_uuid=None):
         def validate_call_state(call_round):
-            if call_round.call.state == models.Call.States.ARCHIVED:
+            if call_round.call.state == CallStates.ARCHIVED:
                 raise IncorrectStateException()
 
         def validate_existing_of_proposals(call_round):
             if call_round.proposal_set.exclude(
                 state__in=[
-                    models.Proposal.States.CANCELED,
-                    models.Proposal.States.REJECTED,
+                    ProposalStates.CANCELED,
+                    ProposalStates.REJECTED,
                 ]
             ).exists():
                 raise IncorrectStateException()
@@ -356,7 +358,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             request, self, call
         )
 
-        if call_round.call.state != models.Call.States.ACTIVE:
+        if call_round.call.state != CallStates.ACTIVE:
             raise exceptions.ValidationError(_("Call is not active."))
 
         if call_round.start_time > timezone.now():
@@ -453,7 +455,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     destroy_permissions = update_project_details_permissions = [is_creator]
 
     destroy_validators = update_project_details_validators = [
-        core_validators.StateValidator(models.Proposal.States.DRAFT)
+        core_validators.StateValidator(ProposalStates.DRAFT)
     ]
 
     update_project_details_serializer_class = (
@@ -491,14 +493,14 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         proposal = self.get_object()
-        proposal.state = models.Proposal.States.SUBMITTED
+        proposal.state = ProposalStates.SUBMITTED
         proposal.save()
         return response.Response(
             "Proposal has been submitted.",
             status=status.HTTP_200_OK,
         )
 
-    submit_validators = [core_validators.StateValidator(models.Proposal.States.DRAFT)]
+    submit_validators = [core_validators.StateValidator(ProposalStates.DRAFT)]
 
     submit_permissions = [is_creator]
 
@@ -534,7 +536,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     def resource_detail(self, request, uuid=None, obj_uuid=None):
         def validate_proposal_state(requested_resource):
-            if requested_resource.proposal.state != models.Proposal.States.DRAFT:
+            if requested_resource.proposal.state != ProposalStates.DRAFT:
                 raise IncorrectStateException(
                     "Only proposals with a draft status are available for editing."
                 )
@@ -580,7 +582,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     def approve(self, request, uuid=None):
         proposal = self.get_object()
         utils.allocate_proposal(proposal)
-        proposal.state = models.Proposal.States.ACCEPTED
+        proposal.state = ProposalStates.ACCEPTED
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         proposal.allocation_comment = serializer.validated_data.get(
@@ -594,9 +596,10 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     approve_validators = [
         core_validators.StateValidator(
-            models.Proposal.States.SUBMITTED,
-            models.Proposal.States.IN_REVIEW,
-            models.Proposal.States.REJECTED,
+            ProposalStates.SUBMITTED,
+            ProposalStates.IN_REVIEW,
+            ProposalStates.REJECTED,
+            state_enum=ReviewStates,
         )
     ]
 
@@ -608,7 +611,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @decorators.action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         proposal = self.get_object()
-        proposal.state = models.Proposal.States.REJECTED
+        proposal.state = ProposalStates.REJECTED
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         proposal.allocation_comment = serializer.validated_data.get(
@@ -622,8 +625,8 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     reject_validators = [
         core_validators.StateValidator(
-            models.Proposal.States.SUBMITTED,
-            models.Proposal.States.IN_REVIEW,
+            ProposalStates.SUBMITTED,
+            ProposalStates.IN_REVIEW,
         )
     ]
     reject_permissions = approve_permissions = [
@@ -779,7 +782,7 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
     @decorators.action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
         requested_offering: models.RequestedOffering = self.get_object()
-        requested_offering.state = models.RequestedOffering.States.ACCEPTED
+        requested_offering.state = RequestedOfferingStates.ACCEPTED
         requested_offering.approved_by = self.request.user
         requested_offering.save()
         return response.Response(
@@ -788,7 +791,7 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
         )
 
     accept_validators = [
-        core_validators.StateValidator(models.RequestedOffering.States.REQUESTED)
+        core_validators.StateValidator(RequestedOfferingStates.REQUESTED)
     ]
 
     @extend_schema(
@@ -799,7 +802,7 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
     @decorators.action(detail=True, methods=["post"])
     def cancel(self, request, uuid=None):
         requested_offering: models.RequestedOffering = self.get_object()
-        requested_offering.state = models.RequestedOffering.States.CANCELED
+        requested_offering.state = RequestedOfferingStates.CANCELED
         requested_offering.approved_by = self.request.user
         requested_offering.save()
         return response.Response(
@@ -808,7 +811,7 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
         )
 
     cancel_validators = [
-        core_validators.StateValidator(models.RequestedOffering.States.REQUESTED)
+        core_validators.StateValidator(RequestedOfferingStates.REQUESTED)
     ]
 
     accept_permissions = cancel_permissions = [
@@ -869,15 +872,15 @@ class RoundViewSet(ReadOnlyActionsViewSet):
         )
 
         accepted_proposals_subquery = proposals.filter(
-            state=models.Proposal.States.ACCEPTED
+            state=ProposalStates.ACCEPTED
         ).values("pk")
 
         rejected_proposals_subquery = proposals.filter(
-            state=models.Proposal.States.REJECTED
+            state=ProposalStates.REJECTED
         ).values("pk")
 
         in_review_proposals_subquery = proposals.filter(
-            state=models.Proposal.States.IN_REVIEW
+            state=ProposalStates.IN_REVIEW
         ).values("pk")
 
         users = users.annotate(

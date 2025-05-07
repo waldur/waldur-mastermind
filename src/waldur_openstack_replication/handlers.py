@@ -1,3 +1,4 @@
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.models import Order
 from waldur_openstack_replication.models import Migration
 
@@ -18,8 +19,8 @@ def handle_migration_post_save(sender, instance, created, **kwargs):
         project=migration.dst_resource.project,
         limits=migration.dst_resource.limits,
         state=migration.state == Migration.States.OK
-        and Order.States.DONE
-        or Order.States.ERRED,
+        and OrderStates.DONE
+        or OrderStates.ERRED,
         consumer_reviewed_by=migration.created_by,
         provider_reviewed_by=migration.created_by,
         consumer_reviewed_at=migration.created,

@@ -7,7 +7,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import get_system_robot
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_mastermind.policy import log, tasks
@@ -76,7 +76,7 @@ def terminate_resources(policy):
                 resource=resource,
                 offering=resource.offering,
                 type=marketplace_models.Order.Types.TERMINATE,
-                state=marketplace_models.Order.States.EXECUTING,
+                state=OrderStates.EXECUTING,
                 attributes=attributes,
                 project=project,
                 created_by=user,

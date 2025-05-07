@@ -4,6 +4,7 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support.tests.fixtures import SupportFixture
@@ -62,7 +63,7 @@ class MarketplaceSupportApprovedFixture(SupportFixture):
             project=self.project,
             offering=self.marketplace_offering,
             plan=self.plan,
-            state=marketplace_models.Order.States.DONE,
+            state=OrderStates.DONE,
             resource=self.resource,
         )
 

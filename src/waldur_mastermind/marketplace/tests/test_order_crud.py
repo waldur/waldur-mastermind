@@ -11,6 +11,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, plugins
+from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace.tests.utils import TestCreateProcessor
@@ -24,7 +25,7 @@ class BaseOrderCreateTest(test.APITransactionTestCase):
 
     def create_order(self, user, offering=None, add_payload=None):
         if offering is None:
-            offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+            offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         self.client.force_authenticate(user)
         url = factories.OrderFactory.get_list_url()
         payload = {
@@ -55,12 +56,12 @@ class OrderCreateTest(BaseOrderCreateTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_not_create_order_if_offering_is_not_available(self):
-        offering = factories.OfferingFactory(state=models.Offering.States.ARCHIVED)
+        offering = factories.OfferingFactory(state=OfferingStates.ARCHIVED)
         response = self.create_order(self.fixture.staff, offering)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_order_with_plan(self):
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
         add_payload = {
             "offering": factories.OfferingFactory.get_public_url(offering),
@@ -73,9 +74,7 @@ class OrderCreateTest(BaseOrderCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_can_not_create_order_if_offering_is_not_available_to_customer(self):
-        offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE, shared=False
-        )
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE, shared=False)
         offering.customer.add_user(self.fixture.owner, CustomerRole.OWNER)
         plan = factories.PlanFactory(offering=offering)
         add_payload = {
@@ -89,7 +88,7 @@ class OrderCreateTest(BaseOrderCreateTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_can_not_create_order_with_plan_related_to_another_offering(self):
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
         add_payload = {
             "offering": factories.OfferingFactory.get_public_url(),
@@ -102,7 +101,7 @@ class OrderCreateTest(BaseOrderCreateTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_can_not_create_order_if_plan_max_amount_has_been_reached(self):
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         plan = factories.PlanFactory(offering=offering, max_amount=3)
         factories.ResourceFactory.create_batch(3, plan=plan, offering=offering)
         add_payload = {
@@ -122,7 +121,7 @@ class OrderCreateTest(BaseOrderCreateTest):
             "cpu_count": 5,
         }
         offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE, options=OFFERING_OPTIONS
+            state=OfferingStates.ACTIVE, options=OFFERING_OPTIONS
         )
         plan = factories.PlanFactory(offering=offering)
         add_payload = {
@@ -145,7 +144,7 @@ class OrderCreateTest(BaseOrderCreateTest):
 
     def test_user_can_create_order_if_offering_is_not_shared(self):
         user = self.fixture.admin
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         offering.shared = False
         offering.customer = self.project.customer
         offering.save()
@@ -168,7 +167,7 @@ class OrderCreateTest(BaseOrderCreateTest):
 
     def test_if_organization_groups_do_not_match_order_validation_fails(self):
         user = self.fixture.staff
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         organization_group = structure_factories.OrganizationGroupFactory()
         offering.organization_groups.add(organization_group)
 
@@ -177,7 +176,7 @@ class OrderCreateTest(BaseOrderCreateTest):
 
     def test_if_organization_groups_match_order_validation_passes(self):
         user = self.fixture.staff
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         organization_group = structure_factories.OrganizationGroupFactory()
         offering.organization_groups.add(organization_group)
         self.fixture.customer.organization_groups.add(organization_group)
@@ -209,7 +208,7 @@ class OrderNotificationCreateTest(BaseOrderCreateTest):
         provider_fixture = fixtures.ProjectFixture()
         consumer_fixture = fixtures.ProjectFixture()
         public_offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             shared=True,
             billable=True,
             customer=provider_fixture.customer,
@@ -231,7 +230,7 @@ class OrderNotificationCreateTest(BaseOrderCreateTest):
 
     def test_notification_is_sent_when_order_is_created(self, mock_task):
         offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             shared=True,
             billable=True,
             type="TEST_TYPE",
@@ -251,7 +250,7 @@ class OrderNotificationCreateTest(BaseOrderCreateTest):
     @data("staff", "owner", "manager", "admin")
     def test_order_gets_approved_if_offering_is_private(self, role, mocked_task):
         offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             shared=False,
             billable=False,
             customer=self.project.customer,
@@ -301,7 +300,7 @@ class OrderNotificationCreateTest(BaseOrderCreateTest):
     ):
         consumer_fixture = provider_fixture = fixtures.ProjectFixture()
         public_offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             shared=True,
             billable=True,
             customer=provider_fixture.customer,
@@ -348,7 +347,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
             "storage": "invalid value",
         }
         offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE, options=OFFERING_OPTIONS
+            state=OfferingStates.ACTIVE, options=OFFERING_OPTIONS
         )
         plan = factories.PlanFactory(offering=offering)
         add_payload = {
@@ -363,7 +362,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
 
     def test_user_can_create_order_with_valid_limits(self):
         offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE, type=PLUGIN_NAME
+            state=OfferingStates.ACTIVE, type=PLUGIN_NAME
         )
         plan = factories.PlanFactory(offering=offering)
 
@@ -390,7 +389,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
         self.assertEqual(order.limits["cpu_count"], 5)
 
     def test_user_can_not_create_order_with_invalid_limits(self):
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
 
         for key in self.DEFAULT_LIMITS.keys():
@@ -418,7 +417,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
         models.OfferingComponent.LimitPeriods.ANNUAL,
     )
     def test_offering_limit_is_valid(self, limit_period):
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
 
         models.OfferingComponent.objects.create(
@@ -447,7 +446,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
         models.OfferingComponent.LimitPeriods.ANNUAL,
     )
     def test_offering_limit_is_invalid(self, limit_period):
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
 
         models.OfferingComponent.objects.create(
@@ -476,7 +475,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
 class OrderTermsOfServiceCreateTest(BaseOrderCreateTest):
     def test_user_can_create_order_if_terms_of_service_have_been_accepted(self):
         user = self.fixture.admin
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         offering.terms_of_service = "Terms of service"
         offering.save()
         add_payload = {
@@ -490,7 +489,7 @@ class OrderTermsOfServiceCreateTest(BaseOrderCreateTest):
 
     def test_user_can_create_order_if_terms_of_service_are_not_filled(self):
         user = self.fixture.admin
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         add_payload = {
             "offering": factories.OfferingFactory.get_public_url(offering),
             "attributes": {},
@@ -501,7 +500,7 @@ class OrderTermsOfServiceCreateTest(BaseOrderCreateTest):
 
     def test_user_cannot_create_order_if_terms_of_service_have_been_not_accepted(self):
         user = self.fixture.admin
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         offering.terms_of_service = "Terms of service"
         offering.save()
         add_payload = {
@@ -531,7 +530,7 @@ class OrderEndDateCreateTest(BaseOrderCreateTest):
         self.assertEqual(resource.end_date_requested_by, user)
 
     def test_resource_end_date_set_to_default_if_required_but_not_provided(self):
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         offering.plugin_options = {
             "is_resource_termination_date_required": True,
             "default_resource_termination_offset_in_days": 7,
@@ -547,7 +546,7 @@ class OrderEndDateCreateTest(BaseOrderCreateTest):
 
     @freeze_time("2022-01-01")
     def test_resource_is_not_created_if_end_date_later_than_max_end_date(self):
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         offering.plugin_options = {
             "is_resource_termination_date_required": True,
             "default_resource_termination_offset_in_days": 7,
@@ -564,7 +563,7 @@ class OrderEndDateCreateTest(BaseOrderCreateTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_resource_is_created_if_end_date_earlier_than_max_end_date(self):
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
 
         offering.plugin_options = {
             "is_resource_termination_date_required": True,
@@ -587,7 +586,7 @@ class OrderEndDateCreateTest(BaseOrderCreateTest):
     def test_resource_is_not_created_if_end_date_later_than_latest_date_for_resource_termination(
         self,
     ):
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         offering.plugin_options = {
             "is_resource_termination_date_required": True,
             "default_resource_termination_offset_in_days": 7,

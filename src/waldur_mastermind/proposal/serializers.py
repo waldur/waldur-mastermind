@@ -22,6 +22,11 @@ from waldur_mastermind.marketplace.serializers import (
     OfferingComponentSerializer,
     OfferingOptionsField,
 )
+from waldur_mastermind.proposal.enums import (
+    CallStates,
+    ProposalStates,
+    RequestedOfferingStates,
+)
 
 from . import models
 
@@ -403,7 +408,7 @@ class PublicCallSerializer(
     @extend_schema_field(NestedRequestedOfferingSerializer(many=True))
     def get_offerings(self, obj):
         queryset = obj.requestedoffering_set.filter(
-            state=models.RequestedOffering.States.ACCEPTED
+            state=RequestedOfferingStates.ACCEPTED
         )
         serializer = NestedRequestedOfferingSerializer(
             queryset,
@@ -538,7 +543,7 @@ class RequestedResourceSerializer(
                 {"requested_offering_uuid": _("Requested offering has not been found.")}
             )
 
-        if requested_offering.state != models.RequestedOffering.States.ACCEPTED:
+        if requested_offering.state != RequestedOfferingStates.ACCEPTED:
             raise serializers.ValidationError(
                 _("Offering has not been confirmed by service provider.")
             )
@@ -553,7 +558,7 @@ class RequestedResourceSerializer(
         return attributes
 
     def validate_proposal(self, proposal):
-        if proposal.state != models.Proposal.States.DRAFT:
+        if proposal.state != ProposalStates.DRAFT:
             raise serializers.ValidationError(
                 _("Only proposals with a draft status are available for editing.")
             )
@@ -830,7 +835,7 @@ class ProposalSerializer(
         except models.Round.DoesNotExist:
             raise serializers.ValidationError({"round_uuid": _("Round not found.")})
 
-        if call_round.call.state != models.Call.States.ACTIVE:
+        if call_round.call.state != CallStates.ACTIVE:
             raise serializers.ValidationError(_("Call is not active."))
 
         if call_round.status not in (

@@ -12,9 +12,9 @@ from rest_framework import status
 from rest_framework.reverse import reverse
 
 from keycloak import exceptions as keycloak_exceptions
-from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.exceptions import RuntimeStateException
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.signals import resource_imported
@@ -489,7 +489,7 @@ def sync_rancher_roles():
             existing_role.display_name = remote_roles[existing_role.name]["name"]
             existing_role.save(update_fields=["display_name"])
 
-    clusters = models.Cluster.objects.filter(state=core_models.StateMixin.States.OK)
+    clusters = models.Cluster.objects.filter(state=CoreStates.OK)
     rancher_settings_ids = clusters.values_list("settings", flat=True).distinct()
     for rancher_settings_id in rancher_settings_ids:
         settings = structure_models.ServiceSettings.objects.get(id=rancher_settings_id)
@@ -513,7 +513,7 @@ def delete_leftover_keycloak_groups():
     """
     Delete remote Keycloak groups with no linked groups in Waldur
     """
-    clusters = models.Cluster.objects.filter(state=core_models.StateMixin.States.OK)
+    clusters = models.Cluster.objects.filter(state=CoreStates.OK)
     rancher_settings_ids = clusters.values_list("settings", flat=True).distinct()
     for rancher_settings_id in rancher_settings_ids:
         settings = structure_models.ServiceSettings.objects.get(id=rancher_settings_id)
@@ -556,7 +556,7 @@ def delete_leftover_keycloak_memberships():
     """
     Delete remote Keycloak user memberships in groups with no linked instances in Waldur
     """
-    clusters = models.Cluster.objects.filter(state=core_models.StateMixin.States.OK)
+    clusters = models.Cluster.objects.filter(state=CoreStates.OK)
     rancher_settings_ids = clusters.values_list("settings", flat=True).distinct()
     for rancher_settings_id in rancher_settings_ids:
         settings = structure_models.ServiceSettings.objects.get(id=rancher_settings_id)
@@ -713,7 +713,7 @@ def sync_rancher_group_bindings():
                     e,
                 )
 
-    clusters = models.Cluster.objects.filter(state=core_models.StateMixin.States.OK)
+    clusters = models.Cluster.objects.filter(state=CoreStates.OK)
     for cluster in clusters:
         rancher_backend: backend.RancherBackend = cluster.get_backend()
         local_cluster_groups = list(

@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal import utils
+from waldur_mastermind.proposal.enums import CallStates, ProposalStates
 
 from . import log
 
@@ -18,7 +19,7 @@ def create_reviews_if_strategy_is_after_round():
     rounds = proposal_models.Round.objects.filter(
         start_time__lte=timezone.now(),
         cutoff_time__gte=timezone.now(),
-        call__state=proposal_models.Call.States.ACTIVE,
+        call__state=CallStates.ACTIVE,
         review_strategy=proposal_models.Round.ReviewStrategies.AFTER_ROUND,
     )
 
@@ -31,15 +32,15 @@ def create_reviews_if_strategy_is_after_round():
 )
 def create_reviews_if_strategy_is_after_proposal():
     rounds = proposal_models.Round.objects.filter(
-        call__state=proposal_models.Call.States.ACTIVE,
+        call__state=CallStates.ACTIVE,
         review_strategy=proposal_models.Round.ReviewStrategies.AFTER_PROPOSAL,
     )
 
     for r in rounds:
         for proposal in r.proposal_set.filter(
             state__in=(
-                proposal_models.Proposal.States.SUBMITTED,
-                proposal_models.Proposal.States.IN_REVIEW,
+                ProposalStates.SUBMITTED,
+                ProposalStates.IN_REVIEW,
             )
         ):
             utils.process_proposals_pending_reviewers(proposal)
@@ -51,12 +52,12 @@ def create_reviews_if_strategy_is_after_proposal():
 def proposals_for_ended_rounds_should_be_cancelled():
     for proposal in proposal_models.Proposal.objects.exclude(
         state__in=(
-            proposal_models.Proposal.States.ACCEPTED,
-            proposal_models.Proposal.States.REJECTED,
-            proposal_models.Proposal.States.CANCELED,
+            ProposalStates.ACCEPTED,
+            ProposalStates.REJECTED,
+            ProposalStates.CANCELED,
         )
     ).filter(round__cutoff_time__lt=timezone.now()):
-        proposal.state = proposal_models.Proposal.States.CANCELED
+        proposal.state = ProposalStates.CANCELED
         proposal.save(update_fields=["state"])
 
         log.event_logger.proposal.info(

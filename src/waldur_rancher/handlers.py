@@ -4,7 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 
 from keycloak import exceptions as keycloak_exceptions
-from waldur_core.core.models import StateMixin
+from waldur_core.core.enums import CoreStates
 from waldur_rancher.exceptions import RancherException
 
 from . import backend, enums, models, utils
@@ -47,10 +47,7 @@ def set_error_state_for_node_if_related_instance_deleting_is_failed(
     except ObjectDoesNotExist:
         return
 
-    if (
-        instance.tracker.has_changed("state")
-        and instance.state == StateMixin.States.ERRED
-    ):
+    if instance.tracker.has_changed("state") and instance.state == CoreStates.ERRED:
         node.state = models.Node.States.ERRED
         node.error_message = "Deleting related VM has failed."
         node.save()

@@ -17,6 +17,7 @@ from waldur_core.structure.managers import (
     get_connected_projects_by_permission,
     get_organization_groups,
 )
+from waldur_mastermind.marketplace.enums import OfferingStates
 
 from . import models
 
@@ -171,6 +172,14 @@ class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
             | Q(offering__customer__serviceprovider__in=connected_service_providers)
         ).distinct()
 
+    def filter_for_user(self, user):
+        if user.is_staff or user.is_support:
+            return self
+        return self.filter(
+            project__in=get_connected_projects(user),
+            customer__in=get_connected_customers(user),
+        )
+
 
 class ResourceManager(MixinManager):
     def get_queryset(self):
@@ -192,8 +201,8 @@ class PlanQuerySet(django_models.QuerySet):
     def filter_by_plan_availability_for_user(self, user):
         queryset = self.filter(
             offering__state__in=(
-                models.Offering.States.ACTIVE,
-                models.Offering.States.PAUSED,
+                OfferingStates.ACTIVE,
+                OfferingStates.PAUSED,
             ),
             archived=False,
         )

@@ -74,7 +74,11 @@ from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
-from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, models
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
@@ -146,7 +150,7 @@ def get_remote_offerings_for_project(project: structure_models.Project):
         marketplace_models.Resource.objects.filter(
             project=project,
             offering__type=PLUGIN_NAME,
-            offering__state=marketplace_models.Offering.States.ACTIVE,
+            offering__state=OfferingStates.ACTIVE,
         )
         .exclude(state__in=INVALID_RESOURCE_STATES)
         .values_list("offering", flat=True)
@@ -178,9 +182,9 @@ def get_projects_with_remote_offerings():
         marketplace_models.Order.objects.filter(
             offering__type=PLUGIN_NAME,
             state__in=(
-                marketplace_models.Order.States.PENDING_CONSUMER,
-                marketplace_models.Order.States.PENDING_PROVIDER,
-                marketplace_models.Order.States.EXECUTING,
+                OrderStates.PENDING_CONSUMER,
+                OrderStates.PENDING_PROVIDER,
+                OrderStates.EXECUTING,
             ),
         )
         .values("offering", "project")
@@ -492,9 +496,7 @@ def parse_resource_state(serialized_state: str) -> int:
 
 
 def parse_order_state(serialized_state: str) -> int:
-    return {v: k for (k, v) in marketplace_models.Order.States.CHOICES}[
-        serialized_state
-    ]
+    return {v: k for (k, v) in OrderStates.CHOICES}[serialized_state]
 
 
 def parse_order_type(serialized_state: str) -> int:

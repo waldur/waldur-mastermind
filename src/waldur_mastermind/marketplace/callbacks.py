@@ -7,8 +7,8 @@ from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
-from waldur_core.core.models import StateMixin
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_core.core.enums import CoreStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 
 from . import log, models, signals, tasks, utils
 
@@ -36,7 +36,7 @@ def resource_creation_succeeded(resource: models.Resource, validate=False):
     order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.CREATE,
-        models.Order.States.DONE,
+        OrderStates.DONE,
         validate,
     )
 
@@ -53,7 +53,7 @@ def resource_creation_failed(resource: models.Resource, validate=False):
     order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.CREATE,
-        models.Order.States.ERRED,
+        OrderStates.ERRED,
         validate,
     )
     resource.set_state_erred()
@@ -82,7 +82,7 @@ def resource_creation_canceled(resource: models.Resource, validate=False):
     order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.CREATE,
-        models.Order.States.CANCELED,
+        OrderStates.CANCELED,
         validate,
     )
 
@@ -98,7 +98,7 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
     order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.UPDATE,
-        models.Order.States.DONE,
+        OrderStates.DONE,
         validate,
     )
 
@@ -170,7 +170,7 @@ def resource_update_failed(resource: models.Resource, validate=False):
     order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.UPDATE,
-        models.Order.States.ERRED,
+        OrderStates.ERRED,
         validate,
     )
     if resource.state != resource.States.ERRED:
@@ -187,7 +187,7 @@ def resource_update_canceled(resource: models.Resource, validate=False):
     order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.UPDATE,
-        models.Order.States.CANCELED,
+        OrderStates.CANCELED,
         validate,
     )
 
@@ -205,7 +205,7 @@ def resource_deletion_succeeded(resource: models.Resource, validate=False):
     order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.TERMINATE,
-        models.Order.States.DONE,
+        OrderStates.DONE,
         validate,
     )
     if resource.state != resource.States.TERMINATED:
@@ -225,7 +225,7 @@ def resource_deletion_failed(resource: models.Resource, validate=False):
     order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.TERMINATE,
-        models.Order.States.ERRED,
+        OrderStates.ERRED,
         validate,
     )
     if resource.state != resource.States.OK:
@@ -242,7 +242,7 @@ def resource_deletion_canceled(resource: models.Resource, validate=False):
     order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.TERMINATE,
-        models.Order.States.CANCELED,
+        OrderStates.CANCELED,
         validate,
     )
 
@@ -269,7 +269,7 @@ def set_order_state(resource: models.Resource, order_type, new_state, validate=F
         order = models.Order.objects.get(
             resource=resource,
             type=order_type,
-            state=models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
     except django_exceptions.ObjectDoesNotExist:
         if validate:
@@ -300,66 +300,63 @@ def set_order_state(resource: models.Resource, order_type, new_state, validate=F
         return order
 
 
-States = StateMixin.States
-
-
 StateRouter = {
-    (States.CREATING, States.OK): resource_creation_succeeded,
-    (States.CREATING, States.ERRED): resource_creation_failed,
-    (States.CREATION_SCHEDULED, States.ERRED): resource_creation_failed,
-    (States.UPDATING, States.OK): resource_update_succeeded,
-    (States.UPDATING, States.ERRED): resource_update_failed,
-    (States.UPDATE_SCHEDULED, States.ERRED): resource_update_failed,
-    (States.DELETING, States.ERRED): resource_deletion_failed,
-    (States.DELETION_SCHEDULED, States.ERRED): resource_deletion_failed,
-    (States.OK, States.ERRED): resource_erred_on_backend,
+    (CoreStates.CREATING, CoreStates.OK): resource_creation_succeeded,
+    (CoreStates.CREATING, CoreStates.ERRED): resource_creation_failed,
+    (CoreStates.CREATION_SCHEDULED, CoreStates.ERRED): resource_creation_failed,
+    (CoreStates.UPDATING, CoreStates.OK): resource_update_succeeded,
+    (CoreStates.UPDATING, CoreStates.ERRED): resource_update_failed,
+    (CoreStates.UPDATE_SCHEDULED, CoreStates.ERRED): resource_update_failed,
+    (CoreStates.DELETING, CoreStates.ERRED): resource_deletion_failed,
+    (CoreStates.DELETION_SCHEDULED, CoreStates.ERRED): resource_deletion_failed,
+    (CoreStates.OK, CoreStates.ERRED): resource_erred_on_backend,
 }
 
 
 OrderStateRouter = {
-    models.Order.States.EXECUTING: "set_state_executing",
-    models.Order.States.DONE: "complete",
-    models.Order.States.ERRED: "set_state_erred",
-    models.Order.States.CANCELED: "cancel",
+    OrderStates.EXECUTING: "set_state_executing",
+    OrderStates.DONE: "complete",
+    OrderStates.ERRED: "set_state_erred",
+    OrderStates.CANCELED: "cancel",
 }
 
 
 OrderHandlers = {
     (
         models.Order.Types.CREATE,
-        models.Order.States.DONE,
+        OrderStates.DONE,
     ): resource_creation_succeeded,
     (
         models.Order.Types.CREATE,
-        models.Order.States.ERRED,
+        OrderStates.ERRED,
     ): resource_creation_failed,
     (
         models.Order.Types.CREATE,
-        models.Order.States.CANCELED,
+        OrderStates.CANCELED,
     ): resource_creation_canceled,
     (
         models.Order.Types.UPDATE,
-        models.Order.States.DONE,
+        OrderStates.DONE,
     ): resource_update_succeeded,
     (
         models.Order.Types.UPDATE,
-        models.Order.States.ERRED,
+        OrderStates.ERRED,
     ): resource_update_failed,
     (
         models.Order.Types.UPDATE,
-        models.Order.States.CANCELED,
+        OrderStates.CANCELED,
     ): resource_update_canceled,
     (
         models.Order.Types.TERMINATE,
-        models.Order.States.DONE,
+        OrderStates.DONE,
     ): resource_deletion_succeeded,
     (
         models.Order.Types.TERMINATE,
-        models.Order.States.ERRED,
+        OrderStates.ERRED,
     ): resource_deletion_failed,
     (
         models.Order.Types.TERMINATE,
-        models.Order.States.CANCELED,
+        OrderStates.CANCELED,
     ): resource_deletion_canceled,
 }
 

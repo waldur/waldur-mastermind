@@ -5,9 +5,9 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure import tasks as structure_tasks
 from waldur_core.structure.registry import get_resource_type
 from waldur_openstack.backend import OpenStackBackend
@@ -185,7 +185,7 @@ class BaseDeleteExpiredResourcesTask(core_tasks.BackgroundTask):
     def run(self):
         executor = self._get_delete_executor()
         resources = self.model.objects.filter(
-            kept_until__lt=timezone.now(), state=core_models.StateMixin.States.OK
+            kept_until__lt=timezone.now(), state=CoreStates.OK
         )
         for resource in resources:
             executor.execute(resource)

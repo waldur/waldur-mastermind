@@ -22,7 +22,7 @@ from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
-from waldur_core.core.enums import CoreStateType
+from waldur_core.core.enums import CoreStates, CoreStateType
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.permissions.enums import PermissionEnum, get_old_role_name
 from waldur_core.permissions.fixtures import CustomerRole
@@ -1101,8 +1101,8 @@ class ServiceSettingsSerializer(
         read_only=True, source="customer.native_name"
     )
     state = MappedChoiceField(
-        choices=[(v, k) for k, v in core_models.StateMixin.States.CHOICES],
-        choice_mappings={v: k for k, v in core_models.StateMixin.States.CHOICES},
+        choices=[(v, k) for k, v in CoreStates.CHOICES],
+        choice_mappings={v: k for k, v in CoreStates.CHOICES},
         read_only=True,
     )
     scope = core_serializers.GenericRelatedField(

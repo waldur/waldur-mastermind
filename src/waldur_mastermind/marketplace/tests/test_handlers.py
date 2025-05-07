@@ -10,7 +10,7 @@ from waldur_core.structure.tests import models as structure_tests_models
 from waldur_mastermind.marketplace import PLUGIN_NAME, callbacks, utils
 from waldur_mastermind.marketplace import handlers as marketplace_handlers
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -274,13 +274,11 @@ class UpdateOfferingUserUsernameAfterUserChangeTest(APITransactionTestCase):
 
 class SetOrderCompletionTimestampTest(APITransactionTestCase):
     def setUp(self):
-        self.order = factories.OrderFactory(
-            state=marketplace_models.Order.States.PENDING_PROVIDER
-        )
+        self.order = factories.OrderFactory(state=OrderStates.PENDING_PROVIDER)
         self.order.save()
 
     def set_order_executing(self):
-        self.order.state = marketplace_models.Order.States.EXECUTING
+        self.order.state = OrderStates.EXECUTING
         self.order.save()
 
     def test_set_order_completion_timestamp_created(self):

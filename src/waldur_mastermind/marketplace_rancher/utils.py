@@ -9,6 +9,7 @@ from waldur_core.core.models import User
 from waldur_core.core.utils import get_system_robot
 from waldur_core.structure.models import Project
 from waldur_mastermind.common.utils import create_request
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace.views import BaseResourceViewSet, OrderViewSet
 from waldur_openstack.models import Tenant
@@ -17,9 +18,9 @@ from waldur_rancher.exceptions import RancherException
 
 def is_order_ready(uuid):
     order = Order.objects.get(uuid=uuid)
-    if order.state == Order.States.ERRED:
+    if order.state == OrderStates.ERRED:
         raise RancherException("Order is in erred state.")
-    return order.state == Order.States.DONE
+    return order.state == OrderStates.DONE
 
 
 def wait_for_order(uuid, interval=10, timeout=600):

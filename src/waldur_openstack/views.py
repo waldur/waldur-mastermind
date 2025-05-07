@@ -17,6 +17,7 @@ from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.logging.loggers import event_logger
 from waldur_core.permissions.enums import PermissionEnum
@@ -250,7 +251,7 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
             status=status.HTTP_202_ACCEPTED,
         )
 
-    set_rules_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
+    set_rules_validators = [core_validators.StateValidator(CoreStates.OK)]
     set_rules_serializer_class = (
         serializers.OpenStackSecurityGroupRuleListUpdateSerializer
     )
@@ -468,7 +469,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
         )
 
     set_quotas_permissions = [structure_permissions.is_staff]
-    set_quotas_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
+    set_quotas_validators = [core_validators.StateValidator(CoreStates.OK)]
     set_quotas_serializer_class = serializers.OpenStackTenantQuotaSerializer
 
     @extend_schema(
@@ -483,9 +484,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
         executors.NetworkCreateExecutor().execute(network)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    create_network_validators = [
-        core_validators.StateValidator(models.Tenant.States.OK)
-    ]
+    create_network_validators = [core_validators.StateValidator(CoreStates.OK)]
     create_network_serializer_class = serializers.OpenStackNetworkSerializer
 
     def external_network_is_defined(tenant):
@@ -511,7 +510,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     create_floating_ip_validators = [
-        core_validators.StateValidator(models.Tenant.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         external_network_is_defined,
     ]
     create_floating_ip_serializer_class = serializers.OpenStackFloatingIPSerializer
@@ -528,9 +527,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
         executors.TenantPullFloatingIPsExecutor.execute(tenant)
         return response.Response(status=status.HTTP_202_ACCEPTED)
 
-    pull_floating_ips_validators = [
-        core_validators.StateValidator(models.Tenant.States.OK)
-    ]
+    pull_floating_ips_validators = [core_validators.StateValidator(CoreStates.OK)]
     pull_floating_ips_serializer_class = EmptySerializer
 
     @extend_schema(
@@ -569,9 +566,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
         executors.SecurityGroupCreateExecutor().execute(security_group)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    create_security_group_validators = [
-        core_validators.StateValidator(models.Tenant.States.OK)
-    ]
+    create_security_group_validators = [core_validators.StateValidator(CoreStates.OK)]
     create_security_group_serializer_class = (
         serializers.OpenStackSecurityGroupSerializer
     )
@@ -588,9 +583,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
             status=status.HTTP_202_ACCEPTED,
         )
 
-    pull_security_groups_validators = [
-        core_validators.StateValidator(models.Tenant.States.OK)
-    ]
+    pull_security_groups_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
         description="Trigger job to pull server groups from remote VPC",
@@ -604,9 +597,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
             status=status.HTTP_202_ACCEPTED,
         )
 
-    pull_server_groups_validators = [
-        core_validators.StateValidator(models.Tenant.States.OK)
-    ]
+    pull_server_groups_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
         examples=[
@@ -626,9 +617,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
         executors.ServerGroupCreateExecutor().execute(server_group)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    create_server_group_validators = [
-        core_validators.StateValidator(models.Tenant.States.OK)
-    ]
+    create_server_group_validators = [core_validators.StateValidator(CoreStates.OK)]
     create_server_group_serializer_class = serializers.OpenStackServerGroupSerializer
 
     @extend_schema(
@@ -651,9 +640,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
     change_password_serializer_class = (
         serializers.OpenStackTenantChangePasswordSerializer
     )
-    change_password_validators = [
-        core_validators.StateValidator(models.Tenant.States.OK)
-    ]
+    change_password_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
         description="It triggers celery job to pull quotas from remote VPC",
@@ -668,7 +655,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
             status=status.HTTP_202_ACCEPTED,
         )
 
-    pull_quotas_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
+    pull_quotas_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
         description="Return a list of volumes from backend",
@@ -1039,7 +1026,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
             )
 
     def _is_volume_instance_ok(volume):
-        if volume.instance and volume.instance.state != models.Instance.States.OK:
+        if volume.instance and volume.instance.state != CoreStates.OK:
             raise core_exceptions.IncorrectStateException(
                 _("Volume instance should be in OK state.")
             )
@@ -1070,7 +1057,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
         _is_volume_bootable,
         _is_volume_instance_ok,
         _is_volume_instance_shutoff,
-        core_validators.StateValidator(models.Volume.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
     ]
     extend_serializer_class = serializers.OpenStackVolumeExtendSerializer
 
@@ -1109,7 +1096,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
     attach_validators = [
         core_validators.RuntimeStateValidator("available"),
-        core_validators.StateValidator(models.Volume.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
     ]
     attach_serializer_class = serializers.VolumeAttachSerializer
 
@@ -1130,7 +1117,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
         _is_volume_bootable,
         _is_volume_attached,
         core_validators.RuntimeStateValidator("in-use"),
-        core_validators.StateValidator(models.Volume.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
     ]
 
     @extend_schema(
@@ -1152,7 +1139,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
     retype_validators = [
         core_validators.RuntimeStateValidator("available"),
-        core_validators.StateValidator(models.Volume.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
     ]
 
     retype_serializer_class = serializers.OpenStackVolumeRetypeSerializer
@@ -1238,7 +1225,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     update_executor = executors.InstanceUpdateExecutor
     update_validators = partial_update_validators = [
-        core_validators.StateValidator(models.Instance.States.OK)
+        core_validators.StateValidator(CoreStates.OK)
     ]
     disabled_actions = ["create", "destroy"]
 
@@ -1256,15 +1243,15 @@ class InstanceViewSet(structure_views.ResourceViewSet):
                 )
 
     def _can_destroy_instance(instance):
-        if instance.state == models.Instance.States.ERRED:
+        if instance.state == CoreStates.ERRED:
             return
         if (
-            instance.state == models.Instance.States.OK
+            instance.state == CoreStates.OK
             and instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF
         ):
             return
         if (
-            instance.state == models.Instance.States.OK
+            instance.state == CoreStates.OK
             and instance.runtime_state == models.Instance.RuntimeStates.ACTIVE
         ):
             raise core_exceptions.IncorrectStateException(
@@ -1298,7 +1285,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     def _can_change_flavor(instance):
         if (
-            instance.state == models.Instance.States.OK
+            instance.state == CoreStates.OK
             and instance.runtime_state == models.Instance.RuntimeStates.ACTIVE
         ):
             raise core_exceptions.IncorrectStateException(
@@ -1308,7 +1295,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     change_flavor_serializer_class = serializers.InstanceFlavorChangeSerializer
     change_flavor_validators = [
         _can_change_flavor,
-        core_validators.StateValidator(models.Instance.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF),
     ]
 
@@ -1327,7 +1314,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     def _can_start_instance(instance):
         if (
-            instance.state == models.Instance.States.OK
+            instance.state == CoreStates.OK
             and instance.runtime_state == models.Instance.RuntimeStates.ACTIVE
         ):
             raise core_exceptions.IncorrectStateException(
@@ -1336,7 +1323,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     start_validators = [
         _can_start_instance,
-        core_validators.StateValidator(models.Instance.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF),
     ]
     start_serializer_class = EmptySerializer
@@ -1356,7 +1343,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     def _can_stop_instance(instance):
         if (
-            instance.state == models.Instance.States.OK
+            instance.state == CoreStates.OK
             and instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF
         ):
             raise core_exceptions.IncorrectStateException(
@@ -1365,7 +1352,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     stop_validators = [
         _can_stop_instance,
-        core_validators.StateValidator(models.Instance.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE),
     ]
     stop_serializer_class = EmptySerializer
@@ -1385,7 +1372,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     def _can_restart_instance(instance):
         if (
-            instance.state == models.Instance.States.OK
+            instance.state == CoreStates.OK
             and instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF
         ):
             raise core_exceptions.IncorrectStateException(
@@ -1394,7 +1381,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     restart_validators = [
         _can_restart_instance,
-        core_validators.StateValidator(models.Instance.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE),
     ]
     restart_serializer_class = EmptySerializer
@@ -1417,9 +1404,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
             status=status.HTTP_202_ACCEPTED,
         )
 
-    update_security_groups_validators = [
-        core_validators.StateValidator(models.Instance.States.OK)
-    ]
+    update_security_groups_validators = [core_validators.StateValidator(CoreStates.OK)]
     update_security_groups_serializer_class = (
         serializers.OpenStackInstanceSecurityGroupsUpdateSerializer
     )
@@ -1438,7 +1423,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         executors.BackupCreateExecutor().execute(backup)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    backup_validators = [core_validators.StateValidator(models.Instance.States.OK)]
+    backup_validators = [core_validators.StateValidator(CoreStates.OK)]
     backup_serializer_class = serializers.OpenStackBackupSerializer
 
     @extend_schema(
@@ -1478,7 +1463,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         )
 
     update_allowed_address_pairs_validators = [
-        core_validators.StateValidator(models.Instance.States.OK)
+        core_validators.StateValidator(CoreStates.OK)
     ]
     update_allowed_address_pairs_serializer_class = (
         serializers.OpenStackInstanceAllowedAddressPairsUpdateSerializer
@@ -1502,9 +1487,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
             status=status.HTTP_202_ACCEPTED,
         )
 
-    update_ports_validators = [
-        core_validators.StateValidator(models.Instance.States.OK)
-    ]
+    update_ports_validators = [core_validators.StateValidator(CoreStates.OK)]
     update_ports_serializer_class = serializers.OpenStackInstancePortsUpdateSerializer
 
     @extend_schema(
@@ -1539,9 +1522,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
             status=status.HTTP_202_ACCEPTED,
         )
 
-    update_floating_ips_validators = [
-        core_validators.StateValidator(models.Instance.States.OK)
-    ]
+    update_floating_ips_validators = [core_validators.StateValidator(CoreStates.OK)]
     update_floating_ips_serializer_class = (
         serializers.OpenStackInstanceFloatingIPsUpdateSerializer
     )
@@ -1580,7 +1561,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
         return response.Response({"url": url}, status=status.HTTP_200_OK)
 
-    console_validators = [core_validators.StateValidator(models.Instance.States.OK)]
+    console_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     def check_permissions_for_console(request, view, instance=None):
         if not instance:
@@ -1664,7 +1645,7 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
         release_floating_ips = serializer.validated_data["release_floating_ips"]
 
         resource: models.Instance = self.get_object()
-        force = resource.state == models.Instance.States.ERRED
+        force = resource.state == CoreStates.ERRED
         executors.InstanceDeleteExecutor.execute(
             resource,
             force=force,
@@ -1696,8 +1677,8 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
         InstanceViewSet._has_backups,
         InstanceViewSet._has_snapshots,
         core_validators.StateValidator(
-            models.Instance.States.OK,
-            models.Instance.States.ERRED,
+            CoreStates.OK,
+            CoreStates.ERRED,
         ),
     ]
     force_destroy_serializer_class = destroy_serializer_class
@@ -1721,9 +1702,9 @@ class MarketplaceVolumeViewSet(structure_views.ResourceViewSet):
     create_executor = executors.VolumeCreateExecutor
 
     def _can_destroy_volume(volume):
-        if volume.state == models.Volume.States.ERRED:
+        if volume.state == CoreStates.ERRED:
             return
-        if volume.state != models.Volume.States.OK:
+        if volume.state != CoreStates.OK:
             raise core_exceptions.IncorrectStateException(
                 _("Volume should be in OK state.")
             )

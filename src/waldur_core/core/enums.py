@@ -35,3 +35,19 @@ CoreStateType = Literal[
     "OK",
     "ERRED",
 ]
+
+
+class ReviewStates:
+    DRAFT = 1
+    PENDING = 2
+    APPROVED = 3
+    REJECTED = 4
+    CANCELED = 5
+
+    CHOICES = (
+        (DRAFT, "draft"),
+        (PENDING, "pending"),
+        (APPROVED, "approved"),
+        (REJECTED, "rejected"),
+        (CANCELED, "canceled"),
+    )

@@ -14,6 +14,7 @@ from waldur_mastermind.marketplace import (
 from waldur_mastermind.marketplace import (
     serializers as marketplace_serializers,
 )
+from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace.views import OrderViewSet
 from waldur_mastermind.marketplace_openstack import (
@@ -161,7 +162,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 },
             )
 
-        if rancher_offering.state != Offering.States.ACTIVE:
+        if rancher_offering.state != OfferingStates.ACTIVE:
             rancher_offering.activate()
             rancher_offering.save()
 

@@ -5,6 +5,7 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import OfferingStates
 
 from . import factories
 
@@ -46,12 +47,12 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
         self.category = factories.CategoryFactory()
         self.category_url = factories.CategoryFactory.get_url(self.category)
         self.share_offering = factories.OfferingFactory(
-            shared=True, category=self.category, state=models.Offering.States.ACTIVE
+            shared=True, category=self.category, state=OfferingStates.ACTIVE
         )
         self.private_offering = factories.OfferingFactory(
             shared=False,
             category=self.category,
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             customer=self.fixture.customer,
             project=self.fixture.project,
         )
@@ -82,7 +83,7 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
     def _create_offering_for_owner(self, offering_count):
         factories.OfferingFactory(
             shared=False,
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             category=self.category,
             customer=self.fixture.customer,
             project=self.fixture.project,

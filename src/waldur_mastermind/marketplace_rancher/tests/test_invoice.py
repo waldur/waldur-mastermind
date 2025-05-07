@@ -11,6 +11,7 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_rancher import PLUGIN_NAME
 from waldur_openstack.models import Tenant
@@ -105,7 +106,7 @@ class RancherInvoiceTest(test.APITransactionTestCase):
                 ),
                 "nodes": format_nodes(default_conf, 3, 1),
             },
-            state=marketplace_models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
         marketplace_utils.process_order(order, self.fixture.staff)
         self.assertTrue(

@@ -1,8 +1,7 @@
 from freezegun import freeze_time
 from rest_framework import test
 
-from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 
 from .. import tasks
 from . import fixtures
@@ -12,7 +11,7 @@ from . import fixtures
 class TaskTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.BookingFixture()
-        self.fixture.order.state = marketplace_models.Order.States.EXECUTING
+        self.fixture.order.state = OrderStates.EXECUTING
         self.fixture.order.save()
 
     def test_reject_past_booking(self):

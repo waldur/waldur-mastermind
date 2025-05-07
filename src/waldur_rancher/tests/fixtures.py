@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.utils.functional import cached_property
 
-from waldur_core.core.models import StateMixin
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack.models import Tenant
 from waldur_openstack.tests import factories as openstack_factories
@@ -40,7 +40,7 @@ class RancherFixture(ProjectFixture):
             service_settings=self.tenant.service_settings,
             tenant=self.tenant,
             project=self.project,
-            state=StateMixin.States.OK,
+            state=CoreStates.OK,
         )
 
     @cached_property

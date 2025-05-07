@@ -9,6 +9,7 @@ from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
+from waldur_mastermind.proposal.enums import ProposalStates, RequestedOfferingStates
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ def process_proposals_pending_reviewers(proposal: proposal_models.Proposal):
     for reviewer in get_available_reviewer(proposal):
         proposal_models.Review.objects.create(reviewer=reviewer, proposal=proposal)
 
-    proposal.state = proposal_models.Proposal.States.IN_REVIEW
+    proposal.state = ProposalStates.IN_REVIEW
     return proposal.save()
 
 
@@ -71,7 +72,7 @@ def allocate_proposal(proposal: proposal_models.Proposal):
 
     requested_resources: QuerySet[proposal_models.RequestedResource] = (
         proposal.requestedresource_set.filter(
-            requested_offering__state=proposal_models.RequestedOffering.States.ACCEPTED
+            requested_offering__state=RequestedOfferingStates.ACCEPTED
         )
     )
 
@@ -108,14 +109,14 @@ def allocate_proposal(proposal: proposal_models.Proposal):
 
 
 def create_reviews_of_round(call_round):
-    call_round.proposal_set.filter(state=proposal_models.Proposal.States.DRAFT).update(
-        state=proposal_models.Proposal.States.CANCELED
+    call_round.proposal_set.filter(state=ProposalStates.DRAFT).update(
+        state=ProposalStates.CANCELED
     )
 
     for proposal in call_round.proposal_set.filter(
         state__in=(
-            proposal_models.Proposal.States.SUBMITTED,
-            proposal_models.Proposal.States.IN_REVIEW,
+            ProposalStates.SUBMITTED,
+            ProposalStates.IN_REVIEW,
         )
     ):
         process_proposals_pending_reviewers(proposal)

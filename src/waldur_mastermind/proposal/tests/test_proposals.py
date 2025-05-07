@@ -8,6 +8,7 @@ from waldur_core.permissions.fixtures import CallRole, ProposalRole
 from waldur_core.permissions.utils import add_user, has_user
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models, tasks
+from waldur_mastermind.proposal.enums import CallStates, ProposalStates
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 
@@ -51,7 +52,7 @@ class ProposalGetTest(test.APITransactionTestCase):
     def create_another_call_and_proposal(self):
         another_call = factories.CallFactory(
             manager=self.fixture.manager,
-            state=models.Call.States.ACTIVE,
+            state=CallStates.ACTIVE,
         )
         another_round = factories.RoundFactory(call=another_call)
         another_reviewer = structure_factories.UserFactory()
@@ -154,7 +155,7 @@ class UpdateProposalProjectDetailsTest(test.APITransactionTestCase):
         "proposal_creator",
     )
     def test_user_can_not_update_not_draft_proposal(self, user):
-        self.proposal.state = models.Proposal.States.IN_REVIEW
+        self.proposal.state = ProposalStates.IN_REVIEW
         self.proposal.save()
         response = self.update_proposal(user)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -211,7 +212,7 @@ class ActionTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
-        self.proposal.state = models.Proposal.States.DRAFT
+        self.proposal.state = ProposalStates.DRAFT
         self.proposal.save()
         self.url = factories.ProposalFactory.get_url(self.proposal, "submit")
 
@@ -225,7 +226,7 @@ class ActionTest(test.APITransactionTestCase):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.proposal.refresh_from_db()
-        self.assertTrue(self.proposal.state, models.Proposal.States.SUBMITTED)
+        self.assertTrue(self.proposal.state, ProposalStates.SUBMITTED)
 
     @data(
         "owner",
@@ -238,7 +239,7 @@ class ActionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_set_project_start_date_if_proposal_has_been_approved(self):
-        self.proposal.state = models.Proposal.States.IN_REVIEW
+        self.proposal.state = ProposalStates.IN_REVIEW
         self.proposal.save()
 
         self.client.force_authenticate(self.fixture.staff)
@@ -252,7 +253,7 @@ class ActionTest(test.APITransactionTestCase):
 
         new_proposal = factories.ProposalFactory(
             round=self.fixture.round,
-            state=models.Proposal.States.IN_REVIEW,
+            state=ProposalStates.IN_REVIEW,
         )
         allocation_date = datetime.datetime.now() + datetime.timedelta(weeks=1)
         new_proposal.round.allocation_date = allocation_date
@@ -330,7 +331,7 @@ class RequestedResourceCreateTest(test.APITransactionTestCase):
         "staff",
     )
     def test_user_can_not_add_resource_to_not_draft_proposal(self, user):
-        self.proposal.state = models.Proposal.States.IN_REVIEW
+        self.proposal.state = ProposalStates.IN_REVIEW
         self.proposal.save()
         response = self.add_resource(user)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -387,7 +388,7 @@ class RequestedResourceUpdateTest(test.APITransactionTestCase):
         "staff",
     )
     def test_user_can_not_update_not_draft_requested_resource(self, user):
-        self.proposal.state = models.Proposal.States.IN_REVIEW
+        self.proposal.state = ProposalStates.IN_REVIEW
         self.proposal.save()
         response = self.update_requested_resource(user)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -436,7 +437,7 @@ class RequestedResourceDeleteTest(test.APITransactionTestCase):
         "staff",
     )
     def test_user_can_not_delete_not_draft_requested_resource(self, user):
-        self.proposal.state = models.Proposal.States.IN_REVIEW
+        self.proposal.state = ProposalStates.IN_REVIEW
         self.proposal.save()
         response = self.delete_requested_resource(user)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -446,7 +447,7 @@ class RequestedResourceDeleteTest(test.APITransactionTestCase):
         "customer_support",
     )
     def test_customer_user_can_not_delete_not_draft_requested_resource(self, user):
-        self.proposal.state = models.Proposal.States.IN_REVIEW
+        self.proposal.state = ProposalStates.IN_REVIEW
         self.proposal.save()
         response = self.delete_requested_resource(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -461,7 +462,7 @@ class TaskTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
-        self.proposal.state = models.Proposal.States.DRAFT
+        self.proposal.state = ProposalStates.DRAFT
         self.proposal.save()
         self.round = self.fixture.round
 
@@ -470,13 +471,13 @@ class TaskTest(test.APITransactionTestCase):
         self.round.save()
         tasks.proposals_for_ended_rounds_should_be_cancelled()
         self.proposal.refresh_from_db()
-        self.assertEqual(self.proposal.state, models.Proposal.States.DRAFT)
+        self.assertEqual(self.proposal.state, ProposalStates.DRAFT)
 
         self.round.cutoff_time = datetime.datetime.now() - datetime.timedelta(days=1)
         self.round.save()
         tasks.proposals_for_ended_rounds_should_be_cancelled()
         self.proposal.refresh_from_db()
-        self.assertEqual(self.proposal.state, models.Proposal.States.CANCELED)
+        self.assertEqual(self.proposal.state, ProposalStates.CANCELED)
 
         from waldur_core.logging.models import Event
 

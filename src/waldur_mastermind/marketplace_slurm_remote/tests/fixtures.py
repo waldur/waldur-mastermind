@@ -4,7 +4,7 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
@@ -16,7 +16,7 @@ class MarketplaceSlurmRemoteFixture(marketplace_fixtures.MarketplaceFixture):
     def offering(self):
         return marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME,
-            state=marketplace_models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             project=self.offering_project,
             customer=self.offering_customer,
         )

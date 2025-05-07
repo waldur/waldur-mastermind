@@ -1,6 +1,6 @@
 from django.db import transaction
 
-from waldur_core.users.models import PermissionRequest
+from waldur_core.core.enums import ReviewStates
 
 from . import tasks
 
@@ -15,7 +15,7 @@ def create_notification_about_permission_request_has_been_submitted(
 
     if (
         not permission_request.tracker.has_changed("state")
-        or not permission_request.state == PermissionRequest.States.PENDING
+        or not permission_request.state == ReviewStates.PENDING
     ):
         return
 

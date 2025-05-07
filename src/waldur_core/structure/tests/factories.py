@@ -4,6 +4,7 @@ from rest_framework.authtoken import models as authtoken_models
 from rest_framework.reverse import reverse
 
 from waldur_core.core import models as core_models
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.core.utils import normalize_unicode
 from waldur_core.structure import models
@@ -153,7 +154,7 @@ class ServiceSettingsFactory(
         model = models.ServiceSettings
 
     name = factory.Sequence(lambda n: "Settings %s" % n)
-    state = core_models.StateMixin.States.OK
+    state = CoreStates.OK
     shared = False
     type = TestConfig.service_name
 

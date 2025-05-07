@@ -8,7 +8,7 @@ from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.utils import move_project
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace.tasks import (
     notify_consumer_about_pending_order,
@@ -115,10 +115,10 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
             project=project,
             created_by=user,
             state__in=(
-                Order.States.DONE,
-                Order.States.PENDING_CONSUMER,
-                Order.States.PENDING_PROVIDER,
-                Order.States.EXECUTING,
+                OrderStates.DONE,
+                OrderStates.PENDING_CONSUMER,
+                OrderStates.PENDING_PROVIDER,
+                OrderStates.EXECUTING,
             ),
             id__in=order_ids,
         )
@@ -127,12 +127,12 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
     )
     if order:
         if order.state in [
-            Order.States.PENDING_CONSUMER,
-            Order.States.PENDING_PROVIDER,
-            Order.States.EXECUTING,
+            OrderStates.PENDING_CONSUMER,
+            OrderStates.PENDING_PROVIDER,
+            OrderStates.EXECUTING,
         ]:
             return order, False
-        if order.state == Order.States.DONE:
+        if order.state == OrderStates.DONE:
             if order.resource.state != ResourceStates.ERRED:
                 return order, False
 
@@ -159,7 +159,7 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
             plan=plan,
             limits=limits,
             attributes={"name": name},
-            state=Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
 
         order.init_cost()

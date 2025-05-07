@@ -13,7 +13,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.marketplace import callbacks, models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories
 
 
@@ -95,7 +95,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         factories.OrderFactory(
             resource=self.resource,
             type=models.RequestTypeMixin.Types.CREATE,
-            state=models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
             plan=self.plan,
         )
         callbacks.resource_creation_succeeded(self.resource)

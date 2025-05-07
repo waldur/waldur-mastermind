@@ -4,6 +4,7 @@ from rest_framework import exceptions
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_core.structure import permissions as structure_permissions
+from waldur_mastermind.marketplace.enums import OfferingStates
 
 from . import models
 
@@ -131,9 +132,9 @@ def user_can_update_thumbnail(request, view, obj: models.Offering = None):
         return
 
     if offering.state not in (
-        models.Offering.States.ACTIVE,
-        models.Offering.States.DRAFT,
-        models.Offering.States.PAUSED,
+        OfferingStates.ACTIVE,
+        OfferingStates.DRAFT,
+        OfferingStates.PAUSED,
     ):
         raise exceptions.PermissionDenied(_("You are not allowed to update a logo."))
     else:

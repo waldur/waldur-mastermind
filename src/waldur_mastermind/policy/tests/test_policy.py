@@ -6,8 +6,8 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices.tests import factories as invoices_factories
-from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.policy import enums, policy_actions, structures
@@ -127,7 +127,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
                 offering=self.fixture.offering,
                 attributes={"name": "item_name", "description": "Description"},
                 plan=self.fixture.plan,
-                state=marketplace_models.Order.States.EXECUTING,
+                state=OrderStates.EXECUTING,
             )
             marketplace_utils.process_order(order, self.fixture.staff)
 

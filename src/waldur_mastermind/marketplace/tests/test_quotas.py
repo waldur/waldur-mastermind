@@ -4,7 +4,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import serializers as structure_test_serializers
 from waldur_core.structure.tests import views as structure_test_views
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories, utils
 
@@ -39,7 +39,7 @@ class QuotasValidateTest(test.APITransactionTestCase):
         )
         self.fixture = fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             type="TEST_TYPE",
             scope=self.service_settings,
         )

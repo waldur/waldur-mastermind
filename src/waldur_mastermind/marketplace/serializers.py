@@ -58,6 +58,8 @@ from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
 from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
     OrderStatesType,
     ResourceStates,
     ResourceStatesType,
@@ -2328,7 +2330,7 @@ class BaseItemSerializer(
     offering_image = serializers.ImageField(source="offering.image", read_only=True)
 
     def validate_offering(self, offering):
-        if not offering.state == models.Offering.States.ACTIVE:
+        if not offering.state == OfferingStates.ACTIVE:
             raise rf_exceptions.ValidationError(_("Offering is not available."))
         return offering
 
@@ -2559,9 +2561,9 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             return False
 
         if order.state not in (
-            models.Order.States.PENDING_CONSUMER,
-            models.Order.States.PENDING_PROVIDER,
-            models.Order.States.EXECUTING,
+            OrderStates.PENDING_CONSUMER,
+            OrderStates.PENDING_PROVIDER,
+            OrderStates.EXECUTING,
         ):
             return False
 
@@ -2612,9 +2614,9 @@ def check_pending_order_exists(resource):
     return models.Order.objects.filter(
         resource=resource,
         state__in=(
-            models.Order.States.PENDING_CONSUMER,
-            models.Order.States.PENDING_PROVIDER,
-            models.Order.States.EXECUTING,
+            OrderStates.PENDING_CONSUMER,
+            OrderStates.PENDING_PROVIDER,
+            OrderStates.EXECUTING,
         ),
     ).exists()
 
@@ -2626,8 +2628,8 @@ def validate_order(order: models.Order, request):
         structure_utils.check_project_end_date(order.project)
 
         if order.offering.state not in (
-            models.Offering.States.ACTIVE,
-            models.Offering.States.PAUSED,
+            OfferingStates.ACTIVE,
+            OfferingStates.PAUSED,
         ):
             raise serializers.ValidationError(_("Offering is not available."))
 

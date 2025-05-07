@@ -102,7 +102,12 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from waldur_mastermind.marketplace import callbacks
-from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
+    ResourceStates,
+    RobotAccountStates,
+)
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
     filter_offering_permissions,
@@ -311,7 +316,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
             customer=service_provider.customer,
             billable=True,
             shared=True,
-            state__in=(models.Offering.States.ACTIVE, models.Offering.States.PAUSED),
+            state__in=(OfferingStates.ACTIVE, OfferingStates.PAUSED),
         ).count()
 
         content_type = ContentType.objects.get_for_model(support_models.Issue)
@@ -330,7 +335,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
 
         pending_orders = models.Order.objects.filter(
             offering__customer=service_provider.customer,
-            state=models.Order.States.PENDING_PROVIDER,
+            state=OrderStates.PENDING_PROVIDER,
         ).count()
 
         erred_resources = models.Resource.objects.filter(
@@ -852,7 +857,7 @@ def can_update_offering(request, view, obj: models.Offering = None):
     if not offering:
         return
 
-    if offering.state == models.Offering.States.DRAFT:
+    if offering.state == OfferingStates.DRAFT:
         if any(
             has_permission(request, PermissionEnum.UPDATE_OFFERING, scope)
             for scope in (
@@ -869,7 +874,7 @@ def can_update_offering(request, view, obj: models.Offering = None):
 
 
 def validate_offering_update(offering):
-    if offering.state == models.Offering.States.ARCHIVED:
+    if offering.state == OfferingStates.ARCHIVED:
         raise rf_exceptions.ValidationError(
             _("It is not possible to update archived offering.")
         )
@@ -1035,7 +1040,7 @@ class ProviderOfferingViewSet(
                     {"detail": _("Offering was not deleted since it has resources.")},
                     status=status.HTTP_403_FORBIDDEN,
                 )
-            elif offering.state != models.Offering.States.DRAFT:
+            elif offering.state != OfferingStates.DRAFT:
                 return Response(
                     {
                         "detail": _(
@@ -1746,7 +1751,7 @@ class ProviderOfferingViewSet(
     def groups(self, *args, **kwargs):
         OFFERING_LIMIT = 4
         qs = self.filter_queryset(
-            self.get_queryset().filter(shared=True, state=models.Offering.States.ACTIVE)
+            self.get_queryset().filter(shared=True, state=OfferingStates.ACTIVE)
         )
         customer_ids = self.paginate_queryset(
             qs.order_by("customer__name")
@@ -2158,7 +2163,7 @@ class ProviderOfferingViewSet(
         )
     ]
     refresh_offering_usernames_validators = [
-        core_validators.StateValidator(models.Offering.States.ACTIVE),
+        core_validators.StateValidator(OfferingStates.ACTIVE),
         validate_offering_username_generation_policy,
     ]
 
@@ -2600,7 +2605,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     approve_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,
         structure_utils.check_project_end_date,
-        core_validators.StateValidator(models.Order.States.PENDING_CONSUMER),
+        core_validators.StateValidator(OrderStates.PENDING_CONSUMER),
     ]
 
     approve_by_consumer_permissions = [
@@ -2637,7 +2642,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         order: models.Order = self.get_object()
         order.review_by_consumer(request.user)
         if order.project.start_date and order.project.start_date > timezone.now():
-            order.state = models.Order.States.PENDING_PROJECT
+            order.state = OrderStates.PENDING_PROJECT
             order.save(update_fields=["state"])
             return Response(status=status.HTTP_200_OK)
         if utils.order_should_not_be_reviewed_by_provider(order):
@@ -2651,7 +2656,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             )
             tasks.process_order_on_commit(order, request.user)
         else:
-            order.state = models.Order.States.PENDING_PROVIDER
+            order.state = OrderStates.PENDING_PROVIDER
             order.save(update_fields=["state"])
             transaction.on_commit(
                 lambda: tasks.notify_provider_about_pending_order.delay(order.uuid)
@@ -2660,7 +2665,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     approve_by_provider_validators = [
         structure_utils.check_customer_blocked_or_archived,
-        core_validators.StateValidator(models.Order.States.PENDING_PROVIDER),
+        core_validators.StateValidator(OrderStates.PENDING_PROVIDER),
     ]
 
     approve_by_provider_permissions = [
@@ -2691,7 +2696,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     reject_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,
-        core_validators.StateValidator(models.Order.States.PENDING_CONSUMER),
+        core_validators.StateValidator(OrderStates.PENDING_CONSUMER),
     ]
 
     reject_by_consumer_permissions = [permissions.user_can_reject_order_as_consumer]
@@ -2718,7 +2723,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     reject_by_provider_validators = [
         structure_utils.check_customer_blocked_or_archived,
-        core_validators.StateValidator(models.Order.States.PENDING_PROVIDER),
+        core_validators.StateValidator(OrderStates.PENDING_PROVIDER),
     ]
 
     reject_by_provider_permissions = [
@@ -2749,9 +2754,9 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     cancel_validators = [
         core_validators.StateValidator(
-            models.Order.States.PENDING_CONSUMER,
-            models.Order.States.PENDING_PROVIDER,
-            models.Order.States.EXECUTING,
+            OrderStates.PENDING_CONSUMER,
+            OrderStates.PENDING_PROVIDER,
+            OrderStates.EXECUTING,
         ),
         OfferingTypeValidator(BASIC_PLUGIN_NAME, SUPPORT_PLUGIN_NAME),
     ]
@@ -2769,9 +2774,9 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     set_state_executing_validators = [
         core_validators.StateValidator(
-            models.Order.States.PENDING_CONSUMER,
-            models.Order.States.PENDING_PROVIDER,
-            models.Order.States.ERRED,
+            OrderStates.PENDING_CONSUMER,
+            OrderStates.PENDING_PROVIDER,
+            OrderStates.ERRED,
         ),
         OfferingTypeValidator(SLURM_REMOTE_PLUGIN_NAME),
     ]
@@ -2796,7 +2801,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     set_state_done_validators = [
         core_validators.StateValidator(
-            models.Order.States.EXECUTING,
+            OrderStates.EXECUTING,
         ),
         OfferingTypeValidator(
             SLURM_REMOTE_PLUGIN_NAME, BASIC_PLUGIN_NAME, SUPPORT_PLUGIN_NAME
@@ -2817,7 +2822,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     @action(detail=True, methods=["post"])
     def set_state_done(self, request, uuid=None):
         order: models.Order = self.get_object()
-        callbacks.sync_order_state(order, models.Order.States.DONE)
+        callbacks.sync_order_state(order, OrderStates.DONE)
         return Response(status=status.HTTP_200_OK)
 
     set_state_erred_validators = [
@@ -2844,7 +2849,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         error_message = serializer.validated_data["error_message"]
         error_traceback = serializer.validated_data["error_traceback"]
 
-        callbacks.sync_order_state(order, models.Order.States.ERRED)
+        callbacks.sync_order_state(order, OrderStates.ERRED)
         order.error_message = error_message
         order.error_traceback = error_traceback
         order.save(update_fields=["error_message", "error_traceback"])
@@ -2861,8 +2866,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     destroy_validators = [
         core_validators.StateValidator(
-            models.Order.States.PENDING_CONSUMER,
-            models.Order.States.PENDING_PROVIDER,
+            OrderStates.PENDING_CONSUMER,
+            OrderStates.PENDING_PROVIDER,
         ),
         structure_utils.check_customer_blocked_or_archived,
     ]
@@ -3961,8 +3966,8 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
     @action(detail=False, methods=["get"])
     def offerings_counter_stats(self, request):
         excluded_states = (
-            models.Offering.States.ARCHIVED,
-            models.Offering.States.DRAFT,
+            OfferingStates.ARCHIVED,
+            OfferingStates.DRAFT,
         )
         try:
             offerings_stats = (

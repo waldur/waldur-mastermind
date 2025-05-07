@@ -13,8 +13,8 @@ import hvac
 from hvac import exceptions as vault_exceptions
 from keycloak import KeycloakAdmin
 from keycloak import exceptions as keycloak_exceptions
-from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.media.utils import guess_image_extension
 from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.models import ServiceSettings
@@ -566,9 +566,9 @@ class RancherBackend(ServiceBackend):
         for node in cluster.node_set.filter(role=SERVER_ROLE):
             vm = cast(Instance, node.instance)
             if vm.state not in [
-                core_models.StateMixin.States.ERRED,
-                core_models.StateMixin.States.DELETING,
-                core_models.StateMixin.States.DELETION_SCHEDULED,
+                CoreStates.ERRED,
+                CoreStates.DELETING,
+                CoreStates.DELETION_SCHEDULED,
             ]:
                 # Return if one or more VMs with 'server' role exist
                 # and they haven't a state 'error' or 'delete'.

@@ -8,13 +8,18 @@ from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, tasks
-from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
+from waldur_mastermind.marketplace.enums import (
+    OrderStates,
+    ResourceStates,
+    RobotAccountStates,
+)
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_openstack.tests.fixtures import OpenStackFixture
 
@@ -185,7 +190,7 @@ class TerminateResource(test.APITransactionTestCase):
         factories.OrderFactory(
             resource=self.resource,
             type=models.Order.Types.TERMINATE,
-            state=models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
 
     @patch("waldur_mastermind.marketplace.utils.logger")
@@ -223,7 +228,7 @@ class ProjectEndDateTest(test.APITransactionTestCase):
             order = models.Order.objects.get(
                 resource=self.fixture.resource, type=models.Order.Types.TERMINATE
             )
-            self.assertTrue(order.state, models.Order.States.EXECUTING)
+            self.assertTrue(order.state, OrderStates.EXECUTING)
 
     def test_notification_about_project_ending(self):
         project_2 = structure_factories.ProjectFactory(
@@ -389,7 +394,7 @@ class ResourceEndDateTest(test.APITransactionTestCase):
             order = models.Order.objects.get(
                 resource=self.fixtures.resource, type=models.Order.Types.TERMINATE
             )
-            self.assertTrue(order.state, models.Order.States.EXECUTING)
+            self.assertTrue(order.state, OrderStates.EXECUTING)
             self.assertEqual(order.created_by, self.system_robot)
 
     def test_terminate_resource_if_end_date_requested_by_is_passed(self):
@@ -411,7 +416,7 @@ class ResourceEndDateTest(test.APITransactionTestCase):
             order = models.Order.objects.get(
                 resource=self.fixtures.resource, type=models.Order.Types.TERMINATE
             )
-            self.assertTrue(order.state, models.Order.States.EXECUTING)
+            self.assertTrue(order.state, OrderStates.EXECUTING)
             self.assertEqual(order.created_by, user)
 
     def test_notification_about_resource_ending(self):
@@ -439,7 +444,7 @@ class MarkResourcesAsErredAfterTimeoutTest(test.APITransactionTestCase):
         )
         self.order = factories.OrderFactory(
             offering=self.offering,
-            state=models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
         self.resource = factories.ResourceFactory(
             offering=self.offering,
@@ -464,13 +469,11 @@ class MarkResourcesAsErredAfterTimeoutTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.fixture.instance.refresh_from_db()
 
-        self.assertEqual(self.order.state, models.Order.States.ERRED)
+        self.assertEqual(self.order.state, OrderStates.ERRED)
         self.assertEqual(self.order.error_message, "Execution has timed out.")
         self.assertEqual(self.resource.state, ResourceStates.ERRED)
         self.assertEqual(self.resource.backend_metadata["state"], "ERRED")
-        self.assertEqual(
-            self.fixture.instance.state, self.fixture.instance.States.ERRED
-        )
+        self.assertEqual(self.fixture.instance.state, CoreStates.ERRED)
 
     def test_recent_orders_are_not_marked_as_failed(self):
         # Arrange
@@ -487,11 +490,9 @@ class MarkResourcesAsErredAfterTimeoutTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.fixture.instance.refresh_from_db()
 
-        self.assertEqual(self.order.state, models.Order.States.EXECUTING)
+        self.assertEqual(self.order.state, OrderStates.EXECUTING)
         self.assertNotEqual(self.resource.state, ResourceStates.ERRED)
-        self.assertNotEqual(
-            self.fixture.instance.state, self.fixture.instance.States.ERRED
-        )
+        self.assertNotEqual(self.fixture.instance.state, CoreStates.ERRED)
 
 
 class RemoveDeletedRobotAccountsTest(test.APITransactionTestCase):

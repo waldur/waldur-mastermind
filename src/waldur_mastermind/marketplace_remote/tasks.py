@@ -52,7 +52,7 @@ from waldur_api_client.models.user_role_update_request import UserRoleUpdateRequ
 
 from httpx import TimeoutException
 from waldur_core.core.client import get_waldur_client
-from waldur_core.core.mixins import ReviewStateMixin
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import (
     broadcast_mail,
     deserialize_instance,
@@ -68,7 +68,12 @@ from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_state
-from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
+    ResourceStates,
+    RobotAccountStates,
+)
 from waldur_mastermind.marketplace.utils import get_plan_period
 from waldur_mastermind.marketplace_remote import (
     PLUGIN_NAME,
@@ -92,16 +97,16 @@ from waldur_mastermind.marketplace_remote.utils import (
 logger = logging.getLogger(__name__)
 
 # For logging purposes only
-ORDER_STATES_MAP = {key: val for key, val in models.Order.States.CHOICES}
+ORDER_STATES_MAP = {key: val for key, val in OrderStates.CHOICES}
 LOGICAL_LOCAL_ORDER_STATES_MAP = {
     "pending-project": None,
-    "pending-consumer": models.Order.States.EXECUTING,
-    "pending-provider": models.Order.States.EXECUTING,
-    "executing": models.Order.States.EXECUTING,
-    "done": models.Order.States.DONE,
-    "erred": models.Order.States.ERRED,
-    "canceled": models.Order.States.CANCELED,
-    "rejected": models.Order.States.CANCELED,  # If a remote order is rejected, the local one should switch from "executing" to "canceled"
+    "pending-consumer": OrderStates.EXECUTING,
+    "pending-provider": OrderStates.EXECUTING,
+    "executing": OrderStates.EXECUTING,
+    "done": OrderStates.DONE,
+    "erred": OrderStates.ERRED,
+    "canceled": OrderStates.CANCELED,
+    "rejected": OrderStates.CANCELED,  # If a remote order is rejected, the local one should switch from "executing" to "canceled"
 }
 
 
@@ -119,11 +124,11 @@ class OfferingPullTask(BackgroundPullTask):
             self.sync_access_endpoints(local_offering, remote_offering)
         except UnexpectedStatus as exc:
             if exc.status_code == status.HTTP_404_NOT_FOUND:
-                if local_offering.state == models.Offering.States.ACTIVE:
+                if local_offering.state == OfferingStates.ACTIVE:
                     local_offering.archive()
                     local_offering.save(update_fields=["state"])
                     logger.warning(exc)
-                if local_offering.state == models.Offering.States.ARCHIVED:
+                if local_offering.state == OfferingStates.ARCHIVED:
                     logger.debug("Offering %s is archived: ", local_offering)
             else:
                 logger.exception(exc)
@@ -495,7 +500,7 @@ class OrderStatePullTask(OrderPullTask):
     def pull(self, local_order: models.Order):
         super().pull(local_order)
         local_order.refresh_from_db()
-        if local_order.state not in models.Order.States.TERMINAL_STATES:
+        if local_order.state not in OrderStates.TERMINAL_STATES:
             self.retry()
 
 
@@ -506,7 +511,7 @@ class OrderListPullTask(BackgroundListPullTask):
     def get_pulled_objects(self):
         return (
             models.Order.objects.filter(offering__type=PLUGIN_NAME)
-            .exclude(state__in=models.Order.States.TERMINAL_STATES)
+            .exclude(state__in=OrderStates.TERMINAL_STATES)
             .exclude(backend_id="")
         )
 
@@ -538,7 +543,7 @@ class ErredOrderPullTask(OrderPullTask):
 
         if (
             local_order.state != correct_local_order_state
-            and correct_local_order_state == models.Order.States.EXECUTING
+            and correct_local_order_state == OrderStates.EXECUTING
         ):
             logger.info(
                 "Erred order %s: remote state is %s, updating local one.",
@@ -572,7 +577,7 @@ class ErredOrderListPullTask(BackgroundListPullTask):
             models.Order.objects.filter(offering__type=PLUGIN_NAME)
             .exclude(backend_id="")
             .filter(
-                state=models.Order.States.ERRED,
+                state=OrderStates.ERRED,
                 type__in=[models.Order.Types.UPDATE, models.Order.Types.TERMINATE],
                 created__month=timezone.now().month,
             )
@@ -584,7 +589,7 @@ def pull_offering_orders(serialized_offering):
     offering = deserialize_instance(serialized_offering)
     orders = (
         models.Order.objects.filter(offering=offering)
-        .exclude(state__in=models.Order.States.TERMINAL_STATES)
+        .exclude(state__in=OrderStates.TERMINAL_STATES)
         .exclude(backend_id="")
     )
     for order in orders:
@@ -1149,7 +1154,7 @@ def clean_remote_projects():
 
     for offering in models.Offering.objects.filter(
         type=PLUGIN_NAME,
-        state__in=(models.Offering.States.ACTIVE, models.Offering.States.PAUSED),
+        state__in=(OfferingStates.ACTIVE, OfferingStates.PAUSED),
     ):
         if (
             "api_url" not in offering.secret_options.keys()
@@ -1194,9 +1199,7 @@ def trigger_order_callback(serialized_order):
 def notify_about_pending_project_update_requests():
     week_ago = datetime.now() - timedelta(weeks=1)
     pending_project_update_requests = (
-        remote_models.ProjectUpdateRequest.objects.filter(
-            state=ReviewStateMixin.States.PENDING
-        )
+        remote_models.ProjectUpdateRequest.objects.filter(state=ReviewStates.PENDING)
         .order_by("project_id")
         .distinct("project_id")
         .filter(created__lte=week_ago)

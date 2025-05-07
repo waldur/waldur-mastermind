@@ -27,12 +27,18 @@ from waldur_core.structure.managers import (
 )
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import plugins
-from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
+    ResourceStates,
+    RobotAccountStates,
+)
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
     get_connected_offerings,
 )
 from waldur_mastermind.proposal import models as proposal_models
+from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
 from waldur_pid import models as pid_models
 
 from . import models
@@ -84,7 +90,7 @@ class OfferingFilter(
     )
     parent_uuid = django_filters.UUIDFilter(field_name="parent__uuid")
     attributes = django_filters.CharFilter(method="filter_attributes")
-    state = core_filters.MappedMultipleChoiceFilter(models.Offering.States.CHOICES)
+    state = core_filters.MappedMultipleChoiceFilter(OfferingStates.CHOICES)
     organization_group_uuid = LooseMultipleChoiceFilter(
         field_name="organization_groups__uuid"
     )
@@ -199,10 +205,10 @@ class OfferingFilter(
         if value is None:
             return queryset
 
-        from waldur_mastermind.proposal.models import Call, RequestedOffering
+        from waldur_mastermind.proposal.models import RequestedOffering
 
         offerings_ids = RequestedOffering.objects.filter(
-            state=RequestedOffering.States.ACCEPTED, call__state=Call.States.ACTIVE
+            state=RequestedOfferingStates.ACCEPTED, call__state=CallStates.ACTIVE
         ).values_list("offering_id", flat=True)
 
         if value:
@@ -312,7 +318,7 @@ class OrderFilter(
     provider_uuid = django_filters.UUIDFilter(field_name="offering__customer__uuid")
     customer_uuid = django_filters.UUIDFilter(field_name="project__customer__uuid")
     service_manager_uuid = django_filters.UUIDFilter(method="filter_service_manager")
-    state = core_filters.MappedMultipleChoiceFilter(models.Order.States.CHOICES)
+    state = core_filters.MappedMultipleChoiceFilter(OrderStates.CHOICES)
     type = core_filters.MappedMultipleChoiceFilter(models.Order.Types.CHOICES)
     resource = core_filters.URLFilter(
         view_name="marketplace-resource-detail", field_name="resource__uuid"
@@ -346,7 +352,7 @@ class OrderFilter(
     def filter_can_approve_as_consumer(self, queryset, name, value):
         user = self.request.user
 
-        queryset = queryset.filter(state=models.Order.States.PENDING_CONSUMER)
+        queryset = queryset.filter(state=OrderStates.PENDING_CONSUMER)
 
         if value and not user.is_staff:
             connected_customers = get_connected_customers_by_permission(
@@ -365,7 +371,7 @@ class OrderFilter(
     def filter_can_approve_as_provider(self, queryset, name, value):
         user = self.request.user
 
-        queryset = queryset.filter(state=models.Order.States.PENDING_PROVIDER)
+        queryset = queryset.filter(state=OrderStates.PENDING_PROVIDER)
 
         if value and not user.is_staff:
             connected_customers = get_connected_customers_by_permission(
@@ -792,7 +798,7 @@ class CategoryFilter(django_filters.FilterSet):
     title = django_filters.CharFilter(lookup_expr="icontains")
 
     customers_offerings_state = django_filters.MultipleChoiceFilter(
-        choices=models.Offering.States.CHOICES,
+        choices=OfferingStates.CHOICES,
         label="Customers offerings state",
         method="filter_customers_offerings_state",
     )

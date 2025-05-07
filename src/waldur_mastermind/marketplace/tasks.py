@@ -24,7 +24,12 @@ from waldur_core.structure.log import event_logger
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import exceptions, models, plugins, utils
-from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
+    ResourceStates,
+    RobotAccountStates,
+)
 from waldur_mastermind.marketplace.utils import (
     get_consumer_approvers,
     get_provider_approvers,
@@ -271,7 +276,7 @@ def terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_o
         models.Order.objects.filter(
             resource__in=resources,
             type=models.Order.Types.CREATE,
-            state=models.Order.States.ERRED,
+            state=OrderStates.ERRED,
         )
         .order_by("-created")
         .values_list("resource__uuid", flat=True)
@@ -282,7 +287,7 @@ def terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_o
         models.Order.objects.filter(
             resource__in=resources,
             type=models.Order.Types.TERMINATE,
-            state=models.Order.States.ERRED,
+            state=OrderStates.ERRED,
         )
         .order_by("-created")
         .values_list("resource__uuid", flat=True)
@@ -474,15 +479,15 @@ def send_metrics():
         "number_of_users": core_models.User.objects.filter(is_active=True).count(),
         "number_of_offerings": models.Offering.objects.filter(
             state__in=(
-                models.Offering.States.ACTIVE,
-                models.Offering.States.PAUSED,
+                OfferingStates.ACTIVE,
+                OfferingStates.PAUSED,
             )
         ).count(),
         "types_of_offering": list(
             models.Offering.objects.filter(
                 state__in=(
-                    models.Offering.States.ACTIVE,
-                    models.Offering.States.PAUSED,
+                    OfferingStates.ACTIVE,
+                    OfferingStates.PAUSED,
                 )
             )
             .order_by()
@@ -520,12 +525,12 @@ def process_pending_project_orders():
         start_date__lte=timezone.now()
     ).values_list("id", flat=True)
     orders = models.Order.objects.filter(
-        state=models.Order.States.PENDING_PROJECT, project__in=active_project_ids
+        state=OrderStates.PENDING_PROJECT, project__in=active_project_ids
     )
     for order in orders:
         # Setting the state to PENDING_PROVIDER because direct transition
         # from PENDING_PROJECT to EXECUTING is not supported
-        order.state = models.Order.States.PENDING_PROVIDER
+        order.state = OrderStates.PENDING_PROVIDER
         order.save(update_fields=["state"])
         if utils.order_should_not_be_reviewed_by_provider(order):
             order.set_state_executing()
@@ -545,7 +550,7 @@ def mark_resources_as_erred_after_timeout():
     two_hours_ago = now - datetime.timedelta(hours=2)
     stale_orders = models.Order.objects.filter(
         offering__type__in=plugins.manager.list_interruptible_offerings(),
-        state=models.Order.States.EXECUTING,
+        state=OrderStates.EXECUTING,
         modified__lt=two_hours_ago,
     )
 

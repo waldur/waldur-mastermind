@@ -4,9 +4,8 @@ from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 from .. import PLUGIN_NAME, tasks
@@ -28,7 +27,7 @@ class NotificationsTest(test.APITransactionTestCase):
                 ],
                 "name": "booking",
             },
-            state=marketplace_models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
 
         marketplace_utils.process_order(self.order, fixture.staff)
