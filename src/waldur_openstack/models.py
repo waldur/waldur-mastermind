@@ -576,6 +576,11 @@ class Port(structure_models.BaseResource):
         blank=True,
         null=True,
     )
+    status = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+    )
 
     @classmethod
     def get_backend_fields(cls):
@@ -588,6 +593,7 @@ class Port(structure_models.BaseResource):
             "admin_state_up",
             "name",
             "description",
+            "status",
         )
 
     @classmethod
