@@ -572,43 +572,53 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
         abstract = True
 
     state = FSMIntegerField(
-        default=States.CREATION_SCHEDULED,
-        choices=States.CHOICES,
+        default=CoreStates.CREATION_SCHEDULED,
+        choices=CoreStates.CHOICES,
     )
 
-    @transition(field=state, source=States.CREATION_SCHEDULED, target=States.CREATING)
+    @transition(
+        field=state, source=CoreStates.CREATION_SCHEDULED, target=CoreStates.CREATING
+    )
     def begin_creating(self):
         pass
 
-    @transition(field=state, source=States.UPDATE_SCHEDULED, target=States.UPDATING)
+    @transition(
+        field=state, source=CoreStates.UPDATE_SCHEDULED, target=CoreStates.UPDATING
+    )
     def begin_updating(self):
         pass
 
-    @transition(field=state, source=States.DELETION_SCHEDULED, target=States.DELETING)
+    @transition(
+        field=state, source=CoreStates.DELETION_SCHEDULED, target=CoreStates.DELETING
+    )
     def begin_deleting(self):
         pass
 
     @transition(
-        field=state, source=[States.OK, States.ERRED], target=States.UPDATE_SCHEDULED
+        field=state,
+        source=[CoreStates.OK, CoreStates.ERRED],
+        target=CoreStates.UPDATE_SCHEDULED,
     )
     def schedule_updating(self):
         pass
 
     @transition(
-        field=state, source=[States.OK, States.ERRED], target=States.DELETION_SCHEDULED
+        field=state,
+        source=[CoreStates.OK, CoreStates.ERRED],
+        target=CoreStates.DELETION_SCHEDULED,
     )
     def schedule_deleting(self):
         pass
 
-    @transition(field=state, source="*", target=States.OK)
+    @transition(field=state, source="*", target=CoreStates.OK)
     def set_ok(self):
         pass
 
-    @transition(field=state, source="*", target=States.ERRED)
+    @transition(field=state, source="*", target=CoreStates.ERRED)
     def set_erred(self):
         pass
 
-    @transition(field=state, source=States.ERRED, target=States.OK)
+    @transition(field=state, source=CoreStates.ERRED, target=CoreStates.OK)
     def recover(self):
         pass
 

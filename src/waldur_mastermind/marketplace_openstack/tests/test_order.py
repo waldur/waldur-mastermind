@@ -226,10 +226,10 @@ class TenantCreateTest(BaseOpenStackTest):
         order.review_by_consumer()
         order.save()
 
-        tenant.state = openstack_models.Tenant.States.CREATING
+        tenant.state = CoreStates.CREATING
         tenant.save()
 
-        tenant.state = openstack_models.Tenant.States.OK
+        tenant.state = CoreStates.OK
         tenant.save()
 
         order.refresh_from_db()
@@ -356,9 +356,7 @@ class TenantDeleteTest(TenantMutateTest):
         self.trigger_deletion()
         self.assertEqual(self.order.state, OrderStates.EXECUTING)
         self.assertEqual(self.resource.state, ResourceStates.TERMINATING)
-        self.assertEqual(
-            self.tenant.state, openstack_models.Tenant.States.DELETION_SCHEDULED
-        )
+        self.assertEqual(self.tenant.state, CoreStates.DELETION_SCHEDULED)
 
     def test_deletion_is_completed(self):
         self.trigger_deletion()
@@ -757,9 +755,7 @@ class VolumeDeleteTest(test.APITransactionTestCase):
         self.trigger_deletion()
         self.assertEqual(self.order.state, OrderStates.EXECUTING)
         self.assertEqual(self.resource.state, ResourceStates.TERMINATING)
-        self.assertEqual(
-            self.volume.state, openstack_models.Volume.States.DELETION_SCHEDULED
-        )
+        self.assertEqual(self.volume.state, CoreStates.DELETION_SCHEDULED)
 
     def test_deletion_is_completed(self):
         self.trigger_deletion()

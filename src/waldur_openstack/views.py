@@ -290,7 +290,7 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         port: models.Port = serializer.validated_data["port"]
-        if port.state != models.Port.States.OK:
+        if port.state != CoreStates.OK:
             raise core_exceptions.IncorrectStateException(
                 _(
                     "The port [%(port)s] is expected to have [OK] state, but actual one is [%(state)s]"
@@ -319,9 +319,7 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
         )
 
     attach_to_port_serializer_class = serializers.OpenStackFloatingIPAttachSerializer
-    attach_to_port_validators = [
-        core_validators.StateValidator(models.FloatingIP.States.OK)
-    ]
+    attach_to_port_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
         description="Detach floating IP from port",
@@ -343,9 +341,7 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
             {"status": _("detaching was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
-    detach_from_port_validators = [
-        core_validators.StateValidator(models.FloatingIP.States.OK)
-    ]
+    detach_from_port_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
         description="Update description of the floating IP",
@@ -370,9 +366,7 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
     update_description_serializer_class = (
         serializers.OpenStackFloatingIPDescriptionUpdateSerializer
     )
-    update_description_validators = [
-        core_validators.StateValidator(models.FloatingIP.States.OK)
-    ]
+    update_description_validators = [core_validators.StateValidator(CoreStates.OK)]
 
 
 class TenantViewSet(structure_views.ResourceViewSet):
@@ -851,9 +845,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
         executors.SubNetCreateExecutor.execute(subnet)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    create_subnet_validators = [
-        core_validators.StateValidator(models.Network.States.OK)
-    ]
+    create_subnet_validators = [core_validators.StateValidator(CoreStates.OK)]
     create_subnet_serializer_class = serializers.OpenStackSubNetSerializer
 
     @decorators.action(detail=True, methods=["post"])
@@ -864,7 +856,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
         executors.SetMtuExecutor.execute(network)
         return response.Response(serializer.data, status=status.HTTP_202_ACCEPTED)
 
-    set_mtu_validators = [core_validators.StateValidator(models.Network.States.OK)]
+    set_mtu_validators = [core_validators.StateValidator(CoreStates.OK)]
     set_mtu_serializer_class = serializers.SetMtuSerializer
 
     def _check_rbac_policy_permissions(self, user, network, target_tenant):
@@ -924,9 +916,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
         result_serializer = self.get_serializer(policy, context={"request": request})
         return response.Response(result_serializer.data, status=status.HTTP_201_CREATED)
 
-    rbac_policy_create_validators = [
-        core_validators.StateValidator(models.Network.States.OK)
-    ]
+    rbac_policy_create_validators = [core_validators.StateValidator(CoreStates.OK)]
     rbac_policy_create_serializer_class = serializers.NetworkRBACPolicySerializer
 
     @extend_schema(
@@ -983,7 +973,7 @@ class SubNetViewSet(structure_views.ResourceViewSet):
         executors.SubnetConnectExecutor.execute(self.get_object())
         return response.Response(status=status.HTTP_202_ACCEPTED)
 
-    connect_validators = [core_validators.StateValidator(models.SubNet.States.OK)]
+    connect_validators = [core_validators.StateValidator(CoreStates.OK)]
     connect_serializer_class = EmptySerializer
 
     @decorators.action(detail=True, methods=["post"])
@@ -991,7 +981,7 @@ class SubNetViewSet(structure_views.ResourceViewSet):
         executors.SubnetDisconnectExecutor.execute(self.get_object())
         return response.Response(status=status.HTTP_202_ACCEPTED)
 
-    disconnect_validators = [core_validators.StateValidator(models.SubNet.States.OK)]
+    disconnect_validators = [core_validators.StateValidator(CoreStates.OK)]
     disconnect_serializer_class = EmptySerializer
 
 

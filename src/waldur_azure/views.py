@@ -3,6 +3,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import decorators, response, status, viewsets
 
 from waldur_core.core import validators as core_validators
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import views as structure_views
 
@@ -64,7 +65,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         )
 
     start_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator("stopped"),
     ]
     start_serializer_class = EmptySerializer
@@ -78,7 +79,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         )
 
     stop_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator("running"),
     ]
     stop_serializer_class = EmptySerializer
@@ -92,7 +93,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         )
 
     restart_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator("running"),
     ]
     restart_serializer_class = EmptySerializer

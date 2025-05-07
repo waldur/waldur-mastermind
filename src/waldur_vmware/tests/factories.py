@@ -1,8 +1,10 @@
 import datetime
 
 import factory
+import factory.fuzzy
 from django.urls import reverse
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
@@ -90,7 +92,7 @@ class VirtualMachineFactory(
     template = factory.SubFactory(TemplateFactory)
     cluster = factory.SubFactory(ClusterFactory)
 
-    state = models.VirtualMachine.States.OK
+    state = CoreStates.OK
     runtime_state = models.VirtualMachine.RuntimeStates.POWERED_ON
     cores = factory.fuzzy.FuzzyInteger(1, 8, step=2)
     ram = factory.fuzzy.FuzzyInteger(1024, 10240, step=1024)

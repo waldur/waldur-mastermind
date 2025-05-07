@@ -2,7 +2,7 @@ from unittest import mock
 
 from rest_framework import status, test
 
-from waldur_openstack import models
+from waldur_core.core.enums import CoreStates
 
 from . import factories, fixtures
 
@@ -122,7 +122,7 @@ class FloatingIPAttachTest(BaseFloatingIPTest):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_floating_ip_attaching_for_ip_with_not_ok_state(self):
-        self.ip.state = models.FloatingIP.States.ERRED
+        self.ip.state = CoreStates.ERRED
         self.ip.save()
         response = self.client.post(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -136,7 +136,7 @@ class FloatingIPAttachTest(BaseFloatingIPTest):
         attach_ip_executor_action_mock.assert_called_once()
 
     def test_floating_ip_attaching_to_port_with_not_ok_state(self):
-        self.port.state = models.Port.States.ERRED
+        self.port.state = CoreStates.ERRED
         self.port.save()
         response = self.client.post(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -164,7 +164,7 @@ class FloatingIPDetachTest(BaseFloatingIPTest):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_floating_ip_detaching_for_ip_with_not_ok_state(self):
-        self.ip.state = models.FloatingIP.States.ERRED
+        self.ip.state = CoreStates.ERRED
         self.ip.save()
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -209,7 +209,7 @@ class FloatingIPUpdateTest(BaseFloatingIPTest):
         detach_ip_executor_action_mock.assert_called_once()
 
     def test_floating_ip_description_update_for_ip_with_not_ok_state(self):
-        self.ip.state = models.FloatingIP.States.ERRED
+        self.ip.state = CoreStates.ERRED
         self.ip.save()
         response = self.client.post(self.url, self.payload)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)

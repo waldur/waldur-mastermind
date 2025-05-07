@@ -6,6 +6,7 @@ from django.conf import settings
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.utils import is_uuid_like, make_random_password
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
@@ -749,13 +750,13 @@ class TenantTasksTest(test.APITransactionTestCase):
 
     def test_mark_as_erred_old_tenants_in_deleting_state(self):
         with freeze_time("2022-01-01"):
-            self.tenant.state = models.Tenant.States.DELETING
+            self.tenant.state = CoreStates.DELETING
             self.tenant.save()
             tasks.mark_as_erred_old_tenants_in_deleting_state()
             self.tenant.refresh_from_db()
-            self.assertEqual(self.tenant.state, models.Tenant.States.DELETING)
+            self.assertEqual(self.tenant.state, CoreStates.DELETING)
 
         with freeze_time("2022-01-02"):
             tasks.mark_as_erred_old_tenants_in_deleting_state()
             self.tenant.refresh_from_db()
-            self.assertEqual(self.tenant.state, models.Tenant.States.ERRED)
+            self.assertEqual(self.tenant.state, CoreStates.ERRED)

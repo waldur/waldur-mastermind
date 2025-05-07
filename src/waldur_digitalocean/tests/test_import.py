@@ -5,6 +5,7 @@ from unittest import mock
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_digitalocean import models
@@ -62,7 +63,7 @@ class ImportDropletTest(test.APITransactionTestCase):
         droplet = models.Droplet.objects.get(uuid=response.data["uuid"])
         self.assertEqual(droplet.service_settings, self.service_settings)
         self.assertEqual(droplet.backend_id, "VALID_ID")
-        self.assertEqual(droplet.state, models.Droplet.States.OK)
+        self.assertEqual(droplet.state, CoreStates.OK)
         self.assertEqual(droplet.runtime_state, models.Droplet.RuntimeStates.ONLINE)
         self.assertEqual(droplet.name, self.mocked_droplet.name)
         self.assertEqual(droplet.image_name, "CentOS 7.1 x64")

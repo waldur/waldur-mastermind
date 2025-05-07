@@ -46,7 +46,7 @@ class TenantAdmin(structure_admin.ResourceAdmin):
         """Execute action with tenant that is in state OK"""
 
         def validate(self, tenant):
-            if tenant.state != models.Tenant.States.OK:
+            if tenant.state != CoreStates.OK:
                 raise ValidationError(
                     _("Tenant has to be in state OK to pull security groups.")
                 )
@@ -102,8 +102,8 @@ class TenantAdmin(structure_admin.ResourceAdmin):
 
         def validate(self, tenant):
             if tenant.state not in (
-                models.Tenant.States.OK,
-                models.Tenant.States.ERRED,
+                CoreStates.OK,
+                CoreStates.ERRED,
             ):
                 raise ValidationError(_("Tenant has to be OK or erred."))
             if not tenant.backend_id:
@@ -241,8 +241,8 @@ class VolumeAdmin(
 
         def validate(self, instance):
             if instance.state not in (
-                models.Volume.States.OK,
-                models.Volume.States.ERRED,
+                CoreStates.OK,
+                CoreStates.ERRED,
             ):
                 raise ValidationError(_("Volume has to be in OK or ERRED state."))
 

@@ -30,6 +30,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.validators import BackendURLValidator, validate_x509_certificate
 from waldur_core.quotas.models import SharedQuotaMixin
 from waldur_core.quotas.serializers import QuotaSerializer
@@ -1328,7 +1329,7 @@ class NetworkRBACPolicySerializer(
     target_tenant = serializers.HyperlinkedRelatedField(
         view_name="openstack-tenant-detail",
         lookup_field="uuid",
-        queryset=models.Tenant.objects.filter(state=models.Tenant.States.OK).all(),
+        queryset=models.Tenant.objects.filter(state=CoreStates.OK).all(),
     )
     url = serializers.HyperlinkedIdentityField(
         view_name="openstack-network-rbac-policy-detail", lookup_field="uuid"
@@ -2396,7 +2397,7 @@ def _validate_instance_floating_ips(
             raise serializers.ValidationError({"floating_ips": message})
         if not floating_ip:
             continue
-        if floating_ip.state == models.FloatingIP.States.CREATION_SCHEDULED:
+        if floating_ip.state == CoreStates.CREATION_SCHEDULED:
             message = gettext(
                 "Floating IP %s is already booked for another instance creation"
             )
@@ -2495,7 +2496,7 @@ def _connect_floating_ip_to_instance(
             )
             floating_ip.increase_backend_quotas_usage(validate=True)
     if floating_ip.backend_id:
-        floating_ip.state = models.FloatingIP.States.UPDATE_SCHEDULED
+        floating_ip.state = CoreStates.UPDATE_SCHEDULED
     floating_ip.port = models.Port.objects.filter(
         instance=instance, subnet=subnet
     ).first()

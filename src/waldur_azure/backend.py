@@ -5,6 +5,7 @@ from azure.core.exceptions import HttpResponseError
 from django.core.exceptions import ObjectDoesNotExist
 
 from waldur_azure.client import AzureBackendError, AzureClient, AzureImage
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.backend import ServiceBackend
 
 from . import models
@@ -113,7 +114,7 @@ class AzureBackend(ServiceBackend):
                 service_settings=service_settings,
                 project=project,
                 location=locations.get(backend_public_ip.location),
-                state=models.PublicIP.States.OK,
+                state=CoreStates.OK,
             )
 
         for cached_public_ip in stale_public_ips:
@@ -469,7 +470,7 @@ class AzureBackend(ServiceBackend):
             network_interface=network_interface,
             size=size,
             image=image,
-            state=models.VirtualMachine.States.OK,
+            state=CoreStates.OK,
         )
 
     def import_network_interface(self, backend_vm, project, resource_group, location):
@@ -511,7 +512,7 @@ class AzureBackend(ServiceBackend):
                 backend_id=subnet_name,
                 cidr=backend_subnet.address_prefix,
                 network=network,
-                state=models.SubNet.States.OK,
+                state=CoreStates.OK,
             )
 
             public_ip_address_name = backend_interface.ip_configurations[
@@ -528,7 +529,7 @@ class AzureBackend(ServiceBackend):
                 backend_id=public_ip_address_name,
                 ip_address=backend_public_ip.ip_address,
                 location=location,
-                state=models.PublicIP.States.OK,
+                state=CoreStates.OK,
             )
 
             return models.NetworkInterface.objects.create(

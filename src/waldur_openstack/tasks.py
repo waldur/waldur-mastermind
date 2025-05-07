@@ -25,7 +25,7 @@ class TenantCreateErrorTask(core_tasks.ErrorStateTransitionTask):
         # mark as erred if they were created
         network = tenant.networks.first()
         subnet = network.subnets.first()
-        if subnet.state == models.SubNet.States.CREATION_SCHEDULED:
+        if subnet.state == CoreStates.CREATION_SCHEDULED:
             subnet.delete()
         else:
             super().execute(subnet)
@@ -52,7 +52,7 @@ class TenantPullQuotas(core_tasks.BackgroundTask):
     def run(self):
         from . import executors
 
-        for tenant in models.Tenant.objects.filter(state=models.Tenant.States.OK):
+        for tenant in models.Tenant.objects.filter(state=CoreStates.OK):
             executors.TenantPullQuotasExecutor.execute(tenant)
 
 
@@ -69,9 +69,9 @@ class SendSignalTenantPullSucceeded(core_tasks.Task):
 def mark_as_erred_old_tenants_in_deleting_state():
     models.Tenant.objects.filter(
         modified__lte=timezone.now() - timezone.timedelta(days=1),
-        state=models.Tenant.States.DELETING,
+        state=CoreStates.DELETING,
     ).update(
-        state=models.Tenant.States.ERRED,
+        state=CoreStates.ERRED,
         error_message="Deletion error. Deleting took more than a day.",
     )
 
@@ -105,7 +105,7 @@ class SetInstanceOKTask(core_tasks.StateTransitionTask):
 
     def execute(self, instance, *args, **kwargs):
         super().execute(instance)
-        instance.floating_ips.update(state=models.FloatingIP.States.OK)
+        instance.floating_ips.update(state=CoreStates.OK)
 
 
 class SetInstanceErredTask(core_tasks.ErrorStateTransitionTask):
@@ -118,9 +118,9 @@ class SetInstanceErredTask(core_tasks.ErrorStateTransitionTask):
         # mark as erred if creation was started, but not ended,
         # leave as is, if they are OK.
         for volume in instance.volumes.all():
-            if volume.state == models.Volume.States.CREATION_SCHEDULED:
+            if volume.state == CoreStates.CREATION_SCHEDULED:
                 volume.delete()
-            elif volume.state == models.Volume.States.OK:
+            elif volume.state == CoreStates.OK:
                 pass
             else:
                 volume.set_erred()
@@ -128,7 +128,7 @@ class SetInstanceErredTask(core_tasks.ErrorStateTransitionTask):
 
         # set instance floating IPs as free, delete not created ones.
         instance.floating_ips.filter(backend_id="").delete()
-        instance.floating_ips.update(state=models.FloatingIP.States.OK)
+        instance.floating_ips.update(state=CoreStates.OK)
 
 
 class SetBackupErredTask(core_tasks.ErrorStateTransitionTask):

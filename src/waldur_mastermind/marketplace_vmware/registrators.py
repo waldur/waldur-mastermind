@@ -1,6 +1,7 @@
 import logging
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.permissions import _get_project
 from waldur_mastermind.common.utils import mb_to_gb
 from waldur_mastermind.invoices import models as invoices_models
@@ -21,8 +22,8 @@ class VirtualMachineRegistrator(MarketplaceRegistrator):
             vmware_models.VirtualMachine.objects.filter(project__customer=customer)
             .exclude(
                 state__in=[
-                    vmware_models.VirtualMachine.States.CREATING,
-                    vmware_models.VirtualMachine.States.DELETING,
+                    CoreStates.CREATING,
+                    CoreStates.DELETING,
                 ]
             )
             .distinct()

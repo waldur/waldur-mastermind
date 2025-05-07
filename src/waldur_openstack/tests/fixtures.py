@@ -3,7 +3,7 @@ from unittest import mock
 import factory
 from django.utils.functional import cached_property
 
-from waldur_core.structure.models import ServiceSettings
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack import models
 from waldur_openstack.tests import factories
@@ -16,7 +16,7 @@ class OpenStackFixture(ProjectFixture):
             customer=self.customer,
             shared=True,
             options={"external_network_id": "test_network_id"},
-            state=ServiceSettings.States.OK,
+            state=CoreStates.OK,
         )
 
     @cached_property
@@ -31,7 +31,7 @@ class OpenStackFixture(ProjectFixture):
             service_settings=self.settings,
             project=self.project,
             tenant=self.tenant,
-            state=models.Network.States.OK,
+            state=CoreStates.OK,
         )
 
     @cached_property
@@ -41,7 +41,7 @@ class OpenStackFixture(ProjectFixture):
             tenant=self.tenant,
             service_settings=self.settings,
             project=self.project,
-            state=models.SubNet.States.OK,
+            state=CoreStates.OK,
             backend_id=factory.Sequence(lambda n: "subnet_%s" % n),
         )
 
@@ -51,7 +51,7 @@ class OpenStackFixture(ProjectFixture):
             service_settings=self.settings,
             project=self.project,
             tenant=self.tenant,
-            state=models.FloatingIP.States.OK,
+            state=CoreStates.OK,
         )
 
     @cached_property
@@ -60,7 +60,7 @@ class OpenStackFixture(ProjectFixture):
             service_settings=self.settings,
             project=self.project,
             tenant=self.tenant,
-            state=models.SecurityGroup.States.OK,
+            state=CoreStates.OK,
         )
 
     @cached_property
@@ -75,7 +75,7 @@ class OpenStackFixture(ProjectFixture):
             service_settings=self.settings,
             project=self.project,
             tenant=self.tenant,
-            state=models.ServerGroup.States.OK,
+            state=CoreStates.OK,
         )
 
     @cached_property
@@ -92,7 +92,7 @@ class OpenStackFixture(ProjectFixture):
             subnet=self.subnet,
             service_settings=self.settings,
             project=self.project,
-            state=models.Port.States.OK,
+            state=CoreStates.OK,
             instance=self.instance,
         )
 
@@ -101,7 +101,7 @@ class OpenStackFixture(ProjectFixture):
         return factories.VolumeFactory(
             project=self.project,
             tenant=self.tenant,
-            state=models.Volume.States.OK,
+            state=CoreStates.OK,
             runtime_state=models.Volume.RuntimeStates.OFFLINE,
             type=self.volume_type,
             availability_zone=self.volume_availability_zone,
@@ -116,7 +116,7 @@ class OpenStackFixture(ProjectFixture):
         return factories.InstanceFactory(
             project=self.project,
             tenant=self.tenant,
-            state=models.Instance.States.OK,
+            state=CoreStates.OK,
             runtime_state=models.Instance.RuntimeStates.SHUTOFF,
         )
 
@@ -125,7 +125,7 @@ class OpenStackFixture(ProjectFixture):
         return factories.SnapshotFactory(
             project=self.project,
             tenant=self.tenant,
-            state=models.Volume.States.OK,
+            state=CoreStates.OK,
             runtime_state=models.Volume.RuntimeStates.OFFLINE,
             source_volume=self.volume,
         )

@@ -8,6 +8,7 @@ from django.utils import timezone
 from factory import fuzzy
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack import models
@@ -102,7 +103,7 @@ class SecurityGroupFactory(
     name = factory.Sequence(lambda n: "security_group%s" % n)
     service_settings = factory.SubFactory(SettingsFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
-    state = models.SecurityGroup.States.OK
+    state = CoreStates.OK
     backend_id = factory.Sequence(lambda n: "security_group-id%s" % n)
 
     @classmethod
@@ -176,7 +177,7 @@ class TenantFactory(
     name = factory.Sequence(lambda n: "tenant%s" % n)
     service_settings = factory.SubFactory(SettingsFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
-    state = models.Tenant.States.OK
+    state = CoreStates.OK
     external_network_id = factory.LazyAttribute(lambda _: uuid.uuid4())
     backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
 
@@ -487,7 +488,7 @@ class InstanceFactory(
             project=self.project,
             size=20 * 1024,
             name=f"{self.name}-data",
-            state=models.Volume.States.OK,
+            state=CoreStates.OK,
         )
 
     @factory.post_generation
