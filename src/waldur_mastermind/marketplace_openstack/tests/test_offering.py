@@ -5,6 +5,7 @@ from ddt import data, ddt
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -124,7 +125,7 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
         tenant = openstack_models.Tenant.objects.create(
             service_settings=fixture.settings,
             project=fixture.project,
-            state=openstack_models.Tenant.States.CREATING,
+            state=CoreStates.CREATING,
         )
 
         tenant.set_ok()
@@ -148,7 +149,7 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
         tenant = openstack_models.Tenant.objects.create(
             service_settings=fixture.settings,
             project=fixture.project,
-            state=openstack_models.Tenant.States.CREATING,
+            state=CoreStates.CREATING,
         )
         resource = marketplace_factories.ResourceFactory(scope=tenant)
         marketplace_factories.OrderFactory(resource=resource)
@@ -539,7 +540,7 @@ class InstanceExternalIPTest(test.APITransactionTestCase):
             service_settings=self.fixture.settings,
             project=self.fixture.project,
             tenant=self.fixture.tenant,
-            state=openstack_models.FloatingIP.States.OK,
+            state=CoreStates.OK,
         )
         floating_ip.refresh_from_db()
         self.assertEqual(floating_ip.external_address, "200.200.200.1")
@@ -564,7 +565,7 @@ class InstanceExternalIPTest(test.APITransactionTestCase):
             service_settings=self.fixture.settings,
             project=self.fixture.project,
             tenant=self.fixture.tenant,
-            state=openstack_models.FloatingIP.States.OK,
+            state=CoreStates.OK,
         )
         floating_ip.refresh_from_db()
         self.assertEqual(floating_ip.external_address, None)
@@ -576,7 +577,7 @@ class InstanceExternalIPTest(test.APITransactionTestCase):
             service_settings=self.fixture.settings,
             project=self.fixture.project,
             tenant=self.fixture.tenant,
-            state=openstack_models.FloatingIP.States.OK,
+            state=CoreStates.OK,
         )
         openstack_factories.FloatingIPFactory(
             port=self.fixture.port,
@@ -584,7 +585,7 @@ class InstanceExternalIPTest(test.APITransactionTestCase):
             service_settings=self.fixture.settings,
             project=self.fixture.project,
             tenant=self.fixture.tenant,
-            state=openstack_models.FloatingIP.States.OK,
+            state=CoreStates.OK,
         )
         marketplace_factories.ResourceFactory()
         url = marketplace_factories.ResourceFactory.get_list_url()

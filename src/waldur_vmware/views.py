@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from waldur_core.core import validators as core_validators
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import views as structure_views
@@ -48,7 +49,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
     delete_executor = executors.VirtualMachineDeleteExecutor
     update_executor = executors.VirtualMachineUpdateExecutor
     update_validators = partial_update_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
             models.VirtualMachine.RuntimeStates.POWERED_OFF
         ),
@@ -69,7 +70,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         )
 
     start_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
             models.VirtualMachine.RuntimeStates.POWERED_OFF,
             models.VirtualMachine.RuntimeStates.SUSPENDED,
@@ -86,7 +87,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         )
 
     stop_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
             models.VirtualMachine.RuntimeStates.POWERED_ON,
             models.VirtualMachine.RuntimeStates.SUSPENDED,
@@ -103,7 +104,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         )
 
     reset_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
             models.VirtualMachine.RuntimeStates.POWERED_ON,
         ),
@@ -119,7 +120,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         )
 
     suspend_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
             models.VirtualMachine.RuntimeStates.POWERED_ON,
         ),
@@ -139,7 +140,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         )
 
     shutdown_guest_validators = reboot_guest_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
             models.VirtualMachine.RuntimeStates.POWERED_ON,
         ),
@@ -174,7 +175,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
             )
 
     create_port_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         check_number_of_ports,
     ]
     create_port_serializer_class = serializers.VmwarePortSerializer
@@ -199,7 +200,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
                 raise rf_serializers.ValidationError("Storage quota has been reached.")
 
     create_disk_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         validate_total_size,
     ]
     create_disk_serializer_class = serializers.VmwareDiskSerializer
@@ -221,9 +222,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
             raise rf_serializers.ValidationError("Unable to get console URL.")
         return Response({"url": url}, status=status.HTTP_200_OK)
 
-    console_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK)
-    ]
+    console_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
         request=None,
@@ -243,7 +242,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         return Response({"url": url}, status=status.HTTP_200_OK)
 
     web_console_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
             models.VirtualMachine.RuntimeStates.POWERED_ON
         ),

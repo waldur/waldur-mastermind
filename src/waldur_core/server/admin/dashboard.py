@@ -8,6 +8,7 @@ from fluent_dashboard.dashboard import (
 )
 
 from waldur_core.core import models as core_models
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import BaseResource
 
@@ -94,14 +95,13 @@ class CustomIndexDashboard(FluentIndexDashboard):
             title=_("Shared provider settings in erred state")
         )
         result_module.template = "admin/dashboard/erred_link_list.html"
-        erred_state = structure_models.SharedServiceSettings.States.ERRED
 
         queryset = structure_models.SharedServiceSettings.objects
-        settings_in_erred_state = queryset.filter(state=erred_state).count()
+        settings_in_erred_state = queryset.filter(state=CoreStates.ERRED).count()
 
         if settings_in_erred_state:
             result_module.title = f"{result_module.title} ({settings_in_erred_state})"
-            for service_settings in queryset.filter(state=erred_state).iterator():
+            for service_settings in queryset.filter(state=CoreStates.ERRED).iterator():
                 module_child = self._get_link_to_instance(service_settings)
                 if "url" in module_child:
                     module_child["error"] = service_settings.error_message

@@ -130,7 +130,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
         executors.VolumeDetachExecutor.execute(self.get_object())
 
     detach_validators = [
-        core_validators.StateValidator(models.Volume.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         _has_instance,
     ]
     detach_serializer_class = EmptySerializer
@@ -143,5 +143,5 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
         executors.VolumeAttachExecutor.execute(volume)
 
-    attach_validators = [core_validators.StateValidator(models.Volume.States.OK)]
+    attach_validators = [core_validators.StateValidator(CoreStates.OK)]
     attach_serializer_class = serializers.AwsVolumeAttachSerializer

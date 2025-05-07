@@ -3,6 +3,7 @@ from unittest.mock import patch
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_openstack import models
 
 from . import factories, fixtures
@@ -265,7 +266,7 @@ class SecurityGroupUpdateTest(BaseSecurityGroupTest):
             service_settings=self.fixture.settings,
             project=self.fixture.project,
             tenant=self.fixture.tenant,
-            state=models.SecurityGroup.States.OK,
+            state=CoreStates.OK,
         )
         self.url = factories.SecurityGroupFactory.get_url(self.security_group)
 
@@ -290,7 +291,7 @@ class SecurityGroupUpdateTest(BaseSecurityGroupTest):
 
     def test_security_group_can_not_be_updated_in_unstable_state(self):
         self.client.force_authenticate(self.fixture.admin)
-        self.security_group.state = models.SecurityGroup.States.ERRED
+        self.security_group.state = CoreStates.ERRED
         self.security_group.save()
 
         response = self.client.patch(self.url, data={"name": "new_name"})
@@ -325,7 +326,7 @@ class SecurityGroupUpdateTest(BaseSecurityGroupTest):
             service_settings=self.fixture.settings,
             project=self.fixture.project,
             tenant=self.fixture.tenant,
-            state=models.SecurityGroup.States.OK,
+            state=CoreStates.OK,
         )
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.patch(self.url, data={"name": existing_group.name})
@@ -340,7 +341,7 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
             service_settings=self.fixture.settings,
             project=self.fixture.project,
             tenant=self.fixture.tenant,
-            state=models.SecurityGroup.States.OK,
+            state=CoreStates.OK,
         )
         self.url = factories.SecurityGroupFactory.get_url(
             self.security_group, action="set_rules"
@@ -506,7 +507,7 @@ class SecurityGroupDeleteTest(BaseSecurityGroupTest):
             service_settings=self.fixture.settings,
             project=self.fixture.project,
             tenant=self.fixture.tenant,
-            state=models.SecurityGroup.States.OK,
+            state=CoreStates.OK,
         )
         self.url = factories.SecurityGroupFactory.get_url(self.security_group)
 
@@ -525,7 +526,7 @@ class SecurityGroupDeleteTest(BaseSecurityGroupTest):
             )
 
     def test_security_group_can_be_deleted_from_erred_state(self):
-        self.security_group.state = models.SecurityGroup.States.ERRED
+        self.security_group.state = CoreStates.ERRED
         self.security_group.save()
 
         self.client.force_authenticate(self.fixture.admin)

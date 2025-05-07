@@ -1,10 +1,12 @@
 from random import randint
 
 import factory
+import factory.fuzzy
 from django.urls import reverse
 from libcloud.compute.types import NodeState
 
 from waldur_azure import models
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
@@ -192,7 +194,7 @@ class VirtualMachineFactory(
     image = factory.SubFactory(ImageFactory)
     network_interface = factory.SubFactory(NetworkInterfaceFactory)
 
-    state = models.VirtualMachine.States.OK
+    state = CoreStates.OK
     runtime_state = NodeState.RUNNING
     cores = factory.fuzzy.FuzzyInteger(1, 8, step=2)
     ram = factory.fuzzy.FuzzyInteger(1024, 10240, step=1024)

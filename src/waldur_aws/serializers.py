@@ -3,6 +3,7 @@ from django.utils.translation import gettext_lazy as _
 from libcloud.compute.types import NodeState
 from rest_framework import serializers
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure import serializers as structure_serializers
 
 from . import models
@@ -130,7 +131,7 @@ class AwsInstanceSerializer(structure_serializers.VirtualMachineSerializer):
         instance = super().create(validated_data)
         volume = {
             "name": ("temp-%s" % instance.name)[:150],
-            "state": models.Volume.States.CREATION_SCHEDULED,
+            "state": CoreStates.CREATION_SCHEDULED,
             "instance": instance,
             "service_settings": instance.service_settings,
             "project": instance.project,

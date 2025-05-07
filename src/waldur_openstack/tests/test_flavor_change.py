@@ -1,6 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_openstack.models import Instance, Tenant
 
@@ -28,7 +29,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         self.fixture = fixtures.OpenStackFixture()
         self.instance = self.fixture.instance
         self.instance.runtime_state = "SHUTOFF"
-        self.instance.state = Instance.States.OK
+        self.instance.state = CoreStates.OK
         self.instance.save(update_fields=["runtime_state", "state"])
         self.settings = self.fixture.tenant.service_settings
 
@@ -57,7 +58,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         )
         self.assertEqual(
             reread_instance.state,
-            Instance.States.UPDATE_SCHEDULED,
+            CoreStates.UPDATE_SCHEDULED,
             "Instance should have been scheduled to flavor change",
         )
 
@@ -115,7 +116,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         reread_instance = Instance.objects.get(pk=self.instance.pk)
         self.assertEqual(
             reread_instance.state,
-            Instance.States.UPDATE_SCHEDULED,
+            CoreStates.UPDATE_SCHEDULED,
             "Instance should have been scheduled for flavor change",
         )
 
@@ -147,7 +148,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         reread_instance = Instance.objects.get(pk=self.instance.pk)
         self.assertEqual(
             reread_instance.state,
-            Instance.States.UPDATE_SCHEDULED,
+            CoreStates.UPDATE_SCHEDULED,
             "Instance should have been scheduled for flavor change",
         )
 
@@ -234,7 +235,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
     def test_user_cannot_flavor_change_instance_in_creation_scheduled_state(self):
         self.client.force_authenticate(user=self.fixture.user)
 
-        instance = factories.InstanceFactory(state=Instance.States.CREATION_SCHEDULED)
+        instance = factories.InstanceFactory(state=CoreStates.CREATION_SCHEDULED)
         project = instance.project
         project.add_user(self.fixture.user, ProjectRole.ADMIN)
 
@@ -249,8 +250,8 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         # Check all states but deleted and offline
         forbidden_states = [
             state
-            for (state, _) in Instance.States.CHOICES
-            if state not in (Instance.States.DELETING, Instance.States.OK)
+            for (state, _) in CoreStates.CHOICES
+            if state not in (CoreStates.DELETING, CoreStates.OK)
         ]
 
         for state in forbidden_states:
@@ -278,7 +279,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.fixture.user)
 
         instance = factories.InstanceFactory(
-            state=Instance.States.OK,
+            state=CoreStates.OK,
             runtime_state=Instance.RuntimeStates.SHUTOFF,
         )
         project = instance.project

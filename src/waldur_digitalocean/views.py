@@ -4,6 +4,7 @@ from rest_framework import decorators, response, status
 
 from waldur_core.core import executors as core_executors
 from waldur_core.core import validators as core_validators
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import views as structure_views
 
@@ -42,9 +43,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
     update_executor = core_executors.EmptyExecutor
     delete_executor = executors.DropletDeleteExecutor
     destroy_validators = [
-        core_validators.StateValidator(
-            models.Droplet.States.OK, models.Droplet.States.ERRED
-        )
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED)
     ]
 
     def perform_create(self, serializer):
@@ -77,7 +76,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         )
 
     start_validators = [
-        core_validators.StateValidator(models.Droplet.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.OFFLINE),
     ]
     start_serializer_class = EmptySerializer
@@ -91,7 +90,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         )
 
     stop_validators = [
-        core_validators.StateValidator(models.Droplet.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE),
     ]
     stop_serializer_class = EmptySerializer
@@ -105,7 +104,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         )
 
     restart_validators = [
-        core_validators.StateValidator(models.Droplet.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE),
     ]
     restart_serializer_class = EmptySerializer
@@ -171,5 +170,5 @@ class DropletViewSet(structure_views.ResourceViewSet):
             {"detail": _("resizing was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
-    resize_validators = [core_validators.StateValidator(models.Droplet.States.OK)]
+    resize_validators = [core_validators.StateValidator(CoreStates.OK)]
     resize_serializer_class = serializers.DigitalOceanDropletResizeSerializer

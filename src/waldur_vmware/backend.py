@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.utils.functional import cached_property
 from pyVmomi import vim
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.backend import ServiceBackend, log_backend_action
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.utils import update_pulled_fields
@@ -232,7 +233,7 @@ class VMwareBackend(ServiceBackend):
         return models.VirtualMachine(
             backend_id=backend_id,
             name=backend_vm["name"],
-            state=models.VirtualMachine.States.OK,
+            state=CoreStates.OK,
             runtime_state=backend_vm["power_state"],
             cores=backend_vm["cpu"]["count"],
             cores_per_socket=backend_vm["cpu"]["cores_per_socket"],
@@ -911,7 +912,7 @@ class VMwareBackend(ServiceBackend):
             name=backend_port["label"],
             # MAC address is optional
             mac_address=backend_port.get("mac_address"),
-            state=models.Port.States.OK,
+            state=CoreStates.OK,
             runtime_state=backend_port["state"],
         )
 

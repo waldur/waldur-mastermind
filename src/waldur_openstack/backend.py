@@ -665,7 +665,7 @@ class OpenStackBackend(ServiceBackend):
         remote_ids = {ip["id"] for ip in backend_floating_ips}
         stale_ips = models.FloatingIP.objects.filter(
             tenant__in=tenants,
-            state__in=[models.FloatingIP.States.OK, models.FloatingIP.States.ERRED],
+            state__in=[CoreStates.OK, CoreStates.ERRED],
         ).exclude(backend_id__in=remote_ids)
         stale_ips.delete()
 
@@ -683,8 +683,8 @@ class OpenStackBackend(ServiceBackend):
                 imported_floating_ip.save()
                 continue
             if floating_ip.state not in (
-                models.FloatingIP.States.OK,
-                models.FloatingIP.States.ERRED,
+                CoreStates.OK,
+                CoreStates.ERRED,
             ):
                 logger.debug(
                     "Skipping floating IP %s pull because it is not OK or ERRED",
@@ -717,7 +717,7 @@ class OpenStackBackend(ServiceBackend):
             backend_network_id=backend_floating_ip["floating_network_id"],
             runtime_state=backend_floating_ip["status"],
             backend_id=backend_floating_ip["id"],
-            state=models.FloatingIP.States.OK,
+            state=CoreStates.OK,
             port=port,
             tenant=tenant,
             service_settings=tenant.service_settings,
@@ -810,8 +810,8 @@ class OpenStackBackend(ServiceBackend):
         stale_groups = models.SecurityGroup.objects.filter(
             tenant__in=tenants,
             state__in=[
-                models.SecurityGroup.States.OK,
-                models.SecurityGroup.States.ERRED,
+                CoreStates.OK,
+                CoreStates.ERRED,
             ],
         ).exclude(backend_id__in=remote_ids)
 
@@ -847,8 +847,8 @@ class OpenStackBackend(ServiceBackend):
                 self._log_security_group_imported(security_group)
             else:
                 if security_group.state not in (
-                    models.SecurityGroup.States.OK,
-                    models.SecurityGroup.States.ERRED,
+                    CoreStates.OK,
+                    CoreStates.ERRED,
                 ):
                     logger.info(
                         "Skipping pulling of OpenStack security group because it is "
@@ -931,7 +931,7 @@ class OpenStackBackend(ServiceBackend):
             name=backend_security_group["name"],
             description=backend_security_group["description"],
             backend_id=backend_security_group["id"],
-            state=models.SecurityGroup.States.OK,
+            state=CoreStates.OK,
         )
 
         for field, value in kwargs.items():
@@ -978,7 +978,7 @@ class OpenStackBackend(ServiceBackend):
                 "fixed_ips": fixed_ips,
                 "service_settings": tenant.service_settings,
                 "project": tenant.project,
-                "state": models.Router.States.OK,
+                "state": CoreStates.OK,
             }
             try:
                 models.Router.objects.update_or_create(
@@ -1044,7 +1044,7 @@ class OpenStackBackend(ServiceBackend):
                 "project": tenant.project,
                 "instance_id": instance_id,
                 "subnet_id": subnet_id,
-                "state": models.Port.States.OK,
+                "state": CoreStates.OK,
                 "mac_address": backend_port["mac_address"],
                 "fixed_ips": backend_port["fixed_ips"],
                 "allowed_address_pairs": backend_port.get("allowed_address_pairs", []),
@@ -1149,7 +1149,7 @@ class OpenStackBackend(ServiceBackend):
 
             networks_uuid = [network_item.uuid for network_item in networks]
             stale_networks = models.Network.objects.filter(
-                state__in=[models.Network.States.OK, models.Network.States.ERRED],
+                state__in=[CoreStates.OK, CoreStates.ERRED],
                 tenant__in=tenants,
             ).exclude(uuid__in=networks_uuid)
             for network in stale_networks:
@@ -1180,7 +1180,7 @@ class OpenStackBackend(ServiceBackend):
             runtime_state=backend_network["status"],
             mtu=backend_network.get("mtu"),
             backend_id=backend_network["id"],
-            state=models.Network.States.OK,
+            state=CoreStates.OK,
         )
         if backend_network.get("provider:network_type"):
             network.type = backend_network["provider:network_type"]
@@ -1204,7 +1204,7 @@ class OpenStackBackend(ServiceBackend):
             networks = [network]
         else:
             networks = models.Network.objects.filter(
-                state=models.Network.States.OK,
+                state=CoreStates.OK,
                 service_settings=self.settings,
             )
         network_mappings = {network.backend_id: network for network in networks}
@@ -1279,7 +1279,7 @@ class OpenStackBackend(ServiceBackend):
                 subnet_uuids.append(subnet.uuid)
 
             stale_subnets = models.SubNet.objects.filter(
-                state__in=[models.SubNet.States.OK, models.SubNet.States.ERRED],
+                state__in=[CoreStates.OK, CoreStates.ERRED],
                 network__in=networks,
             ).exclude(uuid__in=subnet_uuids)
             for subnet in stale_subnets:
@@ -1306,7 +1306,7 @@ class OpenStackBackend(ServiceBackend):
                 backend_subnet.get("host_routes", []), key=lambda x: tuple(x.values())
             ),
             backend_id=backend_subnet["id"],
-            state=models.SubNet.States.OK,
+            state=CoreStates.OK,
         )
 
         for field, value in kwargs.items():
@@ -3044,7 +3044,7 @@ class OpenStackBackend(ServiceBackend):
             name=backend_server_group.name,
             policy=backend_server_group.policies[0],
             backend_id=backend_server_group.id,
-            state=models.ServerGroup.States.OK,
+            state=CoreStates.OK,
         )
 
         for field, value in kwargs.items():
@@ -3072,8 +3072,8 @@ class OpenStackBackend(ServiceBackend):
                 self._log_server_group_imported(server_group)
             else:
                 if server_group.state not in (
-                    models.ServerGroup.States.OK,
-                    models.ServerGroup.States.ERRED,
+                    CoreStates.OK,
+                    CoreStates.ERRED,
                 ):
                     logger.info(
                         "Skipping pulling of OpenStack server group because it is "
@@ -3096,8 +3096,8 @@ class OpenStackBackend(ServiceBackend):
         stale_groups = models.ServerGroup.objects.filter(
             tenant__in=tenants,
             state__in=[
-                models.ServerGroup.States.OK,
-                models.ServerGroup.States.ERRED,
+                CoreStates.OK,
+                CoreStates.ERRED,
             ],
         ).exclude(backend_id__in=remote_ids)
         for server_group in stale_groups:
@@ -3914,7 +3914,7 @@ class OpenStackBackend(ServiceBackend):
                 if floating_ip is None:
                     imported_floating_ip.save()
                     continue
-                elif floating_ip.state == models.FloatingIP.States.OK:
+                elif floating_ip.state == CoreStates.OK:
                     continue
 
                 # Don't update user defined name.
@@ -3931,7 +3931,7 @@ class OpenStackBackend(ServiceBackend):
                     floating_ip.save()
 
             frontend_ids = set(
-                instance.floating_ips.filter(state=models.FloatingIP.States.OK)
+                instance.floating_ips.filter(state=CoreStates.OK)
                 .exclude(backend_id="")
                 .values_list("backend_id", flat=True)
             )
@@ -4486,7 +4486,7 @@ class OpenStackBackend(ServiceBackend):
                 instance.ports.filter(backend_id__in=stale_ids).delete()
 
             # finally, mark all instance ports with backend_id as OK
-            instance.ports.exclude(backend_id="").update(state=models.Port.States.OK)
+            instance.ports.exclude(backend_id="").update(state=CoreStates.OK)
 
     @log_backend_action()
     def push_instance_ports(self, instance: models.Instance):

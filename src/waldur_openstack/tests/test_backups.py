@@ -4,6 +4,7 @@ from unittest.mock import patch
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack import models
 
@@ -282,7 +283,7 @@ class BackupRestorationTest(test.APITransactionTestCase):
         self,
     ):
         floating_ip = self.fixture.floating_ip
-        floating_ip.state = models.FloatingIP.States.OK
+        floating_ip.state = CoreStates.OK
         floating_ip.save()
         payload = self._get_valid_payload(
             floating_ips=[
@@ -344,7 +345,7 @@ class BackupRestorationTest(test.APITransactionTestCase):
     def test_floating_ip_is_associated_with_an_instance(self):
         floating_ip = factories.FloatingIPFactory(
             tenant=self.tenant,
-            state=models.FloatingIP.States.OK,
+            state=CoreStates.OK,
         )
         payload = self._get_valid_payload(
             floating_ips=[

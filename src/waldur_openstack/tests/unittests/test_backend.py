@@ -9,6 +9,7 @@ from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
 from rest_framework import test
 
+from waldur_core.core.enums import CoreStates
 from waldur_mastermind.marketplace_openstack.tests.mocks import MockTenant
 from waldur_openstack import models
 from waldur_openstack.backend import OpenStackBackend
@@ -111,7 +112,7 @@ class PullFloatingIPTest(BaseBackendTestCase):
 
     def test_floating_ip_is_not_deleted_if_it_is_in_creating_state(self):
         floating_ip = self.fixture.floating_ip
-        floating_ip.state = models.FloatingIP.States.CREATING
+        floating_ip.state = CoreStates.CREATING
         floating_ip.backend_id = ""
         floating_ip.save()
         self.setup_client(dict(floatingips=[]))
@@ -718,7 +719,7 @@ class PullPortsTest(BaseBackendTestCase):
             tenant=self.tenant, backend_id=port.backend_id
         )
 
-        self.assertEqual(created_port.state, models.Port.States.OK)
+        self.assertEqual(created_port.state, CoreStates.OK)
         self.assertEqual(created_port.network, port.network)
 
         self.assertEqual(

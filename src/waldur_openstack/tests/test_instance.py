@@ -8,6 +8,7 @@ from django.test import override_settings
 from novaclient import exceptions as nova_exceptions
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
@@ -201,7 +202,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
     def test_user_can_define_instance_floating_ips(self):
         subnet_url = factories.SubNetFactory.get_url(self.subnet)
         floating_ip = self.fixture.floating_ip
-        floating_ip.state = models.FloatingIP.States.OK
+        floating_ip.state = CoreStates.OK
         floating_ip.save()
         data = self.get_valid_data(
             floating_ips=[
@@ -498,13 +499,13 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
     def mock_volumes(self, delete_data_volume=True):
         self.data_volume = self.instance.volumes.get(bootable=False)
         self.data_volume.backend_id = "DATA_VOLUME_ID"
-        self.data_volume.state = models.Volume.States.OK
+        self.data_volume.state = CoreStates.OK
         self.data_volume.save()
         self.data_volume.increase_backend_quotas_usage()
 
         self.system_volume = self.instance.volumes.get(bootable=True)
         self.system_volume.backend_id = "SYSTEM_VOLUME_ID"
-        self.system_volume.state = models.Volume.States.OK
+        self.system_volume.state = CoreStates.OK
         self.system_volume.save()
         self.system_volume.increase_backend_quotas_usage()
 

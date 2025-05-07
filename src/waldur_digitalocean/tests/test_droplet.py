@@ -2,6 +2,7 @@ from unittest import mock
 
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
 from waldur_digitalocean import models
 from waldur_digitalocean.tests import factories, fixtures
@@ -20,7 +21,7 @@ class DropletResizeTest(test.APITransactionTestCase):
             cores=2,
             ram=2 * 1024,
             disk=10 * 1024,
-            state=models.Droplet.States.UPDATING,
+            state=CoreStates.UPDATING,
         )
         new_size = factories.SizeFactory(cores=3, ram=3 * 1024, disk=20 * 1024)
 
@@ -39,7 +40,7 @@ class DropletResizeTest(test.APITransactionTestCase):
             cores=2,
             ram=2 * 1024,
             disk=10 * 1024,
-            state=models.Droplet.States.OK,
+            state=CoreStates.OK,
             runtime_state=models.Droplet.RuntimeStates.OFFLINE,
         )
         new_size = factories.SizeFactory(cores=3, ram=3 * 1024, disk=20 * 1024)
@@ -59,7 +60,7 @@ class DropletResizeTest(test.APITransactionTestCase):
             ram=1024,
             cores=3,
             disk=20 * 1024,
-            state=models.Droplet.States.OK,
+            state=CoreStates.OK,
             runtime_state=models.Droplet.RuntimeStates.OFFLINE,
         )
         new_size = factories.SizeFactory(ram=1024, cores=2, disk=20 * 1024)
@@ -79,7 +80,7 @@ class DropletResizeTest(test.APITransactionTestCase):
             cores=2,
             ram=1024,
             disk=20 * 1024,
-            state=models.Droplet.States.OK,
+            state=CoreStates.OK,
             runtime_state=models.Droplet.RuntimeStates.OFFLINE,
         )
         new_size = factories.SizeFactory(
