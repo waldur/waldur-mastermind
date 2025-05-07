@@ -11,7 +11,11 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.users import models as users_models
 from waldur_core.users.tasks import process_invitation
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
 )
@@ -48,8 +52,8 @@ def log_order_events(sender, instance, created=False, **kwargs):
     order: models.Order = instance
     if created:
         if order.state not in (
-            models.Order.States.PENDING_CONSUMER,
-            models.Order.States.PENDING_PROVIDER,
+            OrderStates.PENDING_CONSUMER,
+            OrderStates.PENDING_PROVIDER,
         ):
             # Skip logging for imported order
             return
@@ -62,15 +66,15 @@ def log_order_events(sender, instance, created=False, **kwargs):
     else:
         if not order.tracker.has_changed("state"):
             return
-        if order.state == models.Order.States.EXECUTING:
+        if order.state == OrderStates.EXECUTING:
             log.log_order_approved(order)
-        elif order.state == models.Order.States.REJECTED:
+        elif order.state == OrderStates.REJECTED:
             log.log_order_rejected(order)
-        elif order.state == models.Order.States.DONE:
+        elif order.state == OrderStates.DONE:
             log.log_order_completed(order)
-        elif order.state == models.Order.States.CANCELED:
+        elif order.state == OrderStates.CANCELED:
             log.log_order_canceled(order)
-        elif order.state == models.Order.States.ERRED:
+        elif order.state == OrderStates.ERRED:
             log.log_order_failed(order)
 
 
@@ -114,13 +118,13 @@ def init_resource_parent(sender, instance, created=False, **kwargs):
 def notify_approvers_when_order_is_created(sender, instance, created=False, **kwargs):
     order: models.Order = instance
     if created and order.state in (
-        models.Order.States.PENDING_CONSUMER,
-        models.Order.States.PENDING_PROVIDER,
+        OrderStates.PENDING_CONSUMER,
+        OrderStates.PENDING_PROVIDER,
     ):
         if order_should_not_be_reviewed_by_consumer(order):
             order.review_by_consumer(order.created_by)
             if order.project.start_date and order.project.start_date > now().date():
-                order.state = models.Order.States.PENDING_PROJECT
+                order.state = OrderStates.PENDING_PROJECT
                 order.save(update_fields=["state"])
                 return
             if utils.order_should_not_be_reviewed_by_provider(order):
@@ -134,7 +138,7 @@ def notify_approvers_when_order_is_created(sender, instance, created=False, **kw
                 )
                 tasks.process_order_on_commit(order, order.created_by)
             else:
-                order.state = models.Order.States.PENDING_PROVIDER
+                order.state = OrderStates.PENDING_PROVIDER
                 order.save(update_fields=["state"])
                 transaction.on_commit(
                     lambda: tasks.notify_provider_about_pending_order.delay(order.uuid)
@@ -174,12 +178,12 @@ def process_invitations_and_orders_when_project_start_date_is_unset(
         )
 
     orders = models.Order.objects.filter(
-        state=models.Order.States.PENDING_PROJECT, project=project
+        state=OrderStates.PENDING_PROJECT, project=project
     )
     for order in orders:
         # Setting the state to PENDING_PROVIDER because direct transition
         # from PENDING_PROJECT to EXECUTING is not supported
-        order.state = models.Order.States.PENDING_PROVIDER
+        order.state = OrderStates.PENDING_PROVIDER
         order.save(update_fields=["state"])
         if utils.order_should_not_be_reviewed_by_provider(order):
             order.set_state_executing()
@@ -200,14 +204,14 @@ def update_resource_when_order_is_rejected_or_erred(
     if not order.tracker.has_changed("state"):
         return
     resource = order.resource
-    if order.state == models.Order.States.REJECTED:
+    if order.state == OrderStates.REJECTED:
         if order.type == models.Order.Types.CREATE:
             resource.set_state_terminated()
             resource.save(update_fields=["state"])
         elif resource.state != ResourceStates.OK:
             resource.set_state_ok()
             resource.save(update_fields=["state"])
-    elif order.state == models.Order.States.ERRED:
+    elif order.state == OrderStates.ERRED:
         if resource.state != ResourceStates.CREATING:
             return
         if resource.backend_id in [None, ""]:
@@ -240,15 +244,13 @@ def update_category_quota_when_offering_is_created(
 ):
     def get_delta():
         if created:
-            if instance.state == models.Offering.States.ACTIVE:
+            if instance.state == OfferingStates.ACTIVE:
                 return 1
         else:
             if instance.tracker.has_changed("state"):
-                if instance.state == models.Offering.States.ACTIVE:
+                if instance.state == OfferingStates.ACTIVE:
                     return 1
-                elif (
-                    instance.tracker.previous("state") == models.Offering.States.ACTIVE
-                ):
+                elif instance.tracker.previous("state") == OfferingStates.ACTIVE:
                     return -1
 
     delta = get_delta()
@@ -257,14 +259,14 @@ def update_category_quota_when_offering_is_created(
 
 
 def update_category_quota_when_offering_is_deleted(sender, instance, **kwargs):
-    if instance.state == models.Offering.States.ACTIVE:
+    if instance.state == OfferingStates.ACTIVE:
         instance.category.add_quota_usage("offering_count", -1)
 
 
 def update_category_offerings_count(sender, **kwargs):
     for category in models.Category.objects.all():
         value = models.Offering.objects.filter(
-            category=category, state=models.Offering.States.ACTIVE
+            category=category, state=OfferingStates.ACTIVE
         ).count()
         category.set_quota_usage("offering_count", value)
 
@@ -571,7 +573,7 @@ def disable_archived_service_settings_without_existing_resource(
 
     offering: models.Offering = instance.offering
 
-    if offering.state != models.Offering.States.ARCHIVED:
+    if offering.state != OfferingStates.ARCHIVED:
         return
 
     disable_empty_service_settings(offering)
@@ -586,7 +588,7 @@ def disable_service_settings_without_existing_resource_when_archived(
     if not instance.tracker.has_changed("state"):
         return
 
-    if instance.state != models.Offering.States.ARCHIVED:
+    if instance.state != OfferingStates.ARCHIVED:
         return
 
     disable_empty_service_settings(instance)
@@ -619,7 +621,7 @@ def enable_service_settings_when_not_archived(
     if not instance.tracker.has_changed("state"):
         return
 
-    if instance.state == models.Offering.States.ARCHIVED:
+    if instance.state == OfferingStates.ARCHIVED:
         return
 
     enable_nonempty_service_settings(instance)
@@ -1103,13 +1105,13 @@ def set_order_completion_timestamp(sender, instance, created=False, **kwargs):
 
     if (
         order.tracker.has_changed("state")
-        and order.state in models.Order.States.TERMINAL_STATES
+        and order.state in OrderStates.TERMINAL_STATES
     ):
         logger.debug("Setting order %s completion time", order)
         order.completed_at = now()
         order.save(update_fields=["completed_at"])
 
-        if order.state == models.Order.States.REJECTED:
+        if order.state == OrderStates.REJECTED:
             tasks.notify_user_that_order_been_rejected.delay(order.uuid.hex)
 
 

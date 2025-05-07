@@ -2,7 +2,8 @@ import logging
 import operator
 from functools import reduce
 
-from waldur_core.core import models, tasks, utils
+from waldur_core.core import tasks, utils
+from waldur_core.core.enums import CoreStates
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +224,7 @@ class ActionExecutor(SuccessExecutorMixin, ErrorExecutorMixin, BaseExecutor):
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):
-        if instance.state == models.StateMixin.States.UPDATE_SCHEDULED:
+        if instance.state == CoreStates.UPDATE_SCHEDULED:
             return
         instance.schedule_updating()
         instance.action = cls.action

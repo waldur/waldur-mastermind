@@ -99,7 +99,7 @@ class ServiceProvider(
     def has_active_offerings(self) -> bool:
         return (
             Offering.objects.filter(customer=self.customer)
-            .exclude(state=Offering.States.ARCHIVED)
+            .exclude(state=OfferingStates.ARCHIVED)
             .exists()
         )
 
@@ -107,7 +107,7 @@ class ServiceProvider(
     def offering_count(self) -> int:
         return Offering.objects.filter(
             customer=self.customer,
-            state__in=[Offering.States.ACTIVE, Offering.States.PAUSED],
+            state__in=[OfferingStates.ACTIVE, OfferingStates.PAUSED],
         ).count()
 
     def generate_api_secret_code(self):
@@ -1190,9 +1190,9 @@ class Resource(
         order_in_progress = Order.objects.filter(
             resource=self,
             state__in=[
-                Order.States.PENDING_CONSUMER,
-                Order.States.PENDING_PROVIDER,
-                Order.States.EXECUTING,
+                OrderStates.PENDING_CONSUMER,
+                OrderStates.PENDING_PROVIDER,
+                OrderStates.EXECUTING,
             ],
         ).first()
         return order_in_progress

@@ -12,7 +12,7 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_pid import models as pid_models
 
@@ -169,7 +169,7 @@ class OfferingFactory(
     category = factory.SubFactory(CategoryFactory)
     customer = factory.SubFactory(structure_factories.CustomerFactory)
     type = PLUGIN_NAME
-    state = models.Offering.States.ACTIVE
+    state = OfferingStates.ACTIVE
 
     @classmethod
     def get_url(cls, offering=None, action=None):

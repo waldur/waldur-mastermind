@@ -7,7 +7,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.fixtures import ProjectRole
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
@@ -30,10 +30,10 @@ class BaseOrderSetStateTest(test.APITransactionTestCase):
 @ddt
 class OrderSetStateExecutingTest(BaseOrderSetStateTest):
     @data(
-        ("staff", models.Order.States.PENDING_CONSUMER),
-        ("staff", models.Order.States.ERRED),
-        ("offering_owner", models.Order.States.PENDING_CONSUMER),
-        ("offering_owner", models.Order.States.ERRED),
+        ("staff", OrderStates.PENDING_CONSUMER),
+        ("staff", OrderStates.ERRED),
+        ("offering_owner", OrderStates.PENDING_CONSUMER),
+        ("offering_owner", OrderStates.ERRED),
     )
     def test_authorized_user_can_set_executing_state(self, user_and_state):
         user, state = user_and_state
@@ -43,7 +43,7 @@ class OrderSetStateExecutingTest(BaseOrderSetStateTest):
         response = self.item_set_state_executing(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.order.refresh_from_db()
-        self.assertEqual(self.order.state, models.Order.States.EXECUTING)
+        self.assertEqual(self.order.state, OrderStates.EXECUTING)
 
     @data("admin", "manager", "owner")
     def test_user_cannot_set_executing_state(self, user):
@@ -61,13 +61,13 @@ class OrderSetStateExecutingTest(BaseOrderSetStateTest):
 class OrderSetStateDoneTest(BaseOrderSetStateTest):
     @data("staff", "offering_owner")
     def test_authorized_user_can_set_done_state(self, user):
-        self.order.state = models.Order.States.EXECUTING
+        self.order.state = OrderStates.EXECUTING
         self.order.save()
 
         response = self.item_set_state_done(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.order.refresh_from_db()
-        self.assertEqual(self.order.state, models.Order.States.DONE)
+        self.assertEqual(self.order.state, OrderStates.DONE)
 
     @data("admin", "manager", "owner")
     def test_user_cannot_set_done_state(self, user):
@@ -85,7 +85,7 @@ class OrderSetStateDoneTest(BaseOrderSetStateTest):
 class OrderSetStateErredTest(BaseOrderSetStateTest):
     @data("staff", "offering_owner")
     def test_authorized_user_can_set_erred_state(self, user):
-        self.order.state = models.Order.States.EXECUTING
+        self.order.state = OrderStates.EXECUTING
         self.order.save()
 
         error_message = "Resource creation has been failed"
@@ -94,7 +94,7 @@ class OrderSetStateErredTest(BaseOrderSetStateTest):
         response = self.item_set_state_erred(user, error_message, error_traceback)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.order.refresh_from_db()
-        self.assertEqual(self.order.state, models.Order.States.ERRED)
+        self.assertEqual(self.order.state, OrderStates.ERRED)
         self.assertEqual(self.order.error_message, error_message)
         self.assertEqual(self.order.error_traceback, error_traceback.strip())
 
@@ -133,12 +133,12 @@ class OrderCancelTest(test.APITransactionTestCase):
         response = self.cancel_order(user)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.order.refresh_from_db()
-        self.assertEqual(self.order.state, models.Order.States.CANCELED)
+        self.assertEqual(self.order.state, OrderStates.CANCELED)
 
     @data(
-        models.Order.States.DONE,
-        models.Order.States.ERRED,
-        models.Order.States.CANCELED,
+        OrderStates.DONE,
+        OrderStates.ERRED,
+        OrderStates.CANCELED,
     )
     def test_order_cannot_be_cancelled_if_it_is_in_terminal_state(self, state):
         self.order.state = state

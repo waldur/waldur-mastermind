@@ -1,8 +1,7 @@
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_support.tests.fixtures import (
     MarketplaceSupportApprovedFixture,
@@ -15,7 +14,7 @@ class RequestCreateTest(test.APITransactionTestCase):
         super().setUp()
         self.fixture = SupportFixture()
         self.offering = self.fixture.offering
-        self.offering.state = marketplace_models.Offering.States.ACTIVE
+        self.offering.state = OfferingStates.ACTIVE
         self.offering.save()
         self.plan = self.fixture.plan
 

@@ -6,9 +6,10 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, plugins
+from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import utils as test_utils
-from waldur_mastermind.proposal import models as proposal_models
+from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
 from waldur_mastermind.proposal.tests import factories as proposal_factories
 
 
@@ -195,7 +196,7 @@ class CategoryFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.state = OfferingStates.ACTIVE
         self.offering.save()
         self.category = self.offering.category
         self.customer = self.offering.customer
@@ -249,7 +250,7 @@ class CategoryFilterTest(test.APITransactionTestCase):
         factories.OfferingFactory(
             category=self.category,
             customer=self.customer,
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             shared=False,
         )
         url = factories.CategoryFactory.get_url(self.category)
@@ -290,10 +291,10 @@ class PlanComponentFilterTest(test.APITransactionTestCase):
         self.fixture_1 = fixtures.MarketplaceFixture()
         self.fixture_2 = fixtures.MarketplaceFixture()
         self.fixture_1.offering.shared = True
-        self.fixture_1.offering.state = models.Offering.States.ACTIVE
+        self.fixture_1.offering.state = OfferingStates.ACTIVE
         self.fixture_1.offering.save()
         self.fixture_2.offering.shared = True
-        self.fixture_2.offering.state = models.Offering.States.ACTIVE
+        self.fixture_2.offering.state = OfferingStates.ACTIVE
         self.fixture_2.offering.save()
         self.url = factories.PlanComponentFactory.get_list_url()
 
@@ -325,9 +326,9 @@ class AccessibleViaCallsFilterTest(test.APITransactionTestCase):
 
         requested_offering = proposal_factories.RequestedOfferingFactory(
             offering=self.offering,
-            state=proposal_models.RequestedOffering.States.ACCEPTED,
+            state=RequestedOfferingStates.ACCEPTED,
         )
-        requested_offering.call.state = proposal_models.Call.States.ACTIVE
+        requested_offering.call.state = CallStates.ACTIVE
         requested_offering.call.save()
 
         self.client.force_authenticate(self.fixture.staff)

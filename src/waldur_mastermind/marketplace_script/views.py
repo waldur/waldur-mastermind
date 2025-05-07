@@ -13,7 +13,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.managers import ResourceQuerySet
 from waldur_mastermind.marketplace_script import (
     executors as marketplace_script_executors,
@@ -116,7 +116,7 @@ class DryRunView(ActionsViewSet):
         resource.init_cost()
         resource.save()
         order = marketplace_models.Order(**serializer.validated_data)
-        order.state = marketplace_models.Order.States.EXECUTING
+        order.state = OrderStates.EXECUTING
         order.offering = offering
         order.resource = resource
         order_type = DryRunTypes.get_type_display(order.type)

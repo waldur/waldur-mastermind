@@ -17,7 +17,8 @@ from jira import Comment, JIRAError
 from jira.utils import json_loads
 from rest_framework import status
 
-from waldur_core.core.models import StateMixin, User
+from waldur_core.core.enums import CoreStates
+from waldur_core.core.models import User
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.support import models
 from waldur_mastermind.support.exceptions import SupportUserInactive
@@ -135,7 +136,7 @@ class AttachmentSynchronizer:
 
     def _add_attachment(self, issue, backend_attachment):
         attachment = models.Attachment(
-            issue=issue, backend_id=backend_attachment.id, state=StateMixin.States.OK
+            issue=issue, backend_id=backend_attachment.id, state=CoreStates.OK
         )
         try:
             content = self._download_file(backend_attachment.content)
@@ -301,7 +302,7 @@ class ServiceDeskBackend(SupportBackend):
             )
             return
 
-        issue = models.Issue(backend_id=key, state=StateMixin.States.OK)
+        issue = models.Issue(backend_id=key, state=CoreStates.OK)
         self._backend_issue_to_issue(backend_issue, issue)
         try:
             issue.save()
@@ -382,7 +383,7 @@ class ServiceDeskBackend(SupportBackend):
             return
 
         comment = models.Comment(
-            issue=issue, backend_id=comment_backend_id, state=StateMixin.States.OK
+            issue=issue, backend_id=comment_backend_id, state=CoreStates.OK
         )
         self._backend_comment_to_comment(backend_comment, comment)
 
@@ -422,7 +423,7 @@ class ServiceDeskBackend(SupportBackend):
             )
             return
 
-        comment.state = StateMixin.States.OK
+        comment.state = CoreStates.OK
         self._backend_comment_to_comment(backend_comment, comment)
         comment.save()
 

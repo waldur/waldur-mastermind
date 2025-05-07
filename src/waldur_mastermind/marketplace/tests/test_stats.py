@@ -14,7 +14,11 @@ from waldur_mastermind.common.utils import parse_date, parse_datetime
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
 from waldur_mastermind.marketplace import models, tasks, utils
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
@@ -34,7 +38,7 @@ class StatsBaseTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             category=self.category,
             type=TENANT_TYPE,
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
         )
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.offering,
@@ -689,14 +693,14 @@ class CountCustomersTest(test.APITransactionTestCase):
             project=project,
             resource=resource,
             type=models.Order.Types.CREATE,
-            state=models.Order.States.DONE,
+            state=OrderStates.DONE,
         )
         return resource
 
     def _terminate_resource(self, resource):
         factories.OrderFactory(
             offering=self.fixture.offering,
-            state=models.Order.States.DONE,
+            state=OrderStates.DONE,
             resource=resource,
             type=models.Order.Types.TERMINATE,
         )
@@ -839,21 +843,21 @@ class OfferingStatsCounterTest(test.APITransactionTestCase):
         self.offering1 = factories.OfferingFactory(
             customer=self.provider1,
             category=self.category1,
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
         )
         factories.PlanFactory(offering=self.offering1)
 
         self.offering2 = factories.OfferingFactory(
             customer=self.provider1,
             category=self.category1,
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
         )
         factories.PlanFactory(offering=self.offering2)
 
         self.offering3 = factories.OfferingFactory(
             customer=self.provider2,
             category=self.category2,
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
         )
         factories.PlanFactory(offering=self.offering3)
 
@@ -949,13 +953,13 @@ class OfferingStatsCounterTest(test.APITransactionTestCase):
         self.offering4 = factories.OfferingFactory(
             customer=self.provider1,
             category=self.category1,
-            state=models.Offering.States.DRAFT,
+            state=OfferingStates.DRAFT,
         )
 
         self.offering5 = factories.OfferingFactory(
             customer=self.provider1,
             category=self.category1,
-            state=models.Offering.States.ARCHIVED,
+            state=OfferingStates.ARCHIVED,
         )
 
         response = self.client.get(self.url)

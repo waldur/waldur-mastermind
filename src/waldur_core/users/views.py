@@ -14,6 +14,7 @@ from rest_framework.response import Response
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.views import ProtectedViewSet, ReadOnlyActionsViewSet
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_user
@@ -306,7 +307,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
             models.PermissionRequest.objects.filter(
                 invitation=invitation, created_by=request.user
             )
-            .exclude(state=models.PermissionRequest.States.REJECTED)
+            .exclude(state=ReviewStates.REJECTED)
             .exists()
         ):
             raise ValidationError(_("Request has been created already."))
@@ -368,5 +369,5 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
         core_serializers.ReviewCommentSerializer
     )
     approve_validators = reject_validators = [
-        core_validators.StateValidator(models.PermissionRequest.States.PENDING)
+        core_validators.StateValidator(ReviewStates.PENDING, state_enum=ReviewStates)
     ]

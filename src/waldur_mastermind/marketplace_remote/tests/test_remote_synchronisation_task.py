@@ -7,6 +7,7 @@ from rest_framework import test
 
 import respx
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, models, tasks
 from waldur_mastermind.marketplace_remote.tests import factories, fixtures
@@ -136,9 +137,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         tasks.remote_offerings_sync()
 
         stale_offering.refresh_from_db()
-        self.assertEqual(
-            stale_offering.state, marketplace_models.Offering.States.ARCHIVED
-        )
+        self.assertEqual(stale_offering.state, OfferingStates.ARCHIVED)
 
         self.fixture.remote_synchronisation.refresh_from_db()
         self.assertEqual(
@@ -154,9 +153,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         tasks.remote_offerings_sync()
 
         stale_offering.refresh_from_db()
-        self.assertEqual(
-            stale_offering.state, marketplace_models.Offering.States.ARCHIVED
-        )
+        self.assertEqual(stale_offering.state, OfferingStates.ARCHIVED)
 
         self.fixture.remote_synchronisation.refresh_from_db()
         self.assertEqual(
@@ -168,15 +165,13 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         self.mock_marketplace_screenshots()
         self.mock_public_offerings([self.remote_offering])
         stale_offering = self._create_local_offering(
-            state=marketplace_models.Offering.States.ARCHIVED,
+            state=OfferingStates.ARCHIVED,
             category=marketplace_factories.CategoryFactory(),
         )
         tasks.remote_offerings_sync()
 
         stale_offering.refresh_from_db()
-        self.assertEqual(
-            stale_offering.state, marketplace_models.Offering.States.ACTIVE
-        )
+        self.assertEqual(stale_offering.state, OfferingStates.ACTIVE)
         self.assertEqual(
             stale_offering.category, self.fixture.remote_local_category.local_category
         )

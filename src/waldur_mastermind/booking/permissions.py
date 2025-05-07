@@ -2,6 +2,7 @@ from rest_framework import exceptions
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.permissions import has_project_permission
 
 
@@ -18,7 +19,7 @@ def user_can_reject_order(request, view, resource=None):
         order = models.Order.objects.get(
             resource=resource,
             type=models.RequestTypeMixin.Types.CREATE,
-            state=models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
     except models.Order.DoesNotExist:
         return

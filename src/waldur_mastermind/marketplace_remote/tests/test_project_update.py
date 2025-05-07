@@ -9,6 +9,7 @@ from rest_framework import status, test
 
 import respx
 from waldur_core.core import middleware
+from waldur_core.core.enums import ReviewStates
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests.factories import ProjectFactory
@@ -62,7 +63,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
             offering=self.offering,
             old_name=old_name,
             new_name="New project name",
-            state=ProjectUpdateRequest.States.PENDING,
+            state=ReviewStates.PENDING,
         ).get()
 
         request_url = reverse(
@@ -88,7 +89,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
                 project=self.project,
                 offering=self.offering,
                 new_name="First project",
-                state=ProjectUpdateRequest.States.CANCELED,
+                state=ReviewStates.CANCELED,
             ).exists()
         )
 
@@ -98,7 +99,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
                 offering=self.offering,
                 old_name="First project",
                 new_name="Second project",
-                state=ProjectUpdateRequest.States.PENDING,
+                state=ReviewStates.PENDING,
             ).exists()
         )
 
@@ -178,7 +179,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         requests = ProjectUpdateRequest.objects.filter(
             project=self.project,
             offering=self.offering,
-            state=ProjectUpdateRequest.States.APPROVED,
+            state=ReviewStates.APPROVED,
         )
         self.assertEqual(1, requests.count())
 
@@ -200,7 +201,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         requests = ProjectUpdateRequest.objects.filter(
             project=self.project,
             offering=self.offering,
-            state=ProjectUpdateRequest.States.APPROVED,
+            state=ReviewStates.APPROVED,
         )
         self.assertEqual(1, requests.count())
 

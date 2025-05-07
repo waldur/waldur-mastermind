@@ -8,8 +8,7 @@ from rest_framework import status, test
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.booking import models
 from waldur_mastermind.google.tests import factories as google_factories
-from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 from .. import PLUGIN_NAME, calendar
@@ -22,7 +21,7 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
         self.offering = marketplace_factories.OfferingFactory(
             customer=self.fixture.customer,
             type=PLUGIN_NAME,
-            state=marketplace_models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
         )
         marketplace_factories.PlanFactory(offering=self.offering)
         self.google_calendar = google_factories.GoogleCalendarFactory(

@@ -7,7 +7,7 @@ from django.db import transaction
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
 from waldur_openstack import models as openstack_models
 from waldur_openstack.utils import volume_type_name_to_quota_name
 
@@ -41,7 +41,7 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
 
 def archive_offering(sender, instance, **kwargs):
     marketplace_models.Offering.objects.filter(scope=instance).update(
-        state=marketplace_models.Offering.States.ARCHIVED
+        state=OfferingStates.ARCHIVED
     )
 
 

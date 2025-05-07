@@ -4,7 +4,8 @@ from django.db.models import QuerySet
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
-from waldur_core.core.models import StateMixin, User
+from waldur_core.core.enums import CoreStates
+from waldur_core.core.models import User
 from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE
 
 from . import models, tasks
@@ -156,7 +157,7 @@ class NodeDeleteExecutor(core_executors.BaseExecutor):
         We can start deleting a node even if it does not have the status OK or Erred,
         because a virtual machine could already be created.
         """
-        instance.state = StateMixin.States.DELETION_SCHEDULED
+        instance.state = CoreStates.DELETION_SCHEDULED
         instance.save(update_fields=["state"])
 
 

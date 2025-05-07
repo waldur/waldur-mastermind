@@ -1,6 +1,7 @@
-import factory.fuzzy
+import factory
 from rest_framework.reverse import reverse
 
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.permissions import fixtures as permission_fixtures
 from waldur_core.structure.tests import factories as structure_factories
@@ -94,7 +95,7 @@ class PermissionRequestFactory(
 
     invitation = factory.SubFactory(CustomerGroupInvitationFactory)
     created_by = factory.SubFactory(structure_factories.UserFactory)
-    state = models.PermissionRequest.States.PENDING
+    state = ReviewStates.PENDING
 
     @classmethod
     def get_list_url(cls, action=None):

@@ -4,6 +4,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_mastermind.proposal import models
+from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.tests import fixtures
 
 from . import factories
@@ -246,7 +247,7 @@ class RoundCloseTest(test.APITransactionTestCase):
         )
         self.proposal = factories.ProposalFactory(
             round=self.round,
-            state=models.Proposal.States.SUBMITTED,
+            state=ProposalStates.SUBMITTED,
             project=self.fixture.proposal_project,
         )
 

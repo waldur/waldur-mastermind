@@ -26,7 +26,7 @@ from httpx import TimeoutException
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
 from waldur_core.core.client import get_waldur_client
-from waldur_core.core.mixins import ReviewMixin
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.serializers import EmptySerializer, ReviewCommentSerializer
 from waldur_core.core.utils import is_uuid_like, serialize_instance
 from waldur_core.core.validators import StateValidator
@@ -39,7 +39,11 @@ from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.models import Customer
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_mastermind.marketplace import callbacks, models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.serializers import MarketplaceCategorySerializer
 from waldur_mastermind.marketplace_remote import (
     PLUGIN_NAME,
@@ -145,7 +149,7 @@ class OfferingsListView(RemoteView):
 
         local_offerings = list(
             models.Offering.objects.filter(type=PLUGIN_NAME)
-            .exclude(state=models.Offering.States.ARCHIVED)
+            .exclude(state=OfferingStates.ARCHIVED)
             .values_list("backend_id", flat=True)
         )
 
@@ -257,7 +261,7 @@ class ProjectUpdateRequestViewSet(ActionsViewSet):
 
     approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
     approve_validators = reject_validators = [
-        StateValidator(ReviewMixin.States.PENDING)
+        StateValidator(ReviewStates.PENDING, state_enum=ReviewStates)
     ]
 
 
@@ -271,7 +275,7 @@ class PullOrderView(GenericAPIView):
         if not is_uuid_like(item_uuid):
             return Response(status=status.HTTP_400_BAD_REQUEST, data="UUID is invalid.")
         qs = models.Order.objects.filter(offering__type=PLUGIN_NAME).exclude(
-            state__in=models.Order.States.TERMINAL_STATES
+            state__in=OrderStates.TERMINAL_STATES
         )
         return get_object_or_404(qs, uuid=item_uuid)
 
@@ -292,7 +296,7 @@ class CancelTerminationOrderView(GenericAPIView):
             raise ValidationError("UUID is invalid.")
         qs = models.Order.objects.filter(
             offering__type=PLUGIN_NAME,
-            state=models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
             type=models.Order.Types.TERMINATE,
         )
         return get_object_or_404(qs, uuid=item_uuid)
@@ -313,7 +317,7 @@ class CancelTerminationOrderView(GenericAPIView):
             )
         except (UnexpectedStatus, TimeoutException) as exc:
             raise ValidationError(exc)
-        callbacks.sync_order_state(order, models.Order.States.CANCELED)
+        callbacks.sync_order_state(order, OrderStates.CANCELED)
 
         return Response(status=status.HTTP_200_OK)
 

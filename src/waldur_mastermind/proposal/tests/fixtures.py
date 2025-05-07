@@ -11,6 +11,11 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.proposal import models as proposal_models
+from waldur_mastermind.proposal.enums import (
+    CallStates,
+    ProposalStates,
+    RequestedOfferingStates,
+)
 from waldur_mastermind.proposal.tests import factories as proposal_factories
 
 
@@ -48,7 +53,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def call(self):
         return proposal_factories.CallFactory(
             manager=self.manager,
-            state=proposal_models.Call.States.ACTIVE,
+            state=CallStates.ACTIVE,
             created_by=self.owner,
         )
 
@@ -81,7 +86,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def requested_offering(self):
         return proposal_factories.RequestedOfferingFactory(
             call=self.call,
-            state=proposal_models.RequestedOffering.States.REQUESTED,
+            state=RequestedOfferingStates.REQUESTED,
             created_by=self.owner,
             offering=self.offering,
         )
@@ -90,7 +95,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def requested_offering_accepted(self):
         return proposal_factories.RequestedOfferingFactory(
             call=self.call,
-            state=proposal_models.RequestedOffering.States.ACCEPTED,
+            state=RequestedOfferingStates.ACCEPTED,
             created_by=self.owner,
             offering=self.offering,
         )
@@ -139,7 +144,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def proposal_submitted(self):
         return proposal_factories.ProposalFactory(
             round=self.round,
-            state=proposal_models.Proposal.States.SUBMITTED,
+            state=ProposalStates.SUBMITTED,
             project=self.proposal_project,
         )
 

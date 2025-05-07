@@ -10,6 +10,7 @@ from django.utils import timezone
 from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.exceptions import (
     ServiceBackendError,
@@ -186,7 +187,7 @@ class BaseThrottleProvisionTask(RetryUntilAvailableTask):
         service_settings = resource.service_settings
         model_class = resource._meta.model
         return model_class.objects.filter(
-            state=core_models.StateMixin.States.CREATING,
+            state=CoreStates.CREATING,
             service_settings=service_settings,
         ).count()
 

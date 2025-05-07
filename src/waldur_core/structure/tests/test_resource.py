@@ -1,12 +1,9 @@
 from rest_framework import status, test
 
-from waldur_core.core import models as core_models
 from waldur_core.logging.tests.factories import EventFactory
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests import models as test_models
-
-States = core_models.StateMixin.States
 
 
 class ResourceRemovalTest(test.APITransactionTestCase):

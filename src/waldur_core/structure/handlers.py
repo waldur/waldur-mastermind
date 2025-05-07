@@ -4,6 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import StateMixin
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_customer, get_permissions
@@ -179,7 +180,7 @@ def log_resource_creation_scheduled(sender, instance, created=False, **kwargs):
     if (
         created
         and isinstance(instance, StateMixin)
-        and instance.state == StateMixin.States.CREATION_SCHEDULED
+        and instance.state == CoreStates.CREATION_SCHEDULED
     ):
         transaction.on_commit(lambda: _log_resource_creation_scheduled(instance))
 
@@ -195,16 +196,13 @@ def _log_resource_creation_scheduled(instance):
 
 def log_resource_action(sender, instance, name, source, target, **kwargs):
     if isinstance(instance, StateMixin):
-        if source == StateMixin.States.CREATING:
-            if target == StateMixin.States.OK:
+        if source == CoreStates.CREATING:
+            if target == CoreStates.OK:
                 log_resource_creation_succeeded(instance)
-            elif target == StateMixin.States.ERRED:
+            elif target == CoreStates.ERRED:
                 log_resource_creation_failed(instance)
 
-    if (
-        isinstance(instance, StateMixin)
-        and target == StateMixin.States.DELETION_SCHEDULED
-    ):
+    if isinstance(instance, StateMixin) and target == CoreStates.DELETION_SCHEDULED:
         event_logger.resource.info(
             "Resource {resource_name} deletion has been scheduled.",
             event_type="resource_deletion_scheduled",

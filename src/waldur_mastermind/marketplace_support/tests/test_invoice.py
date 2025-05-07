@@ -16,6 +16,7 @@ from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
@@ -298,7 +299,7 @@ class UsagesTest(InvoicesBaseTest):
         marketplace_factories.OrderFactory(
             resource=self.resource,
             type=marketplace_models.RequestTypeMixin.Types.UPDATE,
-            state=marketplace_models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
             plan=self.fixture.new_plan,
         )
         callbacks.resource_update_succeeded(self.resource)

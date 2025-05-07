@@ -2,8 +2,8 @@ from unittest import mock
 
 from rest_framework import test
 
-from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 from . import fixtures
@@ -30,7 +30,7 @@ class OrderProcessedTest(test.APITransactionTestCase):
                 "name": "name",
             },
             limits={"cpu": 10},
-            state=marketplace_models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
         marketplace_utils.process_order(order, self.fixture.staff)
         mock_docker.DockerClient().containers.run.assert_called_once()

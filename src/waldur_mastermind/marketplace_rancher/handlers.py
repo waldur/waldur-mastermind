@@ -5,7 +5,7 @@ import kubernetes as k8s
 from django.core import exceptions as django_exceptions
 from model_utils.tracker import FieldInstanceTracker
 
-from waldur_core.core import models as core_models
+from waldur_core.core.enums import CoreStates
 from waldur_kubernetes.backend import KubernetesBackend
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import ResourceStates
@@ -63,7 +63,7 @@ def update_node_usage(sender, instance: Node, created=False, **kwargs):
         )
         return
 
-    usage = cluster.node_set.filter(state=core_models.StateMixin.States.OK).count()
+    usage = cluster.node_set.filter(state=CoreStates.OK).count()
 
     resource.current_usages = {NODES_COMPONENT_TYPE: usage}
     resource.save(update_fields=["current_usages"])

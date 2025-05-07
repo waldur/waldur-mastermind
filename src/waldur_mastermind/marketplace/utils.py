@@ -32,6 +32,7 @@ import httpx
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_users_with_permission, has_permission
@@ -50,7 +51,11 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
-from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
+from waldur_mastermind.marketplace.enums import (
+    OrderStates,
+    ResourceStates,
+    RobotAccountStates,
+)
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
@@ -77,7 +82,7 @@ class UsernameGenerationPolicy(Enum):
     IDENTITY_CLAIM = "identity_claim"  # Using username from external IDP system
 
 
-def get_order_processor(order):
+def get_order_processor(order: models.Order):
     offering = order.resource.offering
 
     if order.type == models.RequestTypeMixin.Types.CREATE:
@@ -471,24 +476,22 @@ def create_offering_components(offering, custom_components=None):
 
 
 def get_resource_state(state):
-    SrcStates = core_models.StateMixin.States
-    DstStates = ResourceStates
     mapping = {
-        SrcStates.CREATION_SCHEDULED: DstStates.CREATING,
-        SrcStates.CREATING: DstStates.CREATING,
-        SrcStates.UPDATE_SCHEDULED: DstStates.UPDATING,
-        SrcStates.UPDATING: DstStates.UPDATING,
-        SrcStates.DELETION_SCHEDULED: DstStates.TERMINATING,
-        SrcStates.DELETING: DstStates.TERMINATING,
-        SrcStates.OK: DstStates.OK,
-        SrcStates.ERRED: DstStates.ERRED,
+        CoreStates.CREATION_SCHEDULED: ResourceStates.CREATING,
+        CoreStates.CREATING: ResourceStates.CREATING,
+        CoreStates.UPDATE_SCHEDULED: ResourceStates.UPDATING,
+        CoreStates.UPDATING: ResourceStates.UPDATING,
+        CoreStates.DELETION_SCHEDULED: ResourceStates.TERMINATING,
+        CoreStates.DELETING: ResourceStates.TERMINATING,
+        CoreStates.OK: ResourceStates.OK,
+        CoreStates.ERRED: ResourceStates.ERRED,
     }
-    return mapping.get(state, DstStates.ERRED)
+    return mapping.get(state, ResourceStates.ERRED)
 
 
-def get_marketplace_offering_uuid(serializer, scope) -> str:
+def get_marketplace_offering_uuid(serializer, scope) -> str | None:
     try:
-        return models.Resource.objects.get(scope=scope).offering.uuid
+        return models.Resource.objects.get(scope=scope).offering.uuid.hex
     except ObjectDoesNotExist:
         return
 
@@ -500,16 +503,16 @@ def get_marketplace_offering_plugin_options(serializer, scope) -> dict | None:
         return
 
 
-def get_marketplace_offering_name(serializer, scope) -> str:
+def get_marketplace_offering_name(serializer, scope) -> str | None:
     try:
         return models.Resource.objects.get(scope=scope).offering.name
     except ObjectDoesNotExist:
         return
 
 
-def get_marketplace_category_uuid(serializer, scope) -> str:
+def get_marketplace_category_uuid(serializer, scope) -> str | None:
     try:
-        return models.Resource.objects.get(scope=scope).offering.category.uuid
+        return models.Resource.objects.get(scope=scope).offering.category.uuid.hex
     except ObjectDoesNotExist:
         return
 
@@ -521,37 +524,37 @@ def get_marketplace_category_name(serializer, scope) -> str:
         return
 
 
-def get_marketplace_resource_uuid(serializer, scope) -> str:
+def get_marketplace_resource_uuid(serializer, scope) -> str | None:
     try:
-        return models.Resource.objects.get(scope=scope).uuid
+        return models.Resource.objects.get(scope=scope).uuid.hex
     except ObjectDoesNotExist:
         return
 
 
-def get_marketplace_plan_uuid(serializer, scope) -> str:
+def get_marketplace_plan_uuid(serializer, scope) -> str | None:
     try:
         resource = models.Resource.objects.get(scope=scope)
         if resource.plan:
-            return resource.plan.uuid
+            return resource.plan.uuid.hex
     except ObjectDoesNotExist:
         return
 
 
-def get_marketplace_resource_state(serializer, scope) -> str:
+def get_marketplace_resource_state(serializer, scope) -> str | None:
     try:
         return models.Resource.objects.get(scope=scope).get_state_display()
     except ObjectDoesNotExist:
         return
 
 
-def get_is_usage_based(serializer, scope) -> bool:
+def get_is_usage_based(serializer, scope) -> bool | None:
     try:
         return models.Resource.objects.get(scope=scope).offering.is_usage_based
     except ObjectDoesNotExist:
         return
 
 
-def get_is_limit_based(serializer, scope) -> bool:
+def get_is_limit_based(serializer, scope) -> bool | None:
     try:
         return models.Resource.objects.get(scope=scope).offering.is_limit_based
     except ObjectDoesNotExist:
@@ -770,20 +773,18 @@ def terminate_resource(resource, user, termination_comment=None, scheduled=False
     for order in models.Order.objects.filter(
         resource=resource,
         state__in=(
-            [models.Order.States.PENDING_CONSUMER]
+            [OrderStates.PENDING_CONSUMER]
             if scheduled
             else [
-                models.Order.States.PENDING_CONSUMER,
-                models.Order.States.PENDING_PROVIDER,
+                OrderStates.PENDING_CONSUMER,
+                OrderStates.PENDING_PROVIDER,
             ]
         ),
     ):
         order.cancel(termination_comment)
         order.save()
 
-    if models.Order.objects.filter(
-        resource=resource, state=models.Order.States.EXECUTING
-    ):
+    if models.Order.objects.filter(resource=resource, state=OrderStates.EXECUTING):
         logger.info(
             "Terminate order has not been created because other executing orders exist."
         )
@@ -966,7 +967,7 @@ def count_customers_number_change(service_provider):
         models.Order.objects.filter(
             offering__customer=service_provider.customer,
             type=models.Order.Types.CREATE,
-            state=models.Order.States.DONE,
+            state=OrderStates.DONE,
             created__gte=core_utils.month_start(to_day),
         )
         .order_by()
@@ -988,7 +989,7 @@ def count_customers_number_change(service_provider):
         models.Order.objects.filter(
             offering__customer=service_provider.customer,
             type=models.Order.Types.TERMINATE,
-            state=models.Order.States.DONE,
+            state=OrderStates.DONE,
             created__gte=core_utils.month_start(to_day),
         )
         .order_by()
@@ -1015,7 +1016,7 @@ def count_resources_number_change(service_provider):
         models.Order.objects.filter(
             offering__customer=service_provider.customer,
             type=models.Order.Types.CREATE,
-            state=models.Order.States.DONE,
+            state=OrderStates.DONE,
             created__gte=core_utils.month_start(to_day),
         )
         .order_by()
@@ -1028,7 +1029,7 @@ def count_resources_number_change(service_provider):
         models.Order.objects.filter(
             offering__customer=service_provider.customer,
             type=models.Order.Types.TERMINATE,
-            state=models.Order.States.DONE,
+            state=OrderStates.DONE,
             created__gte=core_utils.month_start(to_day),
         )
         .order_by()

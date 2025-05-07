@@ -114,20 +114,20 @@ class Invitation(
     def accept(self, user):
         add_user(self.scope, user, self.role, self.created_by)
 
-        self.state = self.State.ACCEPTED
+        self.state = InvitationState.ACCEPTED
         self.save(update_fields=["state"])
 
     def cancel(self):
-        self.state = self.State.CANCELED
+        self.state = InvitationState.CANCELED
         self.save(update_fields=["state"])
 
     def approve(self, user):
-        self.state = self.State.PENDING
+        self.state = InvitationState.PENDING
         self.approved_by = user
         self.save(update_fields=["state", "approved_by"])
 
     def reject(self):
-        self.state = self.State.REJECTED
+        self.state = InvitationState.REJECTED
         self.save(update_fields=["state"])
 
     @transition(

@@ -13,6 +13,7 @@ from libcloud.compute.drivers.ec2 import (
 from libcloud.compute.types import NodeState, StorageVolumeState
 from libcloud.utils.xml import fixxpath
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import SshPublicKey
 from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.exceptions import ServiceBackendError
@@ -717,7 +718,7 @@ class AWSBackend(ServiceBackend):
             size=volume["size"],
             created=volume["created"],
             runtime_state=volume["runtime_state"],
-            state=models.Volume.States.OK,
+            state=CoreStates.OK,
             device=volume["device"],
             volume_type=volume["volume_type"],
             region=region,
@@ -765,14 +766,14 @@ class AWSBackend(ServiceBackend):
 
     def _get_volume_state(self, state):
         aws_to_waldur = {
-            StorageVolumeState.AVAILABLE: models.Volume.States.OK,
-            StorageVolumeState.INUSE: models.Volume.States.OK,
-            StorageVolumeState.CREATING: models.Volume.States.CREATING,
-            StorageVolumeState.DELETING: models.Volume.States.DELETING,
-            StorageVolumeState.ATTACHING: models.Volume.States.UPDATING,
+            StorageVolumeState.AVAILABLE: CoreStates.OK,
+            StorageVolumeState.INUSE: CoreStates.OK,
+            StorageVolumeState.CREATING: CoreStates.CREATING,
+            StorageVolumeState.DELETING: CoreStates.DELETING,
+            StorageVolumeState.ATTACHING: CoreStates.UPDATING,
         }
 
-        return aws_to_waldur.get(state, models.Volume.States.ERRED)
+        return aws_to_waldur.get(state, CoreStates.ERRED)
 
     def get_volume(self, volume):
         try:

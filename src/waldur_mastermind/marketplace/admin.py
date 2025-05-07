@@ -24,7 +24,7 @@ from waldur_core.structure.models import (
     SharedServiceSettings,
 )
 from waldur_mastermind.google.models import GoogleCalendar, GoogleCredentials
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
 from waldur_mastermind.marketplace_openstack import (
     executors as marketplace_openstack_executors,
 )
@@ -395,9 +395,9 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
 
     def activate(self, request, queryset):
         valid_states = [
-            models.Offering.States.DRAFT,
-            models.Offering.States.PAUSED,
-            models.Offering.States.ARCHIVED,
+            OfferingStates.DRAFT,
+            OfferingStates.PAUSED,
+            OfferingStates.ARCHIVED,
         ]
         valid_offerings = queryset.filter(state__in=valid_states)
         count = valid_offerings.count()

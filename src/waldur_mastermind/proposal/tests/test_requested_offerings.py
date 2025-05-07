@@ -3,7 +3,7 @@ from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
-from waldur_mastermind.proposal import models
+from waldur_mastermind.proposal.enums import RequestedOfferingStates
 from waldur_mastermind.proposal.tests import fixtures
 
 from . import factories
@@ -59,7 +59,7 @@ class RequestedOfferingAcceptTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.requested_offering.refresh_from_db()
         self.assertEqual(
-            self.requested_offering.state, models.RequestedOffering.States.ACCEPTED
+            self.requested_offering.state, RequestedOfferingStates.ACCEPTED
         )
 
     @data(
@@ -95,7 +95,7 @@ class RequestedOfferingCancelTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.requested_offering.refresh_from_db()
         self.assertEqual(
-            self.requested_offering.state, models.RequestedOffering.States.CANCELED
+            self.requested_offering.state, RequestedOfferingStates.CANCELED
         )
 
     @data(

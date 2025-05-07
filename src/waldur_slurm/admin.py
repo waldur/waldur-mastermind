@@ -5,7 +5,7 @@ from django.utils.translation import ngettext
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.admin import ExecutorAdminAction
-from waldur_core.core.models import StateMixin
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure import admin as structure_admin
 
 from . import executors, tasks
@@ -29,13 +29,13 @@ class AllocationAdmin(structure_admin.ResourceAdmin):
         short_description = _("Sync selected allocations")
 
         def validate(self, allocation):
-            if allocation.state not in [StateMixin.States.OK, StateMixin.States.ERRED]:
+            if allocation.state not in [CoreStates.OK, CoreStates.ERRED]:
                 raise ValidationError(_("Allocation has to be in OK or ERRED state."))
 
     sync_allocations = SyncAllocations()
 
     def sync_users(self, request, queryset):
-        valid_state = StateMixin.States.OK
+        valid_state = CoreStates.OK
         valid_allocations = queryset.filter(state=valid_state)
         for allocation in valid_allocations:
             serialized_allocation = core_utils.serialize_instance(allocation)

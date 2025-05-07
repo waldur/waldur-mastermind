@@ -10,6 +10,7 @@ from waldur_core.core.admin import (
     PasswordWidget,
     format_json_field,
 )
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure import admin as structure_admin
 
 from . import executors, models
@@ -294,10 +295,7 @@ class InstanceAdmin(ActionDetailsMixin, structure_admin.VirtualMachineAdmin):
         short_description = _("Pull")
 
         def validate(self, instance):
-            if instance.state not in (
-                models.Instance.States.OK,
-                models.Instance.States.ERRED,
-            ):
+            if instance.state not in (CoreStates.OK, CoreStates.ERRED):
                 raise ValidationError(_("Instance has to be in OK or ERRED state."))
 
     pull = Pull()

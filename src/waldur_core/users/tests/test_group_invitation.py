@@ -6,6 +6,7 @@ from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
 
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
@@ -486,9 +487,7 @@ class RequestApproveTest(BaseInvitationTest):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.permission_request.refresh_from_db()
-        self.assertEqual(
-            self.permission_request.state, models.PermissionRequest.States.APPROVED
-        )
+        self.assertEqual(self.permission_request.state, ReviewStates.APPROVED)
         self.assertTrue(has_user(self.customer, self.permission_request.created_by))
 
         response = self.client.post(self.url)
@@ -501,9 +500,7 @@ class RequestApproveTest(BaseInvitationTest):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.permission_request.refresh_from_db()
-        self.assertEqual(
-            self.permission_request.state, models.PermissionRequest.States.PENDING
-        )
+        self.assertEqual(self.permission_request.state, ReviewStates.PENDING)
 
 
 @ddt
@@ -527,9 +524,7 @@ class RequestRejectTest(BaseInvitationTest):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.permission_request.refresh_from_db()
-        self.assertEqual(
-            self.permission_request.state, models.PermissionRequest.States.REJECTED
-        )
+        self.assertEqual(self.permission_request.state, ReviewStates.REJECTED)
 
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -541,6 +536,4 @@ class RequestRejectTest(BaseInvitationTest):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.permission_request.refresh_from_db()
-        self.assertEqual(
-            self.permission_request.state, models.PermissionRequest.States.PENDING
-        )
+        self.assertEqual(self.permission_request.state, ReviewStates.PENDING)

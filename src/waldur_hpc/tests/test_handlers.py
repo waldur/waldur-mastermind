@@ -6,6 +6,7 @@ from django.test import TestCase
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
@@ -37,7 +38,7 @@ class TestHandlers(TestCase):
             marketplace_models.Order.objects.filter(
                 project=project,
                 created_by=user,
-                state=marketplace_models.Order.States.EXECUTING,
+                state=OrderStates.EXECUTING,
             ).exists()
         )
 
@@ -55,7 +56,7 @@ class TestHandlers(TestCase):
             marketplace_models.Order.objects.filter(
                 project=project,
                 created_by=user,
-                state=marketplace_models.Order.States.EXECUTING,
+                state=OrderStates.EXECUTING,
             ).exists()
         )
 
@@ -182,7 +183,7 @@ class TestHandlers(TestCase):
             marketplace_models.Order.objects.filter(
                 project=project,
                 created_by=user,
-                state=marketplace_models.Order.States.EXECUTING,
+                state=OrderStates.EXECUTING,
             ).count(),
             1,
         )

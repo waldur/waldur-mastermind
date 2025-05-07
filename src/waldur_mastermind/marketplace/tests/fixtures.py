@@ -9,6 +9,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import PLUGIN_NAME
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import OfferingStates, OrderStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
@@ -22,7 +23,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     def offering(self):
         return marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME,
-            state=marketplace_models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             project=self.offering_project,
             customer=self.offering_customer,
         )
@@ -77,7 +78,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
             attributes={"name": "item_name", "description": "Description"},
             plan=self.plan,
             resource=self.resource,
-            state=marketplace_models.Order.States.DONE,
+            state=OrderStates.DONE,
         )
 
     @cached_property
@@ -88,7 +89,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
             offering=self.offering,
             resource=self.resource,
             plan=self.plan,
-            state=marketplace_models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
             type=marketplace_models.Order.Types.UPDATE,
         )
 

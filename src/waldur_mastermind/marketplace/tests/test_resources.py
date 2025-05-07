@@ -22,7 +22,11 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, log, models, plugins
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
@@ -139,7 +143,7 @@ class ResourceGetTest(test.APITransactionTestCase):
         models.Order.objects.create(
             project=self.project,
             resource=self.resource,
-            state=models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
             created_by=self.fixture.owner,
             offering=self.offering,
         )
@@ -153,7 +157,7 @@ class ResourceGetTest(test.APITransactionTestCase):
         models.Order.objects.create(
             project=self.project,
             resource=self.resource,
-            state=models.Order.States.ERRED,
+            state=OrderStates.ERRED,
             created_by=self.fixture.owner,
             offering=self.offering,
         )
@@ -274,7 +278,7 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
 
         # Assert
         order = models.Order.objects.get(uuid=response.data["order_uuid"])
-        self.assertEqual(order.state, models.Order.States.EXECUTING)
+        self.assertEqual(order.state, OrderStates.EXECUTING)
         self.assertEqual(order.created_by, self.fixture.staff)
 
     def test_plan_switch_is_not_allowed_if_pending_order_for_resource_already_exists(
@@ -282,7 +286,7 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
     ):
         # Arrange
         factories.OrderFactory(
-            resource=self.resource1, state=models.Order.States.PENDING_CONSUMER
+            resource=self.resource1, state=OrderStates.PENDING_CONSUMER
         )
 
         # Act
@@ -421,7 +425,7 @@ class ResourceTerminateTest(test.APITransactionTestCase):
 
         # Assert
         order = models.Order.objects.get(uuid=response.data["order_uuid"])
-        self.assertEqual(order.state, models.Order.States.EXECUTING)
+        self.assertEqual(order.state, OrderStates.EXECUTING)
         self.assertEqual(order.created_by, self.fixture.staff)
 
     def test_plan_switch_is_not_allowed_if_pending_order_for_resource_already_exists(
@@ -429,7 +433,7 @@ class ResourceTerminateTest(test.APITransactionTestCase):
     ):
         # Arrange
         factories.OrderFactory(
-            resource=self.resource, state=models.Order.States.PENDING_CONSUMER
+            resource=self.resource, state=OrderStates.PENDING_CONSUMER
         )
 
         # Act
@@ -590,7 +594,7 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
             offering=offering,
             plan=plan,
             attributes={"name": "item_name", "description": "Description"},
-            state=models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
 
         # Act
@@ -636,7 +640,7 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         resource = factories.ResourceFactory(plan=old_plan)
 
         factories.OrderFactory(
-            state=models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
             type=models.Order.Types.UPDATE,
             resource=resource,
             plan=new_plan,
@@ -1097,7 +1101,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
 
         # Assert
         order = models.Order.objects.get(uuid=response.data["order_uuid"])
-        self.assertEqual(order.state, models.Order.States.EXECUTING)
+        self.assertEqual(order.state, OrderStates.EXECUTING)
         self.assertEqual(order.created_by, self.fixture.staff)
 
     def test_update_limits_is_not_allowed_if_pending_order_for_resource_already_exists(
@@ -1105,7 +1109,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
     ):
         # Arrange
         factories.OrderFactory(
-            resource=self.resource, state=models.Order.States.PENDING_CONSUMER
+            resource=self.resource, state=OrderStates.PENDING_CONSUMER
         )
 
         # Act
@@ -1149,7 +1153,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         order = models.Order.objects.get(
             type=models.Order.Types.UPDATE,
-            state=models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
             resource=self.resource,
         )
         marketplace_utils.process_order(order, self.fixture.staff)
@@ -1161,7 +1165,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_update_limit_if_offering_is_paused(self):
-        self.resource.offering.state = models.Offering.States.PAUSED
+        self.resource.offering.state = OfferingStates.PAUSED
         self.resource.offering.save()
         response = self.update_limits(self.fixture.owner, self.resource)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1576,7 +1580,7 @@ class ResourceForceTerminateTest(test.APITransactionTestCase):
     @data("staff")
     def test_user_can_force_terminate_resource(self, user):
         order_state, resource_state = self._terminate_order(user)
-        self.assertEqual(order_state, models.Order.States.ERRED)
+        self.assertEqual(order_state, OrderStates.ERRED)
         self.assertEqual(resource_state, ResourceStates.TERMINATED)
 
     @data(
@@ -1591,7 +1595,7 @@ class ResourceForceTerminateTest(test.APITransactionTestCase):
             self.assertIsNone(order_state)
             self.assertEqual(resource_state, ResourceStates.OK)
         else:
-            self.assertEqual(order_state, models.Order.States.ERRED)
+            self.assertEqual(order_state, OrderStates.ERRED)
             self.assertEqual(resource_state, ResourceStates.ERRED)
 
     def _terminate_order(self, user):

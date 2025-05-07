@@ -14,8 +14,7 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
-from waldur_mastermind.marketplace.models import Order
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace.tests.factories import (
@@ -35,7 +34,7 @@ class OrderReviewByProviderTest(test.APITransactionTestCase):
         self.offering.type = PLUGIN_NAME
         self.offering.save()
         self.order = self.fixture.order
-        self.order.state = marketplace_models.Order.States.PENDING_PROVIDER
+        self.order.state = OrderStates.PENDING_PROVIDER
         self.order.save()
 
         self.fixture.offering_owner
@@ -102,7 +101,7 @@ class LimitsUpdateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, 200, response.data)
         order = marketplace_models.Order.objects.get(uuid=response.data["order_uuid"])
-        self.assertEqual(order.state, marketplace_models.Order.States.EXECUTING)
+        self.assertEqual(order.state, OrderStates.EXECUTING)
         self.assertEqual(order.created_by, user)
         process_order.assert_called_once()
 
@@ -117,7 +116,7 @@ class LimitsUpdateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, 200, response.data)
         order = marketplace_models.Order.objects.get(uuid=response.data["order_uuid"])
-        self.assertEqual(order.state, marketplace_models.Order.States.EXECUTING)
+        self.assertEqual(order.state, OrderStates.EXECUTING)
         self.assertEqual(order.created_by, user)
         process_order.assert_called_once()
 
@@ -133,7 +132,7 @@ class LimitsUpdateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, 200, response.data)
         order = marketplace_models.Order.objects.get(uuid=response.data["order_uuid"])
-        self.assertEqual(order.state, marketplace_models.Order.States.PENDING_PROVIDER)
+        self.assertEqual(order.state, OrderStates.PENDING_PROVIDER)
         process_order.assert_not_called()
 
 
@@ -156,7 +155,7 @@ class OrderPullTest(test.APITransactionTestCase):
             project=fixture.project,
             offering=offering,
             resource=self.resource,
-            state=Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
             backend_id=self.backend_id,
         )
 
@@ -184,7 +183,7 @@ class OrderPullTest(test.APITransactionTestCase):
 
         # Assert
         self.order.refresh_from_db()
-        self.assertEqual(self.order.state, Order.States.DONE)
+        self.assertEqual(self.order.state, OrderStates.DONE)
 
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.state, ResourceStates.OK)
@@ -198,7 +197,7 @@ class OrderPullTest(test.APITransactionTestCase):
 
         # Assert
         self.order.refresh_from_db()
-        self.assertEqual(self.order.state, Order.States.ERRED)
+        self.assertEqual(self.order.state, OrderStates.ERRED)
         self.assertEqual(self.order.error_message, "Invalid credentials")
 
         self.resource.refresh_from_db()

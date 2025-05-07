@@ -34,7 +34,11 @@ from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, serializers, utils
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.management.commands.export_offering import (
     export_offering,
 )
@@ -59,7 +63,7 @@ class OfferingGetTest(test.APITransactionTestCase):
             shared=True,
             project=self.fixture.project,
             customer=self.fixture.customer,
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
         )
 
     @data("staff", "global_support", "owner", "customer_support", "admin", "manager")
@@ -531,7 +535,7 @@ class OfferingPlansFilterTest(test.APITransactionTestCase):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
         self.offering.shared = True
-        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.state = OfferingStates.ACTIVE
         self.offering.save()
         self.plan = self.fixture.plan
         self.url = factories.OfferingFactory.get_public_url(self.offering)
@@ -929,7 +933,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             offering = models.Offering.objects.filter(
                 customer=self.customer, type=offering_type
             ).get()
-            self.assertEqual(offering.state, models.Offering.States.DRAFT)
+            self.assertEqual(offering.state, OfferingStates.DRAFT)
 
 
 class BaseOfferingUpdateTest(test.APITransactionTestCase):
@@ -942,7 +946,7 @@ class BaseOfferingUpdateTest(test.APITransactionTestCase):
             customer=self.customer,
             project=self.fixture.project,
             shared=True,
-            state=models.Offering.States.DRAFT,
+            state=OfferingStates.DRAFT,
         )
         for role in (
             CustomerRole.OWNER,
@@ -986,9 +990,9 @@ class OfferingUpdateOverviewTest(BaseOfferingUpdateTest):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data(
-        models.Offering.States.ACTIVE,
-        models.Offering.States.PAUSED,
-        models.Offering.States.ARCHIVED,
+        OfferingStates.ACTIVE,
+        OfferingStates.PAUSED,
+        OfferingStates.ARCHIVED,
     )
     def test_owner_can_not_update_offering_in_active_or_paused_state(self, state):
         # Arrange
@@ -999,7 +1003,7 @@ class OfferingUpdateOverviewTest(BaseOfferingUpdateTest):
         response = self.update_overview("owner")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data(models.Offering.States.ACTIVE, models.Offering.States.PAUSED)
+    @data(OfferingStates.ACTIVE, OfferingStates.PAUSED)
     def test_staff_can_update_offering_in_active_or_paused_state(self, state):
         # Arrange
         self.offering.state = state
@@ -1011,7 +1015,7 @@ class OfferingUpdateOverviewTest(BaseOfferingUpdateTest):
 
     def test_staff_can_not_update_offering_in_archived_state(self):
         # Arrange
-        self.offering.state = models.Offering.States.ARCHIVED
+        self.offering.state = OfferingStates.ARCHIVED
         self.offering.save()
 
         # Act
@@ -1060,9 +1064,9 @@ class OfferingUpdateAttributesTest(BaseOfferingUpdateTest):
     @idata(
         product(
             (
-                models.Offering.States.DRAFT,
-                models.Offering.States.ACTIVE,
-                models.Offering.States.PAUSED,
+                OfferingStates.DRAFT,
+                OfferingStates.ACTIVE,
+                OfferingStates.PAUSED,
             ),
             ("staff", "owner", "service_manager"),
         )
@@ -1085,7 +1089,7 @@ class OfferingUpdateAttributesTest(BaseOfferingUpdateTest):
     def test_authorized_user_can_not_update_offering_attributes_in_archived_state(
         self, role
     ):
-        self.offering.state = models.Offering.States.ARCHIVED
+        self.offering.state = OfferingStates.ARCHIVED
         self.offering.save()
 
         response = self.update_attributes({"key": "value"}, role)
@@ -1527,7 +1531,7 @@ class OfferingDeleteTest(test.APITransactionTestCase):
             customer=self.customer,
             project=self.fixture.project,
             shared=True,
-            state=models.Offering.States.DRAFT,
+            state=OfferingStates.DRAFT,
         )
         factories.PlanFactory(offering=self.offering)
         CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_OFFERING)
@@ -1555,7 +1559,7 @@ class OfferingDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_customer_owner_can_not_delete_offering_if_it_is_not_in_draft_state(self):
-        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.state = OfferingStates.ACTIVE
         self.offering.save()
         response = self.delete_offering("owner")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -1565,7 +1569,7 @@ class OfferingDeleteTest(test.APITransactionTestCase):
         )
 
     def test_customer_owner_can_not_delete_offering_if_it_has_resources(self):
-        self.offering.state = models.Offering.States.DRAFT
+        self.offering.state = OfferingStates.DRAFT
         factories.ResourceFactory(offering=self.offering)
         response = self.delete_offering("owner")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -1692,7 +1696,7 @@ class OfferingQuotaTest(test.APITransactionTestCase):
             3,
             category=category,
             customer=provider.customer,
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
         )
         self.assertEqual(3, self.get_usage(category))
 
@@ -1703,7 +1707,7 @@ class OfferingQuotaTest(test.APITransactionTestCase):
             2,
             category=category,
             customer=provider.customer,
-            state=models.Offering.States.DRAFT,
+            state=OfferingStates.DRAFT,
         )
         self.assertEqual(0, self.get_usage(category))
 
@@ -1718,7 +1722,7 @@ class OfferingStateTest(test.APITransactionTestCase):
             customer=self.customer,
             project=self.fixture.project,
             shared=True,
-            state=models.Offering.States.DRAFT,
+            state=OfferingStates.DRAFT,
         )
         self.plan = factories.PlanFactory(offering=self.offering)
 
@@ -1739,7 +1743,7 @@ class OfferingStateTest(test.APITransactionTestCase):
     def test_authorized_user_can_activate_offering(self, user):
         response, offering = self.update_offering_state(user, "activate")
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(offering.state, models.Offering.States.ACTIVE)
+        self.assertEqual(offering.state, OfferingStates.ACTIVE)
 
     def test_validate_offering_has_plans(self):
         self.offering.plans.all().delete()
@@ -1753,50 +1757,50 @@ class OfferingStateTest(test.APITransactionTestCase):
     def test_unauthorized_user_can_not_activate_offering(self, user):
         response, offering = self.update_offering_state(user, "activate")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(offering.state, models.Offering.States.DRAFT)
+        self.assertEqual(offering.state, OfferingStates.DRAFT)
 
     @data("owner", "service_manager")
     def test_authorized_user_can_pause_offering(self, user):
-        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.state = OfferingStates.ACTIVE
         self.offering.save()
 
         response, offering = self.update_offering_state(user, "pause")
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(offering.state, models.Offering.States.PAUSED)
+        self.assertEqual(offering.state, OfferingStates.PAUSED)
 
     @data("customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_pause_offering(self, user):
-        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.state = OfferingStates.ACTIVE
         self.offering.save()
 
         response, offering = self.update_offering_state(user, "pause")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
-        self.assertEqual(offering.state, models.Offering.States.ACTIVE)
+        self.assertEqual(offering.state, OfferingStates.ACTIVE)
 
     @data("owner", "service_manager")
     def test_authorized_user_can_unpause_offering(self, user):
-        self.offering.state = models.Offering.States.PAUSED
+        self.offering.state = OfferingStates.PAUSED
         self.offering.save()
 
         response, offering = self.update_offering_state(user, "unpause")
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(offering.state, models.Offering.States.ACTIVE)
+        self.assertEqual(offering.state, OfferingStates.ACTIVE)
 
     @data("customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_unpause_offering(self, user):
-        self.offering.state = models.Offering.States.PAUSED
+        self.offering.state = OfferingStates.PAUSED
         self.offering.save()
 
         response, offering = self.update_offering_state(user, "unpause")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(offering.state, models.Offering.States.PAUSED)
+        self.assertEqual(offering.state, OfferingStates.PAUSED)
 
     def test_invalid_state(self):
         response, offering = self.update_offering_state("staff", "pause")
         self.assertEqual(
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
-        self.assertEqual(offering.state, models.Offering.States.DRAFT)
+        self.assertEqual(offering.state, OfferingStates.DRAFT)
 
     @data("activate", "pause", "archive")
     def test_offering_state_changing_is_not_available_for_blocked_organization(
@@ -1809,7 +1813,7 @@ class OfferingStateTest(test.APITransactionTestCase):
 
     def test_user_can_provide_paused_reason(self):
         # Arrange
-        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.state = OfferingStates.ACTIVE
         self.offering.save()
 
         # Act
@@ -1831,7 +1835,7 @@ class OfferingStateTest(test.APITransactionTestCase):
     @data("owner", "service_manager")
     def test_authorized_user_can_not_unpause_offering_without_plans(self, user):
         self.plan.delete()
-        self.offering.state = models.Offering.States.PAUSED
+        self.offering.state = OfferingStates.PAUSED
         self.offering.save()
 
         response, offering = self.update_offering_state(user, "unpause")
@@ -1854,14 +1858,10 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.offerings = [
-            factories.OfferingFactory(state=models.Offering.States.ACTIVE),
-            factories.OfferingFactory(state=models.Offering.States.DRAFT),
-            factories.OfferingFactory(
-                state=models.Offering.States.PAUSED, shared=False
-            ),
-            factories.OfferingFactory(
-                state=models.Offering.States.ACTIVE, shared=False
-            ),
+            factories.OfferingFactory(state=OfferingStates.ACTIVE),
+            factories.OfferingFactory(state=OfferingStates.DRAFT),
+            factories.OfferingFactory(state=OfferingStates.PAUSED, shared=False),
+            factories.OfferingFactory(state=OfferingStates.ACTIVE, shared=False),
         ]
         factories.PlanFactory(offering=self.offerings[-1])
 
@@ -1876,7 +1876,7 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
         url = factories.OfferingFactory.get_public_list_url()
         response = self.client.get(url)
         for offering in response.data:
-            self.assertNotEqual(models.Offering.States.DRAFT, offering["state"])
+            self.assertNotEqual(OfferingStates.DRAFT, offering["state"])
 
     def test_anonymous_can_view_offering_scope(self):
         url = factories.OfferingFactory.get_public_url(self.offerings[0])
@@ -1935,7 +1935,7 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
     @data("owner", "customer_support", "admin", "manager")
     def test_private_offerings_are_visible_for_related_user(self, user):
         private_offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE,
+            state=OfferingStates.ACTIVE,
             shared=False,
             customer=self.fixture.customer,
             project=self.fixture.project,
@@ -2096,7 +2096,7 @@ class OfferingThumbnailTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.state = OfferingStates.ACTIVE
         self.offering.save()
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_THUMBNAIL)
         ServiceProviderRole.MANAGER.add_permission(
@@ -2105,13 +2105,13 @@ class OfferingThumbnailTest(test.APITransactionTestCase):
 
     @data("staff")
     def test_staff_can_update_or_delete_thumbnail_of_archived_offering(self, user):
-        self.offering.state = models.Offering.States.ARCHIVED
+        self.offering.state = OfferingStates.ARCHIVED
         self.offering.save()
         self._test_positive(user)
 
     @data("offering_owner", "service_manager", "offering_admin", "offering_manager")
     def test_user_cannot_update_or_delete_thumbnail_of_archived_offering(self, user):
-        self.offering.state = models.Offering.States.ARCHIVED
+        self.offering.state = OfferingStates.ARCHIVED
         self.offering.save()
         self._test_negative(user)
 
@@ -2562,13 +2562,13 @@ class RefreshOfferingUsernamesTest(test.APITransactionTestCase):
 
 class OrderNotificationTest(test.APITransactionTestCase):
     def setUp(self):
-        self.order = factories.OrderFactory(state=models.Order.States.PENDING_PROVIDER)
+        self.order = factories.OrderFactory(state=OrderStates.PENDING_PROVIDER)
 
     @mock.patch(
         "waldur_mastermind.marketplace.tasks.notify_user_that_order_been_rejected.delay"
     )
     def test_notify_user_when_order_rejected(self, mock_notify):
-        self.order.state = models.Order.States.REJECTED
+        self.order.state = OrderStates.REJECTED
         self.order.save()
         mock_notify.assert_called_once_with(self.order.uuid.hex)
 

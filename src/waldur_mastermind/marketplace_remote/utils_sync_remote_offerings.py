@@ -12,6 +12,7 @@ from waldur_api_client.models.public_offering_details import PublicOfferingDetai
 from httpx import TimeoutException
 from waldur_core.core.client import get_waldur_client
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, utils
 from waldur_mastermind.marketplace_remote import models as remote_models
 from waldur_mastermind.marketplace_remote.constants import (
@@ -180,7 +181,7 @@ class RemoteSynchronisationRunner:
         stale_offerings = existing_offerings.exclude(id__in=processed_ids)
 
         if stale_offerings.exists():
-            stale_offerings.update(state=models.Offering.States.ARCHIVED)
+            stale_offerings.update(state=OfferingStates.ARCHIVED)
             for offering in stale_offerings:
                 self.sync.last_output += f"The offering {offering} has been archived as it no longer exists in remote. \n"
                 logger.info(

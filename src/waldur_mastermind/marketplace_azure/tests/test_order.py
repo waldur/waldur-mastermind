@@ -3,9 +3,8 @@ from rest_framework import test
 from waldur_azure import models as azure_models
 from waldur_azure.tests import factories as azure_factories
 from waldur_azure.tests import fixtures as azure_fixtures
-from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_azure import SQL_SERVER_TYPE, VIRTUAL_MACHINE_TYPE
 
@@ -13,14 +12,14 @@ from waldur_mastermind.marketplace_azure import SQL_SERVER_TYPE, VIRTUAL_MACHINE
 class VirtualMachineCreateTest(test.APITransactionTestCase):
     def test_virtual_machine_is_created_when_order_is_processed(self):
         order = self.trigger_virtual_machine_creation()
-        self.assertEqual(order.state, marketplace_models.Order.States.EXECUTING)
+        self.assertEqual(order.state, OrderStates.EXECUTING)
         self.assertTrue(azure_models.VirtualMachine.objects.exists())
 
     def test_request_payload_is_validated(self):
         order = self.trigger_virtual_machine_creation(
             name="Name should not contain spaces"
         )
-        self.assertEqual(order.state, marketplace_models.Order.States.ERRED)
+        self.assertEqual(order.state, OrderStates.ERRED)
 
     def test_virtual_machine_state_is_synchronized(self):
         order = self.trigger_virtual_machine_creation()
@@ -39,7 +38,7 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         self.assertEqual(order.resource.state, ResourceStates.OK)
 
         order.refresh_from_db()
-        self.assertEqual(order.state, marketplace_models.Order.States.DONE)
+        self.assertEqual(order.state, OrderStates.DONE)
 
     def trigger_virtual_machine_creation(self, **kwargs):
         fixture = azure_fixtures.AzureFixture()
@@ -64,7 +63,7 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
             offering=offering,
             attributes=attributes,
             project=fixture.project,
-            state=marketplace_models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
 
         marketplace_utils.process_order(order, fixture.staff)
@@ -76,12 +75,12 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
 class SQLServerCreateTest(test.APITransactionTestCase):
     def test_sql_server_is_created_when_order_is_processed(self):
         order = self.trigger_resource_creation()
-        self.assertEqual(order.state, marketplace_models.Order.States.EXECUTING)
+        self.assertEqual(order.state, OrderStates.EXECUTING)
         self.assertTrue(azure_models.SQLServer.objects.exists())
 
     def test_request_payload_is_validated(self):
         order = self.trigger_resource_creation(name="Name should not contain spaces")
-        self.assertEqual(order.state, marketplace_models.Order.States.ERRED)
+        self.assertEqual(order.state, OrderStates.ERRED)
 
     def test_sql_server_state_is_synchronized(self):
         order = self.trigger_resource_creation()
@@ -100,7 +99,7 @@ class SQLServerCreateTest(test.APITransactionTestCase):
         self.assertEqual(order.resource.state, ResourceStates.OK)
 
         order.refresh_from_db()
-        self.assertEqual(order.state, marketplace_models.Order.States.DONE)
+        self.assertEqual(order.state, OrderStates.DONE)
 
     def trigger_resource_creation(self, **kwargs):
         fixture = azure_fixtures.AzureFixture()
@@ -119,7 +118,7 @@ class SQLServerCreateTest(test.APITransactionTestCase):
             offering=offering,
             attributes=attributes,
             project=fixture.project,
-            state=marketplace_models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
 
         marketplace_utils.process_order(order, fixture.staff)

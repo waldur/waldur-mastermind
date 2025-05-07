@@ -8,6 +8,7 @@ from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import OfferingStates, OrderStates
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, utils
 
 
@@ -38,8 +39,8 @@ def sync_offering_users():
     offerings = marketplace_models.Offering.objects.filter(
         type=PLUGIN_NAME,
         state__in=[
-            marketplace_models.Offering.States.ACTIVE,
-            marketplace_models.Offering.States.PAUSED,
+            OfferingStates.ACTIVE,
+            OfferingStates.PAUSED,
         ],
         plugin_options__service_provider_can_create_offering_user=True,
     ).exclude(
@@ -96,7 +97,7 @@ def send_messages_about_pending_orders():
 
     one_hour_ago = timezone.now() - datetime.timedelta(hours=1)
     pending_orders = marketplace_models.Order.objects.filter(
-        state=marketplace_models.Order.States.PENDING_PROVIDER,
+        state=OrderStates.PENDING_PROVIDER,
         offering__id__in=offering_ids,
         created__lt=one_hour_ago,
     )

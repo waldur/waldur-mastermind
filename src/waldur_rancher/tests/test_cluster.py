@@ -5,7 +5,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.response import Response
 
-from waldur_core.core.models import StateMixin
+from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests.factories import (
     ProjectFactory,
@@ -68,7 +68,7 @@ class ClusterGetTest(test.APITransactionTestCase):
             tenant=self.fixture.tenant,
             service_settings=self.fixture.tenant.service_settings,
             project=project,
-            state=StateMixin.States.OK,
+            state=CoreStates.OK,
         )
         self.client.force_authenticate(admin)
         response = self.client.get(openstack_factories.InstanceFactory.get_url(vm))

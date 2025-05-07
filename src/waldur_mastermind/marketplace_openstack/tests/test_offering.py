@@ -11,6 +11,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.management.commands.load_categories import (
     load_category,
 )
@@ -140,7 +141,7 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
         tenant = self.trigger_offering_creation()
         tenant.delete()
         offering = marketplace_models.Offering.objects.get(type=offering_type)
-        self.assertEqual(offering.state, marketplace_models.Offering.States.ARCHIVED)
+        self.assertEqual(offering.state, OfferingStates.ARCHIVED)
 
     def trigger_offering_creation(self):
         fixture = OpenStackFixture()

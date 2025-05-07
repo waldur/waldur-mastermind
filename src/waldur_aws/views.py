@@ -3,6 +3,7 @@ from rest_framework import decorators, response, status, viewsets
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import validators as core_validators
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import views as structure_views
 
@@ -38,9 +39,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     delete_executor = executors.InstanceDeleteExecutor
     destroy_validators = [
-        core_validators.StateValidator(
-            models.Instance.States.OK, models.Instance.States.ERRED
-        )
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED)
     ]
 
     def perform_create(self, serializer):
@@ -64,7 +63,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         )
 
     start_validators = [
-        core_validators.StateValidator(models.Instance.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator("stopped"),
     ]
     start_serializer_class = EmptySerializer
@@ -78,7 +77,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         )
 
     stop_validators = [
-        core_validators.StateValidator(models.Instance.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator("running"),
     ]
     stop_serializer_class = EmptySerializer
@@ -92,7 +91,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         )
 
     restart_validators = [
-        core_validators.StateValidator(models.Instance.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator("running"),
     ]
     restart_serializer_class = EmptySerializer
@@ -110,7 +109,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
             {"status": _("resize was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
-    resize_validators = [core_validators.StateValidator(models.Instance.States.OK)]
+    resize_validators = [core_validators.StateValidator(CoreStates.OK)]
     resize_serializer_class = serializers.AwsInstanceResizeSerializer
 
 

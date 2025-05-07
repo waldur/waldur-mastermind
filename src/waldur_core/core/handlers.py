@@ -5,8 +5,9 @@ from django.forms import model_to_dict
 from rest_framework.authtoken.models import Token
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.log import event_logger
-from waldur_core.core.models import StateMixin, User
+from waldur_core.core.models import User
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure.managers import get_connected_customers
 from waldur_core.structure.models import Customer
@@ -33,7 +34,7 @@ def preserve_fields_before_update(sender, instance, **kwargs):
 
 def delete_error_message(sender, instance, name, source, target, **kwargs):
     """Delete error message if instance state changed from erred"""
-    if source != StateMixin.States.ERRED:
+    if source != CoreStates.ERRED:
         return
     instance.error_message = ""
     instance.save(update_fields=["error_message"])

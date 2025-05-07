@@ -7,7 +7,7 @@ from rest_framework.reverse import reverse
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 from .. import PLUGIN_NAME
@@ -39,7 +39,7 @@ class MarketplaceFixture(fixtures.BookingFixture):
         return marketplace_factories.OrderFactory(
             resource=self.resource,
             offering=self.offering,
-            state=marketplace_models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
 
 
@@ -114,7 +114,7 @@ class OrderAcceptTest(test.APITransactionTestCase):
         self.assertEqual(self.fixture.resource.state, ResourceStates.OK)
 
         self.fixture.order.refresh_from_db()
-        self.assertEqual(self.fixture.order.state, marketplace_models.Order.States.DONE)
+        self.assertEqual(self.fixture.order.state, OrderStates.DONE)
 
     def test_owner_cannot_accept_other_owners_resources(self):
         response = self.accept(MarketplaceFixture().resource)
@@ -160,7 +160,7 @@ class OrderRejectTest(test.APITransactionTestCase):
         self.fixture.order.refresh_from_db()
         self.assertEqual(
             self.fixture.order.state,
-            marketplace_models.Order.States.CANCELED,
+            OrderStates.CANCELED,
         )
 
     def test_owner_cannot_reject_other_owners_resources(self):
@@ -177,7 +177,7 @@ class OrderRejectTest(test.APITransactionTestCase):
         self.fixture.order.refresh_from_db()
         self.assertEqual(
             self.fixture.order.state,
-            marketplace_models.Order.States.CANCELED,
+            OrderStates.CANCELED,
         )
 
 

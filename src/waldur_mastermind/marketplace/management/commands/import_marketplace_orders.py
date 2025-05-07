@@ -6,6 +6,7 @@ from rest_framework import status
 from waldur_core.core.models import User
 from waldur_core.logging.views import EventViewSet
 from waldur_mastermind.common.utils import get_request
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.models import Order, Resource
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,7 @@ def import_orders(find_user=True):
             consumer_reviewed_by=user,
             consumer_reviewed_at=resource.created,
             project=resource.project,
-            state=Order.States.DONE,
+            state=OrderStates.DONE,
         )
     return missing_resources.count()
 

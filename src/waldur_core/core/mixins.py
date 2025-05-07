@@ -12,7 +12,7 @@ from django_fsm import FSMIntegerField
 from model_utils.models import TimeStampedModel
 from rest_framework import response, status
 
-from waldur_core.core import models
+from waldur_core.core.enums import CoreStates, ReviewStates
 
 User = get_user_model()
 
@@ -85,7 +85,7 @@ class DeleteExecutorMixin(AsyncExecutor):
         self.delete_executor.execute(
             instance,
             is_async=self.async_executor,
-            force=instance.state == models.StateMixin.States.ERRED,
+            force=instance.state == CoreStates.ERRED,
         )
         return response.Response(
             {"detail": _("Deletion was scheduled.")}, status=status.HTTP_202_ACCEPTED
@@ -134,29 +134,14 @@ class ReviewStateMixin(django_models.Model):
     class Meta:
         abstract = True
 
-    class States:
-        DRAFT = 1
-        PENDING = 2
-        APPROVED = 3
-        REJECTED = 4
-        CANCELED = 5
-
-        CHOICES = (
-            (DRAFT, "draft"),
-            (PENDING, "pending"),
-            (APPROVED, "approved"),
-            (REJECTED, "rejected"),
-            (CANCELED, "canceled"),
-        )
-
-    state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
+    state = FSMIntegerField(default=ReviewStates.DRAFT, choices=ReviewStates.CHOICES)
 
     def submit(self):
-        self.state = self.States.PENDING
+        self.state = ReviewStates.PENDING
         self.save(update_fields=["state"])
 
     def cancel(self):
-        self.state = self.States.CANCELED
+        self.state = ReviewStates.CANCELED
         self.save(update_fields=["state"])
 
 
@@ -181,7 +166,7 @@ class ReviewMixin(ReviewStateMixin, TimeStampedModel):
         self.reviewed_by = user
         self.review_comment = comment
         self.reviewed_at = timezone.now()
-        self.state = self.States.APPROVED
+        self.state = ReviewStates.APPROVED
         self.save(
             update_fields=["reviewed_by", "reviewed_at", "review_comment", "state"]
         )
@@ -191,14 +176,14 @@ class ReviewMixin(ReviewStateMixin, TimeStampedModel):
         self.reviewed_by = user
         self.review_comment = comment
         self.reviewed_at = timezone.now()
-        self.state = self.States.REJECTED
+        self.state = ReviewStates.REJECTED
         self.save(
             update_fields=["reviewed_by", "reviewed_at", "review_comment", "state"]
         )
 
     @property
     def is_rejected(self):
-        return self.state == self.States.REJECTED
+        return self.state == ReviewStates.REJECTED
 
 
 class GetValueMixin:

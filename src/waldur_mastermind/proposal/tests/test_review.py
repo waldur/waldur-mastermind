@@ -3,6 +3,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models
+from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.tests import fixtures
 
 from . import factories
@@ -250,7 +251,7 @@ class ReviewerGetTest(test.APITransactionTestCase):
         "staff",
     )
     def test_reviewers_counter_should_be_visible(self, user):
-        self.fixture.proposal.state = models.Proposal.States.IN_REVIEW
+        self.fixture.proposal.state = ProposalStates.IN_REVIEW
         self.fixture.review.proposal = self.fixture.proposal
         self.fixture.review.save()
         self.fixture.proposal.save()

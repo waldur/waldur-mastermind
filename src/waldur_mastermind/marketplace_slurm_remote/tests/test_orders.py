@@ -10,7 +10,7 @@ from waldur_core.logging import utils as logging_utils
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, tasks
@@ -33,7 +33,7 @@ class SendMessagesAboutPendingOrdersTest(test.APITransactionTestCase):
             attributes={"name": "item_name", "description": "Description"},
             plan=self.fixture.plan,
             resource=self.fixture.resource,
-            state=marketplace_models.Order.States.PENDING_PROVIDER,
+            state=OrderStates.PENDING_PROVIDER,
         )
         self.event_subscription = logging_factories.EventSubscriptionFactory(
             user=self.fixture.offering_owner,
@@ -66,7 +66,7 @@ class AllocationDeleteTest(test.APITransactionTestCase):
         self.resource = self.fixture.resource
         self.order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
-            state=marketplace_models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
             resource=self.resource,
             type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
         )
@@ -89,7 +89,7 @@ class AllocationDeleteTest(test.APITransactionTestCase):
         # since deletion is handled by the agent
         self.assertEqual(
             self.order.state,
-            marketplace_models.Order.States.EXECUTING,
+            OrderStates.EXECUTING,
             f"Order {self.order.id} should be EXECUTING, but got {self.order.state}",
         )
         self.assertEqual(
@@ -113,7 +113,7 @@ class AllocationDeleteTest(test.APITransactionTestCase):
         # After deletion completes, order should be DONE and resource TERMINATED and allocation should not exist
         self.assertEqual(
             self.order.state,
-            marketplace_models.Order.States.DONE,
+            OrderStates.DONE,
             f"Order {self.order.id} should be DONE, but got {self.order.state}",
         )
         self.assertEqual(
@@ -145,7 +145,7 @@ class AllocationCreationFailureTest(test.APITransactionTestCase):
         # Create order in PENDING_PROVIDER state first
         self.order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
-            state=marketplace_models.Order.States.PENDING_PROVIDER,
+            state=OrderStates.PENDING_PROVIDER,
             offering=self.offering,
             type=marketplace_models.RequestTypeMixin.Types.CREATE,
             attributes={"name": "failed-allocation"},
@@ -172,7 +172,7 @@ class AllocationCreationFailureTest(test.APITransactionTestCase):
         # The order should be EXECUTING after being approved by the provider
         self.assertEqual(
             self.order.state,
-            marketplace_models.Order.States.EXECUTING,
+            OrderStates.EXECUTING,
             f"Order {self.order.id} should be EXECUTING, but got {self.order.state}",
         )
 
@@ -209,7 +209,7 @@ class AllocationCreationFailureTest(test.APITransactionTestCase):
         # Order should be ERRED
         self.assertEqual(
             self.order.state,
-            marketplace_models.Order.States.ERRED,
+            OrderStates.ERRED,
             f"Order {self.order.id} should be ERRED, but got {self.order.state}",
         )
 
@@ -273,7 +273,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         termination_orders = marketplace_models.Order.objects.filter(
             resource=self.resource,
             type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
-            state=marketplace_models.Order.States.ERRED,
+            state=OrderStates.ERRED,
         )
         self.assertEqual(
             termination_orders.count(),
@@ -299,14 +299,14 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         failed_create_order = marketplace_factories.OrderFactory(
             resource=self.resource,
             type=marketplace_models.RequestTypeMixin.Types.CREATE,
-            state=marketplace_models.Order.States.ERRED,
+            state=OrderStates.ERRED,
         )
 
         # Create a failed termination order
         failed_termination_order = marketplace_factories.OrderFactory(
             resource=self.resource,
             type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
-            state=marketplace_models.Order.States.ERRED,
+            state=OrderStates.ERRED,
         )
 
         # Assert that the resource is erred
@@ -319,11 +319,9 @@ class AllocationCleanupTest(test.APITransactionTestCase):
 
         # Assert that there are two orders in ERRED state
         self.assertEqual(
-            marketplace_models.Order.objects.filter(
-                state=marketplace_models.Order.States.ERRED
-            ).count(),
+            marketplace_models.Order.objects.filter(state=OrderStates.ERRED).count(),
             2,
-            f"Expected 2 orders in ERRED state, got {marketplace_models.Order.objects.filter(state=marketplace_models.Order.States.ERRED).count()}",
+            f"Expected 2 orders in ERRED state, got {marketplace_models.Order.objects.filter(state=OrderStates.ERRED).count()}",
         )
 
         # Assert that the failed create order and failed termination order are associated with the resource
@@ -345,11 +343,9 @@ class AllocationCleanupTest(test.APITransactionTestCase):
 
         # Assert that the orders are deleted
         self.assertEqual(
-            marketplace_models.Order.objects.filter(
-                state=marketplace_models.Order.States.ERRED
-            ).count(),
+            marketplace_models.Order.objects.filter(state=OrderStates.ERRED).count(),
             0,
-            f"Expected 0 orders in ERRED state, got {marketplace_models.Order.objects.filter(state=marketplace_models.Order.States.ERRED).count()}",
+            f"Expected 0 orders in ERRED state, got {marketplace_models.Order.objects.filter(state=OrderStates.ERRED).count()}",
         )
 
     def test_erred_resource_with_backend_id_and_failed_termination_order_is_not_deleted(
@@ -364,7 +360,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         failed_termination_order = marketplace_factories.OrderFactory(
             resource=self.resource,
             type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
-            state=marketplace_models.Order.States.ERRED,
+            state=OrderStates.ERRED,
         )
 
         # Assert that the resource is erred
@@ -377,18 +373,14 @@ class AllocationCleanupTest(test.APITransactionTestCase):
 
         # Assert that there is only one order in ERRED state and that it is the failed termination order
         self.assertEqual(
-            marketplace_models.Order.objects.filter(
-                state=marketplace_models.Order.States.ERRED
-            ).count(),
+            marketplace_models.Order.objects.filter(state=OrderStates.ERRED).count(),
             1,
-            f"Expected 1 order in ERRED state, got {marketplace_models.Order.objects.filter(state=marketplace_models.Order.States.ERRED).count()}",
+            f"Expected 1 order in ERRED state, got {marketplace_models.Order.objects.filter(state=OrderStates.ERRED).count()}",
         )
         self.assertEqual(
-            marketplace_models.Order.objects.filter(
-                state=marketplace_models.Order.States.ERRED
-            ).first(),
+            marketplace_models.Order.objects.filter(state=OrderStates.ERRED).first(),
             failed_termination_order,
-            f"The order in ERRED state should be the failed termination order, but got {marketplace_models.Order.objects.filter(state=marketplace_models.Order.States.ERRED).first()}",
+            f"The order in ERRED state should be the failed termination order, but got {marketplace_models.Order.objects.filter(state=OrderStates.ERRED).first()}",
         )
 
         # Trigger the cleanup task
@@ -416,7 +408,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         executing_terminate_order = marketplace_factories.OrderFactory(
             resource=self.resource,
             type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
-            state=marketplace_models.Order.States.EXECUTING,
+            state=OrderStates.EXECUTING,
         )
 
         # Assert that the resource is erred
@@ -430,17 +422,17 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         # Assert that there is one order in EXECUTING state and that it is the executing terminate order
         self.assertEqual(
             marketplace_models.Order.objects.filter(
-                state=marketplace_models.Order.States.EXECUTING
+                state=OrderStates.EXECUTING
             ).count(),
             1,
-            f"Expected 1 order in EXECUTING state, got {marketplace_models.Order.objects.filter(state=marketplace_models.Order.States.EXECUTING).count()}",
+            f"Expected 1 order in EXECUTING state, got {marketplace_models.Order.objects.filter(state=OrderStates.EXECUTING).count()}",
         )
         self.assertEqual(
             marketplace_models.Order.objects.filter(
-                state=marketplace_models.Order.States.EXECUTING
+                state=OrderStates.EXECUTING
             ).first(),
             executing_terminate_order,
-            f"The order in EXECUTING state should be the executing terminate order, but got {marketplace_models.Order.objects.filter(state=marketplace_models.Order.States.EXECUTING).first()}",
+            f"The order in EXECUTING state should be the executing terminate order, but got {marketplace_models.Order.objects.filter(state=OrderStates.EXECUTING).first()}",
         )
 
         # Trigger the cleanup task
