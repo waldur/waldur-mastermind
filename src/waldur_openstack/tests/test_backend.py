@@ -587,6 +587,7 @@ class PullPortsTest(BaseBackendTest):
                     "network_id": "network_id",
                     "device_owner": "compute:nova",
                     "admin_state_up": True,
+                    "status": "ACTIVE",
                     "fixed_ips": [
                         {
                             "ip_address": "10.0.0.2",
@@ -671,6 +672,7 @@ class PullPortsTest(BaseBackendTest):
                     "network_id": "network_id",
                     "device_owner": "compute:nova",
                     "admin_state_up": True,
+                    "status": "ACTIVE",
                     "fixed_ips": [],  # Empty fixed_ips array
                     "security_groups": [],
                 }
@@ -699,6 +701,7 @@ class PullPortsTest(BaseBackendTest):
                     "network_id": "network_id",
                     "device_owner": "compute:nova",
                     "admin_state_up": True,
+                    "status": "ACTIVE",
                     "fixed_ips": [
                         {
                             "ip_address": "10.0.0.2",
@@ -745,6 +748,7 @@ class PullPortsTest(BaseBackendTest):
                     "name": "",
                     "description": "",
                     "admin_state_up": True,
+                    "status": "ACTIVE",
                     "network_id": "network_id",
                     "security_groups": [],
                 },
@@ -762,6 +766,7 @@ class PullPortsTest(BaseBackendTest):
                     "name": "",
                     "description": "",
                     "admin_state_up": True,
+                    "status": "ACTIVE",
                     "network_id": "network_id",
                     "security_groups": [],
                 },
@@ -820,6 +825,7 @@ class PullPortsTest(BaseBackendTest):
                     "name": "",
                     "description": "",
                     "admin_state_up": True,
+                    "status": "ACTIVE",
                     "network_id": "network_id",
                     "security_groups": [],
                 }

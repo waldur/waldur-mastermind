@@ -693,6 +693,7 @@ class PullPortsTest(BaseBackendTestCase):
                     "admin_state_up": True,
                     "mac_address": port.mac_address,
                     "security_groups": [],
+                    "status": "ACTIVE",
                     "port_security_enabled": True,
                     **kwargs,
                 }
@@ -705,7 +706,7 @@ class PullPortsTest(BaseBackendTestCase):
     def call_backend(self):
         return self.backend.pull_tenant_ports(self.tenant)
 
-    def test_port_is_created_if_does_not_exists(self):
+    def test_port_is_created_if_does_not_exist(self):
         port = self.port
         self.setup_client(self._get_valid_new_backend_port())
         port.delete()

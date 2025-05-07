@@ -1050,6 +1050,7 @@ class OpenStackBackend(ServiceBackend):
                 "allowed_address_pairs": backend_port.get("allowed_address_pairs", []),
                 "network_id": network_mapping.get(backend_port["network_id"]),
                 "device_id": device_id,
+                "status": backend_port["status"],
                 "admin_state_up": backend_port["admin_state_up"],
                 "device_owner": backend_port.get("device_owner"),
                 "port_security_enabled": backend_port.get(
