@@ -215,6 +215,7 @@ class DataVolumeSerializer(
         allow_null=True,
         required=False,
     )
+    filesystem = serializers.CharField(required=False)
 
     def get_fields(self):
         fields = super().get_fields()

@@ -81,7 +81,7 @@ class CreateNodeTask(core_tasks.Task):
             )
             cloud_init_extra_params.update(
                 {
-                    "vault_secret_path": f"rancher/cluster-{node.cluster.uuid.hex}",
+                    "vault_secret_path": f"secret/rancher/cluster-{node.cluster.uuid.hex}",
                     "vault_role_id": role_id,
                     "vault_role_secret_id": role_secret_id,
                     "vault_addr": f"https://{vault_host}:{vault_port}",

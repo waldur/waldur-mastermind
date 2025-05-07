@@ -115,6 +115,8 @@ def expand_added_nodes(
                     "size": volume["size"],
                     "volume_type": volume.get("volume_type")
                     and volume.get("volume_type").uuid.hex,
+                    "mount_point": volume.get("mount_point"),
+                    "filesystem": volume.get("filesystem"),
                 }
                 for volume in data_volumes
             ],
@@ -126,6 +128,8 @@ def expand_added_nodes(
             rancher_settings,
             existing_names=[n["name"] for n in nodes if n.get("name")],
         )
+
+        node["role"] = role
 
         if ssh_public_key:
             node["initial_data"]["ssh_public_key"] = ssh_public_key.uuid.hex
@@ -218,7 +222,8 @@ def get_node_quota(quota_name, node):
 
 
 def format_disk_id(index):
-    return "/dev/vd" + (chr(ord("a") + index))
+    # TODO: make configurable "sd" and "vd"
+    return "/dev/sd" + (chr(ord("a") + index))
 
 
 def format_node_cloud_config(
@@ -249,10 +254,14 @@ def format_node_cloud_config(
         ]
 
         conf["fs_setup"] = [
-            {"device": format_disk_id(index + 1), "filesystem": "ext4"}
+            {
+                "device": format_disk_id(index + 1),
+                "filesystem": volume.get("filesystem", "ext4"),
+            }
             for index, volume in enumerate(data_volumes)
         ]
-        user_data = yaml.dump(conf)
+        user_data_raw = yaml.dump(conf)
+        user_data = f"#cloud-config\n{user_data_raw}"
 
     return user_data
 
