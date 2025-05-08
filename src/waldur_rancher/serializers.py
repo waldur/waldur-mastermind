@@ -1295,7 +1295,7 @@ class RoleTemplateSerializer(serializers.HyperlinkedModelSerializer):
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
-                "view_name": "keycloak-group-detail",
+                "view_name": "rancher-role-template-detail",
             },
             "settings": {"lookup_field": "uuid"},
         }
