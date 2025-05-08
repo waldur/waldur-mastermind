@@ -107,12 +107,10 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         self.fixture.settings.options["base_subnet_name"] = self.subnet.name
         self.fixture.settings.save()
 
-    def _create_request_(
+    def _create_request(
         self,
         name,
         disk=1024,
-        memory=1,
-        cpu=2,
         add_payload=None,
         install_longhorn=False,
         agent_count=1,
@@ -151,7 +149,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
     @mock.patch("waldur_rancher.executors.core_tasks")
     def test_create_cluster(self, mock_core_tasks):
         self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request_("new-cluster")
+        response = self._create_request("new-cluster")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Cluster.objects.filter(name="new-cluster").exists())
         cluster = models.Cluster.objects.get(name="new-cluster")
@@ -184,7 +182,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 }
             ],
         }
-        response = self._create_request_(
+        response = self._create_request(
             "new-cluster", add_payload={"nodes": utils.format_nodes(default_conf, 3, 1)}
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -194,7 +192,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
 
     def test_node_name_uniqueness(self):
         self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request_(
+        response = self._create_request(
             "new-cluster",
             add_payload={"nodes": utils.format_nodes(self.default_conf, 3, 1)},
         )
@@ -207,7 +205,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
 
     def test_validate_server_node_count(self):
         self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request_(
+        response = self._create_request(
             "new-cluster",
             add_payload={"nodes": utils.format_nodes(self.default_conf, 2, 1)},
         )
@@ -219,7 +217,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
 
     def test_validate_agent_node_count(self):
         self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request_(
+        response = self._create_request(
             "new-cluster",
             add_payload={"nodes": utils.format_nodes(self.default_conf, 3, 0)},
         )
@@ -230,13 +228,13 @@ class ClusterCreateTest(BaseClusterCreateTest):
 
     def test_validate_name_uniqueness(self):
         self.client.force_authenticate(self.fixture.owner)
-        self._create_request_("new-cluster")
-        response = self._create_request_("new-cluster")
+        self._create_request("new-cluster")
+        response = self._create_request("new-cluster")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_validate_name(self):
         self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request_("new_cluster")
+        response = self._create_request("new_cluster")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @mock.patch("waldur_rancher.client.RancherClient._post")
@@ -334,7 +332,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
     @utils.override_plugin_settings(READ_ONLY_MODE=True)
     def test_create_is_disabled_in_read_only_mode(self, mock_core_tasks):
         self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request_("new-cluster")
+        response = self._create_request("new-cluster")
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     @mock.patch("waldur_rancher.executors.core_tasks")
@@ -344,7 +342,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {
             "ssh_public_key": SshPublicKeyFactory.get_url(ssh_public_key),
         }
-        response = self._create_request_("new-cluster", add_payload=payload)
+        response = self._create_request("new-cluster", add_payload=payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         cluster = models.Cluster.objects.get(name="new-cluster")
         self.assertEqual(
@@ -355,7 +353,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
     @mock.patch("waldur_rancher.executors.core_tasks")
     def test_create_cluster_with_longhorn_using_rest(self, mock_core_tasks):
         self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request_("new-cluster", install_longhorn=True)
+        response = self._create_request("new-cluster", install_longhorn=True)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         cluster = models.Cluster.objects.get(name="new-cluster")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -440,7 +438,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 },
             ]
         }
-        response = self._create_request_("new-cluster", add_payload=payload)
+        response = self._create_request("new-cluster", add_payload=payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_validate_security_groups_negative(self):
@@ -461,16 +459,31 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 },
             ]
         }
-        response = self._create_request_("new-cluster", add_payload=payload)
+        response = self._create_request("new-cluster", add_payload=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_default_security_groups_is_used_if_custom_is_not_provided(self):
         self.client.force_authenticate(self.fixture.owner)
-        self._create_request_("new-cluster")
+        self._create_request("new-cluster")
         cluster = models.Cluster.objects.get(name="new-cluster")
         self.assertEqual(
             cluster.node_set.first().initial_data["security_groups"],
             [self.default_security_group.uuid.hex],
+        )
+
+    def test_vm_project_is_saved_in_vm_spec(self):
+        self.client.force_authenticate(self.fixture.owner)
+        project = ProjectFactory(customer=self.fixture.customer)
+        response = self._create_request(
+            "new-cluster", add_payload={"vm_project": ProjectFactory.get_url(project)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        cluster = models.Cluster.objects.get(name="new-cluster")
+        node = cluster.node_set.first()
+        self.assertEqual(cluster.vm_project, project)
+        self.assertEqual(
+            node.initial_data["project"],
+            project.uuid.hex,
         )
 
     def test_custom_security_groups_are_propagated_to_initial_data(self):
@@ -491,7 +504,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 },
             ]
         }
-        response = self._create_request_("new-cluster", add_payload=payload)
+        response = self._create_request("new-cluster", add_payload=payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         cluster = models.Cluster.objects.get(name="new-cluster")
@@ -508,7 +521,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {
             "ssh_public_key": SshPublicKeyFactory.get_url(ssh_public_key),
         }
-        response = self._create_request_("new-cluster", add_payload=payload)
+        response = self._create_request("new-cluster", add_payload=payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         cluster = models.Cluster.objects.get(name="new-cluster")
         self.assertTrue("ssh_public_key" not in cluster.node_set.first().initial_data)
@@ -533,7 +546,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 }
             ],
         }
-        response = self._create_request_(
+        response = self._create_request(
             "new-cluster", add_payload={"nodes": utils.format_nodes(default_conf, 3, 1)}
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

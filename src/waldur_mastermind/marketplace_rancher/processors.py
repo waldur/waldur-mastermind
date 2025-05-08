@@ -53,6 +53,7 @@ class RancherCreateProcessor(processors.BaseCreateResourceProcessor):
         "ssh_public_key",
         "install_longhorn",
         "security_groups",
+        "vm_project",
     )
 
 
@@ -313,10 +314,11 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 "openstack-tenant-detail", kwargs={"uuid": tenants[0].uuid.hex}
             ),
             "install_longhorn": self.order.attributes.get("install_longhorn", False),
+            "vm_project": reverse("project-detail", kwargs={"uuid": project.uuid.hex}),
         }
 
         order_uuid = submit_creation_order(
-            user, rancher_offering, plan, project, attributes
+            user, rancher_offering, plan, self.order.project, attributes
         )
         wait_for_order(order_uuid)
         return cast(

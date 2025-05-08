@@ -60,6 +60,11 @@ class Cluster(SettingsMixin, BaseResource):
         null=True,
         blank=True,
     )
+    # For Managed Rancher plugin OpenStack VMs are isolated from Rancher nodes
+    vm_project = models.ForeignKey(
+        to=structure_models.Project,
+        on_delete=models.CASCADE,
+    )
 
     node_set: models.Manager["Node"]
 

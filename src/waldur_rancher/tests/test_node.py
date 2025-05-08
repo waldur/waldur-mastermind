@@ -48,7 +48,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     @mock.patch("waldur_rancher.views.executors")
     def test_create_node_if_cluster_has_been_created(self, mock_executors):
         self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request_(name="name")
+        response = self._create_request(name="name")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         cluster = models.Cluster.objects.get(name="name")
         self.assertTrue(mock_executors.ClusterCreateExecutor.execute.called)
@@ -211,7 +211,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     @utils.override_plugin_settings(READ_ONLY_MODE=True)
     def test_create_is_disabled_in_read_only_mode(self):
         self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request_(name="name")
+        response = self._create_request(name="name")
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     @mock.patch("waldur_rancher.executors.tasks")
