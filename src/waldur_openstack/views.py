@@ -747,6 +747,7 @@ class PortViewSet(structure_views.ResourceViewSet):
 
     @extend_schema(
         description="Enable port security for the port",
+        request=None,
         responses={status.HTTP_200_OK: None},
     )
     @decorators.action(detail=True, methods=["post"])
@@ -762,6 +763,7 @@ class PortViewSet(structure_views.ResourceViewSet):
 
     @extend_schema(
         description="Disable port security for the port",
+        request=None,
         responses={status.HTTP_200_OK: None},
     )
     @decorators.action(detail=True, methods=["post"])
@@ -778,6 +780,7 @@ class PortViewSet(structure_views.ResourceViewSet):
 
     @extend_schema(
         description="Enable port.",
+        request=None,
         responses={status.HTTP_200_OK: None},
     )
     @decorators.action(detail=True, methods=["post"])
@@ -793,6 +796,7 @@ class PortViewSet(structure_views.ResourceViewSet):
 
     @extend_schema(
         description="Disable port.",
+        request=None,
         responses={status.HTTP_200_OK: None},
     )
     @decorators.action(detail=True, methods=["post"])
