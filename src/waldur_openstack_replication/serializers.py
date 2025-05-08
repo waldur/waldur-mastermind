@@ -152,6 +152,10 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         src_resource: Resource = attrs["src_resource"]
+        if not src_resource.limits:
+            raise serializers.ValidationError(
+                {"Source resource does not have limits set."}
+            )
         src_tenant: Tenant = src_resource.scope
 
         dst_offering: Resource = attrs["dst_offering"]
@@ -342,7 +346,7 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
         description = validated_data.get("description") or src_resource.description
         src_tenant: Tenant = src_resource.scope
 
-        dst_offering: Resource = validated_data.pop("dst_offering")
+        dst_offering: Offering = validated_data.pop("dst_offering")
         dst_plan: Plan = validated_data.pop("dst_plan")
         dst_settings: ServiceSettings = dst_offering.scope
         dst_project = src_resource.project

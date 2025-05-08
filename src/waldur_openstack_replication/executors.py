@@ -33,9 +33,20 @@ def get_create_ports_tasks(src_tenant, dst_tenant, network_uuids=None):
             if not dst_subnet:
                 continue
 
-            src_ports = src_subnet.ports.exclude(instance__isnull=True).filter(
+            # ports connected to instances
+            instance_ports = src_subnet.ports.exclude(instance__isnull=True).filter(
                 instance__state=openstack_models.Instance.States.OK
             )
+
+            # ports in DOWN state not connected to anything, e.g. for VIPs
+            free_ports = src_subnet.ports.filter(
+                instance__isnull=True,
+                admin_state_up=True,
+                device_owner="compute:nova",
+                status="DOWN",
+            )
+
+            src_ports = (instance_ports | free_ports).distinct()
 
             for src_port in src_ports:
                 dst_port = openstack_models.Port.objects.create(

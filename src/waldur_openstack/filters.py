@@ -104,10 +104,17 @@ class RouterFilter(TenantFilterSet, structure_filters.NameFilterSet):
 
 class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
     o = django_filters.OrderingFilter(fields=(("network__name", "network_name"),))
+    query = django_filters.CharFilter(method="filter_query")
 
     class Meta:
         model = models.Port
         fields = ()
+
+    def filter_query(self, queryset, name, value):
+        query = queryset.filter(
+            Q(fixed_ips__icontains=value) | Q(mac_address__icontains=value)
+        )
+        return query
 
 
 class NetworkFilter(structure_filters.BaseResourceFilter):

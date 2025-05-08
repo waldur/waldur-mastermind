@@ -460,7 +460,6 @@ def create_marketplace_resource_for_imported_resources(
             return
 
         resource.offering = offering
-
         resource.init_cost()
         resource.save()
         import_resource_metadata(resource)
