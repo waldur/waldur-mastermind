@@ -430,6 +430,7 @@ class ResourceFactory(
     backend_metadata = factory.Sequence(backend_metadata_generator)
     name = factory.Sequence(lambda n: "resource-%s" % n)
     state = ResourceStates.CREATING
+    limits = {"storage": 123}
 
     @classmethod
     def get_url(cls, resource=None, action=None):
