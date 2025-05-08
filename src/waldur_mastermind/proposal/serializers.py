@@ -263,7 +263,7 @@ class ProposalReviewSerializer(
             review: models.Review = self.instance
 
         try:
-            request = self.context["view"].request
+            request = self.context["request"]
             user = request.user
         except (KeyError, AttributeError):
             return fields
