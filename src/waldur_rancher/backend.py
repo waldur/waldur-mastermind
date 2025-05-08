@@ -504,6 +504,7 @@ class RancherBackend(ServiceBackend):
             backend_id=backend_id,
             service_settings=self.settings,
             project=project,
+            vm_project=project,
             state=models.Cluster.States.OK,
             runtime_state=backend_cluster["state"],
             settings=self.settings,

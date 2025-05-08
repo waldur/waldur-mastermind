@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import validators as django_validators
 from django.core.exceptions import MultipleObjectsReturned
+from django.db.models import QuerySet
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -355,6 +356,14 @@ class RancherClusterSerializer(
 
     tenant_uuid = serializers.UUIDField(read_only=True, source="tenant.uuid")
 
+    vm_project = serializers.HyperlinkedRelatedField(
+        queryset=Project.objects.all(),
+        view_name="project-detail",
+        lookup_field="uuid",
+        required=False,
+        allow_null=True,
+    )
+
     name = serializers.CharField(
         max_length=150, validators=[validators.ClusterNameValidator]
     )
@@ -384,6 +393,7 @@ class RancherClusterSerializer(
             "nodes",
             "tenant",
             "tenant_uuid",
+            "vm_project",
             "runtime_state",
             "ssh_public_key",
             "install_longhorn",
@@ -408,11 +418,23 @@ class RancherClusterSerializer(
 
     def get_fields(self):
         fields = super().get_fields()
+
         if (
             settings.WALDUR_RANCHER["DISABLE_SSH_KEY_INJECTION"]
             and "ssh_public_key" in fields
         ):
             del fields["ssh_public_key"]
+        try:
+            request = self.context["view"].request
+            user = request.user
+        except (KeyError, AttributeError):
+            return fields
+        if "vm_project" in fields:
+            field = cast(serializers.RelatedField, fields["vm_project"])
+            field.queryset = filter_queryset_for_user(
+                cast(QuerySet, field.queryset), user
+            )
+
         return fields
 
     def validate(self, attrs):
@@ -425,7 +447,8 @@ class RancherClusterSerializer(
         name = attrs["name"]
         service_settings: ServiceSettings = attrs["service_settings"]
         attrs["settings"] = service_settings
-        project: Project = attrs["project"]
+        attrs.setdefault("vm_project", attrs["project"])
+        vm_project: Project = attrs["vm_project"]
         ssh_public_key = attrs.pop("ssh_public_key", None)
 
         clusters = models.Cluster.objects.filter(settings=service_settings, name=name)
@@ -441,7 +464,7 @@ class RancherClusterSerializer(
         utils.expand_added_nodes(
             name,
             nodes,
-            project,
+            vm_project,
             service_settings,
             tenant,
             ssh_public_key,
@@ -598,7 +621,7 @@ class RancherCreateNodeSerializer(
         utils.expand_added_nodes(
             cluster.name,
             [node],
-            cluster.project,
+            cluster.vm_project,
             cluster.service_settings,
             cluster.tenant,
             ssh_public_key,

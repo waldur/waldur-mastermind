@@ -23,6 +23,7 @@ class ClusterFactory(
     settings = factory.SubFactory(RancherServiceSettingsFactory)
     service_settings = factory.SubFactory(RancherServiceSettingsFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
+    vm_project = factory.SubFactory(structure_factories.ProjectFactory)
 
     @classmethod
     def get_url(cls, cluster=None, action=None):
