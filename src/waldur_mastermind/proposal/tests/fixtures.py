@@ -39,8 +39,10 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
             enums.PermissionEnum.MANAGE_PROPOSAL_REVIEW,
         ):
             CallRole.MANAGER.add_permission(perm)
+            self.call_organizer_role.add_permission(perm)
 
         CallRole.REVIEWER.add_permission(enums.PermissionEnum.LIST_PROPOSALS)
+        self.call_organizer_role.add_permission(enums.PermissionEnum.CREATE_CALL)
 
     @cached_property
     def manager(self):
@@ -70,6 +72,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def call_organizer_user(self):
         user = structure_factories.UserFactory()
         self.manager.add_user(user, self.call_organizer_role)
+        self.customer.add_user(user, self.call_organizer_role)
         return user
 
     @cached_property

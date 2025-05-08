@@ -85,7 +85,7 @@ class CallCreateTest(test.APITransactionTestCase):
 
     @data(
         "staff",
-        "call_manager",
+        "call_organizer_user",
     )
     def test_user_can_create_call(self, user):
         response = self.create_call(user)
@@ -100,6 +100,13 @@ class CallCreateTest(test.APITransactionTestCase):
     def test_user_can_not_create_call(self, user):
         response = self.create_call(user)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data(
+        "call_manager",
+    )
+    def test_call_manager_can_not_create_call(self, user):
+        response = self.create_call(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def create_call(self, user):
         user = getattr(self.fixture, user)

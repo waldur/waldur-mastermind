@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
@@ -683,7 +684,16 @@ class ProtectedCallSerializer(PublicCallSerializer):
         return default_project_role
 
     def create(self, validated_data):
-        validated_data["created_by"] = self.context["request"].user
+        request = self.context["request"]
+        customer = validated_data.get("manager", None).customer
+        if not permissions_utils.has_permission(
+            request,
+            permissions_enums.PermissionEnum.CREATE_CALL,
+            customer,
+        ):
+            raise PermissionDenied()
+
+        validated_data["created_by"] = request.user
         return super().create(validated_data)
 
 
