@@ -3475,14 +3475,17 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     def set_as_ok(self, request, uuid=None):
         resource = self.get_object()
 
-        resource.set_state_ok()
-        resource.error_message = ""
-        resource.error_traceback = ""
-        resource.save()
+        if resource.state == ResourceStates.OK:
+            logger.warning("Resource %s is already in OK state", resource)
+        else:
+            resource.set_state_ok()
+            resource.error_message = ""
+            resource.error_traceback = ""
+            resource.save()
 
-        if resource.scope and hasattr(resource.scope, "set_ok"):
-            resource.scope.set_ok()
-            resource.scope.save()
+            if resource.scope and hasattr(resource.scope, "set_ok"):
+                resource.scope.set_ok()
+                resource.scope.save()
 
         return Response(status=status.HTTP_200_OK)
 
