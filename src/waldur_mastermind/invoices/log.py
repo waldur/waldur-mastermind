@@ -78,8 +78,8 @@ class CreditLogger(EventLogger):
     minimal_consumption = decimal.Decimal
     old_value = int
     new_value = int
-    old_offerings = set
-    new_offerings = set
+    old_offerings = str
+    new_offerings = str
     customer = "structure.Customer"
     project = "structure.Project"
     invoice_item = str
@@ -154,12 +154,19 @@ def log_roll_back_project_credit(customer, project, old_value, new_value):
 
 
 def log_changing_of_offerings(customer, old_offerings, new_offerings):
+    old_offerings_names = (
+        ", ".join([offering.name for offering in old_offerings]) or "none"
+    )
+    new_offerings_names = (
+        ", ".join([offering.name for offering in new_offerings]) or "none"
+    )
+
     event_logger.credit.info(
         "Allowed offerings of {customer_name} have been updated from {old_offerings} to {new_offerings}.",
         event_type="allowed_offerings_have_been_updated",
         event_context={
-            "old_offerings": old_offerings,
-            "new_offerings": new_offerings,
+            "old_offerings": old_offerings_names,
+            "new_offerings": new_offerings_names,
             "customer": customer,
         },
     )
