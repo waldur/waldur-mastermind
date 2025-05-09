@@ -239,20 +239,21 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             settings=os_service_settings, name=worker_data_volume_type_name
         ).first()
 
-        subnet = os_models.SubNet.objects.filter(tenant=tenants[0]).first()
-        if not subnet:
-            raise rf_serializers.ValidationError(
-                f'Subnets for tenant "{tenants[0].name}" not found'
-            )
-
         def format_node(
             flavor: os_models.Flavor,
             role: NodeRoleType,
+            tenant: os_models.Tenant,
             system_volume_size: int,
             system_volume_type: os_models.VolumeType | None,
             data_volume_size: int | None = None,
             data_volume_type: os_models.VolumeType | None = None,
         ):
+            subnet = os_models.SubNet.objects.filter(tenant=tenant).first()
+            if not subnet:
+                raise rf_serializers.ValidationError(
+                    f'Subnets for tenant "{tenant.name}" not found'
+                )
+
             result = {
                 "role": role,
                 "system_volume_size": system_volume_size * 1024,
@@ -261,6 +262,9 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 ),
                 "subnet": reverse(
                     "openstack-subnet-detail", kwargs={"uuid": subnet.uuid.hex}
+                ),
+                "tenant": reverse(
+                    "openstack-tenant-detail", kwargs={"uuid": tenant.uuid.hex}
                 ),
             }
             if storage_mode == STORAGE_MODE_DYNAMIC and system_volume_type is not None:
@@ -283,36 +287,36 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             return result
 
         nodes = []
-        for _ in range(server_nodes_count):
-            nodes.append(
-                format_node(
-                    flavor=server_node_flavor,
-                    role=SERVER_ROLE,
-                    system_volume_size=server_system_volume_size_gb,
-                    system_volume_type=server_system_volume_type,
-                    data_volume_size=server_data_volume_size_gb,
-                    data_volume_type=server_data_volume_type,
-                ),
-            )
+        for tenant in tenants:
+            for _ in range(server_nodes_count):
+                nodes.append(
+                    format_node(
+                        flavor=server_node_flavor,
+                        role=SERVER_ROLE,
+                        tenant=tenant,
+                        system_volume_size=server_system_volume_size_gb,
+                        system_volume_type=server_system_volume_type,
+                        data_volume_size=server_data_volume_size_gb,
+                        data_volume_type=server_data_volume_type,
+                    ),
+                )
 
-        for _ in range(worker_nodes_count):
-            nodes.append(
-                format_node(
-                    flavor=worker_node_flavor,
-                    role=AGENT_ROLE,
-                    system_volume_size=worker_system_volume_size_gb,
-                    system_volume_type=worker_system_volume_type,
-                    data_volume_size=worker_data_volume_size_gb,
-                    data_volume_type=worker_data_volume_type,
-                ),
-            )
+            for _ in range(worker_nodes_count):
+                nodes.append(
+                    format_node(
+                        flavor=worker_node_flavor,
+                        role=AGENT_ROLE,
+                        tenant=tenant,
+                        system_volume_size=worker_system_volume_size_gb,
+                        system_volume_type=worker_system_volume_type,
+                        data_volume_size=worker_data_volume_size_gb,
+                        data_volume_type=worker_data_volume_type,
+                    ),
+                )
 
         attributes = {
             "name": f"k8s-{self.order.resource.slug}",
             "nodes": nodes,
-            "tenant": reverse(
-                "openstack-tenant-detail", kwargs={"uuid": tenants[0].uuid.hex}
-            ),
             "install_longhorn": self.order.attributes.get("install_longhorn", False),
             "vm_project": reverse("project-detail", kwargs={"uuid": project.uuid.hex}),
         }
