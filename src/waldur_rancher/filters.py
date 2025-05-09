@@ -204,7 +204,7 @@ class KeycloakGroupFilter(django_filters.FilterSet):
 
 class KeycloakUserGroupMembershipFilter(django_filters.FilterSet):
     group_uuid = django_filters.UUIDFilter(field_name="group__uuid")
-    scope_type = django_filters.CharFilter(field_name="group__scope_type")
+    scope_type = django_filters.CharFilter(field_name="group__role__scope_type")
     scope_uuid = django_filters.UUIDFilter(field_name="group__scope_uuid")
     role_uuid = django_filters.UUIDFilter(field_name="role__uuid")
     username = django_filters.CharFilter()
