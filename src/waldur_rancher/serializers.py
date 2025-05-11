@@ -1,7 +1,6 @@
 from typing import cast
 
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 from django.core import validators as django_validators
 from django.core.exceptions import MultipleObjectsReturned
 from django.db.models import QuerySet
@@ -327,8 +326,6 @@ class RancherNestedNodeSerializer(RancherBaseNodeSerializer):
         }
         exclude = RancherBaseNodeSerializer.Meta.exclude + (
             "cluster",
-            "object_id",
-            "content_type",
             "name",
         )
 
@@ -573,8 +570,7 @@ class RancherNodeSerializer(serializers.HyperlinkedModelSerializer):
         instance = cast(openstack_models.Instance, attrs["instance"])
 
         if models.Node.objects.filter(
-            object_id=instance.id,
-            content_type=ContentType.objects.get_for_model(instance),
+            instance=instance,
         ).exists():
             raise serializers.ValidationError(
                 {"instance": "The selected instance is already in use."}
@@ -1231,10 +1227,7 @@ def get_rancher_cluster_for_openstack_instance(
     request = serializer.context["request"]
     queryset = filter_queryset_for_user(models.Cluster.objects.all(), request.user)
     try:
-        instance_type = ContentType.objects.get_for_model(scope)
-        if not models.Node.objects.filter(
-            content_type=instance_type, object_id=scope.id
-        ).exists():
+        if not models.Node.objects.filter(instance=scope).exists():
             return
 
         cluster = queryset.filter(tenant=scope.tenant).get()

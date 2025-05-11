@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 def delete_node_if_related_instance_has_been_deleted(sender, instance, **kwargs):
     try:
-        content_type = ContentType.objects.get_for_model(instance)
-        node = models.Node.objects.get(object_id=instance.id, content_type=content_type)
+        node = models.Node.objects.get(instance=instance)
         backend = node.cluster.get_backend()
         backend.delete_node(node)
     except ObjectDoesNotExist:
@@ -42,8 +41,7 @@ def set_error_state_for_node_if_related_instance_deleting_is_failed(
         return
 
     try:
-        content_type = ContentType.objects.get_for_model(instance)
-        node = models.Node.objects.get(object_id=instance.id, content_type=content_type)
+        node = models.Node.objects.get(instance=instance)
     except ObjectDoesNotExist:
         return
 

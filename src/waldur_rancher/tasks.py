@@ -7,7 +7,6 @@ import kubernetes
 import yaml
 from celery import shared_task
 from django.contrib import auth
-from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
 from rest_framework.reverse import reverse
 
@@ -47,7 +46,6 @@ class CreateNodeTask(core_tasks.Task):
 
     def execute(self, instance: models.Node, user_id):
         node = instance
-        content_type = ContentType.objects.get_for_model(openstack_models.Instance)
         flavor = node.initial_data["flavor"]
         system_volume_size = node.initial_data["system_volume_size"]
         system_volume_type = node.initial_data.get("system_volume_type")
@@ -145,8 +143,7 @@ class CreateNodeTask(core_tasks.Task):
         data = cast(dict, response.data)
         instance_uuid = data["uuid"]
         vm = openstack_models.Instance.objects.get(uuid=instance_uuid)
-        node.content_type = content_type
-        node.object_id = vm.id
+        node.instance = vm
         node.state = models.Node.States.CREATING
         node.save()
 
