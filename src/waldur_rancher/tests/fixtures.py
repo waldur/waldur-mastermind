@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from django.utils.functional import cached_property
 
 from waldur_core.core.enums import CoreStates
@@ -45,11 +44,9 @@ class RancherFixture(ProjectFixture):
 
     @cached_property
     def node(self):
-        content_type = ContentType.objects.get_for_model(self.instance)
         return factories.NodeFactory(
             cluster=self.cluster,
-            object_id=self.instance.id,
-            content_type=content_type,
+            instance=self.instance,
             state=models.Node.States.OK,
         )
 

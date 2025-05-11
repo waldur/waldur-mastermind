@@ -102,13 +102,12 @@ class Node(
         REGISTERING = "registering"
         UNAVAILABLE = "unavailable"
 
-    content_type = models.ForeignKey(
-        on_delete=models.CASCADE, to=ContentType, null=True, related_name="+"
+    instance = models.ForeignKey(
+        openstack_models.Instance,
+        on_delete=models.CASCADE,
+        null=True,
+        related_name="+",
     )
-    object_id = models.PositiveIntegerField(null=True)
-    instance = GenericForeignKey(
-        "content_type", "object_id"
-    )  # a virtual machine where will deploy k8s node.
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
     initial_data = models.JSONField(
         blank=True, default=dict, help_text=_("Initial data for instance creating.")
@@ -133,7 +132,7 @@ class Node(
 
     class Meta:
         ordering = ("name",)
-        unique_together = (("content_type", "object_id"), ("cluster", "name"))
+        unique_together = ("cluster", "name")
 
     class Permissions:
         customer_path = "cluster__project__customer"

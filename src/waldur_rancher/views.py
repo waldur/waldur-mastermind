@@ -228,23 +228,18 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     def link_openstack(self, request, uuid=None):
         node: models.Node = self.get_object()
 
-        if node.content_type and node.object_id:
+        if node.instance:
             raise ValidationError(_("Node is already linked to OpenStack instance."))
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         instance = serializer.validated_data["instance"]
-        instance_type = ContentType.objects.get_for_model(instance)
-
-        if models.Node.objects.filter(
-            content_type=instance_type, object_id=instance.id
-        ).exists():
+        if models.Node.objects.filter(instance=instance).exists():
             raise ValidationError(
                 _("OpenStack instance is already linked to another node.")
             )
 
-        node.content_type = instance_type
-        node.object_id = instance.id
+        node.instance = instance
         node.save()
         return response.Response(status=status.HTTP_200_OK)
 
@@ -259,12 +254,11 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     @decorators.action(detail=True, methods=["post"])
     def unlink_openstack(self, request, uuid=None):
         node: models.Node = self.get_object()
-        if not node.content_type or not node.object_id:
+        if not node.instance:
             raise ValidationError(
                 _("Node is not linked to any OpenStack instance yet.")
             )
-        node.content_type = None
-        node.object_id = None
+        node.instance = None
         node.save()
         return response.Response(status=status.HTTP_200_OK)
 
