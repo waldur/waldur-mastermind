@@ -6,7 +6,7 @@ from django.core.exceptions import MultipleObjectsReturned
 from django.db.models import QuerySet
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
-from rest_framework import serializers
+from rest_framework import exceptions, serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
@@ -281,6 +281,13 @@ class RancherBaseNodeSerializer(
     memory = serializers.IntegerField(write_only=True, required=False)
     cpu = serializers.IntegerField(write_only=True, required=False)
     role = serializers.ChoiceField(choices=ROLE_CHOICES)
+    tenant = serializers.HyperlinkedRelatedField(
+        queryset=openstack_models.Tenant.objects.all(),
+        view_name="openstack-tenant-detail",
+        lookup_field="uuid",
+        required=False,
+        write_only=True,
+    )
 
     class Meta:
         model = models.Node
@@ -349,6 +356,7 @@ class RancherClusterSerializer(
         queryset=openstack_models.Tenant.objects.all(),
         view_name="openstack-tenant-detail",
         lookup_field="uuid",
+        required=False,
     )
 
     tenant_uuid = serializers.UUIDField(read_only=True, source="tenant.uuid")
@@ -426,12 +434,12 @@ class RancherClusterSerializer(
             user = request.user
         except (KeyError, AttributeError):
             return fields
-        if "vm_project" in fields:
-            field = cast(serializers.RelatedField, fields["vm_project"])
-            field.queryset = filter_queryset_for_user(
-                cast(QuerySet, field.queryset), user
-            )
-
+        for field in ("vm_project", "tenant"):
+            if field in fields:
+                field = cast(serializers.RelatedField, fields[field])
+                field.queryset = filter_queryset_for_user(
+                    cast(QuerySet, field.queryset), user
+                )
         return fields
 
     def validate(self, attrs):
@@ -454,7 +462,19 @@ class RancherClusterSerializer(
         if clusters.exists():
             raise serializers.ValidationError(_("Name is not unique."))
 
-        tenant: openstack_models.Tenant = attrs["tenant"]
+        tenant: openstack_models.Tenant | None = attrs.get("tenant")
+        if not tenant:
+            for node in nodes:
+                if not node.get("tenant"):
+                    raise exceptions.ValidationError(
+                        "Either cluster or node tenant should be specified."
+                    )
+        else:
+            for node in nodes:
+                if node.get("tenant"):
+                    raise exceptions.ValidationError(
+                        "Either cluster or node tenant should be specified."
+                    )
         security_groups = attrs.pop("security_groups", [])
         if tenant and security_groups:
             _validate_instance_security_groups(security_groups, tenant)
@@ -600,6 +620,8 @@ class RancherCreateNodeSerializer(
             "flavor",
             "data_volumes",
             "ssh_public_key",
+            "tenant",
+            "uuid",
         )
         extra_kwargs = {
             "cluster": {"lookup_field": "uuid", "view_name": "rancher-cluster-detail"}
@@ -610,10 +632,18 @@ class RancherCreateNodeSerializer(
         cluster: models.Cluster = attrs["cluster"]
         ssh_public_key = attrs.pop("ssh_public_key", None)
         node = attrs
-        if not cluster.tenant:
+        node_tenant: openstack_models.Tenant | None = attrs.get("tenant")
+        if (not cluster.tenant and not node_tenant) or (node_tenant and cluster.tenant):
             raise serializers.ValidationError(
-                _("Tenant is not specified for the cluster.")
+                _("Tenant should be specified either for node or cluster.")
             )
+        if node_tenant:
+            vm_ids = cluster.node_set.values_list("instance_id")
+            vms = openstack_models.Instance.objects.filter(id__in=vm_ids)
+            if not vms.filter(tenant=node_tenant.id).exists():
+                raise serializers.ValidationError(
+                    _("Tenant should be one of already connected ones.")
+                )
         utils.expand_added_nodes(
             cluster.name,
             [node],

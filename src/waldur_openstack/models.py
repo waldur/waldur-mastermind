@@ -49,6 +49,7 @@ class Tenant(
     instances: models.Manager["Instance"]
     backups: models.Manager["Backup"]
     network_rbac_policies: models.Manager["NetworkRBACPolicy"]
+    id: int
 
     class Quotas(QuotaModelMixin.Quotas):
         vcpu = QuotaField(default_limit=20, is_backend=True)

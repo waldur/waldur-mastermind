@@ -71,6 +71,25 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
 
     @mock.patch("waldur_rancher.executors.tasks")
+    def test_specify_tenant_for_node(self, mock_tasks):
+        self.client.force_authenticate(self.fixture.staff)
+        self.fixture.cluster.tenant = None
+        self.fixture.cluster.save()
+        self.fixture.node
+        response = self.client.post(
+            self.node_url,
+            {
+                **self.default_conf,
+                "tenant": openstack_factories.TenantFactory.get_url(
+                    self.fixture.tenant
+                ),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        node = models.Node.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(node.initial_data["tenant"], self.fixture.tenant.uuid.hex)
+
+    @mock.patch("waldur_rancher.executors.tasks")
     def test_use_data_volumes(self, mock_tasks):
         volume_type = openstack_factories.VolumeTypeFactory(
             settings=self.tenant.service_settings
