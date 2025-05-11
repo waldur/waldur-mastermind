@@ -107,7 +107,7 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         self.fixture.settings.options["base_subnet_name"] = self.subnet.name
         self.fixture.settings.save()
 
-    def _create_request(
+    def _prepate_request(
         self,
         name,
         disk=1024,
@@ -131,6 +131,20 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
             "install_longhorn": install_longhorn,
         }
         payload.update(add_payload)
+        return payload
+
+    def _create_request(
+        self,
+        name,
+        disk=1024,
+        add_payload=None,
+        install_longhorn=False,
+        agent_count=1,
+        server_count=3,
+    ):
+        payload = self._prepate_request(
+            name, disk, add_payload, install_longhorn, agent_count, server_count
+        )
         return self.client.post(self.url, payload)
 
 
@@ -484,6 +498,52 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.assertEqual(
             node.initial_data["project"],
             project.uuid.hex,
+        )
+
+    def test_when_both_node_and_cluster_tenant_are_specified_error_is_raised(self):
+        self.client.force_authenticate(self.fixture.owner)
+        nodes = utils.format_nodes(self.default_conf, 3, 1)
+        for node in nodes:
+            node["tenant"] = openstack_factories.TenantFactory.get_url(
+                self.fixture.tenant
+            )
+        request = self._prepate_request(
+            "new-cluster",
+            add_payload={"nodes": nodes},
+        )
+        response = self.client.post(self.url, request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_when_both_node_and_cluster_tenant_are_not_specified_error_is_raised(self):
+        self.client.force_authenticate(self.fixture.owner)
+        nodes = utils.format_nodes(self.default_conf, 3, 1)
+        request = self._prepate_request(
+            "new-cluster",
+            add_payload={"nodes": nodes},
+        )
+        del request["tenant"]
+        response = self.client.post(self.url, request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_ok_if_only_node_tenant_is_specified(self):
+        self.client.force_authenticate(self.fixture.owner)
+        nodes = utils.format_nodes(self.default_conf, 3, 1)
+        for node in nodes:
+            node["tenant"] = openstack_factories.TenantFactory.get_url(
+                self.fixture.tenant
+            )
+        request = self._prepate_request(
+            "new-cluster",
+            add_payload={"nodes": nodes},
+        )
+        del request["tenant"]
+        response = self.client.post(self.url, request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        cluster = models.Cluster.objects.get(name="new-cluster")
+        node = cluster.node_set.first()
+        self.assertEqual(
+            node.initial_data["tenant"],
+            self.fixture.tenant.uuid.hex,
         )
 
     def test_custom_security_groups_are_propagated_to_initial_data(self):

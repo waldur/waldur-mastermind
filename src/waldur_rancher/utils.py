@@ -61,27 +61,35 @@ def expand_added_nodes(
     nodes: list[dict],
     project: Project,
     rancher_settings: ServiceSettings,
-    tenant: Tenant,
+    tenant: Tenant | None,
     ssh_public_key: SshPublicKey | None,
     security_groups=None,
 ):
-    valid_images = Image.objects.filter(tenants=tenant)
-    try:
-        base_image_name = rancher_settings.get_option("base_image_name")
-        image = valid_images.get(name=base_image_name)
-    except ObjectDoesNotExist:
-        raise serializers.ValidationError(_("No matching image found."))
-
-    if not security_groups:
-        try:
-            default_security_group = SecurityGroup.objects.get(
-                name="default", tenant=tenant
-            )
-            security_groups = [default_security_group]
-        except ObjectDoesNotExist:
-            raise serializers.ValidationError(_("Default security group is not found."))
-
     for node in nodes:
+        node_tenant = node.pop("tenant", None)
+        if not tenant:
+            tenant = node_tenant
+        if not tenant:
+            raise serializers.ValidationError(
+                "Tenant is not specified for both cluster and node."
+            )
+        valid_images = Image.objects.filter(tenants=tenant)
+        try:
+            base_image_name = rancher_settings.get_option("base_image_name")
+            image = valid_images.get(name=base_image_name)
+        except ObjectDoesNotExist:
+            raise serializers.ValidationError(_("No matching image found."))
+
+        if not security_groups:
+            try:
+                default_security_group = SecurityGroup.objects.get(
+                    name="default", tenant=tenant
+                )
+                security_groups = [default_security_group]
+            except ObjectDoesNotExist:
+                raise serializers.ValidationError(
+                    _("Default security group is not found.")
+                )
         subnet = cast(SubNet, node.pop("subnet"))
         flavor = cast(Flavor, node.pop("flavor"))
         role = cast(NodeRoleType, node.pop("role"))
@@ -134,7 +142,11 @@ def expand_added_nodes(
         if ssh_public_key:
             node["initial_data"]["ssh_public_key"] = ssh_public_key.uuid.hex
 
-    validate_quotas(nodes, tenant, project)
+    if tenant:
+        validate_quotas(nodes, tenant, project)
+    else:
+        for node in nodes:
+            validate_quotas(nodes, node["tenant"], project)
 
 
 def validate_data_volumes(data_volumes, tenant):
