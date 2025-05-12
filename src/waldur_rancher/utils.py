@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_unique_node_name(
-    name, tenant: openstack_models.Tenant, rancher_settings, existing_names=None
+    name, tenant: openstack_models.Tenant, rancher_settings, role, existing_names=None
 ):
     existing_names = existing_names or []
     # This has a potential risk of race condition when requests to create nodes come exactly at the same time.
@@ -47,11 +47,11 @@ def get_unique_node_name(
     names = list(names_instances) + list(names_nodes) + existing_names
 
     i = 1
-    new_name = f"{name}-{i}"
+    new_name = f"{name}-{role}-{i}"
 
     while new_name in names:
         i += 1
-        new_name = f"{name}-{i}"
+        new_name = f"{name}-{role}-{i}"
 
     return new_name
 
@@ -134,6 +134,7 @@ def expand_added_nodes(
             cluster_name + "-rancher-node",
             tenant,
             rancher_settings,
+            role,
             existing_names=[n["name"] for n in nodes if n.get("name")],
         )
 

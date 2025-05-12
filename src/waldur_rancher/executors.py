@@ -73,14 +73,25 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def create_nodes(cls, nodes: QuerySet[models.Node], user: User):
         _tasks = []
-        # schedule first server nodes so that Rancher would be able to register other nodes
-        # TODO: need to assure that also etcd is registered - probably parallel Node creation can be a solution
+        # Schedule all the nodes to be created in parallel
         # TODO: need to validate once controlled deployment is working
         server_nodes = nodes.filter(role=SERVER_ROLE)
-        agent_nodes = nodes.exclude(role=AGENT_ROLE)
+        agent_nodes = nodes.filter(role=AGENT_ROLE)
+        # Create the nodes from the group in parallel and then poll the runtime states
         for group in (server_nodes, agent_nodes):
             for node in group:
-                _tasks.append(NodeCreateExecutor.as_signature(node, user_id=user.id))
+                serialized_instance = core_utils.serialize_instance(node)
+                _tasks.append(
+                    tasks.CreateNodeTask().si(
+                        serialized_instance,
+                        user_id=user.id,
+                    )
+                )
+
+        for group in (server_nodes, agent_nodes):
+            for node in group:
+                serialized_instance = core_utils.serialize_instance(node)
+                _tasks.append(tasks.PollRuntimeStateNodeTask().si(serialized_instance))
         return _tasks
 
 

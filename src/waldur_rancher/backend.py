@@ -78,14 +78,6 @@ users:
     ssh_authorized_keys: []
 
 write_files:
-  - path: /etc/rancher/rke2/config.yaml.template
-    content: |
-      server: https://rancher-aio.cloud.ut.ee:9345
-      token: $RKE_TOKEN
-      cni: cilium
-      node-label:
-        - "node.longhorn.io/create-default-disk=true"
-
   - path: /etc/vault/role-id
     content: |
       {vault_role_id}
@@ -276,18 +268,14 @@ write_files:
         echo "[INFO] Successfully obtained RKE token."
       fi
 
-      # --- Template the secret to RKE config file ---
-
-      envsubst < /etc/rancher/rke2/config.yaml.template > /etc/rancher/rke2/config.yaml
-
       # --- Install RKE2 ---
 
       if [ "$RKE_ROLE" == "server" ]; then
         curl https://get.rke2.io | INSTALL_RKE2_VERSION="v1.31.7+rke2r1" INSTALL_RKE2_TYPE=server sh -s -
-        systemctl enable --now rke2-server
+        # systemctl enable --now rke2-server
+       curl -fL https://rancher-aio.cloud.ut.ee/system-agent-install.sh | sudo sh -s - --server https://rancher-aio.cloud.ut.ee --label 'cattle.io/os=linux' --token $RKE_TOKEN --etcd --controlplane
       else
-        curl https://get.rke2.io | INSTALL_RKE2_VERSION="v1.31.7+rke2r1" INSTALL_RKE2_TYPE=agent sh -s -
-        systemctl enable --now rke2-agent
+        curl -fL https://rancher-aio.cloud.ut.ee/system-agent-install.sh | sudo sh -s - --server https://rancher-aio.cloud.ut.ee --label 'cattle.io/os=linux' --token $RKE_TOKEN --worker
       fi
 
 
@@ -328,9 +316,7 @@ runcmd:
   - systemctl disable podman || echo "podman not found or already disabled"
   - systemctl mask podman || echo "podman not found or already masked"
   - systemctl enable rke2-setup.service
-
   - reboot -h now
-
 """
 
 
@@ -424,10 +410,20 @@ class RancherBackend(ServiceBackend):
                 "password": private_registry_password,
             }
 
+        # TODO: come up with a better solution for version suffix
+        self.client._base_url = self.client._base_url.replace("/v3", "/v1")
         backend_cluster = self.client.create_cluster(
             cluster.name, mtu=mtu, private_registry=private_registry
         )
+        backend_cluster_id = backend_cluster["id"]
+        # as rancher API is not transactional, give it 2s to write cluster state to etcd
+        time.sleep(2)
+        cluster_id = self.client.get_v3_cluster_id(backend_cluster_id)
+        self.client._base_url = self.client._base_url.replace("/v1", "/v3")
+
         self._backend_cluster_to_cluster(backend_cluster, cluster)
+        # Use v3 backend ID as RancherClient supports only v3 API
+        cluster.backend_id = cluster_id
         # as rancher API is not transactional, give it 2s to write cluster state to etcd
         time.sleep(2)
         self.client.create_cluster_registration_token(cluster.backend_id)
@@ -457,9 +453,14 @@ class RancherBackend(ServiceBackend):
         self.client.update_cluster(cluster.backend_id, backend_cluster)
 
     def _backend_cluster_to_cluster(self, backend_cluster, cluster: models.Cluster):
+        cluster_type = backend_cluster.get("type", "")
         cluster.backend_id = backend_cluster["id"]
-        cluster.name = backend_cluster["name"]
-        cluster.runtime_state = backend_cluster["state"]
+        if cluster_type == "provisioning.cattle.io.cluster":
+            cluster.name = backend_cluster["metadata"]["name"]
+            cluster.runtime_state = backend_cluster["metadata"]["state"]["name"]
+        else:
+            cluster.name = backend_cluster["name"]
+            cluster.runtime_state = backend_cluster["state"]
 
     def _cluster_to_backend_cluster(self, cluster: models.Cluster):
         return {"name": cluster.name}

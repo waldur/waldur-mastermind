@@ -114,7 +114,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(self.fixture.cluster.node_set.count(), 2)
         node = self.fixture.cluster.node_set.filter(
-            name="my-cluster-rancher-node-1"
+            name="my-cluster-rancher-node-agent-1"
         ).get()
         self.assertEqual(len(node.initial_data["data_volumes"]), 1)
 
@@ -143,7 +143,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(self.fixture.cluster.node_set.count(), 2)
         node = self.fixture.cluster.node_set.filter(
-            name="my-cluster-rancher-node-1"
+            name="my-cluster-rancher-node-agent-1"
         ).get()
         self.assertEqual(len(node.initial_data["data_volumes"]), 1)
 
@@ -247,7 +247,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(self.fixture.cluster.node_set.count(), 2)
         node = self.fixture.cluster.node_set.filter(
-            name="my-cluster-rancher-node-1"
+            name="my-cluster-rancher-node-agent-1"
         ).get()
         self.assertEqual(node.initial_data["ssh_public_key"], ssh_public_key.uuid.hex)
 

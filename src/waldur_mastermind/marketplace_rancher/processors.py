@@ -153,6 +153,10 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             backend.sync()
             settings.set_ok()
             settings.save()
+        else:
+            marketplace_serializers.update_or_create_service_settings_for_offering(
+                rancher_offering, offering.secret_options
+            )
 
         # Sync plans from the offering to the rancher_offering
         for plan in offering.plans.all():

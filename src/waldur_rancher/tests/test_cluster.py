@@ -259,14 +259,27 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.fixture.settings.save()
         self.fixture.cluster.backend_id = ""
         self.fixture.cluster.save()
+        mock_client_post.return_value = {
+            "id": f"test-namespace/{self.fixture.cluster.name}",
+        }
         backend = self.fixture.cluster.get_backend()
         backend.create_cluster(self.fixture.cluster)
+
         actual = mock_client_post.call_args_list[1][1]["json"]
         self.assertEqual(
             actual,
             {
-                "name": self.fixture.cluster.name,
-                "rancherKubernetesEngineConfig": {"network": {"mtu": 5000}},
+                "type": "provisioning.cattle.io.cluster",
+                "metadata": {
+                    "name": self.fixture.cluster.name,
+                    "namespace": "fleet-default",
+                },
+                "spec": {
+                    "rkeConfig": {
+                        "chartValues": {"rke2-calico": {}},
+                    },
+                    "kubernetesVersion": "v1.31.7+rke2r1",
+                },
             },
         )
 
@@ -279,10 +292,21 @@ class ClusterCreateTest(BaseClusterCreateTest):
             "waldur_rancher.backend.RancherBackend._backend_cluster_to_cluster"
         )
         mock_backend_patch.start()
+        mock_v1_to_v3_patch = mock.patch(
+            "waldur_rancher.client.RancherClient.get_v3_cluster_id"
+        )
+        mock_v1_to_v3 = mock_v1_to_v3_patch.start()
+        mock_v1_to_v3.return_value = "v3_cluster_id"
 
     @mock.patch("waldur_rancher.client.RancherClient._post")
     def test_create_private_cluster(self, mock_client_post):
         self.mock_backend()
+        private_registry_credentials_secret_name = "registryconfig-auth-abc"
+        mock_client_post.side_effect = [
+            None,
+            {"metadata": {"name": private_registry_credentials_secret_name}},
+            {"id": "test-id"},
+        ]
         options = cast(dict, self.fixture.settings.options)
         options.update(
             {
@@ -299,16 +323,38 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.assertEqual(
             mock_client_post.call_args_list[1][1]["json"],
             {
-                "name": self.fixture.cluster.name,
-                "rancherKubernetesEngineConfig": {
-                    "network": {"mtu": 1400},
-                    "privateRegistries": [
-                        {
-                            "url": "http://example.com",
-                            "user": "user",
-                            "password": "1234",
-                        }
-                    ],
+                "type": "kubernetes.io/basic-auth",
+                "metadata": {
+                    "namespace": "fleet-default",
+                    "generateName": "registryconfig-auth-",
+                },
+                "data": {"username": "dXNlcg==", "password": "MTIzNA=="},
+            },
+        )
+        self.assertEqual(
+            mock_client_post.call_args_list[2][1]["json"],
+            {
+                "type": "provisioning.cattle.io.cluster",
+                "metadata": {
+                    "name": self.fixture.cluster.name,
+                    "namespace": "fleet-default",
+                },
+                "spec": {
+                    "rkeConfig": {
+                        "chartValues": {"rke2-calico": {}},
+                        "registries": {
+                            "configs": {
+                                "http://example.com": {
+                                    "authConfigSecretName": private_registry_credentials_secret_name,
+                                    "caBundle": None,
+                                    "insecureSkipVerify": False,
+                                    "tlsSecretName": None,
+                                }
+                            },
+                            "mirrors": {},
+                        },
+                    },
+                    "kubernetesVersion": "v1.31.7+rke2r1",
                 },
             },
         )
