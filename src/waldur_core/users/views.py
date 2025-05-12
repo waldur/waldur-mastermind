@@ -194,7 +194,7 @@ class InvitationViewSet(ProtectedViewSet):
         if has_user(invitation.scope, request.user, invitation.role):
             raise ValidationError(_("User has already the same role in this scope."))
 
-        if invitation.email != request.user.email:
+        if invitation.email.casefold() != request.user.email.casefold():
             if config.ENABLE_STRICT_CHECK_ACCEPTING_INVITATION:
                 raise ValidationError(
                     _("User’s email and email of the invitation are not equal.")
