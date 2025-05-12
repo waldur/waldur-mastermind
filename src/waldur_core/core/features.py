@@ -94,6 +94,8 @@ class UserSection(FeatureSection):
 
     show_slug = Feature("Enable display of slug field in user summary.")
 
+    show_username = Feature("Enable display of username field in user tables.")
+
 
 class MarketplaceSection(FeatureSection):
     class Meta:
