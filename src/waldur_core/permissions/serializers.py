@@ -53,7 +53,8 @@ class RoleDetailsSerializer(RestrictedSerializerMixin, TranslatedModelSerializer
             return fields
 
         if user.is_anonymous or not (user.is_staff or user.is_support):
-            del fields["users_count"]
+            if "users_count" in fields:
+                del fields["users_count"]
 
         return fields
 
