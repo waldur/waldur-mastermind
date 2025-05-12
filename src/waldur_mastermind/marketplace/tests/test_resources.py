@@ -744,11 +744,6 @@ class ResourceUpdateTest(test.APITransactionTestCase):
             self.assertTrue(self.resource.end_date)
             self.assertEqual(self.resource.end_date_requested_by, self.fixture.staff)
 
-    @override_config(ENABLE_RESOURCE_END_DATE=False)
-    def test_user_can_not_update_end_date_if_feature_is_disabled(self):
-        response = self.make_request(self.fixture.staff, {"end_date": "2021-01-01"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
     def test_authorized_user_can_set_current_past_date(self):
         with freeze_time("2020-01-01"):
             response = self.make_request(self.fixture.staff, {"end_date": "2020-01-01"})
@@ -892,13 +887,6 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         return self.client.post(self.url, payload)
 
-    @override_config(ENABLE_RESOURCE_END_DATE=False)
-    def test_user_can_not_update_end_date_if_feature_is_disabled(self):
-        response = self.make_request(
-            self.fixture.offering_owner, {"end_date": "2021-01-01"}
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
     @freeze_time("2020-01-01")
     def test_resource_is_not_used_for_last_3_months_and_end_date_is_7_days_in_future(
         self,
@@ -995,11 +983,6 @@ class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
     def make_request(self, user, payload):
         self.client.force_authenticate(user)
         return self.client.post(self.url, payload)
-
-    @override_config(ENABLE_RESOURCE_END_DATE=False)
-    def test_user_can_not_update_end_date_if_feature_is_disabled(self):
-        response = self.make_request(self.fixture.staff, {"end_date": "2021-01-01"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @freeze_time("2020-01-01")
     @data(

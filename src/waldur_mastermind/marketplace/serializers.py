@@ -4,7 +4,6 @@ from decimal import Decimal
 from typing import Literal
 
 import jwt
-from constance import config
 from dateutil.parser import parse as parse_datetime
 from django import forms
 from django.contrib.auth import get_user_model
@@ -3107,10 +3106,6 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
     def validate_end_date(self, end_date):
         if not end_date:
             return
-        if not config.ENABLE_RESOURCE_END_DATE:
-            raise serializers.ValidationError(
-                {"end_date": _("Update of this field is not allowed.")}
-            )
         if end_date < timezone.datetime.today().date():
             raise serializers.ValidationError(
                 {"end_date": _("Cannot be earlier than the current date.")}
@@ -3134,10 +3129,6 @@ class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
     def validate_end_date(self, end_date):
         if not end_date:
             return
-        if not config.ENABLE_RESOURCE_END_DATE:
-            raise serializers.ValidationError(
-                {"end_date": _("Update of this field is not allowed.")}
-            )
         invoice_threshold = timezone.datetime.today() - datetime.timedelta(days=90)
         if InvoiceItem.objects.filter(
             invoice__created__gt=invoice_threshold, resource=self.instance
