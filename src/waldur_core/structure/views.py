@@ -38,6 +38,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.log import event_logger
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import is_uuid_like
@@ -801,12 +802,10 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
     unsafe_methods_permissions = [permissions.is_administrator]
     update_validators = partial_update_validators = [
-        core_validators.StateValidator(models.BaseResource.States.OK)
+        core_validators.StateValidator(CoreStates.OK)
     ]
     destroy_validators = [
-        core_validators.StateValidator(
-            models.BaseResource.States.OK, models.BaseResource.States.ERRED
-        )
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED)
     ]
 
     pull_serializer_class = EmptySerializer
@@ -826,9 +825,7 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
 
     pull_executor = NotImplemented
     pull_validators = [
-        core_validators.StateValidator(
-            models.BaseResource.States.OK, models.BaseResource.States.ERRED
-        ),
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
         check_resource_backend_id,
     ]
 

@@ -839,7 +839,7 @@ class ActionMethodMixin:
             delete_validators=[],
             update_validators=[
                 core_validators.StateValidator(
-                    models.RequestedOffering.States.REQUESTED
+                    RequestedOfferingStates.REQUESTED
                 )
             ],
         )(self, request, uuid, obj_uuid)

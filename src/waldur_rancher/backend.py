@@ -388,9 +388,7 @@ class RancherBackend(ServiceBackend):
         stale_clusters = models.Cluster.objects.filter(
             settings=self.settings, backend_id__in=stale_ids
         ).exclude(backend_id="")
-        stale_clusters.update(
-            state=models.Cluster.States.ERRED, error_message="Resource is gone."
-        )
+        stale_clusters.update(state=CoreStates.ERRED, error_message="Resource is gone.")
 
     def get_kubeconfig_file(self, cluster: models.Cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
@@ -506,7 +504,7 @@ class RancherBackend(ServiceBackend):
             service_settings=self.settings,
             project=project,
             vm_project=project,
-            state=models.Cluster.States.OK,
+            state=CoreStates.OK,
             runtime_state=backend_cluster["state"],
             settings=self.settings,
         )
@@ -919,7 +917,7 @@ class RancherBackend(ServiceBackend):
     def pull_namespaces(self):
         local_clusters = models.Cluster.objects.filter(settings=self.settings)
         for cluster in local_clusters:
-            if cluster.state == models.Cluster.States.OK:
+            if cluster.state == CoreStates.OK:
                 self.pull_namespaces_for_cluster(cluster)
             else:
                 logger.debug(
@@ -1128,7 +1126,7 @@ class RancherBackend(ServiceBackend):
     def pull_workloads(self):
         local_clusters = models.Cluster.objects.filter(settings=self.settings)
         for cluster in local_clusters:
-            if cluster.state == models.Cluster.States.OK:
+            if cluster.state == CoreStates.OK:
                 self.pull_cluster_workloads(cluster)
             else:
                 logger.debug(
@@ -1232,7 +1230,7 @@ class RancherBackend(ServiceBackend):
     def pull_hpas(self):
         local_clusters = models.Cluster.objects.filter(settings=self.settings)
         for cluster in local_clusters:
-            if cluster.state == models.Cluster.States.OK:
+            if cluster.state == CoreStates.OK:
                 self.pull_cluster_hpas(cluster)
             else:
                 logger.debug(
@@ -1297,7 +1295,7 @@ class RancherBackend(ServiceBackend):
             min_replicas=remote_hpa["minReplicas"],
             max_replicas=remote_hpa["maxReplicas"],
             metrics=remote_hpa["metrics"],
-            state=models.HPA.States.OK,
+            state=CoreStates.OK,
         )
 
     def create_hpa(self, hpa: models.HPA):
@@ -1365,7 +1363,7 @@ class RancherBackend(ServiceBackend):
     def pull_apps(self):
         local_clusters = models.Cluster.objects.filter(settings=self.settings)
         for cluster in local_clusters:
-            if cluster.state == models.Cluster.States.OK:
+            if cluster.state == CoreStates.OK:
                 self.pull_cluster_apps(cluster)
             else:
                 logger.debug(
@@ -1583,7 +1581,7 @@ class RancherBackend(ServiceBackend):
             namespace=namespace,
             template=template,
             name=LONGHORN_NAME,
-            state=models.Application.States.CREATING,
+            state=CoreStates.CREATING,
             runtime_state=application["state"],
             created=application["created"],
             backend_id=application["id"],
@@ -1602,7 +1600,7 @@ class RancherBackend(ServiceBackend):
     def pull_ingresses(self):
         local_clusters = models.Cluster.objects.filter(settings=self.settings)
         for cluster in local_clusters:
-            if cluster.state == models.Cluster.States.OK:
+            if cluster.state == CoreStates.OK:
                 self.pull_cluster_ingresses(cluster)
             else:
                 logger.debug(
@@ -1693,7 +1691,7 @@ class RancherBackend(ServiceBackend):
             cluster=namespace.project.cluster,
             rancher_project=namespace.project,
             rules=remote_ingress["rules"],
-            state=models.Ingress.States.OK,
+            state=CoreStates.OK,
         )
 
     def get_ingress_yaml(self, ingress: models.Ingress):
@@ -1714,7 +1712,7 @@ class RancherBackend(ServiceBackend):
     def pull_services(self):
         local_clusters = models.Cluster.objects.filter(settings=self.settings)
         for cluster in local_clusters:
-            if cluster.state == models.Cluster.States.OK:
+            if cluster.state == CoreStates.OK:
                 self.pull_cluster_services(cluster)
             else:
                 logger.debug(
@@ -1832,7 +1830,7 @@ class RancherBackend(ServiceBackend):
                 namespace=namespace,
                 cluster_ip=remote_service["clusterIp"],
                 selector=remote_service.get("selector"),
-                state=models.Service.States.OK,
+                state=CoreStates.OK,
             )
             local_service.save()
             workloads = [

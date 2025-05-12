@@ -1195,7 +1195,7 @@ class VMwareBackend(ServiceBackend):
             name=backend_disk["label"],
             # Convert disk size from bytes to MiB
             size=backend_disk["capacity"] / 1024 / 1024,
-            state=models.Disk.States.OK,
+            state=CoreStates.OK,
         )
 
     def get_console_url(self, vm):

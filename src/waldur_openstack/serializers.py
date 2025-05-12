@@ -2048,7 +2048,7 @@ class VolumeAttachSerializer(
 
     def validate_instance(self, instance):
         States, RuntimeStates = (
-            models.Instance.States,
+            CoreStates,
             models.Instance.RuntimeStates,
         )
         if instance.state != States.OK or instance.runtime_state not in (

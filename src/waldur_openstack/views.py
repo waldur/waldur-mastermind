@@ -733,9 +733,7 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
 
     set_routes_serializer_class = serializers.OpenStackRouterSetRoutesSerializer
     set_routes_validators = [
-        core_validators.StateValidator(
-            models.Router.States.OK, models.Router.States.ERRED
-        )
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED)
     ]
 
 
@@ -1240,7 +1238,7 @@ class SnapshotViewSet(structure_views.ResourceViewSet):
         return response.Response(serialized_volume.data, status=status.HTTP_201_CREATED)
 
     restore_serializer_class = serializers.OpenStackSnapshotRestorationSerializer
-    restore_validators = [core_validators.StateValidator(models.Snapshot.States.OK)]
+    restore_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
         description="Get a list of snapshot restorations",
@@ -1835,7 +1833,7 @@ class BackupViewSet(structure_views.ResourceViewSet):
             instance_serializer.data, status=status.HTTP_201_CREATED
         )
 
-    restore_validators = [core_validators.StateValidator(models.Backup.States.OK)]
+    restore_validators = [core_validators.StateValidator(CoreStates.OK)]
     restore_serializer_class = serializers.OpenStackBackupRestorationSerializer
 
 

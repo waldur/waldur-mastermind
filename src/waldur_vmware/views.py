@@ -296,7 +296,7 @@ class DiskViewSet(structure_views.ResourceViewSet):
                 raise rf_serializers.ValidationError("Storage quota has been reached.")
 
     extend_validators = [
-        core_validators.StateValidator(models.Disk.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
         validate_total_size,
     ]
     extend_serializer_class = serializers.VmwareDiskExtendSerializer

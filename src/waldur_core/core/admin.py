@@ -413,7 +413,7 @@ class ExecutorAdminAction:
             confirmation = True # if your action requires a confirmation else set False
 
             def validate(self, tenant):
-                if tenant.state != Tenant.States.OK:
+                if tenant.state != CoreStates.OK:
                     raise ValidationError('Tenant has to be in state OK to pull security groups.')
 
         pull_security_groups = PullSecurityGroups()  # this action could be registered as admin action

@@ -2,7 +2,7 @@ from celery import chain
 
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
-from waldur_mastermind.google.models import GoogleCalendar
+from waldur_core.core.enums import CoreStates
 
 from . import tasks
 
@@ -14,13 +14,13 @@ class UpdateExecutor(
 ):
     @classmethod
     def pre_apply(cls, instance, **kwargs):
-        if instance.state != GoogleCalendar.States.CREATION_SCHEDULED:
+        if instance.state != CoreStates.CREATION_SCHEDULED:
             instance.schedule_updating()
         instance.save(update_fields=["state"])
 
     @classmethod
     def _get_state_change_task(cls, instance, serialized_instance):
-        if instance.state == GoogleCalendar.States.CREATION_SCHEDULED:
+        if instance.state == CoreStates.CREATION_SCHEDULED:
             return core_tasks.StateTransitionTask().si(
                 serialized_instance, state_transition="begin_creating"
             )

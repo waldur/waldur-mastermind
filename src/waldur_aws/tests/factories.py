@@ -4,6 +4,7 @@ from factory import fuzzy
 from libcloud.compute.types import NodeState
 
 from waldur_aws import models
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 
@@ -93,7 +94,7 @@ class InstanceFactory(
     )
     region = factory.SubFactory(RegionFactory)
 
-    state = models.Instance.States.OK
+    state = CoreStates.OK
     runtime_state = NodeState.STOPPED
     cores = fuzzy.FuzzyInteger(1, 8, step=2)
     ram = fuzzy.FuzzyInteger(1024, 10240, step=1024)

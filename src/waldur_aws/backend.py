@@ -619,7 +619,7 @@ class AWSBackend(ServiceBackend):
             "disk": self.gb2mb(sum(volumes.values())),
             "created": dateparse.parse_datetime(instance.extra["launch_time"]),
             "region": region.uuid.hex,
-            "state": models.Instance.States.OK,
+            "state": CoreStates.OK,
             "public_ips": instance.public_ips,
             "flavor_name": instance.extra.get("instance_type"),
             "type": get_resource_type(models.Instance),

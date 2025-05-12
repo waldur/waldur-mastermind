@@ -10,6 +10,7 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import permission_factory
@@ -132,8 +133,8 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
             )
 
             if google_calendar.state not in (
-                google_models.GoogleCalendar.States.OK,
-                google_models.GoogleCalendar.States.ERRED,
+                CoreStates.OK,
+                CoreStates.ERRED,
             ):
                 raise ValidationError(_("The calendar cannot be updated."))
         except google_models.GoogleCalendar.DoesNotExist:

@@ -6,6 +6,7 @@ from django.conf import settings as django_settings
 from django.db import transaction
 from django.utils import timezone
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_freeipa import models as freeipa_models
@@ -34,9 +35,7 @@ class SlurmBackend(ServiceBackend):
         )
 
     def pull_resources(self):
-        for allocation in self.get_allocation_queryset().filter(
-            state=models.Allocation.States.OK
-        ):
+        for allocation in self.get_allocation_queryset().filter(state=CoreStates.OK):
             try:
                 logger.debug("About to pull allocation %s", allocation)
                 self.pull_allocation(allocation)

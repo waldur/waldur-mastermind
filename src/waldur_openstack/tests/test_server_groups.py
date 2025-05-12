@@ -3,6 +3,7 @@ from unittest.mock import patch
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_openstack import models
 
 from . import factories, fixtures
@@ -62,7 +63,7 @@ class ServerGroupDeleteTest(BaseServerGroupTest):
             service_settings=self.fixture.settings,
             project=self.fixture.project,
             tenant=self.fixture.tenant,
-            state=models.ServerGroup.States.OK,
+            state=CoreStates.OK,
         )
         self.url = factories.ServerGroupFactory.get_url(self.server_group)
 
@@ -81,7 +82,7 @@ class ServerGroupDeleteTest(BaseServerGroupTest):
             )
 
     def test_server_group_can_be_deleted_from_erred_state(self):
-        self.server_group.state = models.ServerGroup.States.ERRED
+        self.server_group.state = CoreStates.ERRED
         self.server_group.save()
 
         self.client.force_authenticate(self.fixture.admin)

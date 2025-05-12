@@ -681,7 +681,7 @@ class TenantChangePasswordTest(BaseTenantActionsTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_cannot_change_password_if_tenant_is_not_in_OK_state(self):
-        self.tenant.state = self.tenant.States.ERRED
+        self.tenant.state = CoreStates.ERRED
         self.tenant.save()
 
         self.client.force_authenticate(self.fixture.owner)

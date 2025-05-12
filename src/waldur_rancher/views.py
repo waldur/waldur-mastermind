@@ -17,6 +17,7 @@ from rest_framework.permissions import SAFE_METHODS
 from keycloak import exceptions as keycloak_exceptions
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure import exceptions as structure_exceptions
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
@@ -94,7 +95,7 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
         )
 
     update_validators = partial_update_validators = [
-        core_validators.StateValidator(models.Cluster.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
     ]
     destroy_validators = structure_views.ResourceViewSet.destroy_validators + [
         validators.all_cluster_related_vms_can_be_deleted,
@@ -180,7 +181,7 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
 
     create_management_security_group_validators = (
         validators.creation_of_management_security_group_is_available,
-        core_validators.StateValidator(models.Cluster.States.OK),
+        core_validators.StateValidator(CoreStates.OK),
     )
 
 

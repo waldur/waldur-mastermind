@@ -5,6 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
@@ -23,17 +24,19 @@ from . import (
 logger = logging.getLogger(__name__)
 
 
-def create_offering_from_tenant(sender, instance, created=False, **kwargs):
+def create_offering_from_tenant(
+    sender, instance: openstack_models.Tenant, created=False, **kwargs
+):
     if created:
         return
 
     if not instance.tracker.has_changed("state"):
         return
 
-    if instance.tracker.previous("state") != instance.States.CREATING:
+    if instance.tracker.previous("state") != CoreStates.CREATING:
         return
 
-    if instance.state != instance.States.OK:
+    if instance.state != CoreStates.OK:
         return
 
     utils.create_offerings_for_volume_and_instance(instance)

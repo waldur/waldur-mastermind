@@ -189,7 +189,7 @@ class PullSecurityGroupsTest(BaseBackendTestCase):
         original_security_group = factories.SecurityGroupFactory(tenant=self.tenant)
         factories.SecurityGroupRuleFactory(security_group=original_security_group)
         security_group_in_progress = factories.SecurityGroupFactory(
-            state=models.SecurityGroup.States.UPDATING, tenant=self.tenant
+            state=CoreStates.UPDATING, tenant=self.tenant
         )
         factories.SecurityGroupRuleFactory(security_group=security_group_in_progress)
         security_groups = [original_security_group, security_group_in_progress]

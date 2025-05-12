@@ -1,6 +1,7 @@
 import logging
 import time
 
+from waldur_core.core.enums import CoreStates
 from waldur_firecrest.client import FirecrestClient
 
 from .models import Job
@@ -29,7 +30,7 @@ def pull_jobs(api_url, token, service_settings, project):
             defaults={
                 "name": job_details["name"],
                 "runtime_state": job_details["state"],
-                "state": Job.States.OK,
+                "state": CoreStates.OK,
             },
         )
         if created:
@@ -51,12 +52,12 @@ def submit_job(api_url, token, job):
         time.sleep(2)
 
     if task["status"] != "200":
-        job.state = Job.States.ERRED
+        job.state = CoreStates.ERRED
         job.error_message = task["data"]
         job.save()
 
     job_id = task["data"]["jobid"]
     job.backend_id = job_id
     job.report = task["data"]["result"]
-    job.state = Job.States.OK
+    job.state = CoreStates.OK
     job.save()

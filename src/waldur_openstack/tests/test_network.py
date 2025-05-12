@@ -3,7 +3,7 @@ from unittest import mock
 from ddt import data, ddt
 from rest_framework import status, test
 
-from waldur_openstack import models
+from waldur_core.core.enums import CoreStates
 
 from . import factories, fixtures
 
@@ -39,7 +39,7 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
         }
 
     def test_create_subnet_is_not_allowed_when_state_is_not_OK(self):
-        self.fixture.network.state = models.Network.States.ERRED
+        self.fixture.network.state = CoreStates.ERRED
         self.fixture.network.save()
 
         response = self.client.post(self.url)

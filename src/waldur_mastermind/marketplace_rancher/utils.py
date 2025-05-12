@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.reverse import reverse
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
 from waldur_core.core.utils import get_system_robot
 from waldur_core.structure.models import Project
@@ -38,9 +39,9 @@ def wait_for_order(uuid, interval=10, timeout=600):
 
 def is_tenant_ready(uuid):
     tenant = Tenant.objects.get(uuid=uuid)
-    if tenant.state == Tenant.States.ERRED:
+    if tenant.state == CoreStates.ERRED:
         raise RancherException("Tenant is in erred state.")
-    return tenant.state == Tenant.States.OK
+    return tenant.state == CoreStates.OK
 
 
 def wait_for_tenant(uuid, interval=10, timeout=600):

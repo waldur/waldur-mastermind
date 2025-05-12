@@ -1,3 +1,4 @@
+from waldur_core.core.enums import CoreStates
 from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.models import Order
 from waldur_openstack_replication.models import Migration
@@ -9,7 +10,7 @@ def handle_migration_post_save(sender, instance, created, **kwargs):
         return
     if not migration.tracker.has_changed("state"):
         return
-    if migration.state not in (Migration.States.OK, Migration.States.ERRED):
+    if migration.state not in (CoreStates.OK, CoreStates.ERRED):
         return
     Order.objects.create(
         created=migration.created,
@@ -18,7 +19,7 @@ def handle_migration_post_save(sender, instance, created, **kwargs):
         offering=migration.dst_resource.offering,
         project=migration.dst_resource.project,
         limits=migration.dst_resource.limits,
-        state=migration.state == Migration.States.OK
+        state=migration.state == CoreStates.OK
         and OrderStates.DONE
         or OrderStates.ERRED,
         consumer_reviewed_by=migration.created_by,

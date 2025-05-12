@@ -14,7 +14,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack import executors, models, views
 from waldur_openstack.exceptions import OpenStackBackendError
-from waldur_openstack.models import FloatingIP, Port
+from waldur_openstack.models import Port
 from waldur_openstack.tasks import LimitedPerTypeThrottleMixin
 from waldur_openstack.tests import factories, fixtures, helpers
 from waldur_openstack.tests.helpers import (
@@ -287,7 +287,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
     def test_user_can_assign_active_floating_ip(self):
         subnet_url = factories.SubNetFactory.get_url(self.subnet)
         floating_ip = factories.FloatingIPFactory(
-            tenant=self.tenant, runtime_state="ACTIVE", state=FloatingIP.States.OK
+            tenant=self.tenant, runtime_state="ACTIVE", state=CoreStates.OK
         )
         data = self.get_valid_data(
             floating_ips=[
@@ -483,7 +483,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
     def setUp(self):
         super().setUp()
         self.instance = factories.InstanceFactory(
-            state=models.Instance.States.OK,
+            state=CoreStates.OK,
             runtime_state=models.Instance.RuntimeStates.SHUTOFF,
             backend_id="VALID_ID",
         )
@@ -608,11 +608,11 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
 
     def test_instance_cannot_be_deleted_if_it_has_backups(self):
         self.instance = factories.InstanceFactory(
-            state=models.Instance.States.OK,
+            state=CoreStates.OK,
             runtime_state=models.Instance.RuntimeStates.SHUTOFF,
             backend_id="VALID_ID",
         )
-        factories.BackupFactory(instance=self.instance, state=models.Backup.States.OK)
+        factories.BackupFactory(instance=self.instance, state=CoreStates.OK)
         response = self.delete_instance(check_status_code=False)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
 
@@ -767,7 +767,7 @@ class InstanceUpdateFloatingIPsTest(test.APITransactionTestCase):
         self.subnet_url = factories.SubNetFactory.get_url(self.fixture.subnet)
 
     def test_user_can_update_instance_floating_ips(self):
-        self.fixture.floating_ip.state = FloatingIP.States.OK
+        self.fixture.floating_ip.state = CoreStates.OK
         self.fixture.floating_ip.save()
         floating_ip_url = factories.FloatingIPFactory.get_url(self.fixture.floating_ip)
         data = {
@@ -783,7 +783,7 @@ class InstanceUpdateFloatingIPsTest(test.APITransactionTestCase):
         self.assertIn(self.fixture.floating_ip, self.instance.floating_ips)
 
     def test_when_floating_ip_is_attached_action_details_are_updated(self):
-        self.fixture.floating_ip.state = FloatingIP.States.OK
+        self.fixture.floating_ip.state = CoreStates.OK
         self.fixture.floating_ip.save()
         floating_ip_url = factories.FloatingIPFactory.get_url(self.fixture.floating_ip)
         data = {
@@ -929,7 +929,7 @@ class InstanceBackupTest(test.APITransactionTestCase):
 
     def test_user_cannot_backup_unstable_instance(self):
         instance = self.fixture.instance
-        instance.state = models.Instance.States.UPDATING
+        instance.state = CoreStates.UPDATING
         instance.save()
         url = factories.InstanceFactory.get_url(instance, action="backup")
 

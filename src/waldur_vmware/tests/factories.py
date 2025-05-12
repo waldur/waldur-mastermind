@@ -123,7 +123,7 @@ class DiskFactory(
     service_settings = factory.SubFactory(VMwareServiceSettingsFactory)
     project = factory.SubFactory(ProjectFactory)
 
-    state = models.Disk.States.OK
+    state = CoreStates.OK
     size = factory.fuzzy.FuzzyInteger(1, 8, step=1)
     vm = factory.SubFactory(VirtualMachineFactory)
 

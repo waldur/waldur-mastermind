@@ -787,7 +787,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
 
     def test_not_delete_cluster_if_state_is_not_ok(self):
         self.client.force_authenticate(self.fixture.owner)
-        self.fixture.cluster.state = models.Cluster.States.CREATION_SCHEDULED
+        self.fixture.cluster.state = CoreStates.CREATION_SCHEDULED
         self.fixture.cluster.save()
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -826,7 +826,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
     def test_if_instance_has_been_deleted_node_and_cluster_are_deleted(
         self, mock_client
     ):
-        self.fixture.cluster.state = models.Node.States.DELETING
+        self.fixture.cluster.state = CoreStates.DELETING
         self.fixture.cluster.save()
         self.fixture.node.backend_id = "backend_id"
         self.fixture.node.save()

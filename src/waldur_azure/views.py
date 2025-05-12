@@ -122,9 +122,7 @@ class SQLServerViewSet(structure_views.ResourceViewSet):
         }
         return response.Response(payload, status=status.HTTP_202_ACCEPTED)
 
-    create_database_validators = [
-        core_validators.StateValidator(models.SQLServer.States.OK)
-    ]
+    create_database_validators = [core_validators.StateValidator(CoreStates.OK)]
     create_database_serializer_class = serializers.AzureSqlDatabaseCreateSerializer
 
 

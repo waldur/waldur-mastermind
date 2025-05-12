@@ -9,6 +9,7 @@ from django.utils.translation import gettext as _
 from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import SshPublicKey
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.quotas.models import QuotaModelMixin
@@ -286,7 +287,7 @@ def update_cluster_nodes_states(cluster_id):
         old_state = node.state
 
         if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
-            node.state = models.Node.States.OK
+            node.state = CoreStates.OK
         elif (
             node.runtime_state
             in [
@@ -295,9 +296,9 @@ def update_cluster_nodes_states(cluster_id):
             ]
             or not node.runtime_state
         ):
-            node.state = models.Node.States.CREATING
+            node.state = CoreStates.CREATING
         elif node.runtime_state:
-            node.state = models.Node.States.ERRED
+            node.state = CoreStates.ERRED
 
         if old_state != node.state:
             node.save(update_fields=["state"])

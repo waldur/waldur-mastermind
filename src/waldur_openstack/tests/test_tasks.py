@@ -4,6 +4,7 @@ from unittest import mock
 from django.test import TestCase
 from django.utils import timezone
 
+from waldur_core.core.enums import CoreStates
 from waldur_openstack import models, tasks
 
 from . import factories
@@ -14,11 +15,11 @@ TenantQuotas = models.Tenant.Quotas
 class DeleteExpiredBackupsTaskTest(TestCase):
     def setUp(self):
         self.expired_backup1 = factories.BackupFactory(
-            state=models.Backup.States.OK,
+            state=CoreStates.OK,
             kept_until=timezone.now() - timedelta(minutes=1),
         )
         self.expired_backup2 = factories.BackupFactory(
-            state=models.Backup.States.OK,
+            state=CoreStates.OK,
             kept_until=timezone.now() - timedelta(minutes=10),
         )
 
@@ -37,11 +38,11 @@ class DeleteExpiredBackupsTaskTest(TestCase):
 class DeleteExpiredSnapshotsTaskTest(TestCase):
     def setUp(self):
         self.expired_snapshot1 = factories.SnapshotFactory(
-            state=models.Snapshot.States.OK,
+            state=CoreStates.OK,
             kept_until=timezone.now() - timedelta(minutes=1),
         )
         self.expired_snapshot2 = factories.SnapshotFactory(
-            state=models.Snapshot.States.OK,
+            state=CoreStates.OK,
             kept_until=timezone.now() - timedelta(minutes=10),
         )
 

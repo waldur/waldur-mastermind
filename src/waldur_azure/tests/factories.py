@@ -225,7 +225,7 @@ class SQLServerFactory(
     service_settings = factory.SubFactory(AzureServiceSettingsFactory)
     project = factory.SubFactory(ProjectFactory)
     resource_group = factory.SubFactory(ResourceGroupFactory)
-    state = models.SQLServer.States.OK
+    state = CoreStates.OK
 
     @classmethod
     def get_url(cls, instance=None, action=None):
