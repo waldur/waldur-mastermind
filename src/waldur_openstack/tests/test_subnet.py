@@ -1,5 +1,6 @@
 from unittest import mock
 
+from ddt import data, ddt
 from rest_framework import status, test
 
 from . import factories, fixtures
@@ -203,3 +204,69 @@ class SubNetUpdateActionTest(BaseSubNetTest):
         response = self.client.put(self.url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("overlap", str(response.data))
+
+
+@ddt
+class SubNetRBACTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.subnet = self.fixture.subnet
+        self.subnet_2 = factories.SubNetFactory()
+        self.url = factories.SubNetFactory.get_list_url()
+
+    @data("admin", "owner")
+    def test_user_can_filter_subnets_by_connection_type(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        factories.NetworkRBACPolicyFactory(
+            network=self.subnet_2.network, target_tenant=self.fixture.tenant
+        )
+
+        response = self.client.get(
+            self.url, {"tenant_uuid": self.fixture.tenant.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        response = self.client.get(
+            self.url,
+            {"tenant_uuid": self.fixture.tenant.uuid.hex, "direct_only": "true"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.subnet.uuid))
+
+        response = self.client.get(
+            self.url, {"tenant_uuid": self.fixture.tenant.uuid.hex, "rbac_only": "true"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.subnet_2.uuid))
+
+    @data("admin", "owner")
+    def test_user_cannot_update_subnet_shared_via_rbac(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        factories.NetworkRBACPolicyFactory(
+            network=self.subnet_2.network, target_tenant=self.fixture.tenant
+        )
+
+        url = factories.SubNetFactory.get_url(self.subnet_2)
+
+        response = self.client.put(url, {"name": "test_name"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data("admin", "owner")
+    def test_user_can_disconnect_own_subnet_but_not_shared_via_rbac(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        factories.NetworkRBACPolicyFactory(
+            network=self.subnet_2.network, target_tenant=self.fixture.tenant
+        )
+
+        url = factories.SubNetFactory.get_url(self.subnet_2, "disconnect")
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        url = factories.SubNetFactory.get_url(self.subnet, "disconnect")
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)

@@ -235,3 +235,96 @@ class NetworkFieldsFilterTest(BaseNetworkTest):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse("segmentation_id" in response.data)
+
+
+@ddt
+class NetworkRBACTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture_1 = fixtures.OpenStackFixture()
+        self.fixture_2 = fixtures.OpenStackFixture()
+        self.network_1 = self.fixture_1.network
+        self.network_2 = self.fixture_2.network
+        self.url = factories.NetworkFactory.get_list_url()
+
+    @data("admin", "owner")
+    def test_user_can_see_own_networks_and_shared_via_rbac(self, user):
+        self.client.force_authenticate(getattr(self.fixture_1, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        factories.NetworkRBACPolicyFactory(
+            network=self.fixture_2.network, target_tenant=self.fixture_1.tenant
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    @data("admin", "owner")
+    def test_user_can_filter_networks_by_tenant_uuid(self, user):
+        self.client.force_authenticate(getattr(self.fixture_1, user))
+        factories.NetworkRBACPolicyFactory(
+            network=self.fixture_2.network, target_tenant=self.fixture_1.tenant
+        )
+        response = self.client.get(
+            self.url, {"tenant_uuid": self.fixture_1.tenant.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    @data("admin", "owner")
+    def test_user_can_update_own_network_but_not_shared_via_rbac(self, user):
+        self.client.force_authenticate(getattr(self.fixture_1, user))
+        factories.NetworkRBACPolicyFactory(
+            network=self.fixture_2.network, target_tenant=self.fixture_1.tenant
+        )
+        url = factories.NetworkFactory.get_url(self.fixture_1.network)
+        response = self.client.patch(url, {"name": "new"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        url = factories.NetworkFactory.get_url(self.fixture_2.network)
+        response = self.client.patch(url, {"name": "new"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data("admin", "owner")
+    def test_user_can_set_mtu_for_own_network_but_not_shared_via_rbac(self, user):
+        self.client.force_authenticate(getattr(self.fixture_1, user))
+        factories.NetworkRBACPolicyFactory(
+            network=self.fixture_2.network, target_tenant=self.fixture_1.tenant
+        )
+        url = factories.NetworkFactory.get_url(self.fixture_1.network, "set_mtu")
+        response = self.client.post(url, {"mtu": 1234})
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+        url = factories.NetworkFactory.get_url(self.fixture_2.network, "set_mtu")
+        response = self.client.post(url, {"mtu": 1234})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data("admin", "owner")
+    def test_user_can_filter_networks_by_connection_type(self, user):
+        self.client.force_authenticate(getattr(self.fixture_1, user))
+        factories.NetworkRBACPolicyFactory(
+            network=self.fixture_2.network, target_tenant=self.fixture_1.tenant
+        )
+
+        response = self.client.get(
+            self.url,
+            {"tenant_uuid": self.fixture_1.tenant.uuid.hex, "direct_only": "true"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.fixture_1.network.uuid))
+
+        response = self.client.get(
+            self.url,
+            {"tenant_uuid": self.fixture_1.tenant.uuid.hex, "rbac_only": "true"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.fixture_2.network.uuid))
+
+        response = self.client.get(
+            self.url, {"tenant_uuid": self.fixture_1.tenant.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
