@@ -1392,6 +1392,7 @@ class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializ
     group_scope_type = serializers.CharField(
         source="group.role.scope_type", read_only=True
     )
+    group_scope_name = serializers.SerializerMethodField()
 
     class Meta:
         model = models.KeycloakUserGroupMembership
@@ -1406,6 +1407,7 @@ class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializ
             "group_name",
             "group_role",
             "group_scope_type",
+            "group_scope_name",
             "scope_uuid",
             "role",
             "state",
@@ -1470,3 +1472,13 @@ class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializ
         ).first()
         validated_data["group"] = group
         return super().create(validated_data)
+
+    def get_group_scope_name(
+        self, obj: models.KeycloakUserGroupMembership
+    ) -> str | None:
+        """Get the name of the cluster or project"""
+        try:
+            scope, _ = utils.get_keycloak_group_scope_and_settings(obj.group)
+            return scope.name
+        except (models.Cluster.DoesNotExist, models.Project.DoesNotExist):
+            return None
