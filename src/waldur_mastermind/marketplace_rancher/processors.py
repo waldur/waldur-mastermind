@@ -174,144 +174,16 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         worker_nodes_count = self.order.attributes["worker_nodes_count"]
         server_nodes_count = 3  # TODO: Make it configurable
 
-        os_offering = Offering.objects.get(
-            uuid=self.order.attributes["openstack_offering_uuid_list"][0]
-        )
-
-        os_service_settings = cast(ServiceSettings, os_offering.scope)
-
-        worker_node_flavor_name = self.order.attributes["worker_nodes_flavor_name"]
-        worker_node_flavor = os_models.Flavor.objects.get(
-            settings=os_service_settings,
-            name=worker_node_flavor_name,
-        )
-
-        server_flavor_name = offering.plugin_options[
-            "managed_rancher_server_flavor_name"
-        ]
-        server_node_flavor = os_models.Flavor.objects.get(
-            settings=os_service_settings,
-            name=server_flavor_name,
-        )
-
-        server_system_volume_size_gb = offering.plugin_options[
-            "managed_rancher_server_system_volume_size_gb"
-        ]
-        server_system_volume_type_name = offering.plugin_options.get(
-            "managed_rancher_server_system_volume_type_name"
-        )
-
-        server_data_volume_size_gb = offering.plugin_options[
-            "managed_rancher_server_data_volume_size_gb"
-        ]
-        server_data_volume_type_name = offering.plugin_options.get(
-            "managed_rancher_server_data_volume_type_name"
-        )
-
-        worker_system_volume_size_gb = offering.plugin_options[
-            "managed_rancher_worker_system_volume_size_gb"
-        ]
-        worker_system_volume_type_name = offering.plugin_options.get(
-            "managed_rancher_worker_system_volume_type_name"
-        )
-
-        worker_data_volume_size_gb = self.order.attributes[
-            "worker_nodes_data_volume_size"
-        ]
-        worker_data_volume_type_name = self.order.attributes.get(
-            "worker_nodes_data_volume_type_name"
-        )
-
-        storage_mode = (
-            os_offering.plugin_options.get("storage_mode") or STORAGE_MODE_FIXED
-        )
-
-        server_system_volume_type = os_models.VolumeType.objects.filter(
-            settings=os_service_settings, name=server_system_volume_type_name
-        ).first()
-        server_data_volume_type = os_models.VolumeType.objects.filter(
-            settings=os_service_settings, name=server_data_volume_type_name
-        ).first()
-        worker_system_volume_type = os_models.VolumeType.objects.filter(
-            settings=os_service_settings, name=worker_system_volume_type_name
-        ).first()
-        worker_data_volume_type = os_models.VolumeType.objects.filter(
-            settings=os_service_settings, name=worker_data_volume_type_name
-        ).first()
-
-        def format_node(
-            flavor: os_models.Flavor,
-            role: NodeRoleType,
-            tenant: os_models.Tenant,
-            system_volume_size: int,
-            system_volume_type: os_models.VolumeType | None,
-            data_volume_size: int | None = None,
-            data_volume_type: os_models.VolumeType | None = None,
-        ):
-            subnet = os_models.SubNet.objects.filter(tenant=tenant).first()
-            if not subnet:
-                raise rf_serializers.ValidationError(
-                    f'Subnets for tenant "{tenant.name}" not found'
-                )
-
-            result = {
-                "role": role,
-                "system_volume_size": system_volume_size * 1024,
-                "flavor": reverse(
-                    "openstack-flavor-detail", kwargs={"uuid": flavor.uuid.hex}
-                ),
-                "subnet": reverse(
-                    "openstack-subnet-detail", kwargs={"uuid": subnet.uuid.hex}
-                ),
-                "tenant": reverse(
-                    "openstack-tenant-detail", kwargs={"uuid": tenant.uuid.hex}
-                ),
-            }
-            if storage_mode == STORAGE_MODE_DYNAMIC and system_volume_type is not None:
-                result["system_volume_type"] = reverse(
-                    "openstack-volume-type-detail",
-                    kwargs={"uuid": system_volume_type.uuid.hex},
-                )
-            if data_volume_size:
-                data_volume_spec: dict[str, int | str] = {
-                    "size": data_volume_size * 1024,
-                    "mount_point": "/opt/rke2_storage",
-                    "filesystem": "btrfs",
-                }
-                if storage_mode == STORAGE_MODE_DYNAMIC and data_volume_type:
-                    data_volume_spec["volume_type"] = reverse(
-                        "openstack-volume-type-detail",
-                        kwargs={"uuid": data_volume_type.uuid.hex},
-                    )
-                result["data_volumes"] = [data_volume_spec]
-            return result
-
         nodes = []
         for tenant in tenants:
             for _ in range(server_nodes_count):
                 nodes.append(
-                    format_node(
-                        flavor=server_node_flavor,
-                        role=SERVER_ROLE,
-                        tenant=tenant,
-                        system_volume_size=server_system_volume_size_gb,
-                        system_volume_type=server_system_volume_type,
-                        data_volume_size=server_data_volume_size_gb,
-                        data_volume_type=server_data_volume_type,
-                    ),
+                    self.format_node(role=SERVER_ROLE, tenant=tenant),
                 )
 
             for _ in range(worker_nodes_count):
                 nodes.append(
-                    format_node(
-                        flavor=worker_node_flavor,
-                        role=AGENT_ROLE,
-                        tenant=tenant,
-                        system_volume_size=worker_system_volume_size_gb,
-                        system_volume_type=worker_system_volume_type,
-                        data_volume_size=worker_data_volume_size_gb,
-                        data_volume_type=worker_data_volume_type,
-                    ),
+                    self.format_node(role=AGENT_ROLE, tenant=tenant),
                 )
 
         attributes = {
@@ -328,6 +200,109 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         return cast(
             rancher_models.Cluster, Order.objects.get(uuid=order_uuid).resource.scope
         )
+
+    def format_node(
+        self,
+        role: NodeRoleType,
+        tenant: os_models.Tenant,
+    ):
+        rancher_offering = self.order.offering
+        tenant_resource = Resource.objects.get(scope=tenant)
+
+        os_service_settings = cast(ServiceSettings, tenant_resource.offering.scope)
+
+        storage_mode = (
+            tenant_resource.offering.plugin_options.get("storage_mode")
+            or STORAGE_MODE_FIXED
+        )
+
+        if role == SERVER_ROLE:
+            flavor = os_models.Flavor.objects.get(
+                settings=os_service_settings,
+                name=rancher_offering.plugin_options[
+                    "managed_rancher_server_flavor_name"
+                ],
+            )
+
+            system_volume_size = rancher_offering.plugin_options[
+                "managed_rancher_server_system_volume_size_gb"
+            ]
+            data_volume_size = rancher_offering.plugin_options[
+                "managed_rancher_server_data_volume_size_gb"
+            ]
+        else:
+            flavor = os_models.Flavor.objects.get(
+                settings=os_service_settings,
+                name=self.order.attributes["worker_nodes_flavor_name"],
+            )
+
+            system_volume_size = rancher_offering.plugin_options[
+                "managed_rancher_worker_system_volume_size_gb"
+            ]
+            data_volume_size = self.order.attributes["worker_nodes_data_volume_size"]
+
+        subnet = os_models.SubNet.objects.filter(tenant=tenant).first()
+        if not subnet:
+            raise rf_serializers.ValidationError(
+                f'Subnets for tenant "{tenant.name}" not found'
+            )
+
+        result = {
+            "role": role,
+            "system_volume_size": system_volume_size * 1024,
+            "flavor": reverse(
+                "openstack-flavor-detail", kwargs={"uuid": flavor.uuid.hex}
+            ),
+            "subnet": reverse(
+                "openstack-subnet-detail", kwargs={"uuid": subnet.uuid.hex}
+            ),
+            "tenant": reverse(
+                "openstack-tenant-detail", kwargs={"uuid": tenant.uuid.hex}
+            ),
+        }
+        data_volume_spec: dict[str, int | str] = {
+            "size": data_volume_size * 1024,
+            "mount_point": "/opt/rke2_storage",
+            "filesystem": "btrfs",
+        }
+        if storage_mode == STORAGE_MODE_DYNAMIC:
+            if role == SERVER_ROLE:
+                system_volume_type_name = rancher_offering.plugin_options.get(
+                    "managed_rancher_server_system_volume_type_name"
+                )
+
+                data_volume_type_name = rancher_offering.plugin_options.get(
+                    "managed_rancher_server_data_volume_type_name"
+                )
+            else:
+                system_volume_type_name = rancher_offering.plugin_options.get(
+                    "managed_rancher_worker_system_volume_type_name"
+                )
+                data_volume_type_name = self.order.attributes.get(
+                    "worker_nodes_data_volume_type_name"
+                )
+
+            system_volume_type = os_models.VolumeType.objects.filter(
+                settings=os_service_settings,
+                name=system_volume_type_name,
+            ).first()
+            if system_volume_type:
+                result["system_volume_type"] = reverse(
+                    "openstack-volume-type-detail",
+                    kwargs={"uuid": system_volume_type.uuid.hex},
+                )
+
+            data_volume_type = os_models.VolumeType.objects.filter(
+                settings=os_service_settings,
+                name=data_volume_type_name,
+            ).first()
+            if data_volume_type:
+                data_volume_spec["volume_type"] = reverse(
+                    "openstack-volume-type-detail",
+                    kwargs={"uuid": data_volume_type.uuid.hex},
+                )
+        result["data_volumes"] = [data_volume_spec]
+        return result
 
     def create_security_groups(
         self,
