@@ -6,7 +6,7 @@ from django.utils import dateparse, timezone
 from libcloud.common.types import LibcloudError
 from libcloud.compute.drivers.ec2 import (
     NAMESPACE,
-    REGION_DETAILS,
+    REGION_DETAILS_PARTIAL,
     RESOURCE_EXTRA_ATTRIBUTES_MAP,
     EC2NodeDriver,
 )
@@ -276,7 +276,7 @@ class AWSBackend(ServiceBackend):
                     models.Region.objects.filter(
                         backend_id__in=[
                             r
-                            for r, v in REGION_DETAILS.items()
+                            for r, v in REGION_DETAILS_PARTIAL.items()
                             if backend_size.id in v["instance_types"]
                         ]
                     )

@@ -16,7 +16,7 @@ classifiers=[
 
 [tool.poetry.dependencies]
 python = "^3.10,<3.12"
-apache-libcloud = "2.2.1"
+apache-libcloud = "==3.7.0"
 azure-mgmt-compute = "^34.1.0"
 azure-mgmt-network = "^28.1.0"
 azure-mgmt-nspkg = "^3.0.2"
