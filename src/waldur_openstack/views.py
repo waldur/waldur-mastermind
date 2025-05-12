@@ -1,7 +1,10 @@
 import logging
 
 from django.conf import settings
-from django.db.models import Count
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import (
+    Count,
+)
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import (
@@ -22,6 +25,7 @@ from waldur_core.core.serializers import EmptySerializer
 from waldur_core.logging.loggers import event_logger
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -34,7 +38,7 @@ from waldur_core.structure.signals import resource_imported
 from waldur_openstack.apps import OpenStackConfig
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.exceptions import OpenStackBackendError
-from waldur_openstack.models import Instance, Volume
+from waldur_openstack.models import Instance, Network, Volume
 
 from . import executors, filters, models, serializers
 
@@ -832,14 +836,66 @@ class PortViewSet(structure_views.ResourceViewSet):
 
 
 class NetworkViewSet(structure_views.ResourceViewSet):
-    queryset = models.Network.objects.all().order_by("name")
+    queryset = Network.objects.all().order_by("name")
     serializer_class = serializers.OpenStackNetworkSerializer
+    filter_backends = [DjangoFilterBackend]
     filterset_class = filters.NetworkFilter
-
     disabled_actions = ["create"]
     update_executor = executors.NetworkUpdateExecutor
     delete_executor = executors.NetworkDeleteExecutor
     pull_executor = executors.NetworkPullExecutor
+
+    def action_permission_check(request, view, obj=None):
+        if not obj:
+            return
+
+        network = obj
+        if not network.project.has_user(
+            request.user
+        ) and not network.project.customer.has_user(request.user):
+            raise exceptions.PermissionDenied()
+
+    update_permissions = destroy_permissions = set_mtu_permissions = (
+        create_subnet_permissions
+    ) = [action_permission_check]
+
+    @staticmethod
+    def get_related_networks(user):
+        project_ids = UserRole.objects.filter(
+            is_active=True,
+            content_type=ContentType.objects.get_for_model(structure_models.Project),
+            user_id=user.id,
+        ).values_list("object_id", flat=True)
+
+        customer_ids = UserRole.objects.filter(
+            is_active=True,
+            content_type=ContentType.objects.get_for_model(structure_models.Customer),
+            user_id=user.id,
+        ).values_list("object_id", flat=True)
+        org_project_ids = structure_models.Project.objects.filter(
+            customer_id__in=customer_ids
+        ).values_list("id", flat=True)
+
+        all_project_ids = set(project_ids) | set(org_project_ids)
+
+        own_networks = models.Network.objects.filter(project_id__in=all_project_ids)
+        rbac_policies = models.NetworkRBACPolicy.objects.filter(
+            target_tenant__project_id__in=all_project_ids
+        ).values_list("network_id", flat=True)
+        rbac_networks = models.Network.objects.filter(id__in=rbac_policies)
+        return (own_networks | rbac_networks).distinct()
+
+    def get_queryset(self):
+        user: structure_models.User = self.request.user
+        queryset = Network.objects.all().order_by("name")
+
+        if user.is_staff or user.is_support:
+            return queryset
+
+        if not user.is_authenticated:
+            return queryset.none()
+
+        return NetworkViewSet.get_related_networks(user)
 
     @decorators.action(detail=True, methods=["post"])
     def create_subnet(self, request, uuid=None):
@@ -965,12 +1021,26 @@ class NetworkViewSet(structure_views.ResourceViewSet):
 class SubNetViewSet(structure_views.ResourceViewSet):
     queryset = models.SubNet.objects.all().order_by("network")
     serializer_class = serializers.OpenStackSubNetSerializer
+    filter_backends = [DjangoFilterBackend]
     filterset_class = filters.SubNetFilter
 
     disabled_actions = ["create"]
     update_executor = executors.SubNetUpdateExecutor
     delete_executor = executors.SubNetDeleteExecutor
     pull_executor = executors.SubNetPullExecutor
+
+    def get_queryset(self):
+        user: structure_models.User = self.request.user
+        queryset = models.SubNet.objects.all().order_by("network")
+
+        if user.is_staff or user.is_support:
+            return queryset
+
+        if not user.is_authenticated:
+            return queryset.none()
+
+        all_networks = NetworkViewSet.get_related_networks(user)
+        return queryset.filter(network__in=all_networks)
 
     @decorators.action(detail=True, methods=["post"])
     def connect(self, request, uuid=None):

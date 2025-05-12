@@ -117,11 +117,16 @@ class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
         return query
 
 
-class NetworkFilter(structure_filters.BaseResourceFilter):
-    tenant_uuid = django_filters.UUIDFilter(method="filter_tenant", label="Tenant UUID")
-    tenant = core_filters.URLFilter(
-        view_name="openstack-tenant-detail", method="filter_tenant", label="Tenant URL"
-    )
+def filter_tenant_fabric(model):
+    target_tenant_path = ""
+    tenant_path = ""
+
+    if model == models.Network:
+        target_tenant_path = "rbac_policies__target_tenant"
+        tenant_path = "tenant"
+    elif model == models.SubNet:
+        target_tenant_path = "network__rbac_policies__target_tenant"
+        tenant_path = "network__tenant"
 
     def filter_tenant(self, queryset, name, value):
         if name == "tenant":
@@ -134,10 +139,39 @@ class NetworkFilter(structure_filters.BaseResourceFilter):
         except models.Tenant.DoesNotExist:
             return queryset.none()
 
-        direct_networks = queryset.filter(tenant=tenant)
-        rbac_networks = queryset.filter(rbac_policies__target_tenant=tenant)
+        direct_networks = queryset.filter(**{tenant_path: tenant})
+        rbac_networks = queryset.filter(**{target_tenant_path: tenant})
+
+        if self.request.query_params.get("direct_only") == "true":
+            return direct_networks
+
+        if self.request.query_params.get("rbac_only") == "true":
+            return rbac_networks
 
         return (direct_networks | rbac_networks).distinct()
+
+    return filter_tenant
+
+
+class NetworkFilter(structure_filters.BaseResourceFilter):
+    tenant_uuid = django_filters.UUIDFilter(method="filter_tenant", label="Tenant UUID")
+    tenant = core_filters.URLFilter(
+        view_name="openstack-tenant-detail", method="filter_tenant", label="Tenant URL"
+    )
+    direct_only = django_filters.BooleanFilter(
+        method="filter_direct_only", label="Direct only"
+    )
+    rbac_only = django_filters.BooleanFilter(
+        method="filter_rbac_only", label="RBAC only"
+    )
+
+    filter_tenant = filter_tenant_fabric(models.Network)
+
+    def filter_direct_only(self, queryset, name, value):
+        return queryset
+
+    def filter_rbac_only(self, queryset, name, value):
+        return queryset
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Network
@@ -157,22 +191,20 @@ class SubNetFilter(structure_filters.BaseResourceFilter):
     tenant = core_filters.URLFilter(
         view_name="openstack-tenant-detail", method="filter_tenant", label="Tenant URL"
     )
+    direct_only = django_filters.BooleanFilter(
+        method="filter_direct_only", label="Direct only"
+    )
+    rbac_only = django_filters.BooleanFilter(
+        method="filter_rbac_only", label="RBAC only"
+    )
 
-    def filter_tenant(self, queryset, name, value):
-        if name == "tenant":
-            uuid = list(filter(None, value.split("/")))[-1]
-        else:
-            uuid = value
+    filter_tenant = filter_tenant_fabric(models.SubNet)
 
-        try:
-            tenant = models.Tenant.objects.get(uuid=uuid)
-        except models.Tenant.DoesNotExist:
-            return queryset.none()
+    def filter_direct_only(self, queryset, name, value):
+        return queryset
 
-        direct_networks = queryset.filter(network__tenant=tenant)
-        rbac_networks = queryset.filter(network__rbac_policies__target_tenant=tenant)
-
-        return (direct_networks | rbac_networks).distinct()
+    def filter_rbac_only(self, queryset, name, value):
+        return queryset
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.SubNet
