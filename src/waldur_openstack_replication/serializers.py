@@ -80,6 +80,8 @@ class MigrationDetailsSerializer(serializers.ModelSerializer):
             "dst_resource_name",
             "dst_resource_state",
             "state",
+            "error_message",
+            "error_traceback",
         )
 
     mappings = MappingSerializer()
