@@ -2605,7 +2605,9 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     approve_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,
         structure_utils.check_project_end_date,
-        core_validators.StateValidator(OrderStates.PENDING_CONSUMER),
+        core_validators.StateValidator(
+            OrderStates.PENDING_CONSUMER, state_enum=OrderStates
+        ),
     ]
 
     approve_by_consumer_permissions = [
@@ -2665,7 +2667,9 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     approve_by_provider_validators = [
         structure_utils.check_customer_blocked_or_archived,
-        core_validators.StateValidator(OrderStates.PENDING_PROVIDER),
+        core_validators.StateValidator(
+            OrderStates.PENDING_PROVIDER, state_enum=OrderStates
+        ),
     ]
 
     approve_by_provider_permissions = [
@@ -2696,7 +2700,9 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     reject_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,
-        core_validators.StateValidator(OrderStates.PENDING_CONSUMER),
+        core_validators.StateValidator(
+            OrderStates.PENDING_CONSUMER, state_enum=OrderStates
+        ),
     ]
 
     reject_by_consumer_permissions = [permissions.user_can_reject_order_as_consumer]
@@ -2723,7 +2729,9 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     reject_by_provider_validators = [
         structure_utils.check_customer_blocked_or_archived,
-        core_validators.StateValidator(OrderStates.PENDING_PROVIDER),
+        core_validators.StateValidator(
+            OrderStates.PENDING_PROVIDER, state_enum=OrderStates
+        ),
     ]
 
     reject_by_provider_permissions = [
@@ -2757,6 +2765,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             OrderStates.PENDING_CONSUMER,
             OrderStates.PENDING_PROVIDER,
             OrderStates.EXECUTING,
+            state_enum=OrderStates,
         ),
         OfferingTypeValidator(BASIC_PLUGIN_NAME, SUPPORT_PLUGIN_NAME),
     ]
@@ -2777,6 +2786,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             OrderStates.PENDING_CONSUMER,
             OrderStates.PENDING_PROVIDER,
             OrderStates.ERRED,
+            state_enum=OrderStates,
         ),
         OfferingTypeValidator(SLURM_REMOTE_PLUGIN_NAME),
     ]
@@ -2802,6 +2812,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     set_state_done_validators = [
         core_validators.StateValidator(
             OrderStates.EXECUTING,
+            state_enum=OrderStates,
         ),
         OfferingTypeValidator(
             SLURM_REMOTE_PLUGIN_NAME, BASIC_PLUGIN_NAME, SUPPORT_PLUGIN_NAME
@@ -2868,6 +2879,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         core_validators.StateValidator(
             OrderStates.PENDING_CONSUMER,
             OrderStates.PENDING_PROVIDER,
+            state_enum=OrderStates,
         ),
         structure_utils.check_customer_blocked_or_archived,
     ]

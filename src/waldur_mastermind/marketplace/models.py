@@ -1228,25 +1228,24 @@ class Order(
     SafeAttributesMixin,
     TimeStampedModel,
 ):
-    class States(OrderStates):
-        pass
-
     old_plan = models.ForeignKey(
         on_delete=models.CASCADE, to=Plan, related_name="+", null=True, blank=True
     )
     project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project)
     resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource)
-    state = FSMIntegerField(default=States.PENDING_CONSUMER, choices=States.CHOICES)
+    state = FSMIntegerField(
+        default=OrderStates.PENDING_CONSUMER, choices=OrderStates.CHOICES
+    )
     activated = models.DateTimeField(_("activation date"), null=True, blank=True)
     output = models.TextField(blank=True)
     tracker = FieldTracker()
 
-    created_by = models.ForeignKey[core_models.User](
+    created_by = models.ForeignKey(
         on_delete=models.CASCADE,
         to=core_models.User,
         related_name="+",
     )
-    consumer_reviewed_by = models.ForeignKey[core_models.User](
+    consumer_reviewed_by = models.ForeignKey(
         on_delete=models.CASCADE,
         to=core_models.User,
         blank=True,
@@ -1254,7 +1253,7 @@ class Order(
         related_name="+",
     )
     consumer_reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
-    provider_reviewed_by = models.ForeignKey[core_models.User](
+    provider_reviewed_by = models.ForeignKey(
         on_delete=models.CASCADE,
         to=core_models.User,
         blank=True,
@@ -1291,12 +1290,12 @@ class Order(
         self.provider_reviewed_at = timezone.now()
         self.save()
 
-    @transition(field=state, source=States.EXECUTING, target=States.DONE)
+    @transition(field=state, source=OrderStates.EXECUTING, target=OrderStates.DONE)
     def complete(self):
         self.activated = timezone.now()
         self.save()
 
-    @transition(field=state, source="*", target=States.CANCELED)
+    @transition(field=state, source="*", target=OrderStates.CANCELED)
     def cancel(self, termination_comment=None):
         if termination_comment:
             self.termination_comment = termination_comment
@@ -1305,25 +1304,29 @@ class Order(
 
     @transition(
         field=state,
-        source=(States.PENDING_CONSUMER, States.PENDING_PROVIDER),
-        target=States.REJECTED,
+        source=(OrderStates.PENDING_CONSUMER, OrderStates.PENDING_PROVIDER),
+        target=OrderStates.REJECTED,
     )
     def reject(self):
         pass
 
-    @transition(field=state, source="*", target=States.ERRED)
+    @transition(field=state, source="*", target=OrderStates.ERRED)
     def fail(self):
         pass
 
     @transition(
         field=state,
-        source=[States.PENDING_CONSUMER, States.PENDING_PROVIDER, States.ERRED],
-        target=States.EXECUTING,
+        source=[
+            OrderStates.PENDING_CONSUMER,
+            OrderStates.PENDING_PROVIDER,
+            OrderStates.ERRED,
+        ],
+        target=OrderStates.EXECUTING,
     )
     def set_state_executing(self):
         pass
 
-    @transition(field=state, source="*", target=States.ERRED)
+    @transition(field=state, source="*", target=OrderStates.ERRED)
     def set_state_erred(self):
         pass
 

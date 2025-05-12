@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from waldur_mastermind.booking import models as models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 
 from . import PLUGIN_NAME
 
@@ -129,15 +129,14 @@ def get_offering_bookings_and_busy_slots(offering):
 
 
 def get_other_offering_booking_requests(order):
-    States = marketplace_models.Order.States
     schedules = (
         marketplace_models.Order.objects.filter(
             offering=order.offering,
             state__in=(
-                States.PENDING_CONSUMER,
-                States.PENDING_PROVIDER,
-                States.EXECUTING,
-                States.DONE,
+                OrderStates.PENDING_CONSUMER,
+                OrderStates.PENDING_PROVIDER,
+                OrderStates.EXECUTING,
+                OrderStates.DONE,
             ),
         )
         .exclude(id=order.id)
