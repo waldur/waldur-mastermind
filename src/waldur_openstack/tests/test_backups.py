@@ -85,7 +85,7 @@ class BackupPermissionsTest(test.APITransactionTestCase):
         self.backup = factories.BackupFactory(
             tenant=self.fixture.tenant,
             project=self.fixture.project,
-            state=models.Backup.States.OK,
+            state=CoreStates.OK,
             instance=self.instance,
         )
 
@@ -179,7 +179,7 @@ class BackupRestorationTest(test.APITransactionTestCase):
         self.fixture = fixtures.OpenStackFixture()
 
         self.backup = self.fixture.backup
-        self.backup.state = models.Backup.States.OK
+        self.backup.state = CoreStates.OK
         self.backup.save()
         self.url = factories.BackupFactory.get_url(self.backup, "restore")
 

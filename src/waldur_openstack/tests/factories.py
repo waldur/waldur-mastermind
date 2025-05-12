@@ -210,7 +210,7 @@ class NetworkFactory(
     service_settings = factory.SubFactory(SettingsFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
     tenant = factory.SubFactory(TenantFactory)
-    state = models.Network.States.OK
+    state = CoreStates.OK
 
     @classmethod
     def get_url(cls, network=None, action=None):
@@ -333,7 +333,7 @@ class ServerGroupFactory(
     name = factory.Sequence(lambda n: "server_group%s" % n)
     backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
     policy = models.ServerGroup.AFFINITY
-    state = models.ServerGroup.States.OK
+    state = CoreStates.OK
     service_settings = factory.SubFactory(SettingsFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
     tenant = factory.SubFactory(TenantFactory)
@@ -363,7 +363,7 @@ class RouterFactory(
     project = factory.SubFactory(structure_factories.ProjectFactory)
     name = factory.Sequence(lambda n: "router%s" % n)
     backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
-    state = models.Network.States.OK
+    state = CoreStates.OK
 
     @classmethod
     def get_url(cls, router=None, action=None):
@@ -511,7 +511,7 @@ class BackupFactory(
     tenant = factory.SubFactory(TenantFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
     instance = factory.SubFactory(InstanceFactory)
-    state = models.Backup.States.OK
+    state = CoreStates.OK
     kept_until = fuzzy.FuzzyDateTime(
         timezone.datetime(2017, 6, 6, tzinfo=ZoneInfo("UTC"))
     )
@@ -542,7 +542,7 @@ class SnapshotFactory(
     project = factory.SubFactory(structure_factories.ProjectFactory)
     source_volume = factory.SubFactory(VolumeFactory)
     name = factory.Sequence(lambda n: "Snapshot #%s" % n)
-    state = models.Snapshot.States.OK
+    state = CoreStates.OK
 
     @classmethod
     def get_url(cls, snapshot, action=None):

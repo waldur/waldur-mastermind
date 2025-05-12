@@ -280,7 +280,7 @@ class AzureBackend(ServiceBackend):
                 service_settings=service_settings,
                 project=project,
                 location=locations.get(backend_group.location),
-                state=models.ResourceGroup.States.OK,
+                state=CoreStates.OK,
             )
 
         for cached_group in stale_groups:
@@ -442,7 +442,7 @@ class AzureBackend(ServiceBackend):
             defaults=dict(
                 name=resource_group_name,
                 location=location,
-                state=models.ResourceGroup.States.OK,
+                state=CoreStates.OK,
             ),
         )
 
@@ -498,7 +498,7 @@ class AzureBackend(ServiceBackend):
                 project=project,
                 backend_id=network_name,
                 cidr=backend_network.address_space.address_prefixes[0],
-                state=models.Network.States.OK,
+                state=CoreStates.OK,
             )
 
             backend_subnet = self.client.get_subnet(
@@ -540,7 +540,7 @@ class AzureBackend(ServiceBackend):
                 backend_id=network_interface_id,
                 public_ip=public_ip,
                 subnet=subnet,
-                state=models.NetworkInterface.States.OK,
+                state=CoreStates.OK,
             )
 
     def pull_virtual_machine(self, local_vm: models.VirtualMachine):

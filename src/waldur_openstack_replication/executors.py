@@ -1,6 +1,7 @@
 from celery import chain
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.executors import CreateExecutor
 from waldur_core.core.tasks import StateTransitionTask
 from waldur_openstack import models as openstack_models
@@ -35,7 +36,7 @@ def get_create_ports_tasks(src_tenant, dst_tenant, network_uuids=None):
 
             # ports connected to instances
             instance_ports = src_subnet.ports.exclude(instance__isnull=True).filter(
-                instance__state=openstack_models.Instance.States.OK
+                instance__state=CoreStates.OK
             )
 
             # ports in DOWN state not connected to anything, e.g. for VIPs

@@ -12,6 +12,7 @@ from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.validators import validate_name, validate_template_syntax
 from waldur_core.media import models as media_models
 from waldur_core.structure import models as structure_models
@@ -183,14 +184,14 @@ class Issue(
         self.status = (
             IssueStatus.objects.filter(type=IssueStatus.Types.RESOLVED).first().name
         )
-        self.state = Issue.States.OK
+        self.state = CoreStates.OK
         self.save()
 
     def set_canceled(self):
         self.status = (
             IssueStatus.objects.filter(type=IssueStatus.Types.CANCELED).first().name
         )
-        self.state = Issue.States.OK
+        self.state = CoreStates.OK
         self.save()
 
     def __str__(self):

@@ -25,7 +25,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core.clean_html import clean_html
-from waldur_core.core.enums import CoreStateType
+from waldur_core.core.enums import CoreStates, CoreStateType
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.mixins import GetValueMixin
 from waldur_core.core.models import User, get_ssh_key_fingerprints
@@ -2163,11 +2163,7 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             instance, service_attributes, certificate
         )
 
-        if (
-            instance.scope
-            and instance.scope.state
-            == structure_models.ServiceSettings.States.CREATION_SCHEDULED
-        ):
+        if instance.scope and instance.scope.state == CoreStates.CREATION_SCHEDULED:
             transaction.on_commit(
                 lambda: ServiceSettingsCreateExecutor.execute(instance.scope)
             )

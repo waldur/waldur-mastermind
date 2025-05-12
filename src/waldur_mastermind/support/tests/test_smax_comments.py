@@ -4,6 +4,7 @@ from dbtemplates.models import Template
 from rest_framework import status
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models, tasks
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
@@ -60,7 +61,7 @@ class CommentUpdateTest(smax_base.BaseTest):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.SupportFixture()
-        self.fixture.comment.state = models.Comment.States.OK
+        self.fixture.comment.state = CoreStates.OK
         self.fixture.comment.save()
         self.support_user = factories.SupportUserFactory(
             user=self.fixture.staff, backend_name=self.fixture.backend_name
@@ -88,7 +89,7 @@ class CommentDeleteTest(smax_base.BaseTest):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.SupportFixture()
-        self.fixture.comment.state = models.Comment.States.OK
+        self.fixture.comment.state = CoreStates.OK
         self.fixture.comment.save()
         self.url = factories.CommentFactory.get_url(self.fixture.comment)
 

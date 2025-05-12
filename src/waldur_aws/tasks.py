@@ -1,6 +1,5 @@
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.tasks import ErrorStateTransitionTask
-
-from .models import Volume
 
 
 class SetInstanceErredTask(ErrorStateTransitionTask):
@@ -12,9 +11,9 @@ class SetInstanceErredTask(ErrorStateTransitionTask):
         # delete volume if it were not created on backend,
         # mark as erred if creation was started, but not ended,
         volume = instance.volume_set.first()
-        if volume.state == Volume.States.CREATION_SCHEDULED:
+        if volume.state == CoreStates.CREATION_SCHEDULED:
             volume.delete()
-        elif volume.state == Volume.States.OK:
+        elif volume.state == CoreStates.OK:
             pass
         else:
             volume.set_erred()

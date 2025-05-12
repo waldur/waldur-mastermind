@@ -29,7 +29,7 @@ class TenantCreateErrorTask(core_tasks.ErrorStateTransitionTask):
             subnet.delete()
         else:
             super().execute(subnet)
-        if network.state == models.Network.States.CREATION_SCHEDULED:
+        if network.state == CoreStates.CREATION_SCHEDULED:
             network.delete()
         else:
             super().execute(network)
@@ -138,7 +138,7 @@ class SetBackupErredTask(core_tasks.ErrorStateTransitionTask):
         super().execute(backup)
         for snapshot in backup.snapshots.all():
             # If snapshot creation was not started - delete it from waldur DB.
-            if snapshot.state == models.Snapshot.States.CREATION_SCHEDULED:
+            if snapshot.state == CoreStates.CREATION_SCHEDULED:
                 snapshot.decrease_backend_quotas_usage()
                 snapshot.delete()
             else:

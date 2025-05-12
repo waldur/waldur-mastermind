@@ -51,6 +51,7 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.renderers import PlainTextRenderer
 from waldur_core.core.serializers import EmptySerializer
@@ -2035,8 +2036,8 @@ class ProviderOfferingViewSet(
                 data="Plugin does not support this operation.",
             )
         if offering.scope.state not in (
-            structure_models.ServiceSettings.States.OK,
-            structure_models.ServiceSettings.States.ERRED,
+            CoreStates.OK,
+            CoreStates.ERRED,
         ):
             return Response(
                 status=status.HTTP_400_BAD_REQUEST,

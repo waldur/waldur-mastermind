@@ -3,6 +3,7 @@ from unittest import mock, skip
 import digitalocean
 from rest_framework import test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -175,6 +176,6 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
     def test_when_droplet_is_created_its_state_is_ok_online(self):
         self.client.post(self.url, self.get_valid_data())
         droplet = Droplet.objects.get(backend_id=self.mock_droplet.id)
-        self.assertEqual(droplet.state, Droplet.States.OK)
+        self.assertEqual(droplet.state, CoreStates.OK)
         self.assertEqual(droplet.runtime_state, Droplet.RuntimeStates.ONLINE)
         self.assertEqual(droplet.backend_id, self.mock_droplet.id)

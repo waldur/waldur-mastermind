@@ -1,6 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_openstack import models
 from waldur_openstack.utils import volume_type_name_to_quota_name
 
@@ -108,7 +109,7 @@ class SnapshotRestoreTest(test.APITransactionTestCase):
             tenant=self.fixture.tenant,
             project=self.fixture.project,
             source_volume=self.fixture.volume,
-            state=models.Snapshot.States.ERRED,
+            state=CoreStates.ERRED,
         )
         url = factories.SnapshotFactory.get_url(snapshot=snapshot, action="restore")
 
@@ -128,7 +129,7 @@ class SnapshotRestoreTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         snapshot.refresh_from_db()
-        self.assertEqual(snapshot.state, snapshot.States.OK)
+        self.assertEqual(snapshot.state, CoreStates.OK)
         self.assertEqual(expected_volumes_amount, models.Volume.objects.count())
 
     def test_restore_cannot_be_made_if_volume_exceeds_volume_type_quota(self):
@@ -143,7 +144,7 @@ class SnapshotRestoreTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         snapshot.refresh_from_db()
-        self.assertEqual(snapshot.state, snapshot.States.OK)
+        self.assertEqual(snapshot.state, CoreStates.OK)
         self.assertEqual(expected_volumes_amount, models.Volume.objects.count())
 
 

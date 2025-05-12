@@ -2,6 +2,7 @@ import factory
 from django.urls import reverse
 from factory import fuzzy
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
 from waldur_slurm import models
@@ -22,7 +23,7 @@ class AllocationFactory(
     service_settings = factory.SubFactory(SlurmServiceSettingsFactory)
     project = factory.SubFactory(ProjectFactory)
 
-    state = models.Allocation.States.OK
+    state = CoreStates.OK
     cpu_limit = fuzzy.FuzzyInteger(1000, 8000, step=100)
     gpu_limit = fuzzy.FuzzyInteger(1000, 8000, step=100)
     ram_limit = fuzzy.FuzzyInteger(100, 1000, step=100)

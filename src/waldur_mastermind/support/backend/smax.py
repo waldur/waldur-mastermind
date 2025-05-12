@@ -6,6 +6,7 @@ from constance import config
 from django.core.files.base import ContentFile
 from django.template import Context, Template
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User as WaldurUser
 from waldur_core.core.utils import text2html
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -168,7 +169,7 @@ class SmaxServiceBackend(SupportBackend):
                     description=backend_comment.description,
                     is_public=backend_comment.is_public,
                     backend_id=backend_comment.id,
-                    state=models.Comment.States.OK,
+                    state=CoreStates.OK,
                 )
                 logger.info(f"Smax comment {backend_comment.id} has been created.")
 
@@ -235,7 +236,7 @@ class SmaxServiceBackend(SupportBackend):
                     issue=issue,
                     backend_id=backend_attachment.id,
                     backend_name=self.backend_name,
-                    state=models.Attachment.States.OK,
+                    state=CoreStates.OK,
                     author=support_user,
                 )
 

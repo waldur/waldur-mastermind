@@ -4,6 +4,7 @@ from unittest import mock
 from django.utils import timezone
 from rest_framework import test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices.models import InvoiceItem
@@ -12,7 +13,7 @@ from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
-from waldur_slurm.models import Allocation, AllocationUserUsage
+from waldur_slurm.models import AllocationUserUsage
 from waldur_slurm.parser import SlurmReportLine
 from waldur_slurm.tests import factories as slurm_factories
 
@@ -104,7 +105,7 @@ class ComponentUsageTest(test.APITransactionTestCase):
             )
 
     def test_invoice_item_is_not_created_when_allocation_creation_succeded(self):
-        self.allocation.state = Allocation.States.CREATING
+        self.allocation.state = CoreStates.CREATING
         self.allocation.save()
 
         self.allocation.set_ok()

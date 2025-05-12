@@ -4,7 +4,7 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack.models import Tenant
 from waldur_openstack.tests import factories as openstack_factories
-from waldur_rancher import enums, models
+from waldur_rancher import enums
 
 from . import factories
 
@@ -28,7 +28,7 @@ class RancherFixture(ProjectFixture):
             settings=self.settings,
             service_settings=self.settings,
             project=self.project,
-            state=models.Cluster.States.OK,
+            state=CoreStates.OK,
             tenant=self.tenant,
             name="my-cluster",
         )
@@ -47,7 +47,7 @@ class RancherFixture(ProjectFixture):
         return factories.NodeFactory(
             cluster=self.cluster,
             instance=self.instance,
-            state=models.Node.States.OK,
+            state=CoreStates.OK,
         )
 
     @cached_property

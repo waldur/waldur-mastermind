@@ -565,9 +565,6 @@ class RuntimeStateMixin(models.Model):
 
 
 class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
-    class States(CoreStates):
-        pass
-
     class Meta:
         abstract = True
 

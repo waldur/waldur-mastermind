@@ -144,7 +144,7 @@ class CreateNodeTask(core_tasks.Task):
         instance_uuid = data["uuid"]
         vm = openstack_models.Instance.objects.get(uuid=instance_uuid)
         node.instance = vm
-        node.state = models.Node.States.CREATING
+        node.state = CoreStates.CREATING
         node.save()
 
         resource_imported.send(
@@ -255,10 +255,10 @@ class PollLonghornApplicationTask(core_tasks.Task):
         backend = app.get_backend()
         backend.check_application_state(app)
         if app.runtime_state == "active":
-            app.state = models.Application.States.OK
+            app.state = CoreStates.OK
             app.save()
         elif app.runtime_state == "error":
-            app.state = models.Application.States.ERRED
+            app.state = CoreStates.ERRED
             app.save()
 
         if app.runtime_state not in ("active", "error"):

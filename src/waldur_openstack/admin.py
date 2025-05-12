@@ -256,8 +256,8 @@ class SnapshotAdmin(structure_admin.ResourceAdmin):
 
         def validate(self, instance):
             if instance.state not in (
-                models.Snapshot.States.OK,
-                models.Snapshot.States.ERRED,
+                CoreStates.OK,
+                CoreStates.ERRED,
             ):
                 raise ValidationError(_("Snapshot has to be in OK or ERRED state."))
 

@@ -3201,8 +3201,8 @@ class OpenStackBackend(ServiceBackend):
         snapshots = models.Snapshot.objects.filter(
             tenant=tenant,
             state__in=[
-                models.Snapshot.States.OK,
-                models.Snapshot.States.ERRED,
+                CoreStates.OK,
+                CoreStates.ERRED,
             ],
         )
         backend_snapshots_map = {
@@ -3652,7 +3652,7 @@ class OpenStackBackend(ServiceBackend):
             metadata=backend_snapshot.metadata,
             backend_id=backend_snapshot.id,
             runtime_state=backend_snapshot.status,
-            state=models.Snapshot.States.OK,
+            state=CoreStates.OK,
         )
         if hasattr(backend_snapshot, "volume_id"):
             snapshot.source_volume = models.Volume.objects.filter(

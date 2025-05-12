@@ -29,6 +29,7 @@ from waldur_core.core.admin import (
     ReadOnlyAdminMixin,
 )
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import Notification, NotificationTemplate
 from waldur_core.core.utils import get_fake_context
 from waldur_core.core.validators import BackendURLValidator
@@ -501,8 +502,7 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
         short_description = _("Pull")
 
         def validate(self, service_settings):
-            States = models.ServiceSettings.States
-            if service_settings.state not in (States.OK, States.ERRED):
+            if service_settings.state not in (CoreStates.OK, CoreStates.ERRED):
                 raise ValidationError(_("Service settings has to be OK or erred."))
 
     pull = Pull()

@@ -2,6 +2,7 @@ from unittest import mock
 
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.structure.tests.factories import SshPublicKeyFactory
 from waldur_openstack.tests import (
@@ -372,7 +373,7 @@ class NodePullBackendTest(test.APITransactionTestCase):
         self.assertEqual(node.ram_total, 15784)
         self.assertEqual(node.pods_allocated, 8)
         self.assertEqual(node.pods_total, 110)
-        self.assertEqual(node.state, models.Node.States.OK)
+        self.assertEqual(node.state, CoreStates.OK)
 
     def test_update_node_if_key_does_not_exists(self):
         backend_node = load_json_resource("backend_node.json", __name__)

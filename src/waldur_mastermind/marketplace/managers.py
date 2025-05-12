@@ -51,12 +51,7 @@ class OfferingQuerySet(django_models.QuerySet):
     def filter_by_ordering_availability_for_user(self, user):
         """Returns offerings available to the user to create an order"""
 
-        queryset = self.filter(
-            state__in=[
-                self.model.States.ACTIVE,
-                self.model.States.PAUSED,
-            ]
-        )
+        queryset = self.filter(state__in=[OfferingStates.ACTIVE, OfferingStates.PAUSED])
 
         if user.is_anonymous:
             if not config.ANONYMOUS_USER_CAN_VIEW_OFFERINGS:

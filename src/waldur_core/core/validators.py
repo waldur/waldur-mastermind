@@ -14,6 +14,7 @@ from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
 from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 
 from waldur_core.core import exceptions
+from waldur_core.core.enums import CoreStates
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +44,10 @@ class StateValidator:
         if resource.state not in self.valid_states:
             if self.state_enum:
                 states_names = dict(self.state_enum.CHOICES)
-            else:
+            elif hasattr(resource, "States"):
                 states_names = dict(resource.States.CHOICES)
+            else:
+                states_names = dict(CoreStates.CHOICES)
             valid_states_names = [
                 str(states_names[state]) for state in self.valid_states
             ]

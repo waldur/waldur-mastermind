@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import CoreStates
 from waldur_core.logging import utils as logging_utils
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -17,7 +18,6 @@ from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, tasks
 from waldur_mastermind.marketplace_slurm_remote.tests import (
     fixtures as marketplace_slurm_remote_fixtures,
 )
-from waldur_slurm import models as slurm_models
 
 
 class SendMessagesAboutPendingOrdersTest(test.APITransactionTestCase):
@@ -99,7 +99,7 @@ class AllocationDeleteTest(test.APITransactionTestCase):
         )
         self.assertEqual(
             self.allocation.state,
-            slurm_models.Allocation.States.OK,
+            CoreStates.OK,
             f"Allocation {self.allocation.id} should be OK, but got {self.allocation.state}",
         )
 

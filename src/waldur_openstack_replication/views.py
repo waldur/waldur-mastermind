@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.validators import StateValidator
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.structure.filters import GenericRoleFilter
@@ -26,7 +27,7 @@ class MigrationViewSet(ActionsViewSet):
         executors.MigrationExecutor.execute(migration)
         return Response(status=status.HTTP_200_OK)
 
-    run_validators = [StateValidator(models.Migration.States.CREATION_SCHEDULED)]
+    run_validators = [StateValidator(CoreStates.CREATION_SCHEDULED)]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

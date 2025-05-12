@@ -18,7 +18,7 @@ class DiskAdmin(structure_admin.ResourceAdmin):
         short_description = _("Pull")
 
         def validate(self, instance):
-            if instance.state not in (models.Disk.States.OK, models.Disk.States.ERRED):
+            if instance.state not in (CoreStates.OK, CoreStates.ERRED):
                 raise ValidationError(_("Disk has to be in OK or ERRED state."))
 
     pull = Pull()
