@@ -120,6 +120,10 @@ class MarketplaceSection(FeatureSection):
 
     call_only = Feature("Allow marketplace to serve only as aggregator of call info.")
 
+    show_resource_end_date = Feature(
+        "Show resource end date as a non optional column in resources list."
+    )
+
 
 class SupportSection(FeatureSection):
     class Meta:
