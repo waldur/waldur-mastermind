@@ -225,6 +225,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             resource=source,
             details__offering_component_type=component_type,
             invoice=invoice,
+            unit_price__gte=0,  # exclude compensation items
         )
         resource_limit_periods = invoice_item.details["resource_limit_periods"]
         old_period = resource_limit_periods.pop()
