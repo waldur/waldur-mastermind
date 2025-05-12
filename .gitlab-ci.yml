@@ -422,7 +422,7 @@ Generate Python SDK:
     - Generate OpenAPI schema
   script: |
     pip install openapi-python-client==0.23.1
-    openapi-python-client generate --path waldur-openapi-schema.yaml --output-path py-client --overwrite
+    openapi-python-client generate --path waldur-openapi-schema.yaml --output-path py-client --overwrite --meta poetry
   artifacts:
     paths:
       - py-client/
