@@ -32,7 +32,7 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         virtual_machine.save()
 
         order.refresh_from_db()
-        self.assertEqual(order.state, order.States.DONE)
+        self.assertEqual(order.state, OrderStates.DONE)
 
         order.resource.refresh_from_db()
         self.assertEqual(order.resource.state, ResourceStates.OK)
@@ -93,7 +93,7 @@ class SQLServerCreateTest(test.APITransactionTestCase):
         sql_server.save()
 
         order.refresh_from_db()
-        self.assertEqual(order.state, order.States.DONE)
+        self.assertEqual(order.state, OrderStates.DONE)
 
         order.resource.refresh_from_db()
         self.assertEqual(order.resource.state, ResourceStates.OK)

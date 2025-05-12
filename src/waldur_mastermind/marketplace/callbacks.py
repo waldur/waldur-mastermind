@@ -40,7 +40,7 @@ def resource_creation_succeeded(resource: models.Resource, validate=False):
         validate,
     )
 
-    if resource.state != resource.States.OK:
+    if resource.state != ResourceStates.OK:
         resource.set_state_ok()
         resource.save(update_fields=["state"])
 
@@ -86,7 +86,7 @@ def resource_creation_canceled(resource: models.Resource, validate=False):
         validate,
     )
 
-    if resource.state != resource.States.TERMINATED:
+    if resource.state != ResourceStates.TERMINATED:
         resource.set_state_terminated()
         resource.save(update_fields=["state"])
 
@@ -173,7 +173,7 @@ def resource_update_failed(resource: models.Resource, validate=False):
         OrderStates.ERRED,
         validate,
     )
-    if resource.state != resource.States.ERRED:
+    if resource.state != ResourceStates.ERRED:
         resource.set_state_erred()
         resource.save(update_fields=["state"])
     else:
@@ -191,7 +191,7 @@ def resource_update_canceled(resource: models.Resource, validate=False):
         validate,
     )
 
-    if resource.state != resource.States.OK:
+    if resource.state != ResourceStates.OK:
         resource.set_state_ok()
         resource.save(update_fields=["state"])
     else:
@@ -208,7 +208,7 @@ def resource_deletion_succeeded(resource: models.Resource, validate=False):
         OrderStates.DONE,
         validate,
     )
-    if resource.state != resource.States.TERMINATED:
+    if resource.state != ResourceStates.TERMINATED:
         resource.set_state_terminated()
         resource.save(update_fields=["state"])
     else:
@@ -228,7 +228,7 @@ def resource_deletion_failed(resource: models.Resource, validate=False):
         OrderStates.ERRED,
         validate,
     )
-    if resource.state != resource.States.OK:
+    if resource.state != ResourceStates.OK:
         resource.set_state_ok()
         resource.save(update_fields=["state"])
     else:
@@ -246,7 +246,7 @@ def resource_deletion_canceled(resource: models.Resource, validate=False):
         validate,
     )
 
-    if resource.state != resource.States.OK:
+    if resource.state != ResourceStates.OK:
         resource.set_state_ok()
         resource.save(update_fields=["state"])
 
