@@ -394,7 +394,6 @@ CONSTANCE_CONFIG = {
         False,
         "Enable reminders to owners about resources of shared offerings that have not generated any cost for the last 3 months.",
     ),
-    "ENABLE_RESOURCE_END_DATE": (True, "Allow to view and update resource end date."),
     "TELEMETRY_URL": (
         "https://telemetry.waldur.com/",
         "URL for sending telemetry data.",
@@ -783,7 +782,6 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "NOTIFY_ABOUT_RESOURCE_CHANGE",
         "DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE",
         "ENABLE_STALE_RESOURCE_NOTIFICATIONS",
-        "ENABLE_RESOURCE_END_DATE",
     ),
     "Telemetry": (
         "TELEMETRY_URL",
@@ -921,7 +919,6 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "SITE_PHONE",
     "CURRENCY_NAME",
     "ANONYMOUS_USER_CAN_VIEW_OFFERINGS",
-    "ENABLE_RESOURCE_END_DATE",
     "DOCS_URL",
     "SHORT_PAGE_TITLE",
     "FULL_PAGE_TITLE",
