@@ -108,7 +108,9 @@ def customer_credit_changed_handler(sender, instance, created=False, **kwargs):
         scope__customer=customer_credit.customer
     )
     if project_policies.count() > 0:
-        logger.info("%s project policies are found, evaluating them")
+        logger.info(
+            "%s project policies are found, evaluating them", customer_credit.customer
+        )
         utils.evaluate_policies(project_policies)
     else:
         logger.info("Project policies are not found, skipping evaluation")
@@ -125,7 +127,9 @@ def project_credit_changed_handler(sender, instance, created=False, **kwargs):
         scope=project_credit.project
     )
     if project_policies.count() > 0:
-        logger.info("%s project policies are found, evaluating them")
+        logger.info(
+            "%s project policies are found, evaluating them", project_credit.project
+        )
         utils.evaluate_policies(project_policies)
     else:
         logger.info("Project policies are not found, skipping evaluation")

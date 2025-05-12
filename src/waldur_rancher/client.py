@@ -1,3 +1,4 @@
+import base64
 import logging
 
 import requests
@@ -25,6 +26,7 @@ class RancherClient:
         :type verify_ssl: bool
         """
         self._host = host
+        # TODO: switch to the new API: https://github.com/rancher/rancher/issues/48563#issuecomment-2568360563
         self._base_url = f"{self._host}/v3"
         self._session = requests.Session()
         if not verify_ssl:
@@ -108,28 +110,70 @@ class RancherClient:
     def get_cluster(self, cluster_id) -> dict:
         return self._get(f"clusters/{cluster_id}")
 
-    def create_cluster(self, cluster_name, mtu=None, private_registry=None):
-        rancher_config = {}
-
-        if mtu:
-            rancher_config["network"] = {"mtu": mtu}
+    def create_cluster(self, cluster_name, mtu=None, private_registry=None) -> dict:
+        del mtu
+        rancher_config = {
+            "chartValues": {"rke2-calico": {}},
+        }
 
         if private_registry:
-            rancher_config["privateRegistries"] = [
-                {
-                    "url": private_registry["url"],
-                    "user": private_registry["user"],
-                    "password": private_registry["password"],
-                }
-            ]
+            registry_url = private_registry["url"]
+            registry_username = base64.b64encode(
+                private_registry["user"].encode("utf-8")
+            ).decode("utf-8")
+            registry_password = base64.b64encode(
+                private_registry["password"].encode("utf-8")
+            ).decode("utf-8")
+            secret_body = {
+                "type": "kubernetes.io/basic-auth",
+                "metadata": {
+                    "namespace": "fleet-default",
+                    "generateName": "registryconfig-auth-",
+                },
+                "data": {"username": registry_username, "password": registry_password},
+            }
+            private_registry_credentials_secret = self._post(
+                "secrets/fleet-default", json=secret_body
+            )
+            private_registry_credentials_secret_name = (
+                private_registry_credentials_secret["metadata"]["name"]
+            )
+            rancher_config["registries"] = {
+                "configs": {
+                    registry_url: {
+                        "authConfigSecretName": private_registry_credentials_secret_name,
+                        "caBundle": None,
+                        "insecureSkipVerify": False,
+                        "tlsSecretName": None,
+                    }
+                },
+                "mirrors": {},
+            }
+
+        payload = {
+            "type": "provisioning.cattle.io.cluster",
+            "metadata": {"name": cluster_name, "namespace": "fleet-default"},
+            "spec": {
+                "rkeConfig": rancher_config,
+                "kubernetesVersion": "v1.31.7+rke2r1",
+            },
+        }
 
         return self._post(
-            "clusters",
-            json={
-                "name": cluster_name,
-                "rancherKubernetesEngineConfig": rancher_config,
-            },
+            "provisioning.cattle.io.clusters",
+            json=payload,
         )
+
+    def get_v3_cluster_id(self, v1_cluster_id) -> str:
+        """
+        Get v3 cluster id by v1 cluster id.
+        :param v1_cluster_url: v1 cluster id
+        :type v1_cluster_url: string
+        :return: v3 cluster id
+        :rtype: str
+        """
+        v1_cluster_info = self._get(f"provisioning.cattle.io.clusters/{v1_cluster_id}")
+        return v1_cluster_info["status"]["clusterName"]
 
     def get_cluster_nodes(self, cluster_id) -> list[dict]:
         return self._get(f"clusters/{cluster_id}/nodes")["data"]

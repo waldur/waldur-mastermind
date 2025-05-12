@@ -36,7 +36,7 @@ class RancherInvoiceTest(test.APITransactionTestCase):
         )
         self.mocked_get_cluster_nodes = self.patcher.start()
         self.mocked_get_cluster_nodes.return_value = [
-            {"backend_id": "node_backend_id", "name": "name-rancher-node-1"}
+            {"backend_id": "node_backend_id", "name": "name-rancher-node-server-1"}
         ]
 
         self.patcher_client = mock.patch("waldur_rancher.backend.RancherBackend.client")
