@@ -747,3 +747,36 @@ class ProjectResourceQuotasTest(test.APITransactionTestCase):
         self.assertEqual(ram_component["usage"], 6)
         self.assertEqual(ram_component["limit"], 24)
         self.assertEqual(ram_component["measured_unit"], "GB")
+
+
+class ProjectOtherUsersTest(test.APITransactionTestCase):
+    def test_user_can_list_other_users(self):
+        fixture = fixtures.ProjectFixture()
+        ProjectRole.ADMIN.add_permission(PermissionEnum.LIST_PROJECTS)
+
+        project1 = factories.ProjectFactory(customer=fixture.customer)
+        project2 = factories.ProjectFactory(customer=fixture.customer)
+        project3 = factories.ProjectFactory(customer=fixture.customer)
+
+        user1 = factories.UserFactory()
+        user2 = factories.UserFactory()
+        user3 = factories.UserFactory()
+
+        project1.add_user(user1, ProjectRole.ADMIN)
+        project2.add_user(user1, ProjectRole.MANAGER)
+        project2.add_user(user2, ProjectRole.MANAGER)
+        project3.add_user(user3, ProjectRole.MANAGER)
+
+        url = factories.ProjectFactory.get_url(project1, "other_users")
+        self.client.force_authenticate(user1)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(
+            user2.uuid.hex,
+            [user["uuid"] for user in response.data],
+        )
+        self.assertNotIn(
+            user3.uuid.hex,
+            [user["uuid"] for user in response.data],
+        )
