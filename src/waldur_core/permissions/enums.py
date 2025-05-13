@@ -222,380 +222,213 @@ DELETE_PERMISSIONS = {
     "service_provider": PermissionEnum.DELETE_CUSTOMER_PERMISSION,
 }
 
-PERMISSION_DESCRIPTION = [
-    {
-        "label": "Offering",
-        "options": [
-            {
-                "label": "Create offering",
-                "value": "OFFERING.CREATE",
-            },
-            {
-                "label": "Delete offering",
-                "value": "OFFERING.DELETE",
-            },
-            {
-                "label": "Update offering thumbnail",
-                "value": "OFFERING.UPDATE_THUMBNAIL",
-            },
-            {
-                "label": "Update offering",
-                "value": "OFFERING.UPDATE",
-            },
-            {
-                "label": "Update offering attributes",
-                "value": "OFFERING.UPDATE_ATTRIBUTES",
-            },
-            {
-                "label": "Update offering location",
-                "value": "OFFERING.UPDATE_LOCATION",
-            },
-            {
-                "label": "Update offering description",
-                "value": "OFFERING.UPDATE_DESCRIPTION",
-            },
-            {
-                "label": "Update offering options",
-                "value": "OFFERING.UPDATE_OPTIONS",
-            },
-            {
-                "label": "Add offering endpoint",
-                "value": "OFFERING.ADD_ENDPOINT",
-            },
-            {
-                "label": "Delete offering endpoint",
-                "value": "OFFERING.DELETE_ENDPOINT",
-            },
-            {
-                "label": "Update offering components",
-                "value": "OFFERING.UPDATE_COMPONENTS",
-            },
-            {
-                "label": "Pause offering",
-                "value": "OFFERING.PAUSE",
-            },
-            {
-                "label": "Unpause offering",
-                "value": "OFFERING.UNPAUSE",
-            },
-            {
-                "label": "Archive offering",
-                "value": "OFFERING.ARCHIVE",
-            },
-            {
-                "label": "Dry run offering script",
-                "value": "OFFERING.DRY_RUN_SCRIPT",
-            },
-            {
-                "label": "Manage campaign",
-                "value": "OFFERING.MANAGE_CAMPAIGN",
-            },
-            {
-                "label": "Manage offering user group",
-                "value": "OFFERING.MANAGE_USER_GROUP",
-            },
-            {
-                "label": "Create offering plan",
-                "value": "OFFERING.CREATE_PLAN",
-            },
-            {
-                "label": "Update offering plan",
-                "value": "OFFERING.UPDATE_PLAN",
-            },
-            {
-                "label": "Archive offering plan",
-                "value": "OFFERING.ARCHIVE_PLAN",
-            },
-            {
-                "label": "Create offering screenshot",
-                "value": "OFFERING.CREATE_SCREENSHOT",
-            },
-            {
-                "label": "Update offering screenshot",
-                "value": "OFFERING.UPDATE_SCREENSHOT",
-            },
-            {
-                "label": "Delete offering screenshot",
-                "value": "OFFERING.DELETE_SCREENSHOT",
-            },
-            {
-                "label": "Create offering user",
-                "value": "OFFERING.CREATE_USER",
-            },
-            {
-                "label": "Update offering user",
-                "value": "OFFERING.UPDATE_USER",
-            },
-        ],
-    },
-    {
-        "label": "Order",
-        "options": [
-            {"label": "List orders", "value": "ORDER.LIST"},
-            {"label": "Approve order", "value": "ORDER.APPROVE"},
-            {
-                "label": "Approve private order",
-                "value": "ORDER.APPROVE_PRIVATE",
-            },
-            {"label": "Reject order", "value": "ORDER.REJECT"},
-            {"label": "Destroy order", "value": "ORDER.DESTROY"},
-            {
-                "label": "Cancel order",
-                "value": "ORDER.CANCEL",
-            },
-        ],
-    },
-    {
-        "label": "Provider actions",
-        "options": [
-            {"label": "Set resource usage", "value": "RESOURCE.SET_USAGE"},
-            {
-                "label": "Set resource backend id",
-                "value": "RESOURCE.SET_BACKEND_ID",
-            },
-            {
-                "label": "Submit resource report",
-                "value": "RESOURCE.SUBMIT_REPORT",
-            },
-            {
-                "label": "Set resource end date",
-                "value": "RESOURCE.SET_END_DATE",
-            },
-            {
-                "label": "Set resource state",
-                "value": "RESOURCE.SET_STATE",
-            },
-            {
-                "label": "Set resource backend metadata",
-                "value": "RESOURCE.SET_BACKEND_METADATA",
-            },
-            {
-                "label": "Create robot account",
-                "value": "RESOURCE.CREATE_ROBOT_ACCOUNT",
-            },
-            {
-                "label": "Update robot account",
-                "value": "RESOURCE.UPDATE_ROBOT_ACCOUNT",
-            },
-            {
-                "label": "Delete robot account",
-                "value": "RESOURCE.DELETE_ROBOT_ACCOUNT",
-            },
-            {
-                "label": "Manage resource users",
-                "value": "RESOURCE.MANAGE_USERS",
-            },
-            {
-                "value": "SERVICE_PROVIDER.GET_API_SECRET_CODE",
-                "label": "Get API secret code",
-            },
-            {
-                "value": "SERVICE_PROVIDER.GENERATE_API_SECRET_CODE",
-                "label": "Generate API secret code",
-            },
-            {
-                "value": "SERVICE_PROVIDER.LIST_CUSTOMERS",
-                "label": "List service provider customers",
-            },
-            {
-                "value": "SERVICE_PROVIDER.LIST_CUSTOMER_PROJECTS",
-                "label": "List service provider customer projects",
-            },
-            {
-                "value": "SERVICE_PROVIDER.LIST_PROJECTS",
-                "label": "List service provider projects",
-            },
-            {
-                "value": "SERVICE_PROVIDER.LIST_PROJECT_PERMISSIONS",
-                "label": "List service provider project permissions",
-            },
-            {
-                "value": "SERVICE_PROVIDER.LIST_KEYS",
-                "label": "List service provider keys",
-            },
-            {
-                "value": "SERVICE_PROVIDER.LIST_USERS",
-                "label": "List service provider users",
-            },
-            {
-                "value": "SERVICE_PROVIDER.LIST_USER_CUSTOMERS",
-                "label": "List service provider user customers",
-            },
-            {
-                "value": "SERVICE_PROVIDER.SET_OFFERINGS_USERNAME",
-                "label": "Set offerings username",
-            },
-            {
-                "value": "SERVICE_PROVIDER.GET_STATISTICS",
-                "label": "Get service provider statistics",
-            },
-            {
-                "value": "SERVICE_PROVIDER.GET_REVENUE",
-                "label": "Get service provider revenue",
-            },
-            {
-                "value": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_CUSTOMERS",
-                "label": "Get service provider robot account customers",
-            },
-            {
-                "value": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_PROJECTS",
-                "label": "Get service provider robot account projects",
-            },
-            {
-                "label": "Manage service account",
-                "value": "SERVICE_ACCOUNT.MANAGE",
-            },
-        ],
-    },
-    {
-        "label": "Customer actions for resources",
-        "options": [
-            {"label": "List resources", "value": "RESOURCE.LIST"},
-            {
-                "label": "Set resource end date",
-                "value": "RESOURCE.SET_END_DATE",
-            },
-            {"label": "Terminate resource", "value": "RESOURCE.TERMINATE"},
-            {
-                "label": "List importable resources",
-                "value": "RESOURCE.LIST_IMPORTABLE",
-            },
-            {"label": "Switch resource plan", "value": "RESOURCE.SET_PLAN"},
-            {
-                "label": "Update resource limits",
-                "value": "RESOURCE.SET_LIMITS",
-            },
-            {
-                "label": "Accept booking request",
-                "value": "RESOURCE.ACCEPT_BOOKING_REQUEST",
-            },
-            {
-                "label": "Reject booking request",
-                "value": "RESOURCE.REJECT_BOOKING_REQUEST",
-            },
-            {
-                "label": "Update resource options",
-                "value": "RESOURCE.UPDATE_OPTIONS",
-            },
-            {
-                "label": "Set resource consumption limitation",
-                "value": "RESOURCE.CONSUMPTION_LIMITATION",
-            },
-        ],
-    },
-    {
-        "label": "Team members",
-        "options": [
-            {
-                "value": "INVITATION.LIST",
-                "label": "List invitations",
-            },
-            {
-                "label": "Create project permission",
-                "value": "PROJECT.CREATE_PERMISSION",
-            },
-            {
-                "label": "Create customer permission",
-                "value": "CUSTOMER.CREATE_PERMISSION",
-            },
-            {
-                "label": "Create offering permission",
-                "value": "OFFERING.CREATE_PERMISSION",
-            },
-            {
-                "label": "Update project permission",
-                "value": "PROJECT.UPDATE_PERMISSION",
-            },
-            {
-                "label": "Update customer permission",
-                "value": "CUSTOMER.UPDATE_PERMISSION",
-            },
-            {
-                "label": "Update offering permission",
-                "value": "OFFERING.UPDATE_PERMISSION",
-            },
-            {
-                "label": "Delete project permission",
-                "value": "PROJECT.DELETE_PERMISSION",
-            },
-            {
-                "label": "Delete customer permission",
-                "value": "CUSTOMER.DELETE_PERMISSION",
-            },
-            {
-                "label": "Delete offering permission",
-                "value": "OFFERING.DELETE_PERMISSION",
-            },
-        ],
-    },
-    {
-        "label": "Project",
-        "options": [
-            {"label": "List projects", "value": "PROJECT.LIST"},
-            {
-                "label": "Create project",
-                "value": "PROJECT.CREATE",
-            },
-            {
-                "label": "Update project",
-                "value": "PROJECT.UPDATE",
-            },
-            {
-                "label": "Delete project",
-                "value": "PROJECT.DELETE",
-            },
-        ],
-    },
-    {
-        "label": "Call management",
-        "options": [
-            {
-                "label": "List calls",
-                "value": "CALL.LIST",
-            },
-            {
-                "label": "List rounds",
-                "value": "ROUND.LIST",
-            },
-            {
-                "label": "List proposals",
-                "value": "PROPOSAL.LIST",
-            },
-            {
-                "label": "Approve and reject proposals",
-                "value": "CALL.APPROVE_AND_REJECT_PROPOSALS",
-            },
-            {
-                "label": "Close rounds",
-                "value": "CALL.CLOSE_ROUNDS",
-            },
-            {
-                "label": "Create call permission",
-                "value": "CALL.CREATE_PERMISSION",
-            },
-            {
-                "label": "Update call permission",
-                "value": "CALL.UPDATE_PERMISSION",
-            },
-            {
-                "label": "Delete call permission",
-                "value": "CALL.DELETE_PERMISSION",
-            },
-            {
-                "label": "Manage proposal",
-                "value": "PROPOSAL.MANAGE",
-            },
-            {
-                "label": "Update proposal permission",
-                "value": "PROPOSAL.UPDATE_PERMISSION",
-            },
-            {
-                "label": "Delete proposal permission",
-                "value": "PROPOSAL.DELETE_PERMISSION",
-            },
-        ],
-    },
-]
+
+def generate_permission_description():
+    # Group permissions by category (based on prefix before the dot)
+    categories = {}
+
+    for perm in PermissionEnum:
+        # Split the permission value to get category (e.g., "OFFERING" from "OFFERING.CREATE")
+        parts = perm.value.split(".")
+        if len(parts) != 2:
+            continue  # Skip invalid format
+
+        category, action = parts
+
+        # Determine which category this permission belongs to
+        display_category = categorize_permission(category, action)
+
+        if display_category not in categories:
+            categories[display_category] = []
+
+        # Create a human-readable label
+        label = create_readable_label(category, action)
+
+        categories[display_category].append(
+            {
+                "label": label,
+                "value": perm.value,
+            }
+        )
+
+    # Create the PERMISSION_DESCRIPTION structure
+    result = []
+    for category, options in categories.items():
+        # Check for duplicate labels and fix them
+        label_counts = {}
+        for option in options:
+            label = option["label"]
+            label_counts[label] = label_counts.get(label, 0) + 1
+
+        # For any duplicate labels, modify them to include more context
+        for i, option in enumerate(options):
+            if label_counts[option["label"]] > 1:
+                # Get the original category and action from the value
+                orig_category, orig_action = option["value"].split(".")
+                # Include the category name explicitly in the label
+                options[i]["label"] = capitalize_first_word(
+                    f"{option['label']} {orig_category.lower()}"
+                )
+
+        result.append(
+            {"label": category, "options": sorted(options, key=lambda x: x["label"])}
+        )
+
+    return sorted(result, key=lambda x: x["label"])
+
+
+def categorize_permission(category, action):
+    """Map a permission category to a display category"""
+    category_mapping = {
+        "OFFERING": "Offering",
+        "ORDER": "Order",
+        "RESOURCE": "Provider actions"
+        if action
+        in [
+            "SET_USAGE",
+            "SET_BACKEND_ID",
+            "SUBMIT_REPORT",
+            "SET_END_DATE",
+            "SET_STATE",
+            "SET_BACKEND_METADATA",
+            "CREATE_ROBOT_ACCOUNT",
+            "UPDATE_ROBOT_ACCOUNT",
+            "DELETE_ROBOT_ACCOUNT",
+            "MANAGE_USERS",
+        ]
+        else "Customer actions for resources",
+        "SERVICE_PROVIDER": "Provider actions",
+        "INVITATION": "Team members",
+        "CUSTOMER": "Team members" if "PERMISSION" in action else "Customer",
+        "PROJECT": "Team members" if "PERMISSION" in action else "Project",
+        "CALL": "Call management",
+        "ROUND": "Call management",
+        "PROPOSAL": "Call management",
+        "SERVICE_ACCOUNT": "Provider actions",
+        "LEXIS_LINK": "Other",
+        "ACCESS_SUBNET": "Other",
+        "OFFERINGUSER": "Offering",
+    }
+
+    return category_mapping.get(category, category.capitalize())
+
+
+def create_readable_label(category, action):
+    """Create a readable label for a permission with only first word capitalized"""
+    # Replace underscores with spaces
+    words = action.replace("_", " ").lower().split()
+
+    # If action is just a single word (like "CREATE"), include the category name
+    if len(words) == 1:
+        readable_category = category.lower().replace("_", " ")
+        return capitalize_first_word(f"{words[0]} {readable_category}")
+
+    # Special case transformations
+    if category == "SERVICE_PROVIDER":
+        # Transform "SERVICE_PROVIDER.GET_REVENUE" to "View provider revenue"
+        if action.startswith("GET_"):
+            return capitalize_first_word(f"View {action[4:].lower().replace('_', ' ')}")
+        elif action.startswith("LIST_"):
+            return capitalize_first_word(f"List {action[5:].lower().replace('_', ' ')}")
+        elif action.startswith("SET_"):
+            return capitalize_first_word(
+                f"Manage {action[4:].lower().replace('_', ' ')}"
+            )
+        elif action.startswith("GENERATE_"):
+            return capitalize_first_word(
+                f"Generate {action[9:].lower().replace('_', ' ')}"
+            )
+        else:
+            # Default format for other service provider actions
+            return capitalize_first_word(
+                f"{action.lower().replace('_', ' ')} for service provider"
+            )
+
+    # Handle the common cases
+    if action.startswith("CREATE_"):
+        prefix = "Create"
+        object_name = action[7:].lower().replace("_", " ")
+    elif action.startswith("UPDATE_"):
+        prefix = "Update"
+        object_name = action[7:].lower().replace("_", " ")
+    elif action.startswith("DELETE_"):
+        prefix = "Delete"
+        object_name = action[7:].lower().replace("_", " ")
+    elif action.startswith("LIST_"):
+        prefix = "List"
+        object_name = action[5:].lower().replace("_", " ")
+    elif action.startswith("MANAGE_"):
+        prefix = "Manage"
+        object_name = action[7:].lower().replace("_", " ")
+    elif action.startswith("GET_"):
+        prefix = "View"
+        object_name = action[4:].lower().replace("_", " ")
+    elif action.startswith("SET_"):
+        prefix = "Set"
+        object_name = action[4:].lower().replace("_", " ")
+    elif action.startswith("ACCEPT_"):
+        prefix = "Accept"
+        object_name = action[7:].lower().replace("_", " ")
+    elif action.startswith("REJECT_"):
+        prefix = "Reject"
+        object_name = action[7:].lower().replace("_", " ")
+    elif action.startswith("APPROVE_"):
+        prefix = "Approve"
+        object_name = action[8:].lower().replace("_", " ")
+    elif action.startswith("CANCEL_"):
+        prefix = "Cancel"
+        object_name = action[7:].lower().replace("_", " ")
+    elif action.startswith("CLOSE_"):
+        prefix = "Close"
+        object_name = action[6:].lower().replace("_", " ")
+    elif action.startswith("TERMINATE_"):
+        prefix = "Terminate"
+        object_name = action[10:].lower().replace("_", " ")
+    elif action == "CREATE" or action == "UPDATE" or action == "DELETE":
+        # For single-word verbs, include the category
+        return capitalize_first_word(f"{action.lower()} {category.lower()}")
+    else:
+        # For cases that don't follow the common patterns
+        if len(words) == 1:  # If it's just a single action word
+            return capitalize_first_word(f"{words[0]} {category.lower()}")
+        return capitalize_first_word(" ".join(words))
+
+    # If the object name is empty after removing the prefix, include the category name
+    if not object_name.strip():
+        object_name = category.lower().replace("_", " ")
+
+    # Determine if we need to include the category name
+    if category.lower() not in object_name.lower() and category not in [
+        "CUSTOMER",
+        "PROJECT",
+        "OFFERING",
+        "CALL",
+        "PROPOSAL",
+    ]:
+        category_name = category.lower().replace("_", " ")
+        if "robot" in object_name and "account" in object_name:
+            return capitalize_first_word(f"{prefix} robot account")
+        else:
+            return capitalize_first_word(f"{prefix} {object_name} for {category_name}")
+
+    # Special handlers for common terms
+    if "robot account" in object_name:
+        return capitalize_first_word(f"{prefix} robot account")
+
+    return capitalize_first_word(f"{prefix} {object_name}")
+
+
+def capitalize_first_word(text):
+    """Capitalize only the first word in a string"""
+    if not text:
+        return text
+    first_letter = text[0].upper()
+    rest_of_text = text[1:]
+    return first_letter + rest_of_text
+
+
+# Example usage
+PERMISSION_DESCRIPTION = generate_permission_description()
 
 ROLE_MAP = {
     RoleEnum.CUSTOMER_OWNER: "owner",
