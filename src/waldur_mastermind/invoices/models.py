@@ -642,12 +642,11 @@ class CustomerCredit(BaseCredit):
         if not invoice:
             return
 
-        consumption = (
-            InvoiceItem.objects.filter(invoice=invoice, credit=self).aggregate(
-                sum=Sum("unit_price")
-            )["sum"]
-            or 0
+        items = InvoiceItem.objects.filter(
+            invoice=invoice,
+            credit=self,
         )
+        consumption = sum([i.total for i in items]) or 0
 
         return consumption * -1
 
@@ -671,14 +670,12 @@ class ProjectCredit(BaseCredit):
             return
 
         credit = CustomerCredit.objects.filter(customer=self.project.customer).get()
-        consumption = (
-            InvoiceItem.objects.filter(
-                invoice=invoice,
-                credit=credit,
-                project=self.project,
-            ).aggregate(sum=Sum("unit_price"))["sum"]
-            or 0
+        items = InvoiceItem.objects.filter(
+            invoice=invoice,
+            credit=credit,
+            project=self.project,
         )
+        consumption = sum([i.total for i in items]) or 0
         return consumption * -1
 
     tracker = FieldTracker()
