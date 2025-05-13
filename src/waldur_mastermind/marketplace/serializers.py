@@ -5017,3 +5017,14 @@ class ImportableResourceSerializer(serializers.Serializer):
     name = serializers.CharField()
     type = serializers.CharField()
     description = serializers.CharField(allow_blank=True)
+
+
+class OfferingReferenceSerializer(serializers.Serializer):
+    offering_name = serializers.CharField(read_only=True)
+    offering_uuid = serializers.UUIDField(read_only=True)
+
+
+class OfferingGroupsSerializer(serializers.Serializer):
+    customer_name = serializers.CharField(read_only=True)
+    customer_uuid = serializers.CharField(read_only=True)
+    offerings = OfferingReferenceSerializer(many=True, read_only=True)
