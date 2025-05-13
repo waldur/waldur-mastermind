@@ -495,6 +495,10 @@ PERMISSION_DESCRIPTION = [
                 "value": "PROJECT.CREATE_PERMISSION",
             },
             {
+                "label": "List customer users",
+                "value": "CUSTOMER.LIST_USERS",
+            },
+            {
                 "label": "Create customer permission",
                 "value": "CUSTOMER.CREATE_PERMISSION",
             },
