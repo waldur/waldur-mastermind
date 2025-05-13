@@ -104,10 +104,9 @@ class BackgroundListPullTask(core_tasks.BackgroundTask):
         return self.name == other_task.get("name")
 
     def get_pulled_objects(self):
-        States = self.model.States
-        return self.model.objects.filter(state__in=[States.ERRED, States.OK]).exclude(
-            backend_id=""
-        )
+        return self.model.objects.filter(
+            state__in=[CoreStates.ERRED, CoreStates.OK]
+        ).exclude(backend_id="")
 
     def run(self):
         for instance in self.get_pulled_objects():
