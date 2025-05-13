@@ -4731,6 +4731,8 @@ class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         project = serializer.validated_data.get("project")
+        if not project:
+            raise PermissionDenied()
         if not (
             has_permission(request, PermissionEnum.MANAGE_SERVICE_ACCOUNT, project)
             or has_permission(
@@ -4799,6 +4801,8 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         customer = serializer.validated_data.get("customer")
+        if not customer:
+            raise PermissionDenied()
         if not has_permission(request, PermissionEnum.MANAGE_SERVICE_ACCOUNT, customer):
             raise PermissionDenied()
 
