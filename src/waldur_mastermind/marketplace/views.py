@@ -1748,6 +1748,9 @@ class ProviderOfferingViewSet(
     ]
     delete_endpoint_validators = update_validators
 
+    @extend_schema(
+        responses=serializers.OfferingGroupsSerializer(many=True),
+    )
     @action(detail=False, permission_classes=[], filter_backends=[DjangoFilterBackend])
     def groups(self, *args, **kwargs):
         OFFERING_LIMIT = 4

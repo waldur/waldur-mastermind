@@ -292,6 +292,8 @@ class CustomerCreditTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.invoice = self.fixture.invoice
+        self.invoice.tax_percent = 22
+        self.invoice.save()
         self.invoice_item = self.fixture.invoice_item
 
     def test_compensate_cost(self):
@@ -317,7 +319,7 @@ class CustomerCreditTest(test.APITransactionTestCase):
             self.assertEqual(credit.consumption_last_month, credit_value)
 
     def test_compensate_cost_if_credit_greater_than_item_cost(self):
-        credit_value = self.invoice.total * 2
+        credit_value = self.invoice.price * 2
         credit = factories.CustomerCreditFactory(
             customer=self.invoice.customer, value=credit_value
         )
@@ -328,7 +330,7 @@ class CustomerCreditTest(test.APITransactionTestCase):
         self.assertEqual(old_total * -1, credit_item.total)
         self.assertEqual(self.invoice.total, 0)
         credit.refresh_from_db()
-        self.assertEqual(credit.value, credit_value - old_total)
+        self.assertEqual(credit.value, credit_value + credit_item.price)
 
     def test_expected_consumption(self):
         old_total = self.invoice.total
