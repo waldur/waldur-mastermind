@@ -446,6 +446,12 @@ class ManagedRancherSecretOptionsSerializer(serializers.Serializer):
         required=False,
     )
 
+    node_disk_driver = serializers.ChoiceField(
+        required=False,
+        help_text=_("OpenStack disk driver for Rancher nodes"),
+        choices=["sd", "vd"],
+    )
+
 
 class GenericSecretOptionsSerializer(serializers.Serializer):
     pass

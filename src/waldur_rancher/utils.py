@@ -235,9 +235,8 @@ def get_node_quota(quota_name, node):
         return conf[quota_name]
 
 
-def format_disk_id(index):
-    # TODO: make configurable "sd" and "vd"
-    return "/dev/sd" + (chr(ord("a") + index))
+def format_disk_id(disk_driver, index):
+    return f"/dev/{disk_driver}{(chr(ord('a') + index))}"
 
 
 def format_node_cloud_config(
@@ -247,6 +246,9 @@ def format_node_cloud_config(
     cloud_init_extra_params = cloud_init_extra_params or {}
     config_template = cast(
         str | None, node.cluster.service_settings.get_option("cloud_init_template")
+    )
+    disk_driver = cast(
+        str | None, node.cluster.service_settings.get_option("node_disk_driver")
     )
     if not config_template:
         return ""
@@ -262,14 +264,14 @@ def format_node_cloud_config(
         # First volume is reserved for system volume, other volumes are data volumes
 
         conf["mounts"] = [
-            [format_disk_id(index + 1), volume["mount_point"]]
+            [format_disk_id(disk_driver, index + 1), volume["mount_point"]]
             for index, volume in enumerate(data_volumes)
             if volume.get("mount_point")
         ]
 
         conf["fs_setup"] = [
             {
-                "device": format_disk_id(index + 1),
+                "device": format_disk_id(disk_driver, index + 1),
                 "filesystem": volume.get("filesystem", "ext4"),
             }
             for index, volume in enumerate(data_volumes)
