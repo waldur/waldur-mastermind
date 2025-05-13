@@ -26,4 +26,6 @@ def handle_migration_post_save(sender, instance, created, **kwargs):
         provider_reviewed_by=migration.created_by,
         consumer_reviewed_at=migration.created,
         provider_reviewed_at=migration.created,
+        error_message=migration.error_message,
+        error_traceback=migration.error_traceback,
     )
