@@ -54,6 +54,8 @@ from waldur_core.structure.managers import (
     filter_queryset_for_user,
     get_active_tokens,
     get_connected_customers,
+    get_connected_projects,
+    get_project_users,
 )
 from waldur_core.structure.utils import get_components_usage_data_from_resources
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -63,6 +65,22 @@ from waldur_mastermind.marketplace.enums import ResourceStates
 logger = logging.getLogger(__name__)
 
 User = auth.get_user_model()
+
+
+BASE_USER_PARAMETERS = [
+    OpenApiParameter("full_name", str, OpenApiParameter.QUERY),
+    OpenApiParameter("user_keyword", str, OpenApiParameter.QUERY),
+    OpenApiParameter("native_name", str, OpenApiParameter.QUERY),
+    OpenApiParameter("organization", str, OpenApiParameter.QUERY),
+    OpenApiParameter("email", str, OpenApiParameter.QUERY),
+    OpenApiParameter("phone_number", str, OpenApiParameter.QUERY),
+    OpenApiParameter("description", str, OpenApiParameter.QUERY),
+    OpenApiParameter("job_title", str, OpenApiParameter.QUERY),
+    OpenApiParameter("username", str, OpenApiParameter.QUERY),
+    OpenApiParameter("civil_number", str, OpenApiParameter.QUERY),
+    OpenApiParameter("is_active", str, OpenApiParameter.QUERY),
+    OpenApiParameter("registration_method", str, OpenApiParameter.QUERY),
+]
 
 
 class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
@@ -184,19 +202,8 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
     @extend_schema(
         description="A list of users connected to the customer.",
         responses=serializers.CustomerUserSerializer(many=True),
-        parameters=[
-            OpenApiParameter("full_name", str, OpenApiParameter.QUERY),
-            OpenApiParameter("user_keyword", str, OpenApiParameter.QUERY),
-            OpenApiParameter("native_name", str, OpenApiParameter.QUERY),
-            OpenApiParameter("organization", str, OpenApiParameter.QUERY),
-            OpenApiParameter("email", str, OpenApiParameter.QUERY),
-            OpenApiParameter("phone_number", str, OpenApiParameter.QUERY),
-            OpenApiParameter("description", str, OpenApiParameter.QUERY),
-            OpenApiParameter("job_title", str, OpenApiParameter.QUERY),
-            OpenApiParameter("username", str, OpenApiParameter.QUERY),
-            OpenApiParameter("civil_number", str, OpenApiParameter.QUERY),
-            OpenApiParameter("is_active", str, OpenApiParameter.QUERY),
-            OpenApiParameter("registration_method", str, OpenApiParameter.QUERY),
+        parameters=BASE_USER_PARAMETERS
+        + [
             OpenApiParameter("project_role", str, OpenApiParameter.QUERY),
             OpenApiParameter("organization_role", str, OpenApiParameter.QUERY),
             OpenApiParameter("o", str, OpenApiParameter.QUERY),
@@ -355,12 +362,6 @@ class ProjectViewSet(
         permission_factory(PermissionEnum.UPDATE_PROJECT, ["*", "customer"])
     ]
 
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        if self.action == "users":
-            context["project"] = self.get_object()
-        return context
-
     @extend_schema(
         request=serializers.ProjectSerializer,
         examples=[
@@ -452,6 +453,37 @@ class ProjectViewSet(
             },
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        description="A list of users which can be added to the "
+        "current project from other projects of the same customer.",
+        responses=serializers.BasicUserSerializer(many=True),
+        parameters=BASE_USER_PARAMETERS,
+    )
+    @action(
+        detail=True,
+        filter_backends=[filters.GenericRoleFilter],
+    )
+    def other_users(self, request, uuid=None):
+        project: models.Project = self.get_object()
+        projects = (
+            models.Project.objects.filter(customer=project.customer)
+            .filter(id__in=get_connected_projects(request.user))
+            .exclude(id=project.id)
+        ).values_list("id", flat=True)
+
+        queryset = User.objects.filter(id__in=get_project_users(projects))
+
+        queryset = filters.UserConcatenatedNameOrderingBackend().filter_queryset(
+            request, queryset, self
+        )
+        filterset = filters.BaseUserFilter(request.GET, queryset=queryset)
+        queryset = filterset.qs
+        queryset = self.paginate_queryset(queryset)
+        serializer = serializers.BasicUserSerializer(
+            queryset, many=True, context=self.get_serializer_context()
+        )
+        return self.get_paginated_response(serializer.data)
 
 
 class UserViewSet(core_views.ActionsViewSet):
