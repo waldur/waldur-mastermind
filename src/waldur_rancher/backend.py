@@ -323,6 +323,7 @@ runcmd:
 class RancherBackend(ServiceBackend):
     DEFAULTS = {
         "cloud_init_template": CLOUD_INIT_TEMPLATE,
+        "node_disk_driver": "sd",
         "default_mtu": 1400,
         "private_registry_url": None,
         "private_registry_user": None,

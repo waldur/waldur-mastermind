@@ -193,6 +193,12 @@ class RancherServiceSettingsSerializer(structure_serializers.ServiceOptionsSeria
         required=False,
     )
 
+    node_disk_driver = serializers.CharField(
+        source="options.node_disk_driver",
+        required=False,
+        help_text=_("OpenStack disk driver for Rancher nodes"),
+    )
+
     def validate_management_tenant_uuid(self, tenant_uuid):
         if not filter_queryset_for_user(
             openstack_models.Tenant.objects.filter(uuid=tenant_uuid),
