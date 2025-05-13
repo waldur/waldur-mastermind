@@ -4595,12 +4595,31 @@ class BaseScopedServiceAccountSerializer(BaseServiceAccountSerializer):
 
 class ProjectServiceAccountSerializer(BaseScopedServiceAccountSerializer):
     project = serializers.SlugRelatedField(
-        queryset=structure_models.Project.objects.all(), slug_field="uuid"
+        queryset=structure_models.Project.available_objects.all(), slug_field="uuid"
+    )
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
+    project_name = serializers.CharField(read_only=True, source="project.name")
+
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="project.customer.uuid"
+    )
+    customer_name = serializers.CharField(
+        read_only=True, source="project.customer.name"
+    )
+    customer_abbreviation = serializers.CharField(
+        read_only=True, source="project.customer.abbreviation"
     )
 
     class Meta(BaseScopedServiceAccountSerializer.Meta):
         model = models.ProjectServiceAccount
-        fields = BaseScopedServiceAccountSerializer.Meta.fields + ("project",)
+        fields = BaseScopedServiceAccountSerializer.Meta.fields + (
+            "project",
+            "project_uuid",
+            "project_name",
+            "customer_uuid",
+            "customer_name",
+            "customer_abbreviation",
+        )
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
@@ -4613,10 +4632,16 @@ class CustomerServiceAccountSerializer(BaseScopedServiceAccountSerializer):
     customer = serializers.SlugRelatedField(
         queryset=structure_models.Customer.objects.all(), slug_field="uuid"
     )
+    customer_uuid = serializers.UUIDField(read_only=True, source="customer.uuid")
+    customer_name = serializers.CharField(read_only=True, source="customer.name")
 
     class Meta(BaseScopedServiceAccountSerializer.Meta):
         model = models.CustomerServiceAccount
-        fields = BaseScopedServiceAccountSerializer.Meta.fields + ("customer",)
+        fields = BaseScopedServiceAccountSerializer.Meta.fields + (
+            "customer",
+            "customer_uuid",
+            "customer_name",
+        )
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
