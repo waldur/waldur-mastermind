@@ -10,6 +10,7 @@ from waldur_core.core import utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.structure import tasks
 from waldur_core.structure.tests import factories
+from waldur_core.structure.tests import models as test_models
 
 
 @ddt
@@ -86,3 +87,29 @@ class ExceptionTest(TestCase):
         task = tasks.ServiceResourcesPullTask()
         error_message = f"'test error', Service settings: {service_settings.name}, {service_settings.type}"
         self.assertRaisesRegex(KeyError, error_message, task.pull, service_settings)
+
+
+class BackgroundListPullTaskTest(TestCase):
+    def test_get_pulled_objects_filters_by_state_and_backend_id(self):
+        # Create instances with various states and backend_id values
+        good1 = factories.TestNewInstanceFactory(state=CoreStates.OK, backend_id="id1")
+        good2 = factories.TestNewInstanceFactory(
+            state=CoreStates.ERRED, backend_id="id2"
+        )
+        bad1 = factories.TestNewInstanceFactory(
+            state=CoreStates.OK, backend_id=""
+        )  # empty backend_id
+        bad2 = factories.TestNewInstanceFactory(
+            state=CoreStates.CREATING, backend_id="id3"
+        )  # wrong state
+
+        class TestTask(tasks.BackgroundListPullTask):
+            model = test_models.TestNewInstance
+            pull_task = mock.Mock()
+
+        task = TestTask()
+        result = list(task.get_pulled_objects())
+        self.assertIn(good1, result)
+        self.assertIn(good2, result)
+        self.assertNotIn(bad1, result)
+        self.assertNotIn(bad2, result)
