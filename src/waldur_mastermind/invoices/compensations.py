@@ -72,7 +72,7 @@ class MonthlyCompensation:
             project_credit: models.ProjectCredit = projects_credits.get(
                 item.project, None
             )
-            cost = item.total
+            cost = item.price
 
             if project_credit:
                 if cost >= project_credit.value:
@@ -87,7 +87,9 @@ class MonthlyCompensation:
 
             else:
                 if cost >= self.credit.value:
-                    credit_compensation = self.credit.value
+                    credit_compensation = self.credit.value / (
+                        1 + self.invoice.tax_percent / 100
+                    )
                     self.credit.value = 0
                 else:
                     credit_compensation = cost
