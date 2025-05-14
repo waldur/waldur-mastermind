@@ -108,7 +108,7 @@ class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
 
     class Meta:
         model = models.Port
-        fields = ()
+        fields = ("status", "mac_address", "backend_id", "admin_state_up")
 
     def filter_query(self, queryset, name, value):
         query = queryset.filter(
