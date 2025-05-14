@@ -234,6 +234,7 @@ class RoleTemplateFilter(django_filters.FilterSet):
     scope_type = django_filters.CharFilter(field_name="scope_type")
     name = django_filters.CharFilter(field_name="name")
     settings_uuid = django_filters.UUIDFilter(field_name="settings__uuid")
+    o = django_filters.OrderingFilter(fields=("name", "scope_type"))
 
     class Meta:
         model = models.RoleTemplate

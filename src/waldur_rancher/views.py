@@ -627,7 +627,7 @@ class ServiceViewSet(
 
 
 class RoleTemplateViewSet(core_views.ReadOnlyActionsViewSet):
-    queryset = models.RoleTemplate.objects.all().order_by("scope_type")
+    queryset = models.RoleTemplate.objects.all().order_by("name")
     serializer_class = serializers.RoleTemplateSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.RoleTemplateFilter
