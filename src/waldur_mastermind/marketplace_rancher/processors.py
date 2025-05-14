@@ -137,12 +137,17 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             network = ip_network(subnet.cidr, strict=False)
             first_host = network.network_address + OS_SUBNET_4_OCTET_START_IP
             last_host = network.network_address + OS_SUBNET_4_OCTET_END_IP
-            subnet.allocation_pools = [
-                {
-                    "start": str(first_host),
-                    "end": str(last_host),
-                }
-            ]
+
+            # Convert the allocation_pools to the expected format
+            allocation_pools_str = str(
+                [
+                    {
+                        "start": str(first_host),
+                        "end": str(last_host),
+                    }
+                ]
+            )
+            subnet.allocation_pools = allocation_pools_str
             subnet.save()
 
             os_executors.SubNetUpdateExecutor().execute(

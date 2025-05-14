@@ -222,6 +222,7 @@ DELETE_PERMISSIONS = {
     "service_provider": PermissionEnum.DELETE_CUSTOMER_PERMISSION,
 }
 
+
 def generate_permission_description():
     # Group permissions by category (based on prefix before the dot)
     categories = {}

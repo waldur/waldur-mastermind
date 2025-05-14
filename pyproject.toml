@@ -179,7 +179,7 @@ lint.select = [
 
 target-version = "py311"
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "**/migrations/**/*.py" = ["T201"]
 "**/management/commands/**/*.py" = ["T201"]
 "src/waldur_core/permissions/print_permission_enums.py" = ["T201"]
