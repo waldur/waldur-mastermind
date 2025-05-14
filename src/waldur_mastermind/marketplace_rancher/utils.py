@@ -62,6 +62,7 @@ def submit_creation_order(
     project: Project,
     attributes,
     limits=None,
+    order_wait_timeout=600,
 ) -> str:
     post_data = {
         "project": reverse("project-detail", kwargs={"uuid": project.uuid.hex}),
@@ -87,7 +88,7 @@ def submit_creation_order(
     if response.status_code != status.HTTP_201_CREATED:
         raise ValidationError(data)
     order_uuid = data["uuid"]
-    wait_for_order(order_uuid)
+    wait_for_order(order_uuid, timeout=order_wait_timeout)
     return order_uuid
 
 

@@ -1,3 +1,5 @@
+from ipaddress import ip_network
+from time import sleep
 from typing import cast
 
 from rest_framework import serializers as rf_serializers
@@ -16,10 +18,8 @@ from waldur_mastermind.marketplace import (
 )
 from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
-from waldur_mastermind.marketplace.views import OrderViewSet
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
-    INSTANCE_TYPE,
     RAM_TYPE,
     STORAGE_MODE_DYNAMIC,
     STORAGE_MODE_FIXED,
@@ -29,18 +29,23 @@ from waldur_mastermind.marketplace_openstack import (
 from waldur_mastermind.marketplace_rancher.utils import (
     submit_creation_order,
     submit_termination_order,
-    wait_for_order,
     wait_for_tenant,
 )
+from waldur_openstack import executors as os_executors
 from waldur_openstack import models as os_models
+from waldur_openstack import views as os_views
 from waldur_openstack.utils import volume_type_name_to_quota_name
+from waldur_rancher import exceptions
 from waldur_rancher import models as rancher_models
 from waldur_rancher import views as rancher_views
 from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE, NodeRoleType
 
 from . import PLUGIN_NAME, serializers
 
-SECURITY_GROUPS = ["k8s_admin", "k8s_public"]
+OS_LB_SECURITY_GROUPS = ["k8s_admin", "k8s_public"]
+OS_SUBNET_4_OCTET_START_IP = 11
+OS_SUBNET_4_OCTET_END_IP = 200
+OS_LB_VM_4_OCTET_IP = 10
 
 
 class RancherCreateProcessor(processors.BaseCreateResourceProcessor):
@@ -68,9 +73,10 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
         project = self.create_project()
         tenants = self.create_tenants(user, project)
-        cluster = self.create_cluster(user, project, tenants)
+        self.update_subnets(tenants)
         self.create_security_groups(tenants)
         self.create_load_balancers(user, project, tenants)
+        cluster = self.create_cluster(user, project, tenants)
         return cluster
 
     def create_project(self) -> Project:
@@ -120,6 +126,30 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             cast(os_models.Tenant, order.resource.scope)
             for order in Order.objects.filter(uuid__in=orders)
         ]
+
+    def update_subnets(self, tenants: list[os_models.Tenant]):
+        # Limit applocation pools for subnets used for Rancher nodes
+        for tenant in tenants:
+            subnet = os_models.SubNet.objects.filter(tenant=tenant).first()
+            if not subnet:
+                continue
+
+            network = ip_network(subnet.cidr, strict=False)
+            first_host = network.network_address + OS_SUBNET_4_OCTET_START_IP
+            last_host = network.network_address + OS_SUBNET_4_OCTET_END_IP
+            subnet.allocation_pools = [
+                {
+                    "start": str(first_host),
+                    "end": str(last_host),
+                }
+            ]
+            subnet.save()
+
+            os_executors.SubNetUpdateExecutor().execute(
+                subnet, updated_fields=["allocation_pools"]
+            )
+        # Wait for subnets to be updated
+        sleep(5)
 
     def create_cluster(
         self,
@@ -197,10 +227,15 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             "vm_project": reverse("project-detail", kwargs={"uuid": project.uuid.hex}),
         }
 
+        # TODO: consider lower wait timeout
         order_uuid = submit_creation_order(
-            user, rancher_offering, plan, self.order.project, attributes
+            user,
+            rancher_offering,
+            plan,
+            self.order.project,
+            attributes,
+            order_wait_timeout=60 * 60,
         )
-        wait_for_order(order_uuid)
         return cast(
             rancher_models.Cluster, Order.objects.get(uuid=order_uuid).resource.scope
         )
@@ -314,17 +349,21 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
     ):
         # TODO: Introduce cluster security groups as
         # source of truth for SG replication to different tenants
-        view = OrderViewSet.as_view({"post": "create_security_group"})
+        view = os_views.TenantViewSet.as_view({"post": "create_security_group"})
         for tenant in tenants:
-            for group in SECURITY_GROUPS:
+            for group in OS_LB_SECURITY_GROUPS:
+                # Wait for tenant to become OK in case if it is being pulled
+                wait_for_tenant(tenant.uuid)
                 response = create_request(
-                    view, get_system_robot(), {"name": group, "rules": []}
+                    view,
+                    get_system_robot(),
+                    {"name": group, "rules": []},
+                    uuid=tenant.uuid.hex,
                 )
                 data = cast(dict, response.data)
 
                 if response.status_code != status.HTTP_201_CREATED:
                     raise rf_serializers.ValidationError(data)
-                wait_for_tenant(tenant.uuid)
 
     def create_load_balancers(
         self,
@@ -334,19 +373,13 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
     ) -> list[os_models.Instance]:
         instances = []
         for tenant in tenants:
-            try:
-                vm_offering = Offering.objects.get(scope=tenant, type=INSTANCE_TYPE)
-            except Offering.DoesNotExist:
-                raise rf_serializers.ValidationError(
-                    "Unable to create load balance because OpenStack instance offering for tenant does not exist."
-                )
-            plan = Plan.objects.filter(offerign=vm_offering).first()
-
             flavor_name = self.order.offering.plugin_options[
                 "managed_rancher_load_balancer_flavor_name"
             ]
             try:
-                flavor = os_models.Flavor.objects.get(tenant=tenant, name=flavor_name)
+                flavor = os_models.Flavor.objects.get(
+                    settings=tenant.service_settings, name=flavor_name
+                )
             except os_models.Flavor.DoesNotExist:
                 raise rf_serializers.ValidationError(
                     "Unable to create load balance because OpenStack flavor does not exist."
@@ -354,7 +387,9 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
             base_image_name = self.order.offering.secret_options["base_image_name"]
             try:
-                image = os_models.Image.objects.get(tenant=tenant, name=base_image_name)
+                image = os_models.Image.objects.get(
+                    settings=tenant.service_settings, name=base_image_name
+                )
             except os_models.Image.DoesNotExist:
                 raise rf_serializers.ValidationError(
                     "Unable to create load balance because OpenStack image does not exist."
@@ -384,22 +419,37 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             )
 
             system_volume_type = os_models.VolumeType.objects.get(
-                tenant=tenant, name=system_volume_type_name
+                settings=tenant.service_settings, name=system_volume_type_name
             )
             data_volume_type = os_models.VolumeType.objects.get(
-                tenant=tenant, name=data_volume_type_name
+                settings=tenant.service_settings, name=data_volume_type_name
             )
             security_groups = os_models.SecurityGroup.objects.filter(
                 tenant=tenant,
-                name__in=SECURITY_GROUPS,
+                name__in=OS_LB_SECURITY_GROUPS + ["default"],
             )
+            subnet_3_oct = subnet.cidr.rsplit(".", maxsplit=1)[0]
+            cloud_init_scipt = cloud_init_template.format(subnet_3_oct=subnet_3_oct)
 
-            attributes = {
+            network = ip_network(subnet.cidr, strict=False)
+            lb_address = str(network.network_address + OS_LB_VM_4_OCTET_IP)
+
+            post_data = {
                 "name": f"k8s-lb-{self.order.resource.slug}",
                 "flavor": reverse(
                     "openstack-flavor-detail", kwargs={"uuid": flavor.uuid.hex}
                 ),
-                "image": reverse("openstack-image-detail", kwargs={"uuid": image}),
+                "image": reverse(
+                    "openstack-image-detail", kwargs={"uuid": image.uuid.hex}
+                ),
+                "service_settings": reverse(
+                    "servicesettings-detail",
+                    kwargs={"uuid": tenant.service_settings.uuid.hex},
+                ),
+                "tenant": reverse(
+                    "openstack-tenant-detail", kwargs={"uuid": tenant.uuid.hex}
+                ),
+                "project": reverse("project-detail", kwargs={"uuid": project.uuid.hex}),
                 "system_volume_size": system_volume_size_gb * 1024,
                 "system_volume_type": reverse(
                     "openstack-volume-type-detail",
@@ -410,27 +460,39 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     "openstack-volume-type-detail",
                     kwargs={"uuid": data_volume_type.uuid.hex},
                 ),
-                # TODO: inject subnet allocation pool into cloud_init_template
-                "user_data": cloud_init_template,
-                "security_groups": [group.uuid.hex for group in security_groups],
+                "user_data": cloud_init_scipt,
+                "security_groups": [
+                    {
+                        "url": reverse(
+                            "openstack-sgp-detail", kwargs={"uuid": group.uuid.hex}
+                        )
+                    }
+                    for group in security_groups
+                ],
                 "ports": [
                     {
                         "subnet": reverse(
-                            "openstack-subnet-detail", kwargs={"uuid": subnet}
-                        )
+                            "openstack-subnet-detail", kwargs={"uuid": subnet.uuid.hex}
+                        ),
+                        "fixed_ips": [
+                            {
+                                "subnet_id": subnet.backend_id,
+                                "ip_address": lb_address,
+                            }
+                        ],
                     }
                 ],
             }
-            order_uuid = submit_creation_order(
-                user, vm_offering, plan, project, attributes
-            )
-            wait_for_order(order_uuid)
-            instances.append(
-                cast(
-                    os_models.Instance,
-                    Order.objects.get(uuid=order_uuid).resource.scope,
-                )
-            )
+            view = os_views.MarketplaceInstanceViewSet.as_view({"post": "create"})
+            response = create_request(view, user, post_data)
+
+            if response.status_code != status.HTTP_201_CREATED:
+                raise exceptions.RancherException(response.data)
+
+            data = cast(dict, response.data)
+            instance_uuid = data["uuid"]
+            instance = os_models.Instance.objects.get(uuid=instance_uuid)
+            instances.append(instance)
         return instances
 
     def validate_order(self, request):
