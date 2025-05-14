@@ -2944,6 +2944,10 @@ class OpenStackBackend(ServiceBackend):
 
     @log_backend_action()
     def delete_port(self, port: models.Port):
+        if not port.backend_id:
+            logger.info("Skipping port deletion: port %s has no backend_id", port.uuid)
+            return
+
         session = get_tenant_session(port.tenant)
         neutron = get_neutron_client(session)
 

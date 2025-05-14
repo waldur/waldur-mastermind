@@ -152,7 +152,7 @@ class InvoiceItemTotalPriceSerializer(serializers.Serializer):
 class InvoiceItemUpdateSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.InvoiceItem
-        fields = ("article_code", "quantity", "start", "end")
+        fields = ("article_code", "quantity", "unit_price", "start", "end")
         extra_kwargs = {"quantity": {"required": False}}
 
     def get_fields(self):
