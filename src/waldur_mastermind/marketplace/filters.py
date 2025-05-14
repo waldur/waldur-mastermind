@@ -420,6 +420,10 @@ class ResourceFilter(
     offering_shared = django_filters.BooleanFilter(
         field_name="offering__shared", label="Offering shared"
     )
+    has_terminate_date = django_filters.BooleanFilter(
+        method="filter_has_termination_date", label="Has termination date"
+    )
+
     o = django_filters.OrderingFilter(
         fields=(
             ("name", "name"),
@@ -432,6 +436,9 @@ class ResourceFilter(
     class Meta:
         model = models.Resource
         fields = []
+
+    def filter_has_termination_date(self, queryset: ResourceQuerySet, name, value):
+        return queryset.exclude(end_date__isnull=value)
 
     def filter_query(self, queryset: ResourceQuerySet, name, value):
         if is_uuid_like(value):
