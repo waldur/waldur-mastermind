@@ -49,7 +49,7 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
                 serialized_instance,
                 "pull_cluster",
             )
-            .set(countdown=120)
+            .set(countdown=120, max_retries=10, default_retry_delay=1 * 60)
         ]
         if install_longhorn:
             _tasks += [
