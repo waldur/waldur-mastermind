@@ -736,6 +736,100 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
         core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED)
     ]
 
+    @extend_schema(
+        description="Add interface to router. Either subnet or port must be provided.",
+        request=serializers.OpenStackRouterInterfaceSerializer,
+        responses=None,
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def add_router_interface(self, request, uuid=None):
+        router: models.Router = self.get_object()
+        serializer = serializers.OpenStackRouterInterfaceSerializer(
+            data=request.data, context={"view": self}
+        )
+        serializer.is_valid(raise_exception=True)
+        subnet = serializer.validated_data.get("subnet")
+        port = serializer.validated_data.get("port")
+        old_routes = router.routes
+        executors.RouterAddInterfaceExecutor().execute(router, subnet=subnet, port=port)
+        added_interface = None
+        if subnet:
+            added_interface = {"type": "subnet", "backend_id": subnet.backend_id}
+        elif port:
+            added_interface = {"type": "port", "backend_id": port.backend_id}
+        event_logger.openstack_router.info(
+            "Interface add scheduled for router.",
+            event_type="openstack_router_updated",
+            event_context={
+                "router": router,
+                "old_routes": old_routes,
+                "new_routes": old_routes,  # routes are not changed, but for consistency
+                "tenant_backend_id": router.tenant.backend_id,
+                "added_interface": added_interface,
+            },
+        )
+        return response.Response(
+            {
+                "status": _(
+                    f"Interface add was scheduled for router {router.backend_id}."
+                )
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    add_router_interface_serializer_class = (
+        serializers.OpenStackRouterInterfaceSerializer
+    )
+    add_router_interface_validators = [core_validators.StateValidator(CoreStates.OK)]
+
+    @extend_schema(
+        description="Remove interface from router. Either subnet or port must be provided.",
+        request=serializers.OpenStackRouterInterfaceSerializer,
+        responses=None,
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def remove_router_interface(self, request, uuid=None):
+        router: models.Router = self.get_object()
+        serializer = serializers.OpenStackRouterInterfaceSerializer(
+            data=request.data, context={"view": self}
+        )
+        serializer.is_valid(raise_exception=True)
+        subnet = serializer.validated_data.get("subnet")
+        port = serializer.validated_data.get("port")
+        old_routes = router.routes
+        executors.RouterRemoveInterfaceExecutor().execute(
+            router, subnet=subnet, port=port
+        )
+        removed_interface = None
+        if subnet:
+            removed_interface = {"type": "subnet", "backend_id": subnet.backend_id}
+        elif port:
+            removed_interface = {"type": "port", "backend_id": port.backend_id}
+        event_logger.openstack_router.info(
+            "Interface remove scheduled for router.",
+            event_type="openstack_router_updated",
+            event_context={
+                "router": router,
+                "old_routes": old_routes,
+                "new_routes": old_routes,  # routes are not changed, but for consistency
+                "tenant_backend_id": router.tenant.backend_id,
+                "removed_interface": removed_interface,
+            },
+        )
+        return response.Response(
+            {
+                "status": _(
+                    f"Interface remove was scheduled for router {router.backend_id}."
+                )
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    remove_router_interface_serializer_class = (
+        serializers.OpenStackRouterInterfaceSerializer
+    )
+    remove_router_interface_validators = [core_validators.StateValidator(CoreStates.OK)]
+
 
 class PortViewSet(structure_views.ResourceViewSet):
     queryset = models.Port.objects.all().order_by("network__name")

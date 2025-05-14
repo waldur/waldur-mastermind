@@ -628,6 +628,34 @@ class RouterSetRoutesExecutor(core_executors.ActionExecutor):
         )
 
 
+class RouterAddInterfaceExecutor(core_executors.ActionExecutor):
+    action = "add_router_interface"
+
+    @classmethod
+    def get_task_signature(cls, router, serialized_router, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_router,
+            "add_router_interface",
+            state_transition="begin_updating",
+            subnet=kwargs.get("subnet"),
+            port=kwargs.get("port"),
+        )
+
+
+class RouterRemoveInterfaceExecutor(core_executors.ActionExecutor):
+    action = "remove_router_interface"
+
+    @classmethod
+    def get_task_signature(cls, router, serialized_router, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_router,
+            "remove_router_interface",
+            state_transition="begin_updating",
+            subnet=kwargs.get("subnet"),
+            port=kwargs.get("port"),
+        )
+
+
 class NetworkCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, network, serialized_network, **kwargs):
