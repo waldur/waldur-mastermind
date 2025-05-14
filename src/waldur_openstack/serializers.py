@@ -3512,3 +3512,39 @@ class OpenStackPortIPUpdateSerializer(serializers.Serializer):
                     {"ip_address": "IP address is outside of allocation pools."}
                 )
         return attrs
+
+
+class OpenStackRouterInterfaceSerializer(serializers.Serializer):
+    subnet = serializers.HyperlinkedRelatedField(
+        queryset=models.SubNet.objects.all(),
+        view_name="openstack-subnet-detail",
+        lookup_field="uuid",
+        required=False,
+    )
+    port = serializers.HyperlinkedRelatedField(
+        queryset=models.Port.objects.all(),
+        view_name="openstack-port-detail",
+        lookup_field="uuid",
+        required=False,
+    )
+
+    def validate(self, attrs):
+        if not attrs.get("subnet") and not attrs.get("port"):
+            raise serializers.ValidationError("Either subnet or port must be provided.")
+        if attrs.get("subnet") and attrs.get("port"):
+            raise serializers.ValidationError(
+                "Only one of subnet or port can be provided."
+            )
+        if isinstance(self.context, dict) and "view" in self.context:
+            view = self.context["view"]
+            router = view.get_object()
+            tenant = router.tenant
+            if attrs.get("subnet") and attrs["subnet"].tenant != tenant:
+                raise serializers.ValidationError(
+                    "Subnet must belong to the same tenant as the router."
+                )
+            if attrs.get("port") and attrs["port"].tenant != tenant:
+                raise serializers.ValidationError(
+                    "Port must belong to the same tenant as the router."
+                )
+        return attrs

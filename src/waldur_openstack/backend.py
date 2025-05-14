@@ -5119,3 +5119,41 @@ class OpenStackBackend(ServiceBackend):
             ip_address,
             subnet_backend_id,
         )
+
+    def add_router_interface(self, router, subnet=None, port=None):
+        """
+        Add an interface to a router. Either subnet or port must be provided.
+        """
+        session = get_tenant_session(router.tenant)
+        neutron = get_neutron_client(session)
+
+        params = {}
+        if subnet:
+            params["subnet_id"] = subnet.backend_id
+        if port:
+            params["port_id"] = port.backend_id
+        try:
+            neutron.add_interface_router(router.backend_id, params)
+        except Exception as e:
+            raise OpenStackBackendError(
+                f"Failed to add interface to router {router.backend_id}: {e}"
+            )
+
+    def remove_router_interface(self, router, subnet=None, port=None):
+        """
+        Remove an interface from a router. Either subnet or port must be provided.
+        """
+        session = get_tenant_session(router.tenant)
+        neutron = get_neutron_client(session)
+
+        params = {}
+        if subnet:
+            params["subnet_id"] = subnet.backend_id
+        if port:
+            params["port_id"] = port.backend_id
+        try:
+            neutron.remove_interface_router(router.backend_id, params)
+        except Exception as e:
+            raise OpenStackBackendError(
+                f"Failed to remove interface from router {router.backend_id}: {e}"
+            )
