@@ -67,7 +67,7 @@ class RancherDeleteProcessor(processors.DeleteScopedResourceProcessor):
 
 
 class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
-    def send_request(self, user) -> rancher_models.Cluster:
+    def send_request(self, user) -> Resource:
         serializer = serializers.ClusterCreateSerializer(data=self.order.attributes)
         serializer.is_valid(raise_exception=True)
 
@@ -76,8 +76,8 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         self.update_subnets(tenants)
         self.create_security_groups(tenants)
         self.create_load_balancers(user, project, tenants)
-        cluster = self.create_cluster(user, project, tenants)
-        return cluster
+        cluster_resource = self.create_cluster(user, project, tenants)
+        return cluster_resource
 
     def create_project(self) -> Project:
         """
@@ -161,7 +161,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         user: User,
         project: Project,
         tenants: list[os_models.Tenant],
-    ) -> rancher_models.Cluster:
+    ) -> Resource:
         offering = self.order.offering
         rancher_offering = cast(Offering, offering.scope)
         if not rancher_offering:
@@ -241,9 +241,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             attributes,
             order_wait_timeout=60 * 60,
         )
-        return cast(
-            rancher_models.Cluster, Order.objects.get(uuid=order_uuid).resource.scope
-        )
+        return cast(Resource, Order.objects.get(uuid=order_uuid).resource)
 
     def format_node(
         self,
