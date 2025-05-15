@@ -3550,14 +3550,20 @@ class OpenStackRouterInterfaceSerializer(serializers.Serializer):
             )
         if isinstance(self.context, dict) and "view" in self.context:
             view = self.context["view"]
-            router = view.get_object()
+            router: models.Router = view.get_object()
             tenant = router.tenant
-            if attrs.get("subnet") and attrs["subnet"].tenant != tenant:
-                raise serializers.ValidationError(
-                    "Subnet must belong to the same tenant as the router."
-                )
-            if attrs.get("port") and attrs["port"].tenant != tenant:
-                raise serializers.ValidationError(
-                    "Port must belong to the same tenant as the router."
-                )
+            if attrs.get("subnet"):
+                subnet: models.SubNet = attrs["subnet"]
+                if subnet.tenant != tenant:
+                    raise serializers.ValidationError(
+                        "Subnet must belong to the same tenant as the router."
+                    )
+            if attrs.get("port"):
+                port: models.Port = attrs["port"]
+
+                if port.tenant != tenant:
+                    raise serializers.ValidationError(
+                        "Port must belong to the same tenant as the router."
+                    )
+
         return attrs

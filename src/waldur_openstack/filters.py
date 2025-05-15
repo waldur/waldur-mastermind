@@ -104,11 +104,27 @@ class RouterFilter(TenantFilterSet, structure_filters.NameFilterSet):
 
 class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
     o = django_filters.OrderingFilter(fields=(("network__name", "network_name"),))
-    query = django_filters.CharFilter(method="filter_query")
+    query = django_filters.CharFilter(method="filter_query", label="Query")
+    has_device_owner = django_filters.BooleanFilter(
+        method="filter_has_device_owner", label="Has device owner"
+    )
 
     class Meta:
         model = models.Port
-        fields = ("status", "mac_address", "backend_id", "admin_state_up")
+        fields = (
+            "status",
+            "mac_address",
+            "backend_id",
+            "admin_state_up",
+            "device_owner",
+            "device_id",
+        )
+
+    def filter_has_device_owner(self, queryset, name, value):
+        if value:
+            return queryset.exclude(device_owner__exact="")
+        else:
+            return queryset.filter(device_owner__exact="")
 
     def filter_query(self, queryset, name, value):
         query = queryset.filter(

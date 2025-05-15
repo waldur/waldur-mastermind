@@ -750,8 +750,33 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
         serializer.is_valid(raise_exception=True)
         subnet = serializer.validated_data.get("subnet")
         port = serializer.validated_data.get("port")
+
+        if port and port.device_owner:
+            return response.Response(
+                {
+                    "port": f"Port cannot have an owner. Currently owner is {port.device_owner}"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if port and port.status != "DOWN":
+            return response.Response(
+                {
+                    "port": f"Port should be in DOWN status for attachment. Current status is {port.status}"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         old_routes = router.routes
-        executors.RouterAddInterfaceExecutor().execute(router, subnet=subnet, port=port)
+        backend = router.tenant.get_backend()
+        try:
+            backend.add_router_interface(router, subnet, port)
+        except OpenStackBackendError as e:
+            return response.Response(
+                {"status": _(f"Unable to add a new router interface: {e.args[0]}")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         added_interface = None
         if subnet:
             added_interface = {"type": "subnet", "backend_id": subnet.backend_id}
@@ -771,7 +796,7 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
         return response.Response(
             {
                 "status": _(
-                    f"Interface add was scheduled for router {router.backend_id}."
+                    f"Interface {added_interface} was added to router {router.backend_id}."
                 )
             },
             status=status.HTTP_202_ACCEPTED,
@@ -797,9 +822,15 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
         subnet = serializer.validated_data.get("subnet")
         port = serializer.validated_data.get("port")
         old_routes = router.routes
-        executors.RouterRemoveInterfaceExecutor().execute(
-            router, subnet=subnet, port=port
-        )
+        backend = router.tenant.get_backend()
+        try:
+            backend.remove_router_interface(router, subnet, port)
+        except OpenStackBackendError as e:
+            return response.Response(
+                {"status": _(f"Unable to remove a router interface: {e.args[0]}")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         removed_interface = None
         if subnet:
             removed_interface = {"type": "subnet", "backend_id": subnet.backend_id}

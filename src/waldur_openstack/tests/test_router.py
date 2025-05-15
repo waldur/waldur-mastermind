@@ -60,7 +60,7 @@ class RouterInterfaceTest(BaseRouterTest):
             self.router, action="remove_router_interface"
         )
 
-    @mock.patch("waldur_openstack.executors.RouterAddInterfaceExecutor.execute")
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.add_router_interface")
     def test_add_router_interface_with_subnet(self, mock_execute):
         response = self.client.post(
             self.url_add, {"subnet": factories.SubNetFactory.get_url(self.subnet)}
@@ -68,7 +68,7 @@ class RouterInterfaceTest(BaseRouterTest):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         mock_execute.assert_called_once()
 
-    @mock.patch("waldur_openstack.executors.RouterAddInterfaceExecutor.execute")
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.add_router_interface")
     def test_add_router_interface_with_port(self, mock_execute):
         response = self.client.post(
             self.url_add, {"port": factories.PortFactory.get_url(self.port)}
@@ -98,7 +98,7 @@ class RouterInterfaceTest(BaseRouterTest):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @mock.patch("waldur_openstack.executors.RouterRemoveInterfaceExecutor.execute")
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.remove_router_interface")
     def test_remove_router_interface_with_subnet(self, mock_execute):
         response = self.client.post(
             self.url_remove, {"subnet": factories.SubNetFactory.get_url(self.subnet)}
@@ -106,7 +106,7 @@ class RouterInterfaceTest(BaseRouterTest):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         mock_execute.assert_called_once()
 
-    @mock.patch("waldur_openstack.executors.RouterRemoveInterfaceExecutor.execute")
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.remove_router_interface")
     def test_remove_router_interface_with_port(self, mock_execute):
         response = self.client.post(
             self.url_remove, {"port": factories.PortFactory.get_url(self.port)}

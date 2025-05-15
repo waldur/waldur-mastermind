@@ -307,7 +307,7 @@ class PortFactory(
     tenant = factory.SubFactory(TenantFactory)
     network = factory.SubFactory(NetworkFactory)
     admin_state_up = True
-    status = "ACTIVE"
+    status = "DOWN"
 
     @classmethod
     def get_url(cls, port=None):
