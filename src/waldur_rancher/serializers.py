@@ -1488,3 +1488,33 @@ class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializ
             return scope.name
         except (models.Cluster.DoesNotExist, models.Project.DoesNotExist):
             return None
+
+
+class RancherClusterSecurityGroupRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.ClusterSecurityGroupRule
+        fields = (
+            "ethertype",
+            "direction",
+            "protocol",
+            "from_port",
+            "to_port",
+            "cidr",
+            "description",
+        )
+
+
+class ClusterSecurityGroupSerializer(serializers.ModelSerializer):
+    rules = RancherClusterSecurityGroupRuleSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = models.ClusterSecurityGroup
+        fields = (
+            "uuid",
+            "name",
+            "description",
+            "rules",
+        )

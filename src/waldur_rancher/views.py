@@ -9,8 +9,9 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import decorators, generics, response, status
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from rest_framework import decorators, generics, mixins, response, status, viewsets
 from rest_framework.exceptions import MethodNotAllowed, ValidationError
 from rest_framework.permissions import SAFE_METHODS
 
@@ -786,3 +787,38 @@ class KeycloakUserGroupMembershipViewSet(core_views.ActionsViewSet):
             )
         except keycloak_exceptions.KeycloakError as e:
             raise ValidationError(f"Unable to add a user to the Keycloak group: {e}")
+
+
+CLUSTER_UUID = OpenApiParameter(
+    name="cluster_uuid",
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.PATH,
+)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="List security groups of Rancher cluster.",
+        parameters=[CLUSTER_UUID],
+    ),
+    retrieve=extend_schema(
+        description="Retrieve security group of Rancher cluster.",
+        parameters=[CLUSTER_UUID],
+    ),
+)
+class RancherClusterSecurityGroupsViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
+    serializer_class = serializers.ClusterSecurityGroupSerializer
+    queryset = models.ClusterSecurityGroup.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ClusterSecurityGroupFilter
+
+    def get_cluster(self):
+        qs = filter_queryset_for_user(models.Cluster.objects.all(), self.request.user)
+        return qs.get(uuid=self.kwargs["cluster_uuid"])
+
+    def get_queryset(self):
+        return self.queryset.filter(cluster=self.get_cluster())

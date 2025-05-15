@@ -263,7 +263,10 @@ class SecurityGroup(structure_models.BaseResource):
         return super().get_backend_fields() + ("name", "description")
 
 
-class SecurityGroupRule(LoggableMixin, core_models.DescribableMixin, models.Model):
+class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
+    class Meta:
+        abstract = True
+
     TCP = "tcp"
     UDP = "udp"
     ICMP = "icmp"
@@ -304,6 +307,8 @@ class SecurityGroupRule(LoggableMixin, core_models.DescribableMixin, models.Mode
 
     backend_id = models.CharField(max_length=36, blank=True)
 
+
+class SecurityGroupRule(BaseSecurityGroupRule, LoggableMixin):
     def __str__(self):
         return f"{self.security_group} ({self.protocol}): {self.cidr} ({self.from_port} -> {self.to_port})"
 
