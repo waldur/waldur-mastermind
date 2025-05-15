@@ -531,3 +531,17 @@ class KeycloakUserGroupMembership(
 
     def __str__(self):
         return f"{self.username} in {self.group}"
+
+
+class ClusterSecurityGroup(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.DescribableMixin,
+):
+    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE, related_name="+")
+
+
+class ClusterSecurityGroupRule(openstack_models.BaseSecurityGroupRule):
+    group = models.ForeignKey(
+        ClusterSecurityGroup, on_delete=models.CASCADE, related_name="+"
+    )
