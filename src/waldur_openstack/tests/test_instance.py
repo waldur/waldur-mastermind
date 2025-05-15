@@ -180,6 +180,16 @@ class InstanceCreateTest(test.APITransactionTestCase):
         instance = models.Instance.objects.get(uuid=response.data["uuid"])
         self.assertEqual(instance.ports.first().fixed_ips, fixed_ips)
 
+    def test_can_create_instance_with_existing_port_in_down_state(self):
+        post_data = self.get_valid_data()
+        self.fixture.port.status = "DOWN"
+        self.fixture.port.save()
+        post_data["ports"][0]["port"] = factories.PortFactory.get_url(self.fixture.port)
+        response = self.create_instance(post_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        instance = models.Instance.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(instance.ports.first(), self.fixture.port)
+
     def test_user_can_define_instance_subnets(self):
         subnet = self.fixture.subnet
         data = self.get_valid_data(

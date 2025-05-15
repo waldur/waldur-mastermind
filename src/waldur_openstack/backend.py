@@ -1002,6 +1002,15 @@ class OpenStackBackend(ServiceBackend):
         rows = queryset.exclude(backend_id="").values("id", "backend_id")
         return {row["backend_id"]: row["id"] for row in rows}
 
+    def update_instance_port_status(self, instance: models.Instance):
+        session = get_tenant_session(instance.tenant)
+        neutron = get_neutron_client(session)
+
+        for port in instance.ports.all():
+            status = neutron.show_port(port.backend_id)["port"]["status"]
+            port.status = status
+            port.save(update_fields=["status"])
+
     def pull_tenant_ports(self, tenant: models.Tenant):
         session = get_tenant_session(tenant)
         neutron = get_neutron_client(session)
@@ -4562,7 +4571,8 @@ class OpenStackBackend(ServiceBackend):
             instance.security_groups.values_list("backend_id", flat=True)
         )
         for port in instance.ports.all():
-            self.create_instance_port(port, security_groups)
+            if not port.backend_id:
+                self.create_instance_port(port, security_groups)
 
     def create_instance_port(self, port: models.Port, instance_security_groups):
         session = get_tenant_session(port.tenant)

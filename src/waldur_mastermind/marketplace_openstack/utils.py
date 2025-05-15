@@ -546,3 +546,14 @@ def update_external_addresses_of_offering_floating_ips(parent_offering):
 
     for resource in resources:
         update_external_addresses_of_resource(resource)
+
+
+def set_ports_status_for_order(order, status):
+    for port_attribute in order.attributes.get("ports", []):
+        port_url = port_attribute.get("port")
+        if port_url:
+            port_uuid = port_url.rstrip("/").split("/")[-1]
+            port = openstack_models.Port.objects.filter(uuid=port_uuid).first()
+            if port:
+                port.status = status
+                port.save()

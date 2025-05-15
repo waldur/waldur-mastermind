@@ -275,3 +275,15 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace_openstack."
             "update_instances_ip_external_addresses",
         )
+
+        signals.post_save.connect(
+            handlers.handle_openstack_tenant_order_creation,
+            sender=marketplace_models.Order,
+            dispatch_uid="waldur_mastermind.marketplace_openstack.handle_openstack_tenant_order_creation",
+        )
+
+        signals.post_save.connect(
+            handlers.handle_openstack_tenant_order_termination,
+            sender=marketplace_models.Order,
+            dispatch_uid="waldur_mastermind.marketplace_openstack.handle_openstack_tenant_order_termination",
+        )

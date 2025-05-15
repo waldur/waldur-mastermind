@@ -571,3 +571,37 @@ def update_instances_ip_external_addresses(sender, instance, created=False, **kw
         return
 
     utils.update_external_addresses_of_offering_floating_ips(offering)
+
+
+def handle_openstack_tenant_order_creation(
+    sender, instance: marketplace_models.Order, created, **kwargs
+):
+    order = instance
+
+    if (
+        created
+        and order.type == marketplace_models.Order.Types.CREATE
+        and order.offering.type == INSTANCE_TYPE
+    ):
+        utils.set_ports_status_for_order(order, "BOOKED")
+
+
+def handle_openstack_tenant_order_termination(
+    sender, instance: marketplace_models.Order, created, **kwargs
+):
+    order = instance
+
+    if created:
+        return
+
+    if (
+        order.offering.type == INSTANCE_TYPE
+        and order.tracker.has_changed("state")
+        and order.state
+        in (
+            marketplace_models.OrderStates.ERRED,
+            marketplace_models.OrderStates.CANCELED,
+            marketplace_models.OrderStates.REJECTED,
+        )
+    ):
+        utils.set_ports_status_for_order(order, "DOWN")

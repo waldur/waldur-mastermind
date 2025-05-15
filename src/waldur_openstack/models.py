@@ -572,8 +572,7 @@ class Port(structure_models.BaseResource):
         null=True,
         blank=True,
     )
-    admin_state_up = models.CharField(
-        max_length=30,
+    admin_state_up = models.BooleanField(
         blank=True,
         null=True,
     )

@@ -1693,6 +1693,13 @@ class OpenStackNestedPortSerializer(
 ):
     allowed_address_pairs = OpenStackAllowedAddressPairField(read_only=True)
     fixed_ips = OpenStackFixedIpField(required=False)
+    port = serializers.HyperlinkedRelatedField(
+        view_name="openstack-port-detail",
+        lookup_field="uuid",
+        queryset=models.Port.objects.filter(status="DOWN"),
+        write_only=True,
+        required=False,
+    )
 
     class Meta:
         model = models.Port
@@ -1707,6 +1714,7 @@ class OpenStackNestedPortSerializer(
             "allowed_address_pairs",
             "device_id",
             "device_owner",
+            "port",
         )
         read_only_fields = (
             "mac_address",
@@ -1734,7 +1742,12 @@ class OpenStackNestedPortSerializer(
 
     def to_internal_value(self, data):
         internal_value = super().to_internal_value(data)
-        subnet: models.SubNet = internal_value["subnet"]
+        port: models.Port = internal_value.get("port")
+
+        if port:
+            return port
+
+        subnet: models.SubNet = internal_value.get("subnet")
         fixed_ips = internal_value.get("fixed_ips")
         return models.Port(
             subnet=subnet,
