@@ -1150,6 +1150,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         _tasks += cls.create_floating_ips(instance, serialized_instance)
         _tasks += cls.pull_server_group(serialized_instance)
         _tasks += cls.pull_instance(serialized_instance)
+        _tasks += cls.update_ports_status(serialized_instance)
         return chain(*_tasks)
 
     @classmethod
@@ -1339,6 +1340,14 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def pull_instance(cls, serialized_instance):
         return [core_tasks.BackendMethodTask().si(serialized_instance, "pull_instance")]
+
+    @classmethod
+    def update_ports_status(cls, serialized_instance):
+        return [
+            core_tasks.BackendMethodTask().si(
+                serialized_instance, "update_instance_port_status"
+            )
+        ]
 
 
 class InstanceUpdateExecutor(core_executors.UpdateExecutor):
