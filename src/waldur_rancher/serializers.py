@@ -3,6 +3,7 @@ from typing import cast
 from django.conf import settings
 from django.core import validators as django_validators
 from django.core.exceptions import MultipleObjectsReturned
+from django.db import transaction
 from django.db.models import QuerySet
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
@@ -17,7 +18,10 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import Project, ServiceSettings, VirtualMachine
 from waldur_openstack import models as openstack_models
 from waldur_openstack import serializers as openstack_serializers
-from waldur_openstack.serializers import _validate_instance_security_groups
+from waldur_openstack.serializers import (
+    _validate_instance_security_groups,
+    validate_security_group_rule,
+)
 from waldur_rancher.enums import (
     AGENT_ROLE,
     RANCHER_TEMPLATE_QUESTION_TYPE,
@@ -1494,6 +1498,7 @@ class RancherClusterSecurityGroupRuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.ClusterSecurityGroupRule
         fields = (
+            "uuid",
             "ethertype",
             "direction",
             "protocol",
@@ -1503,12 +1508,32 @@ class RancherClusterSecurityGroupRuleSerializer(serializers.ModelSerializer):
             "description",
         )
 
+    def validate(self, rule):
+        validate_security_group_rule(rule)
+        return rule
+
+    def to_internal_value(self, data):
+        """Create new rule if uuid is not specified, update exist rule uuid is specified"""
+        group: models.ClusterSecurityGroup = self.context["view"].get_object()
+        internal_data = super().to_internal_value(data)
+        if "uuid" not in data:
+            return models.ClusterSecurityGroupRule(group=group, **internal_data)
+        rule_uuid = data.pop("uuid")
+        try:
+            rule = models.ClusterSecurityGroupRule.objects.filter(group=group).get(
+                id=rule_uuid
+            )
+        except models.ClusterSecurityGroupRule.DoesNotExist:
+            raise serializers.ValidationError(
+                {"uuid": _("Security group does not have rule with id %s.") % rule_uuid}
+            )
+        for key, value in internal_data.items():
+            setattr(rule, key, value)
+        return rule
+
 
 class ClusterSecurityGroupSerializer(serializers.ModelSerializer):
-    rules = RancherClusterSecurityGroupRuleSerializer(
-        many=True,
-        read_only=True,
-    )
+    rules = RancherClusterSecurityGroupRuleSerializer(many=True)
 
     class Meta:
         model = models.ClusterSecurityGroup
@@ -1518,3 +1543,22 @@ class ClusterSecurityGroupSerializer(serializers.ModelSerializer):
             "description",
             "rules",
         )
+        extra_kwargs = {
+            "name": {"read_only": True},
+            "description": {"read_only": True},
+        }
+
+    @transaction.atomic()
+    def save(self, **kwargs):
+        group: models.ClusterSecurityGroup = self.context["view"].get_object()
+        rules: list[models.ClusterSecurityGroupRule] = self.validated_data["rules"]
+
+        # Delete stale security group rules
+        models.ClusterSecurityGroupRule.objects.filter(group=group).exclude(
+            uuid__in=[rule.uuid for rule in rules if rule.uuid]
+        ).delete()
+
+        # Save new or updated security group rules
+        for rule in rules:
+            rule.save()
+        return group

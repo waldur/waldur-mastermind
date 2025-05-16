@@ -538,10 +538,16 @@ class ClusterSecurityGroup(
     core_models.NameMixin,
     core_models.DescribableMixin,
 ):
+    class Permissions:
+        customer_path = "cluster__project__customer"
+        project_path = "cluster__project"
+
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE, related_name="+")
 
 
-class ClusterSecurityGroupRule(openstack_models.BaseSecurityGroupRule):
+class ClusterSecurityGroupRule(
+    core_models.UuidMixin, openstack_models.BaseSecurityGroupRule
+):
     group = models.ForeignKey(
-        ClusterSecurityGroup, on_delete=models.CASCADE, related_name="+"
+        ClusterSecurityGroup, on_delete=models.CASCADE, related_name="rules"
     )

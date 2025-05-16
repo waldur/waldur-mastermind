@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import decorators, generics, mixins, response, status, viewsets
 from rest_framework.exceptions import MethodNotAllowed, ValidationError
 from rest_framework.permissions import SAFE_METHODS
@@ -30,6 +30,7 @@ from waldur_core.structure.serializers import ConsoleUrlSerializer
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack import models as openstack_models
 from waldur_openstack import views as openstack_views
+from waldur_openstack.executors import PushSecurityGroupRulesExecutor
 from waldur_rancher import (
     backend,
     exceptions,
@@ -796,29 +797,35 @@ CLUSTER_UUID = OpenApiParameter(
 )
 
 
-@extend_schema_view(
-    list=extend_schema(
-        description="List security groups of Rancher cluster.",
-        parameters=[CLUSTER_UUID],
-    ),
-    retrieve=extend_schema(
-        description="Retrieve security group of Rancher cluster.",
-        parameters=[CLUSTER_UUID],
-    ),
-)
 class RancherClusterSecurityGroupsViewSet(
+    OptionalReadonlyViewset,
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
     viewsets.GenericViewSet,
 ):
     serializer_class = serializers.ClusterSecurityGroupSerializer
-    queryset = models.ClusterSecurityGroup.objects.all()
-    filter_backends = (DjangoFilterBackend,)
+    queryset = models.ClusterSecurityGroup.objects.all().order_by("name")
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.ClusterSecurityGroupFilter
+    lookup_field = "uuid"
 
-    def get_cluster(self):
-        qs = filter_queryset_for_user(models.Cluster.objects.all(), self.request.user)
-        return qs.get(uuid=self.kwargs["cluster_uuid"])
-
-    def get_queryset(self):
-        return self.queryset.filter(cluster=self.get_cluster())
+    def perform_update(self, serializer):
+        cluster_security_group: models.ClusterSecurityGroup = serializer.save()
+        tenant_ids = cluster_security_group.cluster.node_set.values_list(
+            "instance__tenant_id", flat=True
+        )
+        for tenant_id in tenant_ids:
+            # TODO: name of security group should be unique and immutable
+            try:
+                os_security_group = openstack_models.SecurityGroup.objects.get(
+                    name=cluster_security_group.name,
+                    tenant_id=tenant_id,
+                )
+            except openstack_models.SecurityGroup.DoesNotExist:
+                raise ValidationError(
+                    f"Security group {cluster_security_group.name} not found in tenant"
+                )
+            transaction.on_commit(
+                lambda: PushSecurityGroupRulesExecutor().execute(os_security_group)
+            )

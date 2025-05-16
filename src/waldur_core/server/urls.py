@@ -23,7 +23,6 @@ from waldur_mastermind.marketplace.views import (
     ServiceProviderUserCustomersViewSet,
     ServiceProviderUsersViewSet,
 )
-from waldur_rancher.views import RancherClusterSecurityGroupsViewSet
 
 router = DefaultRouter()
 logging_urls.register_in(router)
@@ -87,17 +86,10 @@ service_provider_router.register(
     ServiceProviderOfferingsViewSet,
     basename="service-provider-offerings",
 )
-cluster_router = NestedSimpleRouter(router, "rancher-clusters", lookup="cluster")
-cluster_router.register(
-    r"security-groups",
-    RancherClusterSecurityGroupsViewSet,
-    basename="rancher-cluster-security-groups",
-)
 
 urlpatterns += [
     re_path(r"^api/", include(router.urls)),
     re_path(r"^api/", include(service_provider_router.urls)),
-    re_path(r"^api/", include(cluster_router.urls)),
     re_path(r"^api/", include("waldur_core.logging.urls")),
     re_path(r"^api/", include("waldur_core.media.urls")),
     re_path(r"^api/", include("waldur_core.structure.urls")),
