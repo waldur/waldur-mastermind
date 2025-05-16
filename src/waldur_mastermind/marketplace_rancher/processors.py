@@ -143,16 +143,12 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             first_host = network.network_address + OS_SUBNET_4_OCTET_START_IP
             last_host = network.network_address + OS_SUBNET_4_OCTET_END_IP
 
-            # Convert the allocation_pools to the expected format
-            allocation_pools_str = str(
-                [
-                    {
-                        "start": str(first_host),
-                        "end": str(last_host),
-                    }
-                ]
-            )
-            subnet.allocation_pools = allocation_pools_str
+            subnet.allocation_pools = [
+                {
+                    "start": str(first_host),
+                    "end": str(last_host),
+                }
+            ]
             subnet.save()
 
             os_executors.SubNetUpdateExecutor().execute(
@@ -349,6 +345,33 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     kwargs={"uuid": data_volume_type.uuid.hex},
                 )
         result["data_volumes"] = [data_volume_spec]
+
+        # Setup Longhorn volume if needed
+        install_longhorn = self.order.attributes.get("install_longhorn", False)
+        if install_longhorn and role == AGENT_ROLE:
+            longhorn_volume_size = self.order.attributes[
+                "worker_nodes_longhorn_volume_size"
+            ]
+            longhorn_volume_spec: dict[str, int | str] = {
+                "size": longhorn_volume_size * 1024,
+                "mount_point": "/opt/longhorn_storage",
+                "filesystem": "btrfs",
+            }
+            if storage_mode == STORAGE_MODE_DYNAMIC:
+                longhorn_volume_type_name = self.order.attributes.get(
+                    "worker_nodes_longhorn_volume_type_name"
+                )
+                longhorn_volume_type = os_models.VolumeType.objects.filter(
+                    settings=os_service_settings,
+                    name=longhorn_volume_type_name,
+                ).first()
+                if longhorn_volume_type:
+                    longhorn_volume_spec["volume_type"] = reverse(
+                        "openstack-volume-type-detail",
+                        kwargs={"uuid": longhorn_volume_type.uuid.hex},
+                    )
+
+            result["data_volumes"].append(longhorn_volume_spec)
         return result
 
     def create_security_groups(
@@ -549,6 +572,9 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         worker_data_volume_type_name = self.order.attributes.get(
             "worker_nodes_data_volume_type_name"
         )
+        worker_longhorn_volume_type_name = self.order.attributes.get(
+            "worker_nodes_longhorn_volume_type_name"
+        )
         load_balancer_system_volume_type_name = self.order.offering.plugin_options.get(
             "managed_rancher_load_balancer_system_volume_type_name"
         )
@@ -557,14 +583,16 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         )
 
         for service_setting in available_service_settings:
-            for volume_type_name in (
+            volume_type_list = [
                 server_system_volume_type_name,
                 server_data_volume_type_name,
                 worker_system_volume_type_name,
                 worker_data_volume_type_name,
                 load_balancer_system_volume_type_name,
                 load_balancer_data_volume_type_name,
-            ):
+            ]
+            volume_type_list.append(worker_longhorn_volume_type_name)
+            for volume_type_name in volume_type_list:
                 if not volume_type_name:
                     continue
                 if not os_models.VolumeType.objects.filter(
@@ -684,6 +712,13 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             )
         )
 
+        install_longhorn = self.order.attributes.get("install_longhorn", False)
+        worker_longhorn_volume_size_gb = 0
+        if install_longhorn:
+            worker_longhorn_volume_size_gb = self.order.attributes[
+                "worker_nodes_longhorn_volume_size"
+            ]
+
         storage_mode = (
             os_offering.plugin_options.get("storage_mode") or STORAGE_MODE_FIXED
         )
@@ -691,14 +726,18 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             total_storage = (
                 (server_system_volume_size_gb + server_data_volume_size_gb)
                 * server_nodes_count
-                + (worker_system_volume_size_gb + worker_data_volume_size_gb)
+                + (
+                    worker_system_volume_size_gb
+                    + worker_data_volume_size_gb
+                    + worker_longhorn_volume_size_gb
+                )
                 * worker_nodes_count
                 + load_balancer_system_volume_size_gb
                 + load_balancer_data_volume_size_gb
             ) * 1024
             limits[STORAGE_TYPE] = total_storage
         else:
-            volumes = (
+            volumes = [
                 (
                     server_system_volume_type_name,
                     server_nodes_count * server_system_volume_size_gb,
@@ -723,7 +762,17 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     load_balancer_data_volume_type_name,
                     load_balancer_data_volume_size_gb,
                 ),
-            )
+            ]
+            if install_longhorn:
+                worker_longhorn_volume_type_name: str = self.order.attributes.get(
+                    "worker_nodes_longhorn_volume_type_name"
+                )
+                volumes.append(
+                    (
+                        worker_longhorn_volume_type_name,
+                        worker_nodes_count * worker_longhorn_volume_size_gb,
+                    )
+                )
             for volume_type_name, volume_size in volumes:
                 volume_type_quota_name = volume_type_name_to_quota_name(
                     volume_type_name
