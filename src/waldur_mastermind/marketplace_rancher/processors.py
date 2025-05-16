@@ -77,6 +77,11 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         self.create_security_groups(tenants)
         self.create_load_balancers(user, project, tenants)
         cluster_resource = self.create_cluster(user, project, tenants)
+        for sg in OS_LB_SECURITY_GROUPS:
+            rancher_models.ClusterSecurityGroup.objects.create(
+                cluster=cast(rancher_models.Cluster, cluster_resource.scope),
+                name=sg,
+            )
         return cluster_resource
 
     def create_project(self) -> Project:
@@ -350,8 +355,6 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         self,
         tenants: list[os_models.Tenant],
     ):
-        # TODO: Introduce cluster security groups as
-        # source of truth for SG replication to different tenants
         view = os_views.TenantViewSet.as_view({"post": "create_security_group"})
         for tenant in tenants:
             for group in OS_LB_SECURITY_GROUPS:

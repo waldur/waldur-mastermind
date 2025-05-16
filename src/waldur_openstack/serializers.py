@@ -385,6 +385,116 @@ class DebugSecurityGroupRuleSerializer(BaseSecurityGroupRuleSerializer):
         model = models.SecurityGroupRule
 
 
+def validate_security_group_rule(rule):
+    ethertype = rule.ethertype
+    protocol = rule.protocol
+    from_port = rule.from_port
+    to_port = rule.to_port
+    cidr = rule.cidr
+    # for managed rancher remote group is not used
+    remote_group = getattr(rule, "remote_group", None)
+
+    if cidr:
+        if ethertype == models.SecurityGroupRule.IPv4 and not is_valid_ipv4_cidr(cidr):
+            raise serializers.ValidationError(
+                {
+                    "cidr": _(
+                        "Expected CIDR format: <0-255>.<0-255>.<0-255>.<0-255>/<0-32>"
+                    )
+                }
+            )
+        elif ethertype == models.SecurityGroupRule.IPv6 and not is_valid_ipv6_cidr(
+            cidr
+        ):
+            raise serializers.ValidationError(
+                {
+                    "cidr": _(
+                        "IPv6 addresses are represented as eight groups, separated by colons."
+                    )
+                }
+            )
+
+    if cidr and remote_group:
+        raise serializers.ValidationError(
+            _("You can specify either the remote_group_id or cidr attribute, not both.")
+        )
+
+    if to_port is None:
+        raise serializers.ValidationError({"to_port": _("Empty value is not allowed.")})
+
+    if from_port is None:
+        raise serializers.ValidationError(
+            {"from_port": _("Empty value is not allowed.")}
+        )
+
+    if protocol == "icmp":
+        if from_port is not None and not -1 <= from_port <= 255:
+            raise serializers.ValidationError(
+                {
+                    "from_port": _("Value should be in range [-1, 255], found %d")
+                    % from_port
+                }
+            )
+        if to_port is not None and not -1 <= to_port <= 255:
+            raise serializers.ValidationError(
+                {"to_port": _("Value should be in range [-1, 255], found %d") % to_port}
+            )
+
+    elif protocol in ("tcp", "udp"):
+        if from_port is not None and to_port is not None:
+            if from_port > to_port:
+                raise serializers.ValidationError(
+                    _('"from_port" should be less or equal to "to_port"')
+                )
+        if from_port == -1 and to_port != -1:
+            raise serializers.ValidationError(
+                _('"from_port" should not be -1 if "to_port" is defined.')
+            )
+        if from_port is not None and from_port != -1 and from_port < 1:
+            raise serializers.ValidationError(
+                {
+                    "from_port": _("Value should be in range [1, 65535], found %d")
+                    % from_port
+                }
+            )
+        if to_port is not None and to_port != -1 and to_port < 1:
+            raise serializers.ValidationError(
+                {
+                    "to_port": _("Value should be in range [1, 65535], found %d")
+                    % to_port
+                }
+            )
+
+    elif protocol == "":
+        # See also: https://github.com/openstack/neutron/blob/af130e79cbe5d12b7c9f9f4dcbcdc8d972bfcfd4/neutron/db/securitygroups_db.py#L500
+
+        if from_port != -1:
+            raise serializers.ValidationError(
+                {
+                    "from_port": _(
+                        "Port range is not supported if protocol is not specified."
+                    )
+                }
+            )
+
+        if to_port != -1:
+            raise serializers.ValidationError(
+                {
+                    "to_port": _(
+                        "Port range is not supported if protocol is not specified."
+                    )
+                }
+            )
+
+    else:
+        raise serializers.ValidationError(
+            {
+                "protocol": _("Value should be one of (tcp, udp, icmp), found %s")
+                % protocol
+            }
+        )
+
+
 class OpenStackSecurityGroupRuleSerializer(
     BaseSecurityGroupRuleSerializer, serializers.HyperlinkedModelSerializer
 ):
@@ -400,122 +510,7 @@ class OpenStackSecurityGroupRuleSerializer(
         Please note that validate function accepts rule object instead of validated data
         because it is used as a child of list serializer.
         """
-        ethertype = rule.ethertype
-        protocol = rule.protocol
-        from_port = rule.from_port
-        to_port = rule.to_port
-        cidr = rule.cidr
-        remote_group = rule.remote_group
-
-        if cidr:
-            if ethertype == models.SecurityGroupRule.IPv4 and not is_valid_ipv4_cidr(
-                cidr
-            ):
-                raise serializers.ValidationError(
-                    {
-                        "cidr": _(
-                            "Expected CIDR format: <0-255>.<0-255>.<0-255>.<0-255>/<0-32>"
-                        )
-                    }
-                )
-            elif ethertype == models.SecurityGroupRule.IPv6 and not is_valid_ipv6_cidr(
-                cidr
-            ):
-                raise serializers.ValidationError(
-                    {
-                        "cidr": _(
-                            "IPv6 addresses are represented as eight groups, separated by colons."
-                        )
-                    }
-                )
-
-        if cidr and remote_group:
-            raise serializers.ValidationError(
-                _(
-                    "You can specify either the remote_group_id or cidr attribute, not both."
-                )
-            )
-
-        if to_port is None:
-            raise serializers.ValidationError(
-                {"to_port": _("Empty value is not allowed.")}
-            )
-
-        if from_port is None:
-            raise serializers.ValidationError(
-                {"from_port": _("Empty value is not allowed.")}
-            )
-
-        if protocol == "icmp":
-            if from_port is not None and not -1 <= from_port <= 255:
-                raise serializers.ValidationError(
-                    {
-                        "from_port": _("Value should be in range [-1, 255], found %d")
-                        % from_port
-                    }
-                )
-            if to_port is not None and not -1 <= to_port <= 255:
-                raise serializers.ValidationError(
-                    {
-                        "to_port": _("Value should be in range [-1, 255], found %d")
-                        % to_port
-                    }
-                )
-
-        elif protocol in ("tcp", "udp"):
-            if from_port is not None and to_port is not None:
-                if from_port > to_port:
-                    raise serializers.ValidationError(
-                        _('"from_port" should be less or equal to "to_port"')
-                    )
-            if from_port == -1 and to_port != -1:
-                raise serializers.ValidationError(
-                    _('"from_port" should not be -1 if "to_port" is defined.')
-                )
-            if from_port is not None and from_port != -1 and from_port < 1:
-                raise serializers.ValidationError(
-                    {
-                        "from_port": _("Value should be in range [1, 65535], found %d")
-                        % from_port
-                    }
-                )
-            if to_port is not None and to_port != -1 and to_port < 1:
-                raise serializers.ValidationError(
-                    {
-                        "to_port": _("Value should be in range [1, 65535], found %d")
-                        % to_port
-                    }
-                )
-
-        elif protocol == "":
-            # See also: https://github.com/openstack/neutron/blob/af130e79cbe5d12b7c9f9f4dcbcdc8d972bfcfd4/neutron/db/securitygroups_db.py#L500
-
-            if from_port != -1:
-                raise serializers.ValidationError(
-                    {
-                        "from_port": _(
-                            "Port range is not supported if protocol is not specified."
-                        )
-                    }
-                )
-
-            if to_port != -1:
-                raise serializers.ValidationError(
-                    {
-                        "to_port": _(
-                            "Port range is not supported if protocol is not specified."
-                        )
-                    }
-                )
-
-        else:
-            raise serializers.ValidationError(
-                {
-                    "protocol": _("Value should be one of (tcp, udp, icmp), found %s")
-                    % protocol
-                }
-            )
-
+        validate_security_group_rule(rule)
         return rule
 
 

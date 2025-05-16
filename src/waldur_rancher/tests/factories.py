@@ -218,3 +218,25 @@ class RancherUserProjectLinkFactory(
         },
     )
     backend_id = factory.Sequence(lambda n: "rancher-user-project-link-%s" % n)
+
+
+class ClusterSecurityGroupFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ClusterSecurityGroup],
+):
+    class Meta:
+        model = models.ClusterSecurityGroup
+
+    name = factory.Sequence(lambda n: "security_group%s" % n)
+    cluster = factory.SubFactory(ClusterFactory)
+
+    @classmethod
+    def get_url(cls, security_group=None):
+        if security_group is None:
+            security_group = ClusterSecurityGroupFactory()
+        return "http://testserver" + reverse(
+            "rancher-cluster-security-groups-detail",
+            kwargs={
+                "uuid": security_group.uuid.hex,
+            },
+        )

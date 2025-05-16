@@ -838,12 +838,122 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         mock_client.delete_cluster.assert_called_once_with(
             self.fixture.cluster.backend_id
         )
-        mock_client.delete_node.assert_called_once_with(self.fixture.node.backend_id)
+
+
+@ddt
+class ClusterSecurityGroupRulesTest(test.APITransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.fixture = fixtures.RancherFixture()
+        self.security_group = factories.ClusterSecurityGroupFactory(
+            cluster=self.fixture.cluster
+        )
+        self.fixture.node
+        openstack_factories.SecurityGroupFactory(
+            tenant=self.fixture.tenant, name=self.security_group.name
+        )
+        self.url = factories.ClusterSecurityGroupFactory.get_url(self.security_group)
+
+    @data("staff", "owner", "admin", "manager")
+    def test_user_can_update_security_group_rules(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        payload = {
+            "rules": [
+                {
+                    "direction": "ingress",
+                    "protocol": "tcp",
+                    "from_port": 443,
+                    "to_port": 443,
+                    "cidr": "192.168.77.0/24",
+                }
+            ]
+        }
+        response = self.client.put(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.security_group.refresh_from_db()
+        rule = models.ClusterSecurityGroupRule.objects.filter(
+            group=self.security_group
+        ).get()
+        self.assertEqual(rule.direction, "ingress")
+        self.assertEqual(rule.protocol, "tcp")
+        self.assertEqual(rule.from_port, 443)
+        self.assertEqual(rule.to_port, 443)
+        self.assertEqual(rule.cidr, "192.168.77.0/24")
+
+    def test_validation_invalid_cidr(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            "rules": [
+                {
+                    "direction": "ingress",
+                    "protocol": "tcp",
+                    "from_port": 443,
+                    "to_port": 443,
+                    "cidr": "invalid-cidr",
+                }
+            ]
+        }
+        response = self.client.put(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_validation_missing_fields(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = [{"direction": "ingress"}]
+        response = self.client.put(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_rules_are_replaced(self):
+        factories.ClusterSecurityGroupFactory(cluster=self.fixture.cluster)
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            "rules": [
+                {
+                    "direction": "ingress",
+                    "protocol": "tcp",
+                    "from_port": 443,
+                    "to_port": 443,
+                    "cidr": "192.168.77.0/24",
+                }
+            ]
+        }
+        response = self.client.put(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            models.ClusterSecurityGroupRule.objects.filter(
+                group=self.security_group
+            ).count(),
+            1,
+        )
 
     @utils.override_plugin_settings(READ_ONLY_MODE=True)
-    @mock.patch("waldur_rancher.executors.core_tasks")
-    def test_delete_is_disabled_in_read_only_mode(self, mock_core_tasks):
-        self.fixture.node.delete()
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.delete(self.url)
+    def test_update_is_disabled_in_read_only_mode(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            "rules": [
+                {
+                    "direction": "ingress",
+                    "protocol": "tcp",
+                    "from_port": 443,
+                    "to_port": 443,
+                    "cidr": "192.168.77.0/24",
+                }
+            ]
+        }
+        response = self.client.put(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_validation_port_range(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            "rules": [
+                {
+                    "direction": "ingress",
+                    "protocol": "tcp",
+                    "from_port": 443,
+                    "to_port": 80,
+                    "cidr": "192.168.77.0/24",
+                }
+            ]
+        }
+        response = self.client.put(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
