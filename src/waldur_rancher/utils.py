@@ -1,4 +1,5 @@
 import logging
+import textwrap
 from typing import cast
 
 import yaml
@@ -258,10 +259,45 @@ def format_node_cloud_config(
     data_volumes = node.initial_data.get("data_volumes")
 
     if data_volumes:
-        data_volumes = sorted(data_volumes)
         conf = yaml.safe_load(user_data)
 
         # First volume is reserved for system volume, other volumes are data volumes
+        conf["bootcmd"] = [
+            textwrap.dedent(f"""\
+            filename_to_wait_for="{format_disk_id(disk_driver, index + 1)}"
+
+            # Timeout in seconds
+            timeout=600 # 10 minutes
+
+            # Check every `interval` seconds
+            interval=5
+
+            elapsed=0
+            while [ ! -e "$filename_to_wait_for" ]; do
+                sleep "$interval"
+                elapsed=$((elapsed + interval))
+
+                if [ "$elapsed" -ge "$timeout" ]; then
+                    echo "Timeout reached. File not found: $filename_to_wait_for"
+                    exit 1
+                fi
+            done
+
+            echo "File found: $filename_to_wait_for"
+            """)
+            for index, _ in enumerate(data_volumes)
+        ]
+
+        conf["disk_setup"] = [
+            {
+                format_disk_id(disk_driver, index + 1): {
+                    "table_type": "gpt",
+                    "layout": "true",
+                    "overwrite": "false",
+                }
+            }
+            for index, _ in enumerate(data_volumes)
+        ]
 
         conf["mounts"] = [
             [format_disk_id(disk_driver, index + 1), volume["mount_point"]]
@@ -276,7 +312,7 @@ def format_node_cloud_config(
             }
             for index, volume in enumerate(data_volumes)
         ]
-        user_data_raw = yaml.dump(conf)
+        user_data_raw = yaml.dump(conf, default_style="|")
         user_data = f"#cloud-config\n{user_data_raw}"
 
     return user_data

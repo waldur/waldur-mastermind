@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 from urllib.parse import urlparse
 
 from django.core import validators
@@ -473,7 +474,7 @@ class SubNet(structure_models.BaseResource):
     )
     cidr = models.CharField(max_length=32, blank=True)
     gateway_ip = models.GenericIPAddressField(protocol="IPv4", null=True)
-    allocation_pools = JSONField(default=dict)
+    allocation_pools = cast(list[dict[str, str]], JSONField(default=dict))
     ip_version = models.SmallIntegerField(default=4)
     enable_dhcp = models.BooleanField(default=True)
     dns_nameservers = JSONField(

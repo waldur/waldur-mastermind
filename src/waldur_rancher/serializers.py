@@ -226,29 +226,12 @@ class DataVolumeSerializer(
         required=False,
     )
     filesystem = serializers.CharField(required=False)
-
-    def get_fields(self):
-        fields = super().get_fields()
-        fields["mount_point"] = serializers.ChoiceField(
-            choices=settings.WALDUR_RANCHER["MOUNT_POINT_CHOICES"],
-            required=settings.WALDUR_RANCHER["MOUNT_POINT_CHOICE_IS_MANDATORY"],
-        )
-        return fields
+    mount_point = serializers.CharField(
+        required=True,
+    )
 
     def get_filtered_field_names(self):
         return ["volume_type"]
-
-    def validate(self, attrs):
-        size = attrs["size"]
-        mount_point = attrs.get("mount_point")
-
-        if mount_point:
-            min_size = settings.WALDUR_RANCHER["MOUNT_POINT_MIN_SIZE"][mount_point]
-            if size < min_size * 1024:
-                raise serializers.ValidationError(
-                    f"Volume {mount_point} capacity should be at least {min_size} GB"
-                )
-        return attrs
 
 
 class RancherBaseNodeSerializer(

@@ -119,36 +119,6 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         ).get()
         self.assertEqual(len(node.initial_data["data_volumes"]), 1)
 
-    @utils.override_plugin_settings(MOUNT_POINT_CHOICE_IS_MANDATORY=False)
-    @mock.patch("waldur_rancher.executors.tasks")
-    def test_use_data_volumes_without_mount_point(self, mock_tasks):
-        volume_type = openstack_factories.VolumeTypeFactory(
-            settings=self.tenant.service_settings
-        )
-        volume_type.tenants.add(self.tenant)
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(
-            self.node_url,
-            {
-                **self.default_conf,
-                "data_volumes": [
-                    {
-                        "size": 12 * 1024,
-                        "volume_type": openstack_factories.VolumeTypeFactory.get_url(
-                            volume_type
-                        ),
-                    }
-                ],
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(self.fixture.cluster.node_set.count(), 2)
-        node = self.fixture.cluster.node_set.filter(
-            name="my-cluster-rancher-node-agent-1"
-        ).get()
-        self.assertEqual(len(node.initial_data["data_volumes"]), 1)
-
-    @utils.override_plugin_settings(MOUNT_POINT_CHOICE_IS_MANDATORY=True)
     @mock.patch("waldur_rancher.executors.tasks")
     def test_if_mount_point_is_required(self, mock_tasks):
         volume_type = openstack_factories.VolumeTypeFactory(
