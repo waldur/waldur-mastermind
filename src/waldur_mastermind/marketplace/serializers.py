@@ -446,6 +446,26 @@ class ManagedRancherSecretOptionsSerializer(serializers.Serializer):
         required=False,
     )
 
+    private_registry_url = serializers.CharField(
+        help_text=_("URL of a private registry for a cluster"),
+        required=False,
+    )
+
+    private_registry_user = serializers.CharField(
+        help_text=_("Username for accessing a private registry"),
+        required=False,
+    )
+
+    private_registry_password = serializers.CharField(
+        help_text=_("Password for accessing a private registry"),
+        required=False,
+    )
+
+    k8s_version = serializers.CharField(
+        help_text=_("Kubernetes version"),
+        required=False,
+    )
+
     node_disk_driver = serializers.ChoiceField(
         required=False,
         help_text=_("OpenStack disk driver for Rancher nodes"),

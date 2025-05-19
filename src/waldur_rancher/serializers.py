@@ -68,15 +68,15 @@ class RancherServiceSettingsSerializer(structure_serializers.ServiceOptionsSeria
         source="options.base_image_name", label=_("Base image name")
     )
 
-    cloud_init_template = serializers.CharField(
-        source="options.cloud_init_template",
-        label=_("Cloud init template"),
+    k8s_version = serializers.CharField(
+        source="options.k8s_version",
+        help_text=_("Kubernetes version"),
         required=False,
     )
 
-    default_mtu = serializers.IntegerField(
-        source="options.default_mtu",
-        label=_("Default MTU of a cluster"),
+    cloud_init_template = serializers.CharField(
+        source="options.cloud_init_template",
+        label=_("Cloud init template"),
         required=False,
     )
 

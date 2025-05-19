@@ -271,11 +271,9 @@ write_files:
       # --- Install RKE2 ---
 
       if [ "$RKE_ROLE" == "server" ]; then
-        curl https://get.rke2.io | INSTALL_RKE2_VERSION="v1.31.7+rke2r1" INSTALL_RKE2_TYPE=server sh -s -
-        # systemctl enable --now rke2-server
-       curl -fL https://rancher-aio.cloud.ut.ee/system-agent-install.sh | sudo sh -s - --server https://rancher-aio.cloud.ut.ee --label 'cattle.io/os=linux' --token $RKE_TOKEN --etcd --controlplane
+        CATTLE_AGENT_VAR_DIR="/opt/rke2_storage/agent" curl -fL https://rancher-aio.cloud.ut.ee/system-agent-install.sh | sudo CATTLE_AGENT_VAR_DIR="/opt/rke2_storage/agent" sh -s - --server https://rancher-aio.cloud.ut.ee --label 'cattle.io/os=linux' --token $RKE_TOKEN --etcd --controlplane
       else
-        curl -fL https://rancher-aio.cloud.ut.ee/system-agent-install.sh | sudo sh -s - --server https://rancher-aio.cloud.ut.ee --label 'cattle.io/os=linux' --token $RKE_TOKEN --worker
+        CATTLE_AGENT_VAR_DIR="/opt/rke2_storage/agent" curl -fL https://rancher-aio.cloud.ut.ee/system-agent-install.sh | sudo CATTLE_AGENT_VAR_DIR="/opt/rke2_storage/agent" sh -s - --server https://rancher-aio.cloud.ut.ee --label 'cattle.io/os=linux' --token $RKE_TOKEN --worker
       fi
 
 
@@ -324,7 +322,7 @@ class RancherBackend(ServiceBackend):
     DEFAULTS = {
         "cloud_init_template": CLOUD_INIT_TEMPLATE,
         "node_disk_driver": "sd",
-        "default_mtu": 1400,
+        "k8s_version": "v1.31.7+rke2r1",
         "private_registry_url": None,
         "private_registry_user": None,
         "private_registry_password": None,
@@ -395,13 +393,13 @@ class RancherBackend(ServiceBackend):
         return self.client.get_kubeconfig_file(cluster.backend_id)
 
     def create_cluster(self, cluster: models.Cluster):
-        mtu = self.settings.get_option("default_mtu")
         private_registry = None
         private_registry_url = self.settings.get_option("private_registry_url")
         private_registry_user = self.settings.get_option("private_registry_user")
         private_registry_password = self.settings.get_option(
             "private_registry_password"
         )
+        k8s_version = self.settings.get_option("k8s_version")
         if private_registry_url and private_registry_user and private_registry_password:
             private_registry = {
                 "url": private_registry_url,
@@ -412,7 +410,7 @@ class RancherBackend(ServiceBackend):
         # TODO: come up with a better solution for version suffix
         self.client._base_url = self.client._base_url.replace("/v3", "/v1")
         backend_cluster = self.client.create_cluster(
-            cluster.name, mtu=mtu, private_registry=private_registry
+            cluster.name, k8s_version, private_registry=private_registry
         )
         backend_cluster_id = backend_cluster["id"]
         # as rancher API is not transactional, give it 2s to write cluster state to etcd
