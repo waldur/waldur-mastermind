@@ -110,10 +110,19 @@ class RancherClient:
     def get_cluster(self, cluster_id) -> dict:
         return self._get(f"clusters/{cluster_id}")
 
-    def create_cluster(self, cluster_name, mtu=None, private_registry=None) -> dict:
-        del mtu
+    def create_cluster(self, cluster_name, k8s_version, private_registry=None) -> dict:
         rancher_config = {
-            "chartValues": {"rke2-calico": {}},
+            "chartValues": {"rke2-cilium": {}},
+            "dataDirectories": {
+                "systemAgent": "/opt/rke2_storage/agent",
+                "provisioning": "/opt/rke2_storage/provisioning",
+                "k8sDistro": "/opt/rke2_storage/rke2",
+            },
+            "machineGlobalConfig": {
+                "cni": "cilium",
+                "disable-kube-proxy": False,
+                "etcd-expose-metrics": False,
+            },
         }
 
         if private_registry:
@@ -138,6 +147,14 @@ class RancherClient:
             private_registry_credentials_secret_name = (
                 private_registry_credentials_secret["metadata"]["name"]
             )
+            rancher_config["machineSelectorConfig"] = [
+                {
+                    "config": {
+                        "protect-kernel-defaults": False,
+                        "system-default-registry": registry_url,
+                    }
+                }
+            ]
             rancher_config["registries"] = {
                 "configs": {
                     registry_url: {
@@ -155,7 +172,7 @@ class RancherClient:
             "metadata": {"name": cluster_name, "namespace": "fleet-default"},
             "spec": {
                 "rkeConfig": rancher_config,
-                "kubernetesVersion": "v1.31.7+rke2r1",
+                "kubernetesVersion": k8s_version,
             },
         }
 

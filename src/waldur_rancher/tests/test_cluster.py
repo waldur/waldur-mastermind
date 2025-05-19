@@ -251,38 +251,6 @@ class ClusterCreateTest(BaseClusterCreateTest):
         response = self._create_request("new_cluster")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @mock.patch("waldur_rancher.client.RancherClient._post")
-    def test_create_cluster_with_mtu(self, mock_client_post):
-        self.mock_backend()
-
-        self.fixture.settings.options["default_mtu"] = 5000
-        self.fixture.settings.save()
-        self.fixture.cluster.backend_id = ""
-        self.fixture.cluster.save()
-        mock_client_post.return_value = {
-            "id": f"test-namespace/{self.fixture.cluster.name}",
-        }
-        backend = self.fixture.cluster.get_backend()
-        backend.create_cluster(self.fixture.cluster)
-
-        actual = mock_client_post.call_args_list[1][1]["json"]
-        self.assertEqual(
-            actual,
-            {
-                "type": "provisioning.cattle.io.cluster",
-                "metadata": {
-                    "name": self.fixture.cluster.name,
-                    "namespace": "fleet-default",
-                },
-                "spec": {
-                    "rkeConfig": {
-                        "chartValues": {"rke2-calico": {}},
-                    },
-                    "kubernetesVersion": "v1.31.7+rke2r1",
-                },
-            },
-        )
-
     def mock_backend(self):
         mock_token_patch = mock.patch(
             "waldur_rancher.client.RancherClient.create_cluster_registration_token"
@@ -308,11 +276,13 @@ class ClusterCreateTest(BaseClusterCreateTest):
             {"id": "test-id"},
         ]
         options = cast(dict, self.fixture.settings.options)
+        k8s_version = "v1.33.0+rke2r1"
         options.update(
             {
-                "private_registry_url": "http://example.com",
+                "private_registry_url": "example.com",
                 "private_registry_user": "user",
                 "private_registry_password": "1234",
+                "k8s_version": k8s_version,
             }
         )
         self.fixture.settings.save()
@@ -341,10 +311,28 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 },
                 "spec": {
                     "rkeConfig": {
-                        "chartValues": {"rke2-calico": {}},
+                        "chartValues": {"rke2-cilium": {}},
+                        "dataDirectories": {
+                            "systemAgent": "/opt/rke2_storage/agent",
+                            "provisioning": "/opt/rke2_storage/provisioning",
+                            "k8sDistro": "/opt/rke2_storage/rke2",
+                        },
+                        "machineGlobalConfig": {
+                            "cni": "cilium",
+                            "disable-kube-proxy": False,
+                            "etcd-expose-metrics": False,
+                        },
+                        "machineSelectorConfig": [
+                            {
+                                "config": {
+                                    "protect-kernel-defaults": False,
+                                    "system-default-registry": "example.com",
+                                }
+                            }
+                        ],
                         "registries": {
                             "configs": {
-                                "http://example.com": {
+                                "example.com": {
                                     "authConfigSecretName": private_registry_credentials_secret_name,
                                     "caBundle": None,
                                     "insecureSkipVerify": False,
@@ -354,7 +342,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
                             "mirrors": {},
                         },
                     },
-                    "kubernetesVersion": "v1.31.7+rke2r1",
+                    "kubernetesVersion": k8s_version,
                 },
             },
         )
