@@ -644,7 +644,18 @@ class ComponentUserUsageFilter(django_filters.FilterSet):
     date_after = django_filters.DateFilter(
         field_name="component_usage__date__date", lookup_expr="gte"
     )
+    username = django_filters.CharFilter(field_name="username", lookup_expr="icontains")
+    billing_period_year = django_filters.NumberFilter(
+        field_name="component_usage__billing_period__year"
+    )
+    billing_period_month = django_filters.NumberFilter(
+        field_name="component_usage__billing_period__month"
+    )
     type = django_filters.CharFilter(field_name="component_usage__component__type")
+
+    o = django_filters.OrderingFilter(
+        fields=("component_usage__billing_period", "usage", "username")
+    )
 
     class Meta:
         model = models.ComponentUserUsage
