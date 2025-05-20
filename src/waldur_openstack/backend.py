@@ -5090,8 +5090,7 @@ class OpenStackBackend(ServiceBackend):
 
     @reraise_exceptions
     def enable_port_security(self, port):
-        session = get_tenant_session(port.tenant)
-        neutron = get_neutron_client(session)
+        neutron = get_neutron_client(self.admin_session)
         neutron.update_port(port.backend_id, {"port": {"port_security_enabled": True}})
         logger.info(
             "Port security has been enabled for port %s (backend_id: %s).",
@@ -5101,8 +5100,7 @@ class OpenStackBackend(ServiceBackend):
 
     @reraise_exceptions
     def disable_port_security(self, port):
-        session = get_tenant_session(port.tenant)
-        neutron = get_neutron_client(session)
+        neutron = get_neutron_client(self.admin_session)
 
         neutron.update_port(port.backend_id, {"port": {"security_groups": []}})
         logger.info(
@@ -5120,8 +5118,7 @@ class OpenStackBackend(ServiceBackend):
 
     @reraise_exceptions
     def enable_port(self, port):
-        session = get_tenant_session(port.tenant)
-        neutron = get_neutron_client(session)
+        neutron = get_neutron_client(self.admin_session)
         neutron.update_port(port.backend_id, {"port": {"admin_state_up": True}})
         logger.info(
             "Port %s (backend_id: %s) has been enabled.",
@@ -5131,8 +5128,7 @@ class OpenStackBackend(ServiceBackend):
 
     @reraise_exceptions
     def disable_port(self, port):
-        session = get_tenant_session(port.tenant)
-        neutron = get_neutron_client(session)
+        neutron = get_neutron_client(self.admin_session)
         neutron.update_port(port.backend_id, {"port": {"admin_state_up": False}})
         logger.info(
             "Port %s (backend_id: %s) has been disabled.",
@@ -5142,8 +5138,7 @@ class OpenStackBackend(ServiceBackend):
 
     @reraise_exceptions
     def update_port_ip(self, port, subnet_backend_id, ip_address):
-        session = get_tenant_session(port.tenant)
-        neutron = get_neutron_client(session)
+        neutron = get_neutron_client(self.admin_session)
         neutron.update_port(
             port.backend_id,
             {
@@ -5169,8 +5164,7 @@ class OpenStackBackend(ServiceBackend):
         """
         Add an interface to a router. Either subnet or port must be provided.
         """
-        session = get_tenant_session(router.tenant)
-        neutron = get_neutron_client(session)
+        neutron = get_neutron_client(self.admin_session)
 
         params = {}
         if subnet:
@@ -5188,8 +5182,7 @@ class OpenStackBackend(ServiceBackend):
         """
         Remove an interface from a router. Either subnet or port must be provided.
         """
-        session = get_tenant_session(router.tenant)
-        neutron = get_neutron_client(session)
+        neutron = get_neutron_client(self.admin_session)
 
         params = {}
         if subnet:
