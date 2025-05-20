@@ -1157,27 +1157,6 @@ class OpenStackFixedIpField(serializers.JSONField):
     pass
 
 
-class OpenStackRouterSerializer(structure_serializers.BaseResourceSerializer):
-    routes = OpenStackStaticRouteSerializer(many=True)
-    tenant_name = serializers.CharField(source="tenant.name", read_only=True)
-    tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
-    fixed_ips = OpenStackFixedIpField(read_only=True)
-
-    class Meta:
-        model = models.Router
-        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            "tenant",
-            "tenant_name",
-            "tenant_uuid",
-            "routes",
-            "fixed_ips",
-        )
-        extra_kwargs = dict(
-            url={"lookup_field": "uuid", "view_name": "openstack-router-detail"},
-            tenant={"lookup_field": "uuid", "view_name": "openstack-tenant-detail"},
-        )
-
-
 class OpenStackPortNestedSecurityGroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.SecurityGroup
@@ -1686,6 +1665,9 @@ class OpenStackTenantChangePasswordSerializer(serializers.Serializer):
 class OpenStackNestedPortSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
+    url = serializers.HyperlinkedIdentityField(
+        view_name="openstack-port-detail", lookup_field="uuid"
+    )
     allowed_address_pairs = OpenStackAllowedAddressPairField(read_only=True)
     fixed_ips = OpenStackFixedIpField(required=False)
     port = serializers.HyperlinkedRelatedField(
@@ -1699,6 +1681,7 @@ class OpenStackNestedPortSerializer(
     class Meta:
         model = models.Port
         fields = (
+            "url",
             "fixed_ips",
             "mac_address",
             "subnet",
@@ -1725,6 +1708,7 @@ class OpenStackNestedPortSerializer(
             "subnet": ("uuid", "name", "description", "cidr"),
         }
         extra_kwargs = {
+            "url": {"lookup_field": "uuid", "view_name": "openstack-port-detail"},
             "subnet": {
                 "lookup_field": "uuid",
                 "view_name": "openstack-subnet-detail",
@@ -1751,6 +1735,29 @@ class OpenStackNestedPortSerializer(
             project=subnet.project,
             service_settings=subnet.service_settings,
             fixed_ips=fixed_ips,
+        )
+
+
+class OpenStackRouterSerializer(structure_serializers.BaseResourceSerializer):
+    routes = OpenStackStaticRouteSerializer(many=True)
+    tenant_name = serializers.CharField(source="tenant.name", read_only=True)
+    tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
+    fixed_ips = OpenStackFixedIpField(read_only=True)
+    ports = OpenStackNestedPortSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = models.Router
+        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
+            "tenant",
+            "tenant_name",
+            "tenant_uuid",
+            "routes",
+            "fixed_ips",
+            "ports",
+        )
+        extra_kwargs = dict(
+            url={"lookup_field": "uuid", "view_name": "openstack-router-detail"},
+            tenant={"lookup_field": "uuid", "view_name": "openstack-tenant-detail"},
         )
 
 

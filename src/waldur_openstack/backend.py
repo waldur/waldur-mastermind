@@ -1016,9 +1016,17 @@ class OpenStackBackend(ServiceBackend):
                 "state": CoreStates.OK,
             }
             try:
-                models.Router.objects.update_or_create(
+                router_obj, _ = models.Router.objects.update_or_create(
                     tenant=tenant, backend_id=backend_id, defaults=defaults
                 )
+                # Set the ports relationship
+                port_backend_ids = [port["id"] for port in ports]
+                port_objs = list(
+                    models.Port.objects.filter(
+                        tenant=tenant, backend_id__in=port_backend_ids
+                    )
+                )
+                router_obj.ports.set(port_objs)
             except IntegrityError:
                 logger.warning(
                     "Could not create router with backend ID %s "
