@@ -381,7 +381,6 @@ def create_offerings_for_volume_and_instance(tenant: openstack_models.Tenant):
             scope=tenant,
             shared=False,
             category=category,
-            # OpenStack instance and volume offerings are charged as a part of its tenant
             billable=False,
             parent=parent_offering,
             customer=actual_customer,
@@ -401,7 +400,13 @@ def create_offerings_for_volume_and_instance(tenant: openstack_models.Tenant):
         for field in fields:
             payload[field] = getattr(parent_offering, field)
 
-        marketplace_models.Offering.objects.create(**payload)
+        if not marketplace_models.Offering.objects.filter(
+            type=offering_type,
+            scope=tenant,
+            customer=actual_customer,
+            project=tenant.project,
+        ).exists():
+            marketplace_models.Offering.objects.create(**payload)
 
 
 def create_marketplace_resource_for_imported_resources(

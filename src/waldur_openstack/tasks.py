@@ -10,6 +10,9 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.structure import tasks as structure_tasks
 from waldur_core.structure.registry import get_resource_type
+from waldur_mastermind.marketplace_openstack.utils import (
+    create_offerings_for_volume_and_instance,
+)
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.exceptions import OpenStackTenantNotFound
 
@@ -285,3 +288,9 @@ class TenantPropertiesListPullTask(structure_tasks.BackgroundListPullTask):
     name = "openstack.tenant_properties_list_pull_task"
     pull_task = TenantPropertiesPullTask
     model = models.Tenant
+
+
+@shared_task
+def create_offerings_task(serialized_tenant):
+    tenant = core_utils.deserialize_instance(serialized_tenant)
+    create_offerings_for_volume_and_instance(tenant)
