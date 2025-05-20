@@ -272,8 +272,14 @@ class TenantImportExecutor(core_executors.ActionExecutor):
 
     @classmethod
     def get_success_signature(cls, tenant, serialized_tenant, **kwargs):
-        return core_tasks.StateTransitionTask().si(
-            serialized_tenant, state_transition="set_ok"
+        return chain(
+            core_tasks.StateTransitionTask().si(
+                serialized_tenant, state_transition="set_ok"
+            ),
+            tasks.SendSignalTenantPullSucceeded().si(serialized_tenant),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, "create_offerings_for_volume_and_instance"
+            ),
         )
 
 
@@ -551,6 +557,7 @@ class ExistingTenantPullExecutor(core_executors.ActionExecutor):
                 action_details={},
             ),
             tasks.SendSignalTenantPullSucceeded().si(serialized_instance),
+            tasks.create_offerings_task.si(serialized_instance),
         )
 
 
