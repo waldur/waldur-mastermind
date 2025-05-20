@@ -288,16 +288,14 @@ def format_node_cloud_config(
             for index, _ in enumerate(data_volumes)
         ]
 
-        conf["disk_setup"] = [
-            {
-                format_disk_id(disk_driver, index + 1): {
-                    "table_type": "gpt",
-                    "layout": "true",
-                    "overwrite": "false",
-                }
+        conf["disk_setup"] = {
+            format_disk_id(disk_driver, index + 1): {
+                "table_type": "gpt",
+                "layout": "true",
+                "overwrite": "false",
             }
             for index, _ in enumerate(data_volumes)
-        ]
+        }
 
         conf["mounts"] = [
             [format_disk_id(disk_driver, index + 1), volume["mount_point"]]
