@@ -461,6 +461,11 @@ def create_marketplace_resource_for_imported_resources(
 
         resource.offering = offering
         resource.init_cost()
+        backend = instance.get_backend()
+
+        storage_mode = offering.plugin_options.get("storage_mode")
+        limits = backend.get_tenant_limits(instance, storage_mode == STORAGE_MODE_FIXED)
+        resource.limits = limits
         resource.save()
         import_resource_metadata(resource)
         create_offerings_for_volume_and_instance(instance)

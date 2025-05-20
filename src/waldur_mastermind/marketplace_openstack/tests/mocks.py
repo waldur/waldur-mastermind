@@ -49,6 +49,14 @@ class MockImage:
     id: str
 
 
+@dataclass
+class MockLimits:
+    ram: int
+    cores: int
+    gigabytes: int
+    _info: dict
+
+
 MOCK_INSTANCE = MockInstance(
     name="VM-1",
     id="1",
@@ -73,4 +81,16 @@ MOCK_TENANT = MockTenant(name="admin", id="1", description="admin")
 MOCK_IMAGE = MockImage(
     name="ubuntu",
     id="1",
+)
+
+MOCK_LIMITS = MockLimits(
+    cores=2,
+    ram=1024,
+    gigabytes=10,
+    _info={
+        "gigabytes_high-iops": -1,
+        "gigabytes_low-iops": -1,
+        "gigabytes_lvm": -1,
+        "gigabytes_ultra-high-iops": -1,
+    },
 )
