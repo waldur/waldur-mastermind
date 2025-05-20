@@ -5,12 +5,6 @@ class GlobalRoles:
     user_base = "user-base"
 
 
-LONGHORN_NAME = "longhorn"
-
-
-LONGHORN_NAMESPACE = "longhorn-system"
-
-
 RANCHER_TEMPLATE_QUESTION_TYPE = ["boolean", "string", "enum", "secret"]
 
 NodeRoleType = Literal["agent", "server"]

@@ -51,21 +51,11 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
             )
             .set(countdown=120, max_retries=10, default_retry_delay=1 * 60)
         ]
-        if install_longhorn:
-            _tasks += [
-                core_tasks.BackendMethodTask().si(
-                    serialized_instance, "install_longhorn_to_cluster"
-                ),
-                tasks.PollLonghornApplicationTask().si(serialized_instance),
-                core_tasks.BackendMethodTask().si(
-                    serialized_instance,
-                    "pull_cluster_workloads",
-                ),
-            ]
         if instance.service_settings.get_option("argocd_k8s_kubeconfig"):
             _tasks += [
                 tasks.CreateArgoCDClusterSecretTask().si(
                     serialized_instance,
+                    install_longhorn=install_longhorn,
                 )
             ]
         return chain(*_tasks)

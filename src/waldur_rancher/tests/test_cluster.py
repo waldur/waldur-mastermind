@@ -18,7 +18,6 @@ from waldur_openstack.tests import (
     factories as openstack_factories,
 )
 from waldur_rancher import exceptions, models, tasks
-from waldur_rancher.enums import AGENT_ROLE
 from waldur_rancher.tests import factories, fixtures, utils
 
 
@@ -396,76 +395,6 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.assertEqual(
             cluster.node_set.first().initial_data["ssh_public_key"],
             ssh_public_key.uuid.hex,
-        )
-
-    @mock.patch("waldur_rancher.executors.core_tasks")
-    def test_create_cluster_with_longhorn_using_rest(self, mock_core_tasks):
-        self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request("new-cluster", install_longhorn=True)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        cluster = models.Cluster.objects.get(name="new-cluster")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.Cluster.objects.filter(name="new-cluster").exists())
-        mock_core_tasks.BackendMethodTask.return_value.si.assert_has_calls(
-            [
-                mock.call(
-                    "waldur_rancher.cluster:%s" % cluster.id,
-                    "install_longhorn_to_cluster",
-                )
-            ]
-        )
-
-    @mock.patch("waldur_rancher.client.RancherClient._post")
-    def test_create_cluster_with_longhorn(self, mock_client_post):
-        self.mock_backend()
-
-        mock_namespace_create = mock.patch(
-            "waldur_rancher.client.RancherClient.create_namespace"
-        )
-        mock_namespace = mock_namespace_create.start()
-        mock_namespace.return_value = {"id": "1"}
-
-        mock_client_post.return_value = {
-            "id": 1,
-            "state": "installing",
-            "created": "2020-08-04",
-            "answers": {},
-        }
-
-        catalog = factories.CatalogFactory(name="library")
-        system_project = factories.ProjectFactory(
-            settings=self.fixture.settings, cluster=self.fixture.cluster, name="System"
-        )
-        template = factories.TemplateFactory(
-            settings=self.fixture.settings,
-            name="longhorn",
-            catalog=catalog,
-            default_version="1.1",
-            versions=["1.0", "1.1"],
-        )
-
-        self.fixture.cluster.backend_id = ""
-        self.fixture.cluster.save()
-        self.fixture.node.role = AGENT_ROLE
-        self.fixture.node.save()
-        backend = self.fixture.cluster.get_backend()
-        backend.create_cluster(self.fixture.cluster)
-        backend.install_longhorn_to_cluster(self.fixture.cluster)
-        self.assertEqual(
-            mock_client_post.call_args_list[2][1]["json"],
-            {
-                "prune": False,
-                "timeout": 1200,
-                "wait": True,
-                "type": "app",
-                "name": "longhorn",
-                "targetNamespace": "1",
-                "externalId": f"catalog://?catalog={template.catalog.backend_id}&template={template.name}&version=1.1",
-                "projectId": system_project.backend_id,
-                "answers": {
-                    "persistence.defaultClassReplicaCount": 1,
-                },
-            },
         )
 
     def test_validate_security_groups_positive(self):

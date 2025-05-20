@@ -23,9 +23,6 @@ from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_openstack.models import Instance
 from waldur_rancher.enums import (
-    AGENT_ROLE,
-    LONGHORN_NAME,
-    LONGHORN_NAMESPACE,
     SERVER_ROLE,
 )
 from waldur_rancher.exceptions import NotFound, RancherException, VaultException
@@ -1488,113 +1485,6 @@ class RancherBackend(ServiceBackend):
             )
         except NotFound:
             logger.debug("App %s is not present in the backend." % app.backend_id)
-
-    def install_longhorn_to_cluster(self, cluster: models.Cluster):
-        catalog_name = "library"
-
-        system_project = models.Project.objects.filter(
-            cluster=cluster, name="System"
-        ).first()
-        if not system_project:
-            raise RancherException(
-                "There is no system project in cluster %s" % cluster.backend_id
-            )
-
-        available_templates = models.Template.objects.filter(
-            name=LONGHORN_NAME, catalog__name=catalog_name
-        )
-        available_templates_count = len(available_templates)
-        if available_templates_count != 1:
-            if available_templates_count == 0:
-                message = f"There are no templates with name={LONGHORN_NAME}, catalog.name={catalog_name}"
-            else:
-                message = f"There are more than one template for name={LONGHORN_NAME}, catalog.name={catalog_name}"
-            logger.info(message)
-            raise RancherException(message)
-
-        logger.info(
-            "Starting longhorn installation for cluster %s (name=%s, backend_id=%s)",
-            cluster,
-            cluster.name,
-            cluster.backend_id,
-        )
-        template = available_templates.first()
-
-        if not template:
-            raise RancherException(f"Template with name={LONGHORN_NAME} is not found")
-
-        if not template.catalog:
-            raise RancherException(f"Template with name={LONGHORN_NAME} has no catalog")
-
-        try:
-            namespace = models.Namespace.objects.get(
-                name=LONGHORN_NAMESPACE, project=system_project
-            )
-        except models.Namespace.DoesNotExist:
-            logger.info(
-                "Creating namespace %s for cluster %s (name=%s, backend_id=%s)",
-                LONGHORN_NAMESPACE,
-                cluster,
-                cluster.name,
-                cluster.backend_id,
-            )
-            namespace_response = self.client.create_namespace(
-                cluster.backend_id, system_project.backend_id, LONGHORN_NAMESPACE
-            )
-            namespace = models.Namespace.objects.create(
-                name=LONGHORN_NAMESPACE,
-                backend_id=namespace_response["id"],
-                settings=system_project.settings,
-                project=system_project,
-            )
-
-        logger.info(
-            "Creating application %s for cluster %s (name=%s, backend_id=%s) in namespace %s (backend_id=%s)",
-            LONGHORN_NAMESPACE,
-            cluster,
-            cluster.name,
-            cluster.backend_id,
-            namespace.name,
-            namespace.backend_id,
-        )
-        worker_node_count = cluster.node_set.filter(role=AGENT_ROLE).count()
-        replica_count = min(3, worker_node_count)
-        application = self.client.create_application(
-            catalog_id=template.catalog.backend_id,
-            template_id=template.name,
-            version=template.default_version,
-            project_id=system_project.backend_id,
-            namespace_id=namespace.backend_id,
-            name=LONGHORN_NAME,
-            answers={"persistence.defaultClassReplicaCount": replica_count},
-            wait=True,
-            timeout=1200,
-        )
-
-        models.Application.objects.create(
-            settings=self.settings,
-            service_settings=cluster.service_settings,
-            project=cluster.project,
-            rancher_project=system_project,
-            cluster=cluster,
-            namespace=namespace,
-            template=template,
-            name=LONGHORN_NAME,
-            state=CoreStates.CREATING,
-            runtime_state=application["state"],
-            created=application["created"],
-            backend_id=application["id"],
-            answers=application.get("answers"),
-            version=template.default_version,
-        )
-
-        logger.info(
-            "Application %s for cluster %s (name=%s, backend_id=%s) was created",
-            application,
-            cluster,
-            cluster.name,
-            cluster.backend_id,
-        )
 
     def pull_ingresses(self):
         local_clusters = models.Cluster.objects.filter(settings=self.settings)

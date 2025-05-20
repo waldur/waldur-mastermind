@@ -22,8 +22,6 @@ from waldur_mastermind.common import utils as common_utils
 from waldur_openstack import models as openstack_models
 from waldur_openstack.views import MarketplaceInstanceViewSet
 from waldur_rancher.enums import (
-    LONGHORN_NAME,
-    LONGHORN_NAMESPACE,
     KeycloakUserGroupMembershipState,
 )
 
@@ -239,38 +237,6 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         return node
 
 
-class PollLonghornApplicationTask(core_tasks.Task):
-    max_retries = 600
-    default_retry_delay = 10
-
-    @classmethod
-    def get_description(cls, cluster, *args, **kwargs):
-        cluster = cast(models.Cluster, core_utils.deserialize_instance(cluster))
-        return f'Poll Longhorn application runtime state for cluster "{cluster.name}"'
-
-    def execute(self, cluster):
-        app = models.Application.objects.get(
-            cluster=cluster, name=LONGHORN_NAME, namespace__name=LONGHORN_NAMESPACE
-        )
-        backend = app.get_backend()
-        backend.check_application_state(app)
-        if app.runtime_state == "active":
-            app.state = CoreStates.OK
-            app.save()
-        elif app.runtime_state == "error":
-            app.state = CoreStates.ERRED
-            app.save()
-
-        if app.runtime_state not in ("active", "error"):
-            self.retry()
-        elif app.runtime_state == "error":
-            raise RuntimeStateException(
-                f"{app.__class__.__name__} (PK: {app.pk}) runtime state become erred: {app.runtime_state}"
-            )
-
-        return app
-
-
 class CreateVaultCredentialsTask(core_tasks.Task):
     @classmethod
     def get_description(cls, cluster, *args, **kwargs):
@@ -339,6 +305,7 @@ class CreateArgoCDClusterSecretTask(core_tasks.Task):
         return f"Create an ArgoCD cluster secret for cluster {cluster}"
 
     def execute(self, instance: models.Cluster, *args, **kwargs):
+        install_longhorn = kwargs.get("install_longhorn", False)
         kubeconfig_str = instance.settings.get_option("argocd_k8s_kubeconfig")
         if not kubeconfig_str:
             logger.warning(
@@ -369,6 +336,8 @@ class CreateArgoCDClusterSecretTask(core_tasks.Task):
                 "Unable to get argocd namespace from the cluster settings"
             )
         secret_labels = {"argocd.argoproj.io/secret-type": "cluster"}
+        if install_longhorn:
+            secret_labels["k8s.waldur.com/longhorn-enabled"] = "true"
         try:
             k8s.create_k8s_secret(
                 secret_name,
