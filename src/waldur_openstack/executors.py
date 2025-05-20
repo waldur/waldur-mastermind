@@ -174,11 +174,11 @@ def get_tenant_create_tasks(tenant: models.Tenant, skip_connection_extnet=False)
         )
     creation_tasks += [
         core_tasks.BackendMethodTask().si(
-            serialized_tenant,
-            backend_method="pull_tenant_routers",
+            serialized_tenant, backend_method="pull_tenant_ports"
         ),
         core_tasks.BackendMethodTask().si(
-            serialized_tenant, backend_method="pull_tenant_ports"
+            serialized_tenant,
+            backend_method="pull_tenant_routers",
         ),
         core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_quotas"),
         core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_images"),

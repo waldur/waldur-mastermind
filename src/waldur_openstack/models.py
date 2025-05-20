@@ -401,6 +401,7 @@ class Router(structure_models.BaseResource):
     )
     routes = JSONField(default=list)
     fixed_ips = JSONField(default=list)
+    ports = models.ManyToManyField("Port", related_name="routers", blank=True)
 
     tracker = FieldTracker()
 
