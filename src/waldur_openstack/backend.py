@@ -32,6 +32,11 @@ from waldur_core.structure.utils import (
     handle_resource_update_success,
     update_pulled_fields,
 )
+from waldur_mastermind.marketplace_openstack import (
+    CORES_TYPE,
+    RAM_TYPE,
+    STORAGE_TYPE,
+)
 from waldur_openstack.exceptions import (
     OpenStackBackendError,
     OpenStackTenantNotFound,
@@ -134,6 +139,36 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
         else:
             return True
+
+    def get_tenant_limits(self, tenant: models.Tenant, fixed=True):
+        tenant_backend_id = tenant.backend_id
+        session = self.admin_session
+
+        nova = get_nova_client(session)
+        cinder = get_cinder_client(session)
+
+        try:
+            nova_quotas = nova.quotas.get(tenant_id=tenant_backend_id)
+            cinder_quotas = cinder.quotas.get(tenant_id=tenant_backend_id)
+        except (
+            nova_exceptions.ClientException,
+            cinder_exceptions.ClientException,
+        ) as e:
+            raise OpenStackBackendError(e)
+
+        limits = {
+            RAM_TYPE: nova_quotas.ram,
+            CORES_TYPE: nova_quotas.cores,
+        }
+
+        if fixed:
+            limits[STORAGE_TYPE] = self.gb2mb(cinder_quotas.gigabytes)
+        else:
+            for name, value in cinder_quotas._info.items():
+                if is_valid_volume_type_name(name):
+                    limits[name] = value
+
+        return limits
 
     def get_tenant_quotas_limits(self, tenant: models.Tenant):
         tenant_backend_id = tenant.backend_id
