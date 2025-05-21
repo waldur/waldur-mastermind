@@ -1,10 +1,12 @@
 import logging
 from datetime import timedelta
+from typing import cast
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import Q, signals
 from django.utils import timezone
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.common import mixins as common_mixins
@@ -28,7 +30,7 @@ OrderTypes = marketplace_models.Order.Types
 class MarketplaceRegistrator(registrators.BaseRegistrator):
     plugin_name = PLUGIN_NAME
 
-    def _find_item(self, source, now):
+    def _find_item(self, source: marketplace_models.Resource, now):
         """
         Find an item or some items by source and date.
         :param source: object that was bought by customer.
@@ -60,7 +62,14 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
     def get_customer(self, source):
         return source.project.customer
 
-    def _create_item(self, source, invoice, start, end, **kwargs):
+    def _create_item(
+        self,
+        source: marketplace_models.Resource,
+        invoice: invoice_models.Invoice,
+        start,
+        end,
+        **kwargs,
+    ):
         resource = source
         plan = resource.plan
 
@@ -77,6 +86,13 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
         for plan_component in plan.components.all():
             offering_component = plan_component.component
+            if not offering_component:
+                logger.warning(
+                    "Skipping an invoice item creation for resource %s because "
+                    "offering component is not set.",
+                    resource,
+                )
+                continue
 
             is_fixed = offering_component.billing_type == BillingTypes.FIXED
             is_one = offering_component.billing_type == BillingTypes.ONE_TIME
@@ -142,12 +158,16 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                     unit_price=discounted_unit_price,
                     unit=unit,
                     quantity=quantity,
-                    measured_unit=plan_component.component.measured_unit,
+                    measured_unit=offering_component.measured_unit,
                     article_code=offering_component.article_code or plan.article_code,
                 )
 
     @classmethod
-    def get_component_details(cls, resource, plan_component):
+    def get_component_details(
+        cls,
+        resource: marketplace_models.Resource,
+        plan_component: marketplace_models.PlanComponent,
+    ):
         customer = resource.offering.customer
         service_provider = getattr(customer, "serviceprovider", None)
 
@@ -168,7 +188,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             "offering_component_name": plan_component.component.name,
         }
 
-    def get_name(self, resource):
+    def get_name(self, resource: marketplace_models.Resource):
         if resource.plan:
             return f"{resource.name} ({resource.offering.name} / {resource.plan.name})"
         else:
@@ -181,8 +201,22 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         return value
 
     @classmethod
-    def create_component_item(cls, source, plan_component, invoice, start, end):
+    def create_component_item(
+        cls,
+        source: marketplace_models.Resource,
+        plan_component: marketplace_models.PlanComponent,
+        invoice: invoice_models.Invoice,
+        start,
+        end,
+    ):
         offering_component = plan_component.component
+        if not offering_component:
+            logger.warning(
+                "Skipping invoice item creation for resource %s because "
+                "offering component is not set.",
+                source,
+            )
+            return
         limit = source.limits.get(offering_component.type, 0)
         if not limit or limit == -1:
             return
@@ -199,8 +233,8 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
         unit = plan_component.plan.unit
         if (
-            plan_component.component.billing_type == BillingTypes.LIMIT
-            and plan_component.component.limit_period == LimitPeriods.TOTAL
+            offering_component.billing_type == BillingTypes.LIMIT
+            and offering_component.limit_period == LimitPeriods.TOTAL
         ):
             unit = invoice_models.Units.QUANTITY
 
@@ -220,7 +254,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         )
 
     @classmethod
-    def update_component_item(cls, source, component_type, invoice, new_quantity):
+    def update_component_item(
+        cls, source: marketplace_models.Resource, component_type, invoice, new_quantity
+    ):
         invoice_item = invoice_models.InvoiceItem.objects.get(
             resource=source,
             details__offering_component_type=component_type,
@@ -268,8 +304,19 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
     @classmethod
     @transaction.atomic
     def create_or_update_component_item(
-        cls, source: marketplace_models.Resource, invoice, component_type, quantity
+        cls,
+        source: marketplace_models.Resource,
+        invoice: invoice_models.Invoice,
+        component_type,
+        quantity,
     ):
+        if not source.plan:
+            logger.warning(
+                "Skipping processing of invoice item %s because "
+                "billing is not enabled for resource.",
+                component_type,
+            )
+            return
         if invoice_models.InvoiceItem.objects.filter(
             resource=source,
             details__offering_component_type=component_type,
@@ -280,8 +327,8 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             start = timezone.now()
             end = get_current_month_end()
             try:
-                plan_component: marketplace_models.PlanComponent = (
-                    source.plan.components.get(component__type=component_type)
+                plan_component = source.plan.components.get(
+                    component__type=component_type
                 )
             except ObjectDoesNotExist:
                 logger.warning(
@@ -294,16 +341,19 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 cls.create_component_item(source, plan_component, invoice, start, end)
 
     @classmethod
-    def create_discounted_resource(cls, sender, instance, created=False, **kwargs):
-        resource: marketplace_models.Resource = instance
+    def create_discounted_resource(
+        cls, sender, instance: marketplace_models.Resource, created=False, **kwargs
+    ):
+        resource = instance
+        resource_tracker = cast(FieldInstanceTracker, resource.tracker)
 
         if created:
             return
 
-        if not instance.tracker.has_changed("state"):
+        if not resource_tracker.has_changed("state"):
             return
 
-        if instance.state != instance.States.OK:
+        if instance.state != ResourceStates.OK:
             return
 
         order = resource.creation_order
@@ -325,7 +375,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 )
 
     @classmethod
-    def on_resource_post_save(cls, sender, instance, created=False, **kwargs):
+    def on_resource_post_save(
+        cls, sender, instance: marketplace_models.Resource, created=False, **kwargs
+    ):
         resource = instance
         if resource.offering.type != cls.plugin_name:
             return
@@ -333,9 +385,12 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         if created:
             return
 
+        resource_tracker = cast(FieldInstanceTracker, resource.tracker)
+        instance_tracker = cast(FieldInstanceTracker, instance.tracker)
+
         if (
             resource.state == ResourceStates.OK
-            and resource.tracker.previous("state") == ResourceStates.CREATING
+            and resource_tracker.previous("state") == ResourceStates.CREATING
         ):
             cls.create_discounted_resource(sender, instance, created)
             registrators.RegistrationManager.register(
@@ -344,11 +399,11 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
         if (
             resource.state == ResourceStates.TERMINATED
-            and instance.tracker.previous("state") == ResourceStates.TERMINATING
+            and instance_tracker.previous("state") == ResourceStates.TERMINATING
         ):
             registrators.RegistrationManager.terminate(resource, timezone.now())
 
-        if resource.state != ResourceStates.CREATING and resource.tracker.has_changed(
+        if resource.state != ResourceStates.CREATING and resource_tracker.has_changed(
             "plan_id"
         ):
             registrators.RegistrationManager.terminate(resource, timezone.now())
@@ -356,7 +411,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 resource, timezone.now(), order_type=OrderTypes.UPDATE
             )
 
-        if resource.state != ResourceStates.CREATING and resource.tracker.has_changed(
+        if resource.state != ResourceStates.CREATING and resource_tracker.has_changed(
             "limits"
         ):
             today = timezone.now()
@@ -392,7 +447,12 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
     @classmethod
     def create_invoice_item_for_total_limit(
-        cls, resource, invoice, component_type, new_quantity, offering_component
+        cls,
+        resource: marketplace_models.Resource,
+        invoice: invoice_models.Invoice,
+        component_type,
+        new_quantity,
+        offering_component,
     ):
         if resource.state != ResourceStates.OK:
             return

@@ -631,9 +631,7 @@ class RancherCreateNodeSerializer(
                 _("Tenant should be specified either for node or cluster.")
             )
         if node_tenant:
-            vm_ids = cluster.node_set.values_list("instance_id")
-            vms = openstack_models.Instance.objects.filter(id__in=vm_ids)
-            if not vms.filter(tenant=node_tenant.id).exists():
+            if node_tenant.id not in cluster.linked_tenant_ids:
                 raise serializers.ValidationError(
                     _("Tenant should be one of already connected ones.")
                 )
