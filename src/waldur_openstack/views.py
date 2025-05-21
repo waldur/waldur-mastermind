@@ -972,6 +972,9 @@ class NetworkViewSet(structure_views.ResourceViewSet):
         if not obj:
             return
 
+        if request.user.is_staff:
+            return
+
         network = obj
         if not network.project.has_user(
             request.user
