@@ -1,289 +1,92 @@
-import copy
-import datetime
-from typing import cast
-from unittest import mock
-
-from freezegun import freeze_time
 from rest_framework import test
 
-from waldur_core.core.tests.helpers import load_json_resource
+from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.invoices import tasks as invoices_tasks
+from waldur_mastermind.invoices.tests.factories import InvoiceItemFactory
+from waldur_mastermind.invoices.utils import (
+    get_current_month_end,
+    get_current_month_start,
+    get_full_days,
+)
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OrderStates
+from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_rancher import PLUGIN_NAME
-from waldur_openstack.models import Tenant
-from waldur_openstack.tests import (
-    factories as openstack_factories,
-)
-from waldur_openstack.tests import (
-    fixtures as openstack_fixtures,
-)
-from waldur_rancher import models as rancher_models
-from waldur_rancher import tasks, utils
-from waldur_rancher.tests import factories as rancher_factories
-from waldur_rancher.tests.factories import RancherServiceSettingsFactory
-from waldur_rancher.tests.utils import format_nodes
+from waldur_mastermind.marketplace.utils import serialize_resource_limit_period
+from waldur_mastermind.marketplace_openstack import CORES_TYPE, TENANT_TYPE
+from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN
+from waldur_openstack.tests.factories import InstanceFactory, TenantFactory
+from waldur_rancher.tests.factories import ClusterFactory, NodeFactory
 
 
 class RancherInvoiceTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = openstack_fixtures.OpenStackFixture()
-        self.patcher = mock.patch(
-            "waldur_rancher.backend.RancherBackend.get_cluster_nodes"
-        )
-        self.mocked_get_cluster_nodes = self.patcher.start()
-        self.mocked_get_cluster_nodes.return_value = [
-            {"backend_id": "node_backend_id", "name": "name-rancher-node-server-1"}
-        ]
+    def test_invoice_is_copied_from_tenant_to_cluster(self):
+        start = get_current_month_start()
+        end = get_current_month_end()
 
-        self.patcher_client = mock.patch("waldur_rancher.backend.RancherBackend.client")
-        self.mock_client = self.patcher_client.start()
+        cluster_project = ProjectFactory()
+        cluster = ClusterFactory(project=cluster_project)
 
-        self.mock_client.get_node.return_value = load_json_resource(
-            "backend_node.json", root="waldur_rancher.tests"
-        )
+        for i in (1, 2):
+            vm_project = ProjectFactory()
+            vpc = TenantFactory(project=vm_project)
+            vm = InstanceFactory(project=vm_project, tenant=vpc)
+            vpc_offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
+            vpc_resource = marketplace_factories.ResourceFactory(
+                scope=vpc,
+                project=vm_project,
+                offering=vpc_offering,
+            )
+            InvoiceItemFactory(
+                resource=vpc_resource,
+                project=vm_project,
+                unit_price=100,
+                unit=marketplace_models.Plan.Units.PER_DAY,
+                details={
+                    "offering_component_type": CORES_TYPE,
+                    "resource_limit_periods": [
+                        serialize_resource_limit_period(
+                            {"start": start, "end": end, "quantity": 10}
+                        )
+                    ],
+                },
+                quantity=get_full_days(start, end) * 10,
+                start=start,
+                end=end,
+                article_code="vpc",
+            )
 
-        service_settings = RancherServiceSettingsFactory()
-        self.offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, scope=service_settings
-        )
-        self.plan = marketplace_factories.PlanFactory(
-            offering=self.offering,
-        )
-        self.offering_component = marketplace_factories.OfferingComponentFactory(
-            offering=self.offering,
-            type="node",
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
-        )
-        self.plan_component = marketplace_factories.PlanComponentFactory(
-            plan=self.plan,
-            component=self.offering_component,
-        )
-        flavor = openstack_factories.FlavorFactory(
-            settings=self.fixture.tenant.service_settings,
-            ram=1024 * 8,
-            cores=8,
-        )
-        flavor.tenants.add(self.fixture.tenant)
-        self.fixture.tenant.set_quota_limit(Tenant.Quotas.vcpu, 100)
-        image = self.fixture.image
-        openstack_factories.SecurityGroupFactory(
-            name="default", tenant=self.fixture.tenant
-        )
-        options = cast(dict, service_settings.options)
-        options.update({"base_image_name": image.name, "cloud_init_template": ""})
-        service_settings.save()
+            NodeFactory(cluster=cluster, instance=vm)
 
-        self.resource = None
-        self.cluster = None
-        self.plan_period = None
+        rancher_offering = marketplace_factories.OfferingFactory(
+            type=MANAGED_RANCHER_PLUGIN
+        )
+        rancher_plan = marketplace_factories.PlanFactory(offering=rancher_offering)
+        rancher_offering_component = marketplace_factories.OfferingComponentFactory(
+            offering=rancher_offering,
+            type=CORES_TYPE,
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
+            article_code="rancher",
+        )
+        marketplace_factories.PlanComponentFactory(
+            plan=rancher_plan,
+            component=rancher_offering_component,
+            price=200,
+        )
+        cluster_resource = marketplace_factories.ResourceFactory(
+            offering=rancher_offering,
+            plan=rancher_plan,
+            state=marketplace_models.Resource.States.CREATING,
+            scope=cluster,
+            project=cluster_project,
+        )
+        resource_creation_succeeded(cluster_resource)
 
-    def tearDown(self):
-        super().tearDown()
-        mock.patch.stopall()
+        items = invoices_models.InvoiceItem.objects.filter(resource=cluster_resource)
 
-    def _create_usage(self, mock_executors):
-        flavor = self.fixture.flavor
-        flavor.cores = 2
-        flavor.ram = 4096
-        flavor.save()
-        default_conf = {
-            "subnet": openstack_factories.SubNetFactory.get_url(self.fixture.subnet),
-            "system_volume_size": 10240,
-            "flavor": openstack_factories.FlavorFactory.get_url(flavor),
-        }
-        order = marketplace_factories.OrderFactory(
-            project=self.fixture.project,
-            created_by=self.fixture.owner,
-            offering=self.offering,
-            attributes={
-                "name": "name",
-                "tenant": openstack_factories.TenantFactory.get_url(
-                    self.fixture.tenant
-                ),
-                "nodes": format_nodes(default_conf, 3, 1),
-            },
-            state=OrderStates.EXECUTING,
-        )
-        marketplace_utils.process_order(order, self.fixture.staff)
-        self.assertTrue(
-            marketplace_models.Resource.objects.filter(name="name").exists()
-        )
-        self.assertTrue(rancher_models.Cluster.objects.filter(name="name").exists())
+        self.assertEqual(items.count(), 3)
 
-        self.cluster = rancher_models.Cluster.objects.get(name="name")
-        self.cluster.backend_id = "cluster_backend_id"
-        self.cluster.save()
+        self.assertTrue(items.filter(unit_price=100).exists())
+        self.assertTrue(items.filter(unit_price=200).exists())
 
-        create_node_task = tasks.CreateNodeTask()
-        create_node_task.execute(
-            mock_executors.ClusterCreateExecutor.execute.mock_calls[0][1][
-                0
-            ].node_set.first(),
-            user_id=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2][
-                "user"
-            ].id,
-        )
-        self.assertTrue(self.cluster.node_set.filter(cluster=self.cluster).exists())
-
-        today = datetime.date.today()
-        self.resource = marketplace_models.Resource.objects.get(scope=self.cluster)
-        self.plan_period = marketplace_models.ResourcePlanPeriod.objects.create(
-            start=today,
-            end=None,
-            resource=self.resource,
-            plan=self.plan,
-        )
-        invoices_tasks.create_monthly_invoices()
-        tasks.pull_cluster_nodes(self.cluster.id)
-        utils.update_cluster_nodes_states(self.cluster.id)
-
-    @freeze_time("2019-01-01")
-    @mock.patch("waldur_rancher.views.executors")
-    def test_create_usage_if_node_is_active(self, mock_executors):
-        self._create_usage(mock_executors)
-        today = datetime.date.today()
-        self.assertTrue(
-            marketplace_models.ComponentUsage.objects.filter(
-                resource=self.resource,
-                component=self.offering_component,
-                usage=1,
-                date=today,
-                billing_period=today,
-                plan_period=self.plan_period,
-            ).exists()
-        )
-        cluster = cast(rancher_models.Cluster, self.cluster)
-        invoice = invoices_models.Invoice.objects.get(customer=cluster.customer)
-        self.assertEqual(invoice.items.count(), 1)
-        self.assertEqual(invoice.price, self.plan_component.price)
-
-    @freeze_time("2019-01-01")
-    @mock.patch("waldur_rancher.views.executors")
-    def test_usage_is_zero_if_node_is_not_active(self, mock_executors):
-        return_value = copy.copy(self.mock_client.get_node.return_value)
-        return_value["state"] = "error"
-        self.mock_client.get_node.return_value = return_value
-        self._create_usage(mock_executors)
-        today = datetime.date.today()
-        self.assertTrue(
-            marketplace_models.ComponentUsage.objects.filter(
-                resource=self.resource,
-                component=self.offering_component,
-                date=today,
-                billing_period=today,
-                plan_period=self.plan_period,
-            ).exists()
-        )
-        usage = marketplace_models.ComponentUsage.objects.get(
-            resource=self.resource,
-            component=self.offering_component,
-            date=today,
-            billing_period=today,
-            plan_period=self.plan_period,
-        )
-        self.assertEqual(usage.usage, 0)
-
-    @freeze_time("2019-01-01")
-    @mock.patch("waldur_rancher.views.executors")
-    def test_usage_grows_if_active_nodes_count_grow(self, mock_executors):
-        self._create_usage(mock_executors)
-        today = datetime.date.today()
-        self.assertTrue(
-            marketplace_models.ComponentUsage.objects.filter(
-                resource=self.resource,
-                component=self.offering_component,
-                usage=1,
-                date=today,
-                billing_period=today,
-                plan_period=self.plan_period,
-            ).exists()
-        )
-        cluster = cast(rancher_models.Cluster, self.cluster)
-        rancher_factories.NodeFactory(cluster=cluster, name="second node")
-        self.mocked_get_cluster_nodes.return_value = [
-            {"backend_id": "node_backend_id", "name": "name-rancher-node"},
-            {"backend_id": "second_node_backend_id", "name": "second node"},
-        ]
-        tasks.pull_cluster_nodes(cluster.id)
-        utils.update_cluster_nodes_states(cluster.id)
-        self.assertTrue(
-            marketplace_models.ComponentUsage.objects.filter(
-                resource=self.resource,
-                component=self.offering_component,
-                usage=2,
-                date=today,
-                billing_period=today,
-                plan_period=self.plan_period,
-            ).exists()
-        )
-        self.assertEqual(
-            marketplace_models.ComponentUsage.objects.filter(
-                resource=self.resource,
-                component=self.offering_component,
-                date=today,
-                billing_period=today,
-                plan_period=self.plan_period,
-            ).count(),
-            1,
-        )
-        invoice = invoices_models.Invoice.objects.get(customer=cluster.customer)
-        self.assertEqual(invoice.items.count(), 1)
-        self.assertEqual(invoice.price, self.plan_component.price * 2)
-
-    @freeze_time("2019-01-01")
-    @mock.patch("waldur_rancher.views.executors")
-    def test_usage_does_not_decrease_if_active_nodes_count_decrease(
-        self, mock_executors
-    ):
-        self._create_usage(mock_executors)
-        today = datetime.date.today()
-        self.assertTrue(
-            marketplace_models.ComponentUsage.objects.filter(
-                resource=self.resource,
-                component=self.offering_component,
-                usage=1,
-                date=today,
-                billing_period=today,
-                plan_period=self.plan_period,
-            ).exists()
-        )
-        cluster = cast(rancher_models.Cluster, self.cluster)
-        rancher_factories.NodeFactory(cluster=cluster, name="second node")
-        self.mocked_get_cluster_nodes.return_value = [
-            {"backend_id": "node_backend_id", "name": "name-rancher-node"},
-            {"backend_id": "second_node_backend_id", "name": "second node"},
-        ]
-        tasks.pull_cluster_nodes(cluster.id)
-        utils.update_cluster_nodes_states(cluster.id)
-        self.assertTrue(
-            marketplace_models.ComponentUsage.objects.filter(
-                resource=self.resource,
-                component=self.offering_component,
-                usage=2,
-                date=today,
-                billing_period=today,
-                plan_period=self.plan_period,
-            ).exists()
-        )
-        return_value = copy.copy(self.mock_client.get_node.return_value)
-        return_value["state"] = "error"
-        self.mock_client.get_node.return_value = return_value
-        tasks.pull_cluster_nodes(cluster.id)
-        self.assertTrue(
-            marketplace_models.ComponentUsage.objects.filter(
-                resource=self.resource,
-                component=self.offering_component,
-                usage=2,
-                date=today,
-                billing_period=today,
-                plan_period=self.plan_period,
-            ).exists()
-        )
-
-        invoice = invoices_models.Invoice.objects.get(customer=cluster.customer)
-        self.assertEqual(invoice.items.count(), 1)
-        self.assertEqual(invoice.price, self.plan_component.price * 2)
+        self.assertTrue(items.filter(article_code="vpc").exists())
+        self.assertTrue(items.filter(article_code="rancher").exists())

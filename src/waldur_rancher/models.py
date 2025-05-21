@@ -68,6 +68,15 @@ class Cluster(SettingsMixin, BaseResource):
 
     node_set: models.Manager["Node"]
 
+    @property
+    def linked_tenant_ids(self) -> list[int]:
+        """
+        Returns all tenants linked to this cluster.
+        """
+        return list(
+            self.node_set.values_list("instance__tenant_id", flat=True).distinct()
+        )
+
     @classmethod
     def get_url_name(cls):
         return "rancher-cluster"

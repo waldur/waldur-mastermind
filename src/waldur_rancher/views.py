@@ -812,9 +812,7 @@ class RancherClusterSecurityGroupsViewSet(
 
     def perform_update(self, serializer):
         cluster_security_group: models.ClusterSecurityGroup = serializer.save()
-        tenant_ids = cluster_security_group.cluster.node_set.values_list(
-            "instance__tenant_id", flat=True
-        )
+        tenant_ids = cluster_security_group.cluster.linked_tenant_ids
         for tenant_id in tenant_ids:
             # TODO: name of security group should be unique and immutable
             try:
