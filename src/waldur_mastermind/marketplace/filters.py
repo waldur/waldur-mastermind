@@ -615,6 +615,13 @@ class ComponentUsageFilter(django_filters.FilterSet):
     date_after = django_filters.DateFilter(field_name="date__date", lookup_expr="gte")
     type = django_filters.CharFilter(field_name="component__type")
 
+    o = django_filters.OrderingFilter(
+        fields=(
+            "billing_period",
+            "usage",
+        )
+    )
+
     class Meta:
         model = models.ComponentUsage
         fields = ["billing_period"]
