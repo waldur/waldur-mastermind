@@ -358,6 +358,10 @@ CONSTANCE_CONFIG = {
         "https://example.com/",
         "It is used for rendering callback URL in HomePort",
     ),
+    "RANCHER_USERNAME_INPUT_LABEL": (
+        "Username",
+        "Label for the username field in Rancher external user resource access management.",
+    ),
     "SITE_ADDRESS": ("", "It is used in marketplace order header."),
     "SITE_EMAIL": ("", "It is used in marketplace order header and UI footer."),
     "SITE_PHONE": ("", "It is used in marketplace order header and UI footer."),
@@ -765,6 +769,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "FULL_PAGE_TITLE",
         "SITE_DESCRIPTION",
         "HOMEPORT_URL",
+        "RANCHER_USERNAME_INPUT_LABEL",
     ),
     "Marketplace Branding": (
         "SITE_ADDRESS",
@@ -955,6 +960,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "DEFAULT_IDP",
     "HOMEPORT_URL",
     "KEYCLOAK_ICON",
+    "RANCHER_USERNAME_INPUT_LABEL",
 )
 
 for ext in WaldurExtension.get_extensions():
