@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 
 from . import enums
@@ -10,3 +10,4 @@ class PolicyAction:
     method: Callable
     reset_method: Callable | None = None
     options_validator: Callable | None = None
+    ignored_fields: Collection[str] | None = None
