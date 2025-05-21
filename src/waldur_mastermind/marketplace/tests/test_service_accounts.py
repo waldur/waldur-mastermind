@@ -13,9 +13,10 @@ from waldur_core.permissions.fixtures import (
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
-WEBHOOK_URL = "http://example.com/api/"
-WEBHOOK_TOKEN_CLIENT_ID = "test-client-id"
-WEBHOOK_TOKEN_SECRET = "test-client-secret"
+TOKEN_URL = "http://example.com/api/token/"
+SERVICE_ACCOUNT_URL = "http://example.com/api/service-accounts/"
+TOKEN_CLIENT_ID = "test-client-id"
+TOKEN_SECRET = "test-client-secret"
 
 
 class BaseServiceAccountTest(test.APITransactionTestCase):
@@ -26,10 +27,12 @@ class BaseServiceAccountTest(test.APITransactionTestCase):
         respx.start()
         self.token = "test-token"
 
+        self.account_username = "waldur"
+
         # Mock token request
         respx.post(
-            WEBHOOK_URL,
-            content=f"grant_type=client_credentials&client_id={WEBHOOK_TOKEN_CLIENT_ID}&client_secret={WEBHOOK_TOKEN_SECRET}",
+            TOKEN_URL,
+            content=f"grant_type=client_credentials&client_id={TOKEN_CLIENT_ID}&client_secret={TOKEN_SECRET}",
             headers={
                 "Accept": "application/json",
                 "Content-Type": "application/x-www-form-urlencoded",
@@ -38,7 +41,7 @@ class BaseServiceAccountTest(test.APITransactionTestCase):
 
         # Mock service account creation request
         respx.post(
-            WEBHOOK_URL,
+            SERVICE_ACCOUNT_URL,
             headers={"Authorization": f"Bearer {self.token}"},
         ).mock(
             return_value=httpx.Response(
@@ -46,7 +49,7 @@ class BaseServiceAccountTest(test.APITransactionTestCase):
                 json={
                     "serviceAccount": {
                         "status": "active",
-                        "username": "test-user",
+                        "username": self.account_username,
                         "email": "test@example.com",
                         "description": "test description",
                         "unixUid": 1000,
@@ -68,11 +71,10 @@ class BaseServiceAccountTest(test.APITransactionTestCase):
                 },
             )
         )
-        self.account_username = "waldur"
 
         # Mock service account deletion request
         respx.delete(
-            f"{WEBHOOK_URL}{self.account_username}",
+            f"{SERVICE_ACCOUNT_URL}{self.account_username}",
             headers={"Authorization": f"Bearer {self.token}"},
         ).mock(return_value=httpx.Response(200, json={}))
 
@@ -82,10 +84,11 @@ class BaseServiceAccountTest(test.APITransactionTestCase):
 
 
 @override_waldur_core_settings(
-    SERVICE_ACCOUNT_USE_WEBHOOKS=True,
-    SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL=WEBHOOK_URL,
-    SERVICE_ACCOUNT_WEBHOOK_TOKEN_CLIENT_ID=WEBHOOK_TOKEN_CLIENT_ID,
-    SERVICE_ACCOUNT_WEBHOOK_TOKEN_SECRET=WEBHOOK_TOKEN_SECRET,
+    SERVICE_ACCOUNT_USE_API=True,
+    SERVICE_ACCOUNT_TOKEN_URL=TOKEN_URL,
+    SERVICE_ACCOUNT_URL=SERVICE_ACCOUNT_URL,
+    SERVICE_ACCOUNT_TOKEN_CLIENT_ID=TOKEN_CLIENT_ID,
+    SERVICE_ACCOUNT_TOKEN_SECRET=TOKEN_SECRET,
 )
 @ddt
 class ServiceAccountPermissionTest(BaseServiceAccountTest):
@@ -394,10 +397,11 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
 
 
 @override_waldur_core_settings(
-    SERVICE_ACCOUNT_USE_WEBHOOKS=True,
-    SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL=WEBHOOK_URL,
-    SERVICE_ACCOUNT_WEBHOOK_TOKEN_CLIENT_ID=WEBHOOK_TOKEN_CLIENT_ID,
-    SERVICE_ACCOUNT_WEBHOOK_TOKEN_SECRET=WEBHOOK_TOKEN_SECRET,
+    SERVICE_ACCOUNT_USE_API=True,
+    SERVICE_ACCOUNT_TOKEN_URL=TOKEN_URL,
+    SERVICE_ACCOUNT_URL=SERVICE_ACCOUNT_URL,
+    SERVICE_ACCOUNT_TOKEN_CLIENT_ID=TOKEN_CLIENT_ID,
+    SERVICE_ACCOUNT_TOKEN_SECRET=TOKEN_SECRET,
 )
 class ScopedServiceAccountAPITest(BaseServiceAccountTest):
     def setUp(self):
@@ -422,13 +426,18 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.data["token"], self.token)
+        self.assertTrue(
+            models.ProjectServiceAccount.objects.filter(
+                username=self.account_username
+            ).exists()
+        )
 
     def test_create_service_account_failure(self):
         """Test that service account creation fails when API call fails"""
         # Mock token request (failure)
         respx.post(
-            WEBHOOK_URL,
-            content=f"grant_type=client_credentials&client_id={WEBHOOK_TOKEN_CLIENT_ID}&client_secret={WEBHOOK_TOKEN_SECRET}",
+            TOKEN_URL,
+            content=f"grant_type=client_credentials&client_id={TOKEN_CLIENT_ID}&client_secret={TOKEN_SECRET}",
             headers={
                 "Accept": "application/json",
                 "Content-Type": "application/x-www-form-urlencoded",
@@ -451,7 +460,7 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
 
         # Mock API key rotation response
         respx.put(
-            f"{WEBHOOK_URL}{account.username}/rotate-api-key/",
+            f"{SERVICE_ACCOUNT_URL}{account.username}/rotate-api-key/",
             headers={"Authorization": f"Bearer {self.token}"},
         ).mock(
             return_value=httpx.Response(
@@ -478,7 +487,7 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
 
         # Mock API key rotation response
         respx.put(
-            f"{WEBHOOK_URL}{account.username}/rotate-api-key/",
+            f"{SERVICE_ACCOUNT_URL}{account.username}/rotate-api-key/",
             headers={"Authorization": f"Bearer {self.token}"},
         ).mock(
             return_value=httpx.Response(
@@ -495,3 +504,52 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["token"], self.new_api_key)
         self.assertEqual(response.data["expiresAt"], self.new_expires_at)
+
+
+class ServiceAccountOfferingTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.provider_owner = self.fixture.provider_owner
+        self.resource = self.fixture.resource
+        self.resource.state = models.Resource.States.OK
+        self.resource.save()
+
+        self.project_service_accounts = (
+            factories.ProjectServiceAccountFactory.create_batch(
+                3, project=self.resource.project
+            )
+        )
+        self.customer_service_accounts = (
+            factories.CustomerServiceAccountFactory.create_batch(
+                2, customer=self.resource.customer
+            )
+        )
+
+    def test_service_provider_owner_can_list_project_service_accounts(self):
+        """Test that service provider owner can list project service accounts"""
+        self.client.force_authenticate(self.provider_owner)
+        url = factories.OfferingFactory.get_url(
+            self.offering, action="list_project_service_accounts"
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(3, len(response.data), response.data)
+        self.assertEqual(
+            set([account["username"] for account in response.data]),
+            set([account.username for account in self.project_service_accounts]),
+        )
+
+    def test_service_provider_owner_can_list_customer_service_accounts(self):
+        """Test that service provider owner can list customer service accounts"""
+        self.client.force_authenticate(self.provider_owner)
+        url = factories.OfferingFactory.get_url(
+            self.offering, action="list_customer_service_accounts"
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(2, len(response.data), response.data)
+        self.assertEqual(
+            set([account["username"] for account in response.data]),
+            set([account.username for account in self.customer_service_accounts]),
+        )

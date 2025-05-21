@@ -2171,6 +2171,57 @@ class ProviderOfferingViewSet(
         validate_offering_username_generation_policy,
     ]
 
+    @action(detail=True, methods=["get"])
+    def list_customer_service_accounts(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        project_ids = (
+            models.Resource.objects.filter(
+                offering=offering,
+            )
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values_list("project_id", flat=True)
+            .distinct()
+        )
+        customer_ids = (
+            structure_models.Project.objects.filter(
+                id__in=project_ids,
+            )
+            .values_list("customer_id", flat=True)
+            .distinct()
+        )
+        service_accounts = models.CustomerServiceAccount.objects.filter(
+            customer_id__in=customer_ids,
+        )
+        serializer = serializers.CustomerServiceAccountSerializer(
+            instance=service_accounts, many=True, context={"request": request}
+        )
+        return Response(
+            status=status.HTTP_200_OK,
+            data=serializer.data,
+        )
+
+    @action(detail=True, methods=["get"])
+    def list_project_service_accounts(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        project_ids = (
+            models.Resource.objects.filter(
+                offering=offering,
+            )
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values_list("project_id", flat=True)
+            .distinct()
+        )
+        service_accounts = models.ProjectServiceAccount.objects.filter(
+            project_id__in=project_ids,
+        )
+        serializer = serializers.ProjectServiceAccountSerializer(
+            instance=service_accounts, many=True, context={"request": request}
+        )
+        return Response(
+            status=status.HTTP_200_OK,
+            data=serializer.data,
+        )
+
 
 class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
     queryset = models.Offering.objects.filter()
@@ -4689,6 +4740,9 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
             if response_data and "apiKey" in response_data:
                 instance._token = response_data["apiKey"]["apiKey"]
                 instance._expiresAt = response_data["apiKey"]["expiresAt"]
+                if "serviceAccount" in response_data:
+                    instance.username = response_data["serviceAccount"]["username"]
+                    instance.save(update_fields=["username"])
             else:
                 instance.error_message = (
                     "Service account creation is disabled or returned no token."
