@@ -253,6 +253,7 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
                     tenant=dst_tenant,
                     network=dst_network,
                     cidr=subnet_cidr,
+                    disable_gateway=src_subnet.disable_gateway,
                     dns_nameservers=src_subnet.dns_nameservers,
                     host_routes=src_subnet.host_routes,
                     allocation_pools=subnet_mappings.get(src_subnet.cidr)

@@ -28,6 +28,7 @@ class RouterLogger(EventLogger):
     old_routes = list
     new_routes = list
     tenant_backend_id = str
+    changed_interface = dict
 
     class Meta:
         event_types = ("openstack_router_updated",)

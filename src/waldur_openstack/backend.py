@@ -974,14 +974,17 @@ class OpenStackBackend(ServiceBackend):
 
         return security_group
 
-    def pull_tenant_routers(self, tenant: models.Tenant):
+    def pull_tenant_routers(self, tenant: models.Tenant, router_backend_id=None):
         session = get_tenant_session(tenant)
         neutron = get_neutron_client(session)
 
         try:
-            backend_routers = neutron.list_routers(tenant_id=tenant.backend_id)[
-                "routers"
-            ]
+            if router_backend_id:
+                backend_routers = [neutron.show_router(router_backend_id)["router"]]
+            else:
+                backend_routers = neutron.list_routers(tenant_id=tenant.backend_id)[
+                    "routers"
+                ]
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
