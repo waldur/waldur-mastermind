@@ -1504,6 +1504,10 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
                 )
             )
 
+        if attrs.get("disable_gateway"):
+            # clean the gateway ip
+            attrs["gateway_ip"] = None
+
         if "cidr" not in attrs:
             attrs["cidr"] = (
                 "192.168.42.0/24"
