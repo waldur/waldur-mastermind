@@ -108,6 +108,31 @@ class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
     has_device_owner = django_filters.BooleanFilter(
         method="filter_has_device_owner", label="Has device owner"
     )
+    exclude_subnet_uuids = django_filters.CharFilter(
+        method="filter_exclude_subnet_uuids",
+        label="Exclude Subnet UUIDs (comma-separated)",
+    )
+
+    def filter_has_device_owner(self, queryset, name, value):
+        if value:
+            return queryset.exclude(device_owner="")
+        else:
+            return queryset.filter(device_owner="")
+
+    def filter_query(self, queryset, name, value):
+        return queryset.filter(
+            Q(name__icontains=value)
+            | Q(mac_address__icontains=value)
+            | Q(backend_id__icontains=value)
+        )
+
+    def filter_exclude_subnet_uuids(self, queryset, name, value):
+        if not value:
+            return queryset
+        uuids = [uuid.strip() for uuid in value.split(",") if uuid.strip()]
+        if uuids:
+            return queryset.exclude(subnet__uuid__in=uuids)
+        return queryset
 
     class Meta:
         model = models.Port
@@ -119,18 +144,6 @@ class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
             "device_owner",
             "device_id",
         )
-
-    def filter_has_device_owner(self, queryset, name, value):
-        if value:
-            return queryset.exclude(device_owner__exact="")
-        else:
-            return queryset.filter(device_owner__exact="")
-
-    def filter_query(self, queryset, name, value):
-        query = queryset.filter(
-            Q(fixed_ips__icontains=value) | Q(mac_address__icontains=value)
-        )
-        return query
 
 
 def filter_tenant_fabric(model):
