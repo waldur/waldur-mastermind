@@ -68,50 +68,8 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
         server_nodes = nodes.filter(role=SERVER_ROLE)
         agent_nodes = nodes.filter(role=AGENT_ROLE)
 
-        # Create 1 server and 1 agent node
-        first_server_node = server_nodes.first()
-        first_server_node_serialized = core_utils.serialize_instance(first_server_node)
-        first_agent_node = agent_nodes.first()
-        first_server_agent_serialized = core_utils.serialize_instance(first_agent_node)
-        _tasks.append(
-            tasks.CreateNodeTask().si(
-                first_server_node_serialized,
-                user_id=user.id,
-            )
-        )
-
-        _tasks.append(
-            tasks.CreateNodeTask().si(
-                first_server_agent_serialized,
-                user_id=user.id,
-            )
-        )
-
-        poll_chain = chain(
-            tasks.PollRuntimeStateNodeTask().si(first_server_node_serialized),
-            core_tasks.StateTransitionTask().si(
-                first_server_node_serialized, state_transition="set_ok"
-            ),
-            tasks.PollRuntimeStateNodeTask().si(first_server_agent_serialized),
-            core_tasks.StateTransitionTask().si(
-                first_server_agent_serialized, state_transition="set_ok"
-            ),
-        )
-        _tasks.append(poll_chain)
-
-        # Create remaning server nodes one by one
-        remaning_server_nodes = server_nodes[1:]
-        for node in remaning_server_nodes:
-            _tasks.append(
-                NodeCreateExecutor.as_signature(
-                    node,
-                    user_id=user.id,
-                )
-            )
-
-        # Create remaning agent nodes in parallel
-        remaining_agent_nodes = agent_nodes[1:]
-        for node in remaining_agent_nodes:
+        # Create the server nodes in parallel
+        for node in server_nodes:
             serialized_instance = core_utils.serialize_instance(node)
             _tasks.append(
                 tasks.CreateNodeTask().si(
@@ -120,16 +78,44 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
                 )
             )
 
+        # Create one agent node
+        first_agent_node = agent_nodes.first()
+        serialized_first_node = core_utils.serialize_instance(first_agent_node)
+        _tasks.append(
+            tasks.CreateNodeTask().si(
+                serialized_first_node,
+                user_id=user.id,
+            )
+        )
+
+        # Poll the runtime state of the server nodes
+        for node in server_nodes:
+            serialized_instance = core_utils.serialize_instance(node)
+            _tasks.append(tasks.PollRuntimeStateNodeTask().si(serialized_instance))
+
+        # Poll the runtime state of the first agent node
+        _tasks.append(
+            tasks.PollRuntimeStateNodeTask().si(
+                serialized_first_node,
+            )
+        )
+
+        # Create the rest of the agent nodes in parallel
+        remaining_agent_nodes = agent_nodes.exclude(id=first_agent_node.id)
+
         for node in remaining_agent_nodes:
             serialized_instance = core_utils.serialize_instance(node)
             _tasks.append(
-                chain(
-                    tasks.PollRuntimeStateNodeTask().si(serialized_instance),
-                    core_tasks.StateTransitionTask().si(
-                        first_server_node_serialized, state_transition="set_ok"
-                    ),
+                tasks.CreateNodeTask().si(
+                    serialized_instance,
+                    user_id=user.id,
                 )
             )
+        # Poll the runtime state of the rest of the agent nodes
+        for node in remaining_agent_nodes:
+            serialized_instance = core_utils.serialize_instance(node)
+            _tasks.append(tasks.PollRuntimeStateNodeTask().si(serialized_instance))
+
         return _tasks
 
 
