@@ -1641,9 +1641,9 @@ def notification_about_project_ending(end_date):
 
 
 def get_service_account_api_token():
-    token_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL"]
-    client_id = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_CLIENT_ID"]
-    client_secret = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_SECRET"]
+    token_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_URL"]
+    client_id = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_CLIENT_ID"]
+    client_secret = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_SECRET"]
 
     token_request_headers = {
         "Accept": "application/json",
@@ -1671,14 +1671,14 @@ def get_service_account_api_token():
 
 
 def rotate_service_account_api_key(service_account: models.ScopedServiceAccount):
-    webhook_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL"]
-    if not webhook_url:
-        raise ValueError("Webhook URL for service accounts is not configured")
+    service_account_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_URL"]
+    if not service_account_url:
+        raise ValueError("URL for service accounts is not configured")
     try:
         api_access_token = get_service_account_api_token()
 
         response = httpx.put(
-            f"{webhook_url}{service_account.username}/rotate-api-key/",
+            f"{service_account_url}{service_account.username}/rotate-api-key/",
             headers={"Authorization": f"Bearer {api_access_token}"},
         )
         response.raise_for_status()
@@ -1710,6 +1710,7 @@ def post_service_account_to_url(
 
         payload = {
             "ownerUsername": username,
+            "username": service_account.username,
             "email": customer.email,
             "description": service_account.description,
             "scopeType": scope_type,
@@ -1732,15 +1733,17 @@ def create_service_account(service_account: models.ScopedServiceAccount, usernam
     Makes a synchronous call to the webhook URL to create a service account.
     Raises exceptions on failure which should be handled by the viewset.
     """
-    if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_WEBHOOKS"):
+    if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_API"):
         return
 
-    webhook_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL"]
-    if not webhook_url:
-        raise ValueError("Webhook URL for service accounts is not configured")
+    service_account_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_URL"]
+    if not service_account_url:
+        raise ValueError("URL for service accounts is not configured")
 
     try:
-        response = post_service_account_to_url(webhook_url, service_account, username)
+        response = post_service_account_to_url(
+            service_account_url, service_account, username
+        )
         return response.json()
     except (httpx.HTTPError, ValueError) as exc:
         logger.error(exc)
@@ -1755,17 +1758,17 @@ def delete_service_account(service_account):
     Makes a synchronous call to the webhook URL to remove a service account.
     Raises exceptions on failure which should be handled by the viewset.
     """
-    if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_WEBHOOKS"):
+    if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_API"):
         return
 
-    webhook_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_WEBHOOK_TOKEN_URL"]
-    if not webhook_url:
-        raise RuntimeError("Webhook URL for service accounts is not configured")
+    service_account_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_URL"]
+    if not service_account_url:
+        raise RuntimeError("URL for service accounts is not configured")
 
     try:
         api_access_token = get_service_account_api_token()
         response = httpx.delete(
-            f"{webhook_url}{service_account.username}",
+            f"{service_account_url}{service_account.username}",
             headers={"Authorization": f"Bearer {api_access_token}"},
         )
         response.raise_for_status()
