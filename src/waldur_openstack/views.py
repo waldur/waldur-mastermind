@@ -716,6 +716,7 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
                 "old_routes": old_routes,
                 "new_routes": new_routes,
                 "tenant_backend_id": router.tenant.backend_id,
+                "changed_interface": {},
             },
         )
 
@@ -768,7 +769,7 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
             )
 
         old_routes = router.routes
-        backend = router.tenant.get_backend()
+        backend: OpenStackBackend = router.tenant.get_backend()
         try:
             backend.add_router_interface(router, subnet, port)
         except OpenStackBackendError as e:
@@ -783,16 +784,17 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
         elif port:
             added_interface = {"type": "port", "backend_id": port.backend_id}
         event_logger.openstack_router.info(
-            "Interface add scheduled for router.",
+            "Interface was added to router.",
             event_type="openstack_router_updated",
             event_context={
                 "router": router,
                 "old_routes": old_routes,
                 "new_routes": old_routes,  # routes are not changed, but for consistency
                 "tenant_backend_id": router.tenant.backend_id,
-                "added_interface": added_interface,
+                "changed_interface": added_interface,
             },
         )
+        backend.pull_tenant_routers(router.tenant, router.backend_id)
         return response.Response(
             {
                 "status": _(
@@ -837,20 +839,21 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
         elif port:
             removed_interface = {"type": "port", "backend_id": port.backend_id}
         event_logger.openstack_router.info(
-            "Interface remove scheduled for router.",
+            "Interface was removed from router.",
             event_type="openstack_router_updated",
             event_context={
                 "router": router,
                 "old_routes": old_routes,
                 "new_routes": old_routes,  # routes are not changed, but for consistency
                 "tenant_backend_id": router.tenant.backend_id,
-                "removed_interface": removed_interface,
+                "changed_interface": removed_interface,
             },
         )
+        backend.pull_tenant_routers(router.tenant, router.backend_id)
         return response.Response(
             {
                 "status": _(
-                    f"Interface remove was scheduled for router {router.backend_id}."
+                    f"Interface {removed_interface} was removed from router {router.backend_id}."
                 )
             },
             status=status.HTTP_202_ACCEPTED,

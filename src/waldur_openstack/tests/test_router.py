@@ -60,21 +60,25 @@ class RouterInterfaceTest(BaseRouterTest):
             self.router, action="remove_router_interface"
         )
 
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
     @mock.patch("waldur_openstack.backend.OpenStackBackend.add_router_interface")
-    def test_add_router_interface_with_subnet(self, mock_execute):
+    def test_add_router_interface_with_subnet(self, mock_add, mock_pull):
         response = self.client.post(
             self.url_add, {"subnet": factories.SubNetFactory.get_url(self.subnet)}
         )
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        mock_execute.assert_called_once()
+        mock_add.assert_called_once()
+        mock_pull.assert_called_once()
 
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
     @mock.patch("waldur_openstack.backend.OpenStackBackend.add_router_interface")
-    def test_add_router_interface_with_port(self, mock_execute):
+    def test_add_router_interface_with_port(self, mock_add, mock_pull):
         response = self.client.post(
             self.url_add, {"port": factories.PortFactory.get_url(self.port)}
         )
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        mock_execute.assert_called_once()
+        mock_add.assert_called_once()
+        mock_pull.assert_called_once()
 
     def test_add_router_interface_missing_params(self):
         response = self.client.post(self.url_add, {})
@@ -98,21 +102,25 @@ class RouterInterfaceTest(BaseRouterTest):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
     @mock.patch("waldur_openstack.backend.OpenStackBackend.remove_router_interface")
-    def test_remove_router_interface_with_subnet(self, mock_execute):
+    def test_remove_router_interface_with_subnet(self, mock_remove, mock_pull):
         response = self.client.post(
             self.url_remove, {"subnet": factories.SubNetFactory.get_url(self.subnet)}
         )
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        mock_execute.assert_called_once()
+        mock_remove.assert_called_once()
+        mock_pull.assert_called_once()
 
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
     @mock.patch("waldur_openstack.backend.OpenStackBackend.remove_router_interface")
-    def test_remove_router_interface_with_port(self, mock_execute):
+    def test_remove_router_interface_with_port(self, mock_remove, mock_pull):
         response = self.client.post(
             self.url_remove, {"port": factories.PortFactory.get_url(self.port)}
         )
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        mock_execute.assert_called_once()
+        mock_remove.assert_called_once()
+        mock_pull.assert_called_once()
 
     def test_remove_router_interface_missing_params(self):
         response = self.client.post(self.url_remove, {})
