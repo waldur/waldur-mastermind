@@ -17,6 +17,7 @@ from keystoneauth1.exceptions.connection import ConnectFailure
 from rest_framework import decorators, exceptions, generics, response, status
 
 from waldur_core.core import exceptions as core_exceptions
+from waldur_core.core import mixins as core_mixins
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
@@ -690,12 +691,17 @@ class TenantViewSet(structure_views.ResourceViewSet):
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class RouterViewSet(core_views.ReadOnlyActionsViewSet):
+class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.Router.objects.all().order_by("tenant__name")
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.RouterFilter
     serializer_class = serializers.OpenStackRouterSerializer
+    create_serializer_class = serializers.CreateRouterSerializer
+    disabled_actions = ["update", "partial_update"]
+
+    delete_executor = executors.RouterDeleteExecutor
+    create_executor = executors.RouterCreateExecutor
 
     @decorators.action(detail=True, methods=["POST"])
     def set_routes(self, request, uuid=None):

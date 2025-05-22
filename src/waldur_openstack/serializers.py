@@ -32,6 +32,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.validators import BackendURLValidator, validate_x509_certificate
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.quotas.models import SharedQuotaMixin
 from waldur_core.quotas.serializers import QuotaSerializer
 from waldur_core.structure import models as structure_models
@@ -1763,6 +1764,58 @@ class OpenStackRouterSerializer(structure_serializers.BaseResourceSerializer):
             url={"lookup_field": "uuid", "view_name": "openstack-router-detail"},
             tenant={"lookup_field": "uuid", "view_name": "openstack-tenant-detail"},
         )
+
+
+class CreateRouterSerializer(serializers.HyperlinkedModelSerializer):
+    name = serializers.CharField(write_only=True)
+    project = serializers.HyperlinkedRelatedField(
+        view_name="project-detail",
+        lookup_field="uuid",
+        read_only=True,
+    )
+    service_settings = serializers.HyperlinkedRelatedField(
+        view_name="servicesettings-detail",
+        lookup_field="uuid",
+        read_only=True,
+    )
+
+    class Meta:
+        model = models.Router
+        fields = (
+            "tenant",
+            "name",
+            "project",
+            "service_settings",
+        )
+        extra_kwargs = dict(
+            tenant={"lookup_field": "uuid", "view_name": "openstack-tenant-detail"},
+        )
+
+    def validate_tenant(self, tenant):
+        user = self.context["request"].user
+        if not (
+            user.is_staff
+            or tenant.project.customer.has_user(user, CustomerRole.OWNER)
+            or tenant.project.has_user(user, ProjectRole.ADMIN)
+            or tenant.project.has_user(user, ProjectRole.MANAGER)
+        ):
+            raise serializers.ValidationError(
+                "You do not have permission to create router for this tenant."
+            )
+
+        if tenant.state != CoreStates.OK:
+            raise serializers.ValidationError(
+                "Router can be created only for tenant in OK state."
+            )
+
+        return tenant
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        tenant = attrs.get("tenant")
+        attrs["project"] = tenant.project
+        attrs["service_settings"] = tenant.service_settings
+        return attrs
 
 
 class OpenStackNestedFloatingIPSerializer(
