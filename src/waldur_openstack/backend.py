@@ -1066,12 +1066,8 @@ class OpenStackBackend(ServiceBackend):
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
-        network_mapping = self._tenant_mappings(
-            models.Network.objects.filter(tenant=tenant)
-        )
-        subnet_mapping = self._tenant_mappings(
-            models.SubNet.objects.filter(tenant=tenant)
-        )
+        network_mapping = self._tenant_mappings(tenant.available_networks)
+        subnet_mapping = self._tenant_mappings(tenant.available_subnets)
         security_group_mapping = self._tenant_mappings(
             models.SecurityGroup.objects.filter(tenant=tenant)
         )
@@ -4477,7 +4473,8 @@ class OpenStackBackend(ServiceBackend):
             )
         }
 
-        subnets = models.SubNet.objects.filter(tenant=instance.tenant)
+        subnets = instance.tenant.available_subnets
+
         subnet_mappings = {subnet.backend_id: subnet for subnet in subnets}
 
         with transaction.atomic():
@@ -4509,6 +4506,9 @@ class OpenStackBackend(ServiceBackend):
                         imported_port,
                         models.Port.get_backend_fields(),
                     )
+                    if subnet and not port.subnet:
+                        port.subnet = subnet
+                        port.save()
 
                 elif imported_port.backend_id in local_ips:
                     port = local_ips[imported_port.backend_id]

@@ -133,6 +133,36 @@ class Tenant(
         else:
             return limit
 
+    @property
+    def available_subnets(self):
+        # Subnets directly belonging to the tenant
+        tenant_subnets = SubNet.objects.filter(tenant=self)
+        # Subnets from networks shared with the tenant via RBAC
+        shared_network_ids = NetworkRBACPolicy.objects.filter(
+            target_tenant=self
+        ).values_list("network_id", flat=True)
+        shared_subnets = SubNet.objects.filter(network_id__in=shared_network_ids)
+        # Combine both
+        return (tenant_subnets | shared_subnets).distinct()
+
+    @property
+    def available_networks(self):
+        tenant_networks = Network.objects.filter(tenant=self)
+        shared_network_ids = NetworkRBACPolicy.objects.filter(
+            target_tenant=self
+        ).values_list("network_id", flat=True)
+        shared_networks = Network.objects.filter(id__in=shared_network_ids)
+        return (tenant_networks | shared_networks).distinct()
+
+    @property
+    def available_ports(self):
+        tenant_ports = Port.objects.filter(tenant=self)
+        shared_network_ids = NetworkRBACPolicy.objects.filter(
+            target_tenant=self
+        ).values_list("network_id", flat=True)
+        shared_ports = Port.objects.filter(network_id__in=shared_network_ids)
+        return (tenant_ports | shared_ports).distinct()
+
 
 class Flavor(structure_models.ServiceProperty):
     cores = models.PositiveSmallIntegerField(help_text=_("Number of cores in a VM"))
