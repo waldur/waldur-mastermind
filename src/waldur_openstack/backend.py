@@ -5206,3 +5206,24 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(
                 f"Failed to remove interface from router {router.backend_id}: {e}"
             )
+
+    def delete_router(self, router):
+        neutron = get_neutron_client(self.admin_session)
+
+        try:
+            router_ports = neutron.list_ports(device_id=router.backend_id)
+
+            for port in router_ports.get("ports", []):
+                try:
+                    neutron.delete_port(port["id"])
+                except neutron_exceptions.NeutronClientException as e:
+                    logger.warning(
+                        "Failed to delete port %s for router %s: %s",
+                        port["id"],
+                        router.backend_id,
+                        e,
+                    )
+
+            neutron.delete_router(router.backend_id)
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)

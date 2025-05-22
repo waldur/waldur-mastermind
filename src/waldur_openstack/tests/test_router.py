@@ -1,5 +1,6 @@
 from unittest import mock
 
+from ddt import data, ddt
 from rest_framework import status, test
 
 from . import factories, fixtures
@@ -143,3 +144,46 @@ class RouterInterfaceTest(BaseRouterTest):
             self.url_remove, {"port": factories.PortFactory.get_url(other_port)}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@ddt
+@mock.patch("waldur_openstack.executors.RouterCreateExecutor.execute")
+class RouterCreateTest(BaseRouterTest):
+    def setUp(self):
+        super().setUp()
+        self.url = factories.RouterFactory.get_list_url()
+
+        self.valid_data = {
+            "name": "Test Router",
+            "tenant": factories.TenantFactory.get_url(self.fixture.tenant),
+        }
+
+    @data("admin", "manager", "staff", "owner")
+    def test_user_can_create_router(self, user, create_port_executor_mock):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, self.valid_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        create_port_executor_mock.assert_called_once()
+
+    @data("user", "member", "global_support")
+    def test_user_can_not_create_router(self, user, create_port_executor_mock):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, self.valid_data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        create_port_executor_mock.assert_not_called()
+
+    def test_router_cannot_be_created_without_name(self, create_port_executor_mock):
+        self.client.force_authenticate(self.fixture.owner)
+        data = self.valid_data.copy()
+        data.pop("name")
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        create_port_executor_mock.assert_not_called()
+
+    def test_router_cannot_be_created_without_tenant(self, create_port_executor_mock):
+        self.client.force_authenticate(self.fixture.owner)
+        data = self.valid_data.copy()
+        data.pop("tenant")
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        create_port_executor_mock.assert_not_called()

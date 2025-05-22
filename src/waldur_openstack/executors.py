@@ -1881,6 +1881,16 @@ class SnapshotRestorationExecutor(core_executors.CreateExecutor):
         )
 
 
+class RouterDeleteExecutor(core_executors.DeleteExecutor):
+    @classmethod
+    def get_task_signature(cls, router, serialized_router, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_router,
+            "delete_router",
+            state_transition="begin_deleting",
+        )
+
+
 class OpenStackCleanupExecutor(structure_executors.BaseCleanupExecutor):
     executors = (
         (models.SecurityGroup, SecurityGroupDeleteExecutor),
