@@ -17,6 +17,7 @@ class ObservableObjectType(Enum):
     ORDER = "order"
     USER_ROLE = "user_role"
     RESOURCE = "resource"
+    OFFERING_USER = "offering_user"
 
 
 def get_loggable_models():
