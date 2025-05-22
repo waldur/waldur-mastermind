@@ -1767,7 +1767,7 @@ class OpenStackRouterSerializer(structure_serializers.BaseResourceSerializer):
 
 
 class CreateRouterSerializer(serializers.HyperlinkedModelSerializer):
-    name = serializers.CharField(write_only=True)
+    name = serializers.CharField()
     project = serializers.HyperlinkedRelatedField(
         view_name="project-detail",
         lookup_field="uuid",
@@ -1778,10 +1778,16 @@ class CreateRouterSerializer(serializers.HyperlinkedModelSerializer):
         lookup_field="uuid",
         read_only=True,
     )
+    uuid = serializers.UUIDField(read_only=True)
+    url = serializers.HyperlinkedIdentityField(
+        view_name="openstack-router-detail", lookup_field="uuid"
+    )
 
     class Meta:
         model = models.Router
         fields = (
+            "url",
+            "uuid",
             "tenant",
             "name",
             "project",
