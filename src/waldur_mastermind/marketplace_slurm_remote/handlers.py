@@ -34,6 +34,34 @@ def send_pending_order_to_message_queue(sender, instance, created=False, **kwarg
         logging_tasks.publish_messages.delay(messages)
 
 
+def send_offering_user_username_message(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+    offering_user: marketplace_models.OfferingUser = instance
+    offering = offering_user.offering
+    if offering.type != PLUGIN_NAME:
+        return
+
+    if not offering_user.tracker.has_changed("username"):
+        return
+
+    if not offering_user.username:
+        return
+
+    payload = {
+        "username": offering_user.username,
+        "offering_user_uuid": offering_user.uuid.hex,
+        "user_uuid": offering_user.user.uuid.hex,
+    }
+    messages = utils.prepare_messages(
+        offering_user.offering,
+        payload,
+        logging_utils.ObservableObjectType.OFFERING_USER,
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)
+
+
 def process_role_changed(permission: permission_models.UserRole, granted: bool):
     if not isinstance(permission.scope, structure_models.Project):
         return

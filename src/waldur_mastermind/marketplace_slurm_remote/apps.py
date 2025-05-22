@@ -38,6 +38,12 @@ class MarketplaceSlurmConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.send_offering_user_username_message,
+            sender=marketplace_models.OfferingUser,
+            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_offering_user_username_message",
+        )
+
+        signals.post_save.connect(
             handlers.send_resource_update_message_to_mqtt,
             sender=marketplace_models.Resource,
             dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_resource_status_changed_message_to_mqtt",

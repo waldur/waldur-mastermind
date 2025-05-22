@@ -1,7 +1,10 @@
 import textwrap
+from unittest import mock
 
 from rest_framework import test
 
+from waldur_core.logging import utils as logging_utils
+from waldur_core.logging.tests import factories as logging_factories
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -63,6 +66,36 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
                 "loginShell": "/bin/bash",
             },
         )
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_offering_user_message_created_after_resource_creation(
+        self, mocked_publish_messages
+    ):
+        """
+        Test that the offering user message is created after the offering user creation.
+        """
+        logging_factories.EventSubscriptionFactory(
+            user=self.offering_admin,
+            observable_objects=[
+                {"object_type": logging_utils.ObservableObjectType.OFFERING_USER.value}
+            ],
+        )
+
+        self.resource.project.add_user(self.offering_admin, ProjectRole.ADMIN)
+        resource_creation_succeeded(self.resource)
+
+        # Verify that publish_messages.delay was called
+        mocked_publish_messages.assert_called_once()
+
+        message = mocked_publish_messages.call_args[0][0][0]
+        offering_user = marketplace_models.OfferingUser.objects.get(
+            offering=self.resource.offering, user=self.offering_admin
+        )
+        # Check that the message contains the offering admin username
+        self.assertEqual(message["vhost"], self.offering_admin.uuid.hex)
+        self.assertIn(self.offering_admin.username, message["payload"])
+        self.assertIn(self.offering_admin.uuid.hex, message["payload"])
+        self.assertIn(offering_user.uuid.hex, message["payload"])
 
     def test_offering_user_created_after_resource_creation(self):
         self.resource.project.add_user(self.offering_admin, ProjectRole.ADMIN)
