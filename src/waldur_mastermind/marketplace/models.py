@@ -1236,7 +1236,6 @@ class Order(
     state = FSMIntegerField(
         default=OrderStates.PENDING_CONSUMER, choices=OrderStates.CHOICES
     )
-    activated = models.DateTimeField(_("activation date"), null=True, blank=True)
     output = models.TextField(blank=True)
     tracker = FieldTracker()
 
@@ -1292,8 +1291,7 @@ class Order(
 
     @transition(field=state, source=OrderStates.EXECUTING, target=OrderStates.DONE)
     def complete(self):
-        self.activated = timezone.now()
-        self.save()
+        pass
 
     @transition(field=state, source="*", target=OrderStates.CANCELED)
     def cancel(self, termination_comment=None):
