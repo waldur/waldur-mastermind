@@ -68,6 +68,28 @@ class Cluster(SettingsMixin, BaseResource):
 
     node_set: models.Manager["Node"]
 
+    kubernetes_version = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text=_("Kubernetes version used in the cluster."),
+    )
+
+    capacity = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=_(
+            "Cluster capacity in the format {'cpu': '10', 'ram': '49125240Ki', 'pods': '330'}"
+        ),
+    )
+
+    requested = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=_(
+            "Cluster requested resources in the format {'cpu': '1450m', 'memory': '884Mi', 'pods': '13'}"
+        ),
+    )
+
     @property
     def linked_tenant_ids(self) -> list[int]:
         """
@@ -560,3 +582,21 @@ class ClusterSecurityGroupRule(
     group = models.ForeignKey(
         ClusterSecurityGroup, on_delete=models.CASCADE, related_name="rules"
     )
+
+
+class ClusterPublicIP(
+    core_models.UuidMixin,
+    TimeStampedModel,
+):
+    cluster = models.ForeignKey(
+        to=Cluster, on_delete=models.CASCADE, related_name="public_ips"
+    )
+    floating_ip = models.OneToOneField(
+        to=openstack_models.FloatingIP,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        unique_together = (("cluster", "floating_ip"),)
