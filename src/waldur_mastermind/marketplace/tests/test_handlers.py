@@ -1,7 +1,7 @@
+import datetime
 from unittest import mock
 
 from django.db import transaction
-from django.utils import timezone
 from rest_framework.test import APITransactionTestCase
 
 from waldur_core.logging.models import Event
@@ -274,6 +274,7 @@ class UpdateOfferingUserUsernameAfterUserChangeTest(APITransactionTestCase):
 
 class SetOrderCompletionTimestampTest(APITransactionTestCase):
     def setUp(self):
+        self.fixed_time = datetime.datetime(2025, 5, 23, 12, 0, 0)
         self.order = factories.OrderFactory(state=OrderStates.PENDING_PROVIDER)
         self.order.save()
 
@@ -285,37 +286,37 @@ class SetOrderCompletionTimestampTest(APITransactionTestCase):
         self.set_order_executing()
         self.assertIsNone(self.order.completed_at)
 
-    @mock.patch("waldur_mastermind.marketplace.handlers.now")
+    @mock.patch("django.utils.timezone.now")
     def test_set_order_completion_timestamp_completed(self, mock_now):
-        mock_now.return_value = timezone.now()
+        mock_now.return_value = self.fixed_time
         self.set_order_executing()
         self.order.complete()
         self.order.save()
         self.assertIsNotNone(self.order.completed_at)
-        self.assertEqual(mock_now.return_value, self.order.completed_at)
+        self.assertEqual(self.fixed_time, self.order.completed_at)
 
-    @mock.patch("waldur_mastermind.marketplace.handlers.now")
+    @mock.patch("django.utils.timezone.now")
     def test_set_order_completion_timestamp_failed(self, mock_now):
-        mock_now.return_value = timezone.now()
+        mock_now.return_value = self.fixed_time
         self.set_order_executing()
         self.order.fail()
         self.order.save()
         self.assertIsNotNone(self.order.completed_at)
-        self.assertEqual(mock_now.return_value, self.order.completed_at)
+        self.assertEqual(self.fixed_time, self.order.completed_at)
 
-    @mock.patch("waldur_mastermind.marketplace.handlers.now")
+    @mock.patch("django.utils.timezone.now")
     def test_set_order_completion_timestamp_cancelled(self, mock_now):
-        mock_now.return_value = timezone.now()
+        mock_now.return_value = self.fixed_time
         self.set_order_executing()
         self.order.cancel()
         self.order.save()
         self.assertIsNotNone(self.order.completed_at)
-        self.assertEqual(mock_now.return_value, self.order.completed_at)
+        self.assertEqual(self.fixed_time, self.order.completed_at)
 
-    @mock.patch("waldur_mastermind.marketplace.handlers.now")
+    @mock.patch("django.utils.timezone.now")
     def test_set_order_completion_timestamp_rejected(self, mock_now):
-        mock_now.return_value = timezone.now()
+        mock_now.return_value = self.fixed_time
         self.order.reject()
         self.order.save()
         self.assertIsNotNone(self.order.completed_at)
-        self.assertEqual(mock_now.return_value, self.order.completed_at)
+        self.assertEqual(self.fixed_time, self.order.completed_at)

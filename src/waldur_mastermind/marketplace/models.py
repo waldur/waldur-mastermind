@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from decimal import Decimal
 
@@ -45,6 +46,8 @@ from waldur_pid import mixins as pid_mixins
 from ..common import mixins as common_mixins
 from . import managers, plugins
 from .attribute_types import ATTRIBUTE_TYPES
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -1289,16 +1292,20 @@ class Order(
         self.provider_reviewed_at = timezone.now()
         self.save()
 
+    def _set_completed_at_timestamp(self):
+        logger.debug("Setting order %s completion time", self)
+        self.completed_at = timezone.now()
+        self.save()
+
     @transition(field=state, source=OrderStates.EXECUTING, target=OrderStates.DONE)
     def complete(self):
-        pass
+        self._set_completed_at_timestamp()
 
     @transition(field=state, source="*", target=OrderStates.CANCELED)
     def cancel(self, termination_comment=None):
         if termination_comment:
             self.termination_comment = termination_comment
-            self.save()
-        pass
+        self._set_completed_at_timestamp()
 
     @transition(
         field=state,
@@ -1306,11 +1313,11 @@ class Order(
         target=OrderStates.REJECTED,
     )
     def reject(self):
-        pass
+        self._set_completed_at_timestamp()
 
     @transition(field=state, source="*", target=OrderStates.ERRED)
     def fail(self):
-        pass
+        self._set_completed_at_timestamp()
 
     @transition(
         field=state,

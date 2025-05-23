@@ -58,6 +58,22 @@ class SendMessagesAboutPendingOrdersTest(test.APITransactionTestCase):
         # Assert
         mocked_publish_messages.assert_called_once()
 
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_send_messages_about_done_orders(
+        self,
+        mocked_publish_messages,
+    ):
+        """
+        This test checks that when an order is in DONE state, the STOMP message is sent.
+        """
+        # Arrange
+        self.order.state = OrderStates.EXECUTING
+        self.order.complete()
+        # Act
+        self.order.save(update_fields=["state"])
+        # Assert
+        mocked_publish_messages.assert_called_once()
+
 
 class AllocationDeleteTest(test.APITransactionTestCase):
     def setUp(self):

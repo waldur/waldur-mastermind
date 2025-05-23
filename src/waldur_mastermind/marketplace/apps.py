@@ -52,9 +52,9 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.set_order_completion_timestamp,
+            handlers.notify_user_about_rejected_order,
             sender=models.Order,
-            dispatch_uid="waldur_mastermind.marketplace.set_order_completion_timestamp",
+            dispatch_uid="waldur_mastermind.marketplace.notify_user_about_rejected_order",
         )
 
         signals.post_save.connect(

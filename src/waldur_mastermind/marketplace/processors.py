@@ -8,7 +8,6 @@ from rest_framework.reverse import reverse
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace import models, signals
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
-from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.utils import validate_limits
 
 logger = logging.getLogger(__name__)
@@ -240,7 +239,7 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
                     self.order.resource.plan = self.order.plan
                     self.order.resource.save(update_fields=["plan"])
 
-                self.order.state = OrderStates.DONE
+                self.order.complete()
                 self.order.save(update_fields=["state"])
         else:
             with transaction.atomic():
@@ -331,7 +330,7 @@ class AbstractDeleteResourceProcessor(BaseOrderProcessor):
                 self.order.resource.set_state_terminated()
                 self.order.resource.save(update_fields=["state"])
 
-                self.order.state = OrderStates.DONE
+                self.order.complete()
                 self.order.save(update_fields=["state"])
         else:
             with transaction.atomic():
