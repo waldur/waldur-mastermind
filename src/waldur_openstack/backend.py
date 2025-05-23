@@ -5208,6 +5208,12 @@ class OpenStackBackend(ServiceBackend):
             )
 
     def delete_router(self, router):
+        if not router.backend_id:
+            logger.warning(
+                "Cannot remove a router without backend_id: %s",
+                router,
+            )
+            return
         neutron = get_neutron_client(self.admin_session)
 
         try:
