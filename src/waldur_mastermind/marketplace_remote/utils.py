@@ -590,17 +590,24 @@ def import_offering_components(
 ):
     local_components_map = {}
     for remote_component in remote_components:
-        local_component = marketplace_models.OfferingComponent.objects.create(
-            offering=local_offering,
-            **extract_fields(OFFERING_COMPONENT_FIELDS, remote_component.to_dict()),
+        local_component, component_created = (
+            marketplace_models.OfferingComponent.objects.update_or_create(
+                offering=local_offering,
+                type=remote_component.type_,
+                defaults=extract_fields(
+                    OFFERING_COMPONENT_FIELDS, remote_component.to_dict()
+                ),
+            )
         )
         local_components_map[local_component.type] = local_component
         logger.info(
-            "Component %s (type: %s) for offering %s has been created",
+            "Component %s (type: %s) for offering %s has been %s",
             local_component,
             local_component.type,
             local_offering,
+            "created" if component_created else "updated",
         )
+
     return local_components_map
 
 
@@ -610,26 +617,31 @@ def import_plans(
     local_components_map,
 ):
     for remote_plan in remote_plans:
-        local_plan = marketplace_models.Plan.objects.create(
+        local_plan, _ = marketplace_models.Plan.objects.update_or_create(
             offering=local_offering,
             backend_id=remote_plan.uuid.hex,
-            **extract_fields(PLAN_FIELDS, remote_plan.to_dict()),
+            defaults=extract_fields(PLAN_FIELDS, remote_plan.to_dict()),
         )
         remote_prices = remote_plan.prices.to_dict()
         remote_quotas = remote_plan.quotas.to_dict()
         components = set(remote_prices.keys()) | set(remote_quotas.keys())
         for component_type in components:
-            plan_component = marketplace_models.PlanComponent.objects.create(
-                plan=local_plan,
-                component=local_components_map[component_type],
-                price=remote_prices[component_type],
-                amount=remote_quotas[component_type],
+            plan_component, component_created = (
+                marketplace_models.PlanComponent.objects.update_or_create(
+                    plan=local_plan,
+                    component=local_components_map[component_type],
+                    defaults={
+                        "price": remote_prices[component_type],
+                        "amount": remote_quotas[component_type],
+                    },
+                )
             )
 
             logger.info(
-                "Plan component %s in offering %s has been created",
+                "Plan component %s in offering %s has been %s",
                 plan_component,
                 local_offering,
+                "created" if component_created else "updated",
             )
 
 
@@ -697,28 +709,36 @@ def get_remote_offerings(
 
 def upsert_offering(
     remote_offering: PublicOfferingDetails,
-    local_customer: structure_models.Customer,
     local_category: marketplace_models.Category,
-    secret_options: dict,
+    secret_options: dict | None = None,
+    local_customer: structure_models.Customer | None = None,
+    local_offering: marketplace_models.Offering | None = None,
 ) -> marketplace_models.Offering:
     # Map the state if it exists in remote_offering
     if hasattr(remote_offering, "state") and remote_offering.state:
         state = parse_offering_state(remote_offering.state.value)
     else:
         state = OfferingStates.DRAFT  # Default state if not provided
-
-    local_offering, _ = marketplace_models.Offering.objects.update_or_create(
-        type=PLUGIN_NAME,
-        backend_id=remote_offering.uuid.hex,
-        customer=local_customer,
-        defaults={
-            "state": state,
+    if local_offering:
+        marketplace_models.Offering.objects.filter(id=local_offering.id).update(
+            state=state,
+            category=local_category,
             **extract_fields(OFFERING_FIELDS, remote_offering.to_dict()),
-            "category": local_category,
-            "secret_options": secret_options,
-            "billable": True,
-        },
-    )
+        )
+        local_offering.refresh_from_db()
+    else:
+        local_offering, _ = marketplace_models.Offering.objects.update_or_create(
+            type=PLUGIN_NAME,
+            backend_id=remote_offering.uuid.hex,
+            customer=local_customer,
+            defaults={
+                "state": state,
+                **extract_fields(OFFERING_FIELDS, remote_offering.to_dict()),
+                "category": local_category,
+                "secret_options": secret_options,
+                "billable": True,
+            },
+        )
     # Update related data
     update_offering_related_data(local_offering, remote_offering)
     return local_offering

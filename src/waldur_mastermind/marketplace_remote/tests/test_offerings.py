@@ -452,7 +452,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
                 "getting_started": "",
                 "integration_guide": "",
                 "country": "",
-                "options": "",
+                "options": {},
                 "resource_options": {},
                 "access_url": "",
             },
