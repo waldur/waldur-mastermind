@@ -421,6 +421,7 @@ class RancherBackend(ServiceBackend):
         # as rancher API is not transactional, give it 2s to write cluster state to etcd
         time.sleep(2)
         self.client.create_cluster_registration_token(cluster.backend_id)
+        cluster.kubernetes_version = k8s_version
         cluster.save()
 
     def delete_cluster(self, cluster: models.Cluster):
@@ -452,9 +453,15 @@ class RancherBackend(ServiceBackend):
         if cluster_type == "provisioning.cattle.io.cluster":
             cluster.name = backend_cluster["metadata"]["name"]
             cluster.runtime_state = backend_cluster["metadata"]["state"]["name"]
+            cluster.kubernetes_version = backend_cluster["spec"].get(
+                "kubernetesVersion", ""
+            )
         else:
             cluster.name = backend_cluster["name"]
             cluster.runtime_state = backend_cluster["state"]
+            cluster.kubernetes_version = backend_cluster["version"]["gitVersion"]
+            cluster.capacity = backend_cluster["capacity"]
+            cluster.requested = backend_cluster["requested"]
 
     def _cluster_to_backend_cluster(self, cluster: models.Cluster):
         return {"name": cluster.name}

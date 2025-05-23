@@ -75,13 +75,22 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         tenants = self.create_tenants(user, project)
         self.update_subnets(tenants)
         self.create_security_groups(tenants)
-        self.create_load_balancers(user, project, tenants)
+        load_balancers = self.create_load_balancers(user, project, tenants)
         cluster_resource = self.create_cluster(user, project, tenants)
         for sg in OS_LB_SECURITY_GROUPS:
             rancher_models.ClusterSecurityGroup.objects.create(
                 cluster=cast(rancher_models.Cluster, cluster_resource.scope),
                 name=sg,
             )
+
+        for load_balancer in load_balancers:
+            if load_balancer.floating_ips.count() == 0:
+                continue
+            rancher_models.ClusterPublicIP.objects.get_or_create(
+                cluster=cast(rancher_models.Cluster, cluster_resource.scope),
+                floating_ip=load_balancer.floating_ips.first(),
+            )
+
         return cluster_resource
 
     def create_project(self) -> Project:

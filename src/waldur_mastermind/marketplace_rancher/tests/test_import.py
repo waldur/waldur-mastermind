@@ -23,6 +23,9 @@ MOCK_CLUSTER = {
             ]
         }
     },
+    "version": {"gitVersion": "v1.31.7+rke2r1"},
+    "capacity": {"cpu": "24", "memory": "49125240Ki", "pods": "330"},
+    "requested": {"cpu": "1450m", "memory": "884Mi", "pods": "13"},
 }
 
 

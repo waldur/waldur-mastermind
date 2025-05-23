@@ -341,6 +341,22 @@ class RancherNestedSecurityGroupSerializer(
         }
 
 
+class RancherNestedPublicIPSerializer(
+    core_serializers.HyperlinkedRelatedModelSerializer,
+):
+    ip_address = serializers.IPAddressField(
+        source="floating_ip.address", read_only=True
+    )
+
+    class Meta:
+        model = models.ClusterPublicIP
+        fields = (
+            "floating_ip",
+            "cluster",
+            "ip_address",
+        )
+
+
 class RancherClusterSerializer(
     structure_serializers.SshPublicKeySerializerMixin,
     structure_serializers.BaseResourceSerializer,
@@ -385,6 +401,8 @@ class RancherClusterSerializer(
         read_only=True, view_name="openstack-sgp-detail", lookup_field="uuid"
     )
 
+    public_ips = RancherNestedPublicIPSerializer(many=True, read_only=True)
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
@@ -397,6 +415,7 @@ class RancherClusterSerializer(
             "install_longhorn",
             "security_groups",
             "management_security_group",
+            "public_ips",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
