@@ -15,9 +15,6 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, utils
 from waldur_mastermind.marketplace_remote import models as remote_models
-from waldur_mastermind.marketplace_remote.constants import (
-    OFFERING_FIELDS,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -101,8 +98,15 @@ class RemoteSynchronisationRunner:
                 ).first()
 
                 if local_offering:
-                    self._update_existing_offering(
-                        local_offering, remote_offering, category_mapping.local_category
+                    updated_local_offering = utils.upsert_offering(
+                        remote_offering=remote_offering,
+                        local_category=category_mapping.local_category,
+                        local_offering=local_offering,
+                    )
+                    self.sync.last_output += f"The offering {updated_local_offering} / {category_mapping.local_category.title} has been updated successfully. \n"
+                    logger.info(
+                        "The offering %s has been updated successfully.",
+                        updated_local_offering,
                     )
                 else:
                     local_offering = self._create_new_offering(
@@ -119,30 +123,6 @@ class RemoteSynchronisationRunner:
 
         self._archive_stale_offerings(existing_offerings, processed_offering_ids)
 
-    def _update_existing_offering(
-        self,
-        local_offering: models.Offering,
-        remote_offering: PublicOfferingDetails,
-        local_category: models.Category,
-    ) -> None:
-        state = utils.parse_offering_state(remote_offering.state.value)
-        models.Offering.objects.filter(id=local_offering.id).update(
-            state=state,
-            category=local_category,
-            **utils.extract_fields(OFFERING_FIELDS, remote_offering.to_dict()),
-        )
-        # Refresh local offering to get the updated state
-        local_offering.refresh_from_db()
-        # Import offering image and thumbnail
-        utils.import_offering_image(local_offering, remote_offering)
-        utils.import_offering_thumbnail(local_offering, remote_offering.thumbnail)
-        utils.import_offering_screenshots(local_offering)
-        self.sync.last_output += f"The offering {local_offering} / {local_category.title} has been updated successfully. \n"
-        logger.info(
-            "The offering %s has been updated successfully.",
-            local_offering,
-        )
-
     def _create_new_offering(
         self,
         remote_offering: PublicOfferingDetails,
@@ -154,10 +134,10 @@ class RemoteSynchronisationRunner:
             "customer_uuid": self.sync.remote_organization_uuid.hex,
         }
         local_offering = utils.upsert_offering(
-            remote_offering,
-            self.sync.local_service_provider.customer,
-            local_category,
-            secret_options,
+            remote_offering=remote_offering,
+            local_customer=self.sync.local_service_provider.customer,
+            local_category=local_category,
+            secret_options=secret_options,
         )
         self.sync.last_output += f"\t\nCreation of offering {local_offering} / {local_category.title} completed successfully. \n"
         logger.info(
