@@ -11,6 +11,25 @@ from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, utils
 logger = logging.getLogger(__name__)
 
 
+def send_done_order_to_message_queue(sender, instance, created=False, **kwargs):
+    order: marketplace_models.Order = instance
+    if created:
+        return
+    offering = order.offering
+    if offering.type != PLUGIN_NAME:
+        return
+
+    if not order.tracker.has_changed("state") or order.state != OrderStates.DONE:
+        return
+
+    payload = {"order_uuid": order.uuid.hex}
+    messages = utils.prepare_messages(
+        offering, payload, logging_utils.ObservableObjectType.ORDER
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)
+
+
 def send_pending_order_to_message_queue(sender, instance, created=False, **kwargs):
     order: marketplace_models.Order = instance
     if created:

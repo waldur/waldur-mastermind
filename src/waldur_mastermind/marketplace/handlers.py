@@ -1094,7 +1094,7 @@ def update_offering_user_username_after_freeipa_profile_update(
         offering_user.save(update_fields=["username"])
 
 
-def set_order_completion_timestamp(sender, instance, created=False, **kwargs):
+def notify_user_about_rejected_order(sender, instance, created=False, **kwargs):
     if created:
         return
 
@@ -1107,10 +1107,6 @@ def set_order_completion_timestamp(sender, instance, created=False, **kwargs):
         order.tracker.has_changed("state")
         and order.state in OrderStates.TERMINAL_STATES
     ):
-        logger.debug("Setting order %s completion time", order)
-        order.completed_at = now()
-        order.save(update_fields=["completed_at"])
-
         if order.state == OrderStates.REJECTED:
             tasks.notify_user_that_order_been_rejected.delay(order.uuid.hex)
 
