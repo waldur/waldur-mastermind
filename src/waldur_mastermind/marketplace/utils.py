@@ -517,7 +517,7 @@ def get_marketplace_category_uuid(serializer, scope) -> str | None:
         return
 
 
-def get_marketplace_category_name(serializer, scope) -> str:
+def get_marketplace_category_name(serializer, scope) -> str | None:
     try:
         return models.Resource.objects.get(scope=scope).offering.category.title
     except ObjectDoesNotExist:

@@ -1,6 +1,7 @@
 import copy
 import json
 import uuid
+from typing import cast
 
 import pycountry
 from django.core.exceptions import ValidationError
@@ -125,7 +126,7 @@ class TimestampField(serializers.Field):
 COUNTRIES = [(country.alpha_2, country.name) for country in pycountry.countries] + [
     ("EU", "European Union")
 ]
-COUNTRIES_DICT = dict(COUNTRIES)
+COUNTRIES_DICT = cast(dict[str, str], dict(COUNTRIES))
 
 
 class StringUUID(uuid.UUID):

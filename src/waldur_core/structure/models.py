@@ -1,5 +1,7 @@
 import datetime
+from decimal import Decimal
 from functools import lru_cache
+from typing import cast
 
 import pyvat
 from django.apps import apps
@@ -63,7 +65,7 @@ def validate_service_type(service_type):
 class StructureLoggableMixin(LoggableMixin):
     @classmethod
     def get_permitted_objects(cls, user):
-        return filter_queryset_for_user(cls.objects.all(), user)
+        return filter_queryset_for_user(cls.objects.all(), user)  # type: ignore
 
 
 class VATException(Exception):
@@ -93,17 +95,17 @@ class VATMixin(models.Model):
 
     country = models.CharField(max_length=2, blank=True)
 
-    def get_country_display(self) -> str:
+    def get_country_display(self) -> str | None:
         return COUNTRIES_DICT.get(self.country)
 
-    def get_vat_rate(self) -> float:
+    def get_vat_rate(self) -> Decimal | None:
         charge = self.get_vat_charge()
         if charge.action == pyvat.VatChargeAction.charge:
             return charge.rate
 
         # Return None, if reverse_charge or no_charge action is applied
 
-    def get_vat_charge(self) -> float:
+    def get_vat_charge(self) -> pyvat.VatCharge:
         if not self.country:
             raise VATException(
                 _(
@@ -295,6 +297,7 @@ class Customer(
     projects: models.Manager["Project"]
     reviews: models.Manager["CustomerPermissionReview"]
     service_settings: models.Manager["ServiceSettings"]
+    id: int
 
     class Permissions:
         customer_path = "self"
@@ -305,7 +308,7 @@ class Customer(
         _("Start date of accounting"), default=timezone.now
     )
     default_tax_percent = models.DecimalField(
-        default=0,
+        default=Decimal(0),
         max_digits=4,
         decimal_places=2,
         validators=[MinValueValidator(0), MaxValueValidator(200)],
@@ -551,6 +554,7 @@ class Project(
     # Entities returned in manager objects include deleted objects.
     available_objects = SoftDeletableManager()
     objects = models.Manager()
+    id: int
 
     @property
     def is_expired(self):
@@ -694,7 +698,7 @@ class ServiceSettings(
         return SupportedServices.get_service_backend(self.type)(self, **kwargs)
 
     def get_option(self, name):
-        options = self.options or {}
+        options = cast(dict, self.options) or {}
         if name in options:
             return options.get(name)
         else:
@@ -880,11 +884,11 @@ class BaseResource(
         return self.project.customer
 
     @property
-    def marketplace_uuid(self) -> str:
+    def marketplace_uuid(self) -> str | None:
         from waldur_mastermind.marketplace.models import Resource
 
         try:
-            return Resource.objects.get(scope=self).uuid
+            return Resource.objects.get(scope=self).uuid.hex
         except (Resource.DoesNotExist, Resource.MultipleObjectsReturned):
             return None
 
