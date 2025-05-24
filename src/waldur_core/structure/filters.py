@@ -2,7 +2,6 @@ import django_filters
 from dbtemplates.models import Template
 from django import forms
 from django.conf import settings as django_settings
-from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions
 from django.db.models import OuterRef, Q, Subquery
@@ -31,8 +30,6 @@ from waldur_core.structure.managers import (
 from waldur_core.structure.registry import SupportedServices
 from waldur_mastermind.billing import models as billing_models
 
-User = auth.get_user_model()
-
 
 class NameFilterSet(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr="icontains")
@@ -55,8 +52,8 @@ class GenericUserFilter(BaseFilterBackend):
             return queryset.none()
 
         try:
-            user = User.objects.get(uuid=user_uuid)
-        except User.DoesNotExist:
+            user = core_models.User.objects.get(uuid=user_uuid)
+        except core_models.User.DoesNotExist:
             return queryset.none()
 
         return filter_queryset_for_user(queryset, user)
@@ -341,7 +338,7 @@ class BaseUserFilter(django_filters.FilterSet):
         return core_filters.filter_by_user_keyword(queryset, value)
 
     class Meta:
-        model = User
+        model = core_models.User
         fields = [
             "full_name",
             "user_keyword",

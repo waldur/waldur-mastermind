@@ -1,14 +1,11 @@
-from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils.fields import AutoCreatedField
 
-from waldur_core.core.models import DescribableMixin, NameMixin, TimeStampedModel
+from waldur_core.core.models import DescribableMixin, NameMixin, TimeStampedModel, User
 from waldur_core.core.validators import validate_name
 from waldur_core.logging.models import UuidMixin
-
-User = get_user_model()
 
 
 class MessageTemplate(UuidMixin, NameMixin):

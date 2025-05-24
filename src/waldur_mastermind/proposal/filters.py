@@ -1,5 +1,4 @@
 import django_filters
-from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
 from django_filters.widgets import BooleanWidget
@@ -12,8 +11,6 @@ from waldur_mastermind.proposal.enums import (
 )
 
 from . import models
-
-User = get_user_model()
 
 
 class CallManagingOrganisationFilter(django_filters.FilterSet):

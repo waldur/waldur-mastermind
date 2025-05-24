@@ -7,7 +7,6 @@ from urllib.parse import urlencode
 import requests
 from constance import config
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -38,7 +37,6 @@ from .serializers import (
 
 logger = logging.getLogger(__name__)
 
-User = get_user_model()
 
 OIDC_STATE_KEY = "oidc_state"
 

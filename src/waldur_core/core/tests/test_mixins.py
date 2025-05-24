@@ -1,12 +1,11 @@
 from unittest import mock
 
-from django.contrib import auth
 from rest_framework import serializers, test
+
+from waldur_core.core.models import User
 
 from .. import exceptions, mixins
 from . import helpers
-
-User = auth.get_user_model()
 
 
 class TestUserSerializer(serializers.HyperlinkedModelSerializer):

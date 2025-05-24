@@ -1,9 +1,6 @@
-from django.contrib.auth import get_user_model
-
 from waldur_core.core.log import AuthEventMixin
+from waldur_core.core.models import User
 from waldur_core.logging.loggers import EventLogger, event_logger
-
-User = get_user_model()
 
 
 class SocialEventLogger(AuthEventMixin, EventLogger):

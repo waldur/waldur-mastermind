@@ -1,4 +1,3 @@
-from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from waldur_core.core.serializers import GenericRelatedField
@@ -8,8 +7,6 @@ from waldur_core.permissions.utils import get_valid_models
 from waldur_core.structure.permissions import _get_customer
 from waldur_core.users import models
 from waldur_core.users.enums import InvitationStateType
-
-User = get_user_model()
 
 
 class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):

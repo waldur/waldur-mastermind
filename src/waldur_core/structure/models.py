@@ -6,7 +6,6 @@ from typing import cast
 import pyvat
 from django.apps import apps
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
@@ -352,11 +351,10 @@ class Customer(
         """Return all connected to customer users"""
         if role:
             users = get_customer_users(self.id, role)
-            return get_user_model().objects.filter(id__in=users)
+            return User.objects.filter(id__in=users)
 
         return (
-            get_user_model()
-            .objects.filter(id__in=get_nested_customer_users(self))
+            User.objects.filter(id__in=get_nested_customer_users(self))
             .distinct()
             .order_by("username")
         )
@@ -566,9 +564,7 @@ class Project(
 
     def get_users(self, role=None):
         project_users = get_project_users(self.id, role)
-        return (
-            get_user_model().objects.filter(id__in=project_users).order_by("username")
-        )
+        return User.objects.filter(id__in=project_users).order_by("username")
 
     @transaction.atomic()
     def _soft_delete(self, using=None):

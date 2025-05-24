@@ -1,13 +1,10 @@
-from django.contrib.auth import get_user_model
 from django.db import models
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core.fields import JSONField
-from waldur_core.core.models import StateMixin, UuidMixin
+from waldur_core.core.models import StateMixin, User, UuidMixin
 from waldur_mastermind.marketplace.models import Resource
-
-User = get_user_model()
 
 
 def build_migration_query(user):

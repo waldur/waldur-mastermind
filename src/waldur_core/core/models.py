@@ -325,7 +325,7 @@ class User(
         self.query_field = normalize_unicode(value)
 
     tracker = FieldTracker()
-    objects = core_managers.UserActiveManager()
+    objects: UserManager = core_managers.UserActiveManager()
     all_objects = UserManager()
 
     USERNAME_FIELD = "username"

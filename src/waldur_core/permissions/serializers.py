@@ -1,9 +1,9 @@
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from waldur_core.core.models import User
 from waldur_core.core.serializers import (
     RestrictedSerializerMixin,
     TranslatedModelSerializerMixin,
@@ -20,8 +20,6 @@ from waldur_core.permissions.utils import (
 from waldur_core.structure.permissions import _get_customer
 
 from . import models
-
-User = get_user_model()
 
 
 class RoleDetailsSerializer(RestrictedSerializerMixin, TranslatedModelSerializerMixin):

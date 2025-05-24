@@ -7,7 +7,6 @@ import requests
 from celery import shared_task
 from constance import config
 from dateutil.relativedelta import relativedelta
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import F, Q, Sum
@@ -17,6 +16,7 @@ from rest_framework import status
 from waldur_core import _get_version
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.models import User
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure import models as structure_models
@@ -37,9 +37,6 @@ from waldur_mastermind.marketplace.utils import (
 from waldur_mastermind.support.backend import get_active_backend
 
 logger = logging.getLogger(__name__)
-
-
-User = get_user_model()
 
 
 def process_order_on_commit(order: models.Order, user):

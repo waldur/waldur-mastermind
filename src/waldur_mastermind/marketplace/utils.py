@@ -13,7 +13,6 @@ from io import BytesIO
 
 from constance import config
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
@@ -33,6 +32,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.models import User
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_users_with_permission, has_permission
@@ -64,7 +64,6 @@ from waldur_mastermind.marketplace_slurm_remote import (
 from . import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from . import models, plugins
 
-User = get_user_model()
 logger = logging.getLogger(__name__)
 USERNAME_ANONYMIZED_POSTFIX_LENGTH = 5
 USERNAME_POSTFIX_LENGTH = 2

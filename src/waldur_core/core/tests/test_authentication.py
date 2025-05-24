@@ -1,5 +1,4 @@
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.urls import reverse
@@ -9,6 +8,7 @@ from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
 from waldur_core.core.authentication import refresh_token
+from waldur_core.core.models import User
 
 from . import helpers
 
@@ -20,7 +20,7 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
         self.auth_url = reverse("auth-password")
         self.logout_url = reverse("auth-logout")
         self.test_url = "http://testserver/api/"
-        self.user = get_user_model().objects.create_user(
+        self.user = User.objects.create_user(
             self.username, "admin@example.com", self.password
         )
 
@@ -52,7 +52,7 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
         self.assertRaises(ObjectDoesNotExist, token.refresh_from_db)
 
     def test_token_expires_based_on_user_token_lifetime(self):
-        user = get_user_model().objects.get(username=self.username)
+        user = User.objects.get(username=self.username)
         configured_token_lifetime = settings.WALDUR_CORE.get(
             "TOKEN_LIFETIME", timezone.timedelta(hours=1)
         )
@@ -90,7 +90,7 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_expired_token_is_recreated_on_successful_authentication(self):
-        user = get_user_model().objects.get(username=self.username)
+        user = User.objects.get(username=self.username)
         self.assertIsNotNone(user.token_lifetime)
         response = self.client.post(
             self.auth_url, data={"username": self.username, "password": self.password}
@@ -122,7 +122,7 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
         self.assertLess(token.created, timezone.now())
 
     def test_token_never_expires_if_token_lifetime_is_none(self):
-        user = get_user_model().objects.get(username=self.username)
+        user = User.objects.get(username=self.username)
         user.token_lifetime = None
         user.save()
 
@@ -147,7 +147,7 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        user = get_user_model().objects.get(username=self.username)
+        user = User.objects.get(username=self.username)
         original_token_lifetime = user.token_lifetime
         original_created_value = user.auth_token.created
         user.token_lifetime = None

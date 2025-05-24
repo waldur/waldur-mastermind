@@ -3,7 +3,6 @@ import uuid
 
 import requests
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -12,11 +11,8 @@ from rest_framework.exceptions import NotFound, ParseError
 
 from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.models import ProviderChoices
-from waldur_core.core.models import SshPublicKey
+from waldur_core.core.models import SshPublicKey, User
 from waldur_core.core.validators import validate_ssh_public_key
-
-User = get_user_model()
-
 
 logger = logging.getLogger(__name__)
 

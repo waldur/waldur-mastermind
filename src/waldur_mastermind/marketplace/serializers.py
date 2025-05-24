@@ -6,7 +6,6 @@ from typing import Literal
 import jwt
 from dateutil.parser import parse as parse_datetime
 from django import forms
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
@@ -4450,7 +4449,7 @@ class MarketplaceProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
         service_provider = self.context["service_provider"]
         user = self.context["view"].request.user
         ids = get_service_provider_user_ids(user, service_provider, customer)
-        return get_user_model().objects.filter(id__in=ids)
+        return User.objects.filter(id__in=ids)
 
     @extend_schema_field(NestedPriceEstimateSerializer)
     def get_billing_price_estimate(self, customer):

@@ -1,6 +1,5 @@
 from constance import signals as constance_signals
 from django.apps import AppConfig
-from django.contrib.auth import get_user_model
 from django.db.models import signals
 from django_fsm import signals as fsm_signals
 
@@ -17,9 +16,8 @@ class CoreConfig(AppConfig):
             checks,  # noqa
             handlers,
         )
-        from waldur_core.core.models import StateMixin
+        from waldur_core.core.models import StateMixin, User
 
-        User = get_user_model()
         SshPublicKey = self.get_model("SshPublicKey")
 
         signals.pre_save.connect(

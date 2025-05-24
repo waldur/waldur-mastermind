@@ -1,7 +1,6 @@
 import logging
 import uuid
 
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
@@ -19,6 +18,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
+from waldur_core.core.models import User
 from waldur_core.core.permissions import IsAdminOrReadOnly
 from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet
@@ -32,7 +32,6 @@ from waldur_core.permissions.utils import (
 
 from . import filters, models, serializers
 
-User = get_user_model()
 logger = logging.getLogger(__name__)
 
 

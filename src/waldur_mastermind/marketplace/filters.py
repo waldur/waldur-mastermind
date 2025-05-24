@@ -2,7 +2,6 @@ import json
 
 import django_filters
 from constance import config
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
@@ -12,6 +11,7 @@ from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core.filters import LooseMultipleChoiceFilter
+from waldur_core.core.models import User
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.filters import UserPermissionFilter
@@ -42,8 +42,6 @@ from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
 from waldur_pid import models as pid_models
 
 from . import models
-
-User = get_user_model()
 
 
 class ServiceProviderFilter(django_filters.FilterSet):
@@ -261,7 +259,7 @@ class OfferingFilterMixin(django_filters.FilterSet):
     def filter_service_manager(self, queryset, name, value):
         if not is_uuid_like(value):
             return queryset.none()
-        User = get_user_model()
+
         try:
             user = User.objects.get(uuid=value)
         except User.DoesNotExist:

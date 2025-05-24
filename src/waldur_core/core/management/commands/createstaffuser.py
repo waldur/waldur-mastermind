@@ -1,6 +1,7 @@
-from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
+
+from waldur_core.core.models import User
 
 
 class Command(BaseCommand):
@@ -12,8 +13,6 @@ class Command(BaseCommand):
         parser.add_argument("-e", "--email", dest="email", required=True)
 
     def handle(self, *args, **options):
-        User = get_user_model()
-
         username = options["username"]
         password = options["password"]
         email = options["email"]

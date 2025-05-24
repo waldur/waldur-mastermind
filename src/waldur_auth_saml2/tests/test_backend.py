@@ -1,8 +1,7 @@
-from django.contrib.auth import get_user_model
 from django.test import TestCase
 from djangosaml2.backends import Saml2Backend
 
-User = get_user_model()
+from waldur_core.core.models import User
 
 
 class Saml2BackendTest(TestCase):

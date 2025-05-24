@@ -1,8 +1,8 @@
-from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.core.models import User
 from waldur_core.logging import models
 
 
@@ -11,9 +11,7 @@ class AuthenticationEventLogTest(test.APITransactionTestCase):
         self.username = "test"
         self.password = "secret"
         self.auth_url = "http://testserver" + reverse("auth-password")
-        get_user_model().objects.create_user(
-            self.username, "admin@example.com", self.password
-        )
+        User.objects.create_user(self.username, "admin@example.com", self.password)
 
     def tearDown(self):
         cache.clear()

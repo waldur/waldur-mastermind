@@ -1,6 +1,5 @@
 from urllib.parse import urlparse
 
-from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import resolve
 from rest_framework.test import APIRequestFactory
@@ -8,8 +7,6 @@ from rest_framework.test import APIRequestFactory
 from waldur_core.structure.tests import factories as structure_factories
 
 from ...serializers import BasicUserSerializer
-
-User = get_user_model()
 
 
 class UUIDSerializerTest(TestCase):

@@ -5,7 +5,6 @@ from functools import lru_cache
 import pyvat
 from constance import config
 from django.conf import settings
-from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db import models as django_models
@@ -39,7 +38,6 @@ from waldur_core.structure.models import CUSTOMER_DETAILS_FIELDS
 from waldur_core.structure.registry import get_resource_type, get_service_type
 from waldur_mastermind.marketplace.enums import ResourceStates
 
-User = auth.get_user_model()
 logger = logging.getLogger(__name__)
 
 
@@ -165,7 +163,7 @@ class PermissionListSerializer(serializers.ListSerializer):
 
 class BasicUserSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
-        model = User
+        model = core_models.User
         fields = (
             "url",
             "uuid",
@@ -642,7 +640,7 @@ class CustomerUserSerializer(
     role_name = serializers.SerializerMethodField()
 
     class Meta:
-        model = User
+        model = core_models.User
         fields = [
             "url",
             "uuid",
@@ -795,7 +793,7 @@ class ProjectPermissionLogSerializer(
             "user": {
                 "view_name": "user-detail",
                 "lookup_field": "uuid",
-                "queryset": User.objects.all(),
+                "queryset": core_models.User.objects.all(),
             },
             "created_by": {
                 "view_name": "user-detail",
@@ -857,7 +855,7 @@ class UserSerializer(
         return hasattr(user, "auth_token") and user.auth_token is not None
 
     class Meta:
-        model = User
+        model = core_models.User
         fields = (
             "url",
             "uuid",
@@ -1011,7 +1009,7 @@ class UserSerializer(
         # Convert validation error from Django to DRF
         # https://github.com/tomchristie/django-rest-framework/issues/2145
         try:
-            user = User(id=getattr(self.instance, "id", None), **attrs)
+            user = core_models.User(id=getattr(self.instance, "id", None), **attrs)
             user.clean()
 
         except django_exceptions.ValidationError as error:
@@ -1359,7 +1357,9 @@ class SshPublicKeySerializerMixin(serializers.HyperlinkedModelSerializer):
             return fields
         ssh_public_key = fields.get("ssh_public_key")
         if ssh_public_key:
-            visible_users = list(filter_visible_users(User.objects.all(), request.user))
+            visible_users = list(
+                filter_visible_users(core_models.User.objects.all(), request.user)
+            )
             ssh_public_key.queryset = ssh_public_key.queryset.filter(
                 Q(user__in=visible_users) | Q(is_shared=True)
             )
