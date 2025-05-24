@@ -2998,10 +2998,15 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         resource: models.Resource = self.get_object()
         if not resource.scope:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        if isinstance(resource.scope, models.Resource):
+            serializer = serializers.ResourceSerializer(
+                instance=resource.scope, context=self.get_serializer_context()
+            )
+            return Response(serializer.data, status=status.HTTP_200_OK)
         resource_type = get_resource_type(resource.scope)
         serializer_class = get_resource_serializer_class(resource_type)
         if not serializer_class:
-            return Response(status.HTTP_204_NO_CONTENT)
+            return Response(status=status.HTTP_204_NO_CONTENT)
         serializer = serializer_class(
             instance=resource.scope, context=self.get_serializer_context()
         )
