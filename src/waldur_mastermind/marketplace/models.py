@@ -1174,7 +1174,9 @@ class Resource(
 
     @property
     def is_expired(self) -> bool:
-        return self.end_date and self.end_date <= timezone.datetime.today().date()
+        if not self.end_date:
+            return False
+        return self.end_date <= timezone.datetime.today().date()
 
     def __str__(self):
         if self.name:
@@ -1185,7 +1187,7 @@ class Resource(
         return f"{self.uuid} ({self.offering.name})"
 
     @property
-    def creation_order(self) -> "Order":
+    def creation_order(self) -> "Order | None":
         return Order.objects.filter(resource=self, type=Order.Types.CREATE).first()
 
     @property
