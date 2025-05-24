@@ -1,4 +1,3 @@
-import django.contrib.auth
 import factory.fuzzy
 from rest_framework.authtoken import models as authtoken_models
 from rest_framework.reverse import reverse
@@ -17,7 +16,7 @@ class UserFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[core_models.User]
 ):
     class Meta:
-        model = django.contrib.auth.get_user_model()
+        model = core_models.User
 
     username = factory.Sequence(lambda n: "john%s" % n)
     civil_number = factory.Sequence(lambda n: "%08d" % n)

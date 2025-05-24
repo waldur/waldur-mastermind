@@ -1,7 +1,8 @@
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
+
+from waldur_core.core.models import User
 
 
 class TestModels(TestCase):
@@ -14,11 +15,9 @@ class TestModels(TestCase):
         with self.settings(WALDUR_CORE=waldur_core_settings):
             token_lifetime = settings.WALDUR_CORE["TOKEN_LIFETIME"]
             expected_lifetime = int(token_lifetime.total_seconds())
-            user = get_user_model().objects.create(username="test1")
+            user = User.objects.create(username="test1")
             self.assertEqual(user.token_lifetime, expected_lifetime)
 
     def test_when_user_is_created_query_field_is_filled(self):
-        user = get_user_model().objects.create_user(
-            username="jb007", full_name="J̋̀a̻͢m̪̄e̪͊s̯̊ B̝͆on͎̂d"
-        )
+        user = User.objects.create_user(username="jb007", full_name="J̋̀a̻͢m̪̄e̪͊s̯̊ B̝͆on͎̂d")
         self.assertEqual(user.query_field, "James Bond")

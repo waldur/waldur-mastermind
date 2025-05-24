@@ -1,13 +1,10 @@
 from urllib.parse import urlparse
 
 import requests
-from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from . import models
-
-User = get_user_model()
 
 
 class AuthSerializer(serializers.Serializer):

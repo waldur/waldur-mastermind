@@ -1,12 +1,11 @@
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.db.models.query import QuerySet
 from rest_framework import exceptions
 
-from . import enums, models, signals
+from waldur_core.core.models import User
 
-User = get_user_model()
+from . import enums, models, signals
 
 
 def has_permission(request, permission, scope):

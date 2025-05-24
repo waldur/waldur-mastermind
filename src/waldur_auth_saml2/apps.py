@@ -1,5 +1,4 @@
 from django.apps import AppConfig
-from django.contrib.auth import get_user_model
 
 
 class SAML2Config(AppConfig):
@@ -9,10 +8,12 @@ class SAML2Config(AppConfig):
     def ready(self):
         from djangosaml2.signals import pre_user_save
 
+        from waldur_core.core.models import User
+
         from . import handlers
 
         pre_user_save.connect(
             handlers.update_registration_method,
-            sender=get_user_model(),
+            sender=User,
             dispatch_uid="waldur_auth_saml2.handlers.update_registration_method",
         )

@@ -1,13 +1,11 @@
 import collections
 
-from django.contrib.auth import get_user_model
 from django.db.models import Q
 
+from waldur_core.core.models import User
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Offering, Resource
-
-User = get_user_model()
 
 
 def get_users_for_query(query):

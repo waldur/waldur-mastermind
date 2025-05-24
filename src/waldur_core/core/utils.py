@@ -18,7 +18,6 @@ import requests
 from constance import config
 from django.apps import apps
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives
 from django.core.management.base import BaseCommand
 from django.core.serializers.json import DjangoJSONEncoder
@@ -159,7 +158,7 @@ def get_detail_view_name(model):
 
 def get_fake_context(user=None):
     if not user:
-        user = get_user_model()()
+        ()
     request = type(
         "R", (object,), {"method": "GET", "user": user, "query_params": QueryDict()}
     )

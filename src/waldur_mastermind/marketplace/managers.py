@@ -1,10 +1,10 @@
 from constance import config
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import models as django_models
 from django.db.models import Q
 
 from waldur_core.core import managers as core_managers
+from waldur_core.core.models import User
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
@@ -20,8 +20,6 @@ from waldur_core.structure.managers import (
 from waldur_mastermind.marketplace.enums import OfferingStates
 
 from . import models
-
-User = get_user_model()
 
 
 class MixinManager(core_managers.GenericKeyMixin, django_models.Manager):

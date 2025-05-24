@@ -396,7 +396,7 @@ class RancherBackend(ServiceBackend):
         private_registry_password = self.settings.get_option(
             "private_registry_password"
         )
-        k8s_version = self.settings.get_option("k8s_version")
+        k8s_version = cast(str, self.settings.get_option("k8s_version"))
         if private_registry_url and private_registry_user and private_registry_password:
             private_registry = {
                 "url": private_registry_url,

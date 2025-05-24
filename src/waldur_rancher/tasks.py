@@ -6,7 +6,6 @@ from typing import cast
 import kubernetes
 import yaml
 from celery import shared_task
-from django.contrib import auth
 from rest_framework import status
 from rest_framework.reverse import reverse
 
@@ -15,6 +14,7 @@ from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.exceptions import RuntimeStateException
+from waldur_core.core.models import User
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.signals import resource_imported
 from waldur_kubernetes.backend import KubernetesBackend
@@ -54,7 +54,7 @@ class CreateNodeTask(core_tasks.Task):
         service_settings: str = node.initial_data["service_settings"]
         tenant: str = node.initial_data["tenant"]
         project: str = node.initial_data["project"]
-        user = auth.get_user_model().objects.get(pk=user_id)
+        user = User.objects.get(pk=user_id)
         ssh_public_key = node.initial_data.get("ssh_public_key")
 
         cloud_init_extra_params = {}
@@ -158,7 +158,7 @@ class CreateNodeTask(core_tasks.Task):
 class DeleteNodeTask(core_tasks.Task):
     def execute(self, instance: models.Node, user_id: str):
         node = instance
-        user = auth.get_user_model().objects.get(pk=user_id)
+        user = User.objects.get(pk=user_id)
         vm = cast(openstack_models.Instance, node.instance)
 
         if vm:

@@ -7,7 +7,6 @@ import uuid
 import reversion
 from constance import config
 from dateutil.relativedelta import relativedelta
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
 from django.db.models import (
@@ -53,6 +52,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.mixins import EagerLoadMixin
+from waldur_core.core.models import User
 from waldur_core.core.renderers import PlainTextRenderer
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import (
@@ -127,8 +127,6 @@ from waldur_pid import models as pid_models
 from . import filters, log, models, permissions, plugins, serializers, tasks, utils
 
 logger = logging.getLogger(__name__)
-
-User = get_user_model()
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):

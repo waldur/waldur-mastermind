@@ -2,11 +2,11 @@ import logging
 from datetime import timedelta
 
 from celery import shared_task
-from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from waldur_core.core import tasks
 from waldur_core.core.authentication import refresh_token
+from waldur_core.core.models import User
 
 from . import client, models
 
@@ -50,7 +50,6 @@ class PollTask(tasks.Task):
             )
 
     def _associate_with_user(self, auth_result, civil_number):
-        User = get_user_model()
         try:
             user = User.objects.get(civil_number=civil_number)
             refresh_token(user)

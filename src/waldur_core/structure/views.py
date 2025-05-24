@@ -3,7 +3,6 @@ import logging
 from dbtemplates.models import Template
 from dbtemplates.utils.cache import remove_cached_template
 from django.conf import settings as django_settings
-from django.contrib import auth
 from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.db.models import Count, Q
@@ -63,8 +62,6 @@ from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.enums import ResourceStates
 
 logger = logging.getLogger(__name__)
-
-User = auth.get_user_model()
 
 
 BASE_USER_PARAMETERS = [
@@ -472,7 +469,7 @@ class ProjectViewSet(
             .exclude(id=project.id)
         ).values_list("id", flat=True)
 
-        queryset = User.objects.filter(id__in=get_project_users(projects))
+        queryset = core_models.User.objects.filter(id__in=get_project_users(projects))
 
         queryset = filters.UserConcatenatedNameOrderingBackend().filter_queryset(
             request, queryset, self
@@ -487,7 +484,7 @@ class ProjectViewSet(
 
 
 class UserViewSet(core_views.ActionsViewSet):
-    queryset = User.all_objects.select_related("auth_token")
+    queryset = core_models.User.all_objects.select_related("auth_token")
     serializer_class = serializers.UserSerializer
     lookup_field = "uuid"
     permission_classes = (

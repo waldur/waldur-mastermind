@@ -1,15 +1,13 @@
 from collections import OrderedDict
 
-from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
+from waldur_core.core.models import User
 from waldur_core.structure import models
 from waldur_core.structure.managers import (
     get_connected_customers,
     get_connected_projects,
 )
-
-User = get_user_model()
 
 USER_COLUMNS = OrderedDict(
     [

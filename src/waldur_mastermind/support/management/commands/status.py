@@ -1,17 +1,16 @@
 import logging
 
 import requests
-from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import authenticate
 from django.core.management.base import BaseCommand
 from django.db import connection
 from django.db.utils import OperationalError
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 
+from waldur_core.core.models import User
 from waldur_core.core.schemas import WaldurEndpointInspector
 from waldur_core.server.celeryconf import app as celery_app
-
-User = get_user_model()
 
 
 class Command(BaseCommand):

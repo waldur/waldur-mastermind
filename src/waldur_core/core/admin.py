@@ -8,7 +8,6 @@ from django.contrib import admin, messages
 from django.contrib.admin import forms as admin_forms
 from django.contrib.auth import admin as auth_admin
 from django.contrib.auth import forms as auth_forms
-from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.forms.utils import flatatt
@@ -121,7 +120,7 @@ class OptionalChoiceField(forms.ChoiceField):
 
 class UserCreationForm(auth_forms.UserCreationForm):
     class Meta:
-        model = get_user_model()
+        model = models.User
         fields = ("username",)
 
     # overwritten to support custom User model
@@ -130,8 +129,8 @@ class UserCreationForm(auth_forms.UserCreationForm):
         # but it sets a nicer error message than the ORM. See #13147.
         username = self.cleaned_data["username"]
         try:
-            get_user_model()._default_manager.get(username=username)
-        except get_user_model().DoesNotExist:
+            models.User._default_manager.get(username=username)
+        except models.User.DoesNotExist:
             return username
         raise forms.ValidationError(
             _("Username is not unique."),
@@ -141,7 +140,7 @@ class UserCreationForm(auth_forms.UserCreationForm):
 
 class UserChangeForm(auth_forms.UserChangeForm):
     class Meta:
-        model = get_user_model()
+        model = models.User
         exclude = ("details",)
 
     def clean_civil_number(self):

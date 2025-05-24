@@ -1,7 +1,6 @@
 from functools import wraps
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models as django_models
@@ -13,8 +12,7 @@ from model_utils.models import TimeStampedModel
 from rest_framework import response, status
 
 from waldur_core.core.enums import CoreStates, ReviewStates
-
-User = get_user_model()
+from waldur_core.core.models import User
 
 
 def ensure_atomic_transaction(func):

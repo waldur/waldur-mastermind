@@ -1,6 +1,5 @@
 from constance import config
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -23,8 +22,6 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import Customer, Project
 from waldur_core.users import filters, models, serializers, tasks
 from waldur_core.users.utils import can_manage_invitation_with, parse_invitation_token
-
-User = get_user_model()
 
 
 class InvitationViewSet(ProtectedViewSet):

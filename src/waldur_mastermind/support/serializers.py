@@ -4,7 +4,6 @@ from datetime import timedelta
 
 from constance import config
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.core import signing
 from django.db import transaction
 from django.template import Context, Template
@@ -16,6 +15,7 @@ from rest_framework import exceptions, serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.enums import CoreStateType
+from waldur_core.core.models import User
 from waldur_core.core.utils import is_uuid_like, text2html
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure import models as structure_models
@@ -27,7 +27,6 @@ from waldur_mastermind.support.enums import SupportWebhookEvent
 from . import backend, models, utils
 
 logger = logging.getLogger(__name__)
-User = get_user_model()
 
 
 def render_issue_template(config_name, template_name, issue):

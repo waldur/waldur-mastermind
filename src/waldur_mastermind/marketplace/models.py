@@ -2,7 +2,6 @@ import logging
 from collections.abc import Callable
 from decimal import Decimal
 
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
@@ -22,6 +21,7 @@ from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
+from waldur_core.core.models import User
 from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.media.mixins import get_upload_path
 from waldur_core.media.validators import ImageValidator
@@ -48,8 +48,6 @@ from . import managers, plugins
 from .attribute_types import ATTRIBUTE_TYPES
 
 logger = logging.getLogger(__name__)
-
-User = get_user_model()
 
 
 class ServiceProvider(

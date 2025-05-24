@@ -1,6 +1,5 @@
 import datetime
 
-from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import status, test
 
@@ -14,8 +13,6 @@ from waldur_core.structure.tests.utils import (
     client_list_users,
     client_update_user,
 )
-
-User = get_user_model()
 
 
 class ProjectPermissionBaseTest(test.APITransactionTestCase):

@@ -1,18 +1,16 @@
 from django import forms
 from django.contrib import admin
-from django.contrib.auth import get_user_model
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import admin as core_admin
+from waldur_core.core.models import User
 from waldur_core.structure import admin as structure_admin
 
 from . import backend, models, tasks
 from .backend.basic import BasicBackend
-
-User = get_user_model()
 
 
 class UserChoiceField(forms.ModelChoiceField):
