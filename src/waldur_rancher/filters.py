@@ -246,6 +246,8 @@ class RoleTemplateFilter(django_filters.FilterSet):
 
 
 class ClusterSecurityGroupFilter(structure_filters.NameFilterSet):
+    cluster_uuid = django_filters.UUIDFilter(field_name="cluster__uuid")
+
     class Meta:
         model = models.ClusterSecurityGroup
-        fields = ("name", "name_exact")
+        fields = ("name", "name_exact", "cluster_uuid")
