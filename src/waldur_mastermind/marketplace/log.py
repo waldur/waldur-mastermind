@@ -19,6 +19,9 @@ class MarketplacePlanComponentLogger(EventLogger):
             "marketplace_plan_component_future_price_updated",
             "marketplace_plan_component_quota_updated",
         )
+        event_groups = {
+            "offering_accounting": event_types,
+        }
         nullable_fields = ("old_value", "new_value")
 
     @staticmethod
@@ -37,6 +40,9 @@ class MarketplaceOfferingComponentLogger(EventLogger):
             "marketplace_offering_component_updated",
             "marketplace_offering_component_deleted",
         )
+        event_groups = {
+            "offering_accounting": event_types,
+        }
 
     @staticmethod
     def get_scopes(event_context):
@@ -56,6 +62,9 @@ class MarketplacePlanLogger(EventLogger):
             "marketplace_plan_updated",
             "marketplace_plan_archived",
         )
+        event_groups = {
+            "offering_accounting": event_types,
+        }
 
     @staticmethod
     def get_scopes(event_context):
