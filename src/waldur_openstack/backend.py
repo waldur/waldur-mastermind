@@ -1049,8 +1049,7 @@ class OpenStackBackend(ServiceBackend):
         return {row["backend_id"]: row["id"] for row in rows}
 
     def update_instance_port_status(self, instance: models.Instance):
-        session = get_tenant_session(instance.tenant)
-        neutron = get_neutron_client(session)
+        neutron = get_neutron_client(self.admin_session)
 
         for port in instance.ports.all():
             status = neutron.show_port(port.backend_id)["port"]["status"]
