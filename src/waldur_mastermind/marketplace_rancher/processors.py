@@ -175,12 +175,13 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         offering = self.order.offering
         rancher_offering = cast(Offering, offering.scope)
         if not rancher_offering:
+            name = f"{offering.name} (private)"
             rancher_offering = Offering.objects.create(
                 type=PLUGIN_NAME,
                 shared=False,
                 billable=False,
                 customer=offering.customer,
-                name=offering.name,
+                name=name,
                 description=offering.description,
                 plugin_options=offering.plugin_options,
                 secret_options=offering.secret_options,
