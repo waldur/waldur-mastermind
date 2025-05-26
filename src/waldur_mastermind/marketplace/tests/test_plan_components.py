@@ -5,6 +5,7 @@ from ddt import ddt
 from django.test import TestCase
 from rest_framework import status, test
 
+from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import handlers
@@ -161,6 +162,25 @@ class PlanComponentUpdateLoggerTest(TestCase):
         event_context = mock_logger.call_args[1]["event_context"]
         self.assertEqual(event_context["new_value"], self.decimal_value)
         self.assertIsInstance(event_context["new_value"], Decimal)
+
+    def test_decimal_in_event_context(self):
+        """Test that Decimal values are properly converted to string in Event's JSON context field"""
+        new_decimal_value = Decimal("0.20000000")
+        offering = factories.OfferingFactory()
+        plan = factories.PlanFactory(offering=offering)
+        component = factories.OfferingComponentFactory(offering=offering)
+        plan_component = factories.PlanComponentFactory(
+            plan=plan, component=component, price="1.00000000"
+        )
+
+        plan_component.price = new_decimal_value
+        plan_component.save(update_fields=["price"])
+
+        event = logging_models.Event.objects.get(
+            event_type="marketplace_plan_component_current_price_updated"
+        )
+        self.assertEqual(event.context["new_value"], str(new_decimal_value))
+        self.assertIsInstance(event.context["new_value"], str)
 
     @patch(
         "waldur_mastermind.marketplace.log.event_logger.marketplace_plan_component.info"
