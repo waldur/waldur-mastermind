@@ -4,6 +4,7 @@ import importlib
 import logging
 import types
 from collections import defaultdict
+from decimal import Decimal
 
 from django.apps import apps
 
@@ -129,6 +130,8 @@ class BaseLogger:
                 context.update(entity._get_log_context(entity_name))
             elif isinstance(entity, int | float | str | dict | tuple | list | bool):
                 context[entity_name] = entity
+            elif isinstance(entity, Decimal):
+                context[entity_name] = str(entity)
             elif entity is None:
                 pass
             elif hasattr(self, entity_name + "_context_processor") and isinstance(

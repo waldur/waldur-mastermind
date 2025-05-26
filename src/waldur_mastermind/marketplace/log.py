@@ -10,7 +10,7 @@ from waldur_mastermind.marketplace import models, tasks
 
 class MarketplacePlanComponentLogger(EventLogger):
     plan_component = models.PlanComponent
-    old_value = Number
+    old_value = (Number, str)
     new_value = Number
 
     class Meta:
