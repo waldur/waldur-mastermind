@@ -556,7 +556,7 @@ class Project(
 
     @property
     def is_expired(self):
-        return self.end_date and self.end_date <= timezone.datetime.today().date()
+        return self.end_date and self.end_date <= timezone.now().date()
 
     @property
     def full_name(self) -> str:
