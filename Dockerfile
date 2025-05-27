@@ -33,7 +33,9 @@ RUN apk update && \
     gcc\>=14.2 \
     python3-dev\>=3.12 \
     musl-dev\>=1.2 \
-    linux-headers\>=6.6
+    linux-headers\>=6.6 \
+    # GNU coreutils to replace BusyBox date command to generate date in correct format in scripts
+    coreutils\>=9.4
 
 # Set up locales
 RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
