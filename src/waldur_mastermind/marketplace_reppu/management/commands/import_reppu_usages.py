@@ -36,7 +36,7 @@ class Command(BaseCommand):
         start_time_str = start_time.isoformat()
         end_time_str = end_time.isoformat()
         payload = {
-            "query": "query LumiUsage($startTime: String!, $endTime: String!) { lumiUsage(startTime: $startTime, endTime: $endTime) {cn, puhuriuuid, cpu_hours, gpu_hours, terabyte_hours}}",
+            "query": "query LumiUsage($startTime: String!, $endTime: String!) { lumiUsage(startTime: $startTime, endTime: $endTime) {cn, puhuriuuid, cpu_hours, gpu_hours, terabyte_hours} lumiUsageForUsers(startTime: $startTime, endTime: $endTime) {user_cn, puhuriuuid, cpu_hours, gpu_hours, project_cn}}",
             "variables": {"startTime": start_time_str, "endTime": end_time_str},
         }
 
@@ -59,7 +59,7 @@ class Command(BaseCommand):
             if project is None:
                 self.stdout.write(
                     self.style.ERROR(
-                        f"There are not project with uuid {project_uuid}, skipping processing."
+                        f"There is no project with uuid {project_uuid}, skipping processing."
                     )
                 )
                 continue
@@ -83,6 +83,96 @@ class Command(BaseCommand):
                 continue
 
             self.import_usages(lumi_usage, resources, month, year)
+
+    def process_user_usages(self, lumi_user_usages, year, month):
+        for lumi_user_usage in lumi_user_usages:
+            project_uuid = lumi_user_usage["puhuriuuid"]
+            project = structure_models.Project.objects.filter(uuid=project_uuid).first()
+            if project is None:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"There is no project with backend id {project_uuid}, skipping processing."
+                    )
+                )
+                continue
+
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Processing project {project}",
+                )
+            )
+            resources = marketplace_models.Resource.objects.filter(
+                project=project,
+            )
+            if resources.count() == 0:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"The project {project} does not have any resources, skipping processing"
+                    )
+                )
+                continue
+
+            self.import_user_usages(lumi_user_usage, resources, month, year)
+
+    def import_user_usages(self, lumi_user_usage, resources, month, year):
+        username = lumi_user_usage["user_cn"]
+
+        for lumi_component_type, lumi_usage_amount in lumi_user_usage.items():
+            if lumi_component_type in ["user_cn", "project_cn", "puhuriuuid"]:
+                continue
+
+            if lumi_component_type not in component_type_mapping:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Unknown component type {lumi_component_type} for {resources.first().project}"
+                    )
+                )
+                continue
+
+            waldur_component_type = component_type_mapping[lumi_component_type]
+            if waldur_component_type == "cpu_k_hours":
+                lumi_usage_amount /= 1000
+
+            lumi_usage_amount_rounded = round(lumi_usage_amount, 2)
+
+            # Proces each resource
+            for resource in resources:
+                component_usage = resource.usages.filter(
+                    component__type=waldur_component_type,
+                    billing_period__month=month,
+                    billing_period__year=year,
+                ).first()
+
+                if component_usage is None:
+                    continue
+
+                if self.dry_run:
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f"[Dry run] Setting user {username} {waldur_component_type} usage to {lumi_usage_amount_rounded} for resource {resource}"
+                        )
+                    )
+                else:
+                    offering_user = marketplace_models.OfferingUser.objects.filter(
+                        offering=resource.offering,
+                        username=username,
+                    ).first()
+
+                    user_usage, created = (
+                        marketplace_models.ComponentUserUsage.objects.update_or_create(
+                            component_usage=component_usage,
+                            username=username,
+                            defaults={
+                                "usage": lumi_usage_amount_rounded,
+                                "user": offering_user if offering_user else None,
+                            },
+                        )
+                    )
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f"Setting user {username} {waldur_component_type} usage to {lumi_usage_amount_rounded} for resource {resource}"
+                        )
+                    )
 
     def set_resource_usage(
         self,
@@ -308,5 +398,7 @@ class Command(BaseCommand):
             exit(1)
 
         lumi_usages = reppu_usage_data["data"]["lumiUsage"]
+        lumi_user_usages = reppu_usage_data["data"]["lumiUsageForUsers"]
 
         self.process_usages(lumi_usages, year, month)
+        self.process_user_usages(lumi_user_usages, year, month)
