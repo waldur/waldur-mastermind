@@ -588,3 +588,20 @@ def text2html(value: str):
 
 def remove_duplicate_hyphens(text):
     return re.sub("-+", "-", text)
+
+
+def get_valid_template_paths():
+    valid_template_paths = set()
+    for section_key, notifications in NOTIFICATIONS.items():
+        for notification in notifications:
+            for template in notification.get("templates", []):
+                valid_template_paths.add(f"{section_key}/{template.path}")
+    return valid_template_paths
+
+
+def get_valid_notification_keys():
+    valid_keys = set()
+    for section_key, notifications in NOTIFICATIONS.items():
+        for notification in notifications:
+            valid_keys.add(f"{section_key}.{notification['path']}")
+    return valid_keys
