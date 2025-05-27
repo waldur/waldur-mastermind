@@ -13,8 +13,8 @@ from waldur_core.permissions.fixtures import (
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
-TOKEN_URL = "http://example.com/api/token/"
-SERVICE_ACCOUNT_URL = "http://example.com/api/service-accounts/"
+TOKEN_URL = "http://example.com/api/token"
+SERVICE_ACCOUNT_URL = "http://example.com/api/service-accounts"
 TOKEN_CLIENT_ID = "test-client-id"
 TOKEN_SECRET = "test-client-secret"
 
@@ -74,7 +74,7 @@ class BaseServiceAccountTest(test.APITransactionTestCase):
 
         # Mock service account deletion request
         respx.delete(
-            f"{SERVICE_ACCOUNT_URL}{self.account_username}",
+            f"{SERVICE_ACCOUNT_URL}/{self.account_username}",
             headers={"Authorization": f"Bearer {self.token}"},
         ).mock(return_value=httpx.Response(200, json={}))
 
@@ -460,7 +460,7 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
 
         # Mock API key rotation response
         respx.put(
-            f"{SERVICE_ACCOUNT_URL}{account.username}/rotate-api-key/",
+            f"{SERVICE_ACCOUNT_URL}/{account.username}/rotate-api-key/",
             headers={"Authorization": f"Bearer {self.token}"},
         ).mock(
             return_value=httpx.Response(
@@ -487,7 +487,7 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
 
         # Mock API key rotation response
         respx.put(
-            f"{SERVICE_ACCOUNT_URL}{account.username}/rotate-api-key/",
+            f"{SERVICE_ACCOUNT_URL}/{account.username}/rotate-api-key/",
             headers={"Authorization": f"Bearer {self.token}"},
         ).mock(
             return_value=httpx.Response(

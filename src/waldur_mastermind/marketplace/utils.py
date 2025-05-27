@@ -1644,6 +1644,8 @@ def get_service_account_api_token():
     client_id = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_CLIENT_ID"]
     client_secret = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_SECRET"]
 
+    token_url = token_url.rstrip("/")
+
     token_request_headers = {
         "Accept": "application/json",
         "Content-Type": "application/x-www-form-urlencoded",
@@ -1676,11 +1678,13 @@ def rotate_service_account_api_key(service_account: models.ScopedServiceAccount)
     service_account_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_URL"]
     if not service_account_url:
         raise ValueError("URL for service accounts is not configured")
+
+    service_account_url = service_account_url.rstrip("/")
     try:
         api_access_token = get_service_account_api_token()
 
         response = httpx.put(
-            f"{service_account_url}{service_account.username}/rotate-api-key/",
+            f"{service_account_url}/{service_account.username}/rotate-api-key/",
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
         )
@@ -1743,6 +1747,8 @@ def create_service_account(service_account: models.ScopedServiceAccount, usernam
     if not service_account_url:
         raise ValueError("URL for service accounts is not configured")
 
+    service_account_url = service_account_url.rstrip("/")
+
     try:
         response = post_service_account_to_url(
             service_account_url, service_account, username
@@ -1768,10 +1774,12 @@ def delete_service_account(service_account):
     if not service_account_url:
         raise RuntimeError("URL for service accounts is not configured")
 
+    service_account_url = service_account_url.rstrip("/")
+
     try:
         api_access_token = get_service_account_api_token()
         response = httpx.delete(
-            f"{service_account_url}{service_account.username}",
+            f"{service_account_url}/{service_account.username}",
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
         )
