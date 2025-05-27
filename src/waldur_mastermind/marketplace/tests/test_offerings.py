@@ -20,6 +20,7 @@ from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.tests.helpers import load_json_resource
+from waldur_core.logging import models as event_models
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
@@ -1251,6 +1252,36 @@ class OfferingComponentUpdateTest(BaseOfferingUpdateTest):
         self.assertEqual(
             models.OfferingComponent.BillingTypes.FIXED, component.billing_type
         )
+
+    def test_update_event_includes_changes(self):
+        """
+        Test that the update event for offering component includes the changes in message.
+        """
+        # Arrange
+        component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="cores",
+            name="CPU",
+        )
+
+        # Act
+        self.update_offering_component(
+            {
+                "type": "cores",
+                "name": "NewName",
+                "measured_unit": "hours",
+                "billing_type": "fixed",
+                "uuid": component.uuid.hex,
+            },
+            "owner",
+        )
+
+        # Assert
+        event = event_models.Event.objects.filter(
+            event_type="marketplace_offering_component_updated"
+        ).first()
+        self.assertIn("name: CPU -> NewName", event.message)
+        self.assertIn("measured_unit:  -> hours", event.message)
 
 
 @ddt

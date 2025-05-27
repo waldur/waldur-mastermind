@@ -667,6 +667,7 @@ class OfferingComponent(
             ),
         )
 
+    tracker = FieldTracker()
     offering = models.ForeignKey(
         on_delete=models.CASCADE, to=Offering, related_name="components"
     )
