@@ -1655,7 +1655,10 @@ def get_service_account_api_token():
     }
     try:
         token_response = httpx.post(
-            token_url, data=token_params, headers=token_request_headers
+            token_url,
+            data=token_params,
+            headers=token_request_headers,
+            follow_redirects=True,
         )
         token_response.raise_for_status()
         # Extract the token
@@ -1679,6 +1682,7 @@ def rotate_service_account_api_key(service_account: models.ScopedServiceAccount)
         response = httpx.put(
             f"{service_account_url}{service_account.username}/rotate-api-key/",
             headers={"Authorization": f"Bearer {api_access_token}"},
+            follow_redirects=True,
         )
         response.raise_for_status()
         return response.json()
@@ -1718,7 +1722,7 @@ def post_service_account_to_url(
         }
 
         headers = {"Authorization": f"Bearer {api_access_token}"}
-        response = httpx.post(url, json=payload, headers=headers)
+        response = httpx.post(url, json=payload, headers=headers, follow_redirects=True)
         response.raise_for_status()
         logger.info("Service account has been successfully updated at %s", url)
         return response
@@ -1769,6 +1773,7 @@ def delete_service_account(service_account):
         response = httpx.delete(
             f"{service_account_url}{service_account.username}",
             headers={"Authorization": f"Bearer {api_access_token}"},
+            follow_redirects=True,
         )
         response.raise_for_status()
         if response.status_code == 200:
