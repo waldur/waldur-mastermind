@@ -219,6 +219,7 @@ Test Multi-arch docker image build:
   services:
     - name: "registry.hpc.ut.ee/mirror/docker:dind"
       command: ["--mtu=1400"]
+      alias: docker
   rules:
     # Skip tests if said so
     - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
