@@ -27,7 +27,7 @@ from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from waldur_auth_social.models import ProviderChoices
@@ -962,9 +962,12 @@ class NotificationTemplateViewSet(ActionsViewSet):
             template_dbtemplates = Template.objects.get(name=name)
             template_dbtemplates.content = new_content
             template_dbtemplates.save()
-            remove_cached_template(template_dbtemplates)
         except Template.DoesNotExist:
-            raise NotFound("A template %s does not exist." % name)
+            template_dbtemplates = Template.objects.create(
+                name=name, content=new_content
+            )
+
+        remove_cached_template(template_dbtemplates)
         logger.info(message)
         return Response({"detail": _(message)}, status=status.HTTP_200_OK)
 
