@@ -29,6 +29,8 @@ class BaseServiceAccountTest(test.APITransactionTestCase):
 
         self.account_username = "waldur"
 
+        self.test_identifier = "test-identifier"
+
         # Mock token request
         respx.post(
             TOKEN_URL,
@@ -119,14 +121,12 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
     def test_user_can_create_project_service_account(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         url = factories.ProjectServiceAccountFactory.get_list_url()
-        test_identifier = "test-identifier"
         response = self.client.post(
             url,
             {
                 "project": self.fixture.project.uuid,
-                "username": self.account_username,
                 "description": "project test",
-                "preferred_identifier": test_identifier,
+                "preferred_identifier": self.test_identifier,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -134,7 +134,7 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
         account = models.ProjectServiceAccount.objects.get(
             username=self.account_username
         )
-        self.assertEqual(account.preferred_identifier, test_identifier)
+        self.assertEqual(account.preferred_identifier, self.test_identifier)
 
     @data("staff", "service_manager", "service_owner")
     def test_authorized_user_can_get_customer_service_account(self, user):
@@ -170,14 +170,12 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
     def test_user_can_create_customer_service_account(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         url = factories.CustomerServiceAccountFactory.get_list_url()
-        test_identifier = "test-identifier"
         response = self.client.post(
             url,
             {
                 "customer": self.fixture.project.customer.uuid,
-                "username": self.account_username,
                 "description": "customer test",
-                "preferred_identifier": test_identifier,
+                "preferred_identifier": self.test_identifier,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -185,7 +183,7 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
         account = models.CustomerServiceAccount.objects.get(
             username=self.account_username
         )
-        self.assertEqual(account.preferred_identifier, test_identifier)
+        self.assertEqual(account.preferred_identifier, self.test_identifier)
 
     @data("manager", "admin")
     def test_project_level_users_cannot_create_customer_service_account(self, user):
@@ -196,8 +194,8 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
             url,
             {
                 "customer": self.fixture.project.customer.uuid,
-                "username": "customer-user",
                 "description": "customer test",
+                "preferred_identifier": self.test_identifier,
             },
         )
         self.assertEqual(
@@ -215,8 +213,8 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
             url,
             {
                 "project": self.fixture.project.uuid,
-                "username": "test-account",
                 "description": "Test account",
+                "preferred_identifier": self.test_identifier,
             },
         )
         self.assertEqual(
@@ -234,8 +232,8 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
             url,
             {
                 "customer": self.fixture.project.customer.uuid,
-                "username": "test-account",
                 "description": "Test account",
+                "preferred_identifier": self.test_identifier,
             },
         )
         self.assertEqual(
@@ -303,8 +301,8 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
             url,
             {
                 "project": self.fixture.project.uuid,
-                "username": self.account_username,
                 "description": "project test",
+                "preferred_identifier": self.test_identifier,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -424,8 +422,8 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
 
         self.payload = {
             "project": self.fixture.project.uuid,
-            "username": "test-account",
             "description": "Test account",
+            "preferred_identifier": self.test_identifier,
         }
         self.new_api_key = "new-rotated-key-123"
         self.new_expires_at = "2025-05-28T12:00:00Z"
@@ -440,7 +438,7 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
         self.assertEqual(response.data["token"], self.token)
         self.assertTrue(
             models.ProjectServiceAccount.objects.filter(
-                username=self.account_username
+                preferred_identifier=self.test_identifier
             ).exists()
         )
 
@@ -463,7 +461,7 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(
             models.ProjectServiceAccount.objects.filter(
-                username=self.account_username
+                preferred_identifier=self.test_identifier
             ).exists()
         )
 

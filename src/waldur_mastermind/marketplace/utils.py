@@ -1713,7 +1713,7 @@ def post_service_account_to_url(
 
         payload = {
             "ownerUsername": username,
-            "username": service_account["username"],
+            "username": service_account["preferred_identifier"],
             "email": customer.email,
             "description": service_account["description"],
             "scopeType": scope_type,
