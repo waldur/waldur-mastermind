@@ -1755,7 +1755,7 @@ def create_service_account(service_account: dict, username: str, scope_type: str
         raise
 
 
-def delete_service_account(service_account):
+def delete_service_account(service_account: models.ScopedServiceAccount):
     """
     Makes a synchronous call to the webhook URL to remove a service account.
     Raises exceptions on failure which should be handled by the viewset.
@@ -1771,8 +1771,18 @@ def delete_service_account(service_account):
 
     try:
         api_access_token = get_service_account_api_token()
-        response = httpx.delete(
-            f"{service_account_url}/{service_account.username}",
+        existing_service_account = get_service_account(service_account)
+        if existing_service_account is None:
+            logger.warning(
+                "Service account %s not found at backend, deleting locally",
+                service_account.username,
+            )
+            service_account.delete()
+            return
+
+        url = f"{service_account_url}/{service_account.username}/close"
+        response = httpx.put(
+            url,
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
         )
@@ -1784,4 +1794,38 @@ def delete_service_account(service_account):
         service_account.error_message = str(exc)
         service_account.error_traceback = traceback.format_exc()
         service_account.save(update_fields=["error_message", "error_traceback"])
+        raise
+
+
+def get_service_account(service_account: models.ScopedServiceAccount):
+    """
+    Makes a synchronous call to the webhook URL to get a service account.
+    Raises exceptions on failure which should be handled by the viewset.
+    """
+    if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_API"):
+        return
+
+    service_account_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_URL"]
+    if not service_account_url:
+        raise RuntimeError("URL for service accounts is not configured")
+
+    service_account_url = service_account_url.rstrip("/")
+
+    try:
+        api_access_token = get_service_account_api_token()
+        url = f"{service_account_url}/{service_account.username}"
+        response = httpx.get(
+            url,
+            headers={"Authorization": f"Bearer {api_access_token}"},
+            follow_redirects=True,
+        )
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            logger.warning("Service account %s not found", service_account.username)
+            return None
+        raise
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.error(exc)
         raise

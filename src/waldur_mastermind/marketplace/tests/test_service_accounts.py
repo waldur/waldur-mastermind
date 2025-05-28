@@ -31,6 +31,30 @@ class BaseServiceAccountTest(test.APITransactionTestCase):
 
         self.test_identifier = "test-identifier"
 
+        service_account_response = {
+            "serviceAccount": {
+                "status": "active",
+                "username": self.account_username,
+                "email": "test@example.com",
+                "description": "test description",
+                "unixUid": 1000,
+                "unixGid": 1000,
+                "scopeType": "scope",
+                "scopeName": "Test scope",
+                "scopeSlug": "test-scope",
+                "owner": {
+                    "username": "test-owner",
+                    "email": "owner@example.com",
+                },
+            },
+            "apiKey": {
+                "apiKey": self.token,
+                "createdAt": "2025-04-28T12:00:00Z",
+                "expiresAt": "2025-05-28T12:00:00Z",
+                "ttl": 2592000,
+            },
+        }
+
         # Mock token request
         respx.post(
             TOKEN_URL,
@@ -45,40 +69,18 @@ class BaseServiceAccountTest(test.APITransactionTestCase):
         respx.post(
             SERVICE_ACCOUNT_URL,
             headers={"Authorization": f"Bearer {self.token}"},
-        ).mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "serviceAccount": {
-                        "status": "active",
-                        "username": self.account_username,
-                        "email": "test@example.com",
-                        "description": "test description",
-                        "unixUid": 1000,
-                        "unixGid": 1000,
-                        "scopeType": "scope",
-                        "scopeName": "Test scope",
-                        "scopeSlug": "test-scope",
-                        "owner": {
-                            "username": "test-owner",
-                            "email": "owner@example.com",
-                        },
-                    },
-                    "apiKey": {
-                        "apiKey": self.token,
-                        "createdAt": "2025-04-28T12:00:00Z",
-                        "expiresAt": "2025-05-28T12:00:00Z",
-                        "ttl": 2592000,
-                    },
-                },
-            )
-        )
+        ).mock(return_value=httpx.Response(200, json=service_account_response))
 
         # Mock service account deletion request
-        respx.delete(
-            f"{SERVICE_ACCOUNT_URL}/{self.account_username}",
+        respx.put(
+            f"{SERVICE_ACCOUNT_URL}/{self.account_username}/close",
             headers={"Authorization": f"Bearer {self.token}"},
         ).mock(return_value=httpx.Response(200, json={}))
+
+        respx.get(
+            f"{SERVICE_ACCOUNT_URL}/{self.account_username}",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(return_value=httpx.Response(200, json=service_account_response))
 
     def tearDown(self):
         respx.stop()
