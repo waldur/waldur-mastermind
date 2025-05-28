@@ -475,6 +475,10 @@ class PollRuntimeStateTask(Task):
         getattr(backend, backend_pull_method)(instance)
         instance.refresh_from_db()
         if instance.runtime_state not in (success_state, erred_state, deleted_state):
+            logger.info(
+                f"Instance {self.instance.pk} runtime state ({instance.runtime_state}) is not matching "
+                f"success ({success_state}), erred ({erred_state}) or deleted ({deleted_state}) states, retrying."
+            )
             self.retry()
         elif instance.runtime_state == erred_state:
             raise RuntimeStateException(
