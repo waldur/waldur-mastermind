@@ -894,7 +894,7 @@ class VolumeExtendExecutor(core_executors.ActionExecutor):
                 core_tasks.PollRuntimeStateTask().si(
                     serialized_volume,
                     backend_pull_method="pull_volume_runtime_state",
-                    success_state="available",
+                    success_state="in-use" if volume.instance else "available",
                     erred_state="error",
                 ),
             )
