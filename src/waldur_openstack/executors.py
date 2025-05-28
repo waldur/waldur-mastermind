@@ -883,8 +883,8 @@ class VolumeExtendExecutor(core_executors.ActionExecutor):
             volume.instance.save()
 
     @classmethod
-    def get_task_signature(cls, volume, serialized_volume, **kwargs):
-        if volume.instance is None:
+    def get_task_signature(cls, volume: models.Volume, serialized_volume, **kwargs):
+        if volume.extend_enabled:
             return chain(
                 core_tasks.BackendMethodTask().si(
                     serialized_volume,
@@ -899,45 +899,46 @@ class VolumeExtendExecutor(core_executors.ActionExecutor):
                 ),
             )
 
-        return chain(
-            core_tasks.StateTransitionTask().si(
-                core_utils.serialize_instance(volume.instance),
-                state_transition="begin_updating",
-            ),
-            core_tasks.BackendMethodTask().si(
-                serialized_volume,
-                backend_method="detach_volume",
-                state_transition="begin_updating",
-            ),
-            core_tasks.PollRuntimeStateTask().si(
-                serialized_volume,
-                backend_pull_method="pull_volume_runtime_state",
-                success_state="available",
-                erred_state="error",
-            ),
-            core_tasks.BackendMethodTask().si(
-                serialized_volume,
-                backend_method="extend_volume",
-            ),
-            core_tasks.PollRuntimeStateTask().si(
-                serialized_volume,
-                backend_pull_method="pull_volume_runtime_state",
-                success_state="available",
-                erred_state="error",
-            ),
-            core_tasks.BackendMethodTask().si(
-                serialized_volume,
-                instance_uuid=volume.instance.uuid.hex,
-                device=volume.device,
-                backend_method="attach_volume",
-            ),
-            core_tasks.PollRuntimeStateTask().si(
-                serialized_volume,
-                backend_pull_method="pull_volume_runtime_state",
-                success_state="in-use",
-                erred_state="error",
-            ),
-        )
+        if volume.instance:
+            return chain(
+                core_tasks.StateTransitionTask().si(
+                    core_utils.serialize_instance(volume.instance),
+                    state_transition="begin_updating",
+                ),
+                core_tasks.BackendMethodTask().si(
+                    serialized_volume,
+                    backend_method="detach_volume",
+                    state_transition="begin_updating",
+                ),
+                core_tasks.PollRuntimeStateTask().si(
+                    serialized_volume,
+                    backend_pull_method="pull_volume_runtime_state",
+                    success_state="available",
+                    erred_state="error",
+                ),
+                core_tasks.BackendMethodTask().si(
+                    serialized_volume,
+                    backend_method="extend_volume",
+                ),
+                core_tasks.PollRuntimeStateTask().si(
+                    serialized_volume,
+                    backend_pull_method="pull_volume_runtime_state",
+                    success_state="available",
+                    erred_state="error",
+                ),
+                core_tasks.BackendMethodTask().si(
+                    serialized_volume,
+                    instance_uuid=volume.instance.uuid.hex,
+                    device=volume.device,
+                    backend_method="attach_volume",
+                ),
+                core_tasks.PollRuntimeStateTask().si(
+                    serialized_volume,
+                    backend_pull_method="pull_volume_runtime_state",
+                    success_state="in-use",
+                    erred_state="error",
+                ),
+            )
 
     @classmethod
     def get_success_signature(cls, volume, serialized_volume, **kwargs):

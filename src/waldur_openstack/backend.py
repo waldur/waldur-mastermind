@@ -3479,7 +3479,14 @@ class OpenStackBackend(ServiceBackend):
     @log_backend_action()
     def extend_volume(self, volume: models.Volume):
         session = get_tenant_session(volume.tenant)
-        cinder = get_cinder_client(session)
+        cinder = get_cinder_client(
+            session,
+            api_version="3.51"
+            if volume.service_settings.options.get(
+                "live_resize_of_volumes_enabled", False
+            )
+            else None,
+        )
         try:
             cinder.volumes.extend(volume.backend_id, self.mb2gb(volume.size))
         except cinder_exceptions.ClientException as e:

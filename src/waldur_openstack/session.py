@@ -183,9 +183,9 @@ def get_neutron_client(session: keystone_session.Session):
         raise OpenStackBackendError(e)
 
 
-def get_cinder_client(session: keystone_session.Session):
+def get_cinder_client(session: keystone_session.Session, api_version=None):
     try:
-        return cinder_client.Client(session=session)
+        return cinder_client.Client(session=session, api_version=api_version)
     except cinder_exceptions.ClientException as e:
         logger.exception("Failed to create cinder client: %s", e)
         raise OpenStackBackendError(e)

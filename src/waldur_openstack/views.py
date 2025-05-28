@@ -1239,8 +1239,16 @@ class VolumeViewSet(structure_views.ResourceViewSet):
             {"status": _("extend was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
+    def _is_volume_instance_ok(volume):
+        if volume.instance and volume.instance.state != CoreStates.OK:
+            raise core_exceptions.IncorrectStateException(
+                _("Volume instance should be in OK state.")
+            )
+
     extend_validators = [
         utils.check_volume_resize_enabled,
+        _is_volume_instance_ok,
+        core_validators.StateValidator(CoreStates.OK),
     ]
     extend_serializer_class = serializers.OpenStackVolumeExtendSerializer
 
