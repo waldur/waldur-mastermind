@@ -119,16 +119,22 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
     def test_user_can_create_project_service_account(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         url = factories.ProjectServiceAccountFactory.get_list_url()
+        test_identifier = "test-identifier"
         response = self.client.post(
             url,
             {
                 "project": self.fixture.project.uuid,
                 "username": self.account_username,
                 "description": "project test",
+                "preferred_identifier": test_identifier,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertIn("token", response.data)
+        account = models.ProjectServiceAccount.objects.get(
+            username=self.account_username
+        )
+        self.assertEqual(account.preferred_identifier, test_identifier)
 
     @data("staff", "service_manager", "service_owner")
     def test_authorized_user_can_get_customer_service_account(self, user):
@@ -164,16 +170,22 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
     def test_user_can_create_customer_service_account(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         url = factories.CustomerServiceAccountFactory.get_list_url()
+        test_identifier = "test-identifier"
         response = self.client.post(
             url,
             {
                 "customer": self.fixture.project.customer.uuid,
-                "username": "customer-user",
+                "username": self.account_username,
                 "description": "customer test",
+                "preferred_identifier": test_identifier,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertIn("token", response.data)
+        account = models.CustomerServiceAccount.objects.get(
+            username=self.account_username
+        )
+        self.assertEqual(account.preferred_identifier, test_identifier)
 
     @data("manager", "admin")
     def test_project_level_users_cannot_create_customer_service_account(self, user):
@@ -448,10 +460,12 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
             self.url,
             self.payload,
         )
-        expected_error = "Client error '400 Bad Request'"
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        account = models.ProjectServiceAccount.objects.get(username="test-account")
-        self.assertIn(expected_error, account.error_message)
+        self.assertFalse(
+            models.ProjectServiceAccount.objects.filter(
+                username=self.account_username
+            ).exists()
+        )
 
     def test_rotate_project_service_account_api_key(self):
         """Test that service account API key rotation succeeds"""
@@ -476,7 +490,7 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
         response = self.client.post(f"{url}rotate_api_key/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["token"], self.new_api_key)
-        self.assertEqual(response.data["expiresAt"], self.new_expires_at)
+        self.assertEqual(response.data["expires_at"], self.new_expires_at)
 
     def test_rotate_customer_service_account_api_key(self):
         """Test that service account API key rotation succeeds"""
@@ -503,7 +517,7 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
         response = self.client.post(f"{url}rotate_api_key/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["token"], self.new_api_key)
-        self.assertEqual(response.data["expiresAt"], self.new_expires_at)
+        self.assertEqual(response.data["expires_at"], self.new_expires_at)
 
 
 class ServiceAccountOfferingTest(test.APITransactionTestCase):

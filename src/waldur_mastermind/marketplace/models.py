@@ -1562,11 +1562,14 @@ class ScopedServiceAccount(BaseServiceAccount):
         abstract = True
 
     email = models.EmailField(max_length=320, default="")
+    preferred_identifier = models.CharField(max_length=32, blank=True)
 
     def __str__(self):
         return f"Service account {self.username} for {self.scope}"
 
-    tracker = FieldTracker(fields=["username", "email", "description"])
+    tracker = FieldTracker(
+        fields=["username", "email", "description", "preferred_identifier"]
+    )
 
 
 class ProjectServiceAccount(ScopedServiceAccount):

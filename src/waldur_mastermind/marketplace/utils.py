@@ -1696,30 +1696,26 @@ def rotate_service_account_api_key(service_account: models.ScopedServiceAccount)
 
 
 def post_service_account_to_url(
-    url: str, service_account: models.ScopedServiceAccount, username: str = ""
+    url: str, service_account: dict, username: str = "", scope_type: str = ""
 ):
     try:
         api_access_token = get_service_account_api_token()
-        if isinstance(service_account, models.ProjectServiceAccount):
-            customer = service_account.project.customer
-            scope_name = service_account.project.name
-            scope_slug = service_account.project.slug
-            scope_type = "project"
-        elif isinstance(service_account, models.CustomerServiceAccount):
-            customer = service_account.customer
+        if scope_type == "project":
+            customer = service_account["project"].customer
+            scope_name = service_account["project"].name
+            scope_slug = service_account["project"].slug
+        elif scope_type == "customer":
+            customer = service_account["customer"]
             scope_name = customer.name
             scope_slug = customer.slug
-            scope_type = "customer"
         else:
-            raise ValueError(
-                f"Unsupported service account type: {type(service_account)}"
-            )
+            raise ValueError(f"Unsupported service account type: {scope_type}")
 
         payload = {
             "ownerUsername": username,
-            "username": service_account.username,
+            "username": service_account["username"],
             "email": customer.email,
-            "description": service_account.description,
+            "description": service_account["description"],
             "scopeType": scope_type,
             "scopeName": scope_name,
             "scopeSlug": scope_slug,
@@ -1730,12 +1726,12 @@ def post_service_account_to_url(
         response.raise_for_status()
         logger.info("Service account has been successfully updated at %s", url)
         return response
-    except (httpx.HTTPError, ValueError) as e:
+    except (httpx.HTTPError, ValueError, KeyError) as e:
         logger.error("Request to %s failed: %s", url, e)
         raise
 
 
-def create_service_account(service_account: models.ScopedServiceAccount, username: str):
+def create_service_account(service_account: dict, username: str, scope_type: str):
     """
     Makes a synchronous call to the webhook URL to create a service account.
     Raises exceptions on failure which should be handled by the viewset.
@@ -1751,14 +1747,11 @@ def create_service_account(service_account: models.ScopedServiceAccount, usernam
 
     try:
         response = post_service_account_to_url(
-            service_account_url, service_account, username
+            service_account_url, service_account, username, scope_type
         )
         return response.json()
     except (httpx.HTTPError, ValueError) as exc:
         logger.error(exc)
-        service_account.error_message = str(exc)
-        service_account.error_traceback = traceback.format_exc()
-        service_account.save(update_fields=["error_message", "error_traceback"])
         raise
 
 
