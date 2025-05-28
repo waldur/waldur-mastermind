@@ -4736,25 +4736,30 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
 
     def perform_create(self, serializer):
-        serializer.save()
         username = self.request.user.username
         try:
-            instance = serializer.instance
-            response_data = utils.create_service_account(instance, username)
+            data = serializer.validated_data
+            scope_type = (
+                "customer"
+                if serializer.Meta.model == models.CustomerServiceAccount
+                else "project"
+            )
+            response_data = utils.create_service_account(data, username, scope_type)
             if response_data and "apiKey" in response_data:
+                instance = serializer.save()
                 instance._token = response_data["apiKey"]["apiKey"]
-                instance._expiresAt = response_data["apiKey"]["expiresAt"]
+                instance._expires_at = response_data["apiKey"]["expiresAt"]
                 if "serviceAccount" in response_data:
                     instance.username = response_data["serviceAccount"]["username"]
                     instance.save(update_fields=["username"])
             else:
-                instance.error_message = (
-                    "Service account creation is disabled or returned no token."
+                raise ValidationError(
+                    {
+                        "detail": "Service account creation is disabled or returned no token."
+                    }
                 )
-                instance.save(update_fields=["error_message"])
-                raise ValidationError({"detail": instance.error_message})
-        except httpx.HTTPError:
-            raise ValidationError({"detail": instance.error_message})
+        except httpx.HTTPError as e:
+            raise ValidationError({"detail": str(e)})
 
     def perform_destroy(self, instance):
         utils.delete_service_account(instance)
@@ -4812,7 +4817,7 @@ class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
             response_data = utils.rotate_service_account_api_key(service_account)
             if response_data and "apiKey" in response_data:
                 service_account._token = response_data["apiKey"]["apiKey"]
-                service_account._expiresAt = response_data["apiKey"]["expiresAt"]
+                service_account._expires_at = response_data["apiKey"]["expiresAt"]
                 serializer = self.get_serializer(service_account)
                 return Response(serializer.data)
             else:
@@ -4877,7 +4882,7 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
             response_data = utils.rotate_service_account_api_key(service_account)
             if response_data and "apiKey" in response_data:
                 service_account._token = response_data["apiKey"]["apiKey"]
-                service_account._expiresAt = response_data["apiKey"]["expiresAt"]
+                service_account._expires_at = response_data["apiKey"]["expiresAt"]
                 serializer = self.get_serializer(service_account)
                 return Response(serializer.data)
             else:
