@@ -1,4 +1,16 @@
-from waldur_openstack.models import CustomerOpenStack, Flavor, Image, Tenant, VolumeType
+from django.utils.translation import gettext_lazy as _
+
+from waldur_core.core import exceptions as core_exceptions
+from waldur_core.core import validators as core_validators
+from waldur_core.core.enums import CoreStates
+from waldur_openstack.models import (
+    CustomerOpenStack,
+    Flavor,
+    Image,
+    Instance,
+    Tenant,
+    VolumeType,
+)
 
 
 def is_flavor_valid_for_tenant(flavor: Flavor, tenant: Tenant):
@@ -46,3 +58,26 @@ def get_external_network_id(tenant: Tenant):
     except CustomerOpenStack.DoesNotExist:
         pass
     return external_network_id
+
+
+def check_volume_resize_enabled(volume):
+    core_validators.StateValidator(CoreStates.OK)(volume)
+
+    if volume.instance and volume.instance.state != CoreStates.OK:
+        raise core_exceptions.IncorrectStateException(
+            _("Volume instance should be in OK state.")
+        )
+
+    if volume.service_settings.options.get("live_resize_of_volumes_enabled", False):
+        return
+
+    if volume.bootable:
+        raise core_exceptions.IncorrectStateException(_("Volume cannot be bootable."))
+
+    if (
+        volume.instance
+        and volume.instance.runtime_state != Instance.RuntimeStates.SHUTOFF
+    ):
+        raise core_exceptions.IncorrectStateException(
+            _("Volume instance should be in shutoff state.")
+        )

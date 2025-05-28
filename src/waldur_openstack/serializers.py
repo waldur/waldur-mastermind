@@ -102,6 +102,12 @@ class OpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer)
         required=False,
     )
 
+    live_resize_of_volumes_enabled = serializers.BooleanField(
+        source="options.live_resize_of_volumes_enabled",
+        default=False,
+        required=False,
+    )
+
     console_type = serializers.CharField(
         source="options.console_type",
         help_text=_(
@@ -1937,6 +1943,7 @@ class OpenStackVolumeSerializer(structure_serializers.BaseResourceSerializer):
         lookup_field="uuid",
     )
     tenant_uuid = serializers.UUIDField(read_only=True, source="tenant.uuid")
+    extend_enabled = serializers.BooleanField(read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Volume
@@ -1961,6 +1968,7 @@ class OpenStackVolumeSerializer(structure_serializers.BaseResourceSerializer):
             "instance_marketplace_uuid",
             "tenant",
             "tenant_uuid",
+            "extend_enabled",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields

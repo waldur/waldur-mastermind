@@ -41,7 +41,7 @@ from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.models import Instance, Network, Volume
 
-from . import executors, filters, models, serializers
+from . import executors, filters, models, serializers, utils
 
 logger = logging.getLogger(__name__)
 
@@ -1203,31 +1203,18 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     pull_executor = executors.VolumePullExecutor
     disabled_actions = ["create", "destroy"]
 
+    @staticmethod
     def _is_volume_bootable(volume):
         if volume.bootable:
             raise core_exceptions.IncorrectStateException(
                 _("Volume cannot be bootable.")
             )
 
+    @staticmethod
     def _is_volume_attached(volume):
         if not volume.instance:
             raise core_exceptions.IncorrectStateException(
                 _("Volume is not attached to an instance.")
-            )
-
-    def _is_volume_instance_shutoff(volume):
-        if (
-            volume.instance
-            and volume.instance.runtime_state != models.Instance.RuntimeStates.SHUTOFF
-        ):
-            raise core_exceptions.IncorrectStateException(
-                _("Volume instance should be in shutoff state.")
-            )
-
-    def _is_volume_instance_ok(volume):
-        if volume.instance and volume.instance.state != CoreStates.OK:
-            raise core_exceptions.IncorrectStateException(
-                _("Volume instance should be in OK state.")
             )
 
     @extend_schema(
@@ -1253,10 +1240,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
         )
 
     extend_validators = [
-        _is_volume_bootable,
-        _is_volume_instance_ok,
-        _is_volume_instance_shutoff,
-        core_validators.StateValidator(CoreStates.OK),
+        utils.check_volume_resize_enabled,
     ]
     extend_serializer_class = serializers.OpenStackVolumeExtendSerializer
 
