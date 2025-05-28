@@ -11,6 +11,7 @@ from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
+from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import JSONField
@@ -794,6 +795,16 @@ class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage
             "image_metadata",
             "image_name",
         )
+
+    @property
+    def extend_enabled(self):
+        from waldur_openstack import utils
+
+        try:
+            utils.check_volume_resize_enabled(self)
+            return True
+        except core_exceptions.IncorrectStateException:
+            return False
 
 
 class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage):
