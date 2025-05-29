@@ -20,6 +20,8 @@ LOGO_MAP = {
     "SIDEBAR_LOGO_DARK": "api/icons/sidebar_logo_dark/",
     "POWERED_BY_LOGO": "api/icons/powered_by_logo/",
     "HERO_IMAGE": "api/icons/hero_image/",
+    "MARKETPLACE_HERO_IMAGE": "api/icons/marketplace_hero_image/",
+    "CALL_MANAGEMENT_HERO_IMAGE": "api/icons/call_management_hero_image/",
     "FAVICON": "api/icons/favicon/",
     "OFFERING_LOGO_PLACEHOLDER": "api/icons/offering_logo_placeholder/",
     "KEYCLOAK_ICON": "api/icons/keycloak_icon/",
