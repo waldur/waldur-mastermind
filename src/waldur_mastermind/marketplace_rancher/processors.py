@@ -794,7 +794,8 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
 class ManagedRancherDeleteProcessor(processors.AbstractDeleteResourceProcessor):
     def send_request(self, user, resource: Resource) -> None:
-        cluster = cast(rancher_models.Cluster, resource.scope)
+        cluster_resource = cast(Resource, resource.scope)
+        cluster = cast(rancher_models.Cluster, cluster_resource.scope)
         tenant_resource = Resource.objects.get(scope=cluster.tenant)
         submit_termination_order(resource)
         submit_termination_order(tenant_resource)

@@ -110,7 +110,8 @@ def update_argocd_secret_when_resource_options_changed(
             '"argocd_k8s_namespace" is not set in the offering.'
         )
 
-    cluster = cast(Cluster, resource.scope)
+    cluster_resource = cast(marketplace_models.Resource, resource.scope)
+    cluster = cast(Cluster, cluster_resource.scope)
     secret_name = f"cluster-{cluster.uuid}"
 
     k8s_backend = KubernetesBackend(kubeconfig_str)
@@ -135,7 +136,8 @@ def copy_invoice_items_when_cluster_is_provisioned(
     if resource.state != ResourceStates.OK:
         return
 
-    cluster = cast(Cluster, resource.scope)
+    cluster_resource = cast(marketplace_models.Resource, resource.scope)
+    cluster = cast(Cluster, cluster_resource.scope)
     if not cluster:
         return
 
