@@ -2934,6 +2934,9 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         read_only=True, source="backend_uuid", allow_null=True
     )
     resource_type = serializers.ReadOnlyField(source="backend_type")
+    service_settings_uuid = serializers.UUIDField(
+        read_only=True, source="scope.service_settings.uuid"
+    )
     project = serializers.HyperlinkedRelatedField(
         lookup_field="uuid",
         view_name="project-detail",
@@ -3011,16 +3014,14 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         if offering_user:
             return offering_user.username
 
-    def get_limit_usage(self, resource: models.Resource) -> float | None:
+    def get_limit_usage(self, resource: models.Resource) -> dict[str, float]:
         if not resource.offering.is_limit_based or not resource.plan:
-            return
+            return {}
 
-        limit_usage = {}
+        limit_usage: dict[str, float] = {}
 
-        limit_components: list[models.OfferingComponent] = (
-            resource.offering.components.filter(
-                billing_type=models.OfferingComponent.BillingTypes.LIMIT
-            )
+        limit_components = resource.offering.components.filter(
+            billing_type=models.OfferingComponent.BillingTypes.LIMIT
         )
 
         for component in limit_components:
