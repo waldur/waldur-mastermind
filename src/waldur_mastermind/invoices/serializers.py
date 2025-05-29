@@ -1213,3 +1213,10 @@ class CostsForPeriodSerializer(serializers.Serializer):
     total_price = serializers.CharField(read_only=True)
     start_date = serializers.DateField(read_only=True)
     end_date = serializers.DateField(read_only=True)
+
+
+class CustomerCreditConsumptionSerializer(serializers.Serializer):
+    date = serializers.DateField(read_only=True)
+    price = serializers.DecimalField(
+        read_only=True, max_digits=PRICE_MAX_DIGITS, decimal_places=2
+    )

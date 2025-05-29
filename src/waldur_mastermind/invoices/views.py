@@ -667,6 +667,26 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         partial_update_permissions
     ) = destroy_permissions = migrate_to_permissions = [structure_permissions.is_staff]
 
+    @action(detail=True, methods=["get"])
+    def consumptions(self, request, uuid=None):
+        customer_credit = self.get_object()
+        consumptions = (
+            models.InvoiceItem.objects.filter(credit=customer_credit, unit_price__lt=0)
+            .values("invoice__year", "invoice__month")
+            .annotate(price=Sum("price"))
+            .order_by("invoice__year", "invoice__month")
+        )
+
+        return Response(
+            [
+                {
+                    "month": f"{item['invoice__year']}-{item['invoice__month']:02d}",
+                    "price": item["price"],
+                }
+                for item in consumptions
+            ]
+        )
+
 
 class PaymentProfileViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
@@ -865,6 +885,36 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
     apply_compensations_permissions = clear_compensations_permissions = [
         structure_permissions.is_staff
     ]
+
+    @extend_schema(
+        description="Get credit consumption history grouped by month.",
+        responses=serializers.CustomerCreditConsumptionSerializer(many=True),
+    )
+    @action(detail=True, methods=["get"])
+    def consumptions(self, request, uuid=None):
+        customer_credit = self.get_object()
+        items = models.InvoiceItem.objects.filter(
+            credit=customer_credit, unit_price__lt=0
+        ).order_by("invoice__year", "invoice__month")
+        consumptions = {}
+
+        for item in items:
+            date = datetime.date(int(item.invoice.year), int(item.invoice.month), 1)
+            if date in consumptions:
+                consumptions[date] += item.price
+            else:
+                consumptions[date] = item.price
+
+        serializer = self.get_serializer(
+            [
+                {"date": str(date), "price": price * -1}
+                for date, price in consumptions.items()
+            ],
+            many=True,
+        )
+        return Response(serializer.data)
+
+    consumptions_serializer_class = serializers.CustomerCreditConsumptionSerializer
 
 
 class ProjectCreditViewSet(core_views.ActionsViewSet):
