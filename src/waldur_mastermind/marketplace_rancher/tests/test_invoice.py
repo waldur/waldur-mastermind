@@ -13,7 +13,7 @@ from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.utils import serialize_resource_limit_period
 from waldur_mastermind.marketplace_openstack import CORES_TYPE, TENANT_TYPE
-from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN
+from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN, PLUGIN_NAME
 from waldur_openstack.tests.factories import InstanceFactory, TenantFactory
 from waldur_rancher.tests.factories import ClusterFactory, NodeFactory
 
@@ -57,12 +57,15 @@ class RancherInvoiceTest(test.APITransactionTestCase):
 
             NodeFactory(cluster=cluster, instance=vm)
 
-        rancher_offering = marketplace_factories.OfferingFactory(
+        managed_rancher_offering = marketplace_factories.OfferingFactory(
             type=MANAGED_RANCHER_PLUGIN
         )
-        rancher_plan = marketplace_factories.PlanFactory(offering=rancher_offering)
+        rancher_offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
+        rancher_plan = marketplace_factories.PlanFactory(
+            offering=managed_rancher_offering
+        )
         rancher_offering_component = marketplace_factories.OfferingComponentFactory(
-            offering=rancher_offering,
+            offering=managed_rancher_offering,
             type=CORES_TYPE,
             billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
             article_code="rancher",
@@ -72,6 +75,7 @@ class RancherInvoiceTest(test.APITransactionTestCase):
             component=rancher_offering_component,
             price=200,
         )
+
         cluster_resource = marketplace_factories.ResourceFactory(
             offering=rancher_offering,
             plan=rancher_plan,
@@ -79,9 +83,17 @@ class RancherInvoiceTest(test.APITransactionTestCase):
             scope=cluster,
             project=cluster_project,
         )
-        resource_creation_succeeded(cluster_resource)
 
-        items = invoices_models.InvoiceItem.objects.filter(resource=cluster_resource)
+        resource = marketplace_factories.ResourceFactory(
+            offering=managed_rancher_offering,
+            plan=rancher_plan,
+            state=marketplace_models.Resource.States.CREATING,
+            scope=cluster_resource,
+            project=cluster_project,
+        )
+        resource_creation_succeeded(resource)
+
+        items = invoices_models.InvoiceItem.objects.filter(resource=resource)
 
         self.assertEqual(items.count(), 3)
 
