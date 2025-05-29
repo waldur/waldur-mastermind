@@ -597,3 +597,49 @@ class CalculateMinimalConsumptionTest(test.APITransactionTestCase):
             self.customer_credit.expected_consumption,
             self.customer_credit.minimal_consumption,
         )
+
+
+@ddt
+class CustomerCreditHistoricalValuesTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.CreditFixture()
+        self.url = factories.CustomerCreditFactory.get_url(
+            self.fixture.customer_credit, "consumptions"
+        )
+
+        self.invoice1 = factories.InvoiceFactory(
+            customer=self.fixture.customer, year=2023, month=1
+        )
+        self.invoice2 = factories.InvoiceFactory(
+            customer=self.fixture.customer, year=2023, month=2
+        )
+
+        self.compensation1 = factories.InvoiceItemFactory(
+            invoice=self.invoice1,
+            credit=self.fixture.customer_credit,
+            unit_price=-100,
+            quantity=1,
+        )
+        self.compensation2 = factories.InvoiceItemFactory(
+            invoice=self.invoice2,
+            credit=self.fixture.customer_credit,
+            unit_price=-200,
+            quantity=1,
+        )
+
+    @data("staff", "global_support", "owner")
+    def test_authorized_users_can_view_consumptions(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        consumptions = {item["date"]: item["price"] for item in response.data}
+        self.assertEqual(consumptions["2023-01-01"], "100.00")
+        self.assertEqual(consumptions["2023-02-01"], "200.00")
+
+    @data("manager", "admin", "user")
+    def test_unauthorized_users_cannot_view_consumptions(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
