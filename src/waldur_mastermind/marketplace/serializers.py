@@ -2904,6 +2904,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "last_sync",
             "order_in_progress",
             "creation_order",
+            "service_settings_uuid",
         )
         read_only_fields = (
             "backend_metadata",
