@@ -4555,6 +4555,24 @@ class ProviderOfferingSerializer(
         return request and permissions.can_see_secret_options(request, self.instance)
 
 
+class MoveOfferingSerializer(serializers.Serializer):
+    customer = serializers.HyperlinkedRelatedField(
+        queryset=structure_models.Customer.objects.all(),
+        view_name="customer-detail",
+        lookup_field="uuid",
+    )
+    preserve_permissions = serializers.BooleanField(required=True)
+
+    def validate(self, attrs):
+        customer = attrs.get("customer")
+        if not models.ServiceProvider.objects.filter(customer=customer).exists():
+            raise serializers.ValidationError(
+                {"customer": _("Customer must have a service provider profile.")}
+            )
+
+        return attrs
+
+
 class FingerprintSerializer(serializers.Serializer):
     md5 = serializers.CharField(read_only=True)
     sha256 = serializers.CharField(read_only=True)
