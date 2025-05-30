@@ -35,7 +35,11 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import get_users_with_permission, has_permission
+from waldur_core.permissions.utils import (
+    get_permissions,
+    get_users_with_permission,
+    has_permission,
+)
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -1829,3 +1833,31 @@ def get_service_account(service_account: models.ScopedServiceAccount):
     except (httpx.HTTPError, ValueError) as exc:
         logger.error(exc)
         raise
+
+
+@transaction.atomic
+def move_offering(
+    offering: models.Offering,
+    target_customer: structure_models.Customer,
+    current_user=None,
+    preserve_permissions=False,
+):
+    if target_customer.blocked:
+        raise rf_exceptions.ValidationError(
+            _("Target provider's customer can not be blocked.")
+        )
+
+    if offering.customer == target_customer:
+        raise rf_exceptions.ValidationError(
+            _("Offering is already assigned to the target provider.")
+        )
+
+    offering.customer = target_customer
+    offering.save(update_fields=["customer"])
+
+    if not preserve_permissions:
+        for permission in get_permissions(offering):
+            permission.revoke(current_user)
+            logger.info(f"Permission {permission} has been revoked")
+
+    logger.info("Offering %s has been moved to provider %s", offering, target_customer)

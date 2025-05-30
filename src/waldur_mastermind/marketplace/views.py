@@ -2220,6 +2220,31 @@ class ProviderOfferingViewSet(
             data=serializer.data,
         )
 
+    @extend_schema(
+        request=serializers.MoveOfferingSerializer,
+        responses=serializers.PublicOfferingDetailsSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def move_offering(self, request, uuid=None):
+        offering = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        target_customer = serializer.validated_data["customer"]
+        preserve_permissions = serializer.validated_data["preserve_permissions"]
+
+        utils.move_offering(
+            offering, target_customer, request.user, preserve_permissions
+        )
+        serialized_offering = serializers.PublicOfferingDetailsSerializer(
+            offering, context={"view": self, "request": request}
+        )
+
+        return Response(serialized_offering.data, status=status.HTTP_200_OK)
+
+    move_offering_serializer_class = serializers.MoveOfferingSerializer
+    move_offering_permissions = [structure_permissions.is_staff]
+
 
 class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
     queryset = models.Offering.objects.filter()
