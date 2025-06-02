@@ -850,3 +850,44 @@ class UserCreateTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class UserNotificationsEnabledTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.user = self.fixture.user
+        self.staff = self.fixture.staff
+        self.url = factories.UserFactory.get_url(self.user)
+
+    def test_notifications_enabled_field_is_returned(self):
+        """
+        Notifications_enabled field is returned in the response.
+        """
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("notifications_enabled", response.data)
+
+    def test_non_staff_user_cannot_update_notifications_enabled(self):
+        """
+        Non-staff user cannot update notifications_enabled field.
+        """
+        self.client.force_authenticate(self.user)
+        response = self.client.patch(
+            self.url, {"notifications_enabled": False, "agree_with_policy": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.notifications_enabled)
+
+    def test_staff_user_can_update_notifications_enabled(self):
+        """
+        Staff user can update notifications_enabled field.
+        """
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(
+            self.url, {"notifications_enabled": False, "agree_with_policy": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.notifications_enabled)
