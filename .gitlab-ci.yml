@@ -217,8 +217,8 @@ Test Multi-arch docker image build:
   interruptible: true
   image: registry.hpc.ut.ee/mirror/docker:latest
   services:
-    - name: "registry.hpc.ut.ee/mirror/docker:dind"
-      command: ["--mtu=1400"]
+    - name: public.ecr.aws/docker/library/docker:dind
+      command: ["--mtu=1400", "--registry-mirror=https://registry.hpc.ut.ee/mirror"]
       alias: docker
   rules:
     # Skip tests if said so
