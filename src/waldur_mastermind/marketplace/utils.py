@@ -1705,24 +1705,39 @@ def post_service_account_to_url(
     try:
         api_access_token = get_service_account_api_token()
         if scope_type == "project":
-            customer = service_account["project"].customer
-            scope_name = service_account["project"].name
-            scope_slug = service_account["project"].slug
+            project: structure_models.Project = service_account["project"]
+            customer = project.customer
+            scope_name = project.name
+            scope_slug = project.slug
+            scope_offering_slugs = []
+            offering_slugs = set(
+                project.resource_set.exclude(
+                    state=ResourceStates.TERMINATED
+                ).values_list("offering__slug", flat=True)
+            )
         elif scope_type == "customer":
-            customer = service_account["customer"]
+            customer: structure_models.Customer = service_account["customer"]
             scope_name = customer.name
             scope_slug = customer.slug
+            offering_slugs = set(
+                models.Resource.objects.exclude(state=ResourceStates.TERMINATED)
+                .filter(project__customer=customer)
+                .values_list("offering__slug", flat=True)
+            )
         else:
             raise ValueError(f"Unsupported service account type: {scope_type}")
 
+        scope_offering_slugs = list(offering_slugs)
+
         payload = {
             "ownerUsername": username,
-            "username": service_account["preferred_identifier"],
+            "preferredIdentifier": service_account["preferred_identifier"],
             "email": customer.email,
-            "description": service_account["description"],
+            "description": service_account.get("description", ""),
             "scopeType": scope_type,
             "scopeName": scope_name,
             "scopeSlug": scope_slug,
+            "scopeOfferingSlugs": scope_offering_slugs,
         }
 
         headers = {"Authorization": f"Bearer {api_access_token}"}
