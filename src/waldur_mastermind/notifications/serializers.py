@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from waldur_core.core.clean_html import clean_html
 from waldur_core.core.serializers import RestrictedSerializerMixin
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace.models import Offering
@@ -99,6 +100,12 @@ class MessageTemplateSerializer(
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
         }
+
+    def validate_subject(self, value):
+        return clean_html(value.strip())
+
+    def validate_body(self, value):
+        return clean_html(value.strip())
 
 
 class AdminAnnouncementSerializer(
