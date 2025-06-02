@@ -85,6 +85,7 @@ from waldur_core.structure import utils as structure_utils
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.executors import ServiceSettingsPullExecutor
 from waldur_core.structure.managers import (
+    filter_queryset_by_user_ip,
     filter_queryset_for_user,
     get_connected_customers,
     get_connected_customers_by_permission,
@@ -3345,7 +3346,8 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
 class ConsumerResourceViewSet(BaseResourceViewSet):
     def get_queryset(self):
-        return self.queryset.filter_for_service_consumer(self.request.user)
+        queryset = self.queryset.filter_for_service_consumer(self.request.user)
+        return filter_queryset_by_user_ip(queryset, self.request)
 
     @action(detail=False, methods=["post"])
     def suggest_name(self, request, *args, **kwargs):
@@ -5177,6 +5179,8 @@ class GlobalCategoriesViewSet(views.APIView):
 
         if customer_uuid:
             resources = resources.filter(project__customer__uuid=customer_uuid)
+
+        resources = filter_queryset_by_user_ip(resources, request)
 
         qs = resources.values("offering__category__uuid").annotate(count=Count("*"))
         return Response(
