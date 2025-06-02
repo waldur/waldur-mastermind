@@ -398,6 +398,9 @@ class PublicCallSerializer(
             "documents": {"required": False},
         }
 
+    def validate_description(self, value):
+        return clean_html(value.strip())
+
     def get_start_date(self, obj) -> datetime:
         first_round = obj.round_set.order_by("start_time").first()
         return first_round.start_time if first_round else None

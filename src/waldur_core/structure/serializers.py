@@ -1436,6 +1436,9 @@ class UserAgreementSerializer(serializers.HyperlinkedModelSerializer):
             "url": {"lookup_field": "uuid", "view_name": "user-agreements-detail"}
         }
 
+    def validate_content(self, value):
+        return clean_html(value.strip())
+
 
 class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
     content = serializers.SerializerMethodField()
