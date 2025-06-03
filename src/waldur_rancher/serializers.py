@@ -7,6 +7,8 @@ from django.db import transaction
 from django.db.models import QuerySet
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
+from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
+from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 from rest_framework import exceptions, serializers
 
 from waldur_core.core import serializers as core_serializers
@@ -1243,7 +1245,6 @@ class RancherImportYamlSerializer(serializers.Serializer):
 
 class RancherCreateManagementSecurityGroupSerializer(serializers.Serializer):
     cidr = serializers.CharField(
-        validators=[openstack_serializers.validate_private_subnet_cidr],
         default="192.168.42.0/24",
         initial="192.168.42.0/24",
     )
@@ -1252,6 +1253,19 @@ class RancherCreateManagementSecurityGroupSerializer(serializers.Serializer):
         initial=openstack_models.SecurityGroupRule.IPv4,
         default=openstack_models.SecurityGroupRule.IPv4,
     )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        validators = {
+            openstack_models.SecurityGroupRule.IPv4: is_valid_ipv4_cidr,
+            openstack_models.SecurityGroupRule.IPv6: is_valid_ipv6_cidr,
+        }
+        validator = validators[attrs["ethertype"]]
+        if not validator(attrs["cidr"]):
+            raise serializers.ValidationError(
+                _("Invalid CIDR format: %s") % attrs["cidr"]
+            )
+        return attrs
 
 
 class RancherClusterReference(serializers.ModelSerializer):
