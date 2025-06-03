@@ -936,7 +936,8 @@ class UserSerializer(
                 for field in protected_fields:
                     if field in fields:
                         del fields[field]
-            fields["notifications_enabled"].read_only = True
+            if "notifications_enabled" in fields:
+                fields["notifications_enabled"].read_only = True
 
         if not self._can_see_token(user):
             if "token" in fields:
