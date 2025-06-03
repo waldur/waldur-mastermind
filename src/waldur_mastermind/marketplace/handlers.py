@@ -7,6 +7,7 @@ from django.db import transaction
 from django.db.models import signals
 from django.utils.timezone import now
 
+import httpx
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.users import models as users_models
@@ -147,6 +148,44 @@ def notify_approvers_when_order_is_created(sender, instance, created=False, **kw
             transaction.on_commit(
                 lambda: tasks.notify_consumer_about_pending_order.delay(order.uuid)
             )
+
+
+def close_service_accounts_on_project_deletion(sender, instance, **kwargs):
+    project: structure_models.Project = instance
+
+    service_accounts = models.ProjectServiceAccount.objects.filter(project=project)
+    if not service_accounts.exists():
+        return
+
+    for service_account in service_accounts:
+        try:
+            utils.delete_service_account(service_account)
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.error(
+                "Failed to request deletion of service account %s for project %s: %s",
+                service_account,
+                project,
+                exc,
+            )
+            continue
+
+
+def close_customer_service_accounts_on_customer_deletion(sender, instance, **kwargs):
+    customer: structure_models.Customer = instance
+    service_accounts = models.CustomerServiceAccount.objects.filter(customer=customer)
+    if not service_accounts.exists():
+        return
+    for service_account in service_accounts:
+        try:
+            utils.delete_service_account(service_account)
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.error(
+                "Failed to request deletion of service account %s for customer %s: %s",
+                service_account,
+                customer,
+                exc,
+            )
+            continue
 
 
 def process_invitations_and_orders_when_project_start_date_is_unset(
