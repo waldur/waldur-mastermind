@@ -31,7 +31,10 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.validators import BackendURLValidator, validate_x509_certificate
+from waldur_core.core.validators import (
+    BackendURLValidator,
+    validate_x509_certificate,
+)
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.quotas.models import SharedQuotaMixin
 from waldur_core.quotas.serializers import QuotaSerializer
