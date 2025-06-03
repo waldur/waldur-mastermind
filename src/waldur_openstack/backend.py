@@ -1038,11 +1038,12 @@ class OpenStackBackend(ServiceBackend):
                     tenant,
                 )
 
-        remote_ids = {ip["id"] for ip in backend_routers}
-        stale_routers = models.Router.objects.filter(tenant=tenant).exclude(
-            backend_id__in=remote_ids
-        )
-        stale_routers.delete()
+        if not router_backend_id:
+            remote_ids = {ip["id"] for ip in backend_routers}
+            stale_routers = models.Router.objects.filter(tenant=tenant).exclude(
+                backend_id__in=remote_ids
+            )
+            stale_routers.delete()
 
     def _tenant_mappings(self, queryset):
         rows = queryset.exclude(backend_id="").values("id", "backend_id")
@@ -2974,15 +2975,9 @@ class OpenStackBackend(ServiceBackend):
             port.fixed_ips = port_response["fixed_ips"]
             port.admin_state_up = port_response["admin_state_up"]
             port.port_security_enabled = port_response["port_security_enabled"]
-            port.save(
-                update_fields=[
-                    "backend_id",
-                    "mac_address",
-                    "fixed_ips",
-                    "admin_state_up",
-                    "port_security_enabled",
-                ]
-            )
+            port.device_owner = port_response["device_owner"]
+            port.status = port_response["status"]
+            port.save()
 
             event_logger.openstack_port.info(
                 f"Port [{port}] has been created in the backend for network [{network}].",
@@ -5212,6 +5207,42 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(
                 f"Failed to remove interface from router {router.backend_id}: {e}"
             )
+
+    def remove_router_interface_safely(self, router, subnet_id=None, port_id=None):
+        """Remove router interface handling case when port is already deleted."""
+        old_routes = router.routes
+        subnet = None
+        port = None
+        if subnet_id:
+            subnet = models.SubNet.objects.get(id=subnet_id)
+        if port_id:
+            port = models.Port.objects.get(id=port_id)
+
+        try:
+            self.remove_router_interface(router, subnet, port)
+        except OpenStackBackendError as e:
+            raise OpenStackBackendError(
+                f"Unable to remove a router interface: {e.args[0]}"
+            )
+
+        removed_interface = None
+        if subnet:
+            removed_interface = {"type": "subnet", "backend_id": subnet.backend_id}
+        elif port:
+            removed_interface = {"type": "port", "backend_id": port.backend_id}
+        event_logger.openstack_router.info(
+            "Interface was removed from router.",
+            event_type="openstack_router_updated",
+            event_context={
+                "router": router,
+                "old_routes": old_routes,
+                "new_routes": old_routes,  # routes are not changed, but for consistency
+                "tenant_backend_id": router.tenant.backend_id,
+                "changed_interface": removed_interface,
+            },
+        )
+        self.pull_tenant_routers(router.tenant, router.backend_id)
+        self.pull_tenant_ports(router.tenant)
 
     def delete_router(self, router):
         if not router.backend_id:
