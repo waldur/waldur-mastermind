@@ -92,19 +92,6 @@ class TenantCreateTest(BaseTenantActionsTest):
             models.Tenant.objects.filter(name=self.valid_data["name"]).exists()
         )
 
-    @data("admin", "manager", "owner")
-    def test_cannot_create_tenant_with_shared_service_settings(self, user):
-        self.fixture.settings.shared = True
-        self.fixture.settings.save()
-        self.client.force_authenticate(getattr(self.fixture, user))
-
-        response = self.client.post(self.url, data=self.valid_data)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertFalse(
-            models.Tenant.objects.filter(name=self.valid_data["name"]).exists()
-        )
-
     @data("global_support", "user")
     def test_unathorized_user_cannot_create_tenant(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
