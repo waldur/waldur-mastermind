@@ -174,7 +174,7 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
             validate_plan(dst_plan)
 
         user = self.context["request"].user
-        can_create_tenant(user, dst_settings, dst_project)
+        can_create_tenant(user, dst_project)
         order = Order(
             project=dst_project,
             offering=dst_offering,

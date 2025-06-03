@@ -796,20 +796,12 @@ def validate_private_subnet_cidr(value):
 
 def can_create_tenant(
     user: core_models.User,
-    service_settings: structure_models.ServiceSettings,
     project: structure_models.Project,
 ):
-    """Administrator can create tenant only using not shared service settings"""
-
-    message = _(
-        "You do not have permissions to create tenant in this project using selected service."
-    )
-    if service_settings.shared and not user.is_staff:
-        raise serializers.ValidationError(message)
-    if not service_settings.shared and not structure_permissions._has_admin_access(
-        user, project
-    ):
-        raise serializers.ValidationError(message)
+    if not structure_permissions._has_admin_access(user, project):
+        raise serializers.ValidationError(
+            _("You do not have permissions to create tenant.")
+        )
 
 
 class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
@@ -860,14 +852,6 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
                     del fields[field]
 
         return fields
-
-    def _validate_service_settings(
-        self,
-        service_settings: structure_models.ServiceSettings,
-        project: structure_models.Project,
-    ):
-        user = self.context["request"].user
-        can_create_tenant(user, service_settings, project)
 
     def validate_security_groups_configuration(self):
         plugin_settings = getattr(settings, "WALDUR_OPENSTACK", {})
@@ -953,7 +937,9 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
         attrs = super().validate(attrs)
 
         if not self.instance:
-            self._validate_service_settings(attrs["service_settings"], attrs["project"])
+            user = self.context["request"].user
+            project = attrs["project"]
+            can_create_tenant(user, project)
 
         self.validate_security_groups_configuration()
 
