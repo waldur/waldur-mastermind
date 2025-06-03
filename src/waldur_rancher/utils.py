@@ -5,13 +5,14 @@ from typing import cast
 import yaml
 from constance import config
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.translation import gettext as _
 from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.models import SshPublicKey
+from waldur_core.core.models import SshPublicKey, User
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure.models import Project, ServiceSettings
@@ -405,3 +406,29 @@ def get_keycloak_group_scope_and_settings(group: models.KeycloakGroup):
     else:
         scope = models.Project.objects.get(uuid=scope_uuid)
         return scope, scope.cluster and scope.cluster.settings
+
+
+def check_managed_cluster(cluster: models.Cluster, user: User):
+    from waldur_mastermind.marketplace.models import Resource
+    from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN
+
+    if user.is_staff:
+        return
+    try:
+        resource = Resource.objects.get(
+            content_type=ContentType.objects.get_for_model(cluster),
+            object_id=cluster.id,
+        )
+        if resource.offering.type == MANAGED_RANCHER_PLUGIN:
+            raise serializers.ValidationError(
+                _(
+                    "Only staff is allowed to manage cluster resources provided by managed Rancher plugin."
+                )
+            )
+    except Resource.DoesNotExist:
+        return
+
+
+def check_managed_cluster_permission(request, view, obj=None, **kwargs):
+    if obj and getattr(obj, "cluster"):
+        check_managed_cluster(obj.cluster, request.user)
