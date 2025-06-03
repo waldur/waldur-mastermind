@@ -879,8 +879,12 @@ class RancherApplicationSerializer(structure_serializers.BaseResourceSerializer)
         return attrs
 
     def create(self, validated_data):
-        rancher_project = validated_data["rancher_project"]
+        rancher_project = cast(models.Project, validated_data["rancher_project"])
         validated_data["settings"] = rancher_project.settings
+        if rancher_project.cluster:
+            utils.check_managed_cluster(
+                rancher_project.cluster, self.context["request"].user
+            )
         validated_data["cluster"] = rancher_project.cluster
         return super().create(validated_data)
 
@@ -922,6 +926,12 @@ class RancherWorkloadSerializer(serializers.HyperlinkedModelSerializer):
                 "view_name": "rancher-namespace-detail",
             },
         }
+
+    def create(self, validated_data):
+        workload = cast(models.Workload, validated_data["workload"])
+        if workload.cluster:
+            utils.check_managed_cluster(workload.cluster, self.context["request"].user)
+        return super().create(validated_data)
 
 
 class RancherHPASerializer(serializers.HyperlinkedModelSerializer):
@@ -986,7 +996,10 @@ class RancherHPASerializer(serializers.HyperlinkedModelSerializer):
         }
 
     def create(self, validated_data):
-        workload = validated_data["workload"]
+        workload = cast(models.Workload, validated_data["workload"])
+        if workload.cluster:
+            utils.check_managed_cluster(workload.cluster, self.context["request"].user)
+
         validated_data["settings"] = workload.settings
         validated_data["cluster"] = workload.cluster
         validated_data["project"] = workload.project

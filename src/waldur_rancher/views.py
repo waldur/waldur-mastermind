@@ -1,6 +1,7 @@
 import functools
 import logging
 import operator
+from typing import cast
 
 from django.conf import settings as django_settings
 from django.contrib.contenttypes.models import ContentType
@@ -19,6 +20,7 @@ from keycloak import exceptions as keycloak_exceptions
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.models import User
 from waldur_core.structure import exceptions as structure_exceptions
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
@@ -436,10 +438,12 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
         catalog.delete()
 
     def check_catalog_permissions(self, scope):
-        if isinstance(scope, ServiceSettings) and not self.request.user.is_staff:
+        user = cast(User, self.request.user)
+        if isinstance(scope, ServiceSettings) and not user:
             raise ValidationError(_("Only staff is allowed to manage global catalogs."))
         if isinstance(scope, models.Cluster):
-            is_administrator(self.request.user, scope.project)
+            is_administrator(self.request, scope.project)
+            utils.check_managed_cluster(scope, user)
 
 
 class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
@@ -508,6 +512,10 @@ class ApplicationViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSe
     lookup_field = "uuid"
     create_executor = executors.ApplicationCreateExecutor
     delete_executor = executors.ApplicationDeleteExecutor
+    unsafe_methods_permissions = [
+        is_administrator,
+        utils.check_managed_cluster_permission,
+    ]
 
 
 class UserViewSet(core_views.ReadOnlyActionsViewSet):
@@ -565,6 +573,10 @@ class WorkloadViewSet(
     get_yaml_method = "get_workload_yaml"
     put_yaml_method = "put_workload_yaml"
     delete_scope_method = "delete_workload"
+    unsafe_methods_permissions = [
+        is_administrator,
+        utils.check_managed_cluster_permission,
+    ]
 
     @extend_schema(request=None, responses=None)
     @decorators.action(detail=True, methods=["post"])
@@ -586,6 +598,10 @@ class HPAViewSet(OptionalReadonlyViewset, YamlMixin, structure_views.ResourceVie
     delete_executor = executors.HPADeleteExecutor
     get_yaml_method = "get_hpa_yaml"
     put_yaml_method = "put_hpa_yaml"
+    unsafe_methods_permissions = [
+        is_administrator,
+        utils.check_managed_cluster_permission,
+    ]
 
 
 class ClusterTemplateViewSet(core_views.ReadOnlyActionsViewSet):
