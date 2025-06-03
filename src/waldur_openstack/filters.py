@@ -115,9 +115,9 @@ class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
 
     def filter_has_device_owner(self, queryset, name, value):
         if value:
-            return queryset.exclude(device_owner="")
+            return queryset.exclude(device_owner="").exclude(device_owner__isnull=True)
         else:
-            return queryset.filter(device_owner="")
+            return queryset.filter(Q(device_owner="") | Q(device_owner__isnull=True))
 
     def filter_query(self, queryset, name, value):
         return queryset.filter(

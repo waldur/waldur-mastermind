@@ -1905,3 +1905,14 @@ class OpenStackCleanupExecutor(structure_executors.BaseCleanupExecutor):
         (models.Instance, InstanceDeleteExecutor),
         (models.Volume, VolumeDeleteExecutor),
     )
+
+
+class RouterInterfaceDeleteExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, router, serialized_router, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_router,
+            "remove_router_interface_safely",
+            state_transition="begin_updating",
+            **kwargs,
+        )

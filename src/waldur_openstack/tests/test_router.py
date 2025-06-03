@@ -1,6 +1,7 @@
 from unittest import mock
 
 from ddt import data, ddt
+from django.test import override_settings
 from rest_framework import status, test
 
 from . import factories, fixtures
@@ -103,6 +104,7 @@ class RouterInterfaceTest(BaseRouterTest):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    @override_settings(task_always_eager=True)
     @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
     @mock.patch("waldur_openstack.backend.OpenStackBackend.remove_router_interface")
     def test_remove_router_interface_with_subnet(self, mock_remove, mock_pull):
@@ -113,6 +115,7 @@ class RouterInterfaceTest(BaseRouterTest):
         mock_remove.assert_called_once()
         mock_pull.assert_called_once()
 
+    @override_settings(task_always_eager=True)
     @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
     @mock.patch("waldur_openstack.backend.OpenStackBackend.remove_router_interface")
     def test_remove_router_interface_with_port(self, mock_remove, mock_pull):

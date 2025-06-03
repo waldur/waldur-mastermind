@@ -829,41 +829,12 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         subnet = serializer.validated_data.get("subnet")
         port = serializer.validated_data.get("port")
-        old_routes = router.routes
-        backend = router.tenant.get_backend()
-        try:
-            backend.remove_router_interface(router, subnet, port)
-        except OpenStackBackendError as e:
-            return response.Response(
-                {"status": _(f"Unable to remove a router interface: {e.args[0]}")},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        removed_interface = None
-        if subnet:
-            removed_interface = {"type": "subnet", "backend_id": subnet.backend_id}
-        elif port:
-            removed_interface = {"type": "port", "backend_id": port.backend_id}
-        event_logger.openstack_router.info(
-            "Interface was removed from router.",
-            event_type="openstack_router_updated",
-            event_context={
-                "router": router,
-                "old_routes": old_routes,
-                "new_routes": old_routes,  # routes are not changed, but for consistency
-                "tenant_backend_id": router.tenant.backend_id,
-                "changed_interface": removed_interface,
-            },
+        executors.RouterInterfaceDeleteExecutor.execute(
+            router,
+            subnet_id=getattr(subnet, "id", None),
+            port_id=getattr(port, "id", None),
         )
-        backend.pull_tenant_routers(router.tenant, router.backend_id)
-        return response.Response(
-            {
-                "status": _(
-                    f"Interface {removed_interface} was removed from router {router.backend_id}."
-                )
-            },
-            status=status.HTTP_202_ACCEPTED,
-        )
+        return response.Response(status=status.HTTP_202_ACCEPTED)
 
     remove_router_interface_serializer_class = (
         serializers.OpenStackRouterInterfaceSerializer
