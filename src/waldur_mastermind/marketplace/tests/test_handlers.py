@@ -4,7 +4,11 @@ from unittest import mock
 from django.db import transaction
 from rest_framework.test import APITransactionTestCase
 
+import httpx
+import respx
+from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.logging.models import Event
+from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import models as structure_tests_models
 from waldur_mastermind.marketplace import PLUGIN_NAME, callbacks, utils
@@ -320,3 +324,195 @@ class SetOrderCompletionTimestampTest(APITransactionTestCase):
         self.order.save()
         self.assertIsNotNone(self.order.completed_at)
         self.assertEqual(self.fixed_time, self.order.completed_at)
+
+
+SERVICE_ACCOUNT_URL = "http://example.com/api/service-accounts"
+TOKEN_URL = "http://example.com/api/token"
+TOKEN_CLIENT_ID = "test-client"
+TOKEN_SECRET = "test-secret"
+
+
+@override_waldur_core_settings(
+    SERVICE_ACCOUNT_USE_API=True,
+    SERVICE_ACCOUNT_TOKEN_URL=TOKEN_URL,
+    SERVICE_ACCOUNT_URL=SERVICE_ACCOUNT_URL,
+    SERVICE_ACCOUNT_TOKEN_CLIENT_ID=TOKEN_CLIENT_ID,
+    SERVICE_ACCOUNT_TOKEN_SECRET=TOKEN_SECRET,
+)
+class ServiceAccountHandlersTest(APITransactionTestCase):
+    def setUp(self):
+        respx.start()
+        self.fixture = fixtures.MarketplaceFixture()
+        self.project = self.fixture.project
+        self.customer = self.fixture.customer
+        self.token = "test-token"
+        self.account_username = "test-account"
+
+        service_account_response = {
+            "serviceAccount": {
+                "status": "active",
+                "username": self.account_username,
+                "email": "test@example.com",
+                "description": "test description",
+                "unixUid": 1000,
+                "unixGid": 1000,
+                "scopeType": "scope",
+                "scopeName": "Test scope",
+                "scopeSlug": "test-scope",
+                "owner": {
+                    "username": "test-owner",
+                    "email": "owner@example.com",
+                },
+            },
+            "apiKey": {
+                "apiKey": self.token,
+                "createdAt": "2025-04-28T12:00:00Z",
+                "expiresAt": "2025-05-28T12:00:00Z",
+                "ttl": 2592000,
+            },
+        }
+
+        respx.post(
+            TOKEN_URL,
+            content=f"grant_type=client_credentials&client_id={TOKEN_CLIENT_ID}&client_secret={TOKEN_SECRET}",
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+        ).mock(return_value=httpx.Response(200, json={"access_token": self.token}))
+
+        respx.get(
+            f"{SERVICE_ACCOUNT_URL}/{self.account_username}/close",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(return_value=httpx.Response(200, json={}))
+
+        respx.get(
+            f"{SERVICE_ACCOUNT_URL}/{self.account_username}",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(return_value=httpx.Response(200, json=service_account_response))
+
+    def tearDown(self):
+        respx.stop()
+        super().tearDown()
+
+    def test_project_service_account_deletion_on_project_deletion(self):
+        """
+        This test ensures that a project service account is deleted and requested to be deleted when a project is deleted.
+        """
+        # Create a project service account
+        service_account = marketplace_models.ProjectServiceAccount.objects.create(
+            project=self.project,
+            username=self.account_username,
+        )
+
+        response = respx.put(
+            f"{SERVICE_ACCOUNT_URL}/{service_account.username}/close",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(return_value=httpx.Response(200, json={}))
+
+        self.project.delete()
+
+        # Verify the call to close the service account was made
+        self.assertTrue(response.called)
+
+        self.assertFalse(
+            marketplace_models.ProjectServiceAccount.objects.filter(
+                uuid=service_account.uuid
+            ).exists()
+        )
+
+    def test_customer_service_account_deletion_on_customer_deletion(self):
+        """
+        This test ensures that a customer service account is deleted and requested to be deleted when a customer is deleted.
+        """
+        # Create a customer service account
+        service_account = marketplace_models.CustomerServiceAccount.objects.create(
+            customer=self.customer,
+            username=self.account_username,
+        )
+
+        response = respx.put(
+            f"{SERVICE_ACCOUNT_URL}/{service_account.username}/close",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(return_value=httpx.Response(200, json={}))
+
+        self.customer.delete()
+
+        # Verify the call to close the service account was made
+        self.assertTrue(response.called)
+
+        # Verify service account was deleted
+        self.assertFalse(
+            marketplace_models.CustomerServiceAccount.objects.filter(
+                id=service_account.id
+            ).exists()
+        )
+
+    def test_project_service_account_deletion_failure_does_not_block_project_deletion(
+        self,
+    ):
+        """
+        This test ensures that a project can be deleted even if the service account deletion fails.
+        """
+        # Create a project service account
+        service_account = marketplace_models.ProjectServiceAccount.objects.create(
+            project=self.project,
+            username=self.account_username,
+        )
+
+        # Mock failed service account deletion
+        response = respx.put(
+            f"{SERVICE_ACCOUNT_URL}/{service_account.username}/close",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(
+            return_value=httpx.Response(500, json={"error": "Internal Server Error"})
+        )
+
+        # Projects can be deleted with soft delete or hard delete, default is soft delete
+        self.project.delete()
+
+        self.assertTrue(response.called)
+
+        self.assertFalse(
+            Project.available_objects.filter(uuid=self.project.uuid).exists()
+        )
+        self.assertTrue(Project.objects.filter(uuid=self.project.uuid).exists())
+        self.assertTrue(Project.objects.get(uuid=self.project.uuid).is_removed)
+        # Verify that the service account was not deleted due to the failure
+        self.assertTrue(
+            marketplace_models.ProjectServiceAccount.objects.filter(
+                uuid=service_account.uuid
+            ).exists()
+        )
+
+    def test_customer_service_account_deletion_failure_does_not_block_customer_deletion(
+        self,
+    ):
+        """
+        This test ensures that a customer can be deleted even if the service account deletion fails.
+        """
+        service_account = marketplace_models.CustomerServiceAccount.objects.create(
+            customer=self.customer,
+            username=self.account_username,
+        )
+        service_account.save()
+
+        response = respx.put(
+            f"{SERVICE_ACCOUNT_URL}/{service_account.username}/close",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(
+            return_value=httpx.Response(500, json={"error": "Internal Server Error"})
+        )
+
+        self.customer.delete()
+
+        # Verify customer was deleted
+        self.assertFalse(Customer.objects.filter(uuid=self.customer.uuid).exists())
+
+        self.assertTrue(response.called)
+        # Verify that the service account was still deleted regardless of the failure
+        self.assertFalse(
+            marketplace_models.CustomerServiceAccount.objects.filter(
+                uuid=service_account.uuid
+            ).exists()
+        )

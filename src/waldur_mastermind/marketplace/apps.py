@@ -74,6 +74,17 @@ class MarketplaceConfig(AppConfig):
             sender=models.Offering,
             dispatch_uid="waldur_mastermind.marketplace.update_category_quota_when_offering_is_created",
         )
+        signals.pre_delete.connect(
+            handlers.close_service_accounts_on_project_deletion,
+            sender=structure_models.Project,
+            dispatch_uid="waldur_mastermind.marketplace.close_service_accounts_on_project_deletion",
+        )
+
+        signals.pre_delete.connect(
+            handlers.close_customer_service_accounts_on_customer_deletion,
+            sender=structure_models.Customer,
+            dispatch_uid="waldur_mastermind.marketplace.close_customer_service_accounts_on_customer_deletion",
+        )
 
         signals.post_delete.connect(
             handlers.update_category_quota_when_offering_is_deleted,
