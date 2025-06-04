@@ -76,6 +76,10 @@ class ProjectSection(FeatureSection):
         "Show credit field in project create dialog."
     )
 
+    mandatory_start_date = Feature("Make the project start date mandatory.")
+
+    mandatory_end_date = Feature("Make the project end date mandatory.")
+
 
 class UserSection(FeatureSection):
     class Meta:
