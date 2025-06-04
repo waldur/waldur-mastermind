@@ -266,8 +266,22 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
         account = factories.ProjectServiceAccountFactory(
             project=self.fixture.project,
         )
+        respx.put(
+            f"{SERVICE_ACCOUNT_URL}/{self.account_username}",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "serviceAccount": {
+                        "email": "new email",
+                        "description": "new description",
+                    }
+                },
+            )
+        )
         url = factories.ProjectServiceAccountFactory.get_url(account)
-        response = self.client.patch(url, {"username": "foo"})
+        response = self.client.patch(url, {"description": "foo"})
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK,
@@ -275,7 +289,7 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
         )
 
         account.refresh_from_db()
-        self.assertEqual(account.username, "foo")
+        self.assertEqual(account.description, "foo")
 
     @data("user", "customer_support", "member")
     def test_unauthorized_user_can_not_update_project_service_account(self, user):
@@ -474,7 +488,7 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
 
         # Mock API key rotation response
         respx.put(
-            f"{SERVICE_ACCOUNT_URL}/{account.username}/rotate-api-key/",
+            f"{SERVICE_ACCOUNT_URL}/{account.username}/rotate-api-key",
             headers={"Authorization": f"Bearer {self.token}"},
         ).mock(
             return_value=httpx.Response(
@@ -501,7 +515,7 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
 
         # Mock API key rotation response
         respx.put(
-            f"{SERVICE_ACCOUNT_URL}/{account.username}/rotate-api-key/",
+            f"{SERVICE_ACCOUNT_URL}/{account.username}/rotate-api-key",
             headers={"Authorization": f"Bearer {self.token}"},
         ).mock(
             return_value=httpx.Response(
@@ -518,6 +532,43 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["token"], self.new_api_key)
         self.assertEqual(response.data["expires_at"], self.new_expires_at)
+
+    def test_update_service_account_details(self):
+        """Test that service account API key rotation succeeds"""
+        account = factories.CustomerServiceAccountFactory(
+            customer=self.fixture.offering_customer
+        )
+        url = factories.CustomerServiceAccountFactory.get_url(account)
+        new_email = "new-user@example.com"
+        new_description = "New description"
+
+        # Mock API account details response
+        respx.put(
+            f"{SERVICE_ACCOUNT_URL}/{self.account_username}",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "serviceAccount": {
+                        "email": new_email,
+                        "description": new_description,
+                    }
+                },
+            )
+        )
+
+        response = self.client.patch(
+            f"{url}",
+            {
+                "email": new_email,
+                "description": new_description,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["email"], new_email)
+        self.assertEqual(response.data["description"], new_description)
 
 
 class ServiceAccountOfferingTest(test.APITransactionTestCase):

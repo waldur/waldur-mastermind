@@ -1687,8 +1687,9 @@ def rotate_service_account_api_key(service_account: models.ScopedServiceAccount)
     try:
         api_access_token = get_service_account_api_token()
 
+        url = f"{service_account_url}/{service_account.username}/rotate-api-key"
         response = httpx.put(
-            f"{service_account_url}/{service_account.username}/rotate-api-key/",
+            url,
             headers={"Authorization": f"Bearer {api_access_token}"},
             follow_redirects=True,
         )
@@ -1784,7 +1785,7 @@ def delete_service_account(service_account: models.ScopedServiceAccount):
 
     service_account_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_URL"]
     if not service_account_url:
-        raise RuntimeError("URL for service accounts is not configured")
+        raise ValidationError("URL for service accounts is not configured")
 
     service_account_url = service_account_url.rstrip("/")
 
@@ -1826,7 +1827,7 @@ def get_service_account(service_account: models.ScopedServiceAccount):
 
     service_account_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_URL"]
     if not service_account_url:
-        raise RuntimeError("URL for service accounts is not configured")
+        raise ValidationError("URL for service accounts is not configured")
 
     service_account_url = service_account_url.rstrip("/")
 
@@ -1845,6 +1846,39 @@ def get_service_account(service_account: models.ScopedServiceAccount):
             logger.warning("Service account %s not found", service_account.username)
             return None
         raise
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.error(exc)
+        raise
+
+
+def update_service_account(service_account: models.ScopedServiceAccount):
+    """
+    Makes a synchronous call to the webhook URL to update a service account email or/and description fields.
+    Raises exceptions on failure which should be handled by the viewset.
+    """
+    if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_API"):
+        return
+
+    service_account_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_URL"]
+    if not service_account_url:
+        raise ValidationError("URL for service accounts is not configured")
+
+    service_account_url = service_account_url.rstrip("/")
+
+    try:
+        api_access_token = get_service_account_api_token()
+        url = f"{service_account_url}/{service_account.username}"
+
+        response = httpx.put(
+            url,
+            headers={"Authorization": f"Bearer {api_access_token}"},
+            follow_redirects=True,
+            json={
+                "email": service_account.email,
+                "description": service_account.description,
+            },
+        )
+        return response.json()
     except (httpx.HTTPError, ValueError) as exc:
         logger.error(exc)
         raise
