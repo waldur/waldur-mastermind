@@ -4788,6 +4788,17 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
         except httpx.HTTPError as e:
             raise ValidationError({"detail": str(e)})
 
+    def perform_update(self, serializer):
+        instance: models.ScopedServiceAccount = serializer.instance
+        # Set the fields in the cache object
+        instance.email = serializer.validated_data.get("email", instance.email)
+        instance.description = serializer.validated_data.get(
+            "description", instance.description
+        )
+        utils.update_service_account(instance)
+        # Update the DB object only if the API call is successful
+        super().perform_update(serializer)
+
     def perform_destroy(self, instance):
         utils.delete_service_account(instance)
 
