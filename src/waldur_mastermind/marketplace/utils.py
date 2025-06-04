@@ -7,6 +7,7 @@ import re
 import textwrap
 import traceback
 import unicodedata
+import uuid
 from collections import defaultdict
 from enum import Enum
 from io import BytesIO
@@ -1643,6 +1644,134 @@ def notification_about_project_ending(end_date):
         )
 
 
+# Mock data generators for service accounts
+def generate_mock_service_account_response(username: str) -> dict:
+    """Generate a mock service account response that matches the GetServiceAccountResponse schema."""
+    now = datetime.datetime.now()
+    return {
+        "serviceAccount": {
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
+            "type": "service_account",
+            "status": "active",
+            "disabledDate": None,
+            "username": username,
+            "email": "mock@example.com",
+            "description": "Mock service account for testing",
+            "unixUid": 5000 + hash(username) % 1000,  # Generate consistent UID
+            "homeDir": f"/home/{username}",
+            "shell": "/bin/bash",
+            "targetType": "project",
+            "targetIdentifier": f"mock-project-{username[:8]}",
+            "apiKeyExpiresAt": (now + datetime.timedelta(days=90)).isoformat(),
+            "apiKeyTtl": 7776000,  # 90 days in seconds
+            "owner": None,
+            "project": None,
+        }
+    }
+
+
+def generate_mock_api_key_rotation_response(username: str) -> dict:
+    """Generate a mock API key rotation response that matches GetServiceAccountWithApiKeyResponse schema."""
+    now = datetime.datetime.now()
+    expires_at = now + datetime.timedelta(days=90)
+    ttl = 7776000  # 90 days in seconds
+
+    return {
+        "serviceAccount": {
+            "createdAt": (now - datetime.timedelta(days=30)).isoformat(),
+            "updatedAt": now.isoformat(),
+            "type": "service_account",
+            "status": "active",
+            "disabledDate": None,
+            "username": username,
+            "email": "mock@example.com",
+            "description": "Mock service account for testing",
+            "unixUid": 5000 + hash(username) % 1000,
+            "homeDir": f"/home/{username}",
+            "shell": "/bin/bash",
+            "targetType": "project",
+            "targetIdentifier": f"mock-project-{username[:8]}",
+            "apiKeyExpiresAt": expires_at.isoformat(),
+            "apiKeyTtl": ttl,
+            "owner": None,
+            "project": None,
+        },
+        "apiKey": {
+            "apiKey": f"rotated-mock-api-key-{username}-{uuid.uuid4().hex[:8]}",
+            "createdAt": now.isoformat(),
+            "expiresAt": expires_at.isoformat(),
+            "ttl": ttl,
+        },
+    }
+
+
+def generate_mock_service_account_creation_response(
+    service_account: dict, username: str, scope_type: str
+) -> dict:
+    """Generate a mock service account creation response that matches GetServiceAccountWithApiKeyResponse schema."""
+    now = datetime.datetime.now()
+    expires_at = now + datetime.timedelta(days=90)
+    ttl = 7776000  # 90 days in seconds
+    mock_username = service_account.get(
+        "preferred_identifier", f"mock-{uuid.uuid4().hex[:8]}"
+    )
+
+    return {
+        "serviceAccount": {
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
+            "type": "service_account",
+            "status": "active",
+            "disabledDate": None,
+            "username": mock_username,
+            "email": service_account.get("email", "mock@example.com"),
+            "description": service_account.get("description", "Mock service account"),
+            "unixUid": 5000 + hash(mock_username) % 1000,
+            "homeDir": f"/home/{mock_username}",
+            "shell": "/bin/bash",
+            "targetType": scope_type,
+            "targetIdentifier": service_account.get("scope_slug", "mock-scope"),
+            "apiKeyExpiresAt": expires_at.isoformat(),
+            "apiKeyTtl": ttl,
+            "owner": None,
+            "project": None,
+        },
+        "apiKey": {
+            "apiKey": f"mock-api-key-{uuid.uuid4().hex[:16]}",
+            "createdAt": now.isoformat(),
+            "expiresAt": expires_at.isoformat(),
+            "ttl": ttl,
+        },
+    }
+
+
+def generate_mock_service_account_update_response(service_account) -> dict:
+    """Generate a mock service account update response that matches GetServiceAccountResponse schema."""
+    now = datetime.datetime.now()
+    return {
+        "serviceAccount": {
+            "createdAt": (now - datetime.timedelta(days=30)).isoformat(),
+            "updatedAt": now.isoformat(),
+            "type": "service_account",
+            "status": "active",
+            "disabledDate": None,
+            "username": service_account.username,
+            "email": service_account.email,
+            "description": service_account.description,
+            "unixUid": 5000 + hash(service_account.username) % 1000,
+            "homeDir": f"/home/{service_account.username}",
+            "shell": "/bin/bash",
+            "targetType": "project",
+            "targetIdentifier": f"mock-project-{service_account.username[:8]}",
+            "apiKeyExpiresAt": (now + datetime.timedelta(days=90)).isoformat(),
+            "apiKeyTtl": 7776000,
+            "owner": None,
+            "project": None,
+        }
+    }
+
+
 def get_service_account_api_token():
     token_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_URL"]
     client_id = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_CLIENT_ID"]
@@ -1679,6 +1808,12 @@ def get_service_account_api_token():
 
 
 def rotate_service_account_api_key(service_account: models.ScopedServiceAccount):
+    if config.ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND:
+        logger.info(
+            f"Mock mode enabled for rotate_service_account_api_key: {service_account.username}"
+        )
+        return generate_mock_api_key_rotation_response(service_account.username)
+
     service_account_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_URL"]
     if not service_account_url:
         raise ValueError("URL for service accounts is not configured")
@@ -1756,6 +1891,12 @@ def create_service_account(service_account: dict, username: str, scope_type: str
     Makes a synchronous call to the webhook URL to create a service account.
     Raises exceptions on failure which should be handled by the viewset.
     """
+    if config.ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND:
+        logger.info("Mock mode enabled for create_service_account")
+        return generate_mock_service_account_creation_response(
+            service_account, username, scope_type
+        )
+
     if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_API"):
         return
 
@@ -1780,6 +1921,17 @@ def delete_service_account(service_account: models.ScopedServiceAccount):
     Makes a synchronous call to the webhook URL to remove a service account.
     Raises exceptions on failure which should be handled by the viewset.
     """
+    if config.ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND:
+        logger.info(
+            f"Mock mode enabled for delete_service_account: {service_account.username}"
+        )
+        # Generate a response showing the account as closed before deleting
+        response = generate_mock_service_account_response(service_account.username)
+        response["serviceAccount"]["status"] = "closed"
+        response["serviceAccount"]["disabledDate"] = datetime.datetime.now().isoformat()
+        service_account.delete()
+        return response
+
     if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_API"):
         return
 
@@ -1822,6 +1974,12 @@ def get_service_account(service_account: models.ScopedServiceAccount):
     Makes a synchronous call to the webhook URL to get a service account.
     Raises exceptions on failure which should be handled by the viewset.
     """
+    if config.ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND:
+        logger.info(
+            f"Mock mode enabled for get_service_account: {service_account.username}"
+        )
+        return generate_mock_service_account_response(service_account.username)
+
     if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_API"):
         return
 
@@ -1856,6 +2014,12 @@ def update_service_account(service_account: models.ScopedServiceAccount):
     Makes a synchronous call to the webhook URL to update a service account email or/and description fields.
     Raises exceptions on failure which should be handled by the viewset.
     """
+    if config.ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND:
+        logger.info(
+            f"Mock mode enabled for update_service_account: {service_account.username}"
+        )
+        return generate_mock_service_account_update_response(service_account)
+
     if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_API"):
         return
 

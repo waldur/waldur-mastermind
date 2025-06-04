@@ -677,6 +677,11 @@ CONSTANCE_CONFIG = {
     "SMAX_CREATION_SOURCE_NAME": ("", "Creation source name."),
     "SMAX_REQUESTS_OFFERING": ("", "Requests offering code for all issues."),
     "SMAX_VERIFY_SSL": (True, "Toggler for SSL verification"),
+    # Service accounts
+    "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND": (
+        False,
+        "Enable mock returns for the service account service",
+    ),
     # Proposal settings
     "PROPOSAL_REVIEW_DURATION": (7, "Review duration in days."),
     "USER_TABLE_COLUMNS": ("", "Comma-separated list of columns for users table."),
@@ -797,6 +802,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "NOTIFY_ABOUT_RESOURCE_CHANGE",
         "DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE",
         "ENABLE_STALE_RESOURCE_NOTIFICATIONS",
+        "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND",
     ),
     "Telemetry": (
         "TELEMETRY_URL",
@@ -975,6 +981,8 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "HOMEPORT_URL",
     "KEYCLOAK_ICON",
     "RANCHER_USERNAME_INPUT_LABEL",
+    # Service accounts
+    "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND",
 )
 
 for ext in WaldurExtension.get_extensions():
