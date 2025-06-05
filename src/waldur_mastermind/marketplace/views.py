@@ -4771,6 +4771,35 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
                 if serializer.Meta.model == models.CustomerServiceAccount
                 else "project"
             )
+            if scope_type == "project":
+                project = data.get("project")
+                if project.max_service_accounts is not None:
+                    project_service_accounts_count = (
+                        models.ProjectServiceAccount.objects.filter(
+                            project=project
+                        ).count()
+                    )
+                    if project_service_accounts_count >= project.max_service_accounts:
+                        raise ValidationError(
+                            {
+                                "detail": "Maximum number of service accounts reached for this project"
+                            }
+                        )
+            elif scope_type == "customer":
+                customer = data.get("customer")
+                if customer.max_service_accounts is not None:
+                    customer_service_accounts_count = (
+                        models.CustomerServiceAccount.objects.filter(
+                            customer=customer
+                        ).count()
+                    )
+                    if customer_service_accounts_count >= customer.max_service_accounts:
+                        raise ValidationError(
+                            {
+                                "detail": "Maximum number of service accounts reached for this customer"
+                            }
+                        )
+
             response_data = utils.create_service_account(data, username, scope_type)
             if response_data and "apiKey" in response_data:
                 instance = serializer.save()
