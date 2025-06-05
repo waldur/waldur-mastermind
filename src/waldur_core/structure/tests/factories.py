@@ -107,6 +107,7 @@ class CustomerFactory(
     slug = factory.Sequence(lambda n: "cust-%s" % n)
     abbreviation = factory.Sequence(lambda n: "Cust%s" % n)
     contact_details = factory.Sequence(lambda n: "contacts %s" % n)
+    max_service_accounts = 2
 
     @classmethod
     def get_url(cls, customer=None, action=None):
@@ -128,6 +129,7 @@ class ProjectFactory(
     class Meta:
         model = models.Project
 
+    max_service_accounts = 2
     name = factory.Sequence(lambda n: "Proj%s" % n)
     slug = factory.Sequence(lambda n: "proj-%s" % n)
     customer = factory.SubFactory(CustomerFactory)

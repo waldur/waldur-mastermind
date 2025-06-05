@@ -254,6 +254,7 @@ class ProjectSerializer(
             "is_industry",
             "image",
             "resources_count",
+            "max_service_accounts",
         )
         protected_fields = ("end_date_requested_by",)
         extra_kwargs = {
@@ -281,6 +282,12 @@ class ProjectSerializer(
             and self.instance.start_date < timezone.now().date()
         ):
             fields["start_date"].read_only = True
+
+        if (
+            "max_service_accounts" in fields
+            and not self.context["request"].user.is_staff
+        ):
+            fields["max_service_accounts"].read_only = True
 
         return fields
 
@@ -451,6 +458,7 @@ class CustomerSerializer(
             "users_count",
             "sponsor_number",
             "country_name",
+            "max_service_accounts",
         ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
             "access_subnets",
@@ -462,6 +470,7 @@ class CustomerSerializer(
             "blocked",
             "archived",
             "sponsor_number",
+            "max_service_accounts",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},

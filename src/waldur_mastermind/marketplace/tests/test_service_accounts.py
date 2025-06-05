@@ -421,6 +421,144 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
             f"Expected status code 404, got: {response.status_code}. Response data: {response.data}",
         )
 
+    @data("staff", "service_manager", "service_owner", "manager", "admin")
+    def test_can_create_project_service_account_under_limit(self, user):
+        """Test that service account can be created when under project limit"""
+        self.client.force_authenticate(getattr(self.fixture, user))
+        url = factories.ProjectServiceAccountFactory.get_list_url()
+
+        response = self.client.post(
+            url,
+            {
+                "project": self.fixture.project.uuid,
+                "description": "project test 1",
+                "preferred_identifier": f"{self.test_identifier}-1",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        response = self.client.post(
+            url,
+            {
+                "project": self.fixture.project.uuid,
+                "description": "project test 2",
+                "preferred_identifier": f"{self.test_identifier}-2",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    @data("staff", "service_manager", "service_owner", "manager", "admin")
+    def test_cannot_create_project_service_account_over_limit(self, user):
+        """Test that service account cannot be created when project limit exceeded"""
+        self.client.force_authenticate(getattr(self.fixture, user))
+        url = factories.ProjectServiceAccountFactory.get_list_url()
+
+        # Create first service account
+        response = self.client.post(
+            url,
+            {
+                "project": self.fixture.project.uuid,
+                "description": "project test 1",
+                "preferred_identifier": f"{self.test_identifier}-1",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        # Create second service account
+        response = self.client.post(
+            url,
+            {
+                "project": self.fixture.project.uuid,
+                "description": "project test 2",
+                "preferred_identifier": f"{self.test_identifier}-2",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        # Try to create third service account
+        response = self.client.post(
+            url,
+            {
+                "project": self.fixture.project.uuid,
+                "description": "project test 3",
+                "preferred_identifier": f"{self.test_identifier}-3",
+            },
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("Maximum number of service accounts", response.data["detail"])
+
+    @data("staff", "service_manager", "service_owner")
+    def test_can_create_customer_service_account_under_limit(self, user):
+        """Test that service account can be created when under customer limit"""
+        self.client.force_authenticate(getattr(self.fixture, user))
+        url = factories.CustomerServiceAccountFactory.get_list_url()
+
+        # Create first service account
+        response = self.client.post(
+            url,
+            {
+                "customer": self.fixture.offering_customer.uuid,
+                "description": "customer test 1",
+                "preferred_identifier": f"{self.test_identifier}-1",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        # Create second service account
+        response = self.client.post(
+            url,
+            {
+                "customer": self.fixture.offering_customer.uuid,
+                "description": "customer test 2",
+                "preferred_identifier": f"{self.test_identifier}-2",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    @data("staff", "service_manager", "service_owner")
+    def test_cannot_create_customer_service_account_over_limit(self, user):
+        """Test that service account cannot be created when customer limit exceeded"""
+        self.client.force_authenticate(getattr(self.fixture, user))
+        url = factories.CustomerServiceAccountFactory.get_list_url()
+
+        # Create first service account
+        response = self.client.post(
+            url,
+            {
+                "customer": self.fixture.offering_customer.uuid,
+                "description": "customer test 1",
+                "preferred_identifier": f"{self.test_identifier}-1",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        # Create second service account
+        response = self.client.post(
+            url,
+            {
+                "customer": self.fixture.offering_customer.uuid,
+                "description": "customer test 2",
+                "preferred_identifier": f"{self.test_identifier}-2",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        # Try to create third service account
+        response = self.client.post(
+            url,
+            {
+                "customer": self.fixture.offering_customer.uuid,
+                "description": "customer test 3",
+                "preferred_identifier": f"{self.test_identifier}-3",
+            },
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("Maximum number of service accounts", response.data["detail"])
+
 
 @override_waldur_core_settings(
     SERVICE_ACCOUNT_USE_API=True,

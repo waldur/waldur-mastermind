@@ -281,6 +281,20 @@ class CustomerDetailsMixin(core_models.NameMixin, VATMixin, CoordinatesMixin):
     bank_account = models.CharField(blank=True, max_length=50)
 
 
+class ServiceAccountMixin(models.Model):
+    """Mixin for models that support service accounts."""
+
+    class Meta:
+        abstract = True
+
+    max_service_accounts = models.PositiveSmallIntegerField(
+        default=0,
+        help_text=_("Maximum number of service accounts allowed"),
+        null=True,
+        blank=True,
+    )
+
+
 class Customer(
     CustomerDetailsMixin,
     core_models.UuidMixin,
@@ -290,6 +304,7 @@ class Customer(
     PermissionMixin,
     StructureLoggableMixin,
     ImageModelMixin,
+    ServiceAccountMixin,
     TimeStampedModel,
 ):
     access_subnet_set: models.Manager["AccessSubnet"]
@@ -496,6 +511,7 @@ class Project(
     PermissionMixin,
     StructureLoggableMixin,
     ImageModelMixin,
+    ServiceAccountMixin,
     TimeStampedModel,
     SoftDeletableModel,
 ):
