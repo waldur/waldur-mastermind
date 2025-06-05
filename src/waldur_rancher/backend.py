@@ -1867,6 +1867,44 @@ class VaultBackend:
             logger.error("Unable to create a Vault secret %s, reason: %s", path, e)
             raise
 
+    def delete_policy(self, name: str):
+        try:
+            logger.info("Deleting %s policy in Vault", name)
+            response = self.client.sys.delete_policy(name=name)
+        except vault_exceptions.VaultError as e:
+            logger.error("Unable to delete a vault policy %s, reason: %s", name, e)
+            raise
+        if response.status_code != 204:
+            raise VaultException(
+                f"Vault server responded with {response.status_code} code, body: {response.content}"
+            )
+
+    def delete_role(self, role_name: str):
+        try:
+            logger.info("Deleting role %s in Vault", role_name)
+            response = self.client.auth.approle.delete_role(role_name=role_name)
+        except vault_exceptions.VaultError as e:
+            logger.error("Unable to delete a Vault role %s, reason: %s", role_name, e)
+            raise
+        if response.status_code != 204:
+            raise VaultException(
+                f"Vault server responded with {response.status_code} code, body: {response.text}"
+            )
+
+    def delete_secret(self, path: str):
+        try:
+            logger.info("Deleting secret %s in Vault", path)
+            response = self.client.secrets.kv.v2.delete_metadata_and_all_versions(
+                path=path
+            )
+        except vault_exceptions.VaultError as e:
+            logger.error("Unable to delete a Vault secret %s, reason: %s", path, e)
+            raise
+        if response.status_code != 204:
+            raise VaultException(
+                f"Vault server responded with {response.status_code} code, body: {response.text}"
+            )
+
 
 class KeycloakBackend:
     def __init__(self, settings):

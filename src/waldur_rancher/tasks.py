@@ -241,7 +241,7 @@ class CreateVaultCredentialsTask(core_tasks.Task):
     @classmethod
     def get_description(cls, cluster, *args, **kwargs):
         cluster = core_utils.deserialize_instance(cluster)
-        return "Create secret and temporary secret id for it in Vault for cluster %s"
+        return f"Create secret and temporary secret id for it in Vault for cluster {cluster}"
 
     def execute(self, cluster: models.Cluster, *args, **kwargs):
         policy_name = f"rancher-provisioning-policy-{cluster.uuid.hex}"
@@ -298,6 +298,47 @@ class CreateVaultCredentialsTask(core_tasks.Task):
         vault_backend.create_or_update_secret(secret_name, {"token": token})
 
 
+class DeleteVaultObjectsTask(core_tasks.Task):
+    @classmethod
+    def get_description(cls, cluster, *args, **kwargs):
+        cluster = core_utils.deserialize_instance(cluster)
+        return (
+            f"Remove Vault objects for the cluster {cluster} (secrets, policies, etc.)"
+        )
+
+    def execute(self, cluster: models.Cluster, *args, **kwargs):
+        policy_name = f"rancher-provisioning-policy-{cluster.uuid.hex}"
+        role_name = f"rancher-provisioning-role-{cluster.uuid.hex}"
+        secret_name = f"rancher/cluster-{cluster.uuid.hex}"
+
+        vault_host = cluster.service_settings.get_option("vault_host")
+        vault_port = cluster.service_settings.get_option("vault_port")
+        vault_token = cluster.service_settings.get_option("vault_token")
+        vault_tls_verify_raw = cluster.service_settings.get_option("vault_tls_verify")
+        vault_tls_verify = (
+            vault_tls_verify_raw if vault_tls_verify_raw is not None else True
+        )
+        if not vault_host:
+            raise exceptions.RancherException(
+                "Unable to get vault host from the cluster settings"
+            )
+        if not vault_port:
+            raise exceptions.RancherException(
+                "Unable to get vault port from the cluster settings"
+            )
+        if not vault_token:
+            raise exceptions.RancherException(
+                "Unable to get vault token from the cluster settings"
+            )
+        vault_backend = backend.VaultBackend(
+            vault_host, vault_port, vault_token, vault_tls_verify
+        )
+
+        vault_backend.delete_policy(policy_name)
+        vault_backend.delete_role(role_name)
+        vault_backend.delete_secret(secret_name)
+
+
 class CreateArgoCDClusterSecretTask(core_tasks.Task):
     @classmethod
     def get_description(cls, cluster, *args, **kwargs):
@@ -351,6 +392,42 @@ class CreateArgoCDClusterSecretTask(core_tasks.Task):
                 instance,
                 e,
             )
+
+
+class DeleteKeycloakGroupsTask(core_tasks.Task):
+    @classmethod
+    def get_description(cls, cluster, *args, **kwargs):
+        cluster = core_utils.deserialize_instance(cluster)
+        return f"Delete Keycloak objects for the cluster {cluster}"
+
+    def execute(self, cluster: models.Cluster, *args, **kwargs):
+        settings = cluster.settings
+        cluster_groups = models.KeycloakGroup.objects.filter(
+            scope_uuid=cluster.uuid,
+            role__scope_type=enums.RoleScopeType.CLUSTER,
+            role__settings=settings,
+        )
+        project_uuids = models.Project.objects.filter(cluster=cluster).values_list(
+            "uuid", flat=True
+        )
+        project_groups = models.KeycloakGroup.objects.filter(
+            scope_uuid__in=project_uuids,
+            role__scope_type=enums.RoleScopeType.PROJECT,
+            role__settings=settings,
+        )
+        # Deleting only DB records, while handlers delete the groups in the Keycloak backend
+        logger.info(
+            "Deleting %s Keycloak groups for cluster %s",
+            cluster_groups.count(),
+            cluster.name,
+        )
+        cluster_groups.delete()
+        logger.info(
+            "Deleting %s Keycloak groups for cluster %s projects",
+            cluster_groups.count(),
+            cluster.name,
+        )
+        project_groups.delete()
 
 
 @shared_task(name="waldur_rancher.sync_keycloak_users")
