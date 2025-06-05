@@ -58,6 +58,8 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
                     install_longhorn=install_longhorn,
                 )
             ]
+        if instance.service_settings.get_option("vault_host"):
+            _tasks += [tasks.DeleteVaultObjectsTask().si(serialized_instance)]
         return chain(*_tasks)
 
     @classmethod
@@ -149,6 +151,8 @@ class ClusterDeleteExecutor(core_executors.DeleteExecutor):
 
             for node in instance.node_set.all():
                 _tasks.append(NodeDeleteExecutor.as_signature(node, user_id=user.id))
+
+            _tasks.append(tasks.DeleteKeycloakGroupsTask().si(serialized_instance))
 
             return chain(*_tasks)
         else:

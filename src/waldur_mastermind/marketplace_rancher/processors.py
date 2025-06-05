@@ -797,5 +797,5 @@ class ManagedRancherDeleteProcessor(processors.AbstractDeleteResourceProcessor):
         cluster_resource = cast(Resource, resource.scope)
         cluster = cast(rancher_models.Cluster, cluster_resource.scope)
         tenant_resource = Resource.objects.get(scope=cluster.tenant)
-        submit_termination_order(resource)
+        submit_termination_order(cluster_resource)
         submit_termination_order(tenant_resource)
