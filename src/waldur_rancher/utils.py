@@ -292,8 +292,8 @@ def format_node_cloud_config(
         conf["disk_setup"] = {
             format_disk_id(disk_driver, index + 1): {
                 "table_type": "gpt",
-                "layout": "true",
-                "overwrite": "false",
+                "layout": True,
+                "overwrite": False,
             }
             for index, _ in enumerate(data_volumes)
         }
