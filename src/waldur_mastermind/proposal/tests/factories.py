@@ -7,6 +7,7 @@ from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models
+from waldur_mastermind.proposal.enums import RequestedOfferingStates
 
 
 class CallManagingOrganisationFactory(
@@ -85,6 +86,7 @@ class RequestedOfferingFactory(
     call = factory.SubFactory(CallFactory)
     created_by = factory.SubFactory(structure_factories.UserFactory)
     offering = factory.SubFactory(marketplace_factories.OfferingFactory)
+    state = RequestedOfferingStates.ACCEPTED
 
     @classmethod
     def get_url(cls, call=None, requested_offering=None):
@@ -114,6 +116,40 @@ class RequestedOfferingFactory(
             kwargs={"uuid": requested_offering.uuid.hex},
         )
         return url if action is None else url + action + "/"
+
+
+class CallResourceTemplateFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CallResourceTemplate],
+):
+    class Meta:
+        model = models.CallResourceTemplate
+
+    call = factory.SubFactory(CallFactory)
+    requested_offering = factory.SubFactory(RequestedOfferingFactory)
+    name = factory.Sequence(lambda n: "Template-%s" % n)
+    description = factory.Sequence(lambda n: "Template description %s" % n)
+    attributes = factory.LazyAttribute(lambda _: {"cpu": 2, "ram": 4096})
+    limits = factory.LazyAttribute(lambda _: {"storage": 100})
+    is_required = False
+    created_by = factory.SubFactory(structure_factories.UserFactory)
+
+    @classmethod
+    def get_url(cls, call=None, template=None, action=None):
+        if template is None:
+            template = CallResourceTemplateFactory()
+        if call is None:
+            call = template.call
+        url = (
+            CallFactory.get_protected_url(call, action="resource_templates")
+            + template.uuid.hex
+            + "/"
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, call):
+        return CallFactory.get_protected_url(call, action="resource_templates")
 
 
 class RoundFactory(

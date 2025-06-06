@@ -60,7 +60,7 @@ urlpatterns = [
         ),
         name=f"proposal-call-{action}-detail",
     )
-    for action in ["offering", "round"]
+    for action in ["offering", "round", "resource_template"]
 ]
 
 urlpatterns += [

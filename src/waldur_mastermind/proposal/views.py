@@ -431,6 +431,36 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        methods=["get"],
+        operation_id="proposal_protected_calls_resource_templates_list",
+        request=None,
+        responses=serializers.CallResourceTemplateSerializer(many=True),
+        description="List resource templates for a call.",
+        filters=False,
+    )
+    @extend_schema(
+        methods=["post"],
+        operation_id="proposal_protected_calls_resource_templates_set",
+        request=serializers.CallResourceTemplateSerializer,
+        responses=serializers.CallResourceTemplateSerializer,
+        description="Create resource template for a call.",
+    )
+    @decorators.action(detail=True, methods=["get", "post"])
+    def resource_templates(self, request, uuid=None):
+        return self.action_list_method("resource_templates")(self, request, uuid)
+
+    resource_templates_serializer_class = serializers.CallResourceTemplateSerializer
+
+    def resource_template_detail(self, request, uuid=None, obj_uuid=None):
+        return self.action_detail_method(
+            "resource_templates", delete_validators=[], update_validators=[]
+        )(self, request, uuid, obj_uuid)
+
+    resource_template_detail_serializer_class = (
+        serializers.CallResourceTemplateSerializer
+    )
+
 
 class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     lookup_field = "uuid"
