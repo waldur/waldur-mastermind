@@ -3781,6 +3781,10 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     filterset_class = filters.ComponentUsageFilter
     serializer_class = serializers.ComponentUsageSerializer
 
+    @extend_schema(
+        request=serializers.ComponentUsageCreateSerializer,
+        responses={status.HTTP_201_CREATED: None},
+    )
     @transaction.atomic
     @action(detail=False, methods=["post"])
     def set_usage(self, request, *args, **kwargs):
