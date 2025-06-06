@@ -99,7 +99,11 @@ class AbstractCreateResourceProcessor(BaseOrderProcessor):
                         name=name, url=url, resource=resource
                     )
 
-            if not scope or isinstance(scope, str):
+            if (
+                not scope
+                or isinstance(scope, str)
+                or isinstance(scope, models.Resource)  # Managed Rancher Cluster case
+            ):
                 resource_creation_succeeded(resource)
 
     def send_request(self, user):
