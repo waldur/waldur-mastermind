@@ -937,6 +937,38 @@ class PortViewSet(structure_views.ResourceViewSet):
 
     update_port_ip_serializer_class = serializers.OpenStackPortIPUpdateSerializer
 
+    @extend_schema(
+        description="Update security groups of the port",
+        request=serializers.OpenStackInstanceSecurityGroupsUpdateSerializer,
+        responses=None,
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def update_security_groups(self, request, uuid=None):
+        port: models.Port = self.get_object()
+        serializer = self.get_serializer(port, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        executors.PortUpdateSecurityGroupsExecutor().execute(port)
+        return response.Response(
+            {"status": _("security groups update was scheduled")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    def port_security_enabled(port):
+        if not port.port_security_enabled:
+            raise core_exceptions.IncorrectStateException(
+                _("Port security must be enabled.")
+            )
+
+    update_security_groups_validators = [
+        core_validators.StateValidator(CoreStates.OK),
+        port_security_enabled,
+    ]
+    update_security_groups_serializer_class = (
+        serializers.OpenStackInstanceSecurityGroupsUpdateSerializer
+    )
+
 
 class NetworkViewSet(structure_views.ResourceViewSet):
     queryset = Network.objects.all().order_by("name")

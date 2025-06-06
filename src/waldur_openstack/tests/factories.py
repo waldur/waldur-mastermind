@@ -310,12 +310,14 @@ class PortFactory(
     status = "DOWN"
 
     @classmethod
-    def get_url(cls, port=None):
+    def get_url(cls, port=None, action=None):
         if port is None:
             port = PortFactory()
-        return "http://testserver" + reverse(
+
+        url = "http://testserver" + reverse(
             "openstack-port-detail", kwargs={"uuid": port.uuid.hex}
         )
+        return url if action is None else url + action + "/"
 
     @classmethod
     def get_list_url(cls):
