@@ -103,6 +103,12 @@ class Call(
     # It is used for mapping PROPOSAL.MEMBER role to one of project roles
     default_project_role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True)
     external_url = models.URLField(blank=True, null=True)
+    # Fixed duration that applies to all proposals in this call
+    fixed_duration_in_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Fixed duration in days that applies to all proposals in this call",
+    )
     objects = managers.CallManager()
 
     class Permissions:
@@ -146,9 +152,51 @@ class RequestedOffering(
         default=States.REQUESTED, choices=States.CHOICES, db_index=True
     )
     call = models.ForeignKey(Call, on_delete=models.CASCADE)
+    offering = models.ForeignKey(marketplace_models.Offering, on_delete=models.CASCADE)
     plan = models.ForeignKey(
         on_delete=models.CASCADE, to=marketplace_models.Plan, null=True, blank=True
     )
+
+
+class CallResourceTemplate(
+    core_models.UuidMixin,
+    TimeStampedModel,
+    core_models.DescribableMixin,
+):
+    """Predefined resource templates that proposal creators must use"""
+
+    class Permissions:
+        customer_path = "call__manager__customer"
+
+    call = models.ForeignKey(
+        Call, on_delete=models.CASCADE, related_name="resource_templates"
+    )
+    requested_offering = models.ForeignKey(RequestedOffering, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    attributes = models.JSONField(blank=True, default=dict)
+    limits = models.JSONField(blank=True, default=dict)
+    is_required = models.BooleanField(
+        default=False,
+        help_text="If True, every proposal must include this resource type",
+    )
+    created_by = models.ForeignKey(
+        core_models.User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="+",
+    )
+
+    class Meta:
+        unique_together = ("call", "name")
+        verbose_name = _("Call resource template")
+        verbose_name_plural = _("Call resource templates")
+
+    def __str__(self):
+        return f"{self.call.name} - {self.name}"
+
+    @classmethod
+    def get_url_name(cls):
+        return "proposal-call-resource-template"
 
 
 class Round(
@@ -337,6 +385,14 @@ class RequestedResource(
         RequestedOffering,
         related_name="+",
         on_delete=models.PROTECT,
+    )
+    # Optional reference to call resource template
+    call_resource_template = models.ForeignKey(
+        "CallResourceTemplate",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Resource template this request is based on",
     )
     attributes = models.JSONField(blank=True, default=dict)
     limits = models.JSONField(blank=True, default=dict)
