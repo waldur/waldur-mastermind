@@ -5270,3 +5270,29 @@ class OpenStackBackend(ServiceBackend):
             neutron.delete_router(router.backend_id)
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
+
+    @log_backend_action()
+    def push_port_security_groups(self, port: models.Port):
+        session = get_tenant_session(port.tenant)
+        neutron = get_neutron_client(session)
+
+        local_ids = set(
+            models.SecurityGroup.objects.filter(ports=port)
+            .exclude(backend_id="")
+            .values_list("backend_id", flat=True)
+        )
+
+        # Update security groups
+        try:
+            neutron.update_port(
+                port.backend_id, {"port": {"security_groups": list(local_ids)}}
+            )
+            logger.info(
+                "Updated security groups for port %s to %s",
+                port.backend_id,
+                list(local_ids),
+            )
+        except neutron_exceptions.NeutronClientException:
+            logger.exception(
+                "Failed to update security groups for port %s", port.backend_id
+            )

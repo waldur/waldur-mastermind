@@ -1358,6 +1358,18 @@ class InstanceUpdateSecurityGroupsExecutor(core_executors.ActionExecutor):
         )
 
 
+class PortUpdateSecurityGroupsExecutor(core_executors.ActionExecutor):
+    action = "Update security groups"
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_instance,
+            backend_method="push_port_security_groups",
+            state_transition="begin_updating",
+        )
+
+
 class InstanceDeleteExecutor(core_executors.DeleteExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, force=False, **kwargs):
