@@ -3806,6 +3806,10 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
 
     set_usage_serializer_class = serializers.ComponentUsageCreateSerializer
 
+    @extend_schema(
+        request=serializers.ComponentUserUsageCreateSerializer,
+        responses={status.HTTP_201_CREATED: None},
+    )
     @action(detail=True, methods=["post"])
     def set_user_usage(self, request, *args, **kwargs):
         component_usage: models.ComponentUsage = self.get_object()
