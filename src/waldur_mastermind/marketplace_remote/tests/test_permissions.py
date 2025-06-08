@@ -1,6 +1,6 @@
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest import mock, skip
+from unittest import skip
 
 from django.test import override_settings
 from rest_framework import test
@@ -12,6 +12,9 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
+from waldur_mastermind.marketplace_remote.tests.dns_utils import (
+    create_selective_dns_mock,
+)
 from waldur_mastermind.marketplace_remote.tests.utils import (
     get_query_params,
     get_request_data,
@@ -30,6 +33,8 @@ REMOTE_CUSTOMER_UUID = uuid.uuid4().hex
 )
 class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
     def setUp(self) -> None:
+        self.dns_patcher = create_selective_dns_mock()
+        self.dns_patcher.start()
         respx.start()
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.project = self.fixture.project
@@ -92,8 +97,8 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
 
     def tearDown(self):
         respx.stop()
+        self.dns_patcher.stop()
         super().tearDown()
-        mock.patch.stopall()
 
     def test_create_remote_permission(self):
         mock_eduteams = self.mock_remote_eduteams()

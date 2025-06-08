@@ -25,6 +25,9 @@ from waldur_mastermind.marketplace.tests.factories import (
 from waldur_mastermind.marketplace.utils import order_should_not_be_reviewed_by_provider
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.tasks import OrderPullTask
+from waldur_mastermind.marketplace_remote.tests.dns_utils import (
+    create_selective_dns_mock,
+)
 
 
 class OrderReviewByProviderTest(test.APITransactionTestCase):
@@ -138,6 +141,8 @@ class LimitsUpdateTest(test.APITransactionTestCase):
 
 class OrderPullTest(test.APITransactionTestCase):
     def setUp(self) -> None:
+        self.dns_patcher = create_selective_dns_mock()
+        self.dns_patcher.start()
         super().setUp()
         respx.start()
         fixture = ProjectFixture()
@@ -160,6 +165,7 @@ class OrderPullTest(test.APITransactionTestCase):
         )
 
     def tearDown(self):
+        self.dns_patcher.stop()
         super().tearDown()
         respx.stop()
         mock.patch.stopall()

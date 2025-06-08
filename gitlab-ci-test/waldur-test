@@ -39,6 +39,7 @@ if [ "$TEST_MODE" = "UNIT" ]; then
       --junitxml=report.xml \
       --cov=src/ \
       --no-migrations \
+      -ra \
       --ds=waldur_mastermind.test_settings \
       src
 

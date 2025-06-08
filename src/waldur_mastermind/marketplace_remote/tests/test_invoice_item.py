@@ -20,10 +20,15 @@ from waldur_mastermind.marketplace.tests.factories import (
 )
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.tasks import ResourceInvoicePullTask
+from waldur_mastermind.marketplace_remote.tests.dns_utils import (
+    create_selective_dns_mock,
+)
 
 
 class InvoiceItemPullTest(test.APITransactionTestCase):
     def setUp(self) -> None:
+        self.dns_patcher = create_selective_dns_mock()
+        self.dns_patcher.start()
         super().setUp()
         respx.start()
         self.fixture = ProjectFixture()
@@ -42,6 +47,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         self.resource.save()
 
     def tearDown(self):
+        self.dns_patcher.stop()
         super().tearDown()
         respx.stop()
 

@@ -95,10 +95,11 @@ INVALID_RESOURCE_STATES = (
 
 
 def get_client_for_offering(offering: marketplace_models.Offering):
-    return get_waldur_client(
+    client = get_waldur_client(
         offering.secret_options["api_url"],
         offering.secret_options["token"],
     )
+    return client
 
 
 def get_remote_user_uuid(client, username: str) -> str:

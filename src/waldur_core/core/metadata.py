@@ -228,6 +228,20 @@ class WaldurCore(BaseModel):
         description="Send service account creation and deletion requests to API.",
     )
 
+    SUBNET_BLACKLIST: list[str] = Field(
+        [
+            "10.0.0.0/8",  # Private networks class A
+            "172.16.0.0/12",  # Private networks class B
+            "192.168.0.0/16",  # Private networks class C
+            "169.254.0.0/16",  # Link-local address for private networks IPV4
+            "127.0.0.0/8",  # Localhost loopback
+            "::1/128",  # IPv6 localhost loopback
+            "fc00::/7",  # Unique local address for private networks
+            "fe80::/10",  # Link-local address for private networks IPv6
+        ],
+        description="List of IP ranges that are blocked for the SDK client.",
+    )
+
     class Meta:
         public_settings = [
             "MASTERMIND_URL",

@@ -33,6 +33,9 @@ from waldur_mastermind.marketplace_remote.processors import (
     RemoteCreateResourceProcessor,
 )
 from waldur_mastermind.marketplace_remote.tasks import OfferingPullTask
+from waldur_mastermind.marketplace_remote.tests.dns_utils import (
+    create_selective_dns_mock,
+)
 from waldur_mastermind.marketplace_remote.utils import (
     import_offering_image,
     import_offering_screenshots,
@@ -61,6 +64,15 @@ def serialize_data(serializer_class, instance):
 
 
 class RemoteCustomersTest(test.APITransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.dns_patcher = create_selective_dns_mock()
+        self.dns_patcher.start()
+
+    def tearDown(self):
+        self.dns_patcher.stop()
+        super().tearDown()
+
     @respx.mock
     def test_remote_customers_are_listed_for_given_token_and_api_url(self):
         mock_customer = respx.get("https://remote-waldur.com/api/customers/").respond(
@@ -84,6 +96,15 @@ class RemoteCustomersTest(test.APITransactionTestCase):
 
 
 class RemoteСategoriesTest(test.APITransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.dns_patcher = create_selective_dns_mock()
+        self.dns_patcher.start()
+
+    def tearDown(self):
+        self.dns_patcher.stop()
+        super().tearDown()
+
     @respx.mock
     def test_remote_сategories_are_listed_for_given_token_and_api_url(self):
         categories_mock = respx.get(
@@ -107,6 +128,9 @@ class RemoteСategoriesTest(test.APITransactionTestCase):
 
 class OfferingDetailsPullTest(test.APITransactionTestCase):
     def setUp(self) -> None:
+        self.dns_patcher = create_selective_dns_mock()
+        self.dns_patcher.start()
+
         fixture = fixtures.MarketplaceFixture()
         self.offering = fixture.offering
         self.plan: models.Plan = fixture.plan
@@ -185,6 +209,7 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         respx.start()
 
     def tearDown(self) -> None:
+        self.dns_patcher.stop()
         respx.stop()
         return super().tearDown()
 
@@ -399,6 +424,8 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
 
 class OfferingCreateTest(test.APITransactionTestCase):
     def setUp(self) -> None:
+        self.dns_patcher = create_selective_dns_mock()
+        self.dns_patcher.start()
         respx.start()
         mock.patch(
             "waldur_mastermind.marketplace_remote.utils.import_offering_thumbnail"
@@ -423,6 +450,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.url = "/api/remote-waldur-api/import_offering/"
 
     def tearDown(self):
+        self.dns_patcher.stop()
         super().tearDown()
         respx.stop()
 
@@ -601,6 +629,8 @@ class OfferingImageTest(test.APITransactionTestCase):
 
 class OfferingScreenshotsTest(test.APITransactionTestCase):
     def setUp(self):
+        self.dns_patcher = create_selective_dns_mock()
+        self.dns_patcher.start()
         respx.start()
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -632,6 +662,7 @@ class OfferingScreenshotsTest(test.APITransactionTestCase):
         )
 
     def tearDown(self):
+        self.dns_patcher.stop()
         respx.stop()
 
     def mock_screenshots_list(self):
