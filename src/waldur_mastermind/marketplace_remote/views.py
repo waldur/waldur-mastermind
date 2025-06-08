@@ -70,7 +70,8 @@ class RemoteView(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         api_url = serializer.validated_data["api_url"]
         token = serializer.validated_data["token"]
-        return get_waldur_client(api_url, token)
+        client = get_waldur_client(api_url, token)
+        return client
 
 
 class CustomersView(RemoteView):

@@ -51,7 +51,7 @@ from waldur_api_client.models.user_role_delete_request import UserRoleDeleteRequ
 from waldur_api_client.models.user_role_update_request import UserRoleUpdateRequest
 
 from httpx import TimeoutException
-from waldur_core.core.client import get_waldur_client
+from waldur_core.core.client import ClientValidationError, get_waldur_client
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import (
     broadcast_mail,
@@ -1116,7 +1116,10 @@ def delete_remote_project(serialized_project):
         clients[offering.secret_options["api_url"]] = offering.secret_options["token"]
 
     for api_url, token in clients.items():
-        client = get_waldur_client(api_url, token)
+        try:
+            client = get_waldur_client(api_url, token)
+        except ClientValidationError:
+            continue
 
         try:
             remote_projects: list[Project] = projects_list.sync(
