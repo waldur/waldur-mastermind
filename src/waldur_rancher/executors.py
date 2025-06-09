@@ -153,6 +153,8 @@ class ClusterDeleteExecutor(core_executors.DeleteExecutor):
                 _tasks.append(NodeDeleteExecutor.as_signature(node, user_id=user.id))
 
             _tasks.append(tasks.DeleteKeycloakGroupsTask().si(serialized_instance))
+            if instance.service_settings.get_option("vault_host"):
+                _tasks.append(tasks.DeleteVaultObjectsTask().si(serialized_instance))
 
             return chain(*_tasks)
         else:
