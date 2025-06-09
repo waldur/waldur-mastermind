@@ -244,14 +244,26 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         }
 
         # TODO: consider lower wait timeout
-        order_uuid = submit_creation_order(
-            user,
-            rancher_offering,
-            plan,
-            self.order.project,
-            attributes,
-            order_wait_timeout=60 * 60,
-        )
+        try:
+            order_uuid = submit_creation_order(
+                user,
+                rancher_offering,
+                plan,
+                self.order.project,
+                attributes,
+                order_wait_timeout=60 * 60,
+            )
+        except exceptions.RancherException as e:
+            resource = self.order.resource
+            order_uuid_raw = str(e).split()[2]
+            order_uuid = order_uuid_raw.replace('"', "")
+            order = Order.objects.filter(uuid=order_uuid).first()
+            if order:
+                cluster_resource = order.resource
+                resource.scope = cluster_resource
+                resource.save()
+            raise
+
         return cast(Resource, Order.objects.get(uuid=order_uuid).resource)
 
     def format_node(
@@ -795,8 +807,11 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 class ManagedRancherDeleteProcessor(processors.AbstractDeleteResourceProcessor):
     def send_request(self, user, resource: Resource) -> bool:
         cluster_resource = cast(Resource, resource.scope)
+        if not cluster_resource:
+            return True
         cluster = cast(rancher_models.Cluster, cluster_resource.scope)
-        tenant_resource = Resource.objects.get(scope=cluster.tenant)
+        tenant_resource = Resource.objects.filter(scope=cluster.tenant).first()
         submit_termination_order(cluster_resource)
-        submit_termination_order(tenant_resource)
+        if tenant_resource:
+            submit_termination_order(tenant_resource)
         return True
