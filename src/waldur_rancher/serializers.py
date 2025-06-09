@@ -483,6 +483,9 @@ class RancherClusterSerializer(
                     raise exceptions.ValidationError(
                         "Either cluster or node tenant should be specified."
                     )
+            # TODO: figure out which tenant cluster should be linked to in case of multiple tenants
+            first_tenant = nodes[0]["tenant"]
+            attrs["tenant"] = first_tenant
         else:
             for node in nodes:
                 if node.get("tenant"):
