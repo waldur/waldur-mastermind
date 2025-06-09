@@ -236,11 +236,16 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     self.format_node(role=AGENT_ROLE, tenant=tenant),
                 )
 
+        # TODO: figure out which tenant cluster should be linked to in case of multiple tenants
+        first_tenant = tenants[0]
         attributes = {
             "name": f"k8s-{self.order.resource.slug}",
             "nodes": nodes,
             "install_longhorn": self.order.attributes.get("install_longhorn", False),
             "vm_project": reverse("project-detail", kwargs={"uuid": project.uuid.hex}),
+            "tenant": reverse(
+                "openstack-tenant-detail", kwargs={"uuid": first_tenant.uuid.hex}
+            ),
         }
 
         # TODO: consider lower wait timeout
@@ -810,7 +815,11 @@ class ManagedRancherDeleteProcessor(processors.AbstractDeleteResourceProcessor):
         if not cluster_resource:
             return True
         cluster = cast(rancher_models.Cluster, cluster_resource.scope)
-        tenant_resource = Resource.objects.filter(scope=cluster.tenant).first()
+        tenant_resource = (
+            Resource.objects.filter(scope=cluster.tenant).first()
+            if cluster.tenant
+            else None
+        )
         submit_termination_order(cluster_resource)
         if tenant_resource:
             submit_termination_order(tenant_resource)
