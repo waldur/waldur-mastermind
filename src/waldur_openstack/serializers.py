@@ -1677,6 +1677,10 @@ class OpenStackNestedPortSerializer(
         write_only=True,
         required=False,
     )
+    security_groups = OpenStackSecurityGroupSerializer(
+        read_only=True,
+        many=True,
+    )
 
     class Meta:
         model = models.Port
@@ -1693,6 +1697,7 @@ class OpenStackNestedPortSerializer(
             "device_id",
             "device_owner",
             "port",
+            "security_groups",
         )
         read_only_fields = (
             "mac_address",
