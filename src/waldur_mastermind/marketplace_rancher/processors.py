@@ -236,16 +236,11 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     self.format_node(role=AGENT_ROLE, tenant=tenant),
                 )
 
-        # TODO: figure out which tenant cluster should be linked to in case of multiple tenants
-        first_tenant = tenants[0]
         attributes = {
             "name": f"k8s-{self.order.resource.slug}",
             "nodes": nodes,
             "install_longhorn": self.order.attributes.get("install_longhorn", False),
             "vm_project": reverse("project-detail", kwargs={"uuid": project.uuid.hex}),
-            "tenant": reverse(
-                "openstack-tenant-detail", kwargs={"uuid": first_tenant.uuid.hex}
-            ),
         }
 
         # TODO: consider lower wait timeout
