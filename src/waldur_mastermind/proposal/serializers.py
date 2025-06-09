@@ -1037,7 +1037,22 @@ class ProposalSerializer(
         fields = super().get_fields()
 
         # Make duration_in_days read-only if call has fixed duration
-        if self.instance and self.instance.round.call.fixed_duration_in_days:
+        def is_fixed_duration(instance):
+            try:
+                return instance.round.call.fixed_duration_in_days
+            except AttributeError:
+                return False
+
+        # Handle both single instance and list
+        instances = (
+            self.instance
+            if isinstance(self.instance, (list | tuple))
+            else [self.instance]
+            if self.instance
+            else []
+        )
+
+        if any(is_fixed_duration(obj) for obj in instances):
             fields["duration_in_days"].read_only = True
         elif hasattr(self, "initial_data") and "round_uuid" in self.initial_data:
             # For creation, check if the call has fixed duration
