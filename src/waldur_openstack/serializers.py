@@ -1153,10 +1153,15 @@ class OpenStackFixedIpField(serializers.JSONField):
     pass
 
 
-class OpenStackPortNestedSecurityGroupSerializer(serializers.ModelSerializer):
+class OpenStackPortNestedSecurityGroupSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
     class Meta:
         model = models.SecurityGroup
-        fields = ("uuid", "name")
+        fields = ("uuid", "name", "url")
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid", "view_name": "openstack-sgp-detail"}
+        }
 
 
 class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer):
