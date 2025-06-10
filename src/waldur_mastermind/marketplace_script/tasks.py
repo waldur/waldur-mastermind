@@ -115,6 +115,7 @@ def dry_run_executor(dry_run_id):
         dry_run.output = executor.send_request(dry_run.order.created_by, dry_run=True)
     except Exception as exc:
         logger.error("An unexpected error occurred while executing dry run: %s", exc)
+        raise
     finally:
         dry_run.save()
         structure_models.Project.objects.filter(id=dry_run.order.project.id).delete()
