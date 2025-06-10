@@ -806,6 +806,9 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
 class ManagedRancherDeleteProcessor(processors.AbstractDeleteResourceProcessor):
     def send_request(self, user, resource: Resource) -> bool:
+        resource.set_state_terminating()
+        resource.save(update_fields=["state"])
+
         cluster_resource = cast(Resource, resource.scope)
         if not cluster_resource:
             return True
