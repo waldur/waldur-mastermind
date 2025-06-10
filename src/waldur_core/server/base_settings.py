@@ -408,7 +408,7 @@ CONSTANCE_CONFIG = {
         'Type of jobs deployment. Valid values: "docker" for simple docker deployment, "k8s" for Kubernetes-based one',
     ),
     "DOCKER_CLIENT": (
-        {"base_url": "unix://var/run/docker.sock"},
+        {"base_url": "unix:///var/run/docker.sock"},
         "Options for docker client. See also: <https://docker-py.readthedocs.io/en/stable/client.html#docker.client.DockerClient>",
         "dict_field",
     ),
@@ -426,6 +426,10 @@ CONSTANCE_CONFIG = {
         {
             "python": {"image": "python:3.11-alpine", "command": "python"},
             "shell": {"image": "alpine:3", "command": "sh"},
+            "ansible": {
+                "image": "alpine/ansible:2.18.6",
+                "command": "ansible-playbook",
+            },
         },
         "Key is command to execute script, value is a dictionary of image name and command.",
         "dict_field",
