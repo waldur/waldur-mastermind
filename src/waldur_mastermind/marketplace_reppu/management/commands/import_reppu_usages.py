@@ -117,6 +117,14 @@ class Command(BaseCommand):
     def import_user_usages(self, lumi_user_usage, resources, month, year):
         username = lumi_user_usage["user_cn"]
 
+        if not username:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Skipping user usage import for project {resources.first().project} due to missing username"
+                )
+            )
+            return
+
         for lumi_component_type, lumi_usage_amount in lumi_user_usage.items():
             if lumi_component_type in ["user_cn", "project_cn", "puhuriuuid"]:
                 continue
