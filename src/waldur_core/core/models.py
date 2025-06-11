@@ -15,6 +15,7 @@ from django_fsm import ConcurrentTransitionMixin, FSMIntegerField, transition
 from model_utils import FieldTracker
 from model_utils.fields import AutoLastModifiedField
 from model_utils.models import TimeStampedModel
+from rest_framework.authtoken.models import Token
 from reversion import revisions as reversion
 
 from waldur_core.core import managers as core_managers
@@ -327,6 +328,7 @@ class User(
     tracker = FieldTracker()
     objects: UserManager = core_managers.UserActiveManager()
     all_objects = UserManager()
+    auth_token: Token | None
 
     USERNAME_FIELD = "username"
     REQUIRED_FIELDS = ["email"]

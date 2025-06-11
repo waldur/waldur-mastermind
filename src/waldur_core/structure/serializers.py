@@ -825,6 +825,7 @@ class UserSerializer(
         help_text=_("User must agree with the policy to register."),
     )
     token = serializers.ReadOnlyField(source="auth_token.key")
+    token_expires_at = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
     requested_email = serializers.SerializerMethodField()
     full_name = serializers.CharField(max_length=200, required=False, read_only=True)
@@ -863,6 +864,12 @@ class UserSerializer(
     def get_has_active_session(self, user: core_models.User) -> bool:
         return hasattr(user, "auth_token") and user.auth_token is not None
 
+    def get_token_expires_at(self, user: core_models.User) -> None | datetime:
+        if user.auth_token and user.token_lifetime:
+            return user.auth_token.created + timezone.timedelta(
+                seconds=user.token_lifetime
+            )
+
     class Meta:
         model = core_models.User
         fields = (
@@ -883,6 +890,7 @@ class UserSerializer(
             "is_support",
             "token",
             "token_lifetime",
+            "token_expires_at",
             "registration_method",
             "date_joined",
             "agree_with_policy",
