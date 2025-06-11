@@ -728,7 +728,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
     ):
         mock_delete_request.return_value = Response(status=status.HTTP_202_ACCEPTED)
         tasks.DeleteNodeTask().execute(self.fixture.node, user_id=self.fixture.owner.id)
-        vm = cast(openstack_models.Instance, self.fixture.node.instance)
+        vm = self.fixture.node.instance
         self.assertEqual(mock_delete_request.call_count, 1)
         self.assertEqual(mock_delete_request.call_args[0][1], self.fixture.owner)
         self.assertEqual(

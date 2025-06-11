@@ -614,10 +614,6 @@ class OpenStackSecurityGroupSerializer(
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
             + ("service_settings", "project")
         )
-        protected_fields = (
-            structure_serializers.BaseResourceSerializer.Meta.protected_fields
-            + ("rules",)
-        )
         extra_kwargs = {
             "url": {"lookup_field": "uuid", "view_name": "openstack-sgp-detail"},
             "tenant": {

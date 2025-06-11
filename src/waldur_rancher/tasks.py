@@ -159,7 +159,7 @@ class DeleteNodeTask(core_tasks.Task):
     def execute(self, instance: models.Node, user_id: str):
         node = instance
         user = User.objects.get(pk=user_id)
-        vm = cast(openstack_models.Instance, node.instance)
+        vm = node.instance
 
         if vm:
             view = MarketplaceInstanceViewSet.as_view({"delete": "force_destroy"})
