@@ -71,6 +71,7 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
     def discover_urls(self, discovery_url, verify_ssl=True):
         try:
             response = requests.get(discovery_url, verify=verify_ssl)
+            response.raise_for_status()
         except requests.exceptions.RequestException:
             raise ValidationError("Unable to discover endpoints.")
 
