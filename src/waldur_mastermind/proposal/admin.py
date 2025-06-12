@@ -26,9 +26,25 @@ class RequestedResourceInline(admin.TabularInline):
 
 class CallAdmin(admin.ModelAdmin):
     inlines = [RequestedOfferingInline, RoundInline, CallResourceTemplateInline]
-    list_display = ("name", "fixed_duration_in_days", "state")
+    list_display = (
+        "name",
+        "state",
+        "fixed_duration_in_days",
+        "reviewer_identity_visible_to_submitters",
+        "reviews_visible_to_submitters",
+    )
     fieldsets = (
-        (None, {"fields": ("name", "description", "manager", "state")}),
+        (
+            None,
+            {
+                "fields": (
+                    "name",
+                    "description",
+                    "manager",
+                    "state",
+                )
+            },
+        ),
         (
             "Configuration",
             {
@@ -38,6 +54,16 @@ class CallAdmin(admin.ModelAdmin):
                     "external_url",
                     "backend_id",
                 )
+            },
+        ),
+        (
+            "Visibility settings",
+            {
+                "fields": (
+                    "reviewer_identity_visible_to_submitters",
+                    "reviews_visible_to_submitters",
+                ),
+                "description": "Control what proposal submitters can see about reviews",
             },
         ),
     )
