@@ -354,7 +354,7 @@ class CreateArgoCDClusterSecretTask(core_tasks.Task):
             )
             return
 
-        k8s = KubernetesBackend(kubeconfig_str)
+        k8s = KubernetesBackend(kubeconfig_str=kubeconfig_str)
         secret_name = f"cluster-{instance.uuid.hex}"
         argocd_namespace = instance.settings.get_option("argocd_k8s_namespace")
         cluster_backend: backend.RancherBackend = instance.get_backend()
