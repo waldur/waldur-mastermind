@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from django.db import transaction
 from django.db.models import QuerySet
 from netaddr import IPNetwork
 from rest_framework import serializers
@@ -341,6 +342,7 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
         limits = {k: v for k, v in limits.items() if v is not None}
         return limits
 
+    @transaction.atomic
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
         src_resource: Resource = validated_data["src_resource"]
