@@ -170,7 +170,7 @@ class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
             return self
         return self.filter(
             project__in=get_connected_projects(user),
-            customer__in=get_connected_customers(user),
+            project__customer__in=get_connected_customers(user),
         )
 
 
