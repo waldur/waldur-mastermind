@@ -273,7 +273,7 @@ class ProposalReviewSerializer(
 
         return attrs
 
-    def get_anonymous_reviewer_name(self, obj) -> str:
+    def get_anonymous_reviewer_name(self, obj) -> str | None:
         """
         Generate an anonymous reviewer identifier like 'Reviewer 1', 'Reviewer 2'.
         Returns None if the review is not associated with a proposal.
@@ -286,9 +286,9 @@ class ProposalReviewSerializer(
 
         for index, review in enumerate(reviews, start=1):
             if review.pk == obj.pk:
-                return f"Reviewer {index}"
+                return _("Reviewer %(index)s") % {"index": index}
 
-        return "Reviewer"
+        return _("Reviewer")
 
     def get_fields(self):
         fields = super().get_fields()
