@@ -103,6 +103,18 @@ class Call(
     # It is used for mapping PROPOSAL.MEMBER role to one of project roles
     default_project_role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True)
     external_url = models.URLField(blank=True, null=True)
+
+    reviewer_identity_visible_to_submitters = models.BooleanField(
+        default=False,
+        help_text="Whether proposal submitters can see reviewer identities. "
+        "If False, reviewers appear as 'Reviewer 1', 'Reviewer 2', etc.",
+    )
+    reviews_visible_to_submitters = models.BooleanField(
+        default=True,
+        help_text="Whether proposal submitters can see review comments and scores. "
+        "If False, submitters only see final approval/rejection status.",
+    )
+
     # Fixed duration that applies to all proposals in this call
     fixed_duration_in_days = models.PositiveIntegerField(
         null=True,

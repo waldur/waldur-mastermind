@@ -684,7 +684,8 @@ class ReviewViewSet(ActionsViewSet):
         if user.is_staff:
             return models.Review.objects.all().order_by("created")
 
-        return models.Review.objects.filter(
+        # Base queries for authorized users (call managers, reviewers)
+        authorized_query = (
             Q(
                 proposal__round__call__manager__customer__in=get_connected_call_organizers(
                     user
@@ -696,8 +697,20 @@ class ReviewViewSet(ActionsViewSet):
                 )
             )
             | Q(reviewer=user)
-            | Q(state=models.Review.States.SUBMITTED, proposal__created_by=user)
         )
+
+        # For proposal submitters - apply visibility controls
+        submitter_query = Q(proposal__created_by=user)
+
+        # Key change: Only include reviews for submitters if reviews are visible in the call
+        submitter_query &= Q(proposal__round__call__reviews_visible_to_submitters=True)
+
+        # Only show submitted reviews to submitters (existing logic)
+        submitter_query &= Q(state=models.Review.States.SUBMITTED)
+
+        return models.Review.objects.filter(
+            authorized_query | submitter_query
+        ).order_by("created")
 
     def perform_create(self, serializer):
         proposal = serializer.validated_data["proposal"]
