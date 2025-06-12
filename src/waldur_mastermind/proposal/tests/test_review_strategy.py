@@ -99,3 +99,25 @@ class AfterProposalTest(test.APITransactionTestCase):
             self.proposal_draft.review_set.filter().count(),
             0,
         )
+
+        # test task does not raise an error if there are more reviews than minimum required
+        self.assertEqual(self.round.minimum_number_of_reviewers, 1)
+
+        models.Review.objects.create(
+            proposal=self.proposal,
+            state=models.Review.States.CREATED,
+            reviewer=self.round.call.reviewers.first(),
+        )
+        models.Review.objects.create(
+            proposal=self.proposal,
+            state=models.Review.States.CREATED,
+            reviewer=self.round.call.reviewers.first(),
+        )
+
+        # call the task again, but it should not create new reviews
+        tasks.create_reviews_if_strategy_is_after_proposal()
+        self.proposal.refresh_from_db()
+        self.assertEqual(
+            self.proposal.review_set.filter(state=models.Review.States.CREATED).count(),
+            3,
+        )

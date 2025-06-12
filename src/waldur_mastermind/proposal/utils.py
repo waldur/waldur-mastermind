@@ -24,11 +24,12 @@ def get_available_reviewer(proposal: proposal_models.Proposal):
         .annotate(reviewers_count=SubqueryCount(reviews))
         .order_by("reviewers_count")
     )
-    number_of_needed_reviewers = (
+    number_of_needed_reviewers = max(
+        0,
         proposal.round.minimum_number_of_reviewers
         - proposal.review_set.exclude(
             state=proposal_models.Review.States.REJECTED
-        ).count()
+        ).count(),
     )
     return available_reviewer[:number_of_needed_reviewers]
 
