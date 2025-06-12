@@ -44,7 +44,7 @@ from waldur_rancher import (
     validators,
 )
 from waldur_rancher.apps import RancherConfig
-from waldur_rancher.enums import RoleScopeType
+from waldur_rancher.enums import AGENT_ROLE, RoleScopeType
 from waldur_rancher.exceptions import RancherException
 
 logger = logging.getLogger(__name__)
@@ -216,6 +216,14 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance: models.Node = self.get_object()
+        if (
+            instance.role == AGENT_ROLE
+            and instance.cluster.node_set.filter(role=AGENT_ROLE).count() == 1
+        ):
+            # Prevent deletion of the last agent node in the cluster
+            raise ValidationError(
+                _("Cannot delete the last agent node in the cluster.")
+            )
         user = self.request.user
         executors.NodeDeleteExecutor.execute(
             instance,

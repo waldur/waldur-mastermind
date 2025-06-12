@@ -310,6 +310,18 @@ class NodeDeleteTest(test.APITransactionTestCase):
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
+    def test_prevent_delete_last_agent_node(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.node.role = AGENT_ROLE
+        self.fixture.node.save()
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data[0],
+            "Cannot delete the last agent node in the cluster.",
+        )
+        self.assertTrue(models.Node.objects.filter(id=self.fixture.node.id).exists())
+
 
 class NodePullBackendTest(test.APITransactionTestCase):
     def setUp(self):
