@@ -114,7 +114,7 @@ def update_argocd_secret_when_resource_options_changed(
     cluster = cast(Cluster, cluster_resource.scope)
     secret_name = f"cluster-{cluster.uuid}"
 
-    k8s_backend = KubernetesBackend(kubeconfig_str)
+    k8s_backend = KubernetesBackend(kubeconfig_str=kubeconfig_str)
     try:
         k8s_backend.update_k8s_secret(secret_name, namespace, data=None, labels=options)
     except k8s.client.ApiException:

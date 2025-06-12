@@ -1,0 +1,2 @@
+class KubernetesException(Exception):
+    pass
