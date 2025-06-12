@@ -865,7 +865,7 @@ class UserSerializer(
         return hasattr(user, "auth_token") and user.auth_token is not None
 
     def get_token_expires_at(self, user: core_models.User) -> None | datetime:
-        if user.auth_token and user.token_lifetime:
+        if hasattr(user, "auth_token") and user.auth_token and user.token_lifetime:
             return user.auth_token.created + timezone.timedelta(
                 seconds=user.token_lifetime
             )
