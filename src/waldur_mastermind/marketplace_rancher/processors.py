@@ -819,6 +819,12 @@ class ManagedRancherDeleteProcessor(processors.AbstractDeleteResourceProcessor):
             else None
         )
         submit_termination_order(cluster_resource)
+        if not tenant_resource:
+            project = Project.objects.filter(name__icontains=resource.name).first()
+            if project:
+                tenant_resource = Resource.objects.filter(
+                    project=project, name__istartswith=f"os-tenant-{project.slug}"
+                ).first()
         if tenant_resource:
             submit_termination_order(tenant_resource)
         return True
