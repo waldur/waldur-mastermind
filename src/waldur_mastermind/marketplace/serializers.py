@@ -2855,6 +2855,9 @@ class ResourceSuggestNameSerializer(serializers.ModelSerializer):
 
 
 class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerializer):
+    project_slug = serializers.ReadOnlyField(source="project.slug")
+    customer_slug = serializers.ReadOnlyField(source="project.customer.slug")
+
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
         fields = BaseItemSerializer.Meta.fields + (
@@ -2905,6 +2908,8 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "order_in_progress",
             "creation_order",
             "service_settings_uuid",
+            "project_slug",
+            "customer_slug",
         )
         read_only_fields = (
             "backend_metadata",
@@ -2921,6 +2926,8 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "options",
             "restrict_member_access",
             "last_sync",
+            "project_slug",
+            "customer_slug",
         )
         view_name = "marketplace-resource-detail"
         extra_kwargs = dict(
