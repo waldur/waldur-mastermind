@@ -3568,6 +3568,11 @@ class ProviderResourceViewSet(BaseResourceViewSet):
 
     set_as_erred_serializer_class = serializers.ResourceSetStateErredSerializer
 
+    @extend_schema(
+        request=None,
+        responses={status.HTTP_200_OK: None},
+        description="Set the resource as OK.",
+    )
     @action(detail=True, methods=["post"])
     def set_as_ok(self, request, uuid=None):
         resource = self.get_object()
@@ -3593,6 +3598,11 @@ class ProviderResourceViewSet(BaseResourceViewSet):
         )
     ]
 
+    @extend_schema(
+        request=None,
+        responses={status.HTTP_200_OK: None},
+        description="Refresh the last sync time for a resource.",
+    )
     @action(detail=True, methods=["post"])
     def refresh_last_sync(self, request, uuid=None):
         resource = self.get_object()
