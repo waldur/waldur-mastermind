@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 from django.db import transaction
-from django.db.models import QuerySet
 from netaddr import IPNetwork
 from rest_framework import serializers
 
@@ -226,7 +225,7 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
             network.uuid.hex
             for network in validated_data.get("mappings", {}).pop("networks", [])
         ]
-        src_networks: QuerySet[Network] = Network.objects.filter(tenant=src_tenant)
+        src_networks = Network.objects.filter(tenant=src_tenant)
         if network_uuids:
             src_networks = src_networks.filter(uuid__in=network_uuids)
         subnet_mappings = {}
@@ -243,7 +242,7 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
                 tenant=dst_tenant,
                 mtu=src_network.mtu,
             )
-            src_subnets: QuerySet[SubNet] = src_network.subnets.all()
+            src_subnets = src_network.subnets.all()
             for src_subnet in src_subnets:
                 subnet_cidr = subnet_mappings.get(src_subnet.cidr) or src_subnet.cidr
                 SubNet.objects.create(
@@ -299,7 +298,7 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
                 "cidr", flat=True
             )
         ]
-        src_routers: QuerySet[Router] = src_tenant.routers.all()
+        src_routers = src_tenant.routers.all()
         for src_router in src_routers:
             routes = []
             for route in src_router.routes:
