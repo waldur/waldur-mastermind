@@ -394,5 +394,6 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
             limits=limits,
         )
         validated_data["dst_resource"] = dst_resource
+        validated_data.setdefault("mappings", {})
         migration = super().create(validated_data)
         return migration
