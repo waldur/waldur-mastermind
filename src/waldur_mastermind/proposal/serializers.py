@@ -389,7 +389,14 @@ class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
             ).data
 
         # Submitter logic
-        if obj.created_by == user and obj.round.call.reviews_visible_to_submitters:
+        if (
+            obj.created_by == user
+            and obj.round.call.reviews_visible_to_submitters
+            and (
+                obj.state == models.Proposal.States.ACCEPTED
+                or obj.state == models.Proposal.States.REJECTED
+            )
+        ):
             submitted_reviews = reviews_qs.filter(state=models.Review.States.SUBMITTED)
             return ProposalReviewSerializer(
                 submitted_reviews, many=True, context=self.context

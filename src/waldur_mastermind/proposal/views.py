@@ -708,6 +708,14 @@ class ReviewViewSet(ActionsViewSet):
         # Only show submitted reviews to submitters (existing logic)
         submitter_query &= Q(state=models.Review.States.SUBMITTED)
 
+        # For submitters, reviews are visible only if the proposal has a decision state
+        submitter_query &= Q(
+            proposal__state__in=[
+                models.Proposal.States.ACCEPTED,
+                models.Proposal.States.REJECTED,
+            ]
+        )
+
         return models.Review.objects.filter(
             authorized_query | submitter_query
         ).order_by("created")
