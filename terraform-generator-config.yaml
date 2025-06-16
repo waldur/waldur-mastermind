@@ -1,0 +1,262 @@
+provider:
+  name: waldur
+
+resources:
+  # Marketplace
+  order:
+    create:
+      path: /api/marketplace-orders/
+      method: POST
+    read:
+      path: /api/marketplace-orders/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - attributes
+        - offering_plugin_options
+
+  # OpenStack
+  openstack_migrations:
+    create:
+      path: /api/openstack-migrations/
+      method: POST
+    read:
+      path: /api/openstack-migrations/{uuid}/
+      method: GET
+
+  openstack_ports:
+    create:
+      path: /api/openstack-ports/
+      method: POST
+    read:
+      path: /api/openstack-ports/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - marketplace_offering_plugin_options
+
+  openstack_routers:
+    create:
+      path: /api/openstack-routers/
+      method: POST
+    read:
+      path: /api/openstack-routers/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - marketplace_offering_plugin_options
+        - ports.security_groups.marketplace_offering_plugin_options
+        - ports.security_groups.rules.protocol
+
+  openstack_server_groups:
+    create:
+      path: /api/openstack-server-groups/
+      method: POST
+    read:
+      path: /api/openstack-server-groups/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - policy
+        - marketplace_offering_plugin_options
+
+  openstack_tenants:
+    create:
+      path: /api/openstack-tenants/
+      method: POST
+    read:
+      path: /api/openstack-tenants/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - marketplace_offering_plugin_options
+
+data_sources:
+  # Marketplace
+  order:
+    read:
+      path: /api/marketplace-orders/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - attributes
+        - offering_plugin_options
+
+  orders:
+    read:
+      path: /api/marketplace-orders/
+      method: GET
+    schema:
+      ignores:
+        - attributes
+        - offering_plugin_options
+
+  public_offering:
+    read:
+      path: /api/marketplace-public-offerings/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - attributes
+        - offering_plugin_options
+        - backend_metadata
+        - components.limit_period
+        - country
+        - plugin_options.account_name_generation_policy
+
+  public_offerings:
+    read:
+      path: /api/marketplace-public-offerings/
+      method: GET
+    schema:
+      ignores:
+        - attributes
+        - offering_plugin_options
+        - backend_metadata
+        - components.limit_period
+        - country
+        - plugin_options.account_name_generation_policy
+
+  # OpenStack
+  openstack_backup:
+    read:
+      path: /api/openstack-backups/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - instance_ports.security_groups.marketplace_offering_plugin_options
+        - instance_ports.security_groups.rules.protocol
+        - instance_security_groups.rules.protocol
+        - marketplace_offering_plugin_options
+        - metadata
+        - restorations.ports.security_groups.marketplace_offering_plugin_options
+        - restorations.ports.security_groups.rules.protocol
+        - restorations.security_groups.rules.protocol
+
+  openstack_flavor:
+    read:
+      path: /api/openstack-flavors/{uuid}/
+      method: GET
+
+  openstack_image:
+    read:
+      path: /api/openstack-images/{uuid}/
+      method: GET
+
+  openstack_instance_availability_zone:
+    read:
+      path: /api/openstack-instance-availability-zones/{uuid}/
+      method: GET
+
+  openstack_instance:
+    read:
+      path: /api/openstack-instances/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - action_details
+        - marketplace_offering_plugin_options
+        - ports.security_groups.marketplace_offering_plugin_options
+        - ports.security_groups.rules.protocol
+        - security_groups.rules.protocol
+
+  openstack_migration:
+    read:
+      path: /api/openstack-migrations/{uuid}/
+      method: GET
+
+  openstack_network_rbac_policy:
+    read:
+      path: /api/openstack-network-rbac-policies/{uuid}/
+      method: GET
+
+  openstack_network:
+    read:
+      path: /api/openstack-networks/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - marketplace_offering_plugin_options
+
+  openstack_port:
+    read:
+      path: /api/openstack-ports/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - marketplace_offering_plugin_options
+
+  openstack_router:
+    read:
+      path: /api/openstack-routers/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - marketplace_offering_plugin_options
+        - ports.security_groups.marketplace_offering_plugin_options
+        - ports.security_groups.rules.protocol
+
+  openstack_security_group:
+    read:
+      path: /api/openstack-security-groups/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - marketplace_offering_plugin_options
+        - rules.protocol
+
+  openstack_server_group:
+    read:
+      path: /api/openstack-server-groups/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - marketplace_offering_plugin_options
+        - policy
+        - rules.protocol
+
+  openstack_snapshot:
+    read:
+      path: /api/openstack-snapshots/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - action_details
+        - marketplace_offering_plugin_options
+        - metadata
+
+  openstack_subnet:
+    read:
+      path: /api/openstack-subnets/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - marketplace_offering_plugin_options
+
+  openstack_tenant:
+    read:
+      path: /api/openstack-tenants/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - marketplace_offering_plugin_options
+
+  openstack_volume_availability_zone:
+    read:
+      path: /api/openstack-volume-availability-zones/{uuid}/
+      method: GET
+
+  openstack_volume_type:
+    read:
+      path: /api/openstack-volume-types/{uuid}/
+      method: GET
+
+  openstack_volume:
+    read:
+      path: /api/openstack-volumes/{uuid}/
+      method: GET
+    schema:
+      ignores:
+        - action_details
+        - marketplace_offering_plugin_options
+        - metadata

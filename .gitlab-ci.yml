@@ -139,8 +139,6 @@ Try building docker image:
       changes:
         - Dockerfile
         - docker/**/*
-        # TODO: drop after testing
-        - .gitlab-ci.yml
   variables:
     DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
   script:
@@ -452,6 +450,24 @@ Generate Go SDK:
       - client.go
     expire_in: 1 day
 
+Generate Terraform SDK:
+  stage: deploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image: registry.hpc.ut.ee/mirror/library/golang:tip-alpine
+  needs:
+    - Generate OpenAPI schema
+  script: |
+    go install github.com/hashicorp/terraform-plugin-codegen-openapi/cmd/tfplugingen-openapi@latest
+    go install github.com/hashicorp/terraform-plugin-codegen-framework/cmd/tfplugingen-framework@latest
+    tfplugingen-openapi generate --output waldur-terraform-provider-spec.json --config terraform-generator-config.yaml waldur-openapi-schema.yaml
+    tfplugingen-framework generate all --input waldur-terraform-provider-spec.json --output terraform-sdk/
+  artifacts:
+    paths:
+      - terraform-sdk/
+    expire_in: 1 day
+
 Upload Go SDK:
   stage: postdeploy
   interruptible: true
@@ -501,6 +517,37 @@ Upload Python SDK:
     - rm -rf waldur_api_client && cp -a "$CI_PROJECT_DIR/py-client/waldur_api_client" waldur_api_client
     - git add waldur_api_client
     - git commit -m "Update Waldur Python SDK" || exit 0
+    - git push
+  before_script:
+    - echo "[+] Adding ssh keys to the home directory"
+    - mkdir -p ~/.ssh
+    - cat $SSH_JENKINS_GITHUB_PRIVATE_KEY | tr -d '\r' > ~/.ssh/id_rsa
+    - cat $SSH_JENKINS_GITHUB_PUBLIC_KEY | tr -d '\r' > ~/.ssh/id_rsa.pub
+    - chmod 600 ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa.pub
+    - ssh-keygen -lf ~/.ssh/id_rsa.pub
+    - ssh-keyscan -H "github.com" >> ~/.ssh/known_hosts
+    - git config --global user.email "ci@waldur.com"
+    - git config --global user.name "Waldur Gitlab Runner"
+
+Upload Terraform SDK:
+  stage: postdeploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image:
+    name: registry.hpc.ut.ee/mirror/alpine/git:latest
+    entrypoint: [""]
+  needs:
+    - Generate Terraform SDK
+  script:
+    - cd /tmp/
+    - git clone --branch main git@github.com:waldur/terraform-sdk.git
+    - cd terraform-sdk
+    - git pull
+    - rm -rf waldur_terraform_sdk && cp -a "$CI_PROJECT_DIR/terraform-sdk/" waldur_terraform_sdk
+    - git add waldur_terraform_sdk
+    - git commit -m "Update Waldur Terraform SDK" || exit 0
     - git push
   before_script:
     - echo "[+] Adding ssh keys to the home directory"
