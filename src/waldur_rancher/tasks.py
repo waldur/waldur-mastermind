@@ -775,7 +775,7 @@ def sync_rancher_group_bindings():
             local_project_groups = list(
                 models.KeycloakGroup.objects.filter(
                     role__settings=project.settings,
-                    role__scope_type=enums.RoleScopeType.CLUSTER,
+                    role__scope_type=enums.RoleScopeType.PROJECT,
                 )
             )
             # Create missing project groups in Rancher
