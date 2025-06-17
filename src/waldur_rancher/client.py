@@ -216,6 +216,11 @@ class RancherClient:
     def get_node(self, node_id) -> dict:
         return self._get(f"nodes/{node_id}")
 
+    def drain_node(self, node_id):
+        return self._post(
+            f"nodes/{node_id}", params={"action": "drain"}, json={"force": True}
+        )
+
     def get_kubeconfig_file(self, cluster_id):
         data = self._post(
             f"clusters/{cluster_id}", params={"action": "generateKubeconfig"}

@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 import traceback
 from typing import cast
 
@@ -161,6 +162,24 @@ class DeleteNodeTask(core_tasks.Task):
         user = User.objects.get(pk=user_id)
         vm = node.instance
 
+        backend = node.get_backend()
+        backend.drain_node(node)
+
+        timeout = 60  # seconds
+        start_time = time.time()
+        node_drain_status = None
+        while True:
+            node_drain_status = backend.get_node_drain_status(node)
+            if node_drain_status == "ok":
+                break
+            elif node_drain_status == "error":
+                raise exceptions.RancherException("Node drain failed.")
+
+            if time.time() - start_time > timeout:
+                raise exceptions.RancherException("Node drain timeout.")
+
+            time.sleep(5)
+
         if vm:
             view = MarketplaceInstanceViewSet.as_view({"delete": "force_destroy"})
             response = common_utils.delete_request(
@@ -173,7 +192,7 @@ class DeleteNodeTask(core_tasks.Task):
             if response.status_code != status.HTTP_202_ACCEPTED:
                 raise exceptions.RancherException(response.data)
         else:
-            backend = node.cluster.get_backend()
+            backend = node.get_backend()
             backend.delete_node(node)
 
 

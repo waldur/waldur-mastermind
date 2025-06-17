@@ -649,6 +649,24 @@ class RancherBackend(ServiceBackend):
 
         return node.save()
 
+    def drain_node(self, node: models.Node):
+        return self.client.drain_node(node.backend_id)
+
+    def get_node_drain_status(self, node: models.Node):
+        backend_node = self.client.get_node(node.backend_id)
+        conditions = backend_node.get("status", {}).get("conditions", [])
+        condition = next(
+            condition for condition in conditions if condition["type"] == "Drained"
+        )
+        if not condition:
+            return "unknown"
+        if condition["status"] == "True":
+            return "ok"
+        if condition["transitioning"]:
+            return "pending"
+        if condition["error"]:
+            return "error"
+
     def get_or_create_cluster_group_role(self, group_id, cluster_id, role):
         if not self.client.get_cluster_group_role(group_id, cluster_id, role):
             logger.info(
