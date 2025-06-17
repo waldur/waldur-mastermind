@@ -2178,6 +2178,14 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             "backend_id",
         )
 
+    def get_fields(self):
+        fields = super().get_fields()
+        for field in fields.values():
+            if hasattr(field, "fields"):
+                for subfield in field.fields.values():
+                    subfield.default = serializers.empty
+        return fields
+
     def _update_service_attributes(self, instance, validated_data):
         service_attributes = validated_data.pop("service_attributes", {})
         certificate = validated_data.get("secret_options", {}).get(
