@@ -722,11 +722,15 @@ class ClusterDeleteTest(test.APITransactionTestCase):
             user_id=self.fixture.owner.id,
         )
 
+    @mock.patch("waldur_rancher.backend.RancherBackend.client")
     @mock.patch("waldur_rancher.tasks.common_utils.delete_request")
     def test_when_cluster_is_deleted_instance_deletion_is_requested(
-        self, mock_delete_request
+        self, mock_delete_request, mock_client
     ):
         mock_delete_request.return_value = Response(status=status.HTTP_202_ACCEPTED)
+        mock_client.get_node.return_value = {
+            "status": {"conditions": [{"type": "Drained", "status": "True"}]}
+        }
         tasks.DeleteNodeTask().execute(self.fixture.node, user_id=self.fixture.owner.id)
         vm = self.fixture.node.instance
         self.assertEqual(mock_delete_request.call_count, 1)
@@ -738,6 +742,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
                 "query_params": {"delete_volumes": True},
             },
         )
+        mock_client.drain_node.assert_called_once_with(self.fixture.node.backend_id)
 
     @mock.patch("waldur_rancher.backend.RancherBackend.client")
     def test_if_instance_has_been_deleted_node_and_cluster_are_deleted(
