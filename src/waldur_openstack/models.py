@@ -258,6 +258,7 @@ class SecurityGroup(structure_models.BaseResource):
     rules: models.Manager["SecurityGroupRule"]
     ports: models.Manager["Port"]
     instances: models.Manager["Instance"]
+    id: int
 
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="security_groups"
@@ -341,6 +342,9 @@ class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
 
 
 class SecurityGroupRule(BaseSecurityGroupRule, LoggableMixin):
+    remote_group_id: int | None
+    security_group_id: int
+
     def __str__(self):
         return f"{self.security_group} ({self.protocol}): {self.cidr} ({self.from_port} -> {self.to_port})"
 

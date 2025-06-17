@@ -10,7 +10,11 @@ from waldur_openstack.executors import get_tenant_create_tasks
 from . import models, tasks
 
 
-def get_create_ports_tasks(src_tenant, dst_tenant, network_uuids=None):
+def get_create_ports_tasks(
+    src_tenant: openstack_models.Tenant,
+    dst_tenant: openstack_models.Tenant,
+    network_uuids=None,
+):
     creation_tasks = []
 
     src_networks = src_tenant.networks.all()

@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import cast
 
 from django.db import transaction
 from netaddr import IPNetwork
@@ -348,11 +349,11 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
 
         name = validated_data.pop("name", None) or src_resource.name
         description = validated_data.get("description") or src_resource.description
-        src_tenant: Tenant = src_resource.scope
+        src_tenant = cast(Tenant, src_resource.scope)
 
         dst_offering: Offering = validated_data.pop("dst_offering")
         dst_plan: Plan = validated_data.pop("dst_plan")
-        dst_settings: ServiceSettings = dst_offering.scope
+        dst_settings = cast(ServiceSettings, dst_offering.scope)
         dst_project = src_resource.project
 
         dst_tenant = Tenant.objects.create(
