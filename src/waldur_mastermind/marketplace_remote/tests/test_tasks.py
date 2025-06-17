@@ -5,6 +5,7 @@ from django.core import mail
 from django.core.exceptions import ObjectDoesNotExist
 from django.test import override_settings, testcases
 from django.utils import timezone
+from freezegun import freeze_time
 
 import respx
 from waldur_auth_social.models import ProviderChoices
@@ -821,3 +822,102 @@ class OfferingUserPullTaskTest(testcases.TransactionTestCase):
         # Verify we can still access the user through all_objects
         user = models.User.all_objects.get(username=self.deactivated_user.username)
         self.assertFalse(user.is_active, "User should be deactivated")
+
+
+@freeze_time("2024-01-01T00:00:00Z")
+class UsagePullTest(testcases.TransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.backend_id = uuid.uuid4().hex
+        self.resource.save()
+        self.resource.offering.type = PLUGIN_NAME
+        self.api_url = "https://example.com"
+        self.resource.offering.secret_options = {
+            "api_url": self.api_url,
+            "token": uuid.uuid4().hex,
+        }
+        self.resource.offering.save()
+        respx.start()
+
+    def tearDown(self):
+        respx.stop()
+        super().tearDown()
+        mock.patch.stopall()
+
+    def mock_component_usages(self, usages):
+        respx.get(
+            f"{self.api_url}/api/marketplace-component-usages/",
+            params={"resource_uuid": self.resource.backend_id},
+        ).respond(200, json=usages)
+
+    def mock_component_user_usages(self, usages):
+        respx.get(
+            f"{self.api_url}/api/marketplace-component-user-usages/",
+            params={
+                "resource_uuid": self.resource.backend_id,
+                "component_usage__billing_period": "2024-03-01",
+            },
+        ).respond(200, json=usages)
+
+    def test_component_usage_and_user_usage_are_created(self):
+        usage_data = {
+            "uuid": uuid.uuid4().hex,
+            "type": "cpu",
+            "usage": 100,
+            "description": "Test usage",
+            "created": "2024-03-01T00:00:00Z",
+            "date": "2024-04-01T00:00:00Z",
+            "recurring": False,
+            "billing_period": "2024-03-01",
+        }
+        user_usage_data = {
+            "username": "test_user",
+            "usage": 50,
+        }
+        user = UserFactory(username="test_user")
+        offering_user = models.OfferingUser.objects.create(
+            offering=self.resource.offering,
+            username="test_user",
+            user=user,
+        )
+        self.mock_component_usages([usage_data])
+        self.mock_component_user_usages([user_usage_data])
+        tasks.UsagePullTask().pull(self.resource)
+
+        component_usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+        )
+        user_usage = models.ComponentUserUsage.objects.get(
+            component_usage=component_usage,
+            username="test_user",
+        )
+        self.assertEqual(component_usage.usage, 100)
+        self.assertEqual(component_usage.description, "Test usage")
+        self.assertEqual(component_usage.backend_id, usage_data["uuid"])
+        self.assertEqual(user_usage.usage, 50)
+        self.assertEqual(user_usage.user, offering_user)
+
+    def test_invalid_usage_date_is_skipped(self):
+        """
+        Test that invalid usage dates are skipped.
+        """
+        usage_data = {
+            "uuid": uuid.uuid4().hex,
+            "type": "cpu",
+            "usage": 100,
+            "description": "Test usage",
+            "created": "2024-03-01T00:00:00Z",
+            "date": "2022-01-01T00:00:00Z",
+            "recurring": False,
+            "billing_period": "2024-03-01",
+        }
+        self.mock_component_usages([usage_data])
+
+        tasks.UsagePullTask().pull(self.resource)
+
+        self.assertFalse(
+            models.ComponentUsage.objects.filter(
+                resource=self.resource,
+            ).exists()
+        )
