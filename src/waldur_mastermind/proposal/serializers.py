@@ -3,6 +3,7 @@ from datetime import datetime
 
 from constance import config
 from django.db.models import Q
+from django.db.models.query import QuerySet
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
@@ -297,6 +298,8 @@ class ProposalReviewSerializer(
             return fields
         elif isinstance(self.instance, list):
             review = self.instance[0]
+        elif isinstance(self.instance, QuerySet):
+            review = self.instance.last()
         else:
             review: models.Review = self.instance
 

@@ -295,6 +295,12 @@ class ServiceAccountMixin(models.Model):
     )
 
 
+def filter_customers(user):
+    from waldur_mastermind.proposal.managers import get_connected_call_organizers
+
+    return Q(callmanagingorganisation__in=get_connected_call_organizers(user))
+
+
 class Customer(
     CustomerDetailsMixin,
     core_models.UuidMixin,
@@ -316,7 +322,7 @@ class Customer(
     class Permissions:
         customer_path = "self"
         project_path = "projects"
-        call_organizer_path = "callmanagingorganisation"
+        build_query = filter_customers
 
     accounting_start_date = models.DateTimeField(
         _("Start date of accounting"), default=timezone.now

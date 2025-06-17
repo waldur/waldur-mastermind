@@ -71,7 +71,7 @@ class CreateRbacPolicyTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_member_cannot_create_rbac_policy(self):
-        self.client.force_authenticate(getattr(self.fixture, "member"))
+        self.client.force_authenticate(self.fixture.member)
         payload = {
             "target_tenant": factories.TenantFactory.get_url(self.target_tenant),
             "policy_type": models.NetworkRBACPolicy.NetworkShareType.SHARED,

@@ -5,7 +5,7 @@ from rest_framework import status, test
 
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.fixtures import CallRole, ProposalRole
-from waldur_core.permissions.utils import add_user, has_user
+from waldur_core.permissions.utils import has_user
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models, tasks
 from waldur_mastermind.proposal.enums import CallStates, ProposalStates
@@ -18,7 +18,9 @@ class ProposalGetTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.ProposalFactory.get_url(self.fixture.proposal)
 
-    @data("staff", "call_manager", "proposal_creator", "reviewer_1")
+    @data(
+        "staff", "call_manager", "proposal_creator", "reviewer_1", "call_organizer_user"
+    )
     def test_proposal_should_be_visible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -56,7 +58,7 @@ class ProposalGetTest(test.APITransactionTestCase):
         )
         another_round = factories.RoundFactory(call=another_call)
         another_reviewer = structure_factories.UserFactory()
-        add_user(another_call, another_reviewer, CallRole.REVIEWER)
+        another_call.add_user(another_reviewer, CallRole.REVIEWER)
         another_proposal = factories.ProposalFactory(round=another_round)
         another_proposals_url = factories.ProposalFactory.get_url(another_proposal)
         return another_reviewer, another_proposals_url

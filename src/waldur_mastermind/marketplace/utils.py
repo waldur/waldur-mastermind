@@ -1349,11 +1349,15 @@ def order_should_not_be_reviewed_by_provider(order: models.Order):
             "auto_approve_remote_orders", False
         )
         # A service provider owner or a service manager is not required to approve an order manually
-        user_is_service_provider_owner = structure_permissions._has_owner_access(
-            user, offering.customer
+        user_is_service_provider_owner = (
+            offering.customer
+            and structure_permissions._has_owner_access(user, offering.customer)
         )
         user_is_service_provider_offering_manager = (
-            structure_permissions._has_service_manager_access(user, offering.customer)
+            offering.customer
+            and structure_permissions._has_service_manager_access(
+                user, offering.customer
+            )
             and offering.has_user(user)
         )
         # If any condition is not met, the order is requested for manual approval

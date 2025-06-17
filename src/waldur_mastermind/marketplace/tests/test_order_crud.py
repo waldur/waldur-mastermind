@@ -157,7 +157,7 @@ class OrderCreateTest(BaseOrderCreateTest):
         self.assertTrue(models.Order.objects.filter(created_by=user).exists())
 
     def test_user_cannot_create_order_in_project_is_expired(self):
-        user = getattr(self.fixture, "staff")
+        user = self.fixture.staff
         self.project.end_date = datetime.datetime(day=1, month=1, year=2020)
         self.project.save()
 

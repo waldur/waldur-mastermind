@@ -2,7 +2,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.permissions.fixtures import ProjectRole, ProposalRole
-from waldur_core.permissions.utils import add_user, has_user
+from waldur_core.permissions.utils import has_user
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal.enums import ProposalStates
@@ -43,7 +43,7 @@ class ManualApproveTest(test.APITransactionTestCase):
         user = UserFactory()
         self.fixture.call.default_project_role = ProjectRole.MEMBER
         self.fixture.call.save()
-        add_user(self.proposal, user, ProposalRole.MEMBER)
+        self.proposal.add_user(user, ProposalRole.MEMBER)
 
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.approve_url, {"allocation_comment": "done"})

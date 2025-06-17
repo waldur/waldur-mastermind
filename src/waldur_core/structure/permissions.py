@@ -56,22 +56,6 @@ def is_owner(request, view, obj=None, **kwargs):
         raise exceptions.PermissionDenied()
 
 
-def is_service_manager(request, view, obj=None, **kwargs):
-    if not obj:
-        return
-    customer = _get_customer(obj, **kwargs)
-    if not _has_service_manager_access(request.user, customer):
-        raise exceptions.PermissionDenied()
-
-
-def is_manager(request, view, obj=None, **kwargs):
-    if not obj:
-        return
-    project = _get_project(obj, **kwargs)
-    if not _has_manager_access(request.user, project):
-        raise exceptions.PermissionDenied()
-
-
 def is_administrator(request, view, obj=None, **kwargs):
     if not obj:
         return

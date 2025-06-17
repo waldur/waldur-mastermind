@@ -66,7 +66,7 @@ class PriceEstimateAPITest(test.APITransactionTestCase):
 
     @freeze_time("2017-11-01")
     def test_get_archive_price_estimate_for_customer(self):
-        self.client.force_authenticate(getattr(self.fixture, "staff"))
+        self.client.force_authenticate(self.fixture.staff)
         models.PriceEstimate.objects.filter(scope=self.fixture.customer).update(
             total=100
         )

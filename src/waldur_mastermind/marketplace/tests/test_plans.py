@@ -281,7 +281,7 @@ class PlanOrganizationGroupsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_staff_can_get_all_plans(self):
-        self.client.force_authenticate(getattr(self.fixture, "staff"))
+        self.client.force_authenticate(self.fixture.staff)
         url = factories.PlanFactory.get_provider_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
@@ -292,7 +292,7 @@ class PlanOrganizationGroupsTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
 
     def test_owner_can_get_his_plans(self):
-        self.client.force_authenticate(getattr(self.fixture, "owner"))
+        self.client.force_authenticate(self.fixture.owner)
         url = factories.PlanFactory.get_provider_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)

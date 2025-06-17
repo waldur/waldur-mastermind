@@ -316,7 +316,7 @@ class IssueCreateTest(IssueCreateBaseTest):
         )
 
     def test_backend_id_exists_in_issue_description_if_resource_has_been_passed(self):
-        self.client.force_authenticate(getattr(self.fixture, "staff"))
+        self.client.force_authenticate(self.fixture.staff)
         self.fixture.resource.backend_id = "resource backend ID"
         self.fixture.resource.save()
         payload = self._get_valid_payload(

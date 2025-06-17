@@ -152,7 +152,7 @@ class CustomerCreditUpdateTest(test.APITransactionTestCase):
 
     def test_logging_of_offering_changing(self):
         payload = {"offerings": [marketplace_factories.OfferingFactory.get_url()]}
-        self.client.force_authenticate(getattr(self.fixture, "staff"))
+        self.client.force_authenticate(self.fixture.staff)
         url = factories.CustomerCreditFactory.get_url(self.fixture.customer_credit)
         response = self.client.patch(url, payload)
         self.assertEqual(response.status_code, status.HTTP_200_OK)

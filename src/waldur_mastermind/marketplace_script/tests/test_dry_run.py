@@ -77,7 +77,7 @@ class DryRunTest(test.APITransactionTestCase):
     def test_async_dry_run(self, execute_script):
         output = self.offering.secret_options["create"]
         execute_script.return_value = output
-        user = getattr(self.fixture, "staff")
+        user = self.fixture.staff
         self.client.force_authenticate(user)
         data = {
             "plan": marketplace_factories.PlanFactory.get_url(self.fixture.plan),
