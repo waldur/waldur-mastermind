@@ -158,11 +158,11 @@ def get_tenant_create_tasks(tenant: models.Tenant, skip_connection_extnet=False)
         creation_tasks.append(NetworkCreateExecutor.as_signature(network))
         for subnet in network.subnets.all():
             creation_tasks.append(SubNetCreateExecutor.as_signature(subnet))
-    for security_group in tenant.security_groups.all():
-        if security_group.name != "default":
-            creation_tasks.append(
-                SecurityGroupCreateExecutor.as_signature(security_group)
-            )
+    security_groups = utils.reorder_security_groups_topologically(
+        list(tenant.security_groups.exclude(name="default"))
+    )
+    for security_group in security_groups:
+        creation_tasks.append(SecurityGroupCreateExecutor.as_signature(security_group))
     external_network_id = utils.get_external_network_id(tenant)
     if external_network_id and not skip_connection_extnet:
         creation_tasks.append(
