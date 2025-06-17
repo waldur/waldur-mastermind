@@ -9,6 +9,7 @@ from rest_framework.authtoken import models as authtoken_models
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.managers import GenericKeyMixin
+from waldur_core.core.models import User
 from waldur_core.permissions.mixins import PermissionMixin
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_scope_ids, get_user_ids
@@ -24,7 +25,7 @@ def build_filter(path, ids):
 T = TypeVar("T", bound=Model)
 
 
-def filter_queryset_for_user(queryset: QuerySet[T], user) -> QuerySet[T]:
+def filter_queryset_for_user(queryset: QuerySet[T], user: User) -> QuerySet[T]:
     def get_customer_subquery(path):
         if list_permission:
             connected_customers = get_connected_customers_by_permission(
@@ -42,12 +43,6 @@ def filter_queryset_for_user(queryset: QuerySet[T], user) -> QuerySet[T]:
         else:
             connected_projects = get_connected_projects(user)
         return build_filter(path, connected_projects)
-
-    def get_call_organizer_subquery(path):
-        from waldur_mastermind.proposal.managers import get_connected_call_organizers
-
-        connected_call_organizers = get_connected_call_organizers(user)
-        return build_filter(path, connected_call_organizers)
 
     if user is None or not user.is_authenticated or user.is_staff or user.is_support:
         return queryset
