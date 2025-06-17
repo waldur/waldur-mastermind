@@ -1,6 +1,7 @@
 import collections
 import logging
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import requests
 from celery.app import shared_task
@@ -13,6 +14,9 @@ from rest_framework import status
 from waldur_api_client.api.invoice_items import invoice_items_list
 from waldur_api_client.api.marketplace_component_usages import (
     marketplace_component_usages_list,
+)
+from waldur_api_client.api.marketplace_component_user_usages import (
+    marketplace_component_user_usages_list,
 )
 from waldur_api_client.api.marketplace_offering_users import (
     marketplace_offering_users_list,
@@ -39,6 +43,7 @@ from waldur_api_client.api.remote_eduteams import (
     remote_eduteams as get_remote_eduteams_user,
 )
 from waldur_api_client.errors import UnexpectedStatus
+from waldur_api_client.models import ComponentUserUsage
 from waldur_api_client.models.base_public_plan import BasePublicPlan
 from waldur_api_client.models.offering_component import OfferingComponent
 from waldur_api_client.models.project import Project
@@ -609,7 +614,6 @@ class UsagePullTask(BackgroundPullTask):
     def pull(self, local_resource: models.Resource, from_creation_date=False):
         """Pull resource usage either from 4 month ago or since resource creation date."""
         client = get_client_for_offering(local_resource.offering)
-
         today = datetime.today()
         if from_creation_date:
             start_date = month_start(local_resource.created)
@@ -617,13 +621,11 @@ class UsagePullTask(BackgroundPullTask):
             start_date = month_start(today - relativedelta(months=4))
 
         logger.info("Pulling resource %s usages from %s", local_resource, start_date)
-
         remote_usages = marketplace_component_usages_list.sync(
             client=client,
             resource_uuid=local_resource.backend_id,
             date_after=start_date.date(),
         )
-
         for remote_usage in remote_usages:
             try:
                 offering_component = models.OfferingComponent.objects.get(
@@ -646,13 +648,41 @@ class UsagePullTask(BackgroundPullTask):
                 "backend_id": remote_usage.uuid.hex,
             }
             plan_period = get_plan_period(local_resource, usage_date)
-            models.ComponentUsage.objects.update_or_create(
+            component_usage, _ = models.ComponentUsage.objects.update_or_create(
                 resource=local_resource,
                 component=offering_component,
                 plan_period=plan_period,
                 billing_period=remote_usage.billing_period,
                 defaults=defaults,
             )
+
+            remote_user_usages: list[ComponentUserUsage] | None = (
+                marketplace_component_user_usages_list.sync(
+                    client=client,
+                    resource_uuid=local_resource.backend_id,
+                    component_usage_billing_period=component_usage.billing_period,
+                )
+            )
+            if remote_user_usages:
+                for remote_user_usage in remote_user_usages:
+                    if not remote_user_usage.username:
+                        continue
+                    if not remote_user_usage.usage:
+                        usage = Decimal(0)
+                    else:
+                        usage = Decimal(remote_user_usage.usage)
+                    offering_user = models.OfferingUser.objects.filter(
+                        offering=local_resource.offering,
+                        username=remote_user_usage.username,
+                    ).first()
+                    models.ComponentUserUsage.objects.update_or_create(
+                        component_usage=component_usage,
+                        username=remote_user_usage.username,
+                        defaults={
+                            "usage": usage,
+                            "user": offering_user,
+                        },
+                    )
 
 
 class UsageListPullTask(BackgroundListPullTask):
