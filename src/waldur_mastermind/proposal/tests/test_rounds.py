@@ -47,6 +47,7 @@ class RoundGetTest(test.APITransactionTestCase):
     @data(
         "staff",
         "call_manager",
+        "call_organizer_user",
     )
     def test_round_should_be_visible(self, user):
         user = getattr(self.fixture, user)

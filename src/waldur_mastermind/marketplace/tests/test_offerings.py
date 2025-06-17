@@ -807,7 +807,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertTrue("type" in response.data)
 
     def test_validate_required_attribute(self):
-        user = getattr(self.fixture, "staff")
+        user = self.fixture.staff
         self.client.force_authenticate(user)
         url = factories.OfferingFactory.get_list_url()
         factories.ServiceProviderFactory(customer=self.customer)

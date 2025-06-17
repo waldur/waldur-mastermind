@@ -424,7 +424,7 @@ class CustomerStatsTest(test.APITransactionTestCase):
             name="nc_user_count",
             delta=5,
         )
-        user = getattr(self.fixture, "staff")
+        user = self.fixture.staff
         self.client.force_authenticate(user)
         response = self.client.get("/api/marketplace-stats/customer_member_count/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)

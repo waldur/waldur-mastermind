@@ -28,3 +28,8 @@ class CallManager(MixinManager):
 def get_connected_call_organizers(user):
     ctype = ContentType.objects.get_for_model(models.CallManagingOrganisation)
     return get_scope_ids(user, ctype)
+
+
+def get_connected_calls(user):
+    ctype = ContentType.objects.get_for_model(models.Call)
+    return get_scope_ids(user, ctype)

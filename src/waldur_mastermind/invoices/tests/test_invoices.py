@@ -417,7 +417,7 @@ class InvoicePaidTest(test.APITransactionTestCase):
         self.url = factories.InvoiceFactory.get_url(self.invoice, "paid")
 
     def test_staff_can_mark_invoice_as_paid(self):
-        self.client.force_authenticate(getattr(self.fixture, "staff"))
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.invoice.refresh_from_db()
@@ -432,7 +432,7 @@ class InvoicePaidTest(test.APITransactionTestCase):
     def test_staff_cannot_mark_invoice_as_paid_if_current_state_is_not_created(self):
         self.invoice.state = models.Invoice.States.PENDING
         self.invoice.save()
-        self.client.force_authenticate(getattr(self.fixture, "staff"))
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
@@ -441,7 +441,7 @@ class InvoicePaidTest(test.APITransactionTestCase):
             organization=self.invoice.customer, is_active=True
         )
 
-        self.client.force_authenticate(getattr(self.fixture, "staff"))
+        self.client.force_authenticate(self.fixture.staff)
         date = datetime.date.today()
         response = self.client.post(
             self.url, data={"date": date, "proof": dummy_image()}, format="multipart"
@@ -457,7 +457,7 @@ class InvoicePaidTest(test.APITransactionTestCase):
         )
 
     def test_do_not_create_payment_if_profile_does_not_exist(self):
-        self.client.force_authenticate(getattr(self.fixture, "staff"))
+        self.client.force_authenticate(self.fixture.staff)
         date = datetime.date.today()
         response = self.client.post(
             self.url, data={"date": date, "proof": dummy_image()}, format="multipart"
@@ -469,7 +469,7 @@ class InvoicePaidTest(test.APITransactionTestCase):
             organization=self.invoice.customer, is_active=True
         )
 
-        self.client.force_authenticate(getattr(self.fixture, "staff"))
+        self.client.force_authenticate(self.fixture.staff)
         date = datetime.date.today()
         response = self.client.post(self.url, data={"date": date}, format="multipart")
         self.assertEqual(response.status_code, status.HTTP_200_OK)

@@ -4,7 +4,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.utils.functional import cached_property
 
 from waldur_core.permissions import enums
-from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.models import Role
 from waldur_core.structure.tests import factories as structure_factories
@@ -42,7 +41,9 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
             self.call_organizer_role.add_permission(perm)
 
         CallRole.REVIEWER.add_permission(enums.PermissionEnum.LIST_PROPOSALS)
+        CallRole.REVIEWER.add_permission(enums.PermissionEnum.LIST_CALLS)
         self.call_organizer_role.add_permission(enums.PermissionEnum.CREATE_CALL)
+        self.call_organizer_role.add_permission(enums.PermissionEnum.LIST_CALLS)
 
     @cached_property
     def manager(self):
@@ -179,20 +180,20 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def reviewer_1(self):
         user = structure_factories.UserFactory()
         role = CallRole.REVIEWER
-        permissions_utils.add_user(self.call, user, role)
+        self.call.add_user(user, role)
         return user
 
     @cached_property
     def reviewer_2(self):
         user = structure_factories.UserFactory()
         role = CallRole.REVIEWER
-        permissions_utils.add_user(self.call, user, role)
+        self.call.add_user(user, role)
         return user
 
     @cached_property
     def call_manager(self):
         user = structure_factories.UserFactory()
         role = CallRole.MANAGER
-        permissions_utils.add_user(self.call, user, role)
-        permissions_utils.add_user(self.manager, user, role)
+        self.call.add_user(user, role)
+        self.manager.add_user(user, role)
         return user

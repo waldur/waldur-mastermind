@@ -23,10 +23,13 @@ from waldur_core.core.views import (
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProposalRole
-from waldur_core.permissions.utils import add_user, has_permission, permission_factory
+from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
-from waldur_core.structure.managers import get_connected_customers
+from waldur_core.structure.managers import (
+    filter_queryset_for_user,
+    get_connected_customers,
+)
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
 from waldur_mastermind.proposal import (
@@ -162,7 +165,10 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     queryset = models.Call.objects.all()
 
-    get_queryset = permissions_utils.queryset_factory(models.Call, ordering=["created"])
+    def get_queryset(self):
+        return filter_queryset_for_user(
+            super().get_queryset(), self.request.user
+        ).order_by("created")
 
     @extend_schema(
         methods=["get"],
@@ -469,9 +475,10 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     disabled_actions = ["update", "partial_update"]
     model = models.Proposal
 
-    get_queryset = permissions_utils.queryset_factory(
-        models.Proposal, path="round.call", created_by=True
-    )
+    def get_queryset(self):
+        return filter_queryset_for_user(
+            models.Proposal.objects.all(), self.request.user
+        ).order_by("created")
 
     def is_creator(request, view, obj=None):
         if not obj:
@@ -534,9 +541,8 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     submit_permissions = [is_creator]
 
     def perform_create(self, serializer):
-        proposal = serializer.save()
-        add_user(
-            proposal,
+        proposal: models.Proposal = serializer.save()
+        proposal.add_user(
             self.request.user,
             ProposalRole.MANAGER,
             created_by=self.request.user,
@@ -899,7 +905,8 @@ class RoundViewSet(ReadOnlyActionsViewSet):
     filterset_class = []
     filter_backends = (DjangoFilterBackend,)
 
-    get_queryset = permissions_utils.queryset_factory(models.Round, path="call")
+    def get_queryset(self):
+        return filter_queryset_for_user(models.Round.objects.all(), self.request.user)
 
     @extend_schema(
         description="Return list of reviewers for round.",

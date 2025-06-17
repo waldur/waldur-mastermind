@@ -74,6 +74,14 @@ class CallManagingOrganisation(
         return "call-managing-organisation"
 
 
+def filter_calls(user):
+    return Q(
+        manager__customer__callmanagingorganisation__in=managers.get_connected_call_organizers(
+            user
+        )
+    )
+
+
 class Call(
     TimeStampedModel,
     core_models.UuidMixin,
@@ -82,6 +90,7 @@ class Call(
     structure_models.StructureLoggableMixin,
     core_models.BackendMixin,
     core_models.SlugMixin,
+    PermissionMixin,
 ):
     class States(CallStates):
         pass
@@ -126,6 +135,7 @@ class Call(
     class Permissions:
         customer_path = "manager__customer"
         list_permission = PermissionEnum.LIST_CALLS
+        build_query = filter_calls
 
     def __str__(self):
         return f"{self.name} | {self.manager.customer}"
@@ -211,6 +221,14 @@ class CallResourceTemplate(
         return "proposal-call-resource-template"
 
 
+def filter_rounds(user):
+    return Q(
+        call__manager__customer__callmanagingorganisation__in=managers.get_connected_call_organizers(
+            user
+        )
+    )
+
+
 class Round(
     TimeStampedModel,
     core_models.UuidMixin,
@@ -285,6 +303,7 @@ class Round(
     class Permissions:
         customer_path = "call__manager__customer"
         list_permission = PermissionEnum.LIST_ROUNDS
+        build_query = filter_rounds
 
     def __str__(self):
         return f"{self.call.name} | {self.start_time} - {self.cutoff_time}"
@@ -319,7 +338,15 @@ class ProposalDocumentation(
 
 
 def filter_proposals(user):
-    return Q(created_by=user)
+    return (
+        Q(created_by=user)
+        | Q(
+            round__call__manager__customer__callmanagingorganisation__in=managers.get_connected_call_organizers(
+                user
+            )
+        )
+        | Q(round__call__in=managers.get_connected_calls(user))
+    )
 
 
 class Proposal(

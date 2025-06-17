@@ -2,9 +2,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.media.utils import dummy_image
-from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
-from waldur_core.permissions.utils import add_user
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
@@ -48,7 +46,7 @@ class CallGetTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProposalFixture()
 
     def test_staff_can_get_all_calls(self):
-        user = getattr(self.fixture, "staff")
+        user = self.fixture.staff
         self.client.force_authenticate(user)
         url = factories.CallFactory.get_protected_list_url()
         response = self.client.get(url)
@@ -56,12 +54,12 @@ class CallGetTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), 2)
 
     def test_call_manager_can_get_related_calls(self):
-        user = getattr(self.fixture, "call_manager")
+        user = self.fixture.call_manager
         self.client.force_authenticate(user)
         url = factories.CallFactory.get_protected_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.json()), 1)
+        self.assertEqual(len(response.json()), 2)
 
     @data(
         "user",
@@ -208,9 +206,7 @@ class CallDeleteTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProposalFixture()
         self.draft_call = self.fixture.new_call
         self.active_call = self.fixture.call
-        permissions_utils.add_user(
-            self.draft_call, self.fixture.call_manager, CallRole.MANAGER
-        )
+        self.draft_call.add_user(self.fixture.call_manager, CallRole.MANAGER)
 
     @data(
         "staff",
@@ -262,19 +258,15 @@ class CallActivateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProposalFixture()
         self.draft_call = self.fixture.new_call
         self.active_call = self.fixture.call
-        permissions_utils.add_user(
-            self.draft_call, self.fixture.call_manager, CallRole.MANAGER
-        )
+        self.draft_call.add_user(self.fixture.call_manager, CallRole.MANAGER)
 
     @data(
         "staff",
         "call_manager",
     )
     def test_user_can_activate_call_with_round_and_reviewer(self, user):
-        factories.RoundFactory(
-            call=self.draft_call,
-        )
-        add_user(self.draft_call, self.fixture.user, CallRole.REVIEWER)
+        factories.RoundFactory(call=self.draft_call)
+        self.draft_call.add_user(self.fixture.user, CallRole.REVIEWER)
         response = self.activate_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(self.draft_call.state, CallStates.ACTIVE)
@@ -329,9 +321,7 @@ class CallArchiveTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.draft_call = self.fixture.new_call
-        permissions_utils.add_user(
-            self.draft_call, self.fixture.call_manager, CallRole.MANAGER
-        )
+        self.draft_call.add_user(self.fixture.call_manager, CallRole.MANAGER)
 
     @data(
         "staff",
@@ -417,7 +407,7 @@ class RequestedOfferingsCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_validate_attributes(self):
-        user = getattr(self.fixture, "staff")
+        user = self.fixture.staff
         self.client.force_authenticate(user)
 
         payload = {
@@ -430,7 +420,7 @@ class RequestedOfferingsCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_attributes_are_not_required(self):
-        user = getattr(self.fixture, "staff")
+        user = self.fixture.staff
         self.client.force_authenticate(user)
 
         payload = {
@@ -542,3 +532,10 @@ class RequestedOfferingsDeleteTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         return self.client.delete(self.url)
+
+    def test_call_organizer_user_can_get_call_via_proposal_endpoint(self):
+        self.client.force_authenticate(self.fixture.call_organizer_user)
+        url = factories.CallFactory.get_protected_url(self.fixture.call)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["uuid"], self.fixture.call.uuid.hex)
