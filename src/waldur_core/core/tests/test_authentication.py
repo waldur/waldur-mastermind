@@ -1,3 +1,4 @@
+import jwt
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
@@ -7,6 +8,8 @@ from freezegun import freeze_time
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
+import httpx
+import respx
 from waldur_core.core.authentication import refresh_token
 from waldur_core.core.models import User
 
@@ -181,3 +184,104 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertTrue(b"Authentication method is disabled." in response.content)
+
+
+OIDC_SETTINGS = {
+    "OIDC_INTROSPECTION_URL": "http://oidc.example.com/introspect",
+    "OIDC_CLIENT_ID": "test-client",
+    "OIDC_CLIENT_SECRET": "test-secret",
+    "OIDC_USER_FIELD": "username",
+}
+
+
+VALID_JWT_PAYLOAD = {
+    "exp": 9999999999,  # Far future
+    "username": "test_user",
+    "sub": "1234567890",
+}
+
+VALID_JWT_TOKEN = jwt.encode(VALID_JWT_PAYLOAD, "test_secret")
+
+
+class OIDCAuthenticationTest(test.APITransactionTestCase):
+    @helpers.override_waldur_core_settings(**OIDC_SETTINGS)
+    @respx.mock
+    def test_successful_authentication(self):
+        """Test successful authentication with valid token and introspection response"""
+
+        respx.post("http://oidc.example.com/introspect").mock(
+            return_value=httpx.Response(
+                200, json={"active": True, "username": "test_user"}
+            )
+        )
+
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION=f"Bearer {VALID_JWT_TOKEN}",
+        )
+        self.assertEqual(response.data["username"], "test_user")
+
+    @helpers.override_waldur_core_settings(**OIDC_SETTINGS)
+    @respx.mock
+    def test_user_is_not_active(self):
+        respx.post("http://oidc.example.com/introspect").mock(
+            return_value=httpx.Response(
+                200, json={"active": False, "username": "test_user"}
+            )
+        )
+
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION=f"Bearer {VALID_JWT_TOKEN}",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @respx.mock
+    @helpers.override_waldur_core_settings(**OIDC_SETTINGS)
+    def test_expired_token(self):
+        """Test that authentication fails with expired JWT token"""
+        expired_payload = {
+            "exp": 1500000000,  # Past timestamp
+            "username": "test_user",
+        }
+        expired_token = jwt.encode(expired_payload, "test_secret")
+
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION=f"Bearer {expired_token}",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data["detail"], "Token has expired.")
+
+    @helpers.override_waldur_core_settings(**OIDC_SETTINGS)
+    @respx.mock
+    def test_user_created_if_not_exists(self):
+        """Test that a new user is created when they don't exist in the system"""
+        non_existent_username = "new_test_user"
+
+        # Create payload with new username
+        payload = {
+            "exp": 9999999999,
+            "username": non_existent_username,
+            "sub": "0987654321",
+        }
+        token = jwt.encode(payload, "test_secret")
+
+        respx.post("http://oidc.example.com/introspect").mock(
+            return_value=httpx.Response(
+                200, json={"active": True, "username": non_existent_username}
+            )
+        )
+
+        # Verify user doesn't exist before request
+        self.assertFalse(User.objects.filter(username=non_existent_username).exists())
+
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+
+        # Verify response and user creation
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["username"], non_existent_username)
+        self.assertTrue(User.objects.filter(username=non_existent_username).exists())
