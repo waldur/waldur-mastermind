@@ -418,10 +418,18 @@ class RancherClusterSerializer(
             "security_groups",
             "management_security_group",
             "public_ips",
+            "capacity",
+            "requested",
+            "kubernetes_version",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
-            + ("runtime_state",)
+            + (
+                "runtime_state",
+                "kubernetes_version",
+                "capacity",
+                "requested",
+            )
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
