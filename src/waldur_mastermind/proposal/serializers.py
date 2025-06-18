@@ -335,6 +335,30 @@ class ProposalReviewSerializer(
 
         return fields
 
+    def create(self, validated_data):
+        """
+        Prevent creating a duplicate review for the same proposal and reviewer, excluding rejected reviews.
+        """
+        reviewer = validated_data["reviewer"]
+        proposal = validated_data["proposal"]
+
+        existing_review = models.Review.objects.filter(
+            proposal=proposal,
+            reviewer=reviewer,
+            state__in=[
+                models.Review.States.SUBMITTED,
+                models.Review.States.CREATED,
+                models.Review.States.IN_REVIEW,
+            ],
+        ).exists()
+
+        if existing_review:
+            raise serializers.ValidationError(
+                _("Review already exists for this proposal and reviewer.")
+            )
+
+        return super().create(validated_data)
+
 
 class ReviewSubmitSerializer(serializers.ModelSerializer):
     class Meta:
