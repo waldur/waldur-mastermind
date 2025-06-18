@@ -283,7 +283,7 @@ class RancherClient:
             "projectroletemplatebindings",
             params={
                 "roleTemplateId": role,
-                "clusterId": project_id,
+                "projectId": project_id,
                 "groupPrincipalId": group_id,
             },
         )["data"]
