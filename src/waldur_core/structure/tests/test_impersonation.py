@@ -1,9 +1,10 @@
 from ddt import data, ddt
 from django.conf import settings
 from rest_framework import status, test
+from rest_framework.authtoken.models import Token
 
 from waldur_core.core import models as core_models
-from waldur_core.core.authentication import TokenAuthentication
+from waldur_core.core.authentication import ImpersonationAuthentication
 from waldur_core.logging import loggers
 from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories, fixtures
@@ -23,7 +24,7 @@ class ImpersonationTest(test.APITransactionTestCase):
     @data("staff")
     def test_impersonation_is_available_for_user(self, user):
         impersonator = getattr(self.fixture, user)
-        token = TokenAuthentication().get_model().objects.get(user=impersonator)
+        token = Token.objects.get(user=impersonator)
         self.client.credentials(
             **{
                 "HTTP_AUTHORIZATION": "Token " + token.key,
@@ -40,11 +41,11 @@ class ImpersonationTest(test.APITransactionTestCase):
     @data("staff")
     def test_impersonating_user_without_active_session_not_available(self, user):
         impersonator = getattr(self.fixture, user)
-        impersonator_token = (
-            TokenAuthentication().get_model().objects.get(user=impersonator)
-        )
+        impersonator_token = Token.objects.get(user=impersonator)
         token = (
-            TokenAuthentication().get_model().objects.get(user=self.impersonated_user)
+            ImpersonationAuthentication()
+            .get_model()
+            .objects.get(user=self.impersonated_user)
         )
         token.delete()
         self.client.credentials(
@@ -59,7 +60,7 @@ class ImpersonationTest(test.APITransactionTestCase):
     @data("user", "global_support")
     def test_impersonation_is_not_available_for_user(self, user):
         impersonator = getattr(self.fixture, user)
-        token = TokenAuthentication().get_model().objects.get(user=impersonator)
+        token = Token.objects.get(user=impersonator)
         self.client.credentials(
             **{
                 "HTTP_AUTHORIZATION": "Token " + token.key,
@@ -101,7 +102,7 @@ class ImpersonationTest(test.APITransactionTestCase):
         impersonator = self.fixture.staff
         self.impersonated_user.is_active = False
         self.impersonated_user.save()
-        token = TokenAuthentication().get_model().objects.get(user=impersonator)
+        token = Token.objects.get(user=impersonator)
         self.client.credentials(
             **{
                 "HTTP_AUTHORIZATION": "Token " + token.key,

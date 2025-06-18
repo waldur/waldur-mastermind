@@ -4,8 +4,8 @@ from django.conf import settings
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status
+from rest_framework.authtoken.models import Token
 
-from waldur_core.core.authentication import TokenAuthentication
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
@@ -100,7 +100,7 @@ class CommentCreateTest(base.BaseTest):
     def test_add_impersonator_name_to_description(self):
         staff = self.fixture.staff
         impersonated_user = self.fixture.global_support
-        token = TokenAuthentication().get_model().objects.get(user=staff)
+        token = Token.objects.get(user=staff)
         self.client.credentials(
             **{
                 "HTTP_AUTHORIZATION": "Token " + token.key,

@@ -7,8 +7,8 @@ from django.conf import settings
 from jira import Issue, User
 from jira.resources import IssueType, RequestType
 from rest_framework import status, test
+from rest_framework.authtoken.models import Token
 
-from waldur_core.core.authentication import TokenAuthentication
 from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests.factories import ResourceFactory
@@ -531,7 +531,7 @@ class IssueCreateTest(IssueCreateBaseTest):
         staff = self.fixture.staff
         impersonated_user = self.fixture.global_support
 
-        token = TokenAuthentication().get_model().objects.get(user=staff)
+        token = Token.objects.get(user=staff)
         self.client.credentials(
             **{
                 "HTTP_AUTHORIZATION": "Token " + token.key,

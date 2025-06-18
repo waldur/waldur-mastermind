@@ -119,8 +119,9 @@ MIDDLEWARE = (
 REST_FRAMEWORK = {
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "waldur_core.core.authentication.TokenAuthentication",
+        "waldur_core.core.authentication.ImpersonationAuthentication",
         "waldur_core.core.authentication.SessionAuthentication",
+        "waldur_core.core.authentication.OIDCAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_PARSER_CLASSES": [
@@ -153,7 +154,7 @@ REST_FRAMEWORK = {
 AUTHENTICATION_BACKENDS = (
     "axes.backends.AxesStandaloneBackend",
     "django.contrib.auth.backends.ModelBackend",
-    "waldur_core.core.authentication.AuthenticationBackend",
+    "waldur_core.core.authentication.AdminAuthenticationBackend",
 )
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -778,6 +779,26 @@ CONSTANCE_CONFIG = {
         ],
         "It is used in organization creation dialog in order to limit country choices to predefined set.",
         "country_list_field",
+    ),
+    "OIDC_INTROSPECTION_URL": (
+        "",
+        "OIDC introspection endpoint URL for validating access tokens.",
+    ),
+    "OIDC_CLIENT_ID": (
+        "",
+        "Client ID for authenticating against the introspection endpoint.",
+    ),
+    "OIDC_CLIENT_SECRET": (
+        "",
+        "Client secret for authenticating against the introspection endpoint.",
+    ),
+    "OIDC_USER_FIELD": (
+        "username",
+        "Field name from the introspection response to identify the user (e.g., 'username', 'email', 'client_id').",
+    ),
+    "OIDC_CACHE_TIMEOUT": (
+        300,
+        "Number of seconds to cache token introspection results.",
     ),
 }
 
