@@ -655,9 +655,16 @@ class RancherBackend(ServiceBackend):
     def get_node_drain_status(self, node: models.Node):
         backend_node = self.client.get_node(node.backend_id)
         conditions = backend_node.get("status", {}).get("conditions", [])
-        condition = next(
-            condition for condition in conditions if condition["type"] == "Drained"
-        )
+        try:
+            condition = next(
+                condition for condition in conditions if condition["type"] == "Drained"
+            )
+        except StopIteration:
+            logger.warning(
+                "Node %s does not have 'Drained' condition. ",
+                node.backend_id,
+            )
+            return "unknown"
         if not condition:
             return "unknown"
         if condition["status"] == "True":
