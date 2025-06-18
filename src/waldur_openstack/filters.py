@@ -331,6 +331,7 @@ class InstanceFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
         field_name="availability_zone__name"
     )
     attach_volume_uuid = django_filters.UUIDFilter(method="filter_attach_volume")
+    query = django_filters.CharFilter(method="filter_query")
 
     def filter_attach_volume(self, queryset, name, value):
         """
@@ -358,6 +359,16 @@ class InstanceFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
             )
             queryset = queryset.filter(availability_zone__in=nova_zones)
         return queryset
+
+    def filter_query(self, queryset, name, value):
+        """
+        This filter allows searching instances by name, internal IP, or external IP.
+        """
+        return queryset.filter(
+            Q(name__icontains=value)
+            | Q(ports__floating_ips__address__icontains=value)
+            | Q(ports__fixed_ips__icontains=value)
+        ).distinct()
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Instance
