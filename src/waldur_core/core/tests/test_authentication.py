@@ -1,4 +1,6 @@
+import httpx
 import jwt
+import respx
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
@@ -8,8 +10,6 @@ from freezegun import freeze_time
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
-import httpx
-import respx
 from waldur_core.core.authentication import refresh_token
 from waldur_core.core.models import User
 

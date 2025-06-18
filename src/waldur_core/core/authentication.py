@@ -2,6 +2,7 @@ import hashlib
 import logging
 from enum import Enum
 
+import httpx
 import jwt
 from django.conf import settings
 from django.core.cache import cache
@@ -23,7 +24,6 @@ from rest_framework.authentication import (
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import AuthenticationFailed
 
-import httpx
 import waldur_core.core.middleware
 import waldur_core.logging.middleware
 from waldur_core.core import models
