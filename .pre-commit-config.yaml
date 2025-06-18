@@ -14,6 +14,7 @@ repos:
       - id: ruff
         args:
           - --fix
+          - --unsafe-fixes
           - --exit-non-zero-on-fix
         files: ^src/
         exclude: src/waldur_core/server/base_settings.py

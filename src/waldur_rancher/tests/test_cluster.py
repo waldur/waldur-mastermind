@@ -4,7 +4,6 @@ from unittest import mock
 from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.response import Response
-
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests.factories import (
@@ -169,7 +168,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         mock_core_tasks.BackendMethodTask.return_value.si.assert_has_calls(
             [
                 mock.call(
-                    "waldur_rancher.cluster:%s" % cluster.id,
+                    f"waldur_rancher.cluster:{cluster.id}",
                     "create_cluster",
                     state_transition="begin_creating",
                 )
@@ -655,7 +654,7 @@ class ClusterUpdateTest(test.APITransactionTestCase):
         response = self.client.patch(self.url, {"name": "new-name"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_core_tasks.BackendMethodTask.return_value.si.assert_called_once_with(
-            "waldur_rancher.cluster:%s" % self.fixture.cluster.id,
+            f"waldur_rancher.cluster:{self.fixture.cluster.id}",
             "update_cluster",
             state_transition="begin_updating",
         )
@@ -668,7 +667,7 @@ class ClusterUpdateTest(test.APITransactionTestCase):
         response = self.client.patch(self.url, {"description": "description"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_core_tasks.StateTransitionTask.return_value.si.assert_called_once_with(
-            "waldur_rancher.cluster:%s" % self.fixture.cluster.id,
+            f"waldur_rancher.cluster:{self.fixture.cluster.id}",
             state_transition="begin_updating",
         )
 
@@ -697,7 +696,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         mock_core_tasks.BackendMethodTask.return_value.si.assert_called_once_with(
-            "waldur_rancher.cluster:%s" % self.fixture.cluster.id,
+            f"waldur_rancher.cluster:{self.fixture.cluster.id}",
             "delete_cluster",
             state_transition="begin_deleting",
         )
@@ -718,7 +717,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         mock_tasks.DeleteNodeTask.return_value.si.assert_called_once_with(
-            "waldur_rancher.node:%s" % self.fixture.node.id,
+            f"waldur_rancher.node:{self.fixture.node.id}",
             user_id=self.fixture.owner.id,
         )
 
@@ -729,7 +728,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
     ):
         mock_delete_request.return_value = Response(status=status.HTTP_202_ACCEPTED)
         mock_client.get_node.return_value = {
-            "status": {"conditions": [{"type": "Drained", "status": "True"}]}
+            "conditions": [{"type": "Drained", "status": "True"}]
         }
         tasks.DeleteNodeTask().execute(self.fixture.node, user_id=self.fixture.owner.id)
         vm = self.fixture.node.instance
