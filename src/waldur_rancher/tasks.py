@@ -688,6 +688,7 @@ def sync_rancher_group_bindings():
             item
             for item in remote_cluster_groups_all
             if item["groupPrincipalId"] is not None
+            and "keycloakoidc_group://" in item["groupPrincipalId"]
         ]
         remote_cluster_groups = {
             group["groupPrincipalId"]: group for group in remote_cluster_groups_filtered
@@ -749,6 +750,7 @@ def sync_rancher_group_bindings():
             item
             for item in remote_project_groups_all
             if item["groupPrincipalId"] is not None
+            and "keycloakoidc_group://" in item["groupPrincipalId"]
         ]
         remote_project_groups = {
             group["groupPrincipalId"]: group for group in remote_cluster_groups_filtered
