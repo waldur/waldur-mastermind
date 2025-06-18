@@ -19,6 +19,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView
 from drf_spectacular.utils import OpenApiExample, extend_schema
+from packaging import version
 from rest_framework import exceptions, generics, serializers, status, viewsets
 from rest_framework import mixins as rf_mixins
 from rest_framework import permissions as rf_permissions
@@ -28,7 +29,6 @@ from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
 
-from packaging import version
 from waldur_auth_social.models import IdentityProvider
 from waldur_core import __version__
 from waldur_core.core import WaldurExtension, models, permissions

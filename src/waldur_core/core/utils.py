@@ -15,6 +15,7 @@ from string import ascii_letters, digits
 
 import jwt
 import requests
+import textile
 from constance import config
 from django.apps import apps
 from django.conf import settings
@@ -33,9 +34,8 @@ from django.utils.crypto import get_random_string
 from requests.packages.urllib3 import exceptions
 from rest_framework.serializers import ValidationError
 from rest_framework.settings import api_settings
-
-import textile
 from ua_parser import user_agent_parser
+
 from waldur_core.structure.notifications import NOTIFICATIONS
 
 logger = logging.getLogger(__name__)
@@ -83,7 +83,7 @@ def pwgen(pw_len=16):
     digits that look similar -- just to avoid confusion.
     """
     return get_random_string(
-        pw_len, "abcdefghjkmnpqrstuvwxyz" "ABCDEFGHJKLMNPQRSTUVWXYZ" "23456789"
+        pw_len, "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     )
 
 

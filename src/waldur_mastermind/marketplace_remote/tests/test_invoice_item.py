@@ -1,12 +1,12 @@
 import datetime
 import uuid
 
+import respx
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
 from waldur_api_client.models.billing_unit import BillingUnit
 
-import respx
 from waldur_core.core.utils import month_end, month_start, serialize_instance
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem

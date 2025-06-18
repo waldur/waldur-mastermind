@@ -168,7 +168,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 # Never enforce `E501` (line length violations).
-lint.ignore = ["E501"]
+lint.ignore = ["E501", "UP031"]
 
 lint.select = [
   "E",   # pycodestyle
@@ -185,77 +185,11 @@ target-version = "py311"
 "src/waldur_core/permissions/print_permission_enums.py" = ["T201"]
 
 [tool.ruff.lint.isort]
-known-first-party = [
-  "admin_tools",
-  "azure",
-  "celery",
-  "cinderclient",
-  "constance",
-  "cryptography",
-  "dateutil",
-  "dbtemplates",
-  "ddt",
-  "digitalocean",
-  "django_filters",
-  "django_fsm",
-  "django",
-  "djangosaml2",
-  "docker",
-  "factory",
-  "fluent_dashboard",
-  "freezegun",
-  "glanceclient",
-  "google_auth_oauthlib",
-  "google",
-  "googleapiclient",
-  "httpagentparser",
-  "iptools",
-  "jira",
-  "jsoneditor",
-  "jwt",
-  "keystoneauth1",
-  "keystoneclient",
-  "kubernetes",
-  "libcloud",
-  "lxml",
-  "magic",
-  "mock_django",
-  "mock",
-  "model_utils",
-  "modeltranslation",
-  "msrest",
-  "netaddr",
-  "netfields",
-  "neutronclient",
-  "novaclient",
-  "oauthlib",
-  "PIL",
-  "pycountry",
-  "pydantic",
-  "python_freeipa",
-  "pytest",
-  "pyvat",
-  "pyVim",
-  "pyVmomi",
-  "requests",
-  "responses",
-  "rest_framework",
-  "reversion",
-  "saml2",
-  "six",
-  "tablib",
-  "urllib3",
-  "waldur_api_client",
-  "yaml",
-  "zammad_py",
-  "drf_spectacular",
-]
-
 section-order = [
   "future",
   "standard-library",
-  "first-party",
   "third-party",
+  "first-party",
   "local-folder",
 ]
 

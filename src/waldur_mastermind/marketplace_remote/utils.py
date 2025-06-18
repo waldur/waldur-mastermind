@@ -5,9 +5,11 @@ import uuid
 from collections import defaultdict
 from decimal import Decimal
 
+import httpx
 from django.core.files.base import ContentFile
 from django.db.models import Q
 from django.utils.dateparse import parse_datetime
+from httpx import TimeoutException
 from rest_framework.exceptions import ValidationError
 from waldur_api_client.api.marketplace_orders import (
     marketplace_orders_list,
@@ -61,8 +63,6 @@ from waldur_api_client.models.user_role_create_request import UserRoleCreateRequ
 from waldur_api_client.models.user_role_delete_request import UserRoleDeleteRequest
 from waldur_api_client.models.user_role_update_request import UserRoleUpdateRequest
 
-import httpx
-from httpx import TimeoutException
 from waldur_auth_social.models import ProviderChoices
 from waldur_core.core.client import get_waldur_client
 from waldur_core.core.utils import get_system_robot, validate_uuid

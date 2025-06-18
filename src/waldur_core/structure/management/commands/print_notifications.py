@@ -34,7 +34,7 @@ class Command(BaseCommand):
             for notification in sorted(
                 section, key=lambda notification: notification["path"]
             ):
-                print(f'### {key}.{notification["path"]}', end="\n\n")
+                print(f"### {key}.{notification['path']}", end="\n\n")
                 print(notification["description"], end="\n\n")
                 print("#### Templates", end="\n\n")
                 for template in notification["templates"]:

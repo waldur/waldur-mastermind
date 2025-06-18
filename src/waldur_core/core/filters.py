@@ -196,9 +196,9 @@ class ExternalFilterBackend(BaseFilterBackend):
 
     @classmethod
     def register(cls, external_filter):
-        assert isinstance(
-            external_filter, BaseFilterBackend
-        ), "Registered filter has to inherit BaseFilterBackend"
+        assert isinstance(external_filter, BaseFilterBackend), (
+            "Registered filter has to inherit BaseFilterBackend"
+        )
         if hasattr(cls, "_filters"):
             cls._filters.append(external_filter)
         else:

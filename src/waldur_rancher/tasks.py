@@ -7,10 +7,10 @@ from typing import cast
 import kubernetes
 import yaml
 from celery import shared_task
+from keycloak import exceptions as keycloak_exceptions
 from rest_framework import status
 from rest_framework.reverse import reverse
 
-from keycloak import exceptions as keycloak_exceptions
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates

@@ -2,13 +2,13 @@ import copy
 import logging
 from smtplib import SMTPException
 
+import html2text
 from celery import shared_task
 from constance import config
 from django.core import signing
 from django.template import Context, Template
 from django.template.loader import get_template
 
-import html2text
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import text2html

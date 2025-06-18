@@ -1,11 +1,11 @@
 import datetime
 from unittest import mock
 
+import httpx
+import respx
 from django.db import transaction
 from rest_framework.test import APITransactionTestCase
 
-import httpx
-import respx
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.logging.models import Event
 from waldur_core.structure.models import Customer, Project

@@ -3,16 +3,16 @@ import time
 from typing import cast
 from urllib.parse import parse_qs, urlparse
 
+import hvac
 import requests
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db.models import QuerySet
 from django.utils.functional import cached_property
-
-import hvac
 from hvac import exceptions as vault_exceptions
 from keycloak import KeycloakAdmin
 from keycloak import exceptions as keycloak_exceptions
+
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.media.utils import guess_image_extension
@@ -579,8 +579,7 @@ class RancherBackend(ServiceBackend):
                 return
 
         cluster.error_message = (
-            "The cluster is not connected with any "
-            "non-failed VM's with 'server' role."
+            "The cluster is not connected with any non-failed VM's with 'server' role."
         )
         cluster.runtime_state = "error"
         cluster.save()

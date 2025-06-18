@@ -2,10 +2,10 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from unittest import skip
 
+import respx
 from django.test import override_settings
 from rest_framework import test
 
-import respx
 from waldur_auth_social.models import ProviderChoices
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import ProjectRole

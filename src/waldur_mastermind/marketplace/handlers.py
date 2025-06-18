@@ -1,13 +1,13 @@
 import logging
 from decimal import Decimal
 
+import httpx
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import signals
 from django.utils.timezone import now
 
-import httpx
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.users import models as users_models

@@ -67,12 +67,12 @@ class MappedChoiceField(serializers.ChoiceField):
     def __init__(self, choice_mappings, **kwargs):
         super().__init__(**kwargs)
 
-        assert set(self.choices.keys()) == set(
-            choice_mappings.keys()
-        ), "Choices do not match mappings"
-        assert len(set(choice_mappings.values())) == len(
-            choice_mappings
-        ), "Mappings are not unique"
+        assert set(self.choices.keys()) == set(choice_mappings.keys()), (
+            "Choices do not match mappings"
+        )
+        assert len(set(choice_mappings.values())) == len(choice_mappings), (
+            "Mappings are not unique"
+        )
 
         self.mapped_to_model = choice_mappings
         self.model_to_mapped = {v: k for k, v in choice_mappings.items()}

@@ -4,6 +4,7 @@ import uuid
 from unittest import mock, skip
 from uuid import uuid4
 
+import respx
 from django.core.serializers.json import DjangoJSONEncoder
 from django.test import override_settings
 from rest_framework import status, test
@@ -11,7 +12,6 @@ from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 from waldur_api_client.models.public_offering_details import PublicOfferingDetails
 
-import respx
 from waldur_core.core.fields import StringUUID
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum

@@ -4,6 +4,7 @@ from unittest import mock
 from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.response import Response
+
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests.factories import (

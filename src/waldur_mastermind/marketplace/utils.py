@@ -12,6 +12,7 @@ from collections import defaultdict
 from enum import Enum
 from io import BytesIO
 
+import httpx
 from constance import config
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -28,7 +29,6 @@ from PIL import Image
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers, status
 
-import httpx
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils

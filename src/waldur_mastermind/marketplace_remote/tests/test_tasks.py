@@ -1,13 +1,13 @@
 import uuid
 from unittest import mock
 
+import respx
 from django.core import mail
 from django.core.exceptions import ObjectDoesNotExist
 from django.test import override_settings, testcases
 from django.utils import timezone
 from freezegun import freeze_time
 
-import respx
 from waldur_auth_social.models import ProviderChoices
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import format_text, serialize_instance

@@ -4,6 +4,7 @@ import logging
 import textwrap
 import uuid
 
+import httpx
 import reversion
 from constance import config
 from dateutil.relativedelta import relativedelta
@@ -44,7 +45,6 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import Serializer
 
-import httpx
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils

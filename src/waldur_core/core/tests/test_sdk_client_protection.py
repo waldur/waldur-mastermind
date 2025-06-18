@@ -1,3 +1,4 @@
+import respx
 from django.test import override_settings
 from rest_framework import test
 from waldur_api_client.api.marketplace_categories import marketplace_categories_list
@@ -5,7 +6,6 @@ from waldur_api_client.models.marketplace_categories_list_field_item import (
     MarketplaceCategoriesListFieldItem,
 )
 
-import respx
 from waldur_core.core.client import ClientValidationError, check_url, get_waldur_client
 from waldur_core.core.tests.dns_utils import (
     create_ssrf_dns_mock_with_error,

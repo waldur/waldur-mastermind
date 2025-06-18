@@ -42,7 +42,7 @@ class Command(BaseCommand):
             if description is not None and description != role.description:
                 self.stdout.write(
                     self.style.WARNING(
-                        f'Updating description of role {row["role"]} from {role.description} to {description}.'
+                        f"Updating description of role {row['role']} from {role.description} to {description}."
                     )
                 )
                 role.description = description
@@ -64,7 +64,7 @@ class Command(BaseCommand):
             if is_active is not None and role.is_active != is_active:
                 self.stdout.write(
                     self.style.WARNING(
-                        f'Updating is_active status of role {row["role"]} from {role.is_active} to {is_active}.'
+                        f"Updating is_active status of role {row['role']} from {role.is_active} to {is_active}."
                     )
                 )
                 role.is_active = is_active

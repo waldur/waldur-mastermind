@@ -1,11 +1,10 @@
 from io import BytesIO
 
 import magic
+from bs4 import BeautifulSoup
 from django.core import files
 from django.core.files.storage.base import Storage
 from rest_framework.reverse import reverse
-
-from bs4 import BeautifulSoup
 
 from . import models, utils
 

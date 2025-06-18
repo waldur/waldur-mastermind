@@ -530,15 +530,15 @@ class ConstanceSettingsSerializer(serializers.Serializer):
             else:
                 config_type = type(default)
             field_class = None
-            if config_type == str:
+            if config_type is str:
                 field_class = serializers.CharField
             if config_type == "image_field":
                 field_class = serializers.ImageField
             if config_type == "email_field":
                 field_class = serializers.EmailField
-            if config_type == int:
+            if config_type is int:
                 field_class = serializers.IntegerField
-            if config_type == bool:
+            if config_type is bool:
                 field_class = serializers.BooleanField
             if config_type == "dict_field":
                 field_class = DictSerializerField
@@ -557,7 +557,7 @@ class ConstanceSettingsSerializer(serializers.Serializer):
             if not field_class:
                 continue
             kwargs = dict(required=False)
-            if config_type == str:
+            if config_type is str:
                 kwargs["allow_blank"] = True
             if config_type == "image_field":
                 kwargs["allow_null"] = True

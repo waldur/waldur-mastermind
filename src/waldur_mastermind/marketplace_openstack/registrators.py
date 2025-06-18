@@ -27,6 +27,6 @@ class OpenStackTenantRegistrator(MarketplaceRegistrator):
         elif component_type == STORAGE_TYPE:
             return "storage"
         elif is_valid_volume_type_name(component_type):
-            return f'{component_type.replace("gigabytes_", "")} storage'
+            return f"{component_type.replace('gigabytes_', '')} storage"
         else:
             return plan_component.component.name

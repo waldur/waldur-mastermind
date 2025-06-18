@@ -4,13 +4,13 @@ import os
 import tempfile
 from enum import Enum
 
-import docker
 import kubernetes as k8s
 from constance import config
-from docker.errors import ContainerError, DockerException
 from kubernetes.client.rest import ApiException
 from rest_framework import serializers as rf_serializers
 
+import docker
+from docker.errors import ContainerError, DockerException
 from waldur_kubernetes import backend as kubernetes_backend
 
 from . import serializers

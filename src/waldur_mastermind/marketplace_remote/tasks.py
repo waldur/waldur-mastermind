@@ -9,6 +9,7 @@ from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import dateparse, timezone
+from httpx import TimeoutException
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import status
 from waldur_api_client.api.invoice_items import invoice_items_list
@@ -55,7 +56,6 @@ from waldur_api_client.models.user_role_create_request import UserRoleCreateRequ
 from waldur_api_client.models.user_role_delete_request import UserRoleDeleteRequest
 from waldur_api_client.models.user_role_update_request import UserRoleUpdateRequest
 
-from httpx import TimeoutException
 from waldur_core.core.client import ClientValidationError, get_waldur_client
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import (

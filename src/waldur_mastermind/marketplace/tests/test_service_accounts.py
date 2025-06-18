@@ -1,8 +1,8 @@
+import httpx
+import respx
 from ddt import data, ddt
 from rest_framework import status, test
 
-import httpx
-import respx
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (

@@ -1,12 +1,12 @@
 import logging
 from enum import Enum
 
+import stomp
 from django.apps import apps
 from django.conf import settings
 from django.db.models import QuerySet
-
-import stomp
 from paho.mqtt import publish as mqtt_publish
+
 from waldur_core.logging import backend, models
 from waldur_core.logging.mixins import LoggableMixin
 

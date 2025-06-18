@@ -2,12 +2,12 @@ import uuid
 from datetime import date
 from unittest import mock
 
+import respx
 from django.test import override_settings
 from django.urls import reverse
 from freezegun import freeze_time
 from rest_framework import status, test
 
-import respx
 from waldur_core.core import middleware
 from waldur_core.core.enums import ReviewStates
 from waldur_core.permissions.enums import PermissionEnum

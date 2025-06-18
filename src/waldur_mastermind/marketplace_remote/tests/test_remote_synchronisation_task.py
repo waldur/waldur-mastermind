@@ -3,9 +3,9 @@ import os
 import uuid
 from unittest import mock
 
+import respx
 from rest_framework import test
 
-import respx
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories

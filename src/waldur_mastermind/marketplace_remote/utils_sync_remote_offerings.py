@@ -2,6 +2,7 @@ import logging
 
 from django.db.models.query import QuerySet
 from django.utils import timezone
+from httpx import TimeoutException
 from waldur_api_client.api.marketplace_categories import marketplace_categories_list
 from waldur_api_client.errors import UnexpectedStatus
 from waldur_api_client.models.marketplace_categories_list_field_item import (
@@ -9,7 +10,6 @@ from waldur_api_client.models.marketplace_categories_list_field_item import (
 )
 from waldur_api_client.models.public_offering_details import PublicOfferingDetails
 
-from httpx import TimeoutException
 from waldur_core.core.client import get_waldur_client
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import OfferingStates

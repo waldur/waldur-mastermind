@@ -2,8 +2,8 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
-
 from keycloak import exceptions as keycloak_exceptions
+
 from waldur_core.core.enums import CoreStates
 from waldur_rancher.exceptions import RancherException
 

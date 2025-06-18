@@ -10,7 +10,7 @@ class Command(BaseCommand):
         print("# Features", end="\n\n")
         for section in sorted(FEATURES, key=lambda section: section["key"]):
             for feature in sorted(section["items"], key=lambda section: section["key"]):
-                print(f'## {section["key"]}.{feature["key"]}')
+                print(f"## {section['key']}.{feature['key']}")
                 print()
                 print(feature["description"])
                 print()

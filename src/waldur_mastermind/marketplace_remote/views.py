@@ -2,6 +2,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema
+from httpx import TimeoutException
 from rest_framework import permissions as rf_permissions
 from rest_framework import status
 from rest_framework.decorators import action
@@ -22,7 +23,6 @@ from waldur_api_client.models.marketplace_public_offerings_list_field_item impor
     MarketplacePublicOfferingsListFieldItem,
 )
 
-from httpx import TimeoutException
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
 from waldur_core.core.client import get_waldur_client

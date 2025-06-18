@@ -19,7 +19,7 @@ class Command(BaseCommand):
             print(f"\nexport enum {title} {{")
 
             for feature in sorted(section["items"], key=lambda section: section["key"]):
-                print(f'  {feature["key"]} = \'{section_key}.{feature["key"]}\',')
+                print(f"  {feature['key']} = '{section_key}.{feature['key']}',")
             print("}")
         print()
         print("export type FeaturesEnum =")

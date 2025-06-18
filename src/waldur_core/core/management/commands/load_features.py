@@ -17,7 +17,7 @@ class Command(DryRunCommand):
 
     def handle(self, *args, **options):
         valid_features = {
-            f'{section["key"]}.{feature["key"]}'
+            f"{section['key']}.{feature['key']}"
             for section in FEATURES
             for feature in section["items"]
         }
@@ -28,7 +28,7 @@ class Command(DryRunCommand):
             if invalid_features:
                 self.stdout.write(
                     self.style.WARNING(
-                        f'Invalid features detected: {", ".join(invalid_features)}'
+                        f"Invalid features detected: {', '.join(invalid_features)}"
                     )
                 )
 

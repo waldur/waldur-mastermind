@@ -84,7 +84,7 @@ class SmaxServiceBackend(SupportBackend):
             ).backend_id
 
         if issue.resource:
-            if type(issue.resource) == marketplace_models.Order:
+            if isinstance(issue.resource, marketplace_models.Order):
                 resource_name = issue.resource.resource.name
             else:
                 resource_name = issue.resource.name

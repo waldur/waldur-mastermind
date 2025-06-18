@@ -5,6 +5,7 @@ from typing import cast
 from rest_framework import serializers as rf_serializers
 from rest_framework import status
 from rest_framework.reverse import reverse
+
 from waldur_core.core.models import User
 from waldur_core.core.utils import get_system_robot
 from waldur_core.structure.models import Customer, Project, ServiceSettings
