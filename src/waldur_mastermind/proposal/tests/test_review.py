@@ -78,6 +78,20 @@ class ReviewCreateTest(test.APITransactionTestCase):
         response = self.create(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    @data("staff", "call_manager")
+    def test_user_cannot_add_duplicate_reviews(self, user):
+        response = self.create(user)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.Review.objects.filter(uuid=response.data["uuid"]).exists()
+        )
+        # Try to create the same review again
+        response = self.create(user)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Review already exists for this proposal and reviewer", response.data[0]
+        )
+
     def create(self, user, **kwargs):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -87,7 +101,7 @@ class ReviewCreateTest(test.APITransactionTestCase):
                 self.fixture.proposal_submitted
             ),
             "reviewer": structure_factories.UserFactory.get_url(
-                self.fixture.reviewer_1
+                self.fixture.reviewer_2
             ),
         }
         payload.update(kwargs)
