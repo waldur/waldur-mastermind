@@ -430,7 +430,7 @@ class RancherBackend(ServiceBackend):
                 self.client.delete_cluster(cluster.backend_id)
             except NotFound:
                 logger.debug(
-                    "Cluster %s is not present in the backend " % cluster.backend_id
+                    "Cluster %s is not present in the backend ", cluster.backend_id
                 )
 
         cluster.delete()
@@ -440,7 +440,7 @@ class RancherBackend(ServiceBackend):
             try:
                 self.client.delete_node(node.backend_id)
             except NotFound:
-                logger.debug("Node %s is not present in the backend " % node.backend_id)
+                logger.debug("Node %s is not present in the backend ", node.backend_id)
         node.delete()
 
     def update_cluster(self, cluster: models.Cluster):
@@ -460,7 +460,15 @@ class RancherBackend(ServiceBackend):
             cluster.name = backend_cluster["name"]
             cluster.runtime_state = backend_cluster["state"]
             cluster.kubernetes_version = backend_cluster["version"]["gitVersion"]
-            cluster.capacity = backend_cluster["capacity"]
+            capacity: dict = backend_cluster["capacity"]
+            mem_capacity_raw = capacity.pop(
+                "memory", "0Ki"
+            )  # The API returns memory data in KB
+            mem_capacity_kb = mem_capacity_raw.replace("Ki", "")
+            capacity["memory"] = (
+                f"{int(mem_capacity_kb) // 1024}Mi"  # convert to MB and save
+            )
+            cluster.capacity = capacity
             cluster.requested = backend_cluster["requested"]
 
     def _cluster_to_backend_cluster(self, cluster: models.Cluster):
@@ -1375,7 +1383,7 @@ class RancherBackend(ServiceBackend):
         try:
             self.client.delete_hpa(hpa.project.backend_id, hpa.backend_id)
         except NotFound:
-            logger.debug("HPA %s is not present in the backend." % hpa.backend_id)
+            logger.debug("HPA %s is not present in the backend.", hpa.backend_id)
 
     def get_hpa_yaml(self, hpa: models.HPA):
         if not hpa.project:
@@ -1515,7 +1523,7 @@ class RancherBackend(ServiceBackend):
                 app.rancher_project.backend_id, app.backend_id
             )
         except NotFound:
-            logger.debug("App %s is not present in the backend." % app.backend_id)
+            logger.debug("App %s is not present in the backend.", app.backend_id)
 
     def pull_ingresses(self):
         local_clusters = models.Cluster.objects.filter(settings=self.settings)
