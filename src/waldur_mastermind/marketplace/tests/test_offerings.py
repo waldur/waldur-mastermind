@@ -2463,6 +2463,29 @@ class ListCustomerProjectsTest(test.APITransactionTestCase):
         )
         return self.client.get(url)
 
+    @data("staff", "offering_owner")
+    def test_list_customer_projects_pagination(self, user):
+        import uuid
+
+        from waldur_core.structure.tests.factories import ProjectFactory
+
+        for i in range(15):
+            project = ProjectFactory(customer=self.fixture.project.customer)
+            self.fixture.resource.pk = None
+            self.fixture.resource.project = project
+            self.fixture.resource.uuid = uuid.uuid4()  # Ensure unique UUID
+            self.fixture.resource.save()
+        response = self.get_list_customer_projects(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+        # Waldur pagination: response body is a list, pagination info is in headers
+        self.assertIsInstance(data, list)
+        self.assertLessEqual(len(data), 10)  # default page size is 10
+        headers = dict(response.headers)
+        self.assertIn("X-Result-Count", headers)
+        self.assertGreaterEqual(int(headers["X-Result-Count"]), 15)
+        self.assertIn("Link", headers)
+
 
 @ddt
 class ListCustomerUsersTest(test.APITransactionTestCase):
@@ -2490,6 +2513,25 @@ class ListCustomerUsersTest(test.APITransactionTestCase):
             self.fixture.offering, "list_customer_users"
         )
         return self.client.get(url)
+
+    @data("staff", "offering_owner")
+    def test_list_customer_users_pagination(self, user):
+        from waldur_core.structure.tests.factories import UserFactory
+
+        project = self.fixture.project
+        for i in range(15):
+            user_obj = UserFactory()
+            project.add_user(user_obj, ProjectRole.ADMIN)
+        response = self.get_list_customer_users(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+        # Waldur pagination: response body is a list, pagination info is in headers
+        self.assertIsInstance(data, list)
+        self.assertLessEqual(len(data), 10)  # default page size is 10
+        headers = dict(response.headers)
+        self.assertIn("X-Result-Count", headers)
+        self.assertGreaterEqual(int(headers["X-Result-Count"]), 15)
+        self.assertIn("Link", headers)
 
 
 class ResourceOfferingsViewSetTest(test.APITransactionTestCase):

@@ -1,3 +1,5 @@
+import unittest
+
 import httpx
 import respx
 from ddt import data, ddt
@@ -558,6 +560,45 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
         self.assertIn("Maximum number of service accounts", response.data["detail"])
+
+    def test_list_project_service_accounts_pagination(self):
+        # Create more project service accounts than the default page size (assume 10)
+        project = self.fixture.project
+        for i in range(15):
+            factories.ProjectServiceAccountFactory(project=project)
+        self.client.force_authenticate(self.fixture.provider_owner)
+        url = factories.OfferingFactory.get_url(
+            self.fixture.offering, action="list_project_service_accounts"
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+        self.assertIsInstance(data, list)
+        self.assertLessEqual(len(data), 10)  # default page size is 10
+        headers = dict(response.headers)
+        self.assertIn("X-Result-Count", headers)
+        self.assertGreaterEqual(int(headers["X-Result-Count"]), 15)
+        self.assertIn("Link", headers)
+
+    @unittest.skip("SPs cannot see service accounts yet")
+    def test_list_customer_service_accounts_pagination(self):
+        # Create more customer service accounts than the default page size (assume 10)
+        customer = self.fixture.offering_customer
+        for i in range(15):
+            factories.CustomerServiceAccountFactory(customer=customer)
+        self.client.force_authenticate(self.fixture.provider_owner)
+        url = factories.OfferingFactory.get_url(
+            self.fixture.offering, action="list_customer_service_accounts"
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+        self.assertIsInstance(data, list)
+        self.assertLessEqual(len(data), 10)  # default page size is 10
+        headers = dict(response.headers)
+        self.assertIn("X-Result-Count", headers)
+        self.assertGreaterEqual(int(headers["X-Result-Count"]), 15)
+        self.assertIn("Link", headers)
 
 
 @override_waldur_core_settings(

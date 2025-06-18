@@ -2101,13 +2101,13 @@ class ProviderOfferingViewSet(
             .values_list("project_id", flat=True)
         )
         projects = structure_models.Project.objects.filter(id__in=project_ids)
+        page = self.paginate_queryset(projects)
         serializer = structure_serializers.ProjectSerializer(
-            instance=projects, many=True, context={"request": request}
+            instance=page,
+            many=True,
+            context={"request": request},
         )
-        return Response(
-            status=status.HTTP_200_OK,
-            data=serializer.data,
-        )
+        return self.get_paginated_response(serializer.data)
 
     @extend_schema(
         responses=structure_serializers.UserSerializer(many=True),
@@ -2125,13 +2125,13 @@ class ProviderOfferingViewSet(
         ctype = ContentType.objects.get_for_model(structure_models.Project)
         user_ids = get_user_ids(ctype, project_ids)
         users = core_models.User.objects.filter(id__in=user_ids)
+        page = self.paginate_queryset(users)
         serializer = structure_serializers.UserSerializer(
-            instance=users, many=True, context={"request": request}
+            instance=page,
+            many=True,
+            context={"request": request},
         )
-        return Response(
-            status=status.HTTP_200_OK,
-            data=serializer.data,
-        )
+        return self.get_paginated_response(serializer.data)
 
     list_customer_projects_permissions = list_customer_users_permissions = [
         structure_permissions.is_owner
@@ -2191,13 +2191,13 @@ class ProviderOfferingViewSet(
         service_accounts = models.CustomerServiceAccount.objects.filter(
             customer_id__in=customer_ids,
         )
+        page = self.paginate_queryset(service_accounts)
         serializer = serializers.CustomerServiceAccountSerializer(
-            instance=service_accounts, many=True, context={"request": request}
+            instance=page,
+            many=True,
+            context={"request": request},
         )
-        return Response(
-            status=status.HTTP_200_OK,
-            data=serializer.data,
-        )
+        return self.get_paginated_response(serializer.data)
 
     @action(detail=True, methods=["get"])
     def list_project_service_accounts(self, request, uuid=None):
@@ -2213,13 +2213,13 @@ class ProviderOfferingViewSet(
         service_accounts = models.ProjectServiceAccount.objects.filter(
             project_id__in=project_ids,
         )
+        page = self.paginate_queryset(service_accounts)
         serializer = serializers.ProjectServiceAccountSerializer(
-            instance=service_accounts, many=True, context={"request": request}
+            instance=page,
+            many=True,
+            context={"request": request},
         )
-        return Response(
-            status=status.HTTP_200_OK,
-            data=serializer.data,
-        )
+        return self.get_paginated_response(serializer.data)
 
     @extend_schema(
         request=serializers.MoveOfferingSerializer,
