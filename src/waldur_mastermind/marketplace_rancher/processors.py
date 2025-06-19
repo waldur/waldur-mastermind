@@ -462,7 +462,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             data_volume_type_name = self.order.offering.plugin_options.get(
                 "managed_rancher_load_balancer_data_volume_type_name"
             )
-            cloud_init_template = self.order.offering.plugin_options.get(
+            cloud_init_template = self.order.offering.secret_options.get(
                 "managed_rancher_load_balancer_cloud_init_template"
             )
 
