@@ -1,7 +1,12 @@
+from unittest import mock
+
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.policy import models
+from waldur_mastermind.policy.models import ProjectEstimatedCostPolicy
 from waldur_mastermind.policy.tests import factories
 
 
@@ -54,3 +59,28 @@ class TestCostPolicyDeletionHandler(test.APITransactionTestCase):
         self.assertTrue(
             models.ProjectEstimatedCostPolicy.objects.filter(id=self.policy.id).exists()
         )
+
+
+class TestIsMockedSkipsPolicyCheck(test.APITransactionTestCase):
+    def setUp(self):
+        self.project = structure_factories.ProjectFactory()
+        self.policy = factories.ProjectEstimatedCostPolicyFactory(scope=self.project)
+
+    def test_is_mocked_skips_policy_check(self):
+        with mock.patch.object(
+            ProjectEstimatedCostPolicy,
+            "get_scope_from_observable_object",
+            return_value=None,
+        ) as actions_mock:
+            resource = marketplace_models.Resource(
+                project=self.project, offering=marketplace_factories.OfferingFactory()
+            )
+            resource.is_mocked = True
+            resource.save()
+            actions_mock.assert_not_called()
+
+            new_resource = marketplace_models.Resource(
+                project=self.project, offering=marketplace_factories.OfferingFactory()
+            )
+            new_resource.save()
+            actions_mock.assert_called_once()

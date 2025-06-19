@@ -398,6 +398,27 @@ class ProjectCreditTest(test.APITransactionTestCase):
                 self.project_credit.consumption_last_month, consumption_last_month
             )
 
+    def test_project_credits_with_minimal_consumption(self):
+        self.project_credit.apply_as_minimal_consumption = True
+        self.project_credit.expected_consumption = 100
+        self.project_credit.grace_coefficient = 50
+        self.project_credit.save()
+        old_project_credit_value = self.project_credit.value
+        tasks.process_invoice_credits(self.invoice)
+        self.project_credit.refresh_from_db()
+        self.assertTrue(self.project_credit.value < old_project_credit_value)
+
+        with freeze_time("2024-02-01"):
+            consumption_last_month = (
+                self.invoice.items.filter(credit=self.customer_credit).aggregate(
+                    sum=Sum("unit_price")
+                )["sum"]
+                * -1
+            )
+            self.assertEqual(
+                self.project_credit.consumption_last_month, consumption_last_month
+            )
+
     def test_use_organisation_credit(self):
         old_customer_credit_value = self.customer_credit.value
         tasks.process_invoice_credits(self.invoice)
