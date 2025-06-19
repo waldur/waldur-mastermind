@@ -66,6 +66,10 @@ def get_estimated_cost_policy_handler_for_observable_class(klass, observable_cla
             return
 
         observable_object = instance
+
+        if getattr(observable_object, "is_mocked", False):
+            return
+
         policies = klass.objects.filter(
             scope=klass.get_scope_from_observable_object(observable_object)
         )

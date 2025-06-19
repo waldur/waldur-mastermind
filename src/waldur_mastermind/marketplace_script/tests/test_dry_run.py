@@ -101,3 +101,67 @@ class DryRunTest(test.APITransactionTestCase):
         dry_run.refresh_from_db()
         self.assertEqual(dry_run.output, output)
         self.assertFalse(dry_run.order)
+
+    def test_async_dry_run_does_not_trigger_policy_evaluation(self, execute_script):
+        from waldur_mastermind.policy.handlers import utils as policy_utils
+        from waldur_mastermind.policy.tests import factories as policy_factories
+
+        execute_script.return_value = "test output"
+
+        # Patch policy evaluation
+        with mock.patch.object(
+            policy_utils, "evaluate_policies"
+        ) as evaluate_policies_mock:
+            # Setup: create a project and attach a policy
+            project = self.fixture.project
+            policy_factories.ProjectEstimatedCostPolicyFactory(scope=project)
+
+            # Authenticate as a user with dry-run permission
+            user = self.fixture.staff
+            self.client.force_authenticate(user)
+
+            # Prepare async dry-run data
+            data = {
+                "plan": marketplace_factories.PlanFactory.get_url(self.fixture.plan),
+                "type": "Create",
+                "attributes": {"option1": "value1"},
+            }
+
+            # Call the async dry-run API
+            response = self.client.post(self.async_url, data=data)
+            self.assertEqual(202, response.status_code)
+
+            # Assert that policy evaluation was NOT triggered
+            evaluate_policies_mock.assert_not_called()
+
+    def test_dry_run_does_not_trigger_policy_evaluation(self, execute_script):
+        from waldur_mastermind.policy.handlers import utils as policy_utils
+        from waldur_mastermind.policy.tests import factories as policy_factories
+
+        execute_script.return_value = "test output"
+
+        # Patch policy evaluation
+        with mock.patch.object(
+            policy_utils, "evaluate_policies"
+        ) as evaluate_policies_mock:
+            # Setup: create a project and attach a policy
+            project = self.fixture.project
+            policy_factories.ProjectEstimatedCostPolicyFactory(scope=project)
+
+            # Authenticate as a user with dry-run permission
+            user = self.fixture.staff
+            self.client.force_authenticate(user)
+
+            # Prepare dry-run data
+            data = {
+                "plan": marketplace_factories.PlanFactory.get_url(self.fixture.plan),
+                "type": "Create",
+                "attributes": {"option1": "value1"},
+            }
+
+            # Call the dry-run API
+            response = self.client.post(self.url, data=data)
+            self.assertEqual(200, response.status_code)
+
+            # Assert that policy evaluation was NOT triggered
+            evaluate_policies_mock.assert_not_called()

@@ -130,6 +130,14 @@ class MonthlyCompensation:
 
                 self._total_compensation += self._tail
 
+        # We need to set _calculated = True here, before calculating project tails
+        # to avoid circular dependency. The issue is:
+        # 1. calculate_current_compensations calls get_total_project_compensation
+        # 2. get_total_project_compensation calls compensations property
+        # 3. compensations property calls calculate_current_compensations again
+        # By setting _calculated = True here, we break this cycle
+        self._calculated = True
+
         for project_credit in projects_credits.values():
             if not project_credit.minimal_consumption:
                 continue
@@ -147,7 +155,6 @@ class MonthlyCompensation:
                 self._project_tails[project_credit] = tail
 
         self._projects_credits = projects_credits.values()
-        self._calculated = True
         return
 
     @property

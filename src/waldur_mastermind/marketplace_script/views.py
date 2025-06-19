@@ -113,6 +113,12 @@ class DryRunView(ActionsViewSet):
             name=attributes.get("name", "test-resource"),
             state=ResourceStates.CREATING,
         )
+
+        # is_mocked is a runtime property that is not persisted to the database.
+        # It indicates that this is a temporary/fake resource object used for testing or preview purposes.
+        # When is_mocked is True, we skip policy checks and other validations that would normally
+        # be required for real resource creation.
+        resource.is_mocked = True
         resource.init_cost()
         resource.save()
         order = marketplace_models.Order(**serializer.validated_data)
