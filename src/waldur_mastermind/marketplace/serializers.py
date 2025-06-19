@@ -234,10 +234,6 @@ class ManagedRancherPluginOptionsSerializer(serializers.Serializer):
     managed_rancher_worker_system_volume_type_name = serializers.CharField(
         required=False
     )
-    managed_rancher_load_balancer_cloud_init_template = serializers.CharField(
-        required=False,
-        allow_blank=True,
-    )
     managed_rancher_load_balancer_flavor_name = serializers.CharField(required=False)
     managed_rancher_load_balancer_system_volume_size_gb = serializers.IntegerField(
         required=False
@@ -376,6 +372,11 @@ class ManagedRancherSecretOptionsSerializer(serializers.Serializer):
     )
 
     cloud_init_template = serializers.CharField(required=False)
+
+    managed_rancher_load_balancer_cloud_init_template = serializers.CharField(
+        required=False,
+        allow_blank=True,
+    )
 
     vault_host = serializers.CharField(
         help_text=_("Host of the Vault server"),
