@@ -2712,12 +2712,10 @@ class OrderCreateSerializer(
             "cost",
             "type",
         )
-        read_only_fields = (
+        read_only_fields = BaseOrderSerializer.Meta.read_only_fields + (
             "created_by",
             "consumer_reviewed_by",
             "consumer_reviewed_at",
-            "state",
-            "cost",
         )
         protected_fields = ("project",)
         related_paths = {
