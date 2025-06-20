@@ -1,5 +1,5 @@
 import logging
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from urllib.parse import urlparse
 
 from django.core import validators
@@ -10,6 +10,9 @@ from django.template.defaultfilters import slugify
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+
+if TYPE_CHECKING:
+    from django.db.models.manager import RelatedManager
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import models as core_models
@@ -899,7 +902,7 @@ class Instance(
     core_models.ActionMixin, TenantQuotaMixin, structure_models.VirtualMachine
 ):
     id: int
-    ports: models.Manager["Port"]
+    ports: "RelatedManager[Port]"
     volumes: models.Manager["Volume"]
     backups: models.Manager["Backup"]
 
