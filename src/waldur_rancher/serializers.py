@@ -349,13 +349,21 @@ class RancherNestedPublicIPSerializer(
     ip_address = serializers.IPAddressField(
         source="floating_ip.address", read_only=True
     )
+    external_ip_address = serializers.IPAddressField(
+        source="floating_ip.external_address", read_only=True
+    )
+    floating_ip = serializers.HyperlinkedRelatedField(
+        read_only=True, view_name="openstack-fip-detail", lookup_field="uuid"
+    )
+    floating_ip_uuid = serializers.UUIDField(source="floating_ip.uuid", read_only=True)
 
     class Meta:
         model = models.ClusterPublicIP
         fields = (
             "floating_ip",
-            "cluster",
+            "floating_ip_uuid",
             "ip_address",
+            "external_ip_address",
         )
 
 
