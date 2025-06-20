@@ -1,6 +1,51 @@
 from typing import Literal
 
 
+class BillingTypes:
+    FIXED = "fixed"
+    USAGE = "usage"
+    ONE_TIME = "one"
+    ON_PLAN_SWITCH = "few"
+    LIMIT = "limit"
+
+    CHOICES = (
+        # if billing type is fixed, service provider specifies exact values of amount field of plan component model
+        (FIXED, "Fixed-price"),
+        # if billing type is usage-based billing is applied when usage report is submitted
+        (USAGE, "Usage-based"),
+        # if billing type is limit, user specifies limit when resource is provisioned or updated
+        (LIMIT, "Limit-based"),
+        # if billing type is one-time, billing is applied once on resource activation
+        (ONE_TIME, "One-time"),
+        # applies fee on resource activation and every time a plan has changed, using pricing of a new plan
+        (ON_PLAN_SWITCH, "One-time on plan switch"),
+    )
+
+
+class LimitPeriods:
+    MONTH = "month"
+    ANNUAL = "annual"
+    TOTAL = "total"
+
+    CHOICES = (
+        (
+            MONTH,
+            "Maximum monthly - every month service provider "
+            "can report up to the amount requested by user.",
+        ),
+        (
+            ANNUAL,
+            "Maximum annually - every year service provider "
+            "can report up to the amount requested by user.",
+        ),
+        (
+            TOTAL,
+            "Maximum total - SP can report up to the requested "
+            "amount over the whole active state of resource.",
+        ),
+    )
+
+
 class OfferingStates:
     DRAFT = 1
     ACTIVE = 2

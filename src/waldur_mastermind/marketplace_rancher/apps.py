@@ -1,6 +1,7 @@
 from django.apps import AppConfig
 from django.db.models import signals
 
+from waldur_mastermind.marketplace_openstack.const import TENANT_COMPONENTS
 from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN
 
 
@@ -34,6 +35,7 @@ class MarketplaceRancherConfig(AppConfig):
             offering_type=MANAGED_RANCHER_PLUGIN,
             create_resource_processor=processors.ManagedRancherCreateProcessor,
             delete_resource_processor=processors.ManagedRancherDeleteProcessor,
+            components=TENANT_COMPONENTS,
         )
 
         marketplace_handlers.connect_resource_metadata_handlers(rancher_models.Cluster)
