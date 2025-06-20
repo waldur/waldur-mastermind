@@ -41,21 +41,6 @@ class RoleDetailsSerializer(RestrictedSerializerMixin, TranslatedModelSerializer
     users_count = serializers.SerializerMethodField()
     content_type = serializers.SerializerMethodField()
 
-    def get_fields(self):
-        fields = super().get_fields()
-
-        try:
-            request = self.context["request"]
-            user = request.user
-        except (KeyError, AttributeError):
-            return fields
-
-        if user.is_anonymous or not (user.is_staff or user.is_support):
-            if "users_count" in fields:
-                del fields["users_count"]
-
-        return fields
-
     def get_permissions(self, role: models.Role) -> list[str]:
         return list(
             models.RolePermission.objects.filter(role=role).values_list(
@@ -64,6 +49,10 @@ class RoleDetailsSerializer(RestrictedSerializerMixin, TranslatedModelSerializer
         )
 
     def get_users_count(self, role: models.Role) -> int:
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not user or user.is_anonymous or not (user.is_staff or user.is_support):
+            return None
         return models.UserRole.objects.filter(is_active=True, role=role).count()
 
     def get_content_type(self, role: models.Role) -> TYPE_KEYS:

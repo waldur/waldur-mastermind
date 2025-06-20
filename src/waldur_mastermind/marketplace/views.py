@@ -4100,7 +4100,6 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
                 )
                 .annotate(count=Count("uuid", distinct=True))
             )
-
             serialized_data = serializers.OfferingStatsCounterSerializer(
                 offerings_stats, many=True
             ).data
@@ -4164,11 +4163,13 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
         return Response(customers)
 
-    @extend_schema(description="Return resources limits per offering.")
+    @extend_schema(
+        description="Return resources limits per offering.",
+        responses=serializers.ResourcesLimitsSerializer(many=True),
+    )
     @action(detail=False, methods=["get"])
     def resources_limits(self, request, *args, **kwargs):
         data = []
-
         for resource in (
             models.Resource.objects.filter(state=ResourceStates.OK)
             .exclude(limits={})
@@ -4208,6 +4209,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
     @extend_schema(
         description="Return component usages for current month.",
+        responses=serializers.ComponentUsagesStatsSerializer(many=True),
     )
     @action(detail=False, methods=["get"])
     def component_usages(self, request, *args, **kwargs):
@@ -4229,6 +4231,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
     @extend_schema(
         description="Return component usages per project.",
+        responses=serializers.ComponentUsagesPerProjectSerializer(many=True),
     )
     @action(detail=False, methods=["get"])
     def component_usages_per_project(self, request, *args, **kwargs):
@@ -4253,6 +4256,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
     @method_decorator(cache_page(60 * 60))
     @extend_schema(
         description="Return component usages per month.",
+        responses=serializers.ComponentUsagesPerMonthStatsSerializer(many=True),
     )
     @action(detail=False, methods=["get"])
     def component_usages_per_month(self, request, *args, **kwargs):
@@ -4300,6 +4304,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
     @extend_schema(
         description="Count users of service providers.",
+        responses=serializers.CountUsersOfServiceProvidersSerializer(many=True),
     )
     @action(detail=False, methods=["get"])
     def count_users_of_service_providers(self, request, *args, **kwargs):
@@ -4323,6 +4328,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
     @extend_schema(
         description="Count projects of service providers.",
+        responses=serializers.CountProjectsOfServiceProvidersSerializer(many=True),
     )
     @action(detail=False, methods=["get"])
     def count_projects_of_service_providers(self, request, *args, **kwargs):
@@ -4339,11 +4345,13 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
                 }
                 data.update(self._get_service_provider_info(sp))
                 result.append(data)
-
         return Response(result, status=status.HTTP_200_OK)
 
     @extend_schema(
         description="Count projects of service providers grouped by OECD.",
+        responses=serializers.CountProjectsOfServiceProvidersGroupedByOecdSerializer(
+            many=True
+        ),
     )
     @action(detail=False, methods=["get"])
     def count_projects_of_service_providers_grouped_by_oecd(
@@ -4409,21 +4417,29 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
         return results
 
-    @extend_schema(description="Group project usages by OECD code.")
+    @extend_schema(
+        description="Group project usages by OECD code.",
+        responses=serializers.ProjectsUsagesGroupedByOecdSerializer,
+    )
     @action(detail=False, methods=["get"])
     def projects_usages_grouped_by_oecd(self, request, *args, **kwargs):
+        data = self._replace_keys_from_oecd_code_to_oecd_name(
+            self._projects_usages_grouped_by_field("oecd_fos_2007_code")
+        )
         return Response(
-            self._replace_keys_from_oecd_code_to_oecd_name(
-                self._projects_usages_grouped_by_field("oecd_fos_2007_code")
-            ),
+            {"usages": data},
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(description="Group project usages by industry flag.")
+    @extend_schema(
+        description="Group project usages by industry flag.",
+        responses=serializers.ProjectsUsagesGroupedByIndustryFlagSerializer,
+    )
     @action(detail=False, methods=["get"])
     def projects_usages_grouped_by_industry_flag(self, request, *args, **kwargs):
+        data = self._projects_usages_grouped_by_field("is_industry")
         return Response(
-            self._projects_usages_grouped_by_field("is_industry"),
+            {"usages": data},
             status=status.HTTP_200_OK,
         )
 
@@ -4462,28 +4478,33 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
     @extend_schema(
         description="Group project limits by OECD code.",
+        responses=serializers.ProjectsLimitsGroupedByOecdSerializer,
     )
     @action(detail=False, methods=["get"])
     def projects_limits_grouped_by_oecd(self, request, *args, **kwargs):
+        data = self._replace_keys_from_oecd_code_to_oecd_name(
+            self._projects_limits_grouped_by_field("oecd_fos_2007_code")
+        )
         return Response(
-            self._replace_keys_from_oecd_code_to_oecd_name(
-                self._projects_limits_grouped_by_field("oecd_fos_2007_code")
-            ),
+            {"limits": data},
             status=status.HTTP_200_OK,
         )
 
     @extend_schema(
         description="Group project limits by industry flag.",
+        responses=serializers.ProjectsLimitsGroupedByIndustryFlagSerializer,
     )
     @action(detail=False, methods=["get"])
     def projects_limits_grouped_by_industry_flag(self, request, *args, **kwargs):
+        data = self._projects_limits_grouped_by_field("is_industry")
         return Response(
-            self._projects_limits_grouped_by_field("is_industry"),
+            {"limits": data},
             status=status.HTTP_200_OK,
         )
 
     @extend_schema(
         description="Total cost of active resources per offering.",
+        responses=serializers.OfferingCostSerializer(many=True),
     )
     @action(detail=False, methods=["get"])
     def total_cost_of_active_resources_per_offering(self, request, *args, **kwargs):
@@ -4566,6 +4587,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
     @extend_schema(
         description="Count unique users connected with active resources of service provider.",
+        responses=serializers.CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderSerializer(
+            many=True
+        ),
     )
     @action(detail=False, methods=["get"])
     def count_unique_users_connected_with_active_resources_of_service_provider(
