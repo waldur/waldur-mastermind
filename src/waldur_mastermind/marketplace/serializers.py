@@ -4263,11 +4263,92 @@ class ComponentUsagesStatsSerializer(serializers.Serializer):
     usage = serializers.DecimalField(decimal_places=2, max_digits=20)
     offering_uuid = serializers.UUIDField(source="resource__offering__uuid")
     component_type = serializers.CharField(source="component__type")
+    offering_country = serializers.CharField(read_only=True)
+    organization_group_name = serializers.CharField(read_only=True)
+    organization_group_uuid = serializers.CharField(read_only=True)
 
 
 class ComponentUsagesPerMonthStatsSerializer(ComponentUsagesStatsSerializer):
     month = serializers.IntegerField(source="billing_period__month")
     year = serializers.IntegerField(source="billing_period__year")
+
+
+class ComponentUsagesPerProjectSerializer(serializers.Serializer):
+    project_uuid = serializers.UUIDField()
+    component_type = serializers.CharField()
+    usage = serializers.IntegerField(read_only=True)
+
+
+class BaseServiceProviderStatsSerializer(serializers.Serializer):
+    service_provider_uuid = serializers.UUIDField(read_only=True)
+    customer_uuid = serializers.UUIDField(read_only=True)
+    customer_name = serializers.CharField(read_only=True)
+    customer_organization_group_uuid = serializers.CharField(read_only=True)
+    customer_organization_group_name = serializers.CharField(read_only=True)
+    count = serializers.IntegerField(read_only=True)
+
+
+class CountUsersOfServiceProvidersSerializer(BaseServiceProviderStatsSerializer):
+    pass
+
+
+class CountProjectsOfServiceProvidersSerializer(BaseServiceProviderStatsSerializer):
+    pass
+
+
+class CountProjectsOfServiceProvidersGroupedByOecdSerializer(
+    BaseServiceProviderStatsSerializer
+):
+    oecd_fos_2007_name = serializers.CharField(read_only=True)
+
+
+class BaseNestedUsagesSerializer(serializers.Serializer):
+    usages = serializers.DictField(
+        child=serializers.DictField(
+            child=serializers.DecimalField(decimal_places=2, max_digits=20),
+        ),
+    )
+
+
+class BaseNestedLimitsSerializer(serializers.Serializer):
+    limits = serializers.DictField(
+        child=serializers.DictField(
+            child=serializers.DecimalField(decimal_places=2, max_digits=20),
+        ),
+    )
+
+
+class ProjectsUsagesGroupedByOecdSerializer(BaseNestedUsagesSerializer):
+    pass
+
+
+class ProjectsUsagesGroupedByIndustryFlagSerializer(BaseNestedUsagesSerializer):
+    pass
+
+
+class ProjectsLimitsGroupedByOecdSerializer(BaseNestedLimitsSerializer):
+    pass
+
+
+class ProjectsLimitsGroupedByIndustryFlagSerializer(BaseNestedLimitsSerializer):
+    pass
+
+
+class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderSerializer(
+    serializers.Serializer
+):
+    customer_uuid = serializers.UUIDField(read_only=True)
+    customer_name = serializers.CharField(read_only=True)
+    count_users = serializers.IntegerField(read_only=True)
+
+
+class ResourcesLimitsSerializer(serializers.Serializer):
+    offering_uuid = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    value = serializers.IntegerField(read_only=True)
+    offering_country = serializers.CharField(read_only=True)
+    organization_group_name = serializers.CharField(read_only=True)
+    organization_group_uuid = serializers.CharField(read_only=True)
 
 
 class OfferingStatsSerializer(serializers.Serializer):
