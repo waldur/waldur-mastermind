@@ -1,4 +1,5 @@
 import uuid
+from typing import cast
 from unittest import mock
 
 from django.test import override_settings
@@ -55,7 +56,8 @@ class ManagedRancherClusterIPTest(test.APITransactionTestCase):
         self.instance = self.fixture.instance
         self.tenant = self.fixture.tenant
         service_settings = self.tenant.service_settings
-        service_settings.options["external_network_id"] = str(uuid.uuid4())
+        options = cast(dict, service_settings.options)
+        options["external_network_id"] = uuid.uuid4().hex
         service_settings.save()
 
         self.cluster_resource = marketplace_factories.ResourceFactory(
