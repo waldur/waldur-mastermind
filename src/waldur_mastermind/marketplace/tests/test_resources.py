@@ -23,6 +23,8 @@ from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, log, models, plugins
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    LimitPeriods,
     OfferingStates,
     OrderStates,
     ResourceStates,
@@ -66,10 +68,8 @@ class ResourceGetTest(test.APITransactionTestCase):
 
     def test_resource_is_usage_based(self):
         factories.OfferingComponentFactory(
-            offering=self.offering,
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            offering=self.offering, billing_type=BillingTypes.USAGE
         )
-
         self.assertTrue(self.get_resource().data["is_usage_based"])
 
     def test_resource_is_not_usage_based(self):
@@ -609,12 +609,12 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         offering = factories.OfferingFactory(type=PLUGIN_NAME)
         one_time_offering_component = factories.OfferingComponentFactory(
             offering=offering,
-            billing_type=models.OfferingComponent.BillingTypes.ONE_TIME,
+            billing_type=BillingTypes.ONE_TIME,
             type="signup",
         )
         usage_offering_component = factories.OfferingComponentFactory(
             offering=offering,
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
             type="cpu",
         )
 
@@ -658,12 +658,12 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         offering = factories.OfferingFactory(type=PLUGIN_NAME)
         switch_offering_component = factories.OfferingComponentFactory(
             offering=offering,
-            billing_type=models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH,
+            billing_type=BillingTypes.ON_PLAN_SWITCH,
             type="plan_switch",
         )
         usage_offering_component = factories.OfferingComponentFactory(
             offering=offering,
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
             type="cpu",
         )
 
@@ -1471,8 +1471,8 @@ class ResourceUsageLimitsTest(test.APITransactionTestCase):
         self.resource.limits = {"cpu": 100}
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.resource.offering,
-            billing_type=models.OfferingComponent.BillingTypes.LIMIT,
-            limit_period=models.OfferingComponent.LimitPeriods.TOTAL,
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.TOTAL,
         )
         self.resource.plan = factories.PlanFactory(offering=self.resource.offering)
         factories.PlanComponentFactory(
@@ -1504,9 +1504,7 @@ class ResourceUsageLimitsTest(test.APITransactionTestCase):
         self.assertEqual(response.data["limit_usage"], {"cpu": 15})
 
     def test_if_limit_period_is_annual(self):
-        self.offering_component.limit_period = (
-            models.OfferingComponent.LimitPeriods.ANNUAL
-        )
+        self.offering_component.limit_period = LimitPeriods.ANNUAL
         self.offering_component.save()
 
         self.client.force_authenticate(self.user)
@@ -1663,7 +1661,7 @@ class ProviderResourceLimitsSetTest(test.APITransactionTestCase):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
         self.component = self.fixture.offering_component
-        self.component.billing_type = models.OfferingComponent.BillingTypes.LIMIT
+        self.component.billing_type = BillingTypes.LIMIT
         self.component.save()
         self.resource.limits = {"cpu": 10}
         self.resource.save()

@@ -8,7 +8,12 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    LimitPeriods,
+    OfferingStates,
+    ResourceStates,
+)
 from waldur_openstack import models as openstack_models
 from waldur_openstack.utils import volume_type_name_to_quota_name
 
@@ -375,8 +380,8 @@ def create_offering_component_for_volume_type(
             type=volume_type_name_to_quota_name(volume_type.name),
             measured_unit="GB",
             description=volume_type.description,
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
-            limit_period=marketplace_models.OfferingComponent.LimitPeriods.MONTH,
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.MONTH,
         ),
     )
 

@@ -9,7 +9,11 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import PLUGIN_NAME
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OfferingStates, OrderStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    OfferingStates,
+    OrderStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
@@ -51,7 +55,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     def offering_component(self):
         return marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
+            billing_type=BillingTypes.FIXED,
         )
 
     @cached_property
@@ -67,7 +71,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
             offering=self.offering,
             type="ram",
             name="RAM",
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
         )
 
     @cached_property

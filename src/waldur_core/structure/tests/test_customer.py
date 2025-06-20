@@ -21,7 +21,7 @@ from waldur_core.structure.tests.utils import (
     client_delete_user,
     client_update_user,
 )
-from waldur_mastermind.marketplace.models import OfferingComponent
+from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
@@ -992,22 +992,22 @@ class CustomerResourceQuotasTest(test.APITransactionTestCase):
             type="cpu",
             name="CPU",
             measured_unit="vCPU",
-            billing_type=OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
         )
         self.component2 = marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
             type="ram",
             name="RAM",
             measured_unit="GB",
-            billing_type=OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
         )
         self.limit_based_component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
             type="disk",
             name="Disk",
             measured_unit="GB",
-            billing_type=OfferingComponent.BillingTypes.LIMIT,
-            limit_period=OfferingComponent.LimitPeriods.ANNUAL,
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.ANNUAL,
         )
         self.resource1 = marketplace_factories.ResourceFactory(
             project=self.project1,

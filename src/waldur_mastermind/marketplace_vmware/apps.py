@@ -1,5 +1,7 @@
 from django.apps import AppConfig
 
+from waldur_mastermind.marketplace.enums import BillingTypes
+
 
 class MarketplaceVMwareConfig(AppConfig):
     name = "waldur_mastermind.marketplace_vmware"
@@ -7,7 +9,6 @@ class MarketplaceVMwareConfig(AppConfig):
 
     def ready(self):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
-        from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import Component, manager
         from waldur_vmware import models as vmware_models
         from waldur_vmware import signals as vmware_signals
@@ -20,7 +21,6 @@ class MarketplaceVMwareConfig(AppConfig):
         marketplace_handlers.connect_resource_handlers(*resource_models)
         marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
 
-        LIMIT = marketplace_models.OfferingComponent.BillingTypes.LIMIT
         manager.register(
             offering_type=VIRTUAL_MACHINE_TYPE,
             create_resource_processor=processors.VirtualMachineCreateProcessor,
@@ -28,7 +28,10 @@ class MarketplaceVMwareConfig(AppConfig):
             can_update_limits=True,
             components=(
                 Component(
-                    type="cpu", name="CPU", measured_unit="vCPU", billing_type=LIMIT
+                    type="cpu",
+                    name="CPU",
+                    measured_unit="vCPU",
+                    billing_type=BillingTypes.LIMIT,
                 ),
                 # Price is stored per GiB but size is stored per MiB
                 # therefore we need to divide size by factor when price estimate is calculated.
@@ -36,14 +39,14 @@ class MarketplaceVMwareConfig(AppConfig):
                     type="ram",
                     name="RAM",
                     measured_unit="GB",
-                    billing_type=LIMIT,
+                    billing_type=BillingTypes.LIMIT,
                     factor=1024,
                 ),
                 Component(
                     type="disk",
                     name="Disk",
                     measured_unit="GB",
-                    billing_type=LIMIT,
+                    billing_type=BillingTypes.LIMIT,
                     factor=1024,
                 ),
             ),

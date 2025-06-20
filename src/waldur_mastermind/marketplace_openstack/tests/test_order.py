@@ -9,6 +9,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
     OfferingStates,
     OrderStates,
     ResourceStates,
@@ -152,7 +153,7 @@ class TenantCreateTest(BaseOpenStackTest):
         marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,
             type="gigabytes_llvm",
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
+            billing_type=BillingTypes.LIMIT,
         )
         self.create_plan_component("gigabytes_llvm", 0.1)
 
@@ -247,7 +248,7 @@ class TenantCreateTest(BaseOpenStackTest):
         marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,
             type="gigabytes_llvm",
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
+            billing_type=BillingTypes.LIMIT,
         )
 
         response = self.create_order(

@@ -17,13 +17,16 @@ from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.invoices.utils import get_current_month_end, get_full_days
 from waldur_mastermind.marketplace import PLUGIN_NAME, utils
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    LimitPeriods,
+    ResourceStates,
+)
 from waldur_mastermind.promotions import models as promotions_models
 
 logger = logging.getLogger(__name__)
 
-BillingTypes = marketplace_models.OfferingComponent.BillingTypes
-LimitPeriods = marketplace_models.OfferingComponent.LimitPeriods
+LimitPeriods = LimitPeriods
 OrderTypes = marketplace_models.Order.Types
 
 

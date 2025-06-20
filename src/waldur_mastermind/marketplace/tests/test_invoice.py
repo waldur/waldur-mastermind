@@ -6,7 +6,7 @@ from rest_framework.reverse import reverse
 
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tasks import create_monthly_invoices
-from waldur_mastermind.marketplace.models import OfferingComponent
+from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 from waldur_mastermind.marketplace.tests.factories import ResourceFactory
 
 from . import fixtures
@@ -69,8 +69,8 @@ class TotalLimitTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.component = self.fixture.offering_component
-        self.component.billing_type = OfferingComponent.BillingTypes.LIMIT
-        self.component.limit_period = OfferingComponent.LimitPeriods.TOTAL
+        self.component.billing_type = BillingTypes.LIMIT
+        self.component.limit_period = LimitPeriods.TOTAL
         self.component.save()
         self.resource = ResourceFactory(
             offering=self.fixture.offering,

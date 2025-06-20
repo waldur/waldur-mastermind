@@ -56,6 +56,8 @@ from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
 from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    LimitPeriods,
     OfferingStates,
     OrderStates,
     OrderStatesType,
@@ -80,7 +82,6 @@ from waldur_pid import models as pid_models
 from . import log, models, permissions, plugins, utils
 
 logger = logging.getLogger(__name__)
-BillingTypes = models.OfferingComponent.BillingTypes
 
 
 class LifecyclePluginOptionsSerializer(serializers.Serializer):
@@ -881,7 +882,7 @@ class QuotasUpdateSerializer(serializers.Serializer):
         valid_types = {
             component.type
             for component in plan.offering.components.all()
-            if component.billing_type == models.OfferingComponent.BillingTypes.FIXED
+            if component.billing_type == BillingTypes.FIXED
         }
         component_map = validate_components(new_keys, valid_types, plan)
         for key, old_component in component_map.items():
@@ -962,15 +963,15 @@ class BasePlanSerializer(
                 components_types.add(offering_component.billing_type)
 
         if len(components_types) == 1:
-            if models.OfferingComponent.BillingTypes.USAGE in components_types:
+            if BillingTypes.USAGE in components_types:
                 plan_type = "usage-based"
-            if models.OfferingComponent.BillingTypes.FIXED in components_types:
+            if BillingTypes.FIXED in components_types:
                 plan_type = "fixed"
-            if models.OfferingComponent.BillingTypes.ONE_TIME in components_types:
+            if BillingTypes.ONE_TIME in components_types:
                 plan_type = "one-time"
-            if models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH in components_types:
+            if BillingTypes.ON_PLAN_SWITCH in components_types:
                 plan_type = "on-plan-switch"
-            if models.OfferingComponent.BillingTypes.LIMIT in components_types:
+            if BillingTypes.LIMIT in components_types:
                 plan_type = "limit"
         elif len(components_types) > 1:
             plan_type = "mixed"
@@ -986,20 +987,11 @@ class BasePlanSerializer(
             offering_component = plan_component.component
 
             if plan_component.price:
-                if (
-                    offering_component.billing_type
-                    == models.OfferingComponent.BillingTypes.LIMIT
-                ):
+                if offering_component.billing_type == BillingTypes.LIMIT:
                     price += plan_component.price
-                elif (
-                    offering_component.billing_type
-                    == models.OfferingComponent.BillingTypes.FIXED
-                ):
+                elif offering_component.billing_type == BillingTypes.FIXED:
                     price += plan_component.price * (plan_component.amount or 1)
-                elif (
-                    offering_component.billing_type
-                    == models.OfferingComponent.BillingTypes.ONE_TIME
-                ):
+                elif offering_component.billing_type == BillingTypes.ONE_TIME:
                     price += plan_component.price
 
         return price
@@ -1227,7 +1219,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         if attrs.get("is_boolean"):
             attrs["min_value"] = 0
             attrs["max_value"] = 1
-            attrs["limit_period"] = models.OfferingComponent.LimitPeriods.MONTH
+            attrs["limit_period"] = LimitPeriods.MONTH
             attrs["limit_amount"] = None
         if self.instance and self.instance.offering.type == TENANT_TYPE:
             protected_fields = set(attrs.keys()) & {
@@ -3040,13 +3032,13 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         limit_usage: dict[str, float] = {}
 
         limit_components = resource.offering.components.filter(
-            billing_type=models.OfferingComponent.BillingTypes.LIMIT
+            billing_type=BillingTypes.LIMIT
         )
 
         for component in limit_components:
             if component.limit_period in (
                 None,
-                models.OfferingComponent.LimitPeriods.MONTH,
+                LimitPeriods.MONTH,
             ):
                 limit_usage[component.type] = resource.current_usages.get(
                     component.type
@@ -3055,7 +3047,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             usages = models.ComponentUsage.objects.filter(
                 resource=resource, component=component
             ).exclude(plan_period=None)
-            if component.limit_period == models.OfferingComponent.LimitPeriods.ANNUAL:
+            if component.limit_period == LimitPeriods.ANNUAL:
                 usages = usages.filter(date__year__gte=datetime.date.today().year)
             limit_usage[component.type] = usages.aggregate(total=Sum("usage"))["total"]
 
@@ -3657,7 +3649,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             description = usage.get("description", "")
             component = components_map[usage["type"]]
             recurring = usage["recurring"]
-            if component.billing_type == models.OfferingComponent.BillingTypes.USAGE:
+            if component.billing_type == BillingTypes.USAGE:
                 component.validate_amount(resource, amount, now)
 
             models.ComponentUsage.objects.filter(

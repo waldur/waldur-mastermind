@@ -57,6 +57,8 @@ from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
 from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    LimitPeriods,
     OrderStates,
     ResourceStates,
     RobotAccountStates,
@@ -239,7 +241,7 @@ def get_info_about_missing_usage_reports():
     ]
 
     offering_ids = models.OfferingComponent.objects.filter(
-        billing_type=models.OfferingComponent.BillingTypes.USAGE,
+        billing_type=BillingTypes.USAGE,
         offering__type__in=whitelist_types,
     ).values_list("offering_id", flat=True)
     resource_with_usages = models.ComponentUsage.objects.filter(
@@ -271,7 +273,7 @@ def validate_limit_amount(value, component):
     if not component.limit_amount:
         return
 
-    if component.limit_period == models.OfferingComponent.LimitPeriods.MONTH:
+    if component.limit_period == LimitPeriods.MONTH:
         current = (
             (
                 models.ComponentQuota.objects.filter(
@@ -289,7 +291,7 @@ def validate_limit_amount(value, component):
                 _("Monthly limit exceeds threshold %s.") % component.limit_amount
             )
 
-    elif component.limit_period == models.OfferingComponent.LimitPeriods.ANNUAL:
+    elif component.limit_period == LimitPeriods.ANNUAL:
         current = (
             (
                 models.ComponentQuota.objects.filter(
@@ -306,7 +308,7 @@ def validate_limit_amount(value, component):
                 _("Annual limit exceeds threshold %s.") % component.limit_amount
             )
 
-    elif component.limit_period == models.OfferingComponent.LimitPeriods.TOTAL:
+    elif component.limit_period == LimitPeriods.TOTAL:
         current = (
             (
                 models.ComponentQuota.objects.filter(
@@ -373,9 +375,9 @@ def validate_min_max_limit(value, component):
 
 def get_components_map(limits, offering):
     valid_component_types = set(
-        offering.components.filter(
-            billing_type=models.OfferingComponent.BillingTypes.LIMIT
-        ).values_list("type", flat=True)
+        offering.components.filter(billing_type=BillingTypes.LIMIT).values_list(
+            "type", flat=True
+        )
     )
 
     invalid_types = set(limits.keys()) - valid_component_types

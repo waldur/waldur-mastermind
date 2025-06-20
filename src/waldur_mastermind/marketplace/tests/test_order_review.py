@@ -18,7 +18,11 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import PLUGIN_NAME, models, tasks
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tasks import process_order
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
@@ -123,7 +127,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
         )
         offering_component = factories.OfferingComponentFactory(
             offering=offering,
-            billing_type=models.OfferingComponent.BillingTypes.LIMIT,
+            billing_type=BillingTypes.LIMIT,
         )
         plan = factories.PlanFactory(offering=offering)
         factories.PlanComponentFactory(

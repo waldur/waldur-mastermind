@@ -14,7 +14,11 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.signals import project_moved
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    LimitPeriods,
+    ResourceStates,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -261,10 +265,10 @@ def get_components_usage_data_from_resources(
                 component_limit[component_type] += float(limit)
 
         usage_components = resource.offering.components.filter(
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE
+            billing_type=BillingTypes.USAGE
         )
         limit_components = resource.offering.components.filter(
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT
+            billing_type=BillingTypes.LIMIT
         )
 
         if for_current_month:
@@ -281,7 +285,7 @@ def get_components_usage_data_from_resources(
         for component in limit_components:
             if not for_current_month and component.limit_period in (
                 None,
-                marketplace_models.OfferingComponent.LimitPeriods.MONTH,
+                LimitPeriods.MONTH,
             ):
                 component_limit_usage[component.type] += float(
                     resource.current_usages.get(component.type, 0)
@@ -296,10 +300,7 @@ def get_components_usage_data_from_resources(
                         date__year=current_date.year,
                         date__month=current_date.month,
                     )
-                elif (
-                    component.limit_period
-                    == marketplace_models.OfferingComponent.LimitPeriods.ANNUAL
-                ):
+                elif component.limit_period == LimitPeriods.ANNUAL:
                     usages = usages.filter(date__year__gte=datetime.date.today().year)
 
                 total_usage = usages.aggregate(total=Sum("usage"))["total"] or 0

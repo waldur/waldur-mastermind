@@ -12,7 +12,10 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OfferingStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    OfferingStates,
+)
 from waldur_mastermind.marketplace.management.commands.load_categories import (
     load_category,
 )
@@ -176,7 +179,7 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         self.assertEqual(component.offering, self.offering)
         self.assertEqual(
             component.billing_type,
-            marketplace_models.OfferingComponent.BillingTypes.LIMIT,
+            BillingTypes.LIMIT,
         )
         self.assertEqual(component.name, "Storage (%s)" % self.volume_type.name)
         self.assertEqual(

@@ -16,6 +16,7 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
     OrderStates,
     ResourceStates,
     RobotAccountStates,
@@ -35,7 +36,7 @@ class CalculateUsageForCurrentMonthTest(test.APITransactionTestCase):
         self.offering_component = factories.OfferingComponentFactory(
             offering=offering,
             parent=category_component,
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
         )
         factories.PlanComponentFactory(plan=plan, component=self.offering_component)
         plan_period = models.ResourcePlanPeriod.objects.create(
