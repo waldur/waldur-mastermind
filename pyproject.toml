@@ -91,7 +91,7 @@ setuptools = "^78.1.0"
 hvac = "^2.3.0"
 python-keycloak = "^5.5.0"
 django-stubs-ext = "^5.1.3"
-waldur-api-client = {git = "https://github.com/waldur/py-client"}
+waldur-api-client = "^0.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "8.3.5"

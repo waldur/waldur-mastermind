@@ -4966,24 +4966,20 @@ test = ["covdefaults (>=2.3)", "coverage (>=7.2.7)", "coverage-enable-subprocess
 
 [[package]]
 name = "waldur-api-client"
-version = "0.0.0"
+version = "0.1.0"
 description = "A client library for accessing Waldur API"
 optional = false
-python-versions = "^3.9"
+python-versions = "<4.0,>=3.9"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "waldur_api_client-0.1.0-py3-none-any.whl", hash = "sha256:870276adcaa73a3314b220f6b1e4b13396a5a0e7b05a43964c0da26dc0dab747"},
+    {file = "waldur_api_client-0.1.0.tar.gz", hash = "sha256:dc8ce37bc676f15b35646018b0c4f3f8e4c687b56aeff64edfb8bae8936495b1"},
+]
 
 [package.dependencies]
 attrs = ">=22.2.0"
 httpx = ">=0.20.0,<0.29.0"
-python-dateutil = "^2.8.0"
-
-[package.source]
-type = "git"
-url = "https://github.com/waldur/py-client"
-reference = "HEAD"
-resolved_reference = "5a7fc68d3a2c96f51bf0713ba3b7b03e594fd1a9"
+python-dateutil = ">=2.8.0,<3.0.0"
 
 [[package]]
 name = "warlock"
@@ -5172,4 +5168,4 @@ requests = ">=2.25.1,<3.0.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10,<3.12"
-content-hash = "9e14c0f7bc69bf7b995f4840b48571b729397ab8119bee16e0a5b86ef362c3ed"
+content-hash = "e3267a662040b1ff3368011c9ad0c49d305d94eb83232eb94a479a49f7d197ef"
