@@ -13,6 +13,7 @@ class MarketplaceRancherConfig(AppConfig):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
+        from waldur_openstack import models as openstack_models
         from waldur_rancher import models as rancher_models
         from waldur_rancher.apps import RancherConfig
 
@@ -67,4 +68,10 @@ class MarketplaceRancherConfig(AppConfig):
             handlers.copy_invoice_items_when_cluster_is_provisioned,
             sender=marketplace_models.Resource,
             dispatch_uid="waldur_mastermind.marketplace_rancher.copy_invoice_items_when_cluster_is_provisioned",
+        )
+
+        signals.post_save.connect(
+            handlers.create_public_cluster_ip_for_floating_ip,
+            sender=openstack_models.FloatingIP,
+            dispatch_uid="waldur_mastermind.marketplace_rancher.create_public_cluster_ip_for_floating_ip",
         )
