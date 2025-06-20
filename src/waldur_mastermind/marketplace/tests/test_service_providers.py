@@ -9,7 +9,11 @@ from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, utils
-from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    OfferingStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import fixtures
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
@@ -291,7 +295,7 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
             name="First",
         )
         self.component = factories.OfferingComponentFactory(
-            billing_type=models.OfferingComponent.BillingTypes.USAGE, offering=offering
+            billing_type=BillingTypes.USAGE, offering=offering
         )
 
         self.resource = factories.ResourceFactory(

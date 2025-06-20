@@ -3,8 +3,7 @@ from django.template.loader import get_template
 from django.utils.translation import gettext_lazy as _
 
 from waldur_mastermind.marketplace import plugins
-
-from .. import models
+from waldur_mastermind.marketplace.enums import BillingTypes
 
 register = template.Library()
 
@@ -15,7 +14,7 @@ def get_invoice_item_component_amount(item, component):
         component.component.offering.type
     )
     if item.limits and (
-        component.component.billing_type == models.OfferingComponent.BillingTypes.USAGE
+        component.component.billing_type == BillingTypes.USAGE
         or component.component.type in available_limits
     ):
         builtin_components = plugins.manager.get_components(
@@ -36,18 +35,15 @@ def plan_details(plan):
     for component in plan.components.all():
         offering_component = component.component
 
-        if offering_component.billing_type == offering_component.BillingTypes.USAGE:
+        if offering_component.billing_type == BillingTypes.USAGE:
             continue
 
         amount = component.amount
 
-        if offering_component.billing_type == offering_component.BillingTypes.ONE_TIME:
+        if offering_component.billing_type == BillingTypes.ONE_TIME:
             amount = _("one-time fee")
 
-        if (
-            offering_component.billing_type
-            == offering_component.BillingTypes.ON_PLAN_SWITCH
-        ):
+        if offering_component.billing_type == BillingTypes.ON_PLAN_SWITCH:
             amount = _("one-time on plan switch")
 
         context["components"].append(

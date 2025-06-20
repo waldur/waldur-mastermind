@@ -13,7 +13,12 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.marketplace import callbacks, models
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    LimitPeriods,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories
 
 
@@ -72,12 +77,12 @@ class SubmitUsageTest(test.APITransactionTestCase):
         )
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.offering,
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
             type="cpu",
         )
         self.offering_component2 = factories.OfferingComponentFactory(
             offering=self.offering,
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
             type="ram",
         )
         self.component = factories.PlanComponentFactory(
@@ -440,18 +445,14 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_total_amount_exceeds_month_limit(self):
-        self.offering_component.limit_period = (
-            models.OfferingComponent.LimitPeriods.MONTH
-        )
+        self.offering_component.limit_period = LimitPeriods.MONTH
         self.offering_component.limit_amount = 1
         self.offering_component.save()
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_total_amount_does_not_exceed_month_limit(self):
-        self.offering_component.limit_period = (
-            models.OfferingComponent.LimitPeriods.MONTH
-        )
+        self.offering_component.limit_period = LimitPeriods.MONTH
         self.offering_component.limit_amount = 10
         self.offering_component.save()
         response = self.submit_usage()
@@ -459,9 +460,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
 
     @freeze_time("2019-06-19")
     def test_total_amount_exceeds_annual_limit(self):
-        self.offering_component.limit_period = (
-            models.OfferingComponent.LimitPeriods.ANNUAL
-        )
+        self.offering_component.limit_period = LimitPeriods.ANNUAL
         self.offering_component.limit_amount = 100
         self.offering_component.save()
 
@@ -478,9 +477,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
 
     @freeze_time("2019-06-19")
     def test_total_amount_does_not_exceed_annual_limit(self):
-        self.offering_component.limit_period = (
-            models.OfferingComponent.LimitPeriods.ANNUAL
-        )
+        self.offering_component.limit_period = LimitPeriods.ANNUAL
         self.offering_component.limit_amount = 100
         self.offering_component.save()
 
@@ -496,9 +493,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_total_amount_exceeds_total_limit(self):
-        self.offering_component.limit_period = (
-            models.OfferingComponent.LimitPeriods.TOTAL
-        )
+        self.offering_component.limit_period = LimitPeriods.TOTAL
         self.offering_component.limit_amount = 7
         self.offering_component.save()
 
@@ -507,9 +502,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_total_amount_does_not_exceed_total_limit(self):
-        self.offering_component.limit_period = (
-            models.OfferingComponent.LimitPeriods.TOTAL
-        )
+        self.offering_component.limit_period = LimitPeriods.TOTAL
         self.offering_component.limit_amount = 15
         self.offering_component.save()
 

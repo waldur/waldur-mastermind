@@ -15,6 +15,7 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
 from waldur_mastermind.marketplace import models, tasks, utils
 from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
     OfferingStates,
     OrderStates,
     ResourceStates,
@@ -44,7 +45,7 @@ class StatsBaseTest(test.APITransactionTestCase):
             offering=self.offering,
             parent=self.category_component,
             type="cores",
-            billing_type=models.OfferingComponent.BillingTypes.LIMIT,
+            billing_type=BillingTypes.LIMIT,
         )
 
 
@@ -266,7 +267,7 @@ class ComponentStatsTest(StatsBaseTest):
         sp = factories.ServiceProviderFactory(customer=self.resource.offering.customer)
         component = factories.OfferingComponentFactory(
             offering=self.resource.offering,
-            billing_type=models.OfferingComponent.BillingTypes.LIMIT,
+            billing_type=BillingTypes.LIMIT,
             type="storage",
         )
         factories.ComponentUsageFactory(
@@ -307,9 +308,7 @@ class ComponentStatsTest(StatsBaseTest):
     ):
         self.resource.offering.type = PLUGIN_NAME
         self.resource.offering.save()
-        self.offering_component.billing_type = (
-            models.OfferingComponent.BillingTypes.FIXED
-        )
+        self.offering_component.billing_type = BillingTypes.FIXED
         self.offering_component.save()
 
         self._create_items()
@@ -339,7 +338,7 @@ class ComponentStatsTest(StatsBaseTest):
         COMPONENT_TYPE = "storage"
         new_component = factories.OfferingComponentFactory(
             offering=self.resource.offering,
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
             type=COMPONENT_TYPE,
         )
         factories.PlanComponentFactory(

@@ -19,6 +19,7 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
     OfferingStates,
     OrderStates,
     ResourceStates,
@@ -229,7 +230,7 @@ class RequestActionBaseTest(BaseTest):
         )
         self.offering_component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
+            billing_type=BillingTypes.FIXED,
         )
 
         self.plan_component = marketplace_factories.PlanComponentFactory(
@@ -491,7 +492,7 @@ class UpdateLimitsTest(BaseTest):
 
         self.offering_component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
+            billing_type=BillingTypes.LIMIT,
         )
         self.plan = marketplace_factories.PlanFactory(
             offering=self.offering, unit_price=10

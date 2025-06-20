@@ -9,6 +9,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
@@ -45,7 +46,7 @@ class ComponentUsageTest(test.APITransactionTestCase):
                 type=component.type,
                 name=component.name,
                 measured_unit=component.measured_unit,
-                billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
+                billing_type=BillingTypes.USAGE,
             )
             marketplace_models.PlanComponent.objects.create(
                 component=offering_component, plan=plan, price=3

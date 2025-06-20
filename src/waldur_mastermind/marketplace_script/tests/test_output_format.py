@@ -5,7 +5,11 @@ from rest_framework import test
 
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_script.tasks import pull_resource
 
@@ -118,9 +122,7 @@ class PullOutputFormatTest(test.APITransactionTestCase):
         self.resource.state = ResourceStates.OK
         self.resource.save()
         self.component = self.offering.components.first()
-        self.component.billing_type = (
-            marketplace_models.OfferingComponent.BillingTypes.USAGE
-        )
+        self.component.billing_type = BillingTypes.USAGE
         self.component.save()
 
     def test_output_is_blank(self, mock_check_access, mock_docker):

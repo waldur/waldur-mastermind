@@ -12,7 +12,11 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    OfferingStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_pid import models as pid_models
 
@@ -357,7 +361,7 @@ class OfferingComponentFactory(
     offering = factory.SubFactory(OfferingFactory)
     type = "cpu"
     name = "CPU"
-    billing_type = models.OfferingComponent.BillingTypes.FIXED
+    billing_type = BillingTypes.FIXED
 
 
 class PlanComponentFactory(

@@ -33,7 +33,9 @@ from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.mixins import CoordinatesMixin
 from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
     CategoryColumnWidget,
+    LimitPeriods,
     OfferingStates,
     OrderStates,
     RequestTypes,
@@ -44,7 +46,7 @@ from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_pid import mixins as pid_mixins
 
 from ..common import mixins as common_mixins
-from . import enums, managers, plugins
+from . import managers, plugins
 from .attribute_types import ATTRIBUTE_TYPES
 
 logger = logging.getLogger(__name__)
@@ -563,22 +565,18 @@ class Offering(
     @cached_property
     def is_usage_based(self) -> bool:
         return self.components.filter(
-            billing_type=OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
         ).exists()
 
     def get_limit_components(self) -> dict[str, "OfferingComponent"]:
-        components = self.components.filter(
-            billing_type=OfferingComponent.BillingTypes.LIMIT
-        )
+        components = self.components.filter(billing_type=BillingTypes.LIMIT)
         return {component.type: component for component in components}
 
     @cached_property
     def is_limit_based(self) -> bool:
         if not plugins.manager.can_update_limits(self.type):
             return False
-        if not self.components.filter(
-            billing_type=OfferingComponent.BillingTypes.LIMIT
-        ).exists():
+        if not self.components.filter(billing_type=BillingTypes.LIMIT).exists():
             return False
         return True
 
@@ -624,12 +622,6 @@ class OfferingComponent(
         unique_together = ("type", "offering")
         ordering = ("name",)
 
-    class BillingTypes(enums.BillingTypes):
-        pass
-
-    class LimitPeriods(enums.LimitPeriods):
-        pass
-
     tracker = FieldTracker()
     offering = models.ForeignKey(
         on_delete=models.CASCADE, to=Offering, related_name="components"
@@ -666,9 +658,9 @@ class OfferingComponent(
 
         usages = ComponentUsage.objects.filter(resource=resource, component=self)
 
-        if self.limit_period == OfferingComponent.LimitPeriods.MONTH:
+        if self.limit_period == LimitPeriods.MONTH:
             usages = usages.filter(date=core_utils.month_start(date))
-        elif self.limit_period == OfferingComponent.LimitPeriods.ANNUAL:
+        elif self.limit_period == LimitPeriods.ANNUAL:
             usages = usages.filter(date__year=date.year)
 
         total = usages.aggregate(models.Sum("usage"))["usage__sum"] or 0
@@ -766,15 +758,15 @@ class Plan(
 
     @property
     def fixed_price(self) -> float:
-        return self.sum_components(OfferingComponent.BillingTypes.FIXED)
+        return self.sum_components(BillingTypes.FIXED)
 
     @property
     def init_price(self) -> float:
-        return self.sum_components(OfferingComponent.BillingTypes.ONE_TIME)
+        return self.sum_components(BillingTypes.ONE_TIME)
 
     @property
     def switch_price(self) -> float:
-        return self.sum_components(OfferingComponent.BillingTypes.ON_PLAN_SWITCH)
+        return self.sum_components(BillingTypes.ON_PLAN_SWITCH)
 
     def sum_components(self, billing_type) -> float:
         components = self.components.filter(component__billing_type=billing_type)

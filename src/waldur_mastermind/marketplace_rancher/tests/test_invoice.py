@@ -10,6 +10,7 @@ from waldur_mastermind.invoices.utils import (
 )
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
+from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.utils import serialize_resource_limit_period
 from waldur_mastermind.marketplace_openstack import CORES_TYPE, TENANT_TYPE
@@ -67,7 +68,7 @@ class RancherInvoiceTest(test.APITransactionTestCase):
         rancher_offering_component = marketplace_factories.OfferingComponentFactory(
             offering=managed_rancher_offering,
             type=CORES_TYPE,
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
+            billing_type=BillingTypes.LIMIT,
             article_code="rancher",
         )
         marketplace_factories.PlanComponentFactory(

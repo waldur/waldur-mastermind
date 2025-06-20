@@ -14,7 +14,11 @@ from waldur_core.structure.tests import models as structure_tests_models
 from waldur_mastermind.marketplace import PLUGIN_NAME, callbacks, utils
 from waldur_mastermind.marketplace import handlers as marketplace_handlers
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -40,9 +44,7 @@ class ResourceHandlerTest(APITransactionTestCase):
 
         # Get the existing component and make it LIMIT type
         offering_component = fixture.offering_component
-        offering_component.billing_type = (
-            marketplace_models.OfferingComponent.BillingTypes.LIMIT
-        )
+        offering_component.billing_type = BillingTypes.LIMIT
         offering_component.save()
 
         # Set initial resource state

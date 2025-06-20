@@ -8,7 +8,11 @@ from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.signals import resource_limit_update_succeeded
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import (
@@ -43,7 +47,7 @@ class BaseTenantInvoiceTest(test.APITransactionTestCase):
             marketplace_factories.OfferingComponentFactory(
                 offering=self.offering,
                 type=ct,
-                billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
+                billing_type=BillingTypes.LIMIT,
             )
 
     def create_plan(self, prices, unit=marketplace_models.Plan.Units.PER_DAY):
@@ -149,7 +153,7 @@ class StorageModeInvoiceTest(BaseTenantInvoiceTest):
         offering_component = marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,
             type="gigabytes_gpfs",
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
+            billing_type=BillingTypes.LIMIT,
         )
 
         plan = self.create_plan(self.prices)

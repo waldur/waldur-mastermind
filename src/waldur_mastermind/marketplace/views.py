@@ -105,6 +105,7 @@ from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
     OfferingStates,
     OrderStates,
     ResourceStates,
@@ -3626,7 +3627,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
         new_limits = serializer.validated_data["limits"]
 
         limit_based_components = resource.offering.components.filter(
-            billing_type=models.OfferingComponent.BillingTypes.LIMIT
+            billing_type=BillingTypes.LIMIT
         )
         for component in limit_based_components:
             if (

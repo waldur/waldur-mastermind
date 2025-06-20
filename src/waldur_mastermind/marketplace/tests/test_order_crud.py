@@ -11,7 +11,11 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, plugins
-from waldur_mastermind.marketplace.enums import OfferingStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    LimitPeriods,
+    OfferingStates,
+)
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace.tests.utils import TestCreateProcessor
@@ -370,7 +374,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
             models.OfferingComponent.objects.create(
                 offering=offering,
                 type=key,
-                billing_type=models.OfferingComponent.BillingTypes.LIMIT,
+                billing_type=BillingTypes.LIMIT,
             )
 
         add_payload = {
@@ -396,7 +400,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
             models.OfferingComponent.objects.create(
                 offering=offering,
                 type=key,
-                billing_type=models.OfferingComponent.BillingTypes.FIXED,
+                billing_type=BillingTypes.FIXED,
             )
 
         add_payload = {
@@ -412,9 +416,9 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data(
-        models.OfferingComponent.LimitPeriods.TOTAL,
-        models.OfferingComponent.LimitPeriods.MONTH,
-        models.OfferingComponent.LimitPeriods.ANNUAL,
+        LimitPeriods.TOTAL,
+        LimitPeriods.MONTH,
+        LimitPeriods.ANNUAL,
     )
     def test_offering_limit_is_valid(self, limit_period):
         offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
@@ -423,7 +427,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
         models.OfferingComponent.objects.create(
             offering=offering,
             type="cpu_count",
-            billing_type=models.OfferingComponent.BillingTypes.LIMIT,
+            billing_type=BillingTypes.LIMIT,
             limit_amount=10,
             limit_period=limit_period,
         )
@@ -441,9 +445,9 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     @data(
-        models.OfferingComponent.LimitPeriods.TOTAL,
-        models.OfferingComponent.LimitPeriods.MONTH,
-        models.OfferingComponent.LimitPeriods.ANNUAL,
+        LimitPeriods.TOTAL,
+        LimitPeriods.MONTH,
+        LimitPeriods.ANNUAL,
     )
     def test_offering_limit_is_invalid(self, limit_period):
         offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
@@ -452,7 +456,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
         models.OfferingComponent.objects.create(
             offering=offering,
             type="cpu_count",
-            billing_type=models.OfferingComponent.BillingTypes.LIMIT,
+            billing_type=BillingTypes.LIMIT,
             limit_amount=1,
             limit_period=limit_period,
         )

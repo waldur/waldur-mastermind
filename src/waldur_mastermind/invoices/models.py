@@ -22,6 +22,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 
 from . import utils
 
@@ -416,15 +417,9 @@ class InvoiceItem(
         plan_component = self.get_plan_component()
         if not plan_component:
             return
-        if (
-            plan_component.component.billing_type
-            == marketplace_models.OfferingComponent.BillingTypes.FIXED
-            or (
-                plan_component.component.billing_type
-                == marketplace_models.OfferingComponent.BillingTypes.LIMIT
-                and plan_component.component.limit_period
-                != marketplace_models.OfferingComponent.LimitPeriods.TOTAL
-            )
+        if plan_component.component.billing_type == BillingTypes.FIXED or (
+            plan_component.component.billing_type == BillingTypes.LIMIT
+            and plan_component.component.limit_period != LimitPeriods.TOTAL
         ):
             self._update_quantity()
 

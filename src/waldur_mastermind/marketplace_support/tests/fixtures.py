@@ -4,7 +4,7 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OrderStates
+from waldur_mastermind.marketplace.enums import BillingTypes, OrderStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support.tests.fixtures import SupportFixture
@@ -122,14 +122,14 @@ class SupportFixture(structure_fixtures.ProjectFixture):
     def offering_component_cpu(self):
         return marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
+            billing_type=BillingTypes.FIXED,
         )
 
     @cached_property
     def offering_component_ram(self):
         return marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
+            billing_type=BillingTypes.FIXED,
             type="ram",
         )
 

@@ -2,6 +2,8 @@ from django.apps import AppConfig
 from django.conf import settings as django_settings
 from django.db.models import signals
 
+from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
+
 
 class MarketplaceSlurmConfig(AppConfig):
     name = "waldur_mastermind.marketplace_slurm"
@@ -9,7 +11,6 @@ class MarketplaceSlurmConfig(AppConfig):
 
     def ready(self):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
-        from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import Component, manager
         from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
         from waldur_slurm import models as slurm_models
@@ -30,8 +31,8 @@ class MarketplaceSlurmConfig(AppConfig):
         marketplace_handlers.connect_resource_handlers(slurm_models.Allocation)
         marketplace_handlers.connect_resource_metadata_handlers(slurm_models.Allocation)
 
-        USAGE = marketplace_models.OfferingComponent.BillingTypes.USAGE
-        TOTAL = marketplace_models.OfferingComponent.LimitPeriods.TOTAL
+        USAGE = BillingTypes.USAGE
+        TOTAL = LimitPeriods.TOTAL
         default_limits = django_settings.WALDUR_SLURM["DEFAULT_LIMITS"]
         manager.register(
             PLUGIN_NAME,

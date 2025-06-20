@@ -16,7 +16,7 @@ from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OrderStates
+from waldur_mastermind.marketplace.enums import BillingTypes, OrderStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
@@ -167,9 +167,7 @@ class InvoicesTest(InvoicesBaseTest):
 class UsagesTest(InvoicesBaseTest):
     def setUp(self):
         super().setUp()
-        self.fixture.offering_component_cpu.billing_type = (
-            marketplace_models.OfferingComponent.BillingTypes.USAGE
-        )
+        self.fixture.offering_component_cpu.billing_type = BillingTypes.USAGE
         self.fixture.offering_component_cpu.save()
         self.fixture.update_plan_prices()
 
@@ -323,9 +321,7 @@ class UsagesTest(InvoicesBaseTest):
 class OneTimeTest(InvoicesBaseTest):
     def setUp(self):
         super().setUp()
-        self.fixture.offering_component_cpu.billing_type = (
-            marketplace_models.OfferingComponent.BillingTypes.ONE_TIME
-        )
+        self.fixture.offering_component_cpu.billing_type = BillingTypes.ONE_TIME
         self.fixture.offering_component_cpu.save()
         self.fixture.update_plan_prices()
 
@@ -360,9 +356,7 @@ class OneTimeTest(InvoicesBaseTest):
 class OnPlanSwitchTest(InvoicesBaseTest):
     def setUp(self):
         super().setUp()
-        self.fixture.offering_component_cpu.billing_type = (
-            marketplace_models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH
-        )
+        self.fixture.offering_component_cpu.billing_type = BillingTypes.ON_PLAN_SWITCH
         self.fixture.offering_component_cpu.save()
         self.fixture.update_plan_prices()
 
@@ -412,9 +406,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
 class LimitInvoiceTest(InvoicesBaseTest):
     def setUp(self):
         super().setUp()
-        self.fixture.offering_component_cpu.billing_type = (
-            marketplace_models.OfferingComponent.BillingTypes.LIMIT
-        )
+        self.fixture.offering_component_cpu.billing_type = BillingTypes.LIMIT
         self.fixture.offering_component_cpu.save()
         self.fixture.update_plan_prices()
         self.order.limits = {self.fixture.offering_component_cpu.type: 16}

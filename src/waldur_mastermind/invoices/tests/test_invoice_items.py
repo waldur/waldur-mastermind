@@ -11,6 +11,7 @@ from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices.models import PeriodMixin
 from waldur_mastermind.invoices.tests import factories, fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
@@ -76,7 +77,7 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
         item.resource = resource
         offering_component = marketplace_factories.OfferingComponentFactory(
             offering=offering,
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
         )
         plan = marketplace_factories.PlanFactory(
             offering=offering,
@@ -116,7 +117,7 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
         item.resource = resource
         offering_component = marketplace_factories.OfferingComponentFactory(
             offering=offering,
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
+            billing_type=BillingTypes.FIXED,
         )
         plan = marketplace_factories.PlanFactory(
             offering=offering, unit=marketplace_models.Plan.Units.PER_DAY
@@ -212,15 +213,13 @@ class InvoiceTerminateTest(test.APITransactionTestCase):
         self.assertEqual(self.item.quantity, 30)
 
     @ddt.data(
-        marketplace_models.OfferingComponent.LimitPeriods.MONTH,
-        marketplace_models.OfferingComponent.LimitPeriods.ANNUAL,
+        LimitPeriods.MONTH,
+        LimitPeriods.ANNUAL,
     )
     def test_when_item_is_terminated_quantity_is_updated_if_component_is_month_or_annual_limit(
         self, limit_period
     ):
-        self.fixture.offering_component.billing_type = (
-            marketplace_models.OfferingComponent.BillingTypes.LIMIT
-        )
+        self.fixture.offering_component.billing_type = BillingTypes.LIMIT
         self.fixture.offering_component.limit_period = limit_period
         self.fixture.offering_component.save()
         self.item.details["plan_component_id"] = self.fixture.plan_component.id
@@ -234,12 +233,8 @@ class InvoiceTerminateTest(test.APITransactionTestCase):
         self,
     ):
         old_quantity = self.item.quantity
-        self.fixture.offering_component.billing_type = (
-            marketplace_models.OfferingComponent.BillingTypes.LIMIT
-        )
-        self.fixture.offering_component.limit_period = (
-            marketplace_models.OfferingComponent.LimitPeriods.TOTAL
-        )
+        self.fixture.offering_component.billing_type = BillingTypes.LIMIT
+        self.fixture.offering_component.limit_period = LimitPeriods.TOTAL
         self.fixture.offering_component.save()
         self.item.details["plan_component_id"] = self.fixture.plan_component.id
         self.item.save()

@@ -19,6 +19,7 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.common.mixins import PRICE_DECIMAL_PLACES, PRICE_MAX_DIGITS
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import BillingTypes
 
 from . import log, models, utils
 
@@ -160,10 +161,7 @@ class InvoiceItemUpdateSerializer(serializers.HyperlinkedModelSerializer):
         if self.instance:
             plan_component = self.instance.get_plan_component()
             if plan_component:
-                if (
-                    plan_component.component.billing_type
-                    == marketplace_models.OfferingComponent.BillingTypes.FIXED
-                ):
+                if plan_component.component.billing_type == BillingTypes.FIXED:
                     del fields["quantity"]
                 else:
                     del fields["start"]
@@ -178,10 +176,7 @@ class InvoiceItemUpdateSerializer(serializers.HyperlinkedModelSerializer):
         plan_component = invoice_item.get_plan_component()
         if plan_component:
             offering_component = plan_component.component
-            if (
-                offering_component.billing_type
-                == marketplace_models.OfferingComponent.BillingTypes.USAGE
-            ):
+            if offering_component.billing_type == BillingTypes.USAGE:
                 resource = invoice_item.resource
                 if not resource:
                     raise ValidationError(
@@ -202,10 +197,7 @@ class InvoiceItemUpdateSerializer(serializers.HyperlinkedModelSerializer):
                 quantity = validated_data.get("quantity")
                 component_usage.usage = quantity
                 component_usage.save(update_fields=["usage"])
-            elif (
-                offering_component.billing_type
-                == marketplace_models.OfferingComponent.BillingTypes.FIXED
-            ):
+            elif offering_component.billing_type == BillingTypes.FIXED:
                 invoice_item = super().update(invoice_item, validated_data)
                 invoice_item._update_quantity()
                 return invoice_item

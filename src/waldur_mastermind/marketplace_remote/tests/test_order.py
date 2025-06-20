@@ -14,7 +14,11 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace.tests.factories import (
@@ -71,9 +75,7 @@ class LimitsUpdateTest(test.APITransactionTestCase):
 
         self.plan_component = self.fixture.plan_component
         self.offering_component = self.fixture.offering_component
-        self.offering_component.billing_type = (
-            marketplace_models.OfferingComponent.BillingTypes.LIMIT
-        )
+        self.offering_component.billing_type = BillingTypes.LIMIT
         self.offering_component.save()
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
         ServiceProviderRole.MANAGER.add_permission(

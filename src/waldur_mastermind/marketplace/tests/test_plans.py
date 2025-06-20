@@ -10,6 +10,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.templatetags.waldur_marketplace import plan_details
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.test_offerings import BaseOfferingUpdateTest
@@ -160,17 +161,17 @@ class PlanRenderTest(test.APITransactionTestCase):
         )
         self.offering_component_usage = factories.OfferingComponentFactory(
             offering=self.offering,
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
             type="ram",
         )
         self.offering_component_one = factories.OfferingComponentFactory(
             offering=self.offering,
-            billing_type=models.OfferingComponent.BillingTypes.ONE_TIME,
+            billing_type=BillingTypes.ONE_TIME,
             type="one",
         )
         self.offering_component_one_switch = factories.OfferingComponentFactory(
             offering=self.offering,
-            billing_type=models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH,
+            billing_type=BillingTypes.ON_PLAN_SWITCH,
             type="switch",
         )
         self.component_fix = factories.PlanComponentFactory(
@@ -406,7 +407,7 @@ class OfferingUpdatePlansTest(BaseOfferingUpdateTest):
         factories.OfferingComponentFactory(
             offering=self.offering,
             type="ram",
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=BillingTypes.USAGE,
         )
 
         # Act

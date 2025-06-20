@@ -36,6 +36,7 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, serializers, utils
 from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
     OfferingStates,
     OrderStates,
     ResourceStates,
@@ -207,7 +208,7 @@ class OfferingPlanInfoTest(test.APITransactionTestCase):
 
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.offering,
-            billing_type=models.OfferingComponent.BillingTypes.FIXED,
+            billing_type=BillingTypes.FIXED,
         )
         self.plan = factories.PlanFactory(offering=self.offering)
         self.plan_component = factories.PlanComponentFactory(
@@ -216,21 +217,15 @@ class OfferingPlanInfoTest(test.APITransactionTestCase):
 
     def test_plan_info(self):
         self.client.force_authenticate(self.fixture.staff)
-        self._check_plan_info(models.OfferingComponent.BillingTypes.FIXED, "fixed")
-        self._check_plan_info(
-            models.OfferingComponent.BillingTypes.USAGE, "usage-based"
-        )
-        self._check_plan_info(
-            models.OfferingComponent.BillingTypes.ONE_TIME, "one-time"
-        )
-        self._check_plan_info(
-            models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH, "on-plan-switch"
-        )
-        self._check_plan_info(models.OfferingComponent.BillingTypes.LIMIT, "limit")
+        self._check_plan_info(BillingTypes.FIXED, "fixed")
+        self._check_plan_info(BillingTypes.USAGE, "usage-based")
+        self._check_plan_info(BillingTypes.ONE_TIME, "one-time")
+        self._check_plan_info(BillingTypes.ON_PLAN_SWITCH, "on-plan-switch")
+        self._check_plan_info(BillingTypes.LIMIT, "limit")
 
         offering_component = factories.OfferingComponentFactory(
             offering=self.offering,
-            billing_type=models.OfferingComponent.BillingTypes.FIXED,
+            billing_type=BillingTypes.FIXED,
             type="ram",
             name="RAM",
         )
@@ -238,48 +233,34 @@ class OfferingPlanInfoTest(test.APITransactionTestCase):
             plan=self.plan, component=offering_component
         )
 
-        self._check_plan_info(
-            models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH, "mixed"
-        )
+        self._check_plan_info(BillingTypes.ON_PLAN_SWITCH, "mixed")
 
     def test_minimal_price(self):
         self.client.force_authenticate(self.fixture.staff)
 
-        self.offering_component.billing_type = (
-            models.OfferingComponent.BillingTypes.LIMIT
-        )
+        self.offering_component.billing_type = BillingTypes.LIMIT
         self.plan_component.price = 10
         self._check_minimal_price(10)
 
-        self.offering_component.billing_type = (
-            models.OfferingComponent.BillingTypes.FIXED
-        )
+        self.offering_component.billing_type = BillingTypes.FIXED
         self.plan_component.price = 100
         self.plan_component.amount = 0
         self._check_minimal_price(100)
 
-        self.offering_component.billing_type = (
-            models.OfferingComponent.BillingTypes.FIXED
-        )
+        self.offering_component.billing_type = BillingTypes.FIXED
         self.plan_component.price = 100
         self.plan_component.amount = 1
         self._check_minimal_price(100)
 
-        self.offering_component.billing_type = (
-            models.OfferingComponent.BillingTypes.ONE_TIME
-        )
+        self.offering_component.billing_type = BillingTypes.ONE_TIME
         self.plan_component.price = 200
         self._check_minimal_price(200)
 
-        self.offering_component.billing_type = (
-            models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH
-        )
+        self.offering_component.billing_type = BillingTypes.ON_PLAN_SWITCH
         self.plan_component.price = 300
         self._check_minimal_price(0)
 
-        self.offering_component.billing_type = (
-            models.OfferingComponent.BillingTypes.USAGE
-        )
+        self.offering_component.billing_type = BillingTypes.USAGE
         self.plan_component.price = 500
         self._check_minimal_price(0)
 
@@ -763,9 +744,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
 
         offering = models.Offering.objects.get(uuid=response.data["uuid"])
         component = offering.components.get(type="cores")
-        self.assertEqual(
-            component.billing_type, models.OfferingComponent.BillingTypes.FIXED
-        )
+        self.assertEqual(component.billing_type, BillingTypes.FIXED)
 
     def test_component_name_should_not_contain_spaces(self):
         plans_request = {
@@ -1208,9 +1187,7 @@ class OfferingComponentCreateTest(BaseOfferingUpdateTest):
         component = self.offering.components.get()
         self.assertEqual("cores", component.type)
         self.assertEqual("hours", component.measured_unit)
-        self.assertEqual(
-            models.OfferingComponent.BillingTypes.FIXED, component.billing_type
-        )
+        self.assertEqual(BillingTypes.FIXED, component.billing_type)
 
 
 class OfferingComponentUpdateTest(BaseOfferingUpdateTest):
@@ -1249,9 +1226,7 @@ class OfferingComponentUpdateTest(BaseOfferingUpdateTest):
         component = self.offering.components.get()
         self.assertEqual("Cores", component.name)
         self.assertEqual("hours", component.measured_unit)
-        self.assertEqual(
-            models.OfferingComponent.BillingTypes.FIXED, component.billing_type
-        )
+        self.assertEqual(BillingTypes.FIXED, component.billing_type)
 
     def test_update_event_includes_changes(self):
         """
@@ -2210,7 +2185,7 @@ class OfferingCreateComponentsTest(test.APITransactionTestCase):
     def test_offering_components_create_succeed(self, user):
         self.client.force_login(getattr(self.fixture, user))
         payload = {
-            "billing_type": models.OfferingComponent.BillingTypes.USAGE,
+            "billing_type": BillingTypes.USAGE,
             "type": "created_type",
             "name": "created_name",
             "measured_unit": "cpu_k_hours",
@@ -2224,15 +2199,13 @@ class OfferingCreateComponentsTest(test.APITransactionTestCase):
         offering_component = models.OfferingComponent.objects.latest("id")
         self.assertEqual("created_name", offering_component.name)
         self.assertEqual("created_type", offering_component.type)
-        self.assertEqual(
-            models.OfferingComponent.BillingTypes.USAGE, offering_component.billing_type
-        )
+        self.assertEqual(BillingTypes.USAGE, offering_component.billing_type)
 
     @data("offering_owner", "service_manager")
     def test_offering_components_create_with_invalid_payload_failed(self, user):
         self.client.force_login(getattr(self.fixture, user))
         payload = {
-            "billing_type": models.OfferingComponent.BillingTypes.USAGE,
+            "billing_type": BillingTypes.USAGE,
             "name": "updated_name",
             "measured_unit": "cpu_k_hours",
         }
@@ -2246,7 +2219,7 @@ class OfferingCreateComponentsTest(test.APITransactionTestCase):
         self.offering.save()
 
         payload = {
-            "billing_type": models.OfferingComponent.BillingTypes.USAGE,
+            "billing_type": BillingTypes.USAGE,
             "type": "cpu",
             "name": "cpu",
             "measured_unit": "cpu_k_hours",
@@ -2287,7 +2260,7 @@ class OfferingUpdateComponentsTest(test.APITransactionTestCase):
         self.client.force_login(getattr(self.fixture, user))
         payload = {
             "uuid": self.offering_component.uuid,
-            "billing_type": models.OfferingComponent.BillingTypes.USAGE,
+            "billing_type": BillingTypes.USAGE,
             "type": "updated_type",
             "name": "updated_name",
             "measured_unit": "cpu_k_hours",
@@ -2296,7 +2269,7 @@ class OfferingUpdateComponentsTest(test.APITransactionTestCase):
         self.assertEqual("CPU", self.offering_component.name)
         self.assertEqual("cpu", self.offering_component.type)
         self.assertEqual(
-            models.OfferingComponent.BillingTypes.FIXED,
+            BillingTypes.FIXED,
             self.offering_component.billing_type,
         )
 
@@ -2308,15 +2281,13 @@ class OfferingUpdateComponentsTest(test.APITransactionTestCase):
 
         self.assertEqual("updated_name", offering_component.name)
         self.assertEqual("updated_type", offering_component.type)
-        self.assertEqual(
-            models.OfferingComponent.BillingTypes.USAGE, offering_component.billing_type
-        )
+        self.assertEqual(BillingTypes.USAGE, offering_component.billing_type)
 
     @data("offering_owner", "service_manager")
     def test_offering_components_update_with_invalid_payload_failed(self, user):
         self.client.force_login(getattr(self.fixture, user))
         payload = {
-            "billing_type": models.OfferingComponent.BillingTypes.USAGE,
+            "billing_type": BillingTypes.USAGE,
             "type": "updated_type",
             "name": "updated_name",
             "measured_unit": "cpu_k_hours",
@@ -2336,7 +2307,7 @@ class OfferingUpdateComponentsTest(test.APITransactionTestCase):
         self.offering.save()
 
         payload = {
-            "billing_type": models.OfferingComponent.BillingTypes.USAGE,
+            "billing_type": BillingTypes.USAGE,
             "type": "gpu",
             "name": "GPU",
             "measured_unit": "cpu_k_hours",
@@ -2378,7 +2349,7 @@ class OfferingRemoveComponentsTest(test.APITransactionTestCase):
         self.client.force_login(getattr(self.fixture, user))
         payload = {
             "uuid": self.offering_component.uuid,
-            "billing_type": models.OfferingComponent.BillingTypes.USAGE,
+            "billing_type": BillingTypes.USAGE,
             "type": "updated_type",
             "name": "updated_name",
             "measured_unit": "cpu_k_hours",
@@ -2393,7 +2364,7 @@ class OfferingRemoveComponentsTest(test.APITransactionTestCase):
     def test_offering_components_remove_without_uuid_failed(self, user):
         self.client.force_login(getattr(self.fixture, user))
         payload = {
-            "billing_type": models.OfferingComponent.BillingTypes.USAGE,
+            "billing_type": BillingTypes.USAGE,
             "type": "updated_type",
             "name": "updated_name",
             "measured_unit": "cpu_k_hours",
