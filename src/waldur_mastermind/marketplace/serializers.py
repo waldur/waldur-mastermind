@@ -2622,7 +2622,11 @@ def validate_public_offering(order: models.Order):
         ).exists()
     ):
         return
-    raise serializers.ValidationError(_("This offering is not available for ordering."))
+    raise serializers.ValidationError(
+        _(
+            "This offering is not available for ordering due to the org group limitation."
+        )
+    )
 
 
 def validate_private_offering(order: models.Order):
