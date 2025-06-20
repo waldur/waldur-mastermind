@@ -13,7 +13,7 @@ Common uses include:
 
 [![Docs](https://img.shields.io/badge/Docs-docs.waldur.com-green)](https://docs.waldur.com)
 
-![Waldur Screenshot](https://docs.waldur.com/latest/about/img/org-dashboard.png)
+![Waldur Screenshot](https://docs.waldur.com/latest/about/img/Organization-dashboard.png)
 
 ## Features
 
