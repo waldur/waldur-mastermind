@@ -45,7 +45,7 @@ class Comment:
     user_id: str
     is_waldur_comment: bool
     ticket_id: str
-    attachments: list = None
+    attachments: list | None = None
 
 
 @dataclass

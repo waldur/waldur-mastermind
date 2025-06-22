@@ -744,7 +744,7 @@ class ReviewViewSet(ActionsViewSet):
             raise exceptions.PermissionDenied()
         super().perform_destroy(instance)
 
-    def action_permission_check(request, view, obj: models.Review = None):
+    def action_permission_check(request, view, obj: models.Review | None = None):
         if not obj:
             return
 

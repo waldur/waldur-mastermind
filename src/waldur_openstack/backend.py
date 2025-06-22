@@ -1246,7 +1246,7 @@ class OpenStackBackend(ServiceBackend):
     def pull_tenant_subnets(self, tenant: models.Tenant):
         self.pull_subnets(tenant)
 
-    def pull_subnets(self, tenant: models.Tenant = None, network=None):
+    def pull_subnets(self, tenant: models.Tenant | None = None, network=None):
         neutron = get_neutron_client(self.admin_session)
 
         if tenant:
@@ -4320,7 +4320,7 @@ class OpenStackBackend(ServiceBackend):
             )
         return instances
 
-    def get_importable_instances(self, tenant: models.Tenant) -> list[models.Instance]:
+    def get_importable_instances(self, tenant: models.Tenant) -> list[dict]:
         instances = [
             {
                 "type": get_resource_type(models.Instance),

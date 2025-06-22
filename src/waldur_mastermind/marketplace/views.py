@@ -852,7 +852,7 @@ class CategoryGroupViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     ) = [structure_permissions.is_staff]
 
 
-def can_update_offering(request, view, obj: models.Offering = None):
+def can_update_offering(request, view, obj: models.Offering | None = None):
     offering = obj
 
     if not offering:

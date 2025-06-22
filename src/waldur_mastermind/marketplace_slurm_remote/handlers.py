@@ -6,13 +6,14 @@ from waldur_core.permissions import models as permission_models
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.models import OfferingUser, Order
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, utils
 
 logger = logging.getLogger(__name__)
 
 
-def send_done_order_to_message_queue(sender, instance, created=False, **kwargs):
-    order: marketplace_models.Order = instance
+def send_done_order_to_message_queue(sender, instance: Order, created=False, **kwargs):
+    order = instance
     if created:
         return
     offering = order.offering
@@ -30,8 +31,10 @@ def send_done_order_to_message_queue(sender, instance, created=False, **kwargs):
         logging_tasks.publish_messages.delay(messages)
 
 
-def send_pending_order_to_message_queue(sender, instance, created=False, **kwargs):
-    order: marketplace_models.Order = instance
+def send_pending_order_to_message_queue(
+    sender, instance: Order, created=False, **kwargs
+):
+    order = instance
     if created:
         return
 
@@ -53,10 +56,12 @@ def send_pending_order_to_message_queue(sender, instance, created=False, **kwarg
         logging_tasks.publish_messages.delay(messages)
 
 
-def send_offering_user_username_message(sender, instance, created=False, **kwargs):
+def send_offering_user_username_message(
+    sender, instance: OfferingUser, created=False, **kwargs
+):
     if not created:
         return
-    offering_user: marketplace_models.OfferingUser = instance
+    offering_user = instance
     offering = offering_user.offering
     if offering.type != PLUGIN_NAME:
         return

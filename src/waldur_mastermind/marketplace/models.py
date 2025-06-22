@@ -1524,8 +1524,11 @@ class ScopedServiceAccount(BaseServiceAccount):
     def __str__(self):
         return f"Service account {self.username} for {self.scope}"
 
-    tracker = FieldTracker(
-        fields=["username", "email", "description", "preferred_identifier"]
+    tracker = cast(
+        FieldInstanceTracker,
+        FieldTracker(
+            fields=["username", "email", "description", "preferred_identifier"]
+        ),
     )
 
 
@@ -1574,7 +1577,10 @@ class RobotAccount(
     )
 
     # Get base fields from BaseServiceAccount's tracker and add new ones
-    tracker = FieldTracker(fields=["username", "state", "resource", "type", "keys"])
+    tracker = cast(
+        FieldInstanceTracker,
+        FieldTracker(fields=["username", "state", "resource", "type", "keys"]),
+    )
 
     users = models.ManyToManyField(
         User, blank=True, help_text=_("Users who have access to this robot account.")

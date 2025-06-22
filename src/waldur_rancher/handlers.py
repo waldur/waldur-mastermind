@@ -5,14 +5,18 @@ from django.core.exceptions import ObjectDoesNotExist
 from keycloak import exceptions as keycloak_exceptions
 
 from waldur_core.core.enums import CoreStates
+from waldur_openstack.models import Instance
 from waldur_rancher.exceptions import RancherException
 
 from . import backend, enums, models, utils
+from .models import KeycloakGroup, KeycloakUserGroupMembership, Node
 
 logger = logging.getLogger(__name__)
 
 
-def delete_node_if_related_instance_has_been_deleted(sender, instance, **kwargs):
+def delete_node_if_related_instance_has_been_deleted(
+    sender, instance: Instance, **kwargs
+):
     try:
         node = models.Node.objects.get(instance=instance)
         backend = node.cluster.get_backend()
@@ -21,7 +25,9 @@ def delete_node_if_related_instance_has_been_deleted(sender, instance, **kwargs)
         pass
 
 
-def delete_cluster_if_all_related_nodes_have_been_deleted(sender, instance, **kwargs):
+def delete_cluster_if_all_related_nodes_have_been_deleted(
+    sender, instance: Node, **kwargs
+):
     node = instance
     try:
         if (
@@ -35,7 +41,7 @@ def delete_cluster_if_all_related_nodes_have_been_deleted(sender, instance, **kw
 
 
 def set_error_state_for_node_if_related_instance_deleting_is_failed(
-    sender, instance, created=False, **kwargs
+    sender, instance: Instance, created=False, **kwargs
 ):
     if created:
         return
@@ -52,7 +58,7 @@ def set_error_state_for_node_if_related_instance_deleting_is_failed(
 
 
 def set_error_state_for_cluster_if_related_node_deleting_is_failed(
-    sender, instance, created=False, **kwargs
+    sender, instance: Node, created=False, **kwargs
 ):
     node = instance
 
@@ -73,7 +79,7 @@ def delete_catalog_if_scope_has_been_deleted(sender, instance, **kwargs):
     ).delete()
 
 
-def delete_keycloak_group_from_backend(sender, instance, **kwargs):
+def delete_keycloak_group_from_backend(sender, instance: KeycloakGroup, **kwargs):
     group = instance
     try:
         _, settings = utils.get_keycloak_group_scope_and_settings(group)
@@ -96,7 +102,9 @@ def delete_keycloak_group_from_backend(sender, instance, **kwargs):
         logger.error("Unable to delete the group %s in Keycloak: %s", group, e)
 
 
-def delete_keycloak_user_group_membership_from_backend(sender, instance, **kwargs):
+def delete_keycloak_user_group_membership_from_backend(
+    sender, instance: KeycloakUserGroupMembership, **kwargs
+):
     try:
         group = instance.group
     except models.KeycloakGroup.DoesNotExist:
@@ -133,7 +141,9 @@ def delete_keycloak_user_group_membership_from_backend(sender, instance, **kwarg
         logger.error("Unable to remove a user from the Keycloak group: %s", e)
 
 
-def add_group_to_rancher_scope(sender, instance, created=False, **kwargs):
+def add_group_to_rancher_scope(
+    sender, instance: KeycloakGroup, created=False, **kwargs
+):
     if not created:
         return
 
@@ -163,7 +173,7 @@ def add_group_to_rancher_scope(sender, instance, created=False, **kwargs):
         )
 
 
-def remove_group_from_rancher_scope(sender, instance, **kwargs):
+def remove_group_from_rancher_scope(sender, instance: KeycloakGroup, **kwargs):
     group = instance
     try:
         scope, settings = utils.get_keycloak_group_scope_and_settings(group)

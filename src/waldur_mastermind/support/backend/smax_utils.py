@@ -35,23 +35,23 @@ def reraise_exceptions(func):
 class User:
     email: str
     name: str
-    id: int = None
-    upn: str = None
-    external_id: str = None
+    id: int | None = None
+    upn: str | None = None
+    external_id: str | None = None
 
 
 @dataclass
 class Issue:
     summary: str
     description: str
-    id: str = None
+    id: str | None = None
     status: str = ""
     attachments: list = field(default_factory=list)
     comments: list = field(default_factory=list)
-    organisation_name: str = None
-    project_name: str = None
-    resource_name: str = None
-    category_id: str = None
+    organisation_name: str | None = None
+    project_name: str | None = None
+    resource_name: str | None = None
+    category_id: str | None = None
 
 
 @dataclass
@@ -59,9 +59,9 @@ class Attachment:
     filename: str
     size: str
     content_type: str
-    id: str = None
-    backend_issue_id: str = None
-    backend_user_id: str = None
+    id: str | None = None
+    backend_issue_id: str | None = None
+    backend_user_id: str | None = None
 
 
 @dataclass
@@ -69,15 +69,15 @@ class Comment:
     description: str
     backend_user_id: str
     is_public: bool = False
-    id: str = None
-    backend_issue_id: str = None
+    id: str | None = None
+    backend_issue_id: str | None = None
     is_system: bool = False
 
 
 @dataclass
 class Category:
     name: str
-    id: str = None
+    id: str | None = None
 
 
 class SmaxBackend:

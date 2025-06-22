@@ -107,7 +107,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     destroy_permissions = [is_staff_or_support]
     destroy_validators = [_destroy_is_available_validator]
 
-    def _comment_permission(request, view, obj: models.Issue = None):
+    def _comment_permission(request, view, obj: models.Issue | None = None):
         user = request.user
         if user.is_staff or user.is_support or not obj:
             return

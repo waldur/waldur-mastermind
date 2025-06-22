@@ -8,6 +8,7 @@ And we use SUM function when we read quota usage.
 
 import inspect
 import logging
+from typing import cast
 
 from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
@@ -15,6 +16,7 @@ from django.db import models, transaction
 from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.quotas import exceptions, fields, managers
 
@@ -31,7 +33,7 @@ class QuotaLimit(models.Model):
     object_id = models.PositiveIntegerField(null=True)
     scope = ct_fields.GenericForeignKey("content_type", "object_id")
 
-    tracker = FieldTracker(fields=["value"])
+    tracker = cast(FieldInstanceTracker, FieldTracker(fields=["value"]))
     objects = managers.QuotaManager("scope")
 
     class Meta:

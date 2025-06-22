@@ -5,12 +5,17 @@ from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.models import StateMixin
+from waldur_core.core.models import ChangeEmailRequest, StateMixin
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_customer, get_permissions
 from waldur_core.structure.log import event_logger
 from waldur_core.structure.managers import count_customer_users
-from waldur_core.structure.models import Customer, Project, ServiceSettings
+from waldur_core.structure.models import (
+    AccessSubnet,
+    Customer,
+    Project,
+    ServiceSettings,
+)
 
 from . import tasks
 
@@ -29,7 +34,7 @@ def change_users_quota(sender, instance: UserRole, **kwargs):
     customer.set_quota_usage("nc_user_count", count_customer_users(customer))
 
 
-def revoke_roles_on_project_deletion(sender, instance=None, **kwargs):
+def revoke_roles_on_project_deletion(sender, instance: Project | None = None, **kwargs):
     """
     When project is deleted, all project permissions are cascade deleted
     by Django without emitting role_revoked signal.
@@ -39,7 +44,7 @@ def revoke_roles_on_project_deletion(sender, instance=None, **kwargs):
         permission.revoke()
 
 
-def log_customer_save(sender, instance, created=False, **kwargs):
+def log_customer_save(sender, instance: Customer, created=False, **kwargs):
     if created:
         event_logger.customer.info(
             "Customer {customer_name} has been created.",
@@ -94,7 +99,7 @@ def log_customer_save(sender, instance, created=False, **kwargs):
         )
 
 
-def log_customer_delete(sender, instance, **kwargs):
+def log_customer_delete(sender, instance: Customer, **kwargs):
     event_logger.customer.info(
         "Customer {customer_name} has been deleted.",
         event_type="customer_deletion_succeeded",
@@ -104,7 +109,7 @@ def log_customer_delete(sender, instance, **kwargs):
     )
 
 
-def log_project_save(sender, instance, created=False, **kwargs):
+def log_project_save(sender, instance: Project, created=False, **kwargs):
     if created:
         event_logger.project.info(
             "Project {project_name} has been created.",
@@ -132,7 +137,7 @@ def log_project_save(sender, instance, created=False, **kwargs):
         )
 
 
-def log_project_delete(sender, instance, **kwargs):
+def log_project_delete(sender, instance: Project, **kwargs):
     event_logger.project.info(
         "Project {project_name} has been deleted.",
         event_type="project_deletion_succeeded",
@@ -237,7 +242,7 @@ def log_access_subnet_creation_succeeded(instance):
     )
 
 
-def log_access_subnet_deletion_succeeded(sender, instance, **kwargs):
+def log_access_subnet_deletion_succeeded(sender, instance: AccessSubnet, **kwargs):
     event_logger.access_subnet.info(
         f"Access subnet {instance} has been deleted.",
         event_type="access_subnet_deletion_succeeded",
@@ -245,7 +250,7 @@ def log_access_subnet_deletion_succeeded(sender, instance, **kwargs):
     )
 
 
-def log_access_subnet_save(sender, instance, created=False, **kwargs):
+def log_access_subnet_save(sender, instance: AccessSubnet, created=False, **kwargs):
     if created:
         log_access_subnet_creation_succeeded(instance)
     else:
@@ -284,7 +289,9 @@ def update_customer_users_count(sender, **kwargs):
         customer.set_quota_usage("nc_user_count", usage)
 
 
-def change_email_has_been_requested(sender, instance, created=False, **kwargs):
+def change_email_has_been_requested(
+    sender, instance: ChangeEmailRequest, created=False, **kwargs
+):
     if not created:
         return
 

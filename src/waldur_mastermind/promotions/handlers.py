@@ -2,11 +2,14 @@ import logging
 
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.promotions import models
+from waldur_mastermind.promotions.models import Campaign
 
 logger = logging.getLogger(__name__)
 
 
-def apply_campaign_to_pending_invoices(sender, instance, created=False, **kwargs):
+def apply_campaign_to_pending_invoices(
+    sender, instance: Campaign, created=False, **kwargs
+):
     from waldur_mastermind.invoices import models as invoices_models
     from waldur_mastermind.marketplace import models as marketplace_models
 

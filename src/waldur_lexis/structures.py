@@ -8,5 +8,5 @@ class HeappeConfig:
     heappe_password: str
     heappe_cluster_id: int
     heappe_local_base_path: str
-    heappe_cluster_password: str = None
-    heappe_project_id: str = None
+    heappe_cluster_password: str | None = None
+    heappe_project_id: str | None = None

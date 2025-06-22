@@ -5,12 +5,14 @@ from django.template import Context, Template
 from django.template.loader import get_template
 
 from waldur_core.core import utils as core_utils
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.marketplace_support import utils as marketplace_support_utils
+from waldur_mastermind.support.models import Issue
 
 from . import tasks
 
@@ -30,7 +32,9 @@ RESOURCE_CALLBACKS = {
 }
 
 
-def update_order_if_issue_was_complete(sender, instance, created=False, **kwargs):
+def update_order_if_issue_was_complete(
+    sender, instance: Issue, created=False, **kwargs
+):
     if created:
         return
 
@@ -51,7 +55,9 @@ def update_order_if_issue_was_complete(sender, instance, created=False, **kwargs
     callback(issue.resource.resource)
 
 
-def notify_about_request_based_item_creation(sender, instance, created=False, **kwargs):
+def notify_about_request_based_item_creation(
+    sender, instance: Issue, created=False, **kwargs
+):
     if created:
         return
 
@@ -198,7 +204,9 @@ def _create_issue_if_membership_changed(instance, summary):
         logger.debug("No eligible resources found for membership change notification")
 
 
-def create_issue_if_membership_changed(sender, instance, created=False, **kwargs):
+def create_issue_if_membership_changed(
+    sender, instance: UserRole, created=False, **kwargs
+):
     logger.info(
         "Handling membership change event. Created: %s, Instance: %s, Is active: %s",
         created,

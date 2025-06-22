@@ -1,3 +1,5 @@
+from typing import cast
+
 from django.urls import reverse
 from rest_framework import status, test
 
@@ -63,7 +65,7 @@ class MigrationTest(test.APITransactionTestCase):
         )
         dst_resource_uuid = response.data["dst_resource_uuid"]
         dst_resource = Resource.objects.get(uuid=dst_resource_uuid)
-        tenant: Tenant = dst_resource.scope
+        tenant = cast(Tenant, dst_resource.scope)
         self.assertNotEqual(tenant.user_username, "")
         self.assertNotEqual(tenant.user_password, "")
 
@@ -122,7 +124,7 @@ class MigrationTest(test.APITransactionTestCase):
         )
         dst_resource_uuid = response.data["dst_resource_uuid"]
         dst_resource = Resource.objects.get(uuid=dst_resource_uuid)
-        tenant: Tenant = dst_resource.scope
+        tenant = cast(Tenant, dst_resource.scope)
         self.assertEqual(tenant.security_groups.get().rules.count(), 1)
 
     def test_order_is_created_on_migration_success(self):
@@ -194,7 +196,7 @@ class MigrationTest(test.APITransactionTestCase):
 
         dst_resource_uuid = response.data["dst_resource_uuid"]
         dst_resource = Resource.objects.get(uuid=dst_resource_uuid)
-        dst_tenant: Tenant = dst_resource.scope
+        dst_tenant = cast(Tenant, dst_resource.scope)
 
         # Assert that only the selected network is created in the destination tenant
         self.assertEqual(dst_tenant.networks.count(), 1)
@@ -240,7 +242,7 @@ class MigrationTest(test.APITransactionTestCase):
 
         dst_resource_uuid = response.data["dst_resource_uuid"]
         dst_resource = Resource.objects.get(uuid=dst_resource_uuid)
-        dst_tenant: Tenant = dst_resource.scope
+        dst_tenant = cast(Tenant, dst_resource.scope)
 
         # Assert that both networks are created in the destination tenant
         self.assertEqual(dst_tenant.networks.count(), 2)

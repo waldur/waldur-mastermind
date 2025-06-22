@@ -1,4 +1,7 @@
-def update_registration_method(sender, instance, **kwargs):
+from waldur_core.core.models import User
+
+
+def update_registration_method(sender, instance: User, **kwargs):
     user = instance
     if user.registration_method != "SAML2":
         user.registration_method = "SAML2"

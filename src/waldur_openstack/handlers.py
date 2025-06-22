@@ -4,6 +4,8 @@ from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.models import SshPublicKey
+from waldur_core.quotas.models import QuotaLimit
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -38,7 +40,9 @@ def remove_ssh_key_from_tenants(sender, instance, **kwargs):
             )
 
 
-def remove_ssh_key_from_all_tenants_on_it_deletion(sender, instance, **kwargs):
+def remove_ssh_key_from_all_tenants_on_it_deletion(
+    sender, instance: SshPublicKey, **kwargs
+):
     """Delete key from all tenants that are accessible for user on key deletion."""
     ssh_key: core_models.SshPublicKey = instance
     user = ssh_key.user
@@ -57,7 +61,7 @@ def remove_ssh_key_from_all_tenants_on_it_deletion(sender, instance, **kwargs):
         )
 
 
-def log_tenant_quota_update(sender, instance, created=False, **kwargs):
+def log_tenant_quota_update(sender, instance: QuotaLimit, created=False, **kwargs):
     quota = instance
     if created or not isinstance(quota.scope, models.Tenant):
         return
@@ -82,7 +86,7 @@ def log_tenant_quota_update(sender, instance, created=False, **kwargs):
     )
 
 
-def log_security_group_cleaned(sender, instance, **kwargs):
+def log_security_group_cleaned(sender, instance: models.SecurityGroup, **kwargs):
     event_logger.openstack_security_group.info(
         "Security group %s has been cleaned from cache." % instance.name,
         event_type="openstack_security_group_cleaned",
@@ -92,7 +96,9 @@ def log_security_group_cleaned(sender, instance, **kwargs):
     )
 
 
-def log_security_group_rule_cleaned(sender, instance, **kwargs):
+def log_security_group_rule_cleaned(
+    sender, instance: models.SecurityGroupRule, **kwargs
+):
     event_logger.openstack_security_group_rule.info(
         "Security group rule %s has been cleaned from cache." % str(instance),
         event_type="openstack_security_group_rule_cleaned",
@@ -102,7 +108,7 @@ def log_security_group_rule_cleaned(sender, instance, **kwargs):
     )
 
 
-def log_network_cleaned(sender, instance, **kwargs):
+def log_network_cleaned(sender, instance: models.Network, **kwargs):
     event_logger.openstack_network.info(
         "Network %s has been cleaned from cache." % instance.name,
         event_type="openstack_network_cleaned",
@@ -112,7 +118,7 @@ def log_network_cleaned(sender, instance, **kwargs):
     )
 
 
-def log_subnet_cleaned(sender, instance, **kwargs):
+def log_subnet_cleaned(sender, instance: models.SubNet, **kwargs):
     event_logger.openstack_subnet.info(
         "SubNet %s has been cleaned." % instance.name,
         event_type="openstack_subnet_cleaned",
@@ -122,7 +128,7 @@ def log_subnet_cleaned(sender, instance, **kwargs):
     )
 
 
-def log_server_group_cleaned(sender, instance, **kwargs):
+def log_server_group_cleaned(sender, instance: models.ServerGroup, **kwargs):
     event_logger.openstack_server_group.info(
         "Server group %s has been cleaned from cache." % instance.name,
         event_type="openstack_server_group_cleaned",
@@ -172,7 +178,7 @@ def _get_action_event_type(action, event_state):
     return "resource_{}_{}".format(action.replace(" ", "_").lower(), event_state)
 
 
-def log_action(sender, instance, created=False, **kwargs):
+def log_action(sender, instance: models.Instance, created=False, **kwargs):
     """Log any resource action.
 
     Example of logged volume extend action:
@@ -201,7 +207,7 @@ def log_action(sender, instance, created=False, **kwargs):
         )
 
 
-def delete_state_service_properties(sender, instance, **kwargs):
+def delete_state_service_properties(sender, instance: models.Tenant, **kwargs):
     models.Image.objects.filter(tenants=None).delete()
     models.Flavor.objects.filter(tenants=None).delete()
     models.VolumeType.objects.filter(tenants=None).delete()
