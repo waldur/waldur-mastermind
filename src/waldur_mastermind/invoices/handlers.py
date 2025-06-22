@@ -9,11 +9,13 @@ from django.db.models import Q
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.models import Project
 from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import ResourceStates
 
 from . import log, models, registrators
+from .models import CustomerCredit, Invoice, InvoiceItem
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +67,7 @@ def log_invoice_state_transition(
         )
 
 
-def set_tax_percent_on_invoice_creation(sender, instance, **kwargs):
+def set_tax_percent_on_invoice_creation(sender, instance: Invoice, **kwargs):
     if instance.pk is not None:
         return
 
@@ -73,7 +75,7 @@ def set_tax_percent_on_invoice_creation(sender, instance, **kwargs):
 
 
 def set_project_name_on_invoice_item_creation(
-    sender, instance, created=False, **kwargs
+    sender, instance: InvoiceItem, created=False, **kwargs
 ):
     if created and instance.project:
         item = instance
@@ -82,7 +84,7 @@ def set_project_name_on_invoice_item_creation(
         item.save(update_fields=("project_name", "project_uuid"))
 
 
-def update_invoice_item_on_project_name_update(sender, instance, **kwargs):
+def update_invoice_item_on_project_name_update(sender, instance: Project, **kwargs):
     project = instance
 
     if not project.tracker.has_changed("name"):
@@ -94,7 +96,7 @@ def update_invoice_item_on_project_name_update(sender, instance, **kwargs):
         item.save(update_fields=["project_name"])
 
 
-def emit_invoice_created_event(sender, instance, created=False, **kwargs):
+def emit_invoice_created_event(sender, instance: Invoice, created=False, **kwargs):
     if created:
         return
 
@@ -112,7 +114,7 @@ def emit_invoice_created_event(sender, instance, created=False, **kwargs):
 
 
 def update_cache_when_invoice_item_is_updated(
-    sender, instance, created=False, **kwargs
+    sender, instance: InvoiceItem, created=False, **kwargs
 ):
     invoice_item = instance
     if created or set(invoice_item.tracker.changed()) & {
@@ -124,7 +126,7 @@ def update_cache_when_invoice_item_is_updated(
         transaction.on_commit(lambda: invoice_item.invoice.update_cache())
 
 
-def update_cache_when_invoice_item_is_deleted(sender, instance, **kwargs):
+def update_cache_when_invoice_item_is_deleted(sender, instance: InvoiceItem, **kwargs):
     def update_invoice():
         try:
             instance.invoice.update_cache()
@@ -162,7 +164,7 @@ def projects_customer_has_been_changed(
 
 
 def create_recurring_usage_if_invoice_has_been_created(
-    sender, instance, created=False, **kwargs
+    sender, instance: Invoice, created=False, **kwargs
 ):
     if not created:
         return
@@ -197,7 +199,7 @@ def create_recurring_usage_if_invoice_has_been_created(
         )
 
 
-def log_credit(sender, instance, created=False, **kwargs):
+def log_credit(sender, instance: CustomerCredit, created=False, **kwargs):
     credit = instance
 
     if created:

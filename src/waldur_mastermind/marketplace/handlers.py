@@ -9,13 +9,29 @@ from django.db.models import signals
 from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.models import User
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.models import Customer, Project
 from waldur_core.users import models as users_models
 from waldur_core.users.tasks import process_invitation
+from waldur_freeipa.models import Profile
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OrderStates,
     ResourceStates,
+)
+from waldur_mastermind.marketplace.models import (
+    Offering,
+    OfferingComponent,
+    OfferingUser,
+    OfferingUserRole,
+    Order,
+    Plan,
+    PlanComponent,
+    Resource,
+    RobotAccount,
+    ScopedServiceAccount,
+    Screenshot,
 )
 from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
@@ -40,7 +56,7 @@ ROBOT_ACCOUNT_TYPE = "Robot account"
 SERVICE_ACCOUNT_TYPE = "Service account"
 
 
-def create_screenshot_thumbnail(sender, instance, created=False, **kwargs):
+def create_screenshot_thumbnail(sender, instance: Screenshot, created=False, **kwargs):
     if not created:
         return
 
@@ -49,7 +65,7 @@ def create_screenshot_thumbnail(sender, instance, created=False, **kwargs):
     )
 
 
-def log_order_events(sender, instance, created=False, **kwargs):
+def log_order_events(sender, instance: Order, created=False, **kwargs):
     order: models.Order = instance
     if created:
         if order.state not in (
@@ -79,14 +95,14 @@ def log_order_events(sender, instance, created=False, **kwargs):
             log.log_order_failed(order)
 
 
-def log_resource_events(sender, instance, created=False, **kwargs):
+def log_resource_events(sender, instance: Resource, created=False, **kwargs):
     resource = instance
     # Skip logging for imported resource
     if created and instance.state == ResourceStates.CREATING:
         log.log_resource_creation_requested(resource)
 
 
-def init_resource_parent(sender, instance, created=False, **kwargs):
+def init_resource_parent(sender, instance: Resource, created=False, **kwargs):
     if not created or instance.tracker.has_changed("parent_id"):
         return
 
@@ -116,7 +132,9 @@ def init_resource_parent(sender, instance, created=False, **kwargs):
     resource.save(update_fields=["parent"])
 
 
-def notify_approvers_when_order_is_created(sender, instance, created=False, **kwargs):
+def notify_approvers_when_order_is_created(
+    sender, instance: Order, created=False, **kwargs
+):
     order: models.Order = instance
     if created and order.state in (
         OrderStates.PENDING_CONSUMER,
@@ -150,7 +168,7 @@ def notify_approvers_when_order_is_created(sender, instance, created=False, **kw
             )
 
 
-def close_service_accounts_on_project_deletion(sender, instance, **kwargs):
+def close_service_accounts_on_project_deletion(sender, instance: Project, **kwargs):
     project: structure_models.Project = instance
 
     service_accounts = models.ProjectServiceAccount.objects.filter(project=project)
@@ -170,7 +188,9 @@ def close_service_accounts_on_project_deletion(sender, instance, **kwargs):
             continue
 
 
-def close_customer_service_accounts_on_customer_deletion(sender, instance, **kwargs):
+def close_customer_service_accounts_on_customer_deletion(
+    sender, instance: Customer, **kwargs
+):
     customer: structure_models.Customer = instance
     service_accounts = models.CustomerServiceAccount.objects.filter(customer=customer)
     if not service_accounts.exists():
@@ -189,7 +209,7 @@ def close_customer_service_accounts_on_customer_deletion(sender, instance, **kwa
 
 
 def process_invitations_and_orders_when_project_start_date_is_unset(
-    sender, instance, created=False, **kwargs
+    sender, instance: Project, created=False, **kwargs
 ):
     if created:
         return
@@ -237,7 +257,7 @@ def process_invitations_and_orders_when_project_start_date_is_unset(
 
 
 def update_resource_when_order_is_rejected_or_erred(
-    sender, instance, created=False, **kwargs
+    sender, instance: Order, created=False, **kwargs
 ):
     order: models.Order = instance
     if not order.tracker.has_changed("state"):
@@ -263,7 +283,7 @@ def update_resource_when_order_is_rejected_or_erred(
         resource.save(update_fields=["state"])
 
 
-def sync_resource_limit_when_order(sender, instance, created=False, **kwargs):
+def sync_resource_limit_when_order(sender, instance: Order, created=False, **kwargs):
     order: models.Order = instance
     if order.type != models.Order.Types.CREATE:
         return
@@ -279,7 +299,7 @@ def sync_resource_limit_when_order(sender, instance, created=False, **kwargs):
 
 
 def update_category_quota_when_offering_is_created(
-    sender, instance, created=False, **kwargs
+    sender, instance: Offering, created=False, **kwargs
 ):
     def get_delta():
         if created:
@@ -297,7 +317,9 @@ def update_category_quota_when_offering_is_created(
         instance.category.add_quota_usage("offering_count", delta)
 
 
-def update_category_quota_when_offering_is_deleted(sender, instance, **kwargs):
+def update_category_quota_when_offering_is_deleted(
+    sender, instance: Offering, **kwargs
+):
     if instance.state == OfferingStates.ACTIVE:
         instance.category.add_quota_usage("offering_count", -1)
 
@@ -310,7 +332,9 @@ def update_category_offerings_count(sender, **kwargs):
         category.set_quota_usage("offering_count", value)
 
 
-def delete_service_setting_when_offering_is_deleted(sender, instance, **kwargs):
+def delete_service_setting_when_offering_is_deleted(
+    sender, instance: Offering, **kwargs
+):
     offering: models.Offering = instance
     try:
         service_settings = offering.scope
@@ -324,7 +348,7 @@ def delete_service_setting_when_offering_is_deleted(sender, instance, **kwargs):
 
 
 def create_resource_plan_period_when_resource_is_created(
-    sender, instance, created=False, **kwargs
+    sender, instance: Resource, created=False, **kwargs
 ):
     if created:
         return
@@ -345,7 +369,7 @@ def create_resource_plan_period_when_resource_is_created(
 
 
 def close_resource_plan_period_when_resource_is_terminated(
-    sender, instance, created=False, **kwargs
+    sender, instance: Resource, created=False, **kwargs
 ):
     """
     Handle case when resource has been terminated by service provider.
@@ -367,7 +391,7 @@ def close_resource_plan_period_when_resource_is_terminated(
 
 
 def switch_resource_plan_period_when_plan_is_updated(
-    sender, instance, created=False, **kwargs
+    sender, instance: Resource, created=False, **kwargs
 ):
     if created:
         return
@@ -503,7 +527,7 @@ def update_or_create_quotas(resource):
             )
 
 
-def sync_limits(sender, instance, created=False, **kwargs):
+def sync_limits(sender, instance: Resource, created=False, **kwargs):
     if not created and not instance.tracker.has_changed("limits"):
         return
     transaction.on_commit(lambda: update_or_create_quotas(instance))
@@ -599,7 +623,7 @@ def enable_nonempty_service_settings(offering):
 
 
 def disable_archived_service_settings_without_existing_resource(
-    sender, instance, created=False, **kwargs
+    sender, instance: Resource, created=False, **kwargs
 ):
     if created:
         return
@@ -619,7 +643,7 @@ def disable_archived_service_settings_without_existing_resource(
 
 
 def disable_service_settings_without_existing_resource_when_archived(
-    sender, instance, created=False, **kwargs
+    sender, instance: Offering, created=False, **kwargs
 ):
     if created:
         return
@@ -634,7 +658,7 @@ def disable_service_settings_without_existing_resource_when_archived(
 
 
 def enable_service_settings_with_existing_resource(
-    sender, instance, created=False, **kwargs
+    sender, instance: Resource, created=False, **kwargs
 ):
     if created:
         return
@@ -652,7 +676,7 @@ def enable_service_settings_with_existing_resource(
 
 
 def enable_service_settings_when_not_archived(
-    sender, instance, created=False, **kwargs
+    sender, instance: Offering, created=False, **kwargs
 ):
     if created:
         return
@@ -666,7 +690,9 @@ def enable_service_settings_when_not_archived(
     enable_nonempty_service_settings(instance)
 
 
-def plan_component_has_been_updated(sender, instance, created=False, **kwargs):
+def plan_component_has_been_updated(
+    sender, instance: PlanComponent, created=False, **kwargs
+):
     if created:
         return
 
@@ -709,7 +735,7 @@ def plan_component_has_been_updated(sender, instance, created=False, **kwargs):
 
 
 def offering_component_has_been_created_or_updated(
-    sender, instance, created=False, **kwargs
+    sender, instance: OfferingComponent, created=False, **kwargs
 ):
     if created:
         event_logger.marketplace_offering_component.info(
@@ -735,7 +761,7 @@ def offering_component_has_been_created_or_updated(
             )
 
 
-def offering_component_has_been_deleted(sender, instance, **kwargs):
+def offering_component_has_been_deleted(sender, instance: OfferingComponent, **kwargs):
     event_logger.marketplace_offering_component.info(
         f"Offering component {instance.name} has been deleted.",
         event_type="marketplace_offering_component_deleted",
@@ -745,7 +771,7 @@ def offering_component_has_been_deleted(sender, instance, **kwargs):
     )
 
 
-def plan_has_been_created_or_updated(sender, instance, created=False, **kwargs):
+def plan_has_been_created_or_updated(sender, instance: Plan, created=False, **kwargs):
     if created:
         event_logger.marketplace_plan.info(
             f"Plan {instance.name} has been created.",
@@ -781,7 +807,9 @@ def plan_has_been_created_or_updated(sender, instance, created=False, **kwargs):
                 )
 
 
-def offering_has_been_created_or_updated(sender, instance, created=False, **kwargs):
+def offering_has_been_created_or_updated(
+    sender, instance: Offering, created=False, **kwargs
+):
     if created:
         event_logger.marketplace_offering.info(
             "Offering has been created.",
@@ -805,7 +833,7 @@ def offering_has_been_created_or_updated(sender, instance, created=False, **kwar
             )
 
 
-def resource_has_been_changed(sender, instance, created=False, **kwargs):
+def resource_has_been_changed(sender, instance: Resource, created=False, **kwargs):
     if created:
         return
 
@@ -855,7 +883,9 @@ def resource_has_been_changed(sender, instance, created=False, **kwargs):
     log.log_resource_update_succeeded(instance, changed)
 
 
-def resource_state_has_been_changed(sender, instance, created=False, **kwargs):
+def resource_state_has_been_changed(
+    sender, instance: Resource, created=False, **kwargs
+):
     if created:
         return
 
@@ -874,7 +904,7 @@ def resource_state_has_been_changed(sender, instance, created=False, **kwargs):
 
 
 def delete_expired_project_if_every_resource_has_been_terminated(
-    sender, instance, created=False, **kwargs
+    sender, instance: Resource, created=False, **kwargs
 ):
     if created:
         return
@@ -907,13 +937,13 @@ def delete_expired_project_if_every_resource_has_been_terminated(
             project.delete()
 
 
-def log_offering_user_created(sender, instance, created=False, **kwargs):
+def log_offering_user_created(sender, instance: OfferingUser, created=False, **kwargs):
     if not created:
         return
     log.log_offering_user_created(instance)
 
 
-def log_offering_user_deleted(sender, instance, **kwargs):
+def log_offering_user_deleted(sender, instance: OfferingUser, **kwargs):
     log.log_offering_user_deleted(instance)
 
 
@@ -939,7 +969,9 @@ def generate_changes_string(changed_dict, instance, account_type):
     return changes_string
 
 
-def log_service_account_created_or_updated(sender, instance, created=False, **kwargs):
+def log_service_account_created_or_updated(
+    sender, instance: ScopedServiceAccount, created=False, **kwargs
+):
     if not created:
         changed_string = generate_changes_string(
             instance.tracker.changed(), instance, SERVICE_ACCOUNT_TYPE
@@ -957,7 +989,7 @@ def log_service_account_created_or_updated(sender, instance, created=False, **kw
     )
 
 
-def log_service_account_deleted(sender, instance, **kwargs):
+def log_service_account_deleted(sender, instance: ScopedServiceAccount, **kwargs):
     event_logger.marketplace_service_account.info(
         "Service account {service_account_username} has been deleted.",
         event_type="service_account_deleted",
@@ -966,7 +998,7 @@ def log_service_account_deleted(sender, instance, **kwargs):
 
 
 def log_resource_robot_account_created_or_updated(
-    sender, instance, created=False, **kwargs
+    sender, instance: RobotAccount, created=False, **kwargs
 ):
     if not created:
         changed_string = generate_changes_string(
@@ -985,7 +1017,7 @@ def log_resource_robot_account_created_or_updated(
     )
 
 
-def log_resource_robot_account_deleted(sender, instance, **kwargs):
+def log_resource_robot_account_deleted(sender, instance: RobotAccount, **kwargs):
     event_logger.marketplace_robot_account.info(
         "Robot account {robot_account_username} has been deleted.",
         event_type="resource_robot_account_deleted",
@@ -1030,7 +1062,7 @@ def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
         offering_user.save(update_fields=["backend_metadata"])
 
 
-def create_offering_user_for_new_resource(sender, instance, **kwargs):
+def create_offering_user_for_new_resource(sender, instance: Resource, **kwargs):
     resource = instance
     project = resource.project
     users = project.get_users()
@@ -1070,7 +1102,7 @@ def create_offering_user_for_new_resource(sender, instance, **kwargs):
 
 
 def update_offering_user_username_after_offering_settings_change(
-    sender, instance, created=False, **kwargs
+    sender, instance: Offering, created=False, **kwargs
 ):
     if created:
         return
@@ -1094,7 +1126,7 @@ def update_offering_user_username_after_offering_settings_change(
         offering_user.save(update_fields=["username", "backend_metadata"])
 
 
-def update_offering_user_username_after_user_change(sender, instance, **kwargs):
+def update_offering_user_username_after_user_change(sender, instance: User, **kwargs):
     """Set new username for offering users after site_username in user details has been changed."""
     user = instance
 
@@ -1119,11 +1151,9 @@ def update_offering_user_username_after_user_change(sender, instance, **kwargs):
 
 
 def update_offering_user_username_after_freeipa_profile_update(
-    sender, instance, created=False, **kwargs
+    sender, instance: Profile, created=False, **kwargs
 ):
-    from waldur_freeipa.models import Profile
-
-    profile: Profile = instance
+    profile = instance
 
     if not profile.tracker.has_changed("username") or not created:
         return
@@ -1147,7 +1177,7 @@ def update_offering_user_username_after_freeipa_profile_update(
         offering_user.save(update_fields=["username"])
 
 
-def notify_user_about_rejected_order(sender, instance, created=False, **kwargs):
+def notify_user_about_rejected_order(sender, instance: Order, created=False, **kwargs):
     if created:
         return
 
@@ -1164,7 +1194,9 @@ def notify_user_about_rejected_order(sender, instance, created=False, **kwargs):
             tasks.notify_user_that_order_been_rejected.delay(order.uuid.hex)
 
 
-def log_offering_role_created_or_updated(sender, instance, created=False, **kwargs):
+def log_offering_role_created_or_updated(
+    sender, instance: OfferingUserRole, created=False, **kwargs
+):
     if created:
         event_logger.marketplace_offering_role.info(
             f"Offering role {instance.name} has been created.",
@@ -1197,7 +1229,7 @@ def log_resource_user_created(
         )
 
 
-def log_offering_role_deleted(sender, instance, **kwargs):
+def log_offering_role_deleted(sender, instance: OfferingUserRole, **kwargs):
     event_logger.marketplace_offering_role.info(
         f"Offering role {instance.name} has been deleted.",
         event_type="marketplace_offering_role_deleted",

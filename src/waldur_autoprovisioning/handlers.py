@@ -4,14 +4,13 @@ import re
 from django.db import transaction
 
 from waldur_autoprovisioning.models import Rule
+from waldur_core.core.models import User
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.models import Order, Resource
-from waldur_mastermind.marketplace.tasks import (
-    process_order_on_commit,
-)
+from waldur_mastermind.marketplace.tasks import process_order_on_commit
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +113,7 @@ def get_or_create_order(
     return order, True
 
 
-def handle_new_user(sender, instance, created=False, **kwargs):
+def handle_new_user(sender, instance: User, created=False, **kwargs):
     user = instance
 
     rules: list = get_rules(user)

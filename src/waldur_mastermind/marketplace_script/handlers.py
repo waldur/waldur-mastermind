@@ -1,11 +1,15 @@
 import logging
 
+from waldur_mastermind.marketplace.models import Resource
+
 from . import PLUGIN_NAME, tasks
 
 logger = logging.getLogger(__name__)
 
 
-def resource_options_have_been_changed(sender, instance, created=False, **kwargs):
+def resource_options_have_been_changed(
+    sender, instance: Resource, created=False, **kwargs
+):
     if created:
         return
 

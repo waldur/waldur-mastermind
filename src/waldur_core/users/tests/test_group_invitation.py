@@ -300,7 +300,7 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
 
     # Helper methods
     def _get_valid_project_invitation_payload(
-        self, invitation: models.Invitation = None, role: Role = None
+        self, invitation: models.Invitation | None = None, role: Role | None = None
     ):
         invitation = invitation or factories.ProjectInvitationFactory.build()
         role = role or ProjectRole.ADMIN
@@ -310,7 +310,7 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         }
 
     def _get_valid_customer_invitation_payload(
-        self, invitation: models.Invitation = None, role: Role = None
+        self, invitation: models.Invitation | None = None, role: Role | None = None
     ):
         invitation = invitation or factories.CustomerInvitationFactory.build()
         role = role or CustomerRole.OWNER

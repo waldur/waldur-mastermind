@@ -7,18 +7,18 @@ from rest_framework.authtoken.models import Token
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.log import event_logger
-from waldur_core.core.models import User
+from waldur_core.core.models import SshPublicKey, User
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure.managers import get_connected_customers
 from waldur_core.structure.models import Customer
 
 
-def create_auth_token(sender, instance, created=False, **kwargs):
+def create_auth_token(sender, instance: User, created=False, **kwargs):
     if created:
         Token.objects.create(user=instance)
 
 
-def preserve_fields_before_update(sender, instance, **kwargs):
+def preserve_fields_before_update(sender, instance: User, **kwargs):
     if instance.pk is None:
         return
 
@@ -40,7 +40,7 @@ def delete_error_message(sender, instance, name, source, target, **kwargs):
     instance.save(update_fields=["error_message"])
 
 
-def set_default_token_lifetime(sender, instance, created=False, **kwargs):
+def set_default_token_lifetime(sender, instance: User, created=False, **kwargs):
     if created:
         # if settings used directly in model - django creates new migration every time settings change
         # Therefore - set default token_lifetime value in handler.
@@ -50,7 +50,7 @@ def set_default_token_lifetime(sender, instance, created=False, **kwargs):
             instance.save(update_fields=["token_lifetime"])
 
 
-def log_user_save(sender, instance, created=False, **kwargs):
+def log_user_save(sender, instance: User, created=False, **kwargs):
     if created:
         event_logger.user.info(
             "User {affected_user_username} has been created.",
@@ -171,7 +171,7 @@ def log_user_save(sender, instance, created=False, **kwargs):
                 )
 
 
-def log_user_delete(sender, instance, **kwargs):
+def log_user_delete(sender, instance: User, **kwargs):
     event_logger.user.info(
         "User {affected_user_username} has been deleted.",
         event_type="user_deletion_succeeded",
@@ -179,7 +179,7 @@ def log_user_delete(sender, instance, **kwargs):
     )
 
 
-def log_ssh_key_save(sender, instance, created=False, **kwargs):
+def log_ssh_key_save(sender, instance: SshPublicKey, created=False, **kwargs):
     if created:
         event_logger.sshkey.info(
             "SSH key {ssh_key_name} has been created for user%s with username {user_username}."
@@ -189,7 +189,7 @@ def log_ssh_key_save(sender, instance, created=False, **kwargs):
         )
 
 
-def log_ssh_key_delete(sender, instance, **kwargs):
+def log_ssh_key_delete(sender, instance: SshPublicKey, **kwargs):
     event_logger.sshkey.info(
         "SSH key {ssh_key_name} has been deleted for user%s with username {user_username}."
         % (" {user_full_name}" if instance.user.full_name else ""),
@@ -198,7 +198,7 @@ def log_ssh_key_delete(sender, instance, **kwargs):
     )
 
 
-def log_token_create(sender, instance, created=False, **kwargs):
+def log_token_create(sender, instance: Token, created=False, **kwargs):
     if created:
         event_logger.token.info(
             "Token has been updated for {affected_user_username}",

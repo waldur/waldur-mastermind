@@ -1,10 +1,11 @@
 from waldur_core.core.enums import CoreStates
+from waldur_mastermind.marketplace.models import Offering
 
 from .executors import GoogleCalendarRenameExecutor
 
 
 def update_google_calendar_name_if_offering_name_has_been_changed(
-    sender, instance, created=False, **kwargs
+    sender, instance: Offering, created=False, **kwargs
 ):
     if created:
         return

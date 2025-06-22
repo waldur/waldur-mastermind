@@ -20,6 +20,7 @@ from waldur_mastermind.marketplace.enums import (
     LimitPeriods,
     ResourceStates,
 )
+from waldur_mastermind.marketplace.models import ComponentUsage
 from waldur_mastermind.promotions import models as promotions_models
 
 logger = logging.getLogger(__name__)
@@ -499,7 +500,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
     @classmethod
     def update_invoice_when_usage_is_reported(
-        cls, sender, instance, created=False, **kwargs
+        cls, sender, instance: ComponentUsage, created=False, **kwargs
     ):
         component_usage = instance
         resource = component_usage.resource

@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -135,7 +136,7 @@ class ProjectEstimatedCostPolicySerializer(
     customer_credit = serializers.SerializerMethodField()
 
     def get_project_credit(self, instance) -> float | None:
-        project: structure_models.Project = instance.scope
+        project = cast(structure_models.Project, instance.scope)
         try:
             return ProjectCredit.objects.get(project=project).value
         except ProjectCredit.DoesNotExist:
@@ -181,7 +182,7 @@ class CustomerEstimatedCostPolicySerializer(
     customer_credit = serializers.SerializerMethodField()
 
     def get_customer_credit(self, instance) -> int:
-        customer: structure_models.Customer = instance.scope
+        customer = cast(structure_models.Customer, instance.scope)
         try:
             return CustomerCredit.objects.get(customer=customer).value
         except CustomerCredit.DoesNotExist:

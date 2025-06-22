@@ -1,9 +1,11 @@
 import logging
 
 from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
 from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import models, utils
+from .models import ProjectEstimatedCostPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +96,9 @@ def get_estimated_cost_policy_handler_for_observable_class(klass, observable_cla
     return handler
 
 
-def customer_credit_changed_handler(sender, instance, created=False, **kwargs):
+def customer_credit_changed_handler(
+    sender, instance: CustomerCredit, created=False, **kwargs
+):
     customer_credit = instance
 
     if not customer_credit.tracker.has_changed("value"):
@@ -126,7 +130,9 @@ def customer_credit_changed_handler(sender, instance, created=False, **kwargs):
         logger.info("Project policies are not found, skipping evaluation")
 
 
-def project_credit_changed_handler(sender, instance, created=False, **kwargs):
+def project_credit_changed_handler(
+    sender, instance: ProjectCredit, created=False, **kwargs
+):
     project_credit = instance
 
     if not project_credit.tracker.has_changed("value"):
@@ -161,7 +167,9 @@ def customer_credit_offerings_list_changed_handler(
             utils.evaluate_policies(policies)
 
 
-def run_reset_actions_upon_cost_policy_deletion(sender, instance, **kwargs) -> None:
+def run_reset_actions_upon_cost_policy_deletion(
+    sender, instance: ProjectEstimatedCostPolicy, **kwargs
+) -> None:
     """
     Execute reset actions when a cost policy is deleted.
 

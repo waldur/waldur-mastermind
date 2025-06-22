@@ -1,9 +1,12 @@
+from typing import cast
+
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.mixins import ScopeMixin
@@ -67,7 +70,9 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
     )
     expiration_time = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(null=True, default=True, db_index=True)
-    tracker = FieldTracker(fields=["expiration_time", "is_active"])
+    tracker = cast(
+        FieldInstanceTracker, FieldTracker(fields=["expiration_time", "is_active"])
+    )
     objects = UserRoleManager()
 
     def set_expiration_time(self, expiration_time, current_user=None):

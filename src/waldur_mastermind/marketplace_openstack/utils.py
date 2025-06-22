@@ -1,5 +1,6 @@
 import ipaddress
 import logging
+from typing import cast
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -72,9 +73,9 @@ def create_offering_components(offering):
         )
 
 
-def import_volume_metadata(resource):
+def import_volume_metadata(resource: marketplace_models.Resource):
     import_resource_metadata(resource)
-    volume = resource.scope
+    volume = cast(openstack_models.Volume, resource.scope)
     resource.backend_metadata["size"] = volume.size
 
     if volume.instance:
@@ -94,7 +95,7 @@ def import_volume_metadata(resource):
 
 def import_instance_metadata(resource: marketplace_models.Resource):
     import_resource_metadata(resource)
-    instance: openstack_models.Instance = resource.scope
+    instance = cast(openstack_models.Instance, resource.scope)
     resource.backend_metadata["internal_ips"] = instance.internal_ips
     resource.backend_metadata["external_ips"] = instance.external_ips
     bootable_volume = instance.volumes.filter(bootable=True).first()
@@ -155,7 +156,7 @@ def import_usage(resource):
     import_current_usages(resource)
 
 
-def import_limits(resource):
+def import_limits(resource: marketplace_models.Resource):
     """
     Import resource quotas as marketplace limits.
     :param resource: Marketplace resource
@@ -244,7 +245,7 @@ def update_limits(order):
 
 
 def import_limits_when_storage_mode_is_switched(resource: marketplace_models.Resource):
-    tenant: openstack_models.Tenant = resource.scope
+    tenant = cast(openstack_models.Tenant, resource.scope)
 
     if not tenant:
         return
@@ -496,7 +497,7 @@ def get_external_ip(offering, floating_ip_address):
             )
 
 
-def update_external_addresses_of_resource(resource):
+def update_external_addresses_of_resource(resource: marketplace_models.Resource):
     instance = resource.scope
 
     if not instance:
@@ -523,7 +524,7 @@ def update_external_addresses_of_resource(resource):
         resource.save()
 
 
-def update_external_addresses_of_floating_ip(floating_ip):
+def update_external_addresses_of_floating_ip(floating_ip: openstack_models.FloatingIP):
     if not floating_ip.address:
         if floating_ip.external_address:
             floating_ip.external_address = []
@@ -541,7 +542,9 @@ def update_external_addresses_of_floating_ip(floating_ip):
         return
 
 
-def update_external_addresses_of_offering_floating_ips(parent_offering):
+def update_external_addresses_of_offering_floating_ips(
+    parent_offering: marketplace_models.Offering,
+):
     offerings = marketplace_models.Offering.objects.filter(
         parent=parent_offering, type=INSTANCE_TYPE
     )

@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 class KubernetesBackend:
-    def __init__(self, kubeconfig_str: str = None, kubeconfig_file_path: str = None):
+    def __init__(
+        self, kubeconfig_str: str | None = None, kubeconfig_file_path: str | None = None
+    ):
         if not kubeconfig_str and not kubeconfig_file_path:
             raise KubernetesException(
                 "Either kubeconfig_str or kubeconfig_file_path should be provided"
@@ -48,9 +50,9 @@ class KubernetesBackend:
         self,
         name: str,
         namespace: str,
-        labels: dict = None,
-        data: dict = None,
-        string_data: dict = None,
+        labels: dict | None = None,
+        data: dict | None = None,
+        string_data: dict | None = None,
     ):
         secret = k8s.client.V1Secret(
             api_version="v1",

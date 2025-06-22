@@ -41,7 +41,7 @@ def get_field(quota):
         return
 
 
-def handle_aggregated_quotas(sender, instance, **kwargs):
+def handle_aggregated_quotas(sender, instance: QuotaUsage, **kwargs):
     """Call aggregated quotas fields update methods"""
     quota = instance
     quota_field = get_field(quota)

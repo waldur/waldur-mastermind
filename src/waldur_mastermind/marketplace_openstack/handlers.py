@@ -1,11 +1,14 @@
 import logging
+from typing import cast
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
+from waldur_azure.models import VirtualMachine
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.quotas.models import QuotaUsage
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
@@ -14,7 +17,18 @@ from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     ResourceStates,
 )
+from waldur_mastermind.marketplace.models import Offering, Resource
 from waldur_openstack import models as openstack_models
+from waldur_openstack.models import (
+    FloatingIP,
+    Instance,
+    Network,
+    Port,
+    Router,
+    Tenant,
+    Volume,
+    VolumeType,
+)
 from waldur_openstack.utils import volume_type_name_to_quota_name
 
 from . import (
@@ -47,13 +61,15 @@ def create_offering_from_tenant(
     utils.create_offerings_for_volume_and_instance(instance)
 
 
-def archive_offering(sender, instance, **kwargs):
+def archive_offering(sender, instance: Tenant, **kwargs):
     marketplace_models.Offering.objects.filter(scope=instance).update(
         state=OfferingStates.ARCHIVED
     )
 
 
-def synchronize_volume_metadata_on_save(sender, instance, created=False, **kwargs):
+def synchronize_volume_metadata_on_save(
+    sender, instance: Volume, created=False, **kwargs
+):
     volume = instance
     if not created and not set(volume.tracker.changed()) & {
         "size",
@@ -76,7 +92,7 @@ def synchronize_volume_metadata_on_save(sender, instance, created=False, **kwarg
     utils.import_volume_metadata(resource)
 
 
-def synchronize_volume_metadata_on_pull(sender, instance, **kwargs):
+def synchronize_volume_metadata_on_pull(sender, instance: Volume, **kwargs):
     volume = instance
 
     try:
@@ -93,7 +109,9 @@ def synchronize_volume_metadata_on_pull(sender, instance, **kwargs):
     utils.import_volume_metadata(resource)
 
 
-def synchronize_instance_hypervisor_hostname(sender, instance, created=False, **kwargs):
+def synchronize_instance_hypervisor_hostname(
+    sender, instance: Instance, created=False, **kwargs
+):
     if created:
         return
 
@@ -117,7 +135,7 @@ def synchronize_instance_hypervisor_hostname(sender, instance, created=False, **
     resource.save()
 
 
-def synchronize_instance_name(sender, instance, created=False, **kwargs):
+def synchronize_instance_name(sender, instance: Instance, created=False, **kwargs):
     if not created and not set(instance.tracker.changed()) & {"name"}:
         return
 
@@ -137,7 +155,7 @@ def synchronize_instance_name(sender, instance, created=False, **kwargs):
         resource.save(update_fields=["backend_metadata"])
 
 
-def synchronize_instance_after_pull(sender, instance, **kwargs):
+def synchronize_instance_after_pull(sender, instance: Instance, **kwargs):
     if (
         instance.tracker.has_changed("action")
         and instance.tracker.previous("action") == "Pull"
@@ -149,7 +167,9 @@ def synchronize_instance_after_pull(sender, instance, **kwargs):
             pass
 
 
-def synchronize_directly_connected_ips(sender, instance, created=False, **kwargs):
+def synchronize_directly_connected_ips(
+    sender, instance: Instance, created=False, **kwargs
+):
     if not created and not set(instance.tracker.changed()) & {
         "directly_connected_ips",
     }:
@@ -169,7 +189,7 @@ def synchronize_directly_connected_ips(sender, instance, created=False, **kwargs
     utils.import_instance_metadata(resource)
 
 
-def synchronize_ports(sender, instance, created=False, **kwargs):
+def synchronize_ports(sender, instance: Port, created=False, **kwargs):
     port = instance
     if not created and not set(port.tracker.changed()) & {
         "fixed_ips",
@@ -246,7 +266,7 @@ def import_instance_metadata(vm):
         utils.import_instance_metadata(resource)
 
 
-def synchronize_ports_on_delete(sender, instance, **kwargs):
+def synchronize_ports_on_delete(sender, instance: Port, **kwargs):
     try:
         vm = instance.instance
     except ObjectDoesNotExist:
@@ -255,15 +275,15 @@ def synchronize_ports_on_delete(sender, instance, **kwargs):
         import_instance_metadata(vm)
 
 
-def synchronize_floating_ips_on_delete(sender, instance, **kwargs):
+def synchronize_floating_ips_on_delete(sender, instance: FloatingIP, **kwargs):
     if instance.port:
         import_instance_metadata(instance.port.instance)
 
 
 def create_resource_of_volume_if_instance_created(
-    sender, instance, created=False, **kwargs
+    sender, instance: Resource, created=False, **kwargs
 ):
-    resource: marketplace_models.Resource = instance
+    resource = instance
 
     if not resource.scope or not getattr(resource.offering, "scope", None):
         return
@@ -271,7 +291,7 @@ def create_resource_of_volume_if_instance_created(
     if resource.offering.type != INSTANCE_TYPE:
         return
 
-    instance = resource.scope
+    vm = cast(Instance, resource.scope)
 
     volume_offering = utils.get_offering(
         VOLUME_TYPE, getattr(resource.offering, "scope", None)
@@ -279,7 +299,7 @@ def create_resource_of_volume_if_instance_created(
     if not volume_offering:
         return
 
-    for volume in instance.volumes.all():
+    for volume in vm.volumes.all():
         if marketplace_models.Resource.objects.filter(scope=volume).exists():
             continue
 
@@ -297,7 +317,7 @@ def create_resource_of_volume_if_instance_created(
 
 
 def create_marketplace_resource_for_imported_resources(
-    sender, instance, offering=None, plan=None, **kwargs
+    sender, instance: VirtualMachine, offering=None, plan=None, **kwargs
 ):
     utils.create_marketplace_resource_for_imported_resources(instance, offering, plan)
 
@@ -320,7 +340,9 @@ def import_resource_metadata_when_resource_is_created(
         utils.import_instance_metadata(instance)
 
 
-def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
+def update_openstack_tenant_usages(
+    sender, instance: QuotaUsage, created=False, **kwargs
+):
     if not created:
         return
 
@@ -343,9 +365,9 @@ def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
 
 
 def create_offering_component_for_volume_type(
-    sender, instance, created=False, **kwargs
+    sender, instance: VolumeType, created=False, **kwargs
 ):
-    volume_type: openstack_models.VolumeType = instance
+    volume_type = instance
 
     try:
         offering = marketplace_models.Offering.objects.get(scope=volume_type.settings)
@@ -388,14 +410,14 @@ def create_offering_component_for_volume_type(
     )
 
 
-def delete_offering_component_for_volume_type(sender, instance, **kwargs):
+def delete_offering_component_for_volume_type(sender, instance: VolumeType, **kwargs):
     marketplace_models.OfferingComponent.objects.filter(scope=instance).delete()
 
 
 def synchronize_limits_when_storage_mode_is_switched(
-    sender, instance, created=False, **kwargs
+    sender, instance: Offering, created=False, **kwargs
 ):
-    offering: marketplace_models.Offering = instance
+    offering = instance
 
     if created:
         return
@@ -443,7 +465,7 @@ def synchronize_limits_when_storage_mode_is_switched(
 
 
 def import_instances_and_volumes_if_tenant_has_been_imported(
-    sender, instance, offering=None, plan=None, **kwargs
+    sender, instance: Tenant, *args, **kwargs
 ):
     tenant = instance
 
@@ -464,7 +486,9 @@ def import_instances_and_volumes_if_tenant_has_been_imported(
     )
 
 
-def synchronize_tenant_name(sender, instance, offering=None, plan=None, **kwargs):
+def synchronize_tenant_name(
+    sender, instance: Tenant, offering=None, plan=None, **kwargs
+):
     tenant = instance
 
     if not instance.tracker.has_changed("name"):
@@ -483,7 +507,9 @@ def synchronize_tenant_name(sender, instance, offering=None, plan=None, **kwargs
         offering.save(update_fields=["name"])
 
 
-def synchronize_router_backend_metadata(sender, instance, created=False, **kwargs):
+def synchronize_router_backend_metadata(
+    sender, instance: Router, created=False, **kwargs
+):
     router = instance
 
     if not created and not set(router.tracker.changed()) & {
@@ -520,7 +546,7 @@ def synchronize_router_backend_metadata(sender, instance, created=False, **kwarg
     resource.save()
 
 
-def tenant_does_not_exist_in_backend(sender, instance, created=False, **kwargs):
+def tenant_does_not_exist_in_backend(sender, instance: Tenant, created=False, **kwargs):
     tenant = instance
 
     for resource in marketplace_models.Resource.objects.filter(scope=tenant):
@@ -529,15 +555,15 @@ def tenant_does_not_exist_in_backend(sender, instance, created=False, **kwargs):
         )
 
 
-def set_mtu_when_network_has_been_created(sender, instance, created=False, **kwargs):
+def set_mtu_when_network_has_been_created(
+    sender, instance: Network, created=False, **kwargs
+):
     if not created:
         return
 
     network = instance
     # this won't catch the situation when network is created on tenant creation
-    resource: marketplace_models.Resource = marketplace_models.Resource.objects.filter(
-        scope=network.tenant
-    ).first()
+    resource = marketplace_models.Resource.objects.filter(scope=network.tenant).first()
     if not resource:
         return
 
@@ -548,14 +574,18 @@ def set_mtu_when_network_has_been_created(sender, instance, created=False, **kwa
         network.save()
 
 
-def update_floating_ip_external_addresses(sender, instance, created=False, **kwargs):
+def update_floating_ip_external_addresses(
+    sender, instance: FloatingIP, created=False, **kwargs
+):
     if not instance.tracker.has_changed("address"):
         return
 
     utils.update_external_addresses_of_floating_ip(instance)
 
 
-def update_instances_ip_external_addresses(sender, instance, created=False, **kwargs):
+def update_instances_ip_external_addresses(
+    sender, instance: Offering, created=False, **kwargs
+):
     offering = instance
 
     if offering.type != TENANT_TYPE:

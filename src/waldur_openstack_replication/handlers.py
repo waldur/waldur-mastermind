@@ -4,8 +4,8 @@ from waldur_mastermind.marketplace.models import Order
 from waldur_openstack_replication.models import Migration
 
 
-def handle_migration_post_save(sender, instance, created, **kwargs):
-    migration: Migration = instance
+def handle_migration_post_save(sender, instance: Migration, created, **kwargs):
+    migration = instance
     if created:
         return
     if not migration.tracker.has_changed("state"):

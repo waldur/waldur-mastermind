@@ -34,6 +34,8 @@ class QuotaField:
         quota_name = QuotaField(default_limit=lambda scope: scope.attr)
     """
 
+    name: str
+
     def __init__(
         self,
         default_limit=-1,

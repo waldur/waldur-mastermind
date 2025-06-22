@@ -11,7 +11,7 @@ class NotificationTemplate:
 class Notification:
     key: str
     description: str
-    templates: list = None
+    templates: list | None = None
 
     def __post_init__(self):
         """

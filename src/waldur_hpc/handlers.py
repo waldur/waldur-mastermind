@@ -4,6 +4,7 @@ import re
 from django.conf import settings
 from django.db import transaction
 
+from waldur_core.core.models import User
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.models import Customer, Project
@@ -212,7 +213,7 @@ def is_external_user(user):
     return is_external
 
 
-def handle_new_user(sender, instance, created=False, **kwargs):
+def handle_new_user(sender, instance: User, created=False, **kwargs):
     if not settings.WALDUR_HPC["ENABLED"]:
         return
 

@@ -1,12 +1,13 @@
 from django.db import transaction
 
 from waldur_core.core.enums import ReviewStates
+from waldur_core.users.models import PermissionRequest
 
 from . import tasks
 
 
 def create_notification_about_permission_request_has_been_submitted(
-    sender, instance, created=False, **kwargs
+    sender, instance: PermissionRequest, created=False, **kwargs
 ):
     if created:
         return

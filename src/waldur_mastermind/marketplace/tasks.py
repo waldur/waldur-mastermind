@@ -2,6 +2,7 @@ import collections
 import datetime
 import hashlib
 import logging
+from typing import cast
 
 import requests
 from celery import shared_task
@@ -559,7 +560,7 @@ def mark_resources_as_erred_after_timeout():
         resource.set_state_erred()
         resource.backend_metadata.update({"state": "Erred"})
         resource.save(update_fields=["state", "backend_metadata"])
-        scope: structure_models.BaseResource = resource.scope
+        scope = cast(structure_models.BaseResource, resource.scope)
         if scope:
             scope.set_erred()
             scope.save(update_fields=["state"])

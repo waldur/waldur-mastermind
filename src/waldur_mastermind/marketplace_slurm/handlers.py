@@ -9,6 +9,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
+from waldur_slurm.models import Allocation, AllocationUserUsage
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ COMPONENT_FIELDS = {
 }
 
 
-def update_component_quota(sender, instance, created=False, **kwargs):
+def update_component_quota(sender, instance: Allocation, created=False, **kwargs):
     if created:
         return
 
@@ -142,6 +143,6 @@ def drop_offering_user_for_slurm_user(sender, allocation, user, **kwargs):
 
 
 def sync_component_user_usage_when_allocation_user_usage_is_submitted(
-    sender, instance, **kwargs
+    sender, instance: AllocationUserUsage, **kwargs
 ):
     marketplace_utils.sync_component_user_usage(instance, PLUGIN_NAME)

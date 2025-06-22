@@ -4,9 +4,12 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.models import SshPublicKey, User
+from waldur_core.quotas.models import QuotaLimit
 
 from . import models, tasks, utils
 from .log import event_logger
+from .models import Profile
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +18,9 @@ def schedule_sync(*args, **kwargs):
     tasks.schedule_sync()
 
 
-def schedule_sync_on_quota_change(sender, instance, created=False, **kwargs):
+def schedule_sync_on_quota_change(
+    sender, instance: QuotaLimit, created=False, **kwargs
+):
     if instance.name != utils.QUOTA_NAME:
         return
     if created and instance.value == -1:
@@ -23,7 +28,7 @@ def schedule_sync_on_quota_change(sender, instance, created=False, **kwargs):
     tasks.schedule_sync()
 
 
-def log_profile_event(sender, instance, created=False, **kwargs):
+def log_profile_event(sender, instance: Profile, created=False, **kwargs):
     profile = instance
 
     if created:
@@ -61,7 +66,7 @@ def log_profile_event(sender, instance, created=False, **kwargs):
         )
 
 
-def log_profile_deleted(sender, instance, **kwargs):
+def log_profile_deleted(sender, instance: Profile, **kwargs):
     profile = instance
     event_logger.freeipa.info(
         "{username} FreeIPA profile has been deleted.",
@@ -74,13 +79,13 @@ def log_profile_deleted(sender, instance, **kwargs):
 
 
 def schedule_ssh_key_sync_when_key_is_created(
-    sender, instance, created=False, **kwargs
+    sender, instance: SshPublicKey, created=False, **kwargs
 ):
     if created:
         schedule_ssh_key_sync(instance)
 
 
-def schedule_ssh_key_sync_when_key_is_deleted(sender, instance, **kwargs):
+def schedule_ssh_key_sync_when_key_is_deleted(sender, instance: SshPublicKey, **kwargs):
     schedule_ssh_key_sync(instance)
 
 
@@ -98,7 +103,7 @@ def schedule_ssh_key_sync(ssh_key):
         transaction.on_commit(lambda: tasks.sync_profile_ssh_keys.delay(profile.pk))
 
 
-def update_user(sender, instance, created=False, **kwargs):
+def update_user(sender, instance: User, created=False, **kwargs):
     user = instance
 
     if created:

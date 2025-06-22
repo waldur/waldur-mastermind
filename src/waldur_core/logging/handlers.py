@@ -1,19 +1,21 @@
 import logging
 
 from django.db import transaction
+from rest_framework.authtoken.models import Token
 
 from waldur_core.logging import models, tasks, utils
+from waldur_core.logging.models import Event
 from waldur_core.logging.tasks import get_matching_hooks
 
 logger = logging.getLogger(__name__)
 
 
-def process_hook(sender, instance, created=False, **kwargs):
+def process_hook(sender, instance: Event, created=False, **kwargs):
     if get_matching_hooks(instance):
         transaction.on_commit(lambda: tasks.process_event.delay(instance.pk))
 
 
-def delete_stale_event_subscriptions(sender, instance, **kwargs):
+def delete_stale_event_subscriptions(sender, instance: Token, **kwargs):
     user = instance.user
     stale_event_subscriptions = models.EventSubscription.objects.filter(user=user)
     if stale_event_subscriptions.count() == 0:

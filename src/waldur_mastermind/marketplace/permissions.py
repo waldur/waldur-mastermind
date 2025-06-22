@@ -72,7 +72,9 @@ def user_can_reject_order_as_consumer(request, view, order=None):
     raise exceptions.PermissionDenied()
 
 
-def user_can_list_importable_resources(request, view, offering: models.Offering = None):
+def user_can_list_importable_resources(
+    request, view, offering: models.Offering | None = None
+):
     if not offering:
         return
 
@@ -110,7 +112,9 @@ user_can_manage_offering_user_group = permission_factory(
 )
 
 
-def user_can_set_end_date_by_provider(request, view, obj: models.Resource = None):
+def user_can_set_end_date_by_provider(
+    request, view, obj: models.Resource | None = None
+):
     if not obj:
         return
     if request.user.is_support:
@@ -122,7 +126,7 @@ def user_can_set_end_date_by_provider(request, view, obj: models.Resource = None
     raise exceptions.PermissionDenied()
 
 
-def user_can_update_thumbnail(request, view, obj: models.Offering = None):
+def user_can_update_thumbnail(request, view, obj: models.Offering | None = None):
     if not obj:
         return
 

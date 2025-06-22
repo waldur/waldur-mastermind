@@ -157,8 +157,10 @@ def get_detail_view_name(model):
 
 
 def get_fake_context(user=None):
+    from waldur_core.core.models import User
+
     if not user:
-        ()
+        user = User()
     request = type(
         "R", (object,), {"method": "GET", "user": user, "query_params": QueryDict()}
     )
