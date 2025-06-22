@@ -1,6 +1,9 @@
+from typing import cast
+
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
@@ -101,7 +104,7 @@ class VirtualMachine(
         blank=True,
         choices=ToolsStates.CHOICES,
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     @classmethod
     def get_backend_fields(cls):

@@ -10,6 +10,7 @@ from django.template.defaultfilters import slugify
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+from model_utils.tracker import FieldInstanceTracker
 
 if TYPE_CHECKING:
     from django.db.models.manager import RelatedManager
@@ -93,7 +94,7 @@ class Tenant(
     user_username = models.CharField(max_length=50, blank=True)
     user_password = models.CharField(max_length=50, blank=True)
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:
         unique_together = ("service_settings", "backend_id")
@@ -240,7 +241,7 @@ class ServerGroup(structure_models.BaseResource):
         on_delete=models.CASCADE, to=Tenant, related_name="server_groups"
     )
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     def get_backend(self):
         return self.tenant.get_backend()
@@ -361,7 +362,7 @@ class SecurityGroupRule(BaseSecurityGroupRule, LoggableMixin):
         null=True,
         blank=True,
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     def get_log_fields(self):
         return (
@@ -398,7 +399,7 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.BaseResource):
         null=True,
     )
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:
         unique_together = ("tenant", "address")
@@ -441,7 +442,7 @@ class Router(structure_models.BaseResource):
     fixed_ips = JSONField(default=list)
     ports = models.ManyToManyField("Port", related_name="routers", blank=True)
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     def get_backend(self):
         return self.tenant.get_backend()
@@ -589,7 +590,7 @@ class Port(structure_models.BaseResource):
         null=True,
         blank=True,
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
     # TODO: Use dedicated field: https://github.com/django-macaddress/django-macaddress
     mac_address = models.CharField(max_length=32, blank=True)
     fixed_ips = JSONField(
@@ -764,7 +765,7 @@ class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage
         null=True,
         on_delete=models.SET_NULL,
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:
         unique_together = ("service_settings", "backend_id")
@@ -831,7 +832,7 @@ class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Stora
     )
     metadata = JSONField(blank=True)
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     kept_until = models.DateTimeField(
         null=True,
@@ -955,7 +956,7 @@ class Instance(
     directly_connected_ips = models.CharField(
         max_length=255, blank=True
     )  # string representation of coma separated IPs
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:
         unique_together = ("service_settings", "backend_id")

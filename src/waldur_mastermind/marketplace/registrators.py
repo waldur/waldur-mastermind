@@ -1,12 +1,10 @@
 import logging
 from datetime import timedelta
-from typing import cast
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import Q, signals
 from django.utils import timezone
-from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.common import mixins as common_mixins
@@ -348,7 +346,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         cls, sender, instance: marketplace_models.Resource, created=False, **kwargs
     ):
         resource = instance
-        resource_tracker = cast(FieldInstanceTracker, resource.tracker)
+        resource_tracker = resource.tracker
 
         if created:
             return
@@ -388,8 +386,8 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         if created:
             return
 
-        resource_tracker = cast(FieldInstanceTracker, resource.tracker)
-        instance_tracker = cast(FieldInstanceTracker, instance.tracker)
+        resource_tracker = resource.tracker
+        instance_tracker = instance.tracker
 
         if (
             resource.state == ResourceStates.OK

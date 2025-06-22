@@ -1,6 +1,9 @@
+from typing import cast
+
 from django.db import models
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core.fields import JSONField
 from waldur_core.core.models import StateMixin, User, UuidMixin
@@ -23,4 +26,4 @@ class Migration(TimeStampedModel, StateMixin, UuidMixin):
         to=Resource, related_name="+", on_delete=models.CASCADE
     )
     mappings = JSONField(null=True, blank=True)
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())

@@ -11,6 +11,7 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMField, transition
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.core.models import BackendMixin
@@ -46,7 +47,7 @@ class Cluster(SettingsMixin, BaseResource):
         ACTIVE = "active"
 
     id: int
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
     tenant = models.ForeignKey(
         to=openstack_models.Tenant,
         on_delete=models.CASCADE,
@@ -157,7 +158,7 @@ class Node(
     labels = models.JSONField(blank=True, default=dict)
     annotations = models.JSONField(blank=True, default=dict)
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     cluster_id: int
 

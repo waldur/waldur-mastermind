@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import cast
 
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -10,6 +11,7 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.core.enums import CoreStates
@@ -129,7 +131,7 @@ class Issue(
         help_text="Request feedback from the issue creator after resolution of the issue",
     )
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     def get_description(self):
         return self.description
@@ -284,7 +286,7 @@ class Comment(
     is_public = models.BooleanField(default=True)
     backend_id = models.CharField(max_length=255, blank=True, null=True)
     remote_id = models.CharField(max_length=255, blank=True, null=True)
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     def clean_message(self, message):
         """
