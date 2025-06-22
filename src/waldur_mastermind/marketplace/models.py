@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Callable
 from decimal import Decimal
+from typing import cast
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, RegexValidator
@@ -12,6 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField, transition
 from model_utils import FieldTracker
 from model_utils.models import TimeFramedModel, TimeStampedModel
+from model_utils.tracker import FieldInstanceTracker
 from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
 
@@ -504,7 +506,7 @@ class Offering(
     )
 
     objects = managers.OfferingManager()
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Permissions:
         customer_path = "customer"
@@ -622,7 +624,7 @@ class OfferingComponent(
         unique_together = ("type", "offering")
         ordering = ("name",)
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
     offering = models.ForeignKey(
         on_delete=models.CASCADE, to=Offering, related_name="components"
     )
@@ -722,7 +724,7 @@ class Plan(
         structure_models.OrganizationGroup, related_name="plans", blank=True
     )
     objects = managers.PlanManager()
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:
         ordering = ("name",)
@@ -824,7 +826,7 @@ class PlanComponent(LoggableMixin, models.Model):
         verbose_name=_("Price per unit for future month."),
         null=True,
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     @property
     def has_connected_resources(self):
@@ -1026,7 +1028,7 @@ class Resource(
     report = models.JSONField(blank=True, null=True)
     options = models.JSONField(blank=True, null=True)
     current_usages = models.JSONField(blank=True, default=dict)
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
     objects = managers.ResourceManager()
     # Effective ID is used when resource is provisioned through remote Waldur
     effective_id = models.CharField(max_length=255, blank=True)
@@ -1196,7 +1198,7 @@ class Order(
         default=OrderStates.PENDING_CONSUMER, choices=OrderStates.CHOICES
     )
     output = models.TextField(blank=True)
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     created_by = models.ForeignKey(
         on_delete=models.CASCADE,
@@ -1364,7 +1366,7 @@ class ComponentUsage(
         to=User, related_name="+", blank=True, null=True, on_delete=models.SET_NULL
     )
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:
         constraints = [
@@ -1465,7 +1467,7 @@ class OfferingUser(
         default=False,
         help_text=_("Signal to service if the user account is restricted or not"),
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:
         unique_together = ("offering", "user")

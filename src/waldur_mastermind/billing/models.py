@@ -1,8 +1,11 @@
+from typing import cast
+
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
@@ -20,7 +23,7 @@ class PriceEstimate(core_models.UuidMixin, models.Model):
     scope = GenericForeignKey("content_type", "object_id")
 
     objects = managers.PriceEstimateManager("scope")
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     total = models.FloatField(
         default=0, help_text=_("Predicted price for scope for current month.")

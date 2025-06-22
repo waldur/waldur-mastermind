@@ -195,7 +195,9 @@ def synchronize_ports(sender, instance, created=False, **kwargs):
         utils.import_instance_metadata(resource)
 
 
-def synchronize_floating_ips(sender, instance, created=False, **kwargs):
+def synchronize_floating_ips(
+    sender, instance: openstack_models.FloatingIP, created=False, **kwargs
+):
     floating_ip = instance
     if not created and not set(instance.tracker.changed()) & {
         "address",
@@ -301,7 +303,7 @@ def create_marketplace_resource_for_imported_resources(
 
 
 def import_resource_metadata_when_resource_is_created(
-    sender, instance, created=False, **kwargs
+    sender, instance: marketplace_models.Resource, created=False, **kwargs
 ):
     if not created:
         return

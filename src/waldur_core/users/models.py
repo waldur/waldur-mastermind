@@ -1,3 +1,5 @@
+from typing import cast
+
 from django.conf import settings
 from django.db import models, transaction
 from django.db.models.query_utils import Q
@@ -5,6 +7,7 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMField, transition
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
@@ -188,4 +191,4 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
             structure=self.invitation.scope,
         )
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())

@@ -22,6 +22,7 @@ from model_utils import FieldTracker
 from model_utils.fields import AutoCreatedField
 from model_utils.managers import SoftDeletableManagerMixin
 from model_utils.models import SoftDeletableModel, TimeStampedModel
+from model_utils.tracker import FieldInstanceTracker
 from netfields import CidrAddressField, NetManager
 from reversion import revisions as reversion
 
@@ -223,7 +224,7 @@ class AccessSubnet(core_models.UuidMixin, core_models.DescribableMixin, Loggable
         on_delete=models.CASCADE, to="Customer", related_name="access_subnet_set"
     )
     inet = CidrAddressField(null=True, blank=True, validators=[validate_cidr_32])
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:
         unique_together = ("customer", "inet")
@@ -338,7 +339,7 @@ class Customer(
     organization_groups = models.ManyToManyField(
         OrganizationGroup, related_name="customers", blank=True
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
     objects = NetManager()
 
     class Meta:
@@ -569,7 +570,7 @@ class Project(
         related_name="projects",
         on_delete=models.CASCADE,
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
     # Entities returned in manager available_objects are limited to not-deleted instances.
     # Entities returned in manager objects include deleted objects.
     available_objects = SoftDeletableManager()
@@ -696,7 +697,7 @@ class ServiceSettings(
     shared = models.BooleanField(default=False, help_text=_("Anybody can use it"))
     terms_of_services = models.URLField(max_length=255, blank=True)
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     # service settings scope - VM that contains service
     content_type = models.ForeignKey(

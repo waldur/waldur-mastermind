@@ -1,9 +1,11 @@
 import datetime
+from typing import cast
 
 from django.db import models as django_models
 from django_fsm import FSMIntegerField, transition
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core.models import DescribableMixin, NameMixin
 from waldur_core.logging.models import UuidMixin
@@ -70,7 +72,7 @@ class Campaign(UuidMixin, DescribableMixin, NameMixin):
     service_provider = django_models.ForeignKey(
         marketplace_models.ServiceProvider, on_delete=django_models.CASCADE
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Permissions:
         customer_path = "service_provider__customer"

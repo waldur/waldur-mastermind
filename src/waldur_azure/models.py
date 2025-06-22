@@ -1,5 +1,8 @@
+from typing import cast
+
 from django.db import models
 from model_utils import FieldTracker
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_azure import validators
 from waldur_core.core import models as core_models
@@ -122,7 +125,7 @@ class NetworkInterface(BaseResourceGroupModel):
     ip_address = models.GenericIPAddressField(
         null=True, blank=True, protocol="IPv4", default=None
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
 
 class PublicIP(BaseResourceGroupModel):
@@ -133,7 +136,7 @@ class PublicIP(BaseResourceGroupModel):
     ip_address = models.GenericIPAddressField(
         null=True, blank=True, protocol="IPv4", default=None
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     @classmethod
     def get_url_name(cls):
@@ -191,7 +194,7 @@ class SQLServer(BaseResourceGroupModel):
         null=True, validators=validators.SQLServerStorageValidators
     )
     fqdn = models.TextField(null=True, blank=True)
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     @classmethod
     def get_url_name(cls):
@@ -204,7 +207,7 @@ class SQLDatabase(BaseResource):
     collation = models.CharField(
         max_length=255, blank=True, null=True, default="utf8_general_ci"
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     @classmethod
     def get_url_name(cls):

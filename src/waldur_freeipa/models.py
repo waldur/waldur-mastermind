@@ -1,4 +1,5 @@
 import re
+from typing import cast
 
 from constance import config
 from django.conf import settings
@@ -7,6 +8,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import models as core_models
 
@@ -41,7 +43,7 @@ class Profile(core_models.UuidMixin, models.Model):
         help_text=_("Indicates when the user has agreed with the policy."),
     )
     is_active = models.BooleanField(_("active"), default=False)
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     @property
     def gecos(self):

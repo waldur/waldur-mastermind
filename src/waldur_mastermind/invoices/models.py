@@ -2,6 +2,7 @@ import datetime
 import decimal
 import logging
 from calendar import monthrange
+from typing import cast
 
 from dateutil.parser import parse as parse_datetime
 from django.conf import settings
@@ -12,6 +13,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField
 from model_utils import FieldTracker
+from model_utils.tracker import FieldInstanceTracker
 from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
 
@@ -118,7 +120,7 @@ class Invoice(
     def get_log_fields(self):
         return ("uuid", "name", "year", "month", "customer")
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     def update_cache(self):
         """Update cached total_cost and total_price fields if they have changed."""
@@ -314,7 +316,7 @@ class InvoiceItem(
         "CustomerCredit", on_delete=models.SET_NULL, null=True, editable=False
     )
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     @property
     def tax(self) -> decimal.Decimal:
@@ -481,7 +483,7 @@ class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model)
     attributes = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(null=True, default=True)
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     def __str__(self):
         return f"{self.organization.name} ({self.payment_type})"
@@ -611,7 +613,7 @@ class CustomerCredit(BaseCredit):
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
     offerings = models.ManyToManyField(marketplace_models.Offering)
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Permissions:
         customer_path = "customer"
@@ -673,7 +675,7 @@ class ProjectCredit(BaseCredit):
         consumption = sum([i.total for i in items]) or 0
         return consumption * -1
 
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Permissions:
         customer_path = "project__customer"

@@ -1,7 +1,10 @@
+from typing import cast
+
 from django.conf import settings
 from django.db import models
 from django_fsm import FSMField
 from model_utils import FieldTracker
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.core.mixins import ReviewMixin
@@ -17,7 +20,7 @@ class ProjectUpdateRequest(core_models.UuidMixin, ReviewMixin):
     offering = models.ForeignKey(
         marketplace_models.Offering, on_delete=models.CASCADE, related_name="+"
     )
-    tracker = FieldTracker()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
     old_name = models.CharField(max_length=PROJECT_NAME_LENGTH, blank=True)
     new_name = models.CharField(max_length=PROJECT_NAME_LENGTH, blank=True)
     old_description = models.CharField(
