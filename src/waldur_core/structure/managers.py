@@ -223,7 +223,24 @@ def get_visible_customers(user):
     indirect_customers = structure_models.Project.objects.filter(
         id__in=direct_projects
     ).values_list("customer_id", flat=True)
-    return direct_customers.union(indirect_customers)
+
+    from waldur_mastermind.proposal.managers import (
+        get_connected_call_organizers,
+        get_connected_calls,
+    )
+    from waldur_mastermind.proposal.models import Call, CallManagingOrganisation
+
+    call_manager_customers = CallManagingOrganisation.objects.filter(
+        id__in=get_connected_call_organizers(user)
+    ).values_list("customer_id", flat=True)
+    call_customers = Call.objects.filter(id__in=get_connected_calls(user)).values_list(
+        "manager__customer_id", flat=True
+    )
+    return (
+        direct_customers.union(indirect_customers)
+        .union(call_manager_customers)
+        .union(call_customers)
+    )
 
 
 def get_visible_projects(user):
