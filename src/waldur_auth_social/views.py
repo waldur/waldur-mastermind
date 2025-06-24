@@ -140,7 +140,7 @@ class OAuthViewComplete(BaseOAuthView):
         user.save(update_fields=["last_login"])
         set_authentication_method(request, provider)
 
-        event_logger.auth_social.info(
+        event_logger.info(
             "User {user_username} with full name {user_full_name} authenticated successfully with {provider}.",
             event_type="auth_logged_in_with_oauth",
             event_context={
@@ -148,6 +148,7 @@ class OAuthViewComplete(BaseOAuthView):
                 "user": user,
                 "request": request,
             },
+            group="auth_social",
         )
         return redirect(
             format_homeport_link(f"oauth_login_completed/{provider}/?token={token.key}")

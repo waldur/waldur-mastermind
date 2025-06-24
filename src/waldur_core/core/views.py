@@ -163,10 +163,11 @@ class ObtainAuthToken(APIView):
         if not user:
             logger.debug("Not returning auth token: user %s does not exist", username)
             cache.set(auth_failure_key, auth_failures + 1, lockout_time_in_mins * 60)
-            event_logger.auth.info(
+            event_logger.info(
                 "User {username} failed to authenticate with username and password.",
                 event_type="auth_login_failed_with_username",
                 event_context={"username": username},
+                group="auth",
             )
 
             return Response(
@@ -190,11 +191,12 @@ class ObtainAuthToken(APIView):
 
         logger.debug("Returning token for successful login of user %s", user)
 
-        event_logger.auth.info(
+        event_logger.info(
             "User {user_username} with full name {user_full_name} "
             "authenticated successfully with username and password.",
             event_type="auth_logged_in_with_username",
             event_context={"user": user, "request": request},
+            group="auth",
         )
 
         return Response({"token": token.key})
@@ -214,10 +216,11 @@ class LogoutView(generics.GenericAPIView):
     )
     def post(self, request, format=None):
         request.user.auth_token.delete()
-        event_logger.auth.info(
+        event_logger.info(
             "User {user_username} with full name {user_full_name} logged out.",
             event_type="auth_logged_out",
             event_context={"user": request.user, "request": request},
+            group="auth",
         )
         logout_url = None
         authentication_method = get_authentication_method(request)

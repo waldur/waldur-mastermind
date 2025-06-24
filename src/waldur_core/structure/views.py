@@ -650,11 +650,12 @@ class UserViewSet(core_views.ActionsViewSet):
         user.set_password(serializer.validated_data["new_password"])
         user.save()
 
-        event_logger.user.info(
+        event_logger.info(
             "Password has been changed for user {affected_user_username} by %s."
             % self.request.user,
             event_type="user_password_updated_by_staff",
             event_context={"affected_user": user},
+            group="user",
         )
         logger.info(
             f"Password has been changed for user {user} by {self.request.user}."
@@ -698,10 +699,11 @@ class UserViewSet(core_views.ActionsViewSet):
 
     def perform_create(self, serializer):
         user = serializer.save()
-        event_logger.user.info(
+        event_logger.info(
             "User {affected_user_username} has been created by %s." % self.request.user,
             event_type="user_has_been_created_by_staff",
             event_context={"affected_user": user},
+            group="user",
         )
         logger.info(f"User {user} has been created by {self.request.user}.")
 

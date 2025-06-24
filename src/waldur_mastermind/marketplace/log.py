@@ -328,7 +328,7 @@ event_logger.register("marketplace_resource_user", MarketplaceResourceUserLogger
 
 
 def log_order_created(order):
-    event_logger.marketplace_order.info(
+    event_logger.info(
         "Marketplace order for resource {resource_name} has been created. Type: {type}",
         event_type="marketplace_order_created",
         event_context={
@@ -336,11 +336,12 @@ def log_order_created(order):
             "type": MarketplaceOrderLogger.get_order_type_display(order),
             "resource_name": order.resource.name,
         },
+        group="marketplace_order",
     )
 
 
 def log_order_approved(order):
-    event_logger.marketplace_order.info(
+    event_logger.info(
         "Marketplace order for resource {resource_name} has been approved. Type: {type}",
         event_type="marketplace_order_approved",
         event_context={
@@ -348,11 +349,12 @@ def log_order_approved(order):
             "type": MarketplaceOrderLogger.get_order_type_display(order),
             "resource_name": order.resource.name,
         },
+        group="marketplace_order",
     )
 
 
 def log_order_rejected(order):
-    event_logger.marketplace_order.info(
+    event_logger.info(
         "Marketplace order for resource {resource_name} has been rejected. Type: {type}",
         event_type="marketplace_order_rejected",
         event_context={
@@ -360,11 +362,12 @@ def log_order_rejected(order):
             "type": MarketplaceOrderLogger.get_order_type_display(order),
             "resource_name": order.resource.name,
         },
+        group="marketplace_order",
     )
 
 
 def log_order_completed(order):
-    event_logger.marketplace_order.info(
+    event_logger.info(
         "Marketplace order for resource {resource_name} has been completed. Type: {type}",
         event_type="marketplace_order_completed",
         event_context={
@@ -372,11 +375,12 @@ def log_order_completed(order):
             "type": MarketplaceOrderLogger.get_order_type_display(order),
             "resource_name": order.resource.name,
         },
+        group="marketplace_order",
     )
 
 
 def log_order_canceled(order):
-    event_logger.marketplace_order.info(
+    event_logger.info(
         "Marketplace order for resource {resource_name} has been terminated. Type: {type}",
         event_type="marketplace_order_terminated",
         event_context={
@@ -384,11 +388,12 @@ def log_order_canceled(order):
             "type": MarketplaceOrderLogger.get_order_type_display(order),
             "resource_name": order.resource.name,
         },
+        group="marketplace_order",
     )
 
 
 def log_order_failed(order):
-    event_logger.marketplace_order.info(
+    event_logger.info(
         "Marketplace order for resource {resource_name} has been marked as failed. Type: {type}",
         event_type="marketplace_order_failed",
         event_context={
@@ -396,118 +401,133 @@ def log_order_failed(order):
             "type": MarketplaceOrderLogger.get_order_type_display(order),
             "resource_name": order.resource.name,
         },
+        group="marketplace_order",
     )
 
 
 def log_resource_creation_requested(resource):
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         "Resource {resource_name} creation has been requested.",
         event_type="marketplace_resource_create_requested",
         event_context={"resource": resource},
+        group="marketplace_resource",
     )
 
 
 def log_resource_creation_succeeded(resource):
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         "Resource {resource_name} has been created.",
         event_type="marketplace_resource_create_succeeded",
         event_context={"resource": resource},
+        group="marketplace_resource",
     )
 
 
 def log_resource_creation_failed(instance):
-    event_logger.marketplace_resource.error(
+    event_logger.error(
         "Resource {resource_name} creation has failed.",
         event_type="marketplace_resource_create_failed",
         event_context={"resource": instance},
+        group="marketplace_resource",
     )
 
 
 def log_resource_creation_canceled(instance):
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         "Resource {resource_name} creation has been canceled.",
         event_type="marketplace_resource_create_canceled",
         event_context={"resource": instance},
+        group="marketplace_resource",
     )
 
 
 def log_resource_unlink(resource):
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         "Resource {resource_name} has been unlinked.",
         event_type="marketplace_resource_unlinked",
         event_context={"resource": resource},
+        group="marketplace_resource",
     )
 
 
 def log_resource_update_requested(resource):
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         "Resource {resource_name} update has been requested.",
         event_type="marketplace_resource_update_requested",
         event_context={"resource": resource},
+        group="marketplace_resource",
     )
 
 
 def log_resource_update_failed(instance):
-    event_logger.marketplace_resource.error(
+    event_logger.error(
         "Resource {resource_name} update has failed.",
         event_type="marketplace_resource_update_failed",
         event_context={"resource": instance},
+        group="marketplace_resource",
     )
 
 
 def log_resource_update_canceled(instance):
-    event_logger.marketplace_resource.error(
+    event_logger.error(
         "Resource {resource_name} update has canceled.",
         event_type="marketplace_resource_update_canceled",
         event_context={"resource": instance},
+        group="marketplace_resource",
     )
 
 
 def log_resource_terminate_requested(resource):
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         "Resource {resource_name} deletion has been requested.",
         event_type="marketplace_resource_terminate_requested",
         event_context={"resource": resource},
+        group="marketplace_resource",
     )
 
 
 def log_resource_terminate_succeeded(resource):
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         "Resource {resource_name} has been deleted.",
         event_type="marketplace_resource_terminate_succeeded",
         event_context={"resource": resource},
+        group="marketplace_resource",
     )
 
 
 def log_resource_terminate_failed(instance):
-    event_logger.marketplace_resource.error(
+    event_logger.error(
         "Resource {resource_name} deletion has failed.",
         event_type="marketplace_resource_terminate_failed",
         event_context={"resource": instance},
+        group="marketplace_resource",
     )
 
 
 def log_resource_terminate_canceled(instance):
-    event_logger.marketplace_resource.error(
+    event_logger.error(
         "Resource {resource_name} terminate has canceled.",
         event_type="marketplace_resource_terminate_canceled",
         event_context={"resource": instance},
+        group="marketplace_resource",
     )
 
 
 def log_resource_limit_update_succeeded(resource):
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         "Limits of resource {resource_name} have been updated.",
         event_type="marketplace_resource_update_limits_succeeded",
         event_context={"resource": resource},
+        group="marketplace_resource",
     )
 
 
 def log_resource_limit_update_failed(resource):
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         "Updating limits of resource {resource_name} has failed.",
         event_type="marketplace_resource_update_limits_failed",
         event_context={"resource": resource},
+        group="marketplace_resource",
     )
 
 
@@ -528,10 +548,11 @@ def log_marketplace_resource_end_date_has_been_updated(resource, user, template=
         "resource": resource,
     }
 
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         template % context,
         event_type="marketplace_resource_update_end_date_succeeded",
         event_context=event_context,
+        group="marketplace_resource",
     )
 
 
@@ -556,42 +577,47 @@ def log_marketplace_resource_end_date_has_been_updated_by_staff(resource, user):
 
 
 def log_offering_user_created(offering_user):
-    event_logger.marketplace_offering_user.info(
+    event_logger.info(
         f"Account for user {offering_user.user.username} in offering {offering_user.offering.name} has been created.",
         event_type="marketplace_offering_user_created",
         event_context={"offering_user": offering_user},
+        group="marketplace_offering_user",
     )
 
 
 def log_offering_user_deleted(offering_user):
-    event_logger.marketplace_offering_user.info(
+    event_logger.info(
         f"Account for user {offering_user.user.username} in offering {offering_user.offering.name} has been deleted.",
         event_type="marketplace_offering_user_deleted",
         event_context={"offering_user": offering_user},
+        group="marketplace_offering_user",
     )
 
 
 def log_resource_downscaled(resource):
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         "Resource {resource_name} has been downscaled.",
         event_type="marketplace_resource_downscaled",
         event_context={"resource": resource},
+        group="marketplace_resource",
     )
 
 
 def log_resource_paused(resource):
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         "Resource {resource_name} has been paused.",
         event_type="marketplace_resource_paused",
         event_context={"resource": resource},
+        group="marketplace_resource",
     )
 
 
 def log_resource_erred_on_backend(resource):
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         "Resource {resource_name} got error on backend.",
         event_type="marketplace_resource_erred_on_backend",
         event_context={"resource": resource},
+        group="marketplace_resource",
     )
 
 
@@ -617,18 +643,19 @@ def log_resource_update_succeeded(resource, changed):
         "resource": resource,
     }
 
-    event_logger.marketplace_resource.info(
+    event_logger.info(
         Template(template)
         .render(Context(context))
         .replace("{", "{{")
         .replace("}", "}}"),
         event_type="marketplace_resource_update_succeeded",
         event_context=event_context,
+        group="marketplace_resource",
     )
 
 
 def log_order_unlink(order):
-    event_logger.marketplace_order.info(
+    event_logger.info(
         "Order {order_uuid} for resource {resource_name} has been unlinked. Type: {type}",
         event_type="marketplace_order_unlinked",
         event_context={
@@ -636,4 +663,5 @@ def log_order_unlink(order):
             "type": MarketplaceOrderLogger.get_order_type_display(order),
             "resource_name": order.resource.name,
         },
+        group="marketplace_order",
     )

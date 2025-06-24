@@ -26,10 +26,11 @@ def notify_project_team(policy):
         policy.uuid.hex,
     )
 
-    log.event_logger.policy_action.info(
+    log.event_logger.info(
         "Cost policy has been triggered and notification to project members has been scheduled.",
         event_type="notify_project_team",
         event_context={"policy_uuid": policy.uuid.hex},
+        group="policy_action",
     )
 
 
@@ -42,10 +43,11 @@ def notify_organization_owners(policy):
         policy.uuid.hex,
     )
 
-    log.event_logger.policy_action.info(
+    log.event_logger.info(
         "Cost policy has been triggered and notification to organization owners has been scheduled.",
         event_type="notify_organization_owners",
         event_context={"policy_uuid": policy.uuid.hex},
+        group="policy_action",
     )
 
 
@@ -89,11 +91,12 @@ def terminate_resources(policy):
                 str(resource),
             )
 
-            log.event_logger.policy_action.info(
+            log.event_logger.info(
                 "Cost policy has been triggered and termination order has been created. Resource: %s."
                 % str(resource),
                 event_type="terminate_resources",
                 event_context={"policy_uuid": policy.uuid.hex},
+                group="policy_action",
             )
 
             marketplace_tasks.process_order_on_commit(order, user)
@@ -105,10 +108,11 @@ def block_creation_of_new_resources(policy, created):
             "Policy action block_creation_of_new_resources has been triggered. Policy UUID: %s.",
             policy.uuid.hex,
         )
-        log.event_logger.policy_action.info(
+        log.event_logger.info(
             "Cost policy has been triggered and creation of new resource has been blocked.",
             event_type="block_creation_of_new_resources",
             event_context={"policy_uuid": policy.uuid.hex},
+            group="policy_action",
         )
         raise PolicyException(
             f"Creation of new resources in this project is prohibited by policy {policy.uuid.hex}."
@@ -121,10 +125,11 @@ def block_modification_of_existing_resources(policy, created):
             "Policy action block_modification_of_existing_resources has been triggered. Policy UUID: %s.",
             policy.uuid.hex,
         )
-        log.event_logger.policy_action.info(
+        log.event_logger.info(
             "Cost policy has been triggered and updating existing resource has been blocked.",
             event_type="block_modification_of_existing_resources",
             event_context={"policy_uuid": policy.uuid.hex},
+            group="policy_action",
         )
         raise PolicyException(
             "Modification of new resources in this project is not available due to a policy."
@@ -155,11 +160,12 @@ def request_downscaling(policy):
         policy.uuid.hex,
         ", ".join([r.name for r in resources]),
     )
-    log.event_logger.policy_action.info(
+    log.event_logger.info(
         "Cost policy has been triggered and downscaling has been requested. Resources: %s"
         % ", ".join([str(r) for r in resources]),
         event_type="block_modification_of_existing_resources",
         event_context={"policy_uuid": policy.uuid.hex},
+        group="policy_action",
     )
 
 
@@ -209,11 +215,12 @@ def restrict_members(policy):
         policy.uuid.hex,
         ", ".join([r.name for r in resources]),
     )
-    log.event_logger.policy_action.info(
+    log.event_logger.info(
         "Cost policy has been triggered and account removal has been requested. Resources: %s"
         % ", ".join([str(r) for r in resources]),
         event_type="restrict_members",
         event_context={"policy_uuid": policy.uuid.hex},
+        group="policy_action",
     )
 
 
@@ -258,11 +265,12 @@ def request_pausing(policy):
         policy.uuid.hex,
         ", ".join([r.name for r in resources]),
     )
-    log.event_logger.policy_action.info(
+    log.event_logger.info(
         "Cost policy has been triggered and pausing has been requested. Resources: %s"
         % ", ".join([str(r) for r in resources]),
         event_type="block_modification_of_existing_resources",
         event_context={"policy_uuid": policy.uuid.hex},
+        group="policy_action",
     )
 
 
@@ -296,10 +304,11 @@ def notify_external_user(policy):
         policy.uuid.hex,
     )
 
-    log.event_logger.policy_action.info(
+    log.event_logger.info(
         "Cost policy has been triggered and notification to external user has been scheduled.",
         event_type="notify_external_user",
         event_context={"policy_uuid": policy.uuid.hex},
+        group="policy_action",
     )
 
 

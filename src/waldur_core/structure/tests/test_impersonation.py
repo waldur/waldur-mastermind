@@ -85,12 +85,13 @@ class ImpersonationTest(test.APITransactionTestCase):
                 event_types = ("test_event",)
 
         loggers.event_logger.register("test_event", TestLogger)
-        loggers.event_logger.test_event.info(
+        loggers.event_logger.info(
             "Test",
             event_type="test_event",
             event_context={
                 "user": user,
             },
+            group="test_event",
         )
 
         event_log = logging_models.Event.objects.get(event_type="test_event")

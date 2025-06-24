@@ -163,25 +163,28 @@ def log_request_events(
 ):
     event_context = {"project": instance.project, "offering": instance.offering}
     if created:
-        log.event_logger.project_update_request.info(
+        log.event_logger.info(
             "Project update request has been created.",
             event_type="project_update_request_created",
             event_context=event_context,
+            group="project_update_request",
         )
         return
     if not instance.tracker.has_changed("state"):
         return
     if instance.state == ReviewStates.APPROVED:
-        log.event_logger.project_update_request.info(
+        log.event_logger.info(
             "Project update request has been approved.",
             event_type="project_update_request_approved",
             event_context=event_context,
+            group="project_update_request",
         )
     elif instance.state == ReviewStates.REJECTED:
-        log.event_logger.project_update_request.info(
+        log.event_logger.info(
             "Project update request has been rejected.",
             event_type="project_update_request_rejected",
             event_context=event_context,
+            group="project_update_request",
         )
 
 

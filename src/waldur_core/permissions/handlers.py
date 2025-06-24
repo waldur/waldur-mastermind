@@ -21,8 +21,8 @@ def log(instance, current_user, message, event_type):
     }
     if current_user:
         event_context["user"] = current_user
-    event_logger.user_role.info(
-        message, event_type=event_type, event_context=event_context
+    event_logger.info(
+        message, event_type=event_type, event_context=event_context, group="user_role"
     )
 
 

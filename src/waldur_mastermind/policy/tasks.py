@@ -29,7 +29,7 @@ def send_emails(emails, policy):
             emails,
         )
 
-    log.event_logger.policy_notification.info(
+    log.event_logger.info(
         "Cost policy has been triggered and emails have been sent.",
         event_type="policy_notification",
         event_context={
@@ -37,6 +37,7 @@ def send_emails(emails, policy):
             "scope": f"{scope_class} UUID: {policy.scope.uuid.hex}",
             "emails": str(emails),
         },
+        group="policy_notification",
     )
 
 

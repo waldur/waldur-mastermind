@@ -135,7 +135,7 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
         url = self.get_action_url(self.robot_account, action)
 
         with mock.patch(
-            "waldur_mastermind.marketplace.log.event_logger.marketplace_robot_account.info"
+            "waldur_mastermind.marketplace.log.event_logger.info"
         ) as logger_mock:
             response = self.client.post(url, data=data, format="json" if data else None)
             self.assertEqual(

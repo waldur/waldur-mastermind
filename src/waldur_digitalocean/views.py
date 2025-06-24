@@ -152,10 +152,11 @@ class DropletViewSet(structure_views.ResourceViewSet):
         message = _("Droplet {droplet_name} has been scheduled to %s resize.") % (
             disk and _("permanent") or _("flexible")
         )
-        log.event_logger.droplet_resize.info(
+        log.event_logger.info(
             message,
             event_type="droplet_resize_scheduled",
             event_context={"droplet": droplet, "size": size},
+            group="droplet_resize",
         )
 
         droplet.cores = size.cores

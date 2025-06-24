@@ -4003,10 +4003,11 @@ class OfferingUsersViewSet(
         serializer.is_valid(raise_exception=True)
         offering_user.is_restricted = serializer.validated_data["is_restricted"]
         offering_user.save(update_fields=["is_restricted"])
-        event_logger.marketplace_offering_user.info(
+        event_logger.info(
             f"Restriction status for user {offering_user.user.username} in offering {offering_user.offering.name} has been set to {offering_user.is_restricted} by {request.user.username}.",
             event_type="marketplace_offering_user_restriction_updated",
             event_context={"offering_user": offering_user},
+            group="marketplace_offering_user",
         )
         logger.info(
             f"Restriction status for user {offering_user.user.username} in offering {offering_user.offering.name} has been set to {offering_user.is_restricted} by {request.user.username}."

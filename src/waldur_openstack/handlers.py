@@ -74,7 +74,7 @@ def log_tenant_quota_update(sender, instance: QuotaLimit, created=False, **kwarg
     old_value_representation = quota.scope.format_quota(
         quota.name, quota.tracker.previous("value")
     )
-    event_logger.openstack_tenant_quota.info(
+    event_logger.info(
         f"{{quota_name}} quota limit has been changed from {old_value_representation} to {new_value_representation} for tenant {{tenant_name}}.",
         event_type="openstack_tenant_quota_limit_updated",
         event_context={
@@ -83,68 +83,75 @@ def log_tenant_quota_update(sender, instance: QuotaLimit, created=False, **kwarg
             "limit": quota.value,
             "old_limit": quota.tracker.previous("value"),
         },
+        group="openstack_tenant_quota",
     )
 
 
 def log_security_group_cleaned(sender, instance: models.SecurityGroup, **kwargs):
-    event_logger.openstack_security_group.info(
+    event_logger.info(
         "Security group %s has been cleaned from cache." % instance.name,
         event_type="openstack_security_group_cleaned",
         event_context={
             "security_group": instance,
         },
+        group="openstack_security_group",
     )
 
 
 def log_security_group_rule_cleaned(
     sender, instance: models.SecurityGroupRule, **kwargs
 ):
-    event_logger.openstack_security_group_rule.info(
+    event_logger.info(
         "Security group rule %s has been cleaned from cache." % str(instance),
         event_type="openstack_security_group_rule_cleaned",
         event_context={
             "security_group_rule": instance,
         },
+        group="openstack_security_group_rule",
     )
 
 
 def log_network_cleaned(sender, instance: models.Network, **kwargs):
-    event_logger.openstack_network.info(
+    event_logger.info(
         "Network %s has been cleaned from cache." % instance.name,
         event_type="openstack_network_cleaned",
         event_context={
             "network": instance,
         },
+        group="openstack_network",
     )
 
 
 def log_subnet_cleaned(sender, instance: models.SubNet, **kwargs):
-    event_logger.openstack_subnet.info(
+    event_logger.info(
         "SubNet %s has been cleaned." % instance.name,
         event_type="openstack_subnet_cleaned",
         event_context={
             "subnet": instance,
         },
+        group="openstack_subnet",
     )
 
 
 def log_server_group_cleaned(sender, instance: models.ServerGroup, **kwargs):
-    event_logger.openstack_server_group.info(
+    event_logger.info(
         "Server group %s has been cleaned from cache." % instance.name,
         event_type="openstack_server_group_cleaned",
         event_context={
             "server_group": instance,
         },
+        group="openstack_server_group",
     )
 
 
 def _log_scheduled_action(resource, action, action_details):
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
-    event_logger.openstack_resource_action.info(
+    event_logger.info(
         f'Operation "{message}" has been scheduled for {class_name} "{resource.name}"',
         event_type=_get_action_event_type(action, "scheduled"),
         event_context={"resource": resource, "action_details": action_details},
+        group="openstack_resource_action",
     )
 
 
@@ -153,20 +160,22 @@ def _log_succeeded_action(resource, action, action_details):
         return
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
-    event_logger.openstack_resource_action.info(
+    event_logger.info(
         f'Successfully executed "{message}" operation for {class_name} "{resource.name}"',
         event_type=_get_action_event_type(action, "succeeded"),
         event_context={"resource": resource, "action_details": action_details},
+        group="openstack_resource_action",
     )
 
 
 def _log_failed_action(resource, action, action_details):
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
-    event_logger.openstack_resource_action.warning(
+    event_logger.warning(
         f'Failed to execute "{message}" operation for {class_name} "{resource.name}"',
         event_type=_get_action_event_type(action, "failed"),
         event_context={"resource": resource, "action_details": action_details},
+        group="openstack_resource_action",
     )
 
 

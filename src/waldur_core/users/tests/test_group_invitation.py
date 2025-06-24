@@ -409,17 +409,20 @@ class RequestCreateTest(BaseInvitationTest):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @mock.patch("waldur_core.users.handlers.tasks")
-    def test_notification_about_permission_request_has_been_submitted(self, mock_tasks):
+    @mock.patch(
+        "waldur_core.users.handlers.tasks."
+        "send_mail_notification_about_permission_request_has_been_submitted.delay"
+    )
+    def test_notification_about_permission_request_has_been_submitted(
+        self, mock_tasks: mock.Mock
+    ):
         self.client.force_authenticate(user=self.user)
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         permission_request = models.PermissionRequest.objects.get(
             invitation=self.group_invitation
         )
-        mock_tasks.send_mail_notification_about_permission_request_has_been_submitted.delay.assert_called_once_with(
-            permission_request.id
-        )
+        mock_tasks.assert_called_once_with(permission_request.id)
 
 
 @ddt

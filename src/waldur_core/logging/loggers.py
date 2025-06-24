@@ -205,18 +205,6 @@ class EventLogger(BaseLogger):
         """
         return set()
 
-    def info(self, *args, **kwargs):
-        self.process("info", *args, **kwargs)
-
-    def error(self, *args, **kwargs):
-        self.process("error", *args, **kwargs)
-
-    def warning(self, *args, **kwargs):
-        self.process("warning", *args, **kwargs)
-
-    def debug(self, *args, **kwargs):
-        self.process("debug", *args, **kwargs)
-
     def process(
         self, level, message_template, event_type="undefined", event_context=None
     ):
@@ -241,10 +229,7 @@ class EventLogger(BaseLogger):
                     models.Feed.objects.create(scope=scope, event=event)
 
 
-class BaseLoggerRegistry:
-    def get_loggers(self):
-        raise NotImplementedError('Method "get_loggers" is not implemented.')
-
+class EventLoggerRegistry:
     def register(self, name, logger_class):
         if name in self.__dict__:
             raise EventLoggerError("Logger '%s' already registered." % name)
@@ -273,14 +258,44 @@ class BaseLoggerRegistry:
             items.update(mapping.get(group, []))
         return sorted(items)
 
-
-class EventLoggerRegistry(BaseLoggerRegistry):
     def get_loggers(self):
         return [
             logger
             for logger in self.__dict__.values()
             if isinstance(logger, EventLogger)
         ]
+
+    def info(self, message_template, event_type, event_context, group):
+        self.__dict__[group].process(
+            message_template=message_template,
+            event_type=event_type,
+            event_context=event_context,
+            level="info",
+        )
+
+    def error(self, message_template, event_type, event_context, group):
+        self.__dict__[group].process(
+            message_template=message_template,
+            event_type=event_type,
+            event_context=event_context,
+            level="error",
+        )
+
+    def warning(self, message_template, event_type, event_context, group):
+        self.__dict__[group].process(
+            message_template=message_template,
+            event_type=event_type,
+            event_context=event_context,
+            level="warning",
+        )
+
+    def debug(self, message_template, event_type, event_context, group):
+        self.__dict__[group].process(
+            level="debug",
+            message_template=message_template,
+            event_type=event_type,
+            event_context=event_context,
+        )
 
 
 def get_valid_events():

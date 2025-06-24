@@ -280,13 +280,14 @@ def set_to_zero_overdue_credits():
     ).exclude(value=0):
         credit.value = 0
         credit.save()
-        log.event_logger.credit.info(
+        log.event_logger.info(
             "Credit has been set to zero due as the end date {credit_end_date} has arrived.",
             event_type="set_to_zero_overdue_credit",
             event_context={
                 "customer": credit.customer,
                 "credit_end_date": credit.end_date,
             },
+            group="credit",
         )
 
 

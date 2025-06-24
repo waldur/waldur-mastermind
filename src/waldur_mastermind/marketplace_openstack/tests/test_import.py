@@ -361,11 +361,11 @@ class TenantImportTest(BaseBackendTestCase):
             ).exists()
         )
 
-    @patch("waldur_core.structure.handlers.event_logger")
-    def test_event_is_emitted(self, logger_mock):
+    @patch("waldur_core.structure.handlers.event_logger.info")
+    def test_event_is_emitted(self, logger_mock: mock.Mock):
         self.import_tenant()
 
-        actual = logger_mock.resource.info.call_args[0][0]
+        actual = logger_mock.call_args[0][0]
         expected = "Resource {resource_full_name} has been imported."
         self.assertEqual(expected, actual)
 
