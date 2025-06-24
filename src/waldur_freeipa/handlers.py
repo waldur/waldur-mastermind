@@ -32,49 +32,53 @@ def log_profile_event(sender, instance: Profile, created=False, **kwargs):
     profile = instance
 
     if created:
-        event_logger.freeipa.info(
+        event_logger.info(
             "{username} FreeIPA profile has been created.",
             event_type="freeipa_profile_created",
             event_context={
                 "user": profile.user,
                 "username": profile.username,
             },
+            group="freeipa",
         )
 
     elif profile.tracker.has_changed("is_active") and profile.tracker.previous(
         "is_active"
     ):
-        event_logger.freeipa.info(
+        event_logger.info(
             "{username} FreeIPA profile has been disabled.",
             event_type="freeipa_profile_disabled",
             event_context={
                 "user": profile.user,
                 "username": profile.username,
             },
+            group="freeipa",
         )
 
     elif profile.tracker.has_changed("is_active") and not profile.tracker.previous(
         "is_active"
     ):
-        event_logger.freeipa.info(
+        event_logger.info(
             "{username} FreeIPA profile has been enabled.",
             event_type="freeipa_profile_enabled",
             event_context={
                 "user": profile.user,
                 "username": profile.username,
             },
+            group="freeipa",
         )
 
 
 def log_profile_deleted(sender, instance: Profile, **kwargs):
     profile = instance
-    event_logger.freeipa.info(
+    event_logger.info(
         "{username} FreeIPA profile has been deleted.",
         event_type="freeipa_profile_deleted",
         event_context={
             "user": profile.user,
             "username": profile.username,
         },
+        group="freeipa",
     )
 
 

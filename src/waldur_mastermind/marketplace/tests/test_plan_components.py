@@ -143,9 +143,7 @@ class PlanComponentUpdateLoggerTest(TestCase):
         # String representation of the same value
         self.string_value = "0.0020000000"
 
-    @patch(
-        "waldur_mastermind.marketplace.log.event_logger.marketplace_plan_component.info"
-    )
+    @patch("waldur_mastermind.marketplace.log.event_logger.info")
     def test_update_with_decimal_value(self, mock_logger):
         """Test that a Decimal price value works correctly."""
         # Setup - only price has changed
@@ -182,9 +180,7 @@ class PlanComponentUpdateLoggerTest(TestCase):
         self.assertEqual(event.context["new_value"], str(new_decimal_value))
         self.assertIsInstance(event.context["new_value"], str)
 
-    @patch(
-        "waldur_mastermind.marketplace.log.event_logger.marketplace_plan_component.info"
-    )
+    @patch("waldur_mastermind.marketplace.log.event_logger.info")
     def test_update_with_string_value(self, mock_logger):
         """Test that a string price value is correctly converted to Decimal."""
         # Setup - only price has changed
@@ -202,9 +198,7 @@ class PlanComponentUpdateLoggerTest(TestCase):
         self.assertEqual(event_context["new_value"], self.decimal_value)
         self.assertIsInstance(event_context["new_value"], Decimal)
 
-    @patch(
-        "waldur_mastermind.marketplace.log.event_logger.marketplace_plan_component.info"
-    )
+    @patch("waldur_mastermind.marketplace.log.event_logger.info")
     def test_update_with_invalid_string_value(self, mock_logger):
         """Test that an invalid string value raises the appropriate exception."""
         # Setup - only price has changed
@@ -219,9 +213,7 @@ class PlanComponentUpdateLoggerTest(TestCase):
         # Verify logger wasn't called
         mock_logger.assert_not_called()
 
-    @patch(
-        "waldur_mastermind.marketplace.log.event_logger.marketplace_plan_component.info"
-    )
+    @patch("waldur_mastermind.marketplace.log.event_logger.info")
     def test_update_with_none_value(self, mock_logger):
         """Test that a None value is handled appropriately."""
         # Setup - only price has changed
@@ -238,9 +230,7 @@ class PlanComponentUpdateLoggerTest(TestCase):
         event_context = mock_logger.call_args[1]["event_context"]
         self.assertEqual(event_context["new_value"], None)
 
-    @patch(
-        "waldur_mastermind.marketplace.log.event_logger.marketplace_plan_component.info"
-    )
+    @patch("waldur_mastermind.marketplace.log.event_logger.info")
     def test_update_with_future_price_string_value(self, mock_logger):
         """Test that a string future_price value is correctly converted to Decimal."""
         # Setup - only future_price has changed
@@ -258,9 +248,7 @@ class PlanComponentUpdateLoggerTest(TestCase):
         self.assertEqual(event_context["new_value"], self.decimal_value)
         self.assertIsInstance(event_context["new_value"], Decimal)
 
-    @patch(
-        "waldur_mastermind.marketplace.log.event_logger.marketplace_plan_component.info"
-    )
+    @patch("waldur_mastermind.marketplace.log.event_logger.info")
     def test_update_with_amount_string_value(self, mock_logger):
         """Test that a string amount value is correctly converted to Decimal."""
         # Setup - only amount has changed

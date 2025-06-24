@@ -236,10 +236,11 @@ def terminate_resources_if_project_end_date_has_been_reached():
         active_resources = project_resources.exclude(state=ResourceStates.TERMINATED)
 
         if not active_resources:
-            event_logger.project.info(
+            event_logger.info(
                 "Project {project_name} is going to be deleted because end date has been reached and there are no active resources.",
                 event_type="project_deletion_triggered",
                 event_context={"project": project},
+                group="project",
             )
             project.delete()
             return

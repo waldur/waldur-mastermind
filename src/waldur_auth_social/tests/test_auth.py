@@ -299,8 +299,10 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
         self.assertEqual(keys.count(), 1)
 
     @responses.activate
-    @mock.patch("waldur_core.core.handlers.event_logger")
-    def test_when_user_is_updated_events_are_emitted(self, mock_event_logger):
+    @mock.patch("waldur_core.core.handlers.event_logger.info")
+    def test_when_user_is_updated_events_are_emitted(
+        self, mock_event_logger: mock.Mock
+    ):
         self.setup_user_info()
         user = structure_factories.UserFactory(is_staff=True)
         self.client.force_login(user)
@@ -311,17 +313,21 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
             username=self.valid_cuid,
             email="steve@jobs.com",
         )
+        mock_event_logger.reset_mock()
 
         self.client.post(self.url, {"cuid": self.valid_cuid})
 
-        msg = mock_event_logger.user.info.call_args[0][0]
-        test_msg = (
-            "User {affected_user_username} has been updated. Details:\n"
-            "email: steve@jobs.com -> john@snow.me\n"
-            "first_name: Steve -> John\n"
-            "last_name: Jobs -> Snow"
+        mock_event_logger.assert_any_call(
+            (
+                "User {affected_user_username} has been updated. Details:\n"
+                "email: steve@jobs.com -> john@snow.me\n"
+                "first_name: Steve -> John\n"
+                "last_name: Jobs -> Snow"
+            ),
+            event_type="user_update_succeeded",
+            event_context={"affected_user": mock.ANY},
+            group="user",
         )
-        self.assertEqual(test_msg, msg)
 
     @responses.activate
     def test_when_user_is_not_found_it_is_disabled(self):

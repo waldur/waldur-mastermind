@@ -697,7 +697,7 @@ def plan_component_has_been_updated(
         return
 
     if instance.tracker.has_changed("price"):
-        event_logger.marketplace_plan_component.info(
+        event_logger.info(
             f"Current price of component {instance.component.type} in plan {instance.plan.name} has been updated.",
             event_type="marketplace_plan_component_current_price_updated",
             event_context={
@@ -707,9 +707,10 @@ def plan_component_has_been_updated(
                 if isinstance(instance.price, str)
                 else instance.price,
             },
+            group="marketplace_plan_component",
         )
     if instance.tracker.has_changed("future_price"):
-        event_logger.marketplace_plan_component.info(
+        event_logger.info(
             f"Future price of component {instance.component.type} in plan {instance.plan.name} has been updated.",
             event_type="marketplace_plan_component_future_price_updated",
             event_context={
@@ -719,9 +720,10 @@ def plan_component_has_been_updated(
                 if isinstance(instance.future_price, str)
                 else instance.future_price,
             },
+            group="marketplace_plan_component",
         )
     if instance.tracker.has_changed("amount"):
-        event_logger.marketplace_plan_component.info(
+        event_logger.info(
             f"Quota of component {instance.component.type} in plan {instance.plan.name} has been updated.",
             event_type="marketplace_plan_component_quota_updated",
             event_context={
@@ -731,6 +733,7 @@ def plan_component_has_been_updated(
                 if isinstance(instance.amount, str)
                 else instance.amount,
             },
+            group="marketplace_plan_component",
         )
 
 
@@ -738,12 +741,13 @@ def offering_component_has_been_created_or_updated(
     sender, instance: OfferingComponent, created=False, **kwargs
 ):
     if created:
-        event_logger.marketplace_offering_component.info(
+        event_logger.info(
             f"Offering component {instance.name} has been created.",
             event_type="marketplace_offering_component_created",
             event_context={
                 "offering_component": instance,
             },
+            group="marketplace_offering_component",
         )
     else:
         changes = [
@@ -752,42 +756,46 @@ def offering_component_has_been_created_or_updated(
         ]
         if changes:
             diff = ", ".join(changes)
-            event_logger.marketplace_offering_component.info(
+            event_logger.info(
                 f"Offering component {instance.name} has been updated. Details: {diff}.",
                 event_type="marketplace_offering_component_updated",
                 event_context={
                     "offering_component": instance,
                 },
+                group="marketplace_offering_component",
             )
 
 
 def offering_component_has_been_deleted(sender, instance: OfferingComponent, **kwargs):
-    event_logger.marketplace_offering_component.info(
+    event_logger.info(
         f"Offering component {instance.name} has been deleted.",
         event_type="marketplace_offering_component_deleted",
         event_context={
             "offering_component": instance,
         },
+        group="marketplace_offering_component",
     )
 
 
 def plan_has_been_created_or_updated(sender, instance: Plan, created=False, **kwargs):
     if created:
-        event_logger.marketplace_plan.info(
+        event_logger.info(
             f"Plan {instance.name} has been created.",
             event_type="marketplace_plan_created",
             event_context={
                 "plan": instance,
             },
+            group="marketplace_plan",
         )
     else:
         if instance.tracker.has_changed("archived"):
-            event_logger.marketplace_plan.info(
+            event_logger.info(
                 f"Plan {instance.name} has been archived.",
                 event_type="marketplace_plan_archived",
                 event_context={
                     "plan": instance,
                 },
+                group="marketplace_plan",
             )
         else:
             excluded_fields = {"modified", "created"}
@@ -798,12 +806,13 @@ def plan_has_been_created_or_updated(sender, instance: Plan, created=False, **kw
             ]
             if changes:
                 diff = ", ".join(changes)
-                event_logger.marketplace_plan.info(
+                event_logger.info(
                     f"Plan {instance.name} has been updated. Details: {diff}.",
                     event_type="marketplace_plan_updated",
                     event_context={
                         "plan": instance,
                     },
+                    group="marketplace_plan",
                 )
 
 
@@ -811,16 +820,17 @@ def offering_has_been_created_or_updated(
     sender, instance: Offering, created=False, **kwargs
 ):
     if created:
-        event_logger.marketplace_offering.info(
+        event_logger.info(
             "Offering has been created.",
             event_type="marketplace_offering_created",
             event_context={
                 "offering": instance,
             },
+            group="marketplace_offering",
         )
     else:
         if instance.tracker.has_changed("state"):
-            event_logger.marketplace_offering.info(
+            event_logger.info(
                 "Offering state has been updated.",
                 event_type="marketplace_offering_updated",
                 event_context={
@@ -830,6 +840,7 @@ def offering_has_been_created_or_updated(
                     ).get_state_display(),
                     "new_value": instance.get_state_display(),
                 },
+                group="marketplace_offering",
             )
 
 
@@ -929,10 +940,11 @@ def delete_expired_project_if_every_resource_has_been_terminated(
             .exists()
         )
         if not resources:
-            event_logger.project.info(
+            event_logger.info(
                 "Project {project_name} is going to be deleted because end date has been reached and there are no active resources.",
                 event_type="project_deletion_triggered",
                 event_context={"project": project},
+                group="project",
             )
             project.delete()
 
@@ -976,24 +988,27 @@ def log_service_account_created_or_updated(
         changed_string = generate_changes_string(
             instance.tracker.changed(), instance, SERVICE_ACCOUNT_TYPE
         )
-        event_logger.marketplace_service_account.info(
+        event_logger.info(
             changed_string,
             event_type="service_account_updated",
             event_context={"service_account": instance},
+            group="marketplace_service_account",
         )
         return
-    event_logger.marketplace_service_account.info(
+    event_logger.info(
         "Service account {service_account_username} has been created.",
         event_type="service_account_created",
         event_context={"service_account": instance},
+        group="marketplace_service_account",
     )
 
 
 def log_service_account_deleted(sender, instance: ScopedServiceAccount, **kwargs):
-    event_logger.marketplace_service_account.info(
+    event_logger.info(
         "Service account {service_account_username} has been deleted.",
         event_type="service_account_deleted",
         event_context={"service_account": instance},
+        group="marketplace_service_account",
     )
 
 
@@ -1004,24 +1019,27 @@ def log_resource_robot_account_created_or_updated(
         changed_string = generate_changes_string(
             instance.tracker.changed(), instance, ROBOT_ACCOUNT_TYPE
         )
-        event_logger.marketplace_robot_account.info(
+        event_logger.info(
             changed_string,
             event_type="resource_robot_account_updated",
             event_context={"robot_account": instance},
+            group="marketplace_robot_account",
         )
         return
-    event_logger.marketplace_robot_account.info(
+    event_logger.info(
         "Robot account {robot_account_username} has been created.",
         event_type="resource_robot_account_created",
         event_context={"robot_account": instance},
+        group="marketplace_robot_account",
     )
 
 
 def log_resource_robot_account_deleted(sender, instance: RobotAccount, **kwargs):
-    event_logger.marketplace_robot_account.info(
+    event_logger.info(
         "Robot account {robot_account_username} has been deleted.",
         event_type="resource_robot_account_deleted",
         event_context={"robot_account": instance},
+        group="marketplace_robot_account",
     )
 
 
@@ -1198,20 +1216,22 @@ def log_offering_role_created_or_updated(
     sender, instance: OfferingUserRole, created=False, **kwargs
 ):
     if created:
-        event_logger.marketplace_offering_role.info(
+        event_logger.info(
             f"Offering role {instance.name} has been created.",
             event_type="marketplace_offering_role_created",
             event_context={
                 "offering_role": instance,
             },
+            group="marketplace_offering_role",
         )
     else:
-        event_logger.marketplace_offering_role.info(
+        event_logger.info(
             f"Offering role {instance.name} has been updated.",
             event_type="marketplace_offering_role_updated",
             event_context={
                 "offering_role": instance,
             },
+            group="marketplace_offering_role",
         )
 
 
@@ -1219,32 +1239,35 @@ def log_resource_user_created(
     sender, instance: models.ResourceUser, created=False, **kwargs
 ):
     if created:
-        event_logger.marketplace_resource_user.info(
+        event_logger.info(
             f"User {instance.user.username} has been assigned"
             f" role {instance.role.name} in resource {instance.resource.name}.",
             event_type="marketplace_resource_user_created",
             event_context={
                 "resource_user": instance,
             },
+            group="marketplace_resource_user",
         )
 
 
 def log_offering_role_deleted(sender, instance: OfferingUserRole, **kwargs):
-    event_logger.marketplace_offering_role.info(
+    event_logger.info(
         f"Offering role {instance.name} has been deleted.",
         event_type="marketplace_offering_role_deleted",
         event_context={
             "offering_role": instance,
         },
+        group="marketplace_offering_role",
     )
 
 
 def log_resource_user_deleted(sender, instance: models.ResourceUser, **kwargs):
-    event_logger.marketplace_resource_user.info(
+    event_logger.info(
         f"User {instance.user.username} has been unassigned"
         f" role {instance.role.name} in resource {instance.resource.name}.",
         event_type="marketplace_resource_user_deleted",
         event_context={
             "resource_user": instance,
         },
+        group="marketplace_resource_user",
     )

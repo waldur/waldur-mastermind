@@ -1,3 +1,4 @@
+from unittest import mock
 from unittest.mock import call, patch
 
 from django.test import TestCase
@@ -57,7 +58,7 @@ class HandleNewUserTest(TestCase):
         return resource
 
     @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
-    def test_handler(self, mock_process_order):
+    def test_handler(self, mock_process_order: mock.Mock):
         user = User.objects.create(username="testuser", email="test@example.com")
         self.assertEqual(mock_process_order.call_count, 2)
 

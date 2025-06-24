@@ -11,8 +11,8 @@ from . import fixtures
 @freeze_time("2020-11-01")
 class InvoiceTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixtures = fixtures.ScriptFixture()
-        self.resource = self.fixtures.resource
+        self.fixture = fixtures.ScriptFixture()
+        self.resource = self.fixture.resource
         self.resource.set_state_ok()
         self.resource.save()
 

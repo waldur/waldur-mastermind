@@ -60,10 +60,11 @@ def proposals_for_ended_rounds_should_be_cancelled():
         proposal.state = ProposalStates.CANCELED
         proposal.save(update_fields=["state"])
 
-        log.event_logger.proposal.info(
+        log.event_logger.info(
             f"Proposal {proposal.name} has been canceled.",
             event_type="proposal_canceled",
             event_context={"proposal": proposal},
+            group="proposal",
         )
         logger.info(f"Proposal {proposal.name} has been canceled.")
 
@@ -80,9 +81,10 @@ def expired_reviews_should_be_cancelled():
             review.state = proposal_models.Review.States.REJECTED
             review.save(update_fields=["state"])
 
-            log.event_logger.review.info(
+            log.event_logger.info(
                 f"Review for {review.proposal.name} has been canceled.",
                 event_type="review_canceled",
                 event_context={"review": review},
+                group="review",
             )
             logger.info(f"Review {review.proposal.name} has been canceled.")

@@ -13,27 +13,30 @@ NOTIFICATION_SETTINGS = {
 }
 
 
-@mock.patch("waldur_core.core.handlers.event_logger")
+@mock.patch("waldur_core.core.handlers.event_logger.info")
 class LogUserSaveTest(TestCase):
     """Tests for logging and notifications when user data is updated."""
 
     def setUp(self):
         self.user = factories.UserFactory(full_name="John", email="john@example.org")
 
-    def test_sent_notification_if_change_owner_email(self, mock_event_logger):
+    def test_sent_notification_if_change_owner_email(
+        self, mock_event_logger: mock.Mock
+    ):
         """
         When organization owner changes their email:
         - Event should be logged once
         """
         customer = factories.CustomerFactory()
         customer.add_user(self.user, CustomerRole.OWNER)
+        mock_event_logger.reset_mock()
         old_email = self.user.email
         new_email = "new_email_" + old_email
         self.user.email = new_email
         self.user.save()
 
         self.assertEqual(
-            mock_event_logger.user.info.call_count,
+            mock_event_logger.call_count,
             1,
             "Expected one event to be logged when owner's email is changed",
         )
@@ -41,7 +44,7 @@ class LogUserSaveTest(TestCase):
     @mock.patch("waldur_core.core.utils.broadcast_mail")
     @override_settings(WALDUR_CORE=NOTIFICATION_SETTINGS)
     def test_notification_message_and_email_context(
-        self, mock_broadcast_mail, mock_event_logger
+        self, mock_broadcast_mail: mock.Mock, mock_event_logger: mock.Mock
     ):
         """
         When organization owner changes their email:
@@ -72,8 +75,8 @@ class LogUserSaveTest(TestCase):
         )
 
         # Verify event log message
-        msg = mock_event_logger.user.info.call_args[0][0]
-        context = mock_event_logger.user.info.call_args[1]["event_context"]
+        msg = mock_event_logger.call_args[0][0]
+        context = mock_event_logger.call_args[1]["event_context"]
         test_msg = msg.format(affected_user_username=context["affected_user"].username)
         expected_msg = (
             f"User {self.user.username} has been updated. Details:\n"
@@ -97,7 +100,7 @@ class LogUserSaveTest(TestCase):
         )
 
     def test_dont_sent_notification_if_change_owner_other_field(
-        self, mock_event_logger
+        self, mock_event_logger: mock.Mock
     ):
         """
         When organization owner changes a non-whitelisted field (token_lifetime):
@@ -105,20 +108,25 @@ class LogUserSaveTest(TestCase):
         """
         customer = factories.CustomerFactory()
         customer.add_user(self.user, CustomerRole.OWNER)
+        mock_event_logger.reset_mock()
         token_lifetime = 100 + self.user.token_lifetime
         self.user.token_lifetime = token_lifetime
         self.user.save()
 
-        self.assertEqual(
-            mock_event_logger.user.info.call_count,
-            0,
+        self.assertListEqual(
+            [
+                call
+                for call in mock_event_logger.mock_calls
+                if call[2].get("event_type") == "user_update_succeeded"
+            ],
+            [],
             "Expected no events to be logged when owner changes non-whitelisted field",
         )
 
     @mock.patch("waldur_core.core.utils.broadcast_mail")
     @override_settings(WALDUR_CORE=NOTIFICATION_SETTINGS)
     def test_dont_sent_notification_if_change_not_owner_email(
-        self, mock_broadcast_mail, mock_event_logger
+        self, mock_broadcast_mail: mock.Mock, mock_event_logger: mock.Mock
     ):
         """
         When non-owner changes their email:
@@ -131,12 +139,12 @@ class LogUserSaveTest(TestCase):
 
         # Verify event is logged
         self.assertEqual(
-            mock_event_logger.user.info.call_count,
+            mock_event_logger.call_count,
             1,
             "Expected one event to be logged when non-owner changes email",
         )
         self.assertEqual(
-            mock_event_logger.user.info.call_args[1]["event_type"],
+            mock_event_logger.call_args[1]["event_type"],
             "user_update_succeeded",
             "Incorrect event type logged",
         )

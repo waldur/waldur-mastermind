@@ -714,7 +714,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         router.save(update_fields=["routes"])
         executors.RouterSetRoutesExecutor().execute(router)
 
-        event_logger.openstack_router.info(
+        event_logger.info(
             "Static routes have been updated.",
             event_type="openstack_router_updated",
             event_context={
@@ -724,6 +724,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
                 "tenant_backend_id": router.tenant.backend_id,
                 "changed_interface": {},
             },
+            group="openstack_router",
         )
 
         logger.info(
@@ -789,7 +790,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
             added_interface = {"type": "subnet", "backend_id": subnet.backend_id}
         elif port:
             added_interface = {"type": "port", "backend_id": port.backend_id}
-        event_logger.openstack_router.info(
+        event_logger.info(
             "Interface was added to router.",
             event_type="openstack_router_updated",
             event_context={
@@ -799,6 +800,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
                 "tenant_backend_id": router.tenant.backend_id,
                 "changed_interface": added_interface,
             },
+            group="openstack_router",
         )
         backend.pull_tenant_routers(router.tenant, router.backend_id)
         return response.Response(

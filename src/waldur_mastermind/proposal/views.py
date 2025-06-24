@@ -399,10 +399,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             )
             if created:
                 instance.documents.add(obj)
-                log.event_logger.call.info(
+                log.event_logger.info(
                     f"Attachment for call {instance.name} has been added.",
                     event_type="call_document_added",
                     event_context={"call": instance},
+                    group="call",
                 )
                 logger.info(f"Attachment for {instance.name} has been added.")
 
@@ -425,10 +426,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 call=instance,
                 uuid=file_data,
             ).delete()
-            log.event_logger.call.info(
+            log.event_logger.info(
                 f"Attachment for call {instance.name} has been removed.",
                 event_type="call_document_removed",
                 event_context={"call": instance},
+                group="call",
             )
             logger.info(f"Attachment for {instance.name} has been removed.")
 
@@ -599,10 +601,11 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         serializer.is_valid(raise_exception=True)
         serializer.save(proposal=proposal)
 
-        log.event_logger.proposal.info(
+        log.event_logger.info(
             f"Attachment for proposal {proposal.name} has been added.",
             event_type="proposal_document_added",
             event_context={"proposal": proposal},
+            group="proposal",
         )
         return response.Response(status=status.HTTP_200_OK)
 
