@@ -1,5 +1,6 @@
 from django.apps import AppConfig
 from django.db.models import signals
+from django.utils.module_loading import autodiscover_modules
 
 
 class EventsConfig(AppConfig):
@@ -11,6 +12,7 @@ class EventsConfig(AppConfig):
 
         from waldur_core.logging import handlers, models
 
+        autodiscover_modules("log")
         signals.post_save.connect(
             handlers.process_hook,
             sender=models.Event,

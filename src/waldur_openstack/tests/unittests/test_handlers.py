@@ -78,7 +78,7 @@ class LogTenantQuotaUpdateTest(TestCase):
         tenant = factories.TenantFactory()
         tenant.set_quota_limit("vcpu", 10)
 
-        with patch("waldur_openstack.handlers.event_logger.info") as logger_mock:
+        with patch("waldur_core.core.log.event_logger.info") as logger_mock:
             tenant.set_quota_limit("vcpu", 20)
 
             logger_mock.assert_called_once_with(

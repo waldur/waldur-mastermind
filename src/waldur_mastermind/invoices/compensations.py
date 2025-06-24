@@ -3,6 +3,7 @@ import logging
 from django.db import transaction
 from django.db.models import Sum
 
+from waldur_core.core.log import event_logger
 from waldur_core.structure.models import Project
 
 from . import log, models
@@ -192,7 +193,7 @@ class MonthlyCompensation:
             diff = new_expected_consumption - self.credit.expected_consumption
             self.credit.expected_consumption = new_expected_consumption
             self.credit.save(update_fields=["expected_consumption"])
-            log.event_logger.info(
+            event_logger.info(
                 "Reduction of {customer_name} expected consumption by {consumption} according to linear minimal consumption logic.",
                 event_type="reduction_of_customer_expected_consumption",
                 event_context={
@@ -217,7 +218,7 @@ class MonthlyCompensation:
                 diff = new_expected_consumption - project_credit.expected_consumption
                 project_credit.expected_consumption = new_expected_consumption
                 project_credit.save(update_fields=["expected_consumption"])
-                log.event_logger.info(
+                event_logger.info(
                     "Reduction of {project_name} expected consumption by {consumption} according to linear minimal consumption logic.",
                     event_type="reduction_of_project_expected_consumption",
                     event_context={
@@ -248,7 +249,7 @@ class MonthlyCompensation:
         self.credit.save(update_fields=["value"])
 
         if self.tail:
-            log.event_logger.info(
+            event_logger.info(
                 "Reduction of {customer_name} credit by {consumption} due to minimal consumption of {minimal_consumption}",
                 event_type="reduction_of_customer_credit_due_to_minimal_consumption",
                 event_context={
@@ -260,7 +261,7 @@ class MonthlyCompensation:
             )
 
         for invoice_item in self.compensations:
-            log.event_logger.info(
+            event_logger.info(
                 "Reduction of {customer_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
                 event_type="reduction_of_customer_credit",
                 event_context={
@@ -270,7 +271,7 @@ class MonthlyCompensation:
                 },
                 group="credit",
             )
-            log.event_logger.info(
+            event_logger.info(
                 "Reduction of {project_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
                 event_type="reduction_of_project_credit",
                 event_context={
@@ -283,7 +284,7 @@ class MonthlyCompensation:
             )
             # Because bulk_create is used for InvoiceItem, the post_save signals
             # will not be sent, and event would not be emitted by handler.
-            log.event_logger.info(
+            event_logger.info(
                 "Invoice item has been created",
                 event_type="invoice_item_created",
                 event_context={
@@ -293,7 +294,7 @@ class MonthlyCompensation:
             )
 
         for project_credit, tail in self._project_tails.items():
-            log.event_logger.info(
+            event_logger.info(
                 "Reduction of {project_name} credit by {consumption} due to minimal consumption of {minimal_consumption}",
                 event_type="reduction_of_project_credit_due_to_minimal_consumption",
                 event_context={

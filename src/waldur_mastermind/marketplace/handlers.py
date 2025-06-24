@@ -9,6 +9,7 @@ from django.db.models import signals
 from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.log import event_logger
 from waldur_core.core.models import User
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer, Project
@@ -42,7 +43,6 @@ from waldur_mastermind.marketplace_slurm_remote import (
 )
 
 from . import PLUGIN_NAME, callbacks, log, models, tasks, utils
-from .log import event_logger
 
 logger = logging.getLogger(__name__)
 

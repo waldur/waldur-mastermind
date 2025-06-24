@@ -26,6 +26,7 @@ from waldur_core.core.authentication import (
     refresh_token,
     set_authentication_method,
 )
+from waldur_core.core.log import event_logger
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.views import (
     login_completed,
@@ -36,7 +37,6 @@ from waldur_core.core.views import (
 )
 
 from . import filters, models, serializers, utils
-from .log import event_logger
 
 logger = logging.getLogger(__name__)
 

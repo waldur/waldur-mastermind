@@ -1,4 +1,4 @@
-from waldur_core.permissions.log import event_logger
+from waldur_core.core.log import event_logger
 from waldur_core.structure.permissions import _get_customer
 
 

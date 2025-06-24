@@ -22,6 +22,7 @@ from requests import ConnectionError
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.log import event_logger
 from waldur_core.core.utils import create_batch_fetcher, pwgen
 from waldur_core.structure.backend import ServiceBackend, log_backend_action
 from waldur_core.structure.models import ServiceSettings
@@ -52,7 +53,6 @@ from waldur_openstack.session import (
 from waldur_openstack.utils import is_valid_volume_type_name
 
 from . import models, signals
-from .log import event_logger
 
 logger = logging.getLogger(__name__)
 

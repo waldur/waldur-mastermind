@@ -299,7 +299,7 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
         self.assertEqual(keys.count(), 1)
 
     @responses.activate
-    @mock.patch("waldur_core.core.handlers.event_logger.info")
+    @mock.patch("waldur_core.core.log.event_logger.info")
     def test_when_user_is_updated_events_are_emitted(
         self, mock_event_logger: mock.Mock
     ):

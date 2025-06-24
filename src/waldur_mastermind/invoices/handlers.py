@@ -9,12 +9,13 @@ from django.db.models import Q
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.log import event_logger
 from waldur_core.structure.models import Project
 from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import ResourceStates
 
-from . import log, models, registrators
+from . import models, registrators
 from .models import CustomerCredit, Invoice, InvoiceItem
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ def log_invoice_state_transition(
         return
 
     if state == models.Invoice.States.CREATED:
-        log.event_logger.info(
+        event_logger.info(
             "Invoice for customer {customer_name} has been created.",
             event_type="invoice_created",
             event_context={
@@ -45,7 +46,7 @@ def log_invoice_state_transition(
             group="invoice",
         )
     elif state == models.Invoice.States.PAID:
-        log.event_logger.info(
+        event_logger.info(
             "Invoice for customer {customer_name} has been paid.",
             event_type="invoice_paid",
             event_context={
@@ -57,7 +58,7 @@ def log_invoice_state_transition(
             group="invoice",
         )
     elif state == models.Invoice.States.CANCELED:
-        log.event_logger.info(
+        event_logger.info(
             "Invoice for customer {customer_name} has been canceled.",
             event_type="invoice_canceled",
             event_context={
@@ -206,7 +207,7 @@ def log_credit(sender, instance: CustomerCredit, created=False, **kwargs):
     credit = instance
 
     if created:
-        log.event_logger.info(
+        event_logger.info(
             "{customer_name} credit has been created. Value: {new_value}",
             event_type="create_of_credit_by_staff",
             event_context={
@@ -216,7 +217,7 @@ def log_credit(sender, instance: CustomerCredit, created=False, **kwargs):
             group="credit",
         )
     elif credit.tracker.has_changed("value"):
-        log.event_logger.info(
+        event_logger.info(
             "{customer_name} credit has been updated from {old_value} to {new_value}. ",
             event_type="update_of_credit_by_staff",
             event_context={
@@ -232,7 +233,7 @@ def log_invoice_item_save(
     sender, instance: models.InvoiceItem, created=False, **kwargs
 ):
     if created:
-        log.event_logger.info(
+        event_logger.info(
             f"Invoice item {instance.name} has been created.",
             event_type="invoice_item_created",
             event_context={
@@ -282,7 +283,7 @@ def log_invoice_item_save(
         ]
         if changes:
             diff = ", ".join(changes)
-            log.event_logger.info(
+            event_logger.info(
                 f"Invoice item {instance.name} has been updated. Details: {diff}.",
                 event_type="invoice_item_updated",
                 event_context={
@@ -293,7 +294,7 @@ def log_invoice_item_save(
 
 
 def log_invoice_item_delete(sender, instance: models.InvoiceItem, **kwargs):
-    log.event_logger.info(
+    event_logger.info(
         f"Invoice item {instance.name} has been deleted.",
         event_type="invoice_item_deleted",
         event_context={
