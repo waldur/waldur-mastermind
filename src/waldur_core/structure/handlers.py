@@ -5,10 +5,10 @@ from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.log import event_logger
 from waldur_core.core.models import ChangeEmailRequest, StateMixin
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_customer, get_permissions
-from waldur_core.structure.log import event_logger
 from waldur_core.structure.managers import count_customer_users
 from waldur_core.structure.models import (
     AccessSubnet,

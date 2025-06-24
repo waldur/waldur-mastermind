@@ -17,11 +17,11 @@ from rest_framework import status
 from waldur_core import _get_version
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.log import event_logger
 from waldur_core.core.models import User
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.log import event_logger
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import exceptions, models, plugins, utils

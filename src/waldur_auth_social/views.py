@@ -23,11 +23,11 @@ from waldur_auth_social.utils import (
 )
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.authentication import refresh_token, set_authentication_method
+from waldur_core.core.log import event_logger
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import format_homeport_link
 
 from . import models
-from .log import event_logger
 from .serializers import (
     AuthSerializer,
     IdentityProviderSerializer,

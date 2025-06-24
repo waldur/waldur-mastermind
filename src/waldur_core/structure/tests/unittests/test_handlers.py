@@ -8,9 +8,7 @@ from waldur_core.structure.tests import factories
 class LogProjectSaveTest(TestCase):
     def test_logger_called_once_on_project_create(self):
         customer = factories.CustomerFactory()
-        with mock.patch(
-            "waldur_core.structure.handlers.event_logger.info"
-        ) as logger_mock:
+        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
             new_project = factories.ProjectFactory(customer=customer)
 
             logger_mock.assert_called_once_with(
@@ -26,9 +24,7 @@ class LogProjectSaveTest(TestCase):
         new_project = factories.ProjectFactory()
         old_name = new_project.name
 
-        with mock.patch(
-            "waldur_core.structure.handlers.event_logger.info"
-        ) as logger_mock:
+        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
             new_project.name = "new name"
             new_project.save()
 
@@ -45,9 +41,7 @@ class LogProjectSaveTest(TestCase):
     def test_logger_logs_project_name_and_description_when_updated(self):
         new_project = factories.ProjectFactory(description="description", name="name")
 
-        with mock.patch(
-            "waldur_core.structure.handlers.event_logger.info"
-        ) as logger_mock:
+        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
             new_project.name = "new name"
             new_project.description = "new description"
             new_project.save()

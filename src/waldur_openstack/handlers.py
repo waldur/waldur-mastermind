@@ -4,14 +4,13 @@ from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.log import event_logger
 from waldur_core.core.models import SshPublicKey
 from waldur_core.quotas.models import QuotaLimit
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_openstack import models
-
-from .log import event_logger
 
 logger = logging.getLogger(__name__)
 

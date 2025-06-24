@@ -2,9 +2,9 @@ from django.conf import settings
 from django.db import transaction
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.log import event_logger
 
 from . import models, tasks
-from .log import event_logger
 
 
 def log_issue_save(sender, instance: models.Issue, created=False, **kwargs):

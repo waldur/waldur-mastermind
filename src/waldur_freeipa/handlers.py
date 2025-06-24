@@ -4,11 +4,11 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.log import event_logger
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.quotas.models import QuotaLimit
 
 from . import models, tasks, utils
-from .log import event_logger
 from .models import Profile
 
 logger = logging.getLogger(__name__)

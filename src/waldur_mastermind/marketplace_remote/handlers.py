@@ -6,6 +6,7 @@ from django.db import transaction
 from waldur_auth_social.models import ProviderChoices
 from waldur_core.core import middleware
 from waldur_core.core.enums import ReviewStates
+from waldur_core.core.log import event_logger
 from waldur_core.core.utils import serialize_instance
 from waldur_core.permissions import signals as permission_signals
 from waldur_core.permissions.enums import RoleEnum
@@ -16,7 +17,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.models import Order, Resource
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME, log, models, tasks, utils
+from waldur_mastermind.marketplace_remote import PLUGIN_NAME, models, tasks, utils
 from waldur_mastermind.marketplace_remote.utils import INVALID_RESOURCE_STATES
 
 logger = logging.getLogger(__name__)
@@ -163,7 +164,7 @@ def log_request_events(
 ):
     event_context = {"project": instance.project, "offering": instance.offering}
     if created:
-        log.event_logger.info(
+        event_logger.info(
             "Project update request has been created.",
             event_type="project_update_request_created",
             event_context=event_context,
@@ -173,14 +174,14 @@ def log_request_events(
     if not instance.tracker.has_changed("state"):
         return
     if instance.state == ReviewStates.APPROVED:
-        log.event_logger.info(
+        event_logger.info(
             "Project update request has been approved.",
             event_type="project_update_request_approved",
             event_context=event_context,
             group="project_update_request",
         )
     elif instance.state == ReviewStates.REJECTED:
-        log.event_logger.info(
+        event_logger.info(
             "Project update request has been rejected.",
             event_type="project_update_request_rejected",
             event_context=event_context,

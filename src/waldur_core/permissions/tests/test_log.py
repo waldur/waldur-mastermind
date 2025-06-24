@@ -13,9 +13,7 @@ class LogRoleEventTest(TestCase):
         fixture = fixtures.CustomerFixture()
 
         owner = fixture.owner
-        with mock.patch(
-            "waldur_core.structure.handlers.event_logger.info"
-        ) as logger_mock:
+        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
             logger_mock.reset_mock()
             fixture.customer.add_user(fixture.user, CustomerRole.OWNER, owner)
 
@@ -39,9 +37,7 @@ class LogRoleEventTest(TestCase):
         fixture = fixtures.CustomerFixture()
         owner = fixture.owner
 
-        with mock.patch(
-            "waldur_core.structure.handlers.event_logger.info"
-        ) as logger_mock:
+        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
             logger_mock.reset_mock()
             fixture.customer.remove_user(owner, CustomerRole.OWNER, fixture.staff)
 
@@ -65,9 +61,7 @@ class LogRoleEventTest(TestCase):
         fixture = fixtures.ProjectFixture()
         current_user = fixture.owner
 
-        with mock.patch(
-            "waldur_core.structure.handlers.event_logger.info"
-        ) as logger_mock:
+        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
             logger_mock.reset_mock()
             fixture.project.add_user(fixture.user, ProjectRole.MANAGER, current_user)
 
@@ -92,9 +86,7 @@ class LogRoleEventTest(TestCase):
         manager = fixture.manager
         current_user = fixture.owner
 
-        with mock.patch(
-            "waldur_core.structure.handlers.event_logger.info"
-        ) as logger_mock:
+        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
             logger_mock.reset_mock()
             fixture.project.remove_user(manager, ProjectRole.MANAGER, current_user)
 
@@ -128,9 +120,7 @@ class AccessSubnetCreateModifyDelete(test.APITransactionTestCase):
         )
 
     def test_logger_called_when_subnet_created(self):
-        with mock.patch(
-            "waldur_core.structure.handlers.event_logger.info"
-        ) as logger_mock:
+        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
             logger_mock.reset_mock()
             access_subnet = self.create_access_subnet()
             logger_mock.assert_called_once_with(
@@ -146,9 +136,7 @@ class AccessSubnetCreateModifyDelete(test.APITransactionTestCase):
         access_subnet = self.create_access_subnet()
         url = factories.AccessSubnetFactory.get_url(access_subnet)
 
-        with mock.patch(
-            "waldur_core.structure.handlers.event_logger.info"
-        ) as logger_mock:
+        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
             logger_mock.reset_mock()
             payload = {
                 "inet": "192.168.1.1/32",
@@ -171,9 +159,7 @@ class AccessSubnetCreateModifyDelete(test.APITransactionTestCase):
         access_subnet = self.create_access_subnet()
         url = factories.AccessSubnetFactory.get_url(access_subnet)
 
-        with mock.patch(
-            "waldur_core.structure.handlers.event_logger.info"
-        ) as logger_mock:
+        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
             logger_mock.reset_mock()
             response = self.client.delete(url)
             logger_mock.assert_called_with(
