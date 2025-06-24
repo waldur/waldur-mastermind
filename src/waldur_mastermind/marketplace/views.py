@@ -4515,6 +4515,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
                 invoice__created__gte=start,
                 invoice__created__lte=end,
             )
+            .exclude(resource__offering__isnull=True)
             .values("resource__offering__uuid")
             .annotate(
                 cost=Sum(
