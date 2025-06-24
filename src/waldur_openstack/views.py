@@ -1097,7 +1097,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
         backend = network.tenant.get_backend()
 
         backend_id = backend.create_network_rbac_policy(
-            network=network,
+            network,
             target_tenant=target_tenant,
             policy_type=policy_type,
         )
