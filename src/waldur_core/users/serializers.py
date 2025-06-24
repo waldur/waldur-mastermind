@@ -90,9 +90,21 @@ class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
 
 
 class GroupInvitationSerializer(BaseInvitationSerializer):
+    project_role = serializers.SlugRelatedField(
+        queryset=Role.objects.filter(is_active=True, name__startswith="PROJECT."),
+        slug_field="uuid",
+        required=False,
+        allow_null=True,
+    )
+
     class Meta:
         model = models.GroupInvitation
-        fields = BaseInvitationSerializer.Meta.fields + ("is_active",)
+        fields = BaseInvitationSerializer.Meta.fields + (
+            "is_active",
+            "auto_create_project",
+            "project_name_template",
+            "project_role",
+        )
         read_only_fields = BaseInvitationSerializer.Meta.read_only_fields + (
             "is_active",
         )
@@ -102,6 +114,19 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
                 "view_name": "user-group-invitation-detail",
             },
         }
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        # Validate project role is actually a project-level role
+        if attrs.get("auto_create_project") and attrs.get("project_role"):
+            project_role = attrs["project_role"]
+            if not project_role.name.startswith("PROJECT."):
+                raise serializers.ValidationError(
+                    "project_role must be a project-level role"
+                )
+
+        return attrs
 
 
 class InvitationSerializer(BaseInvitationSerializer):

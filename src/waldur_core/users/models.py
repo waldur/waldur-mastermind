@@ -43,6 +43,25 @@ class BaseInvitation(core_models.UuidMixin, core_mixins.ScopeMixin, TimeStampedM
 class GroupInvitation(BaseInvitation):
     is_active = models.BooleanField(default=True)
 
+    # New fields for project creation alternative
+    auto_create_project = models.BooleanField(
+        default=False,
+        help_text="Create project and grant project permissions instead of customer permissions",
+    )
+    project_name_template = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Template for project name. Supports {username}, {email}, {full_name} variables",
+    )
+    project_role = models.ForeignKey(
+        to=Role,
+        on_delete=models.CASCADE,
+        related_name="group_project_invitations",
+        null=True,
+        blank=True,
+        help_text="Role to grant in the auto-created project. If not specified, uses invitation.role",
+    )
+
     class Permissions:
         customer_path = "customer"
 
@@ -178,17 +197,52 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
     def approve(self, user, comment=None):
         super().approve(user, comment)
 
-        permission = add_user(
-            self.invitation.scope,
-            self.created_by,
-            self.invitation.role,
-            created_by=user,
-        )
+        if self.invitation.auto_create_project:
+            # Create project and grant project permission instead of customer permission
+            project = self._create_project_for_user(user)
+            permission = add_user(
+                project,
+                self.created_by,
+                self.invitation.project_role or self.invitation.role,
+                created_by=user,
+            )
+            scope = project
+        else:
+            # Original behavior - grant customer/scope permission
+            permission = add_user(
+                self.invitation.scope,
+                self.created_by,
+                self.invitation.role,
+                created_by=user,
+            )
+            scope = self.invitation.scope
 
         permissions_request_approved.send(
             sender=self.__class__,
             permission=permission,
-            structure=self.invitation.scope,
+            structure=scope,
         )
+
+    def _create_project_for_user(self, approving_user):
+        from waldur_core.structure.models import Project
+
+        project_name = self._resolve_project_name()
+
+        # Use get_or_create to ensure only one project per user per customer
+        project, created = Project.objects.get_or_create(
+            name=project_name,
+            customer=self.invitation.customer,
+        )
+
+        return project
+
+    def _resolve_project_name(self):
+        if self.invitation.project_name_template:
+            return self.invitation.project_name_template.format(
+                username=self.created_by.username,
+                email=self.created_by.email,
+                full_name=self.created_by.get_full_name() or self.created_by.username,
+            )
+        return f"{self.created_by.username}_project"
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
