@@ -81,11 +81,17 @@ def reraise_exceptions(func):
             cinder_exceptions.ClientException,
             nova_exceptions.ClientException,
         ) as e:
-            instance = args[0]
+            # args is an empty list if no positional arguments were passed to the method
+            # The first positional argument (args[0]) should be a Waldur model instance that is being operated on
+            instance = args[0] if args else None
 
-            if isinstance(instance, core_models.ErrorMessageMixin):
+            if instance is not None and isinstance(
+                instance, core_models.ErrorMessageMixin
+            ):
                 instance.error_message = str(e)
                 instance.save(update_fields=["error_message"])
+            else:
+                logger.info("Exception in %s: %s", func.__name__, e)
 
             raise OpenStackBackendError(e)
 
