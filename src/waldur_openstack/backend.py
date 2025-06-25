@@ -19,6 +19,7 @@ from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
 from requests import ConnectionError
 
+import httpx
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
@@ -80,6 +81,7 @@ def reraise_exceptions(func):
             neutron_exceptions.NeutronException,
             cinder_exceptions.ClientException,
             nova_exceptions.ClientException,
+            glance_exceptions.BaseException,
         ) as e:
             instance = args[0]
 
@@ -5296,3 +5298,78 @@ class OpenStackBackend(ServiceBackend):
             logger.exception(
                 "Failed to update security groups for port %s", port.backend_id
             )
+
+    @reraise_exceptions
+    def create_image(self, tenant: models.Tenant, image_metadata: dict):
+        session = get_tenant_session(tenant)
+        glance = get_glance_client(session)
+
+        image = glance.images.create(**image_metadata)
+        return image
+
+    @reraise_exceptions
+    def upload_image_data(self, tenant: models.Tenant, image_id: str, input_stream):
+        session = get_tenant_session(tenant)
+
+        auth_token = session.get_token()
+        glance_url = session.get_endpoint(service_type="image")
+
+        def stream_wsgi_input():
+            buffer_size = 8192
+            data = input_stream.read(buffer_size)
+            while data:
+                yield data
+                data = input_stream.read(buffer_size)
+
+        upload_url = f"{glance_url}/v2/images/{image_id}/file"
+        logger.debug(f"Starting upload to {upload_url}")
+
+        try:
+            with httpx.Client(
+                verify=self.settings.options.get("verify_ssl", False)
+            ) as client:
+                upload_response = client.put(
+                    upload_url,
+                    content=stream_wsgi_input(),
+                    headers={
+                        "X-Auth-Token": auth_token,
+                        "Content-Type": "application/octet-stream",
+                    },
+                )
+        except httpx.RequestError as exc:
+            logger.error(f"HTTPX request failed: {exc}")
+            raise OpenStackBackendError(f"HTTPX request failed: {exc}")
+        except Exception as exc:
+            logger.error(f"Unexpected error during image upload: {exc}")
+            raise OpenStackBackendError(f"Unexpected error during image upload: {exc}")
+
+        if upload_response.status_code == 204:
+            logger.info("Upload completed successfully")
+            glance = get_glance_client(session)
+            try:
+                glance.images.get(image_id)
+                return {
+                    "status": "success",
+                    "response": upload_response.text,
+                }
+            except glance_exceptions.HTTPNotFound:
+                raise OpenStackBackendError(
+                    f"Verification failed: {upload_response.text}"
+                )
+        else:
+            logger.error(
+                f"Upload failed with status code {upload_response.status_code}"
+            )
+            raise OpenStackBackendError(f"Failed: {upload_response.text}")
+
+    @reraise_exceptions
+    def get_image_count_total(self, tenant: models.Tenant) -> int:
+        session = get_tenant_session(tenant)
+        glance = get_glance_client(session)
+        return len(list(glance.images.list()))
+
+    @reraise_exceptions
+    def get_image_size_total(self, tenant: models.Tenant) -> int:
+        session = get_tenant_session(tenant)
+        glance = get_glance_client(session)
+        return sum([i.size or 0 for i in glance.images.list()])

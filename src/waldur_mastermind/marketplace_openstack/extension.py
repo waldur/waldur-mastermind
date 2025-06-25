@@ -57,3 +57,9 @@ class MarketplaceOpenStackExtension(WaldurExtension):
                 "args": (),
             },
         }
+
+    @staticmethod
+    def rest_urls():
+        from .urls import register_in
+
+        return register_in
