@@ -59,7 +59,7 @@ from waldur_core.structure.registry import SupportedServices, get_resource_type
 
 def validate_service_type(service_type):
     if not SupportedServices.has_service_type(service_type):
-        raise ValidationError(_("Invalid service type."))
+        raise ValidationError(_("Invalid service type."))  # type: ignore
 
 
 class StructureLoggableMixin(LoggableMixin):
