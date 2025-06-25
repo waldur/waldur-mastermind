@@ -31,4 +31,7 @@ waldur import_roles /etc/waldur/permissions.yaml
 echo "INFO: Customising permissions configuration"
 waldur override_roles /etc/waldur/permissions-override.yaml
 
+echo "INFO: Deleting stale permissions from DB"
+waldur drop_stale_permissions
+
 exit 0
