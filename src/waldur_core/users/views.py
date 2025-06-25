@@ -4,7 +4,7 @@ from constance import config
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from django.utils.translation import gettext_lazy as _
+from django.utils.translation import gettext as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import permissions as rf_permissions
