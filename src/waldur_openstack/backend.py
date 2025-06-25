@@ -3,6 +3,7 @@ import logging
 import re
 from urllib.parse import urlparse, urlunparse
 
+import httpx
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2.contrib import list_extensions
 from django.conf import settings
@@ -19,7 +20,6 @@ from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
 from requests import ConnectionError
 
-import httpx
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates

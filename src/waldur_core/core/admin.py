@@ -90,7 +90,7 @@ class CopyButtonMixin:
             "data-target-id": attrs["id"],
         }
         result += f"<a {flatatt(button_attrs)}>Copy</a>"
-        return mark_safe(result)  # noqa: S308, S703
+        return mark_safe(result)  # noqa: S308
 
 
 class PasswordWidget(CopyButtonMixin, forms.PasswordInput):
@@ -108,7 +108,7 @@ class JsonWidget(CopyButtonMixin, JSONEditor):
 def format_json_field(value):
     template = '<div><pre style="overflow: hidden">{0}</pre></div>'
     formatted_value = json.dumps(value, indent=True, ensure_ascii=False)
-    return mark_safe(template.format(formatted_value))  # noqa: S308, S703
+    return mark_safe(template.format(formatted_value))  # noqa: S308
 
 
 class OptionalChoiceField(forms.ChoiceField):
