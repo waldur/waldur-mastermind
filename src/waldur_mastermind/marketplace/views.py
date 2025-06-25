@@ -1857,6 +1857,8 @@ class ProviderOfferingViewSet(
 
         return Response(response_text)
 
+    glauth_users_config_permissions = [structure_permissions.is_offering_manager]
+
     @extend_schema(
         description="Check if user has access to offering.",
         request=None,

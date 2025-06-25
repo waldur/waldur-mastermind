@@ -1,6 +1,7 @@
 import textwrap
 from unittest import mock
 
+from ddt import data, ddt
 from rest_framework import test
 
 from waldur_core.logging import utils as logging_utils
@@ -205,6 +206,7 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
         )
 
 
+@ddt
 class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = GlauthUserFixture()
@@ -257,9 +259,11 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
         response = self.client.get(self.fixture.url)
         self.assertEqual(404, response.status_code)
 
-    def test_glauth_config_file_fetching(self):
+    @data("offering_owner", "service_manager", "offering_manager")
+    def test_glauth_config_file_fetching(self, user_role):
         ssh_key = structure_factories.SshPublicKeyFactory(user=self.fixture.manager)
-        self.client.force_login(self.fixture.offering_owner)
+        user = getattr(self.fixture, user_role)
+        self.client.force_login(user)
         self.assertEqual(
             0,
             marketplace_models.IntegrationStatus.objects.filter(

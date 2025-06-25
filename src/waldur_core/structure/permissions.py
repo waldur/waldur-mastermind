@@ -6,6 +6,7 @@ from rest_framework import exceptions, permissions
 from waldur_core.core.permissions import SAFE_METHODS, IsAdminOrReadOnly
 from waldur_core.permissions.fixtures import (
     CustomerRole,
+    OfferingRole,
     ProjectRole,
     ServiceProviderRole,
 )
@@ -61,6 +62,25 @@ def is_administrator(request, view, obj=None, **kwargs):
         return
     project = _get_project(obj, **kwargs)
     if not _has_admin_access(request.user, project):
+        raise exceptions.PermissionDenied()
+
+
+def is_service_manager(request, view, obj=None, **kwargs):
+    if not obj:
+        return
+    customer = _get_customer(obj, **kwargs)
+    if not _has_service_manager_access(request.user, customer):
+        raise exceptions.PermissionDenied()
+
+
+def is_offering_manager(request, view, obj=None, **kwargs):
+    if not obj:
+        return
+    customer = _get_customer(obj, **kwargs)
+    if not (
+        _has_service_manager_access(request.user, customer)
+        or obj.has_user(request.user, OfferingRole.MANAGER)
+    ):
         raise exceptions.PermissionDenied()
 
 
