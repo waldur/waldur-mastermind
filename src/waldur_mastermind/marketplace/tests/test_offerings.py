@@ -1465,6 +1465,21 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.secret_options, secret_options)
 
+    def test_update_attributes_image_count_total_limit(self):
+        self.offering.type = "OpenStack.Tenant"
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(self.offering, "update_attributes")
+
+        response = self.client.post(
+            url,
+            {"image_count_total_limit": 10},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.attributes.get("image_count_total_limit"), 10)
+
 
 @ddt
 class OfferingOrganizationGroupsTest(test.APITransactionTestCase):

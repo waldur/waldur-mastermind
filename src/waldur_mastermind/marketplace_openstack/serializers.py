@@ -1,9 +1,11 @@
 from django.db import transaction
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import signals as core_signals
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_openstack.utils import _apply_quotas
+from waldur_openstack import models as openstack_models
 from waldur_openstack import serializers as openstack_serializers
 
 from .utils import get_external_ip
@@ -80,3 +82,75 @@ core_signals.pre_serializer_fields.connect(
     sender=openstack_serializers.OpenStackRouterSerializer,
     receiver=add_router_external_ips,
 )
+
+
+class TenantSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = openstack_models.Tenant
+        fields = (
+            "url",
+            "uuid",
+            "name",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "openstack-marketplace-tenant-detail",
+            },
+        }
+
+
+class ImageCreateSerializer(serializers.Serializer):
+    DISK_FORMATS = [
+        "qcow2",
+        "raw",
+        "vhd",
+        "vmdk",
+        "vdi",
+        "iso",
+        "aki",
+        "ami",
+        "ari",
+    ]
+
+    CONTAINER_FORMATS = [
+        "bare",
+        "ovf",
+        "aki",
+        "ami",
+        "ari",
+    ]
+
+    name = serializers.CharField()
+    min_ram = serializers.IntegerField(required=False, default=0)
+    min_disk = serializers.IntegerField(required=False, default=0)
+    disk_format = serializers.ChoiceField(
+        choices=[(format, format) for format in DISK_FORMATS], default="qcow2"
+    )
+    container_format = serializers.ChoiceField(
+        choices=[(format, format) for format in CONTAINER_FORMATS], default="bare"
+    )
+    visibility = serializers.ChoiceField(
+        choices=[(format, format) for format in ["private", "public"]],
+        default="private",
+    )
+
+    def validate_visibility(self, value):
+        public_images_is_available = self.context.get("public_images_is_available")
+        if value == "public" and not public_images_is_available:
+            raise serializers.ValidationError(
+                _("You do not have permissions to create public images.")
+            )
+        return value
+
+
+class ImageCreateResponseSerializer(serializers.Serializer):
+    image_id = serializers.UUIDField()
+    name = serializers.CharField()
+    status = serializers.CharField()
+    upload_url = serializers.CharField()
+
+
+class ImageUploadResponseSerializer(serializers.Serializer):
+    status = serializers.CharField()
+    message = serializers.CharField()
