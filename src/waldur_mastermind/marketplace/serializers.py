@@ -17,6 +17,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 from rest_framework.exceptions import APIException, PermissionDenied
+from rest_framework.permissions import SAFE_METHODS
 
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
@@ -3751,9 +3752,25 @@ class OfferingReferralSerializer(
 class OfferingUserSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
+    offering = serializers.HyperlinkedRelatedField(
+        queryset=models.Offering.objects.all(),
+        view_name="marketplace-provider-offering-detail",
+        lookup_field="uuid",
+        required=False,
+    )
+    offering_uuid = serializers.SlugRelatedField(
+        queryset=models.Offering.objects.all(), slug_field="uuid", required=False
+    )
     offering_name = serializers.ReadOnlyField(source="offering.name")
-    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
+    user = serializers.HyperlinkedRelatedField(
+        queryset=User.objects.all(),
+        view_name="user-detail",
+        lookup_field="uuid",
+        required=False,
+    )
+    user_uuid = serializers.SlugRelatedField(
+        queryset=User.objects.all(), slug_field="uuid", required=False
+    )
     user_username = serializers.ReadOnlyField(source="user.username")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
     customer_uuid = serializers.UUIDField(
@@ -3782,20 +3799,76 @@ class OfferingUserSerializer(
             "is_restricted",
         )
         extra_kwargs = dict(
-            offering={
-                "lookup_field": "uuid",
-                "view_name": "marketplace-provider-offering-detail",
-            },
-            user={"lookup_field": "uuid", "view_name": "user-detail"},
             url={
                 "lookup_field": "uuid",
                 "view_name": "marketplace-offering-user-detail",
             },
         )
 
+    def to_internal_value(self, data):
+        # Pre-process data to convert UUID fields to URL fields before field validation
+        if self.instance is None:  # Only for creation
+            data = data.copy() if hasattr(data, "copy") else dict(data)
+
+            for url_field, uuid_field in (
+                ("offering", "offering_uuid"),
+                ("user", "user_uuid"),
+            ):
+                url_provided = url_field in data and data[url_field] is not None
+                uuid_provided = uuid_field in data and data[uuid_field] is not None
+
+                if url_provided and uuid_provided:
+                    raise serializers.ValidationError(
+                        {
+                            "non_field_errors": [
+                                f"Cannot specify both '{url_field}' URL and '{uuid_field}'. Use one or the other."
+                            ]
+                        }
+                    )
+
+                if not url_provided and not uuid_provided:
+                    raise serializers.ValidationError(
+                        {
+                            "non_field_errors": [
+                                f"Either '{url_field}' URL or '{uuid_field}' is required."
+                            ]
+                        }
+                    )
+
+                # If UUID field is provided, convert to URL field format
+                if uuid_provided and not url_provided:
+                    # Get the field instance to resolve the UUID to the actual object
+                    uuid_field_instance = self.fields[uuid_field]
+                    url_field_instance = self.fields[url_field]
+                    try:
+                        # Resolve the UUID to the actual object
+                        obj = uuid_field_instance.to_internal_value(data[uuid_field])
+                        # Generate the URL for this object
+                        request = self.context.get("request")
+                        url = url_field_instance.get_url(
+                            obj, url_field_instance.view_name, request, format=None
+                        )
+                        # Remove UUID field and set the URL
+                        data.pop(uuid_field)
+                        data[url_field] = url
+                    except Exception as e:
+                        raise serializers.ValidationError({uuid_field: str(e)})
+
+        return super().to_internal_value(data)
+
+    def get_fields(self):
+        request = self.context["request"]
+        fields = super().get_fields()
+        if request.method in SAFE_METHODS:
+            if "user_uuid" in fields:
+                fields["user_uuid"] = serializers.UUIDField(source="user.uuid")
+            if "offering_uuid" in fields:
+                fields["offering_uuid"] = serializers.UUIDField(source="offering.uuid")
+        return fields
+
     def create(self, validated_data):
         request = self.context["request"]
-        offering = validated_data["offering"]
+        offering: models.Offering = validated_data["offering"]
 
         if not has_permission(
             request, PermissionEnum.CREATE_OFFERING_USER, offering.customer
@@ -3809,7 +3882,7 @@ class OfferingUserSerializer(
 
         return super().create(validated_data)
 
-    def update(self, instance, validated_data):
+    def update(self, instance: models.OfferingUser, validated_data):
         request = self.context["request"]
         offering = instance.offering
 

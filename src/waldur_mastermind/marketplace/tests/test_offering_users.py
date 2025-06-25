@@ -137,6 +137,39 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
         response = self.create_offering_user(user)
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 
+    def test_create_offering_user_with_uuid_fields(self):
+        """Should succeed when only offering_uuid and user_uuid are provided."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        payload = {
+            "offering_uuid": self.offering.uuid.hex,
+            "user_uuid": self.fixture.user.uuid.hex,
+            "username": "testuser",
+        }
+        response = self.client.post(reverse("marketplace-offering-user-list"), payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_create_offering_user_with_both_url_and_uuid_fields(self):
+        """Should fail when both URL and UUID fields are provided."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        offering_url = factories.OfferingFactory.get_url(self.offering)
+        user_url = UserFactory.get_url(self.fixture.user)
+        payload = {
+            "offering": offering_url,
+            "user": user_url,
+            "offering_uuid": self.offering.uuid.hex,
+            "user_uuid": self.fixture.user.uuid.hex,
+            "username": "testuser",
+        }
+        response = self.client.post(reverse("marketplace-offering-user-list"), payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_offering_user_with_missing_fields(self):
+        """Should fail when neither URL nor UUID fields are provided."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        payload = {"username": "testuser"}
+        response = self.client.post(reverse("marketplace-offering-user-list"), payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 @ddt
 class ListUsersTest(test.APITransactionTestCase):
