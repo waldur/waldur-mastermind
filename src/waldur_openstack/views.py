@@ -554,7 +554,8 @@ class TenantViewSet(structure_views.ResourceViewSet):
                     ],
                 },
             )
-        ]
+        ],
+        responses={201: serializers.OpenStackSecurityGroupSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def create_security_group(self, request, uuid=None):
