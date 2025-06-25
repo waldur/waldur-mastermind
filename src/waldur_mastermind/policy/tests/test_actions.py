@@ -1,5 +1,6 @@
 from unittest import mock
 
+from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -17,12 +18,17 @@ from waldur_mastermind.policy.tests import factories
 
 
 @freeze_time("2024-09-01")
+@ddt
 class ActionsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.project = self.fixture.project
-        self.policy = factories.ProjectEstimatedCostPolicyFactory(
+        self.customer = self.fixture.customer
+        self.project_policy = factories.ProjectEstimatedCostPolicyFactory(
             scope=self.project, created_by=self.fixture.user
+        )
+        self.customer_policy = factories.CustomerEstimatedCostPolicyFactory(
+            scope=self.customer, created_by=self.fixture.user
         )
         self.admin = self.fixture.admin
         self.owner = self.fixture.owner
@@ -47,10 +53,10 @@ class ActionsTest(test.APITransactionTestCase):
 
     @mock.patch("waldur_core.core.utils.send_mail")
     def test_notify_project_team(self, mock_send_mail):
-        self.policy.actions = "notify_project_team"
-        self.policy.save()
+        self.project_policy.actions = "notify_project_team"
+        self.project_policy.save()
 
-        serialized_policy = core_utils.serialize_instance(self.policy)
+        serialized_policy = core_utils.serialize_instance(self.project_policy)
         tasks.notify_project_team(serialized_policy)
 
         mock_send_mail.assert_called_once()
@@ -61,10 +67,10 @@ class ActionsTest(test.APITransactionTestCase):
 
     @mock.patch("waldur_core.core.utils.send_mail")
     def test_notify_organization_owners(self, mock_send_mail):
-        self.policy.actions = "notify_organization_owners"
-        self.policy.save()
+        self.customer_policy.actions = "notify_organization_owners"
+        self.customer_policy.save()
 
-        serialized_policy = core_utils.serialize_instance(self.policy)
+        serialized_policy = core_utils.serialize_instance(self.customer_policy)
         tasks.notify_customer_owners(serialized_policy)
 
         mock_send_mail.assert_called_once()
@@ -76,9 +82,9 @@ class ActionsTest(test.APITransactionTestCase):
 
     @mock.patch("waldur_mastermind.policy.policy_actions.tasks")
     def test_create_event_log(self, mock_tasks):
-        self.policy.actions = "notify_organization_owners"
-        self.policy.save()
-        self.create_invoice_item(self.policy.limit_cost + 1)
+        self.customer_policy.actions = "notify_organization_owners"
+        self.customer_policy.save()
+        self.create_invoice_item(self.customer_policy.limit_cost + 1)
 
         mock_tasks.notify_customer_owners.delay.assert_called_once()
         self.assertTrue(
@@ -102,21 +108,25 @@ class ActionsTest(test.APITransactionTestCase):
         url = marketplace_factories.OrderFactory.get_list_url()
         return self.client.post(url, payload)
 
-    def test_block_creation_of_new_resources(self):
-        self.policy.actions = "block_creation_of_new_resources"
-        self.policy.save()
+    @data("customer_policy", "project_policy")
+    def test_block_creation_of_new_resources(self, policy_name):
+        policy = getattr(self, policy_name)
+        policy.actions = "block_creation_of_new_resources"
+        policy.save()
 
         response = self.create_order()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        self.create_invoice_item(self.policy.limit_cost + 1)
+        self.create_invoice_item(policy.limit_cost + 1)
 
         response = self.create_order()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_block_modification_of_existing_resources(self):
-        self.policy.actions = "block_modification_of_existing_resources"
-        self.policy.save()
+    @data("customer_policy", "project_policy")
+    def test_block_modification_of_existing_resources(self, policy_name):
+        policy = getattr(self, policy_name)
+        policy.actions = "block_modification_of_existing_resources"
+        policy.save()
 
         response = self.create_order()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -126,7 +136,7 @@ class ActionsTest(test.APITransactionTestCase):
 
         resource.set_state_ok()
         resource.save()
-        self.create_invoice_item(self.policy.limit_cost + 1)
+        self.create_invoice_item(policy.limit_cost + 1)
 
         self.client.force_authenticate(self.fixture.staff)
         url = marketplace_factories.ResourceFactory.get_url(resource, "update_limits")
@@ -134,9 +144,11 @@ class ActionsTest(test.APITransactionTestCase):
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_terminate_resources(self):
-        self.policy.actions = "terminate_resources"
-        self.policy.save()
+    @data("customer_policy", "project_policy")
+    def test_terminate_resources(self, policy_name):
+        policy = getattr(self, policy_name)
+        policy.actions = "terminate_resources"
+        policy.save()
 
         resource = self.fixture.resource
         resource.state = ResourceStates.OK
@@ -145,7 +157,7 @@ class ActionsTest(test.APITransactionTestCase):
         resource.offering.type = INSTANCE_TYPE
         resource.offering.save()
 
-        self.create_invoice_item(self.policy.limit_cost + 1)
+        self.create_invoice_item(self.project_policy.limit_cost + 1)
 
         self.assertTrue(
             marketplace_models.Order.objects.filter(
@@ -159,65 +171,71 @@ class ActionsTest(test.APITransactionTestCase):
         ).get()
         self.assertEqual(order.attributes, {"action": "force_destroy"})
 
-    def test_request_downscaling(self):
-        self.policy.actions = "request_downscaling"
-        self.policy.created_by = self.fixture.user
-        self.policy.save()
+    @data("customer_policy", "project_policy")
+    def test_request_downscaling(self, policy_name):
+        policy = getattr(self, policy_name)
+        policy.actions = "request_downscaling"
+        policy.save()
 
         resource = self.fixture.resource
         offering = resource.offering
         offering.plugin_options.update({"supports_downscaling": True})
         offering.save()
 
-        self.create_invoice_item(self.policy.limit_cost + 1)
+        self.create_invoice_item(policy.limit_cost + 1)
 
         resource.refresh_from_db()
-        self.policy.refresh_from_db()
-        self.assertTrue(self.policy.has_fired)
+        policy.refresh_from_db()
+        self.assertTrue(policy.has_fired)
         self.assertTrue(resource.downscaled)
 
-    def test_request_pausing(self):
-        self.policy.actions = "request_pausing"
-        self.policy.created_by = self.fixture.user
-        self.policy.save()
+    @data("customer_policy", "project_policy")
+    def test_request_pausing(self, policy_name):
+        policy = getattr(self, policy_name)
+        policy.actions = "request_pausing"
+        policy.save()
 
         resource = self.fixture.resource
         offering = resource.offering
         offering.plugin_options.update({"supports_pausing": True})
         offering.save()
 
-        self.create_invoice_item(self.policy.limit_cost + 1)
+        self.create_invoice_item(policy.limit_cost + 1)
 
         resource.refresh_from_db()
-        self.policy.refresh_from_db()
-        self.assertTrue(self.policy.has_fired)
+        policy.refresh_from_db()
+        self.assertTrue(policy.has_fired)
         self.assertTrue(resource.paused)
 
-    def test_restrict_members(self):
-        self.policy.actions = "restrict_members"
-        self.policy.created_by = self.fixture.user
-        self.policy.save()
+    @data("customer_policy", "project_policy")
+    def test_restrict_members(self, policy_name):
+        policy = getattr(self, policy_name)
+        policy.actions = "restrict_members"
+        policy.created_by = self.fixture.user
+        policy.save()
 
         resource = self.fixture.resource
         offering = resource.offering
         offering.plugin_options["service_provider_can_create_offering_user"] = True
         offering.save()
 
-        self.create_invoice_item(self.policy.limit_cost + 1)
+        self.create_invoice_item(policy.limit_cost + 1)
 
         resource.refresh_from_db()
-        self.policy.refresh_from_db()
-        self.assertTrue(self.policy.has_fired)
+        policy.refresh_from_db()
+        self.assertTrue(policy.has_fired)
         self.assertTrue(resource.restrict_member_access)
 
+    @data("customer_policy", "project_policy")
     @mock.patch("waldur_core.core.utils.send_mail")
-    def test_notify_external_user(self, mock_send_mail):
+    def test_notify_external_user(self, policy_name, mock_send_mail):
+        policy = getattr(self, policy_name)
         external_user_email = "external_user@domen.com"
-        self.policy.actions = "notify_external_user"
-        self.policy.options = {"notify_external_user": external_user_email}
-        self.policy.save()
+        policy.actions = "notify_external_user"
+        policy.options = {"notify_external_user": external_user_email}
+        policy.save()
 
-        serialized_policy = core_utils.serialize_instance(self.policy)
+        serialized_policy = core_utils.serialize_instance(policy)
         tasks.notify_external_user(serialized_policy)
 
         mock_send_mail.assert_called_once()

@@ -6,7 +6,7 @@ from django.db import transaction
 from waldur_core.core import utils as core_utils
 from waldur_core.core.log import event_logger
 from waldur_core.core.utils import get_system_robot
-from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.exceptions import PolicyException
@@ -56,17 +56,18 @@ def terminate_resources(policy):
     from waldur_mastermind.marketplace import tasks as marketplace_tasks
 
     user = get_system_robot()
-    project = structure_permissions._get_project(policy.scope)
 
     resources = marketplace_models.Resource.objects.exclude(
         state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING)
     )
 
-    if project:
-        resources = resources.filter(project=project)
+    if isinstance(policy.scope, structure_models.Project):
+        resources = resources.filter(project=policy.scope)
+    elif isinstance(policy.scope, structure_models.Customer):
+        resources = resources.filter(project__customer=policy.scope)
     else:
-        customer = structure_permissions._get_customer(policy.scope)
-        resources = resources.filter(project__customer=customer)
+        # Assuming that policy scope is an offering
+        resources = resources.filter(offeirng=policy.scope)
 
     for resource in resources:
         with transaction.atomic():
@@ -81,7 +82,7 @@ def terminate_resources(policy):
                 type=marketplace_models.Order.Types.TERMINATE,
                 state=OrderStates.EXECUTING,
                 attributes=attributes,
-                project=project,
+                project=resource.project,
                 created_by=user,
                 consumer_reviewed_by=user,
             )
@@ -138,8 +139,6 @@ def block_modification_of_existing_resources(policy, created):
 
 
 def request_downscaling(policy):
-    project = structure_permissions._get_project(policy.scope)
-
     resources = marketplace_models.Resource.objects.filter(
         offering__plugin_options__supports_downscaling=True
     ).exclude(
@@ -149,11 +148,13 @@ def request_downscaling(policy):
         )
     )
 
-    if project:
-        resources = resources.filter(project=project)
+    if isinstance(policy.scope, structure_models.Project):
+        resources = resources.filter(project=policy.scope)
+    elif isinstance(policy.scope, structure_models.Customer):
+        resources = resources.filter(project__customer=policy.scope)
     else:
-        customer = structure_permissions._get_customer(policy.scope)
-        resources = resources.filter(project__customer=customer)
+        # Assuming that policy scope is an offering
+        resources = resources.filter(offeirng=policy.scope)
 
     resources.update(downscaled=True)
     logger.info(
@@ -171,8 +172,6 @@ def request_downscaling(policy):
 
 
 def reset_downscaling(policy):
-    project = structure_permissions._get_project(policy.scope)
-
     resources = marketplace_models.Resource.filter(
         offering__plugin_options__supports_downscaling=True
     ).objects.exclude(
@@ -182,11 +181,13 @@ def reset_downscaling(policy):
         )
     )
 
-    if project:
-        resources = resources.filter(project=project)
+    if isinstance(policy.scope, structure_models.Project):
+        resources = resources.filter(project=policy.scope)
+    elif isinstance(policy.scope, structure_models.Customer):
+        resources = resources.filter(project__customer=policy.scope)
     else:
-        customer = structure_permissions._get_customer(policy.scope)
-        resources = resources.filter(project__customer=customer)
+        # Assuming that policy scope is an offering
+        resources = resources.filter(offeirng=policy.scope)
 
     resources.update(downscaled=False)
     logger.info(
@@ -197,17 +198,17 @@ def reset_downscaling(policy):
 
 
 def restrict_members(policy):
-    project = structure_permissions._get_project(policy.scope)
-
     resources = marketplace_models.Resource.objects.filter(
         offering__plugin_options__service_provider_can_create_offering_user=True
     ).exclude(state__in=(ResourceStates.TERMINATED,))
 
-    if project:
-        resources = resources.filter(project=project)
+    if isinstance(policy.scope, structure_models.Project):
+        resources = resources.filter(project=policy.scope)
+    elif isinstance(policy.scope, structure_models.Customer):
+        resources = resources.filter(project__customer=policy.scope)
     else:
-        customer = structure_permissions._get_customer(policy.scope)
-        resources = resources.filter(project__customer=customer)
+        # Assuming that policy scope is an offering
+        resources = resources.filter(offeirng=policy.scope)
 
     resources.update(restrict_member_access=True)
 
@@ -226,17 +227,17 @@ def restrict_members(policy):
 
 
 def reset_member_restriction(policy):
-    project = structure_permissions._get_project(policy.scope)
-
     resources = marketplace_models.Resource.objects.filter(
         offering__plugin_options__service_provider_can_create_offering_user=True
     ).exclude(state__in=(ResourceStates.TERMINATED,))
 
-    if project:
-        resources = resources.filter(project=project)
+    if isinstance(policy.scope, structure_models.Project):
+        resources = resources.filter(project=policy.scope)
+    elif isinstance(policy.scope, structure_models.Customer):
+        resources = resources.filter(project__customer=policy.scope)
     else:
-        customer = structure_permissions._get_customer(policy.scope)
-        resources = resources.filter(project__customer=customer)
+        # Assuming that policy scope is an offering
+        resources = resources.filter(offeirng=policy.scope)
 
     resources.update(restrict_member_access=False)
 
@@ -248,17 +249,17 @@ def reset_member_restriction(policy):
 
 
 def request_pausing(policy):
-    project = structure_permissions._get_project(policy.scope)
-
     resources = marketplace_models.Resource.objects.filter(
         offering__plugin_options__supports_pausing=True
     ).exclude(state__in=(ResourceStates.TERMINATED,))
 
-    if project:
-        resources = resources.filter(project=project)
+    if isinstance(policy.scope, structure_models.Project):
+        resources = resources.filter(project=policy.scope)
+    elif isinstance(policy.scope, structure_models.Customer):
+        resources = resources.filter(project__customer=policy.scope)
     else:
-        customer = structure_permissions._get_customer(policy.scope)
-        resources = resources.filter(project__customer=customer)
+        # Assuming that policy scope is an offering
+        resources = resources.filter(offeirng=policy.scope)
 
     resources.update(paused=True)
     logger.info(
@@ -276,17 +277,17 @@ def request_pausing(policy):
 
 
 def reset_pausing(policy):
-    project = structure_permissions._get_project(policy.scope)
-
     resources = marketplace_models.Resource.objects.filter(
         offering__plugin_options__supports_pausing=True
     ).exclude(state__in=(ResourceStates.TERMINATED,))
 
-    if project:
-        resources = resources.filter(project=project)
+    if isinstance(policy.scope, structure_models.Project):
+        resources = resources.filter(project=policy.scope)
+    elif isinstance(policy.scope, structure_models.Customer):
+        resources = resources.filter(project__customer=policy.scope)
     else:
-        customer = structure_permissions._get_customer(policy.scope)
-        resources = resources.filter(project__customer=customer)
+        # Assuming that policy scope is an offering
+        resources = resources.filter(offeirng=policy.scope)
 
     resources.update(paused=False)
     logger.info(

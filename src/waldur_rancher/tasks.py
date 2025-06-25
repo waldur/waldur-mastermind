@@ -738,7 +738,7 @@ def sync_rancher_group_bindings():
                     e,
                 )
 
-    def remote_stale_project_groups(
+    def remove_stale_project_groups(
         rancher_backend: backend.RancherBackend,
         project: models.Project,
         local_project_groups: list[models.KeycloakGroup],
@@ -771,8 +771,9 @@ def sync_rancher_group_bindings():
                 )
             except exceptions.RancherException as e:
                 logger.error(
-                    "Unable to delete group %s binding for project %s, reason: %s",
+                    "Unable to delete group %s binding for project (cluster %s) %s, reason: %s",
                     remote_stale_group_id,
+                    project.cluster.name,
                     project.name,
                     e,
                 )
@@ -804,4 +805,4 @@ def sync_rancher_group_bindings():
                 rancher_backend, project, local_project_groups
             )
             # Delete stale project groups in Rancher
-            remote_stale_project_groups(rancher_backend, project, local_project_groups)
+            remove_stale_project_groups(rancher_backend, project, local_project_groups)
