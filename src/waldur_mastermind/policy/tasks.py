@@ -5,7 +5,7 @@ from celery import shared_task
 from waldur_core.core import utils as core_utils
 from waldur_core.core.log import event_logger
 from waldur_core.permissions.enums import RoleEnum
-from waldur_core.structure.permissions import _get_customer, _get_project
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.policy import models
 
 from . import utils
@@ -45,16 +45,18 @@ def send_emails(emails, policy):
 @shared_task(name="waldur_mastermind.policy.notify_project_team")
 def notify_project_team(serialized_policy):
     policy = core_utils.deserialize_instance(serialized_policy)
-    project = _get_project(policy.scope)
-    emails = project.get_user_mails()
+    if not isinstance(policy.scope, structure_models.Project):
+        return
+    emails = policy.scope.get_user_mails()
     send_emails(emails, policy)
 
 
 @shared_task(name="waldur_mastermind.policy.notify_customer_team")
 def notify_customer_owners(serialized_policy):
     policy = core_utils.deserialize_instance(serialized_policy)
-    customer = _get_customer(policy.scope)
-    emails = customer.get_user_mails(RoleEnum.CUSTOMER_OWNER)
+    if not isinstance(policy.scope, structure_models.Customer):
+        return
+    emails = policy.scope.get_user_mails(RoleEnum.CUSTOMER_OWNER)
     send_emails(emails, policy)
 
 
