@@ -23,7 +23,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.enums import CoreStates, CoreStateType
 from waldur_core.core.fields import MappedChoiceField
-from waldur_core.permissions.enums import PermissionEnum, get_old_role_name
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum, get_old_role_name
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.serializers import PermissionSerializer
@@ -674,15 +674,16 @@ class CustomerUserSerializer(
             is_active=True,
         ).first()
 
-    def get_role(self, user) -> str:
+    def get_role(self, user) -> str | None:
         permission = self.get_customer_permission(user)
-        return permission and get_old_role_name(permission.role.name)
+        if permission:
+            return get_old_role_name(RoleEnum(permission.role.name))
 
-    def get_role_name(self, user) -> str:
+    def get_role_name(self, user) -> str | None:
         permission = self.get_customer_permission(user)
         return permission and permission.role.name
 
-    def get_expiration_time(self, user) -> datetime:
+    def get_expiration_time(self, user) -> datetime | None:
         permission = self.get_customer_permission(user)
         return permission and permission.expiration_time
 
@@ -723,7 +724,7 @@ class BasePermissionSerializer(
             "user": ("username", "full_name", "native_name", "uuid", "email"),
         }
 
-    def get_role(self, instance) -> str:
+    def get_role(self, instance) -> str | None:
         return get_old_role_name(instance.role.name)
 
 
