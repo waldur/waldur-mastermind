@@ -121,6 +121,8 @@ Run type checkings:
       pyright src/waldur_core/structure/models.py \
              src/waldur_mastermind/marketplace_remote/processors.py \
              src/waldur_mastermind/marketplace_rancher/ \
+             src/waldur_mastermind/proposal/utils.py \
+             src/waldur_mastermind/proposal/tasks.py \
              src/waldur_rancher/utils.py \
              src/waldur_rancher/tasks.py \
              src/waldur_rancher/backend.py \
