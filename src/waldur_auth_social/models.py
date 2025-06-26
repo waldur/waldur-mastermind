@@ -66,6 +66,12 @@ class IdentityProvider(models.Model):
         blank=True,
     )
     protected_fields = models.JSONField(default=list)
+    scope = models.CharField(
+        max_length=200,
+        help_text="Space-separated list of scopes to request during authentication.",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         ordering = ["label"]
