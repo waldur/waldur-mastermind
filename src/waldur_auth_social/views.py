@@ -15,8 +15,9 @@ from rest_framework.exceptions import AuthenticationFailed, NotFound, Validation
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
+from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.exceptions import OAuthException
-from waldur_auth_social.models import OAuthToken, ProviderChoices
+from waldur_auth_social.models import OAuthToken
 from waldur_auth_social.utils import (
     create_or_update_oauth_user,
     pull_remote_eduteams_user,
@@ -169,7 +170,7 @@ class OAuthViewComplete(BaseOAuthView):
         user_info = self.get_user_info(access_token)
         logger.info("Received user info: %s", user_info)
 
-        user, created = create_or_update_oauth_user(self.config.provider, user_info)
+        user, created = create_or_update_oauth_user(self.config, user_info)
 
         if config.AUTO_APPROVE_USER_TOS and user.agreement_date is None:
             user.agreement_date = timezone.now()

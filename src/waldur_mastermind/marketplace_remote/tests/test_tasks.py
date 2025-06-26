@@ -8,7 +8,7 @@ from django.test import override_settings, testcases
 from django.utils import timezone
 from freezegun import freeze_time
 
-from waldur_auth_social.models import ProviderChoices
+from waldur_auth_social.const import ProviderChoices
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import format_text, serialize_instance
 from waldur_core.permissions.enums import RoleEnum

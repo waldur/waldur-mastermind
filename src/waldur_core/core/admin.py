@@ -22,7 +22,7 @@ from rest_framework import permissions as rf_permissions
 from rest_framework.exceptions import ParseError
 from reversion.admin import VersionAdmin
 
-from waldur_auth_social.models import ProviderChoices
+from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.core import models
 from waldur_core.core.authentication import can_access_admin_site
