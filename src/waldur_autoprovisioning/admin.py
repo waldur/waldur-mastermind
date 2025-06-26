@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import admin
 
 from waldur_autoprovisioning import models
+from waldur_core.permissions.models import Role
 from waldur_mastermind.marketplace import models as marketplace_models
 
 
@@ -26,9 +27,20 @@ class RulePlansInline(admin.TabularInline):
     extra = 1
 
 
+class RuleForm(forms.ModelForm):
+    class Meta:
+        model = models.Rule
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["project_role"].queryset = Role.project_roles()
+
+
 class RuleAdmin(admin.ModelAdmin):
+    form = RuleForm
     inlines = [RulePlansInline]
-    list_display = ("customer", "get_offering_names")
+    list_display = ("customer", "project_role", "get_offering_names")
 
     def get_offering_names(self, obj):
         return ", ".join(set(plan.offering.name for plan in obj.plans.all()))
