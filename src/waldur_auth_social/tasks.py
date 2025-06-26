@@ -4,8 +4,8 @@ from celery import shared_task
 from django.conf import settings
 from django.db.models import Q
 
+from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.exceptions import OAuthException
-from waldur_auth_social.models import ProviderChoices
 from waldur_auth_social.utils import pull_remote_eduteams_user, sync_user_ssh_keys
 from waldur_core.core.models import User
 

@@ -3,7 +3,7 @@ import logging
 from django.conf import settings
 from django.db import transaction
 
-from waldur_auth_social.models import ProviderChoices
+from waldur_auth_social.const import ProviderChoices
 from waldur_core.core import middleware
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.log import event_logger

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import models, views
+from . import const, views
 
 urlpatterns = [
     path(
@@ -10,7 +10,7 @@ urlpatterns = [
     ),
 ]
 
-for provider in models.ProviderChoices.CHOICES:
+for provider in const.ProviderChoices.CHOICES:
     urlpatterns.append(
         path(
             f"api-auth/{provider}/init/",

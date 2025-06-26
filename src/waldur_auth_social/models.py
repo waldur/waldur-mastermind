@@ -14,14 +14,6 @@ class OAuthToken(models.Model):
         unique_together = ("user", "provider")
 
 
-class ProviderChoices:
-    TARA = "tara"
-    EDUTEAMS = "eduteams"
-    KEYCLOAK = "keycloak"
-
-    CHOICES = (TARA, EDUTEAMS, KEYCLOAK)
-
-
 class IdentityProvider(models.Model):
     provider = models.CharField(max_length=32, unique=True)
     is_active = models.BooleanField(default=True)
@@ -69,6 +61,29 @@ class IdentityProvider(models.Model):
     scope = models.CharField(
         max_length=200,
         help_text="Space-separated list of scopes to request during authentication.",
+        null=True,
+        blank=True,
+    )
+    user_field = models.CharField(
+        max_length=100,
+        default="username",
+        help_text="The field in Waldur User model to be used for looking up the user",
+    )
+    user_claim = models.CharField(
+        max_length=100,
+        default="sub",
+        help_text="The OIDC claim from the userinfo endpoint to be "
+        "used as the value for the lookup field.",
+    )
+    attribute_mapping = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="A JSON object mapping Waldur User model fields to OIDC claims. "
+        'Example: {"first_name": "given_name", "last_name": "family_name", "email": "email"}',
+    )
+    extra_fields = models.CharField(
+        max_length=200,
+        help_text="Space-separated list of extra fields to persist.",
         null=True,
         blank=True,
     )

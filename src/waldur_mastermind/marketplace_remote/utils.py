@@ -63,7 +63,7 @@ from waldur_api_client.models.user_role_create_request import UserRoleCreateRequ
 from waldur_api_client.models.user_role_delete_request import UserRoleDeleteRequest
 from waldur_api_client.models.user_role_update_request import UserRoleUpdateRequest
 
-from waldur_auth_social.models import ProviderChoices
+from waldur_auth_social.const import ProviderChoices
 from waldur_core.core.client import get_waldur_client
 from waldur_core.core.utils import get_system_robot, validate_uuid
 from waldur_core.media import models as media_models

@@ -6,7 +6,7 @@ import respx
 from django.test import override_settings
 from rest_framework import test
 
-from waldur_auth_social.models import ProviderChoices
+from waldur_auth_social.const import ProviderChoices
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests.factories import UserFactory

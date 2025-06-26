@@ -260,7 +260,7 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
         self.client.force_login(user)
 
         response = self.client.post(self.url, {"cuid": self.valid_cuid})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         new_user = User.objects.get(username=self.valid_cuid)
         self.assertEqual(new_user.email, "john@snow.me")

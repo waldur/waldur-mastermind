@@ -4,6 +4,8 @@ import requests
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
+from waldur_auth_social.const import ALLOWED_FIELDS, ProviderChoices
+
 from . import models
 
 
@@ -29,7 +31,7 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
         }
 
     def validate_provider(self, provider):
-        if provider not in models.ProviderChoices.CHOICES:
+        if provider not in ProviderChoices.CHOICES:
             raise ValidationError("Invalid provider.")
         return provider
 
@@ -40,16 +42,23 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
         hostname = parsed_url.hostname
         if not hostname or parsed_url.scheme.lower() not in ("http", "https"):
             raise ValidationError("Invalid discovery URL.")
-        if provider == models.ProviderChoices.TARA:
+        if provider == ProviderChoices.TARA:
             if hostname not in ("tara-test.ria.ee", "tara.ria.ee"):
                 raise ValidationError("Invalid discovery URL.")
-        if provider == models.ProviderChoices.KEYCLOAK:
+        if provider == ProviderChoices.KEYCLOAK:
             if hostname.endswith("eduteams.org") or hostname in (
                 "tara-test.ria.ee",
                 "tara.ria.ee",
             ):
                 raise ValidationError("Invalid discovery URL.")
         return attrs
+
+    def validate_attribute_mapping(self, attrs: dict[str, str]):
+        invalid = set(attrs.keys()) - set(ALLOWED_FIELDS)
+        if invalid:
+            raise ValidationError(
+                f"Invalid attribute mapping keys: {','.join(invalid)}"
+            )
 
     def get_fields(self):
         fields = super().get_fields()

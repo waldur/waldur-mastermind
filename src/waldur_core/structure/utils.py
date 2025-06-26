@@ -9,7 +9,8 @@ from django.db.models import QuerySet, Sum
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
-from waldur_auth_social.models import IdentityProvider, ProviderChoices
+from waldur_auth_social.const import ProviderChoices
+from waldur_auth_social.models import IdentityProvider
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.signals import project_moved

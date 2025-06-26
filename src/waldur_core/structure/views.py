@@ -30,7 +30,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
-from waldur_auth_social.models import ProviderChoices
+from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models

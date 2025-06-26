@@ -1,5 +1,6 @@
 import logging
 import uuid
+from typing import cast
 
 import requests
 from django.conf import settings
@@ -9,128 +10,119 @@ from django.utils import timezone
 from requests.auth import HTTPBasicAuth
 from rest_framework.exceptions import NotFound, ParseError
 
+from waldur_auth_social.const import ALLOWED_FIELDS, PROVIDER_DEFAULTS, ProviderChoices
 from waldur_auth_social.exceptions import OAuthException
-from waldur_auth_social.models import ProviderChoices
+from waldur_auth_social.models import IdentityProvider
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.core.validators import validate_ssh_public_key
 
 logger = logging.getLogger(__name__)
 
 
-def create_or_update_oauth_user(provider, backend_user):
-    if provider == ProviderChoices.TARA:
-        return create_or_update_tara_user(backend_user)
-    if provider == ProviderChoices.EDUTEAMS:
-        return create_or_update_eduteams_user(backend_user)
-    if provider == ProviderChoices.KEYCLOAK:
-        return create_or_update_keycloak_user(backend_user)
+def get_lookup_value(
+    identity_provider: IdentityProvider, backend_user: dict[str, str]
+) -> str | None:
+    claims = identity_provider.user_claim
+    for claim in claims.split():
+        claim = claim.strip()
+        if claim in backend_user and claim:
+            return backend_user[claim]
 
 
-def generate_username():
-    return uuid.uuid4().hex[:30]
+def get_lookup_params(
+    identity_provider: IdentityProvider, backend_user: dict[str, str]
+) -> dict[str, str]:
+    field_name = identity_provider.user_field
+    field_value = get_lookup_value(identity_provider, backend_user)
 
-
-def create_or_update_tara_user(backend_user):
-    """
-    See also reference documentation for TARA authentication in Estonian language:
-    https://e-gov.github.io/TARA-Doku/TehnilineKirjeldus#431-identsust%C3%B5end
-    """
-
-    try:
-        first_name = backend_user["given_name"]
-        last_name = backend_user["family_name"]
-        civil_number = backend_user["sub"]
-        # AMR stands for Authentication Method Reference
-        details = {
-            "amr": backend_user.get("amr"),
-            "profile_attributes_translit": backend_user.get(
-                "profile_attributes_translit"
-            ),
-        }
-    except KeyError as e:
-        logger.warning("Unable to parse identity certificate. Error is: %s", e)
+    if not field_value:
         raise OAuthException(
-            ProviderChoices.TARA, "Unable to parse identity certificate."
+            identity_provider.provider,
+            "Unable to match user because identity field is missing from user profile.",
         )
+
+    return {field_name: field_value}
+
+
+def get_user_payload(
+    identity_provider: IdentityProvider, backend_user: dict[str, str]
+) -> dict[str, str]:
+    payload = {}
+    for user_field, claims in identity_provider.attribute_mapping.items():
+        if user_field in ALLOWED_FIELDS:
+            for claim in claims.split():
+                claim = claim.strip()
+                value = backend_user.get(claim)
+                if user_field == "email" and isinstance(value, list):
+                    value = value[0]
+                if value:
+                    payload[user_field] = value
+                    break
+
+    if identity_provider.extra_fields:
+        extra_fields = {}
+        for claim in identity_provider.extra_fields.split():
+            claim = claim.strip()
+            value = backend_user.get(claim)
+            if value:
+                extra_fields[claim] = value
+        if extra_fields:
+            payload["details"] = extra_fields
+
+    return payload
+
+
+def create_or_update_oauth_user(
+    identity_provider: IdentityProvider, backend_user: dict
+):
+    payload = get_user_payload(identity_provider, backend_user)
+    lookup_params = get_lookup_params(identity_provider, backend_user)
+
+    if "username" not in payload and "username" not in lookup_params:
+        payload["username"] = uuid.uuid4().hex[:30]
+
     try:
-        user = User.objects.get(civil_number=civil_number)
+        created = False
+        # Use all_objects to reactivate a user who might have been deactivated
+        user = cast(User, User.all_objects.get(**lookup_params))
+
+        # Prepare for update
+        update_fields = set()
+        if not user.is_active:
+            user.is_active = True
+            update_fields.add("is_active")
+        user.last_sync = timezone.now()
+        update_fields.add("last_sync")
+
+        for field, value in payload.items():
+            if getattr(user, field) != value:
+                setattr(user, field, value)
+                update_fields.add(field)
+
+        if update_fields:
+            user.save(update_fields=update_fields)
+
     except User.DoesNotExist:
         created = True
-        user = User.objects.create_user(
-            username=generate_username(),
-            first_name=first_name,
-            last_name=last_name,
-            civil_number=civil_number,
-            registration_method=ProviderChoices.TARA,
-            details=details,
+        user = cast(
+            User,
+            User.objects.create_user(
+                registration_method=identity_provider.provider,
+                **lookup_params,
+                **payload,
+            ),
         )
         user.set_unusable_password()
         user.save()
-    else:
-        created = False
-        update_fields = set()
-        if user.first_name != first_name:
-            user.first_name = first_name
-            update_fields.add("first_name")
-        if user.last_name != last_name:
-            user.last_name = last_name
-            update_fields.add("last_name")
-        if user.details != details:
-            user.details = details
-            update_fields.add("details")
-        if update_fields:
-            user.save(update_fields=update_fields)
-    return user, created
 
+    if identity_provider.provider == ProviderChoices.EDUTEAMS:
+        eduteams_keys = backend_user.get("ssh_public_key", [])
+        lookup_value = get_lookup_value(identity_provider, backend_user)
+        sync_user_ssh_keys(user, eduteams_keys, lookup_value)
+        if user.notifications_enabled:
+            user.notifications_enabled = False
+            user.save(update_fields=["notifications_enabled"])
 
-def create_or_update_keycloak_user(backend_user):
-    # Preferred username is not unique. Sub in UUID.
-    username = backend_user["sub"]
-    email = backend_user.get("email")
-    first_name = backend_user.get("given_name", "")
-    last_name = backend_user.get("family_name", "")
-    organization = backend_user.get("affiliation") or backend_user.get("org") or ""
-    identity_source = backend_user.get("identity_source", "")
-    site_username = backend_user.get("site_username", "")
-    try:
-        user = User.objects.get(username=username)
-    except User.DoesNotExist:
-        created = True
-        user: User = User.objects.create_user(
-            username=username,
-            registration_method=ProviderChoices.KEYCLOAK,
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
-            organization=organization,
-            identity_source=identity_source,
-        )
-        user.details = {"site_username": site_username}
-        user.set_unusable_password()
-        user.save()
-    else:
-        created = False
-        update_fields = set()
-        if user.first_name != first_name:
-            user.first_name = first_name
-            update_fields.add("first_name")
-        if user.last_name != last_name:
-            user.last_name = last_name
-            update_fields.add("last_name")
-        if user.email != email:
-            user.email = email
-            update_fields.add("email")
-        if user.organization != organization:
-            user.organization = organization
-            update_fields.add("organization")
-        if user.identity_source != identity_source:
-            user.identity_source = identity_source
-            update_fields.add("identity_source")
-        if user.details.get("site_username") != site_username:
-            user.details["site_username"] = site_username
-            update_fields.add("details")
-        if update_fields:
-            user.save(update_fields=update_fields)
     return user, created
 
 
@@ -166,55 +158,6 @@ def sync_user_ssh_keys(user, eduteams_keys, username):
         existing_keys_map[key].delete()
 
 
-def create_or_update_eduteams_user(backend_user):
-    username = backend_user.get("sub") or backend_user.get("voperson_id")
-    email = backend_user.get("email")
-    if backend_user.get("mail"):
-        email = backend_user["mail"][0]
-    first_name = backend_user["given_name"]
-    last_name = backend_user["family_name"]
-    # https://wiki.geant.org/display/eduTEAMS/Attributes+available+to+Relying+Parties#AttributesavailabletoRelyingParties-Assurance
-    details = {
-        "eduperson_assurance": backend_user.get("eduperson_assurance", []),
-    }
-    # https://wiki.geant.org/display/eduTEAMS/Attributes+available+to+Relying+Parties#AttributesavailabletoRelyingParties-AffiliationwithinHomeOrganization
-    backend_affiliations = backend_user.get("voperson_external_affiliation", [])
-    payload = {
-        "details": details,
-        "affiliations": backend_affiliations,
-        "first_name": first_name,
-        "last_name": last_name,
-        "email": email,
-    }
-    try:
-        user = User.all_objects.get(username=username)
-        user.last_sync = timezone.now()
-        user.is_active = True
-        update_fields = set(["last_sync", "is_active"])
-        for key, value in payload.items():
-            if getattr(user, key) != value:
-                setattr(user, key, value)
-                update_fields.add(key)
-        user.save(update_fields=update_fields)
-        created = False
-    except User.DoesNotExist:
-        created = True
-        user = User.objects.create_user(
-            username=username,
-            registration_method=ProviderChoices.EDUTEAMS,
-            identity_source=ProviderChoices.EDUTEAMS,
-            notifications_enabled=False,
-            **payload,
-        )
-        user.set_unusable_password()
-        user.save()
-    eduteams_keys = backend_user.get("ssh_public_key", [])
-
-    sync_user_ssh_keys(user, eduteams_keys, username)
-
-    return user, created
-
-
 def pull_remote_eduteams_user(username):
     try:
         user_info = get_remote_eduteams_user_info(username)
@@ -229,7 +172,14 @@ def pull_remote_eduteams_user(username):
             user.last_sync = timezone.now()
             user.save(update_fields=["is_active", "last_sync"])
     else:
-        user, _ = create_or_update_eduteams_user(user_info)
+        try:
+            config = IdentityProvider.objects.get(provider=ProviderChoices.EDUTEAMS)
+        except IdentityProvider.DoesNotExist:
+            config = IdentityProvider(
+                provider=ProviderChoices.EDUTEAMS,
+                **PROVIDER_DEFAULTS[ProviderChoices.EDUTEAMS],
+            )
+        user, _ = create_or_update_oauth_user(config, user_info)
     return user
 
 
