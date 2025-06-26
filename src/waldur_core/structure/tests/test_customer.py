@@ -519,8 +519,8 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 2)
 
         self.assertSetEqual(
-            {user["role"] for user in response.data},
-            {"owner", "support"},
+            {user["role_name"] for user in response.data},
+            {"CUSTOMER.OWNER", "CUSTOMER.SUPPORT"},
         )
         self.assertSetEqual(
             {user["uuid"] for user in response.data},

@@ -433,16 +433,3 @@ def capitalize_first_word(text):
 
 # Example usage
 PERMISSION_DESCRIPTION = generate_permission_description()
-
-ROLE_MAP = {
-    RoleEnum.CUSTOMER_OWNER: "owner",
-    RoleEnum.CUSTOMER_MANAGER: "service_manager",
-    RoleEnum.CUSTOMER_SUPPORT: "support",
-    RoleEnum.PROJECT_ADMIN: "admin",
-    RoleEnum.PROJECT_MANAGER: "manager",
-    RoleEnum.PROJECT_MEMBER: "member",
-}
-
-
-def get_old_role_name(new_role_name: RoleEnum) -> str | None:
-    return ROLE_MAP.get(new_role_name)
