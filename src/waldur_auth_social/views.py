@@ -84,6 +84,8 @@ class OAuthViewInit(BaseOAuthView):
         scope = "openid"
         if provider == ProviderChoices.EDUTEAMS:
             scope = "openid profile email eduperson_assurance ssh_public_key"
+        if self.config.scope:
+            scope = self.config.scope
 
         oidc_state = secrets.token_urlsafe(32)
         request.session[OIDC_STATE_KEY] = oidc_state
