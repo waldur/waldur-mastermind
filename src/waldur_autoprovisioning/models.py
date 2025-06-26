@@ -1,5 +1,6 @@
 from django.db import models
 
+from waldur_core.permissions.models import Role
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -15,6 +16,12 @@ class Rule(models.Model):
     )
     customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     plans = models.ManyToManyField(marketplace_models.Plan, through="RulePlans")
+    project_role = models.ForeignKey(
+        to=Role,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
 
 
 class RulePlans(models.Model):
