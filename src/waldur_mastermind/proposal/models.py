@@ -396,6 +396,7 @@ class Proposal(
     allocation_comment = models.CharField(blank=True, max_length=150, null=True)
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
+    requestedresource_set: models.Manager["RequestedResource"]
 
     class Permissions:
         customer_path = "round__call__manager__customer"

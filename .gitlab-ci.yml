@@ -114,16 +114,17 @@ Run management command test:
 Run type checkings:
   extends: .Unit test runner
   script:
-    - pip3 install poetry==2.1.2
-    - pip3 install --upgrade setuptools==78.1.0
-    - poetry install -vvv
-    - pyright src/waldur_core/structure/models.py \
-              src/waldur_mastermind/marketplace_remote/processors.py \
-              src/waldur_mastermind/marketplace_rancher/ \
-              src/waldur_rancher/utils.py \
-              src/waldur_rancher/tasks.py \
-              src/waldur_rancher/backend.py \
-              src/waldur_rancher/serializers.py
+    - |
+      pip3 install poetry==2.1.2
+      pip3 install --upgrade setuptools==78.1.0
+      poetry install -vvv
+      pyright src/waldur_core/structure/models.py \
+             src/waldur_mastermind/marketplace_remote/processors.py \
+             src/waldur_mastermind/marketplace_rancher/ \
+             src/waldur_rancher/utils.py \
+             src/waldur_rancher/tasks.py \
+             src/waldur_rancher/backend.py \
+             src/waldur_rancher/serializers.py
 
 Try building docker image:
   image:
