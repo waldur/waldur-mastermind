@@ -145,6 +145,10 @@ class Call(
     def reviewers(self):
         return get_users(self, RoleEnum.CALL_REVIEWER)
 
+    @property
+    def customer(self):
+        return self.manager.customer
+
 
 class RequestedOffering(
     SafeAttributesMixin,
