@@ -27,6 +27,7 @@ def get_available_reviewer(proposal: proposal_models.Proposal):
     number_of_needed_reviewers = max(
         0,
         proposal.round.minimum_number_of_reviewers
+        or 0
         - proposal.review_set.exclude(
             state=proposal_models.Review.States.REJECTED
         ).count(),
@@ -107,7 +108,7 @@ def allocate_proposal(proposal: proposal_models.Proposal):
             requested_resource.save()
 
 
-def create_reviews_of_round(call_round):
+def create_reviews_of_round(call_round: proposal_models.Round):
     call_round.proposal_set.filter(state=ProposalStates.DRAFT).update(
         state=ProposalStates.CANCELED
     )

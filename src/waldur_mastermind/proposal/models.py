@@ -304,6 +304,7 @@ class Round(
     start_time = models.DateTimeField()
     cutoff_time = models.DateTimeField()
     call = models.ForeignKey(Call, on_delete=models.PROTECT)
+    proposal_set: models.Manager["Proposal"]
 
     class Permissions:
         customer_path = "call__manager__customer"
@@ -401,6 +402,7 @@ class Proposal(
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
     requestedresource_set: models.Manager["RequestedResource"]
+    review_set: models.Manager["Review"]
 
     class Permissions:
         customer_path = "round__call__manager__customer"
