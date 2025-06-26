@@ -4,7 +4,9 @@ import logging
 from waldur_core.logging import models as logging_models
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -131,3 +133,40 @@ def push_resource_update_message(resource: marketplace_models.Resource) -> None:
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
+
+
+def push_user_role_sync_message(project: structure_models.Project) -> None:
+    """
+    Send user role sync message for a project.
+
+    Args:
+        project: Project instance to sync
+    """
+    logger.info("Sending user role sync message for project %s", project)
+    offering_ids = set(
+        project.resource_set.filter(
+            state=marketplace_models.ResourceStates.OK,
+            offering__type=PLUGIN_NAME,
+        ).values_list("offering", flat=True)
+    )
+    if not offering_ids:
+        logger.debug("No relevant offerings found for project %s", project)
+        return
+    offerings = marketplace_models.Offering.objects.filter(id__in=offering_ids)
+    all_messages = []
+    for offering in offerings:
+        payload = {
+            "project_uuid": project.uuid.hex,
+            "project_name": project.name,
+        }
+        messages = prepare_messages(
+            offering, payload, logging_utils.ObservableObjectType.USER_ROLE
+        )
+        all_messages.extend(messages)
+    if all_messages:
+        logging_tasks.publish_messages.delay(all_messages)
+        logger.info(
+            "Sent %d user role sync messages for project %s", len(all_messages), project
+        )
+    else:
+        logger.debug("No messages to send for project %s", project)
