@@ -771,9 +771,8 @@ def sync_rancher_group_bindings():
                 )
             except exceptions.RancherException as e:
                 logger.error(
-                    "Unable to delete group %s binding for project (cluster %s) %s, reason: %s",
+                    "Unable to delete group %s binding for project %s, reason: %s",
                     remote_stale_group_id,
-                    project.cluster.name,
                     project.name,
                     e,
                 )
