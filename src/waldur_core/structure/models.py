@@ -297,9 +297,14 @@ class ServiceAccountMixin(models.Model):
 
 
 def filter_customers(user):
-    from waldur_mastermind.proposal.managers import get_connected_call_organizers
+    from waldur_mastermind.proposal.managers import (
+        get_connected_call_organizers,
+        get_connected_calls,
+    )
 
-    return Q(callmanagingorganisation__in=get_connected_call_organizers(user))
+    return Q(callmanagingorganisation__in=get_connected_call_organizers(user)) | Q(
+        callmanagingorganisation__call__in=get_connected_calls(user)
+    )
 
 
 class Customer(
