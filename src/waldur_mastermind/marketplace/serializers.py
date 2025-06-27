@@ -249,6 +249,18 @@ class ManagedRancherPluginOptionsSerializer(serializers.Serializer):
     managed_rancher_load_balancer_data_volume_type_name = serializers.CharField(
         required=False
     )
+    managed_rancher_tenant_max_cpu = serializers.IntegerField(
+        help_text=_("Max number of vCPUs for tenants"),
+        required=False,
+    )
+    managed_rancher_tenant_max_ram = serializers.IntegerField(
+        help_text=_("Max number of RAM for tenants"),
+        required=False,
+    )
+    managed_rancher_tenant_max_disk = serializers.IntegerField(
+        help_text=_("Max size of disk space for tenants (GB)"),
+        required=False,
+    )
 
 
 class AgentPluginOptionsSerializer(serializers.Serializer):
