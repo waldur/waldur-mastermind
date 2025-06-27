@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from unittest import mock
 
 import respx
@@ -861,9 +862,15 @@ class UsagePullTest(testcases.TransactionTestCase):
         ).respond(200, json=usages)
 
     def test_component_usage_and_user_usage_are_created(self):
+        models.OfferingComponent.objects.create(
+            offering=self.resource.offering,
+            type="cpu_k_hours",
+            name="CPU Hours",
+        )
+
         usage_data = {
             "uuid": uuid.uuid4().hex,
-            "type": "cpu",
+            "type": "cpu_k_hours",
             "usage": 100,
             "description": "Test usage",
             "created": "2024-03-01T00:00:00Z",
@@ -874,6 +881,7 @@ class UsagePullTest(testcases.TransactionTestCase):
         user_usage_data = {
             "username": "test_user",
             "usage": 50,
+            "component_type": "cpu_k_hours",
         }
         user = UserFactory(username="test_user")
         offering_user = models.OfferingUser.objects.create(
@@ -902,9 +910,15 @@ class UsagePullTest(testcases.TransactionTestCase):
         """
         Test that invalid usage dates are skipped.
         """
+        models.OfferingComponent.objects.create(
+            offering=self.resource.offering,
+            type="cpu_k_hours",
+            name="CPU Hours",
+        )
+
         usage_data = {
             "uuid": uuid.uuid4().hex,
-            "type": "cpu",
+            "type": "cpu_k_hours",
             "usage": 100,
             "description": "Test usage",
             "created": "2024-03-01T00:00:00Z",
@@ -921,3 +935,283 @@ class UsagePullTest(testcases.TransactionTestCase):
                 resource=self.resource,
             ).exists()
         )
+
+    def test_multiple_component_types_with_same_username_handled_correctly(self):
+        """
+        Test that when multiple component types have user usages for the same username,
+        each component gets the correct usage value instead of being overwritten.
+        """
+        cpu_component = models.OfferingComponent.objects.create(
+            offering=self.resource.offering,
+            type="cpu_k_hours",
+            name="CPU k hours",
+        )
+        gpu_component = models.OfferingComponent.objects.create(
+            offering=self.resource.offering,
+            type="gpu_hours",
+            name="GPU hours",
+        )
+
+        cpu_usage_data = {
+            "uuid": uuid.uuid4().hex,
+            "type": "cpu_k_hours",
+            "usage": 11.37,
+            "description": "CPU usage",
+            "created": "2024-03-01T00:00:00Z",
+            "date": "2024-04-01T00:00:00Z",
+            "recurring": False,
+            "billing_period": "2024-03-01",
+        }
+        gpu_usage_data = {
+            "uuid": uuid.uuid4().hex,
+            "type": "gpu_hours",
+            "usage": 0.00,
+            "description": "GPU usage",
+            "created": "2024-03-01T00:00:00Z",
+            "date": "2024-04-01T00:00:00Z",
+            "recurring": False,
+            "billing_period": "2024-03-01",
+        }
+
+        self.mock_component_usages([cpu_usage_data, gpu_usage_data])
+
+        respx.get(
+            f"{self.api_url}/api/marketplace-component-user-usages/",
+            params={
+                "resource_uuid": self.resource.backend_id,
+                "component_usage__billing_period": "2024-03-01",
+                "type": "cpu_k_hours",
+            },
+        ).respond(
+            200,
+            json=[
+                {
+                    "username": "testuserusername",
+                    "usage": 11.37,
+                    "component_type": "cpu_k_hours",
+                },
+            ],
+        )
+
+        respx.get(
+            f"{self.api_url}/api/marketplace-component-user-usages/",
+            params={
+                "resource_uuid": self.resource.backend_id,
+                "component_usage__billing_period": "2024-03-01",
+                "type": "gpu_hours",
+            },
+        ).respond(
+            200,
+            json=[
+                {
+                    "username": "testuserusername",
+                    "usage": 0.00,
+                    "component_type": "gpu_hours",
+                },
+            ],
+        )
+
+        user = UserFactory(username="testuserusername")
+        offering_user = models.OfferingUser.objects.create(
+            offering=self.resource.offering,
+            username="testuserusername",
+            user=user,
+        )
+
+        tasks.UsagePullTask().pull(self.resource)
+
+        cpu_component_usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=cpu_component,
+        )
+        gpu_component_usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=gpu_component,
+        )
+
+        self.assertEqual(cpu_component_usage.usage, Decimal("11.37"))
+        self.assertEqual(gpu_component_usage.usage, Decimal("0.00"))
+
+        cpu_user_usage = models.ComponentUserUsage.objects.get(
+            component_usage=cpu_component_usage,
+            username="testuserusername",
+        )
+        gpu_user_usage = models.ComponentUserUsage.objects.get(
+            component_usage=gpu_component_usage,
+            username="testuserusername",
+        )
+
+        self.assertEqual(
+            cpu_user_usage.usage,
+            Decimal("11.37"),
+            "CPU user usage should be 11.37, not overwritten by GPU usage",
+        )
+        self.assertEqual(
+            gpu_user_usage.usage, Decimal("0.00"), "GPU user usage should be 0.00"
+        )
+
+        self.assertEqual(cpu_user_usage.user, offering_user)
+        self.assertEqual(gpu_user_usage.user, offering_user)
+
+    def test_missing_plan_period_is_created_during_sync(self):
+        """
+        Test that missing ResourcePlanPeriod is automatically created during usage sync.
+        """
+        models.OfferingComponent.objects.create(
+            offering=self.resource.offering,
+            type="cpu_k_hours",
+            name="CPU Hours",
+        )
+
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+
+        self.assertIsNotNone(self.resource.plan, "Resource is missing a plan")
+        local_plan = self.resource.plan
+
+        usage_data = {
+            "uuid": uuid.uuid4().hex,
+            "type": "cpu_k_hours",
+            "usage": 100,
+            "description": "Test usage",
+            "created": "2024-03-01T00:00:00Z",
+            "date": "2024-04-01T00:00:00Z",
+            "recurring": False,
+            "billing_period": "2024-03-01",
+        }
+
+        self.mock_component_usages([usage_data])
+
+        respx.get(
+            f"{self.api_url}/api/marketplace-component-user-usages/",
+            params={
+                "resource_uuid": self.resource.backend_id,
+                "component_usage__billing_period": "2024-03-01",
+                "type": "cpu_k_hours",
+            },
+        ).respond(200, json=[])
+
+        tasks.UsagePullTask().pull(self.resource)
+
+        plan_period = models.ResourcePlanPeriod.objects.get(resource=self.resource)
+
+        self.assertEqual(plan_period.plan, local_plan)
+        self.assertEqual(plan_period.start, self.resource.created)
+        self.assertIsNone(plan_period.end)
+
+        component_usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+        )
+        self.assertEqual(component_usage.plan_period, plan_period)
+        self.assertEqual(component_usage.usage, 100)
+
+    def test_plan_period_not_created_for_resource_without_plan(self):
+        """
+        Test that plan period is not created for resources without a plan.
+        """
+        models.OfferingComponent.objects.create(
+            offering=self.resource.offering,
+            type="cpu_k_hours",
+            name="CPU Hours",
+        )
+
+        self.resource.plan = None
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+        self.assertFalse(
+            models.ResourcePlanPeriod.objects.filter(resource=self.resource).exists(),
+            "Resource should not have any plan periods",
+        )
+
+        usage_data = {
+            "uuid": uuid.uuid4().hex,
+            "type": "cpu_k_hours",
+            "usage": 100,
+            "description": "Test usage",
+            "created": "2024-03-01T00:00:00Z",
+            "date": "2024-04-01T00:00:00Z",
+            "recurring": False,
+            "billing_period": "2024-03-01",
+        }
+
+        self.mock_component_usages([usage_data])
+
+        respx.get(
+            f"{self.api_url}/api/marketplace-component-user-usages/",
+            params={
+                "resource_uuid": self.resource.backend_id,
+                "component_usage__billing_period": "2024-03-01",
+                "type": "cpu_k_hours",
+            },
+        ).respond(200, json=[])
+
+        tasks.UsagePullTask().pull(self.resource)
+
+        self.assertFalse(
+            models.ResourcePlanPeriod.objects.filter(resource=self.resource).exists()
+        )
+
+        component_usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+        )
+        self.assertIsNone(component_usage.plan_period)
+        self.assertEqual(component_usage.usage, 100)
+
+    def test_existing_plan_period_is_reused(self):
+        """
+        Test that existing plan period is reused instead of creating a new one.
+        """
+        models.OfferingComponent.objects.create(
+            offering=self.resource.offering,
+            type="cpu_k_hours",
+            name="CPU Hours",
+        )
+
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+
+        # Plan period is created by signal handler (create_resource_plan_period_when_resource_is_created)
+        existing_plan_period = models.ResourcePlanPeriod.objects.get(
+            resource=self.resource
+        )
+        self.assertEqual(
+            models.ResourcePlanPeriod.objects.filter(resource=self.resource).count(),
+            1,
+            "Resource should have exactly one plan period",
+        )
+
+        usage_data = {
+            "uuid": uuid.uuid4().hex,
+            "type": "cpu_k_hours",
+            "usage": 100,
+            "description": "Test usage",
+            "created": "2024-03-01T00:00:00Z",
+            "date": "2024-04-01T00:00:00Z",
+            "recurring": False,
+            "billing_period": "2024-03-01",
+        }
+
+        self.mock_component_usages([usage_data])
+
+        respx.get(
+            f"{self.api_url}/api/marketplace-component-user-usages/",
+            params={
+                "resource_uuid": self.resource.backend_id,
+                "component_usage__billing_period": "2024-03-01",
+                "type": "cpu_k_hours",
+            },
+        ).respond(200, json=[])
+
+        tasks.UsagePullTask().pull(self.resource)
+
+        self.assertEqual(
+            models.ResourcePlanPeriod.objects.filter(resource=self.resource).count(),
+            1,
+            f"Expected 1 plan period, got {models.ResourcePlanPeriod.objects.filter(resource=self.resource).count()}",
+        )
+
+        component_usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+        )
+        self.assertEqual(component_usage.plan_period, existing_plan_period)
+        self.assertEqual(component_usage.usage, 100)

@@ -877,6 +877,29 @@ def get_plan_period(resource, date):
     )
 
 
+def get_or_create_plan_period(resource: models.Resource, date):
+    plan_period = get_plan_period(resource, date)
+
+    if (
+        plan_period is None
+        and resource.plan
+        and resource.state in [ResourceStates.OK, ResourceStates.UPDATING]
+    ):
+        logger.info(
+            "Creating missing Resource Plan Period for resource %s (UUID: %s)",
+            resource.name,
+            resource.uuid.hex,
+        )
+        plan_period = models.ResourcePlanPeriod.objects.create(
+            resource=resource,
+            plan=resource.plan,
+            start=resource.created,
+            end=None,
+        )
+
+    return plan_period
+
+
 def import_current_usages(resource):
     date = datetime.date.today()
 
