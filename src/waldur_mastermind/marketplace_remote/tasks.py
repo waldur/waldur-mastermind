@@ -79,7 +79,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
     RobotAccountStates,
 )
-from waldur_mastermind.marketplace.utils import get_plan_period
+from waldur_mastermind.marketplace.utils import get_or_create_plan_period
 from waldur_mastermind.marketplace_remote import (
     PLUGIN_NAME,
     utils,
@@ -647,7 +647,7 @@ class UsagePullTask(BackgroundPullTask):
                 "recurring": remote_usage.recurring,
                 "backend_id": remote_usage.uuid.hex,
             }
-            plan_period = get_plan_period(local_resource, usage_date)
+            plan_period = get_or_create_plan_period(local_resource, usage_date)
             component_usage, _ = models.ComponentUsage.objects.update_or_create(
                 resource=local_resource,
                 component=offering_component,
@@ -661,6 +661,7 @@ class UsagePullTask(BackgroundPullTask):
                     client=client,
                     resource_uuid=local_resource.backend_id,
                     component_usage_billing_period=component_usage.billing_period,
+                    type_=remote_usage.type_,
                 )
             )
             if remote_user_usages:
