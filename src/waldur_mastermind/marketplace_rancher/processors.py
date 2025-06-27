@@ -118,7 +118,42 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         )
 
     def create_tenants(self, user, project: Project) -> list[os_models.Tenant]:
+        def validate_all_tenant_limits(tenant_limits: list[dict[str, int]]):
+            aggregated_limits = {
+                CORES_TYPE: sum(limits[CORES_TYPE] for limits in tenant_limits),
+                RAM_TYPE: sum(limits[RAM_TYPE] for limits in tenant_limits),
+                STORAGE_TYPE: sum(limits[STORAGE_TYPE] for limits in tenant_limits),
+            }
+
+            tenant_max_cpu = self.order.offering.plugin_options.get(
+                "managed_rancher_tenant_max_cpu"
+            )
+            if tenant_max_cpu and aggregated_limits[CORES_TYPE] > tenant_max_cpu:
+                raise rf_serializers.ValidationError(
+                    f"The requested total CPU limit {aggregated_limits[CORES_TYPE]} cores exceeds the maximum allowed {tenant_max_cpu} cores for tenants."
+                )
+
+            tenant_max_ram = self.order.offering.plugin_options.get(
+                "managed_rancher_tenant_max_ram"
+            )
+            if tenant_max_ram and aggregated_limits[RAM_TYPE] > tenant_max_ram * 1024:
+                raise rf_serializers.ValidationError(
+                    f"The requested total RAM limit {aggregated_limits[RAM_TYPE]} MB exceeds the maximum allowed {tenant_max_ram * 1024} MB for tenants."
+                )
+
+            tenant_max_disk = self.order.offering.plugin_options.get(
+                "managed_rancher_tenant_max_disk"
+            )
+            if (
+                tenant_max_disk
+                and aggregated_limits[STORAGE_TYPE] > tenant_max_disk * 1024
+            ):
+                raise rf_serializers.ValidationError(
+                    f"The requested total Disk limit {aggregated_limits[STORAGE_TYPE]} MB exceeds the maximum allowed {tenant_max_disk * 1024} MB for tenants."
+                )
+
         orders = []
+        orders_data = []
         openstack_offering_uuid_list = cast(
             list[str], self.order.attributes["openstack_offering_uuid_list"]
         )
@@ -129,8 +164,28 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 "name": f"os-tenant-{project.slug}-{offering.slug}",
             }
             limits = self.get_tenant_limits(offering)
+            orders_data.append(
+                {
+                    "offering": offering,
+                    "plan": plan,
+                    "attributes": attributes,
+                    "limits": limits,
+                }
+            )
+
+        tenant_limits = [order_data["limits"] for order_data in orders_data]
+        validate_all_tenant_limits(tenant_limits)
+
+        for order_data in orders_data:
             orders.append(
-                submit_creation_order(user, offering, plan, project, attributes, limits)
+                submit_creation_order(
+                    user,
+                    order_data["offering"],
+                    order_data["plan"],
+                    project,
+                    order_data["attributes"],
+                    order_data["limits"],
+                )
             )
 
         return [
