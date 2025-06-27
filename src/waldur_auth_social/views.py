@@ -82,11 +82,7 @@ class OAuthViewInit(BaseOAuthView):
         """
         self.validate_config(provider)
         redirect_uri = reverse(f"auth_{provider}_complete", request=request)
-        scope = "openid"
-        if provider == ProviderChoices.EDUTEAMS:
-            scope = "openid profile email eduperson_assurance ssh_public_key"
-        if self.config.scope:
-            scope = self.config.scope
+        scope = f"openid {self.config.extra_scope or ''}".strip()
 
         oidc_state = secrets.token_urlsafe(32)
         request.session[OIDC_STATE_KEY] = oidc_state

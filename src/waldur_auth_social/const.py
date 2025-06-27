@@ -6,7 +6,7 @@ class ProviderChoices:
     CHOICES = (TARA, EDUTEAMS, KEYCLOAK)
 
 
-ALLOWED_FIELDS = (
+WRITABLE_USER_FIELDS = (
     "first_name",
     "last_name",
     "identity_source",
@@ -16,9 +16,18 @@ ALLOWED_FIELDS = (
     "email",
 )
 
+SECRET_PROVIDER_FIELDS = (
+    "client_secret",
+    "user_field",
+    "user_claim",
+    "attribute_mapping",
+    "extra_fields",
+)
+
 PROVIDER_DEFAULTS = {
     ProviderChoices.TARA: {
         "user_field": "civil_number",
+        "user_claim": "sub",
         "attribute_mapping": {
             "first_name": "given_name",
             "last_name": "family_name",
@@ -27,6 +36,7 @@ PROVIDER_DEFAULTS = {
         "extra_fields": "amr profile_attributes_translit",
     },
     ProviderChoices.EDUTEAMS: {
+        "user_field": "username",
         "user_claim": "sub voperson_id",
         "attribute_mapping": {
             "first_name": "given_name",
@@ -35,8 +45,11 @@ PROVIDER_DEFAULTS = {
             "email": "mail",
         },
         "extra_fields": "eduperson_assurance",
+        "extra_scope": "profile email eduperson_assurance ssh_public_key",
     },
     ProviderChoices.KEYCLOAK: {
+        "user_field": "username",
+        "user_claim": "sub",
         "attribute_mapping": {
             "email": "email",
             "first_name": "given_name",

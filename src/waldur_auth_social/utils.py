@@ -10,7 +10,11 @@ from django.utils import timezone
 from requests.auth import HTTPBasicAuth
 from rest_framework.exceptions import NotFound, ParseError
 
-from waldur_auth_social.const import ALLOWED_FIELDS, PROVIDER_DEFAULTS, ProviderChoices
+from waldur_auth_social.const import (
+    PROVIDER_DEFAULTS,
+    WRITABLE_USER_FIELDS,
+    ProviderChoices,
+)
 from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.models import IdentityProvider
 from waldur_core.core.models import SshPublicKey, User
@@ -49,7 +53,7 @@ def get_user_payload(
 ) -> dict[str, str]:
     payload = {}
     for user_field, claims in identity_provider.attribute_mapping.items():
-        if user_field in ALLOWED_FIELDS:
+        if user_field in WRITABLE_USER_FIELDS:
             for claim in claims.split():
                 claim = claim.strip()
                 value = backend_user.get(claim)
