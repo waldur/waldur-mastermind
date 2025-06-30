@@ -368,6 +368,9 @@ class UserFilter(BaseUserFilter):
     query = django_filters.CharFilter(method="filter_query")
     customer_uuid = django_filters.UUIDFilter(method="filter_by_customer")
     project_uuid = django_filters.UUIDFilter(method="filter_by_project")
+    username_list = django_filters.CharFilter(
+        method="filter_username_list", label="Comma-separated usernames"
+    )
 
     o = core_filters.ExtendedOrderingFilter(
         fields=(
@@ -426,6 +429,18 @@ class UserFilter(BaseUserFilter):
 
         query = queryset.filter(q)
         return query
+
+    def filter_username_list(self, queryset, name, value):
+        if not value:
+            return queryset.none()
+
+        usernames = {
+            username.strip() for username in value.split(",") if username.strip()
+        }
+        if not usernames:
+            return queryset.none()
+
+        return queryset.filter(username__in=usernames).distinct()
 
 
 class UserConcatenatedNameOrderingBackend(BaseFilterBackend):
