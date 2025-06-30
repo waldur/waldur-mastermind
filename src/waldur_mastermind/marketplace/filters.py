@@ -113,6 +113,10 @@ class OfferingFilter(
     resource_project_uuid = django_filters.UUIDFilter(
         method="filter_resource_project_uuid", label="Resource project UUID"
     )
+    uuid_list = django_filters.CharFilter(
+        method="filter_uuid_list",
+        label="Comma-separated offering UUIDs",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -213,6 +217,17 @@ class OfferingFilter(
             return queryset.filter(id__in=offerings_ids)
         else:
             return queryset.exclude(id__in=offerings_ids)
+
+    def filter_uuid_list(self, queryset, name, value):
+        if not value:
+            return queryset.none()
+
+        uuids = {u.strip() for u in value.split(",") if u.strip()}
+
+        if not uuids:
+            return queryset.none()
+
+        return queryset.filter(uuid__in=uuids).distinct()
 
 
 class OfferingCustomersFilterBackend(BaseFilterBackend):
