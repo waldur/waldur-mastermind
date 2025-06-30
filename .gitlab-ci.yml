@@ -413,7 +413,6 @@ Generate TypeScript SDK:
     npx --yes @hey-api/openapi-ts@0.77.0
     # drop querySerializer because it is producing explode: false for multiple choice filter
     sed -i '/querySerializer: {/,/},/d' waldur-typescript-sdk/sdk.gen.ts
-    ls -l waldur-typescript-sdk
   artifacts:
     paths:
       - waldur-typescript-sdk/
@@ -428,8 +427,7 @@ Generate Python SDK:
   needs:
     - Generate OpenAPI schema
   script: |
-    pip install git+https://github.com/waldur/openapi-python-client.git
-    openapi-python-client generate --path waldur-openapi-schema.yaml --output-path py-client --overwrite --meta poetry
+    pipx run --spec git+https://github.com/waldur/openapi-python-client.git openapi-python-client generate --path waldur-openapi-schema.yaml --output-path py-client --overwrite --meta poetry
   artifacts:
     paths:
       - py-client/
