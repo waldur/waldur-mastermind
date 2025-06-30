@@ -12,7 +12,6 @@
   "project.team": true,
   "support.pricelist": true,
   "support.resources_treemap": false,
-  "support.users": true,
   "deployment.send_metrics": true,
   "user.notifications": true,
   "user.ssh_keys": true
