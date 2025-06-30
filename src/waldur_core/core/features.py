@@ -140,8 +140,6 @@ class SupportSection(FeatureSection):
         "Render marketplace plan components pricelist in support workspace."
     )
 
-    users = Feature("Render list of users in support workspace.")
-
     vm_type_overview = Feature("Enable VM type overview in support workspace.")
 
     conceal_change_request = Feature(
