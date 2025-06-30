@@ -413,6 +413,7 @@ Generate TypeScript SDK:
     npx --yes @hey-api/openapi-ts@0.77.0
     # drop querySerializer because it is producing explode: false for multiple choice filter
     sed -i '/querySerializer: {/,/},/d' waldur-typescript-sdk/sdk.gen.ts
+    sed -i '1i export { formDataBodySerializer, RequestResult } from "./client";' waldur-typescript-sdk/index.ts
   artifacts:
     paths:
       - waldur-typescript-sdk/
