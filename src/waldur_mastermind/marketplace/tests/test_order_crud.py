@@ -5,6 +5,7 @@ from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.core.models import NAME_LENGTH
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -605,6 +606,73 @@ class OrderEndDateCreateTest(BaseOrderCreateTest):
             {"attributes": {"name": "test", "end_date": end_date}},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class OrderNameValidationTest(BaseOrderCreateTest):
+    def test_order_creation_succeeds_with_valid_name_length(self):
+        """Test that order creation succeeds when name is within valid length."""
+        valid_name = "a" * (NAME_LENGTH - 1)  # 149 characters
+        response = self.create_order(
+            self.fixture.owner, add_payload={"attributes": {"name": valid_name}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(order.resource.name, valid_name)
+
+    def test_order_creation_succeeds_with_maximum_name_length(self):
+        """Test that order creation succeeds when name is exactly at maximum length."""
+        max_length_name = "a" * NAME_LENGTH  # 150 characters
+        response = self.create_order(
+            self.fixture.owner, add_payload={"attributes": {"name": max_length_name}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(order.resource.name, max_length_name)
+
+    def test_order_creation_fails_with_name_too_long(self):
+        """Test that order creation fails when name exceeds maximum length."""
+        too_long_name = "a" * (NAME_LENGTH + 1)  # 151 characters
+        response = self.create_order(
+            self.fixture.owner, add_payload={"attributes": {"name": too_long_name}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Name is too long", str(response.data))
+        self.assertIn(str(NAME_LENGTH), str(response.data))
+
+    def test_order_creation_succeeds_with_empty_name(self):
+        """Test that order creation succeeds when name is empty."""
+        response = self.create_order(
+            self.fixture.owner, add_payload={"attributes": {"name": ""}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(order.resource.name, "")
+
+    def test_order_creation_succeeds_without_name_attribute(self):
+        """Test that order creation succeeds when name attribute is not provided."""
+        response = self.create_order(self.fixture.owner, add_payload={"attributes": {}})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(order.resource.name, "")
+
+    def test_order_creation_with_unicode_name_within_limit(self):
+        """Test that order creation succeeds with unicode characters within length limit."""
+        unicode_name = "üõiõабвгдж" * 15  # Unicode characters, total length < 150
+        response = self.create_order(
+            self.fixture.owner, add_payload={"attributes": {"name": unicode_name}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(order.resource.name, unicode_name)
+
+    def test_order_creation_fails_with_unicode_name_exceeding_limit(self):
+        """Test that order creation fails with unicode characters exceeding length limit."""
+        unicode_name = "üõiõабвгд" * 20  # Unicode characters, total length > 150
+        response = self.create_order(
+            self.fixture.owner, add_payload={"attributes": {"name": unicode_name}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Name is too long", str(response.data))
 
 
 @ddt

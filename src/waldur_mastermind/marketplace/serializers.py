@@ -28,7 +28,7 @@ from waldur_core.core.clean_html import clean_html
 from waldur_core.core.enums import CoreStates, CoreStateType
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.mixins import GetValueMixin
-from waldur_core.core.models import User, get_ssh_key_fingerprints
+from waldur_core.core.models import NAME_LENGTH, User, get_ssh_key_fingerprints
 from waldur_core.core.validators import BackendURLValidator, validate_ssh_public_key
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
@@ -2822,6 +2822,14 @@ class OrderCreateSerializer(
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+
+        name = attrs.get("attributes").get("name") or ""
+
+        if len(name) > NAME_LENGTH:
+            raise ValidationError(
+                _("Name is too long. Maximum number of symbols is %s") % NAME_LENGTH
+            )
+
         offering = attrs["offering"]
 
         if (
