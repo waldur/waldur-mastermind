@@ -16,7 +16,7 @@ class BroadcastMessageViewSet(ActionsViewSet):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.BroadcastMessageFilterSet
-    update_validators = [
+    update_validators = destroy_validators = [
         core_validators.StateValidator(
             models.BroadcastMessage.States.DRAFT,
             models.BroadcastMessage.States.SCHEDULED,
