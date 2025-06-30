@@ -5,3 +5,9 @@ class AutoprovisioningExtension(WaldurExtension):
     @staticmethod
     def django_app():
         return "waldur_autoprovisioning"
+
+    @staticmethod
+    def rest_urls():
+        from .urls import register_in
+
+        return register_in
