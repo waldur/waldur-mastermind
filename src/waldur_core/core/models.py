@@ -39,6 +39,8 @@ logger = logging.getLogger(__name__)
 
 DESCRIPTION_LENGTH = 2000
 
+NAME_LENGTH = 150
+
 USERNAME_REGEX = r"^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$"
 
 
@@ -63,7 +65,9 @@ class NameMixin(models.Model):
     class Meta:
         abstract = True
 
-    name = models.CharField(_("name"), max_length=150, validators=[validate_name])
+    name = models.CharField(
+        _("name"), max_length=NAME_LENGTH, validators=[validate_name]
+    )
 
 
 SLUG_NAME_LIMIT = 8
