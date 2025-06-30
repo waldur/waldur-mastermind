@@ -413,6 +413,8 @@ class RancherClusterSerializer(
 
     public_ips = RancherNestedPublicIPSerializer(many=True, read_only=True)
 
+    router_ips = serializers.SerializerMethodField()
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
@@ -429,6 +431,7 @@ class RancherClusterSerializer(
             "capacity",
             "requested",
             "kubernetes_version",
+            "router_ips",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -539,6 +542,18 @@ class RancherClusterSerializer(
             raise serializers.ValidationError(_("Count of agent nodes must be min 1."))
 
         return nodes
+
+    def get_router_ips(self, cluster: models.Cluster) -> list:
+        if not cluster.tenant:
+            return []
+
+        router_ips = []
+        for router in cluster.tenant.routers.all():
+            if not router.fixed_ips:
+                continue
+            router_ips.extend(router.fixed_ips)
+
+        return router_ips
 
 
 class RancherNodeSerializer(serializers.HyperlinkedModelSerializer):
