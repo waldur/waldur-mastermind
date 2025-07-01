@@ -94,7 +94,7 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
                 self.fixture.customer
             ),
             "value": 1600,
-            "end_date": datetime.date(year=2025, month=10, day=15),
+            "end_date": datetime.date(year=2025, month=10, day=1),
             "minimal_consumption_logic": models.CustomerCredit.MinimalConsumptionLogic.LINEAR,
             "expected_consumption": 500,
         }
@@ -104,7 +104,7 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         credit = models.CustomerCredit.objects.get(uuid=response.data["uuid"])
         self.assertEqual(credit.expected_consumption, payload["expected_consumption"])
-        self.assertEqual(credit.end_date, datetime.date(year=2025, month=10, day=31))
+        self.assertEqual(credit.end_date, datetime.date(year=2025, month=10, day=1))
 
         with freeze_time("2024-11-01"):
             tasks.process_invoice_credits(self.fixture.invoice)
@@ -353,10 +353,10 @@ class CustomerCreditTest(test.APITransactionTestCase):
     def test_task_set_to_zero_overdue_credits(self):
         credit_1 = factories.CustomerCreditFactory()
         credit_2 = factories.CustomerCreditFactory(
-            end_date=datetime.date.today() + datetime.timedelta(days=5)
+            end_date=datetime.date.today() + datetime.timedelta(days=31)
         )
         credit_3 = factories.CustomerCreditFactory(
-            end_date=datetime.date.today() - datetime.timedelta(days=5)
+            end_date=datetime.date.today() - datetime.timedelta(days=31)
         )
         tasks.set_to_zero_overdue_credits()
         credit_1.refresh_from_db()
@@ -571,7 +571,7 @@ class ProcessingCreditTest(test.APITransactionTestCase):
         )
 
 
-@freeze_time("2025-08-10")
+@freeze_time("2025-08-01")
 class CalculateMinimalConsumptionTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()

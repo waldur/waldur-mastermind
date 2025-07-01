@@ -971,8 +971,12 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
                 _("The end date must be greater than today's date.")
             )
 
-        month_end = core_utils.month_end(end_date)
-        return month_end.date()
+        if end_date.day != 1:
+            raise exceptions.ValidationError(
+                _("End date must be the first day of the month.")
+            )
+
+        return end_date
 
     def get_from_attrs_or_instance(self, attrs, field_name, default=None):
         return attrs.get(field_name, getattr(self.instance, field_name, default))

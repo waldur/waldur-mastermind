@@ -41,6 +41,7 @@ def create_monthly_invoices():
         try:
             with transaction.atomic():
                 process_invoice_credits(invoice)
+                set_to_zero_overdue_credits()
                 invoice.set_created()
         except Exception:
             logger.exception("Unable to process invoice %s", invoice)
@@ -274,7 +275,6 @@ def send_monthly_invoicing_reports_about_customers():
         )
 
 
-@shared_task(name="invoices.set_to_zero_overdue_credits")
 def set_to_zero_overdue_credits():
     for credit in models.CustomerCredit.objects.filter(
         end_date__lt=datetime.date.today()

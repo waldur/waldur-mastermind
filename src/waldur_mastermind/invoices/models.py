@@ -569,6 +569,13 @@ class BaseCredit(core_models.UuidMixin, core_models.TimeStampedModel):
         decimal_places=5,
     )
 
+    def save(self, *args, **kwargs):
+        if self.end_date and self.end_date.day != 1:
+            raise rf_exceptions.ValidationError(
+                {"end_date": "End date must be the first day of the month."}
+            )
+        super().save(*args, **kwargs)
+
     @property
     def time_left_factor(self) -> decimal.Decimal:
         today = datetime.date.today()
