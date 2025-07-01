@@ -1,29 +1,14 @@
 import logging
 
-import requests
-from django.contrib.auth import authenticate
 from django.core.management.base import BaseCommand
 from django.db import connection
 from django.db.utils import OperationalError
-from rest_framework import status
-from rest_framework.authtoken.models import Token
 
-from waldur_core.core.models import User
-from waldur_core.core.schemas import WaldurEndpointInspector
 from waldur_core.server.celeryconf import app as celery_app
 
 
 class Command(BaseCommand):
     help = "Check status of Waldur MasterMind configured services"
-
-    def add_arguments(self, parser):
-        parser.add_argument(
-            "--check-api-endpoints-at",
-            dest="base_url",
-            default=None,
-            help="Runs API endpoints check at specified base URL (i.e. http://example.com). "
-            "If this argument is not provided, check will be skipped.",
-        )
 
     def handle(self, *args, **options):
         success_status = self.style.SUCCESS(" [OK]")
@@ -34,7 +19,7 @@ class Command(BaseCommand):
         }
         padding = len(max(output_messages.values(), key=len))
         # If services checks didn't pass, skip API endpoints check
-        skip_endpoints = False
+        erred = False
 
         # Rise logging level to prevent redundant log messages
         logging.disable(logging.CRITICAL)
@@ -51,7 +36,7 @@ class Command(BaseCommand):
         try:
             connection.cursor()
         except OperationalError:
-            skip_endpoints = True
+            erred = True
             self.stdout.write(error_status)
         else:
             self.stdout.write(success_status)
@@ -64,55 +49,18 @@ class Command(BaseCommand):
         try:
             stats = celery_inspect.stats()
             if not stats:
-                skip_endpoints = True
+                erred = True
                 celery_results["workers"] = error_status
         except Exception:
-            skip_endpoints = True
+            erred = True
             celery_results["workers"] = error_status
         finally:
             self.stdout.write(
                 output_messages["workers"].ljust(padding) + celery_results["workers"]
             )
 
-        if skip_endpoints:
-            self.stderr.write("API endpoints check skipped due to erred services")
+        if erred:
             exit(1)
-        elif options["base_url"] is None:
-            self.stdout.write("API endpoints check skipped")
-        else:
-            self._check_api_endpoints(options["base_url"])
 
         # return logging level back
         logging.disable(logging.NOTSET)
-
-    def _check_api_endpoints(self, base_url):
-        self.stdout.write("\nChecking Waldur MasterMind API endpoints...")
-        inspector = WaldurEndpointInspector()
-        endpoints = inspector.get_api_endpoints()
-        user, _ = User.objects.get_or_create(
-            username="waldur_status_checker", is_staff=True
-        )
-        authenticate(username="waldur_status_checker")
-        token = Token.objects.get(user=user)
-
-        for endpoint in endpoints:
-            path, method, view = endpoint
-            if method != "GET" or "{pk}" in path or "{uuid}" in path:
-                continue
-
-            url = base_url + path
-            self.stdout.write(" Checking %s endpoint..." % url, ending="")
-            try:
-                response = requests.get(
-                    url, headers={"Authorization": "Token %s" % token.key}
-                )
-            except requests.RequestException:
-                self.stdout.write(self.style.ERROR(" [ERROR]"))
-            else:
-                if response.status_code != status.HTTP_200_OK:
-                    self.stdout.write(self.style.ERROR(" [%d]" % response.status_code))
-                else:
-                    self.stdout.write(self.style.SUCCESS(" [200]"))
-
-        # clean up
-        user.delete()
