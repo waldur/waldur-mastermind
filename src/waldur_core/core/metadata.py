@@ -16,7 +16,6 @@ class WaldurCore(BaseModel):
         True,
         description="Defines whether extensions should be automatically registered.",
     )
-    TOKEN_KEY = Field("x-auth-token", description="Header for token authentication.")
     RESPONSE_HEADER_IMPERSONATOR_UUID = Field(
         "X-impersonator-uuid",
         description="The response header, which contains the UUID "
