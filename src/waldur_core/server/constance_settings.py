@@ -465,6 +465,10 @@ CONSTANCE_CONFIG = {
         "It is used in organization creation dialog in order to limit country choices to predefined set.",
         "country_list_field",
     ),
+    "OIDC_AUTH_URL": (
+        "",
+        "OIDC authentication endpoint URL.",
+    ),
     "OIDC_INTROSPECTION_URL": (
         "",
         "OIDC introspection endpoint URL for validating access tokens.",
@@ -642,6 +646,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "FREEIPA_GROUP_SYNCHRONIZATION_ENABLED",
     ),
     "OIDC auth settings": (
+        "OIDC_AUTH_URL",
         "OIDC_INTROSPECTION_URL",
         "OIDC_CLIENT_ID",
         "OIDC_CLIENT_SECRET",
@@ -700,4 +705,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "RANCHER_USERNAME_INPUT_LABEL",
     # Service accounts
     "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND",
+    # OIDC
+    "OIDC_AUTH_URL",
+    "OIDC_CLIENT_ID",
 )
