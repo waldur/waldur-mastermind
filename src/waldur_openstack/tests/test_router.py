@@ -11,6 +11,11 @@ class BaseRouterTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.OpenStackFixture()
         self.client.force_authenticate(user=self.fixture.owner)
+        self.mock = mock.patch("waldur_openstack.backend.OpenStackBackend.get_free_ip")
+        self.mock_get_free_ip = self.mock.start()
+        self.mock_get_free_ip.return_value = "1.1.1.1"
+        self.mock = mock.patch("waldur_openstack.backend.OpenStackBackend.create_port")
+        self.mock_create_port = self.mock.start()
 
 
 class SetRoutesTest(BaseRouterTest):
@@ -64,11 +69,17 @@ class RouterInterfaceTest(BaseRouterTest):
 
     @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
     @mock.patch("waldur_openstack.backend.OpenStackBackend.add_router_interface")
-    def test_add_router_interface_with_subnet(self, mock_add, mock_pull):
+    @mock.patch(
+        "waldur_openstack.backend.OpenStackBackend.get_free_ip",
+        return_value="192.168.1.10",
+    )
+    def test_add_router_interface_with_subnet(
+        self, mock_get_free_ip, mock_add, mock_pull
+    ):
         response = self.client.post(
             self.url_add, {"subnet": factories.SubNetFactory.get_url(self.subnet)}
         )
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
         mock_add.assert_called_once()
         mock_pull.assert_called_once()
 

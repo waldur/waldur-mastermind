@@ -1,4 +1,5 @@
 import functools
+import ipaddress
 import logging
 import re
 from urllib.parse import urlparse, urlunparse
@@ -5422,3 +5423,20 @@ class OpenStackBackend(ServiceBackend):
         session = get_tenant_session(tenant)
         glance = get_glance_client(session)
         return sum([i.size or 0 for i in glance.images.list()])
+
+    def get_free_ip(self, subnet: models.SubNet):
+        neutron = get_neutron_client(self.admin_session)
+        used_ips = set()
+        ports = neutron.list_ports(fixed_ips=f"subnet_id={subnet.backend_id}")["ports"]
+        for port in ports:
+            for ip in port["fixed_ips"]:
+                used_ips.add(ip["ip_address"])
+
+        for pool in subnet.allocation_pools:
+            start = ipaddress.IPv4Address(pool["start"])
+            end = ipaddress.IPv4Address(pool["end"])
+            for ip_int in range(int(start), int(end) + 1):
+                ip = str(ipaddress.IPv4Address(ip_int))
+                if ip not in used_ips:
+                    return ip
+        return None

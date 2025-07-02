@@ -778,8 +778,37 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
 
         old_routes = router.routes
         backend: OpenStackBackend = router.tenant.get_backend()
+
         try:
-            backend.add_router_interface(router, subnet, port)
+            if not port:
+                # If we pass only a subnet to router interface addition,
+                # and some IPs in the subnet are already allocated (e.g., by other ports or as a gateway),
+                # the operation may fail with an IP address conflict.
+                # To avoid this, we first find a free IP in the subnet, create a port with this IP,
+                # and then pass the port to the router interface addition.
+                free_ip = backend.get_free_ip(subnet)
+                if not free_ip:
+                    return response.Response(
+                        {
+                            "status": _(
+                                f"No available IP addresses in subnet {subnet.backend_id}."
+                            )
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                port = models.Port.objects.create(
+                    subnet=subnet,
+                    network=subnet.network,
+                    tenant=subnet.tenant,
+                    project=subnet.project,
+                    service_settings=subnet.service_settings,
+                    fixed_ips=[{"subnet_id": subnet.backend_id, "ip_address": free_ip}],
+                )
+                backend.create_port(port)
+                logger.info(
+                    f"Port {port.backend_id} with IP {free_ip} was created for router interface addition."
+                )
+            backend.add_router_interface(router, port=port)
         except OpenStackBackendError as e:
             return response.Response(
                 {"status": _(f"Unable to add a new router interface: {e.args[0]}")},
