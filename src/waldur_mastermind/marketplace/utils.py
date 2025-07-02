@@ -11,6 +11,7 @@ import uuid
 from collections import defaultdict
 from enum import Enum
 from io import BytesIO
+from typing import cast
 
 import httpx
 from constance import config
@@ -1471,74 +1472,65 @@ def refresh_integration_agent_status(request, agent_type):
     integration_status.save()
 
 
+def parse_date(date_str: str | int | None) -> datetime.date | None:
+    if not isinstance(date_str, str):
+        return None
+    try:
+        return datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        raise serializers.ValidationError(
+            {"end_date": _("Invalid date format. Use YYYY-MM-DD.")}
+        )
+
+
 def validate_end_date(
-    resource,
-    user,
-    end_date=None,
-):
-    is_resource_termination_date_required = resource.offering.plugin_options.get(
-        "is_resource_termination_date_required"
-    )
-    max_resource_termination_offset_in_days = resource.offering.plugin_options.get(
-        "max_resource_termination_offset_in_days"
-    )
-    default_resource_termination_offset_in_days = resource.offering.plugin_options.get(
-        "default_resource_termination_offset_in_days"
-    )
-    latest_date_for_resource_termination = resource.offering.plugin_options.get(
-        "latest_date_for_resource_termination"
-    )
+    offering: models.Offering,
+    created_date: datetime.date,
+    end_date: datetime.date | None = None,
+) -> None | datetime.date:
+    """
+    Validate or compute the resource end date based on plugin options.
+    Raises ValidationError if constraints are violated or configuration is invalid.
+    """
 
-    if latest_date_for_resource_termination:
-        latest_date_for_resource_termination = datetime.datetime.strptime(
-            latest_date_for_resource_termination, "%Y-%m-%d"
-        ).date()
+    options = cast(dict[str, int | str | None], offering.plugin_options)
 
-    if is_resource_termination_date_required:
-        if not end_date:
-            resource_termination_date = resource.created + datetime.timedelta(
-                days=int(default_resource_termination_offset_in_days)
-            )
-            resource_termination_date = resource_termination_date.date()
-            if latest_date_for_resource_termination:
-                resource_termination_date = min(
-                    resource_termination_date, latest_date_for_resource_termination
-                )
-            resource.end_date = resource_termination_date
-        elif max_resource_termination_offset_in_days:
-            calculated_max_end_date = resource.created + datetime.timedelta(
-                days=int(max_resource_termination_offset_in_days)
-            )
-            resource_termination_date = datetime.datetime.strptime(
-                str(end_date), "%Y-%m-%d"
-            ).date()
-            calculated_max_end_date_date = calculated_max_end_date.date()
-            if resource_termination_date > calculated_max_end_date_date:
-                raise serializers.ValidationError(
-                    {
-                        "end_date": _(
-                            "End date can not be later than the maximal date set for termination."
-                        )
-                    }
-                )
-            resource.end_date = resource_termination_date
-        else:
-            resource_termination_date = datetime.datetime.strptime(
-                str(end_date), "%Y-%m-%d"
-            ).date()
-            if latest_date_for_resource_termination:
-                if resource_termination_date > latest_date_for_resource_termination:
-                    raise serializers.ValidationError(
-                        {
-                            "end_date": _(
-                                "End date can not be later than the maximal date set for termination."
-                            )
-                        }
-                    )
-            resource.end_date = resource_termination_date
+    is_required = options.get("is_resource_termination_date_required")
+    max_offset = options.get("max_resource_termination_offset_in_days")
+    default_offset = options.get("default_resource_termination_offset_in_days")
+
+    latest_date = parse_date(options.get("latest_date_for_resource_termination"))
 
     if end_date:
-        resource.end_date_requested_by = user
+        if end_date and end_date < timezone.datetime.today().date():
+            raise serializers.ValidationError(
+                {"end_date": _("Cannot be earlier than the current date.")}
+            )
+
+        if latest_date and end_date > latest_date:
+            raise serializers.ValidationError(
+                {"end_date": _("End date exceeds global termination limit.")}
+            )
+        if isinstance(max_offset, int):
+            if end_date > created_date + datetime.timedelta(days=max_offset):
+                raise serializers.ValidationError(
+                    {"end_date": _("End date exceeds maximum allowed offset.")}
+                )
+        return end_date
+
+    if not is_required:
+        return
+
+    if not isinstance(default_offset, int):
+        raise serializers.ValidationError(
+            {"end_date": _("Missing default termination offset configuration.")}
+        )
+
+    termination_date = created_date + datetime.timedelta(days=default_offset)
+    if latest_date:
+        return min(termination_date, latest_date)
+    else:
+        return termination_date
 
 
 def sync_component_user_usage(allocation_user_usage, plugin_name):

@@ -1,7 +1,7 @@
 import datetime
 import logging
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, cast
 
 import jwt
 from dateutil.parser import parse as parse_datetime
@@ -73,6 +73,7 @@ from waldur_mastermind.marketplace.utils import (
     UsernameGenerationPolicy,
     get_service_provider_resources,
     get_service_provider_user_ids,
+    parse_date,
     validate_attributes,
     validate_end_date,
 )
@@ -2757,22 +2758,26 @@ class OrderCreateSerializer(
     def create(self, validated_data):
         request = self.context["request"]
         project: structure_models.Project = validated_data["project"]
+        attributes = validated_data.get("attributes", {})
         resource = models.Resource(
             project=project,
             offering=validated_data["offering"],
             plan=validated_data.get("plan"),
             limits=validated_data.get("limits") or {},
-            attributes=validated_data.get("attributes") or {},
-            name=validated_data.get("attributes").get("name") or "",
+            attributes=attributes,
+            name=attributes.get("name") or "",
         )
         resource.init_cost()
-        attributes = validated_data.get("attributes", {})
-        end_date = attributes.get("end_date")
-        validate_end_date(resource, request.user, end_date)
-
+        end_date = validate_end_date(
+            resource.offering,
+            resource.created.date(),
+            parse_date(attributes.get("end_date")),
+        )
         if end_date:
             resource.end_date = end_date
-            resource.end_date_requested_by = request.user
+            resource.end_date_requested_by = (
+                request.user if attributes.get("end_date") else None
+            )
 
         resource.save()
 
@@ -2822,15 +2827,16 @@ class OrderCreateSerializer(
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        attributes = attrs.get("attributes", {})
 
-        name = attrs.get("attributes").get("name") or ""
+        name = attributes.get("name") or ""
 
         if len(name) > NAME_LENGTH:
             raise ValidationError(
                 _("Name is too long. Maximum number of symbols is %s") % NAME_LENGTH
             )
 
-        offering = attrs["offering"]
+        offering = cast(models.Offering, attrs["offering"])
 
         if (
             offering.shared
@@ -2841,7 +2847,6 @@ class OrderCreateSerializer(
                 _("Terms of service for offering '%s' have not been accepted.")
                 % offering
             )
-
         return attrs
 
 
@@ -3168,11 +3173,18 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
         return end_date
 
     def save(self, **kwargs):
-        resource = super().save(**kwargs)
+        resource = cast(models.Resource, super().save(**kwargs))
         user = self.context["request"].user
 
-        validate_end_date(resource, user, self.validated_data.get("end_date"))
-        resource.save()
+        end_date = validate_end_date(
+            resource.offering,
+            resource.created.date(),
+            self.validated_data.get("end_date"),
+        )
+        if end_date:
+            resource.end_date = end_date
+            resource.end_date_requested_by = user
+            resource.save(update_fields=["end_date", "end_date_requested_by"])
         log.log_marketplace_resource_end_date_has_been_updated(resource, user)
 
 
