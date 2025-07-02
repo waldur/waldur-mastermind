@@ -25,6 +25,8 @@ Example:
     urlpatterns = router.urls
 """
 
+from __future__ import annotations
+
 import re
 from typing import Any
 
@@ -44,7 +46,7 @@ class LookupMixin:
 class NestedMixin:
     def __init__(
         self,
-        parent_router: SimpleRouter | DefaultRouter | "NestedMixin",
+        parent_router: SimpleRouter | DefaultRouter | NestedMixin,
         parent_prefix: str,
         *args: Any,
         **kwargs: Any,
