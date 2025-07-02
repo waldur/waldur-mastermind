@@ -231,11 +231,11 @@ class OIDCAuthentication(BaseAuthentication):
         except jwt.DecodeError:
             raise AuthenticationFailed("Invalid JWT token.")
 
-        introspection_url = config.get("OIDC_INTROSPECTION_URL")
-        client_id = config.get("OIDC_CLIENT_ID")
-        client_secret = config.get("OIDC_CLIENT_SECRET")
-        user_field = config.get("OIDC_USER_FIELD", "username")
-        cache_timeout = config.get("OIDC_CACHE_TIMEOUT", 300)  # default 5 min
+        introspection_url = config.OIDC_INTROSPECTION_URL
+        client_id = config.OIDC_CLIENT_ID
+        client_secret = config.OIDC_CLIENT_SECRET
+        user_field = config.OIDC_USER_FIELD
+        cache_timeout = config.OIDC_CACHE_TIMEOUT
 
         if not (introspection_url and client_id and client_secret):
             raise AuthenticationFailed("Introspection configuration is incomplete.")

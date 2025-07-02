@@ -1,6 +1,7 @@
 import httpx
 import jwt
 import respx
+from constance.test.unittest import override_config
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
@@ -186,14 +187,6 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
         self.assertTrue(b"Authentication method is disabled." in response.content)
 
 
-OIDC_SETTINGS = {
-    "OIDC_INTROSPECTION_URL": "http://oidc.example.com/introspect",
-    "OIDC_CLIENT_ID": "test-client",
-    "OIDC_CLIENT_SECRET": "test-secret",
-    "OIDC_USER_FIELD": "username",
-}
-
-
 VALID_JWT_PAYLOAD = {
     "exp": 9999999999,  # Far future
     "username": "test_user",
@@ -203,8 +196,13 @@ VALID_JWT_PAYLOAD = {
 VALID_JWT_TOKEN = jwt.encode(VALID_JWT_PAYLOAD, "test_secret")
 
 
+@override_config(
+    OIDC_INTROSPECTION_URL="http://oidc.example.com/introspect",
+    OIDC_CLIENT_ID="test-client",
+    OIDC_CLIENT_SECRET="test-secret",
+    OIDC_USER_FIELD="username",
+)
 class OIDCAuthenticationTest(test.APITransactionTestCase):
-    @helpers.override_waldur_core_settings(**OIDC_SETTINGS)
     @respx.mock
     def test_successful_authentication(self):
         """Test successful authentication with valid token and introspection response"""
@@ -221,7 +219,6 @@ class OIDCAuthenticationTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.data["username"], "test_user")
 
-    @helpers.override_waldur_core_settings(**OIDC_SETTINGS)
     @respx.mock
     def test_user_is_not_active(self):
         respx.post("http://oidc.example.com/introspect").mock(
@@ -237,7 +234,6 @@ class OIDCAuthenticationTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     @respx.mock
-    @helpers.override_waldur_core_settings(**OIDC_SETTINGS)
     def test_expired_token(self):
         """Test that authentication fails with expired JWT token"""
         expired_payload = {
@@ -253,7 +249,6 @@ class OIDCAuthenticationTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(response.data["detail"], "Token has expired.")
 
-    @helpers.override_waldur_core_settings(**OIDC_SETTINGS)
     @respx.mock
     def test_user_created_if_not_exists(self):
         """Test that a new user is created when they don't exist in the system"""
