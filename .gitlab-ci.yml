@@ -25,6 +25,18 @@ include:
 before_script:
   - export
 
+.build_before_script: &build_before_script
+  - echo "[+] Adding SSH keys to the home directory"
+  - mkdir -p ~/.ssh
+  - cat "$SSH_JENKINS_GITHUB_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+  - cat "$SSH_JENKINS_GITHUB_PUBLIC_KEY" | tr -d '\r' > ~/.ssh/id_rsa.pub
+  - chmod 600 ~/.ssh/id_rsa
+  - chmod 600 ~/.ssh/id_rsa.pub
+  - ssh-keygen -lf ~/.ssh/id_rsa.pub
+  - ssh-keyscan -H "github.com" >> ~/.ssh/known_hosts
+  - git config --global user.name "$GITLAB_USER_NAME"
+  - git config --global user.email "$GITLAB_USER_EMAIL"
+
 Run linters:
   image: registry.hpc.ut.ee/mirror/library/python:3.11-bullseye
   stage: test
@@ -489,17 +501,7 @@ Upload Go SDK:
     - git add client.go
     - git commit -m "Update Waldur Go SDK" || exit 0
     - git push
-  before_script:
-    - echo "[+] Adding ssh keys to the home directory"
-    - mkdir -p ~/.ssh
-    - cat $SSH_JENKINS_GITHUB_PRIVATE_KEY | tr -d '\r' > ~/.ssh/id_rsa
-    - cat $SSH_JENKINS_GITHUB_PUBLIC_KEY | tr -d '\r' > ~/.ssh/id_rsa.pub
-    - chmod 600 ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa.pub
-    - ssh-keygen -lf ~/.ssh/id_rsa.pub
-    - ssh-keyscan -H "github.com" >> ~/.ssh/known_hosts
-    - git config --global user.email "ci@waldur.com"
-    - git config --global user.name "Waldur Gitlab Runner"
+  before_script: *build_before_script
 
 Upload Python SDK:
   stage: postdeploy
@@ -520,17 +522,7 @@ Upload Python SDK:
     - git add waldur_api_client
     - git commit -m "Update Waldur Python SDK" || exit 0
     - git push
-  before_script:
-    - echo "[+] Adding ssh keys to the home directory"
-    - mkdir -p ~/.ssh
-    - cat $SSH_JENKINS_GITHUB_PRIVATE_KEY | tr -d '\r' > ~/.ssh/id_rsa
-    - cat $SSH_JENKINS_GITHUB_PUBLIC_KEY | tr -d '\r' > ~/.ssh/id_rsa.pub
-    - chmod 600 ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa.pub
-    - ssh-keygen -lf ~/.ssh/id_rsa.pub
-    - ssh-keyscan -H "github.com" >> ~/.ssh/known_hosts
-    - git config --global user.email "ci@waldur.com"
-    - git config --global user.name "Waldur Gitlab Runner"
+  before_script: *build_before_script
 
 Upload Terraform SDK:
   stage: postdeploy
@@ -551,17 +543,7 @@ Upload Terraform SDK:
     - git add waldur_terraform_sdk
     - git commit -m "Update Waldur Terraform SDK" || exit 0
     - git push
-  before_script:
-    - echo "[+] Adding ssh keys to the home directory"
-    - mkdir -p ~/.ssh
-    - cat $SSH_JENKINS_GITHUB_PRIVATE_KEY | tr -d '\r' > ~/.ssh/id_rsa
-    - cat $SSH_JENKINS_GITHUB_PUBLIC_KEY | tr -d '\r' > ~/.ssh/id_rsa.pub
-    - chmod 600 ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa.pub
-    - ssh-keygen -lf ~/.ssh/id_rsa.pub
-    - ssh-keyscan -H "github.com" >> ~/.ssh/known_hosts
-    - git config --global user.email "ci@waldur.com"
-    - git config --global user.name "Waldur Gitlab Runner"
+  before_script: *build_before_script
 
 Generate OpenAPI schema diff:
   stage: deploy
@@ -669,14 +651,4 @@ Upload TypeScript SDK:
     - git add src
     - git commit -m "Update Waldur TypeScript SDK" || exit 0
     - git push
-  before_script:
-    - echo "[+] Adding ssh keys to the home directory"
-    - mkdir -p ~/.ssh
-    - cat $SSH_JENKINS_GITHUB_PRIVATE_KEY | tr -d '\r' > ~/.ssh/id_rsa
-    - cat $SSH_JENKINS_GITHUB_PUBLIC_KEY | tr -d '\r' > ~/.ssh/id_rsa.pub
-    - chmod 600 ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa.pub
-    - ssh-keygen -lf ~/.ssh/id_rsa.pub
-    - ssh-keyscan -H "github.com" >> ~/.ssh/known_hosts
-    - git config --global user.email "ci@waldur.com"
-    - git config --global user.name "Waldur Gitlab Runner"
+  before_script: *build_before_script
