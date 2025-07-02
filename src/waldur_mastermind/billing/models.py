@@ -9,6 +9,7 @@ from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.billing.utils import aggregate_invoice_items_sum
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoices_utils
 
@@ -36,23 +37,23 @@ class PriceEstimate(core_models.UuidMixin, models.Model):
     def get_estimated_models(cls):
         return structure_models.Project, structure_models.Customer
 
-    def _get_sum(self, year, month, field):
+    def _get_sum(self, year, month, current: bool, tax: bool):
         if not self.scope:
             return 0
         items = invoices_models.InvoiceItem.objects.filter(
             invoice__year=year, invoice__month=month
-        )
+        ).select_related("invoice")
         if self.content_type.model_class() == structure_models.Project:
             items = items.filter(project__uuid=self.scope.uuid.hex)
         elif self.content_type.model_class() == structure_models.Customer:
             items = items.filter(invoice__customer=self.scope)
-        return sum(getattr(item, field) for item in items)
+        return aggregate_invoice_items_sum(items, current, tax)
 
     def get_total(self, year, month, current=False):
-        return self._get_sum(year, month, current and "price_current" or "price")
+        return self._get_sum(year, month, current, False)
 
     def get_tax(self, year, month, current=False):
-        return self._get_sum(year, month, current and "tax_current" or "tax")
+        return self._get_sum(year, month, current, True)
 
     def update_total(self):
         current_year = invoices_utils.get_current_year()
