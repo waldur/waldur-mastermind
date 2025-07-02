@@ -970,6 +970,19 @@ class ProtectedCallSerializer(PublicCallSerializer):
         validated_data["created_by"] = request.user
         return super().create(validated_data)
 
+    def update(self, instance, validated_data):
+        if "fixed_duration_in_days" in validated_data:
+            fixed_duration_in_days = validated_data["fixed_duration_in_days"]
+            proposals = models.Proposal.objects.filter(
+                round__call=instance,
+                state__in=[ProposalStates.DRAFT, ProposalStates.IN_REVIEW],
+            )
+            for proposal in proposals:
+                proposal.duration_in_days = fixed_duration_in_days
+                proposal.save()
+
+        return super().update(instance, validated_data)
+
 
 class ProtectedRoundSerializer(
     core_serializers.AugmentedSerializerMixin, NestedRoundSerializer
