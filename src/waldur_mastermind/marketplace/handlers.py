@@ -872,20 +872,37 @@ def resource_has_been_changed(sender, instance: Resource, created=False, **kwarg
 
     for field, old_value in sorted(changed_fields.items()):
         if field == "state":
-            old_value = models.Resource.get_state_display(
+            old_value_display = models.Resource.get_state_display(
                 models.Resource(state=old_value)
             )
-            new_value = instance.get_state_display()
+            new_value_display = instance.get_state_display()
+            # Skip if display values are equal
+            if old_value_display == new_value_display:
+                continue
+            old_value = old_value_display
+            new_value = new_value_display
         elif field == "project_id":
-            old_value = get_relative_object_name("project_id", old_value)
-            new_value = get_relative_object_name("project_id", getattr(instance, field))
+            old_value_display = get_relative_object_name("project_id", old_value)
+            new_value_display = get_relative_object_name(
+                "project_id", getattr(instance, field)
+            )
+            if old_value_display == new_value_display:
+                continue
+            old_value = old_value_display
+            new_value = new_value_display
         elif field == "offering_id":
-            old_value = get_relative_object_name("offering_id", old_value)
-            new_value = get_relative_object_name(
+            old_value_display = get_relative_object_name("offering_id", old_value)
+            new_value_display = get_relative_object_name(
                 "offering_id", getattr(instance, field)
             )
+            if old_value_display == new_value_display:
+                continue
+            old_value = old_value_display
+            new_value = new_value_display
         else:
             new_value = getattr(instance, field)
+            if old_value == new_value:
+                continue
 
         if not old_value and not new_value:
             continue

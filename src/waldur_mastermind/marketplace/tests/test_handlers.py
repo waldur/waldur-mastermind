@@ -23,6 +23,9 @@ from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
 class ResourceHandlerTest(APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
     def test_marketplace_resource_name_should_be_updated_if_resource_name_in_plugin_is_updated(
         self,
     ):
@@ -40,37 +43,36 @@ class ResourceHandlerTest(APITransactionTestCase):
         """
         This test ensures that the resource update log is only created once in the resource_update_succeeded callback.
         """
-        fixture = fixtures.MarketplaceFixture()
 
         # Get the existing component and make it LIMIT type
-        offering_component = fixture.offering_component
+        offering_component = self.fixture.offering_component
         offering_component.billing_type = BillingTypes.LIMIT
         offering_component.save()
 
         # Set initial resource state
-        fixture.resource.limits = {offering_component.type: 20}
-        fixture.resource.state = ResourceStates.OK
-        fixture.resource.plan = fixture.plan
-        fixture.resource.save()  # Save initial state
+        self.fixture.resource.limits = {offering_component.type: 20}
+        self.fixture.resource.state = ResourceStates.OK
+        self.fixture.resource.plan = self.fixture.plan
+        self.fixture.resource.save()  # Save initial state
 
         # Create update order
-        order = fixture.update_order
+        order = self.fixture.update_order
         order.limits = {offering_component.type: 16}
         order.save()
 
         # Clear existing events
         Event.objects.filter(
             event_type="marketplace_resource_update_succeeded",
-            context__resource_uuid=str(fixture.resource.uuid),
+            context__resource_uuid=str(self.fixture.resource.uuid),
         ).delete()
 
         # Execute callback
         with transaction.atomic():
-            callbacks.resource_update_succeeded(fixture.resource)
+            callbacks.resource_update_succeeded(self.fixture.resource)
 
         event_count = Event.objects.filter(
             event_type="marketplace_resource_update_succeeded",
-            context__resource_uuid=str(fixture.resource.uuid),
+            context__resource_uuid=str(self.fixture.resource.uuid),
         ).count()
 
         self.assertEqual(
@@ -83,15 +85,14 @@ class ResourceHandlerTest(APITransactionTestCase):
         """
         This test ensures that the resource update log is not created when only blacklisted fields are updated.
         """
-        fixture = fixtures.MarketplaceFixture()
         Event.objects.all().delete()
         # Update a blacklisted field ( backend_metadata )
-        fixture.resource.backend_metadata = {"some": "metadata"}
-        fixture.resource.save()
+        self.fixture.resource.backend_metadata = {"some": "metadata"}
+        self.fixture.resource.save()
 
         event_count = Event.objects.filter(
             event_type="marketplace_resource_update_succeeded",
-            context__resource_uuid=str(fixture.resource.uuid),
+            context__resource_uuid=str(self.fixture.resource.uuid),
         ).count()
 
         self.assertEqual(
@@ -105,19 +106,17 @@ class ResourceHandlerTest(APITransactionTestCase):
         This test ensures that when multiple non-blacklisted fields are updated,
         only one event is created.
         """
-        fixture = fixtures.MarketplaceFixture()
-
         # Clear existing events
         Event.objects.all().delete()
 
         # Update multiple non-blacklisted fields
-        fixture.resource.name = "New name"
-        fixture.resource.description = "New description"
-        fixture.resource.save()
+        self.fixture.resource.name = "New name"
+        self.fixture.resource.description = "New description"
+        self.fixture.resource.save()
 
         event_count = Event.objects.filter(
             event_type="marketplace_resource_update_succeeded",
-            context__resource_uuid=str(fixture.resource.uuid),
+            context__resource_uuid=str(self.fixture.resource.uuid),
         ).count()
 
         self.assertEqual(
@@ -227,6 +226,74 @@ class ResourceHandlerTest(APITransactionTestCase):
 
         service_settings.refresh_from_db()
         self.assertFalse(service_settings.is_active)
+
+    def test_resource_update_log_skipped_for_noop_change(self):
+        """
+        This test ensures that the resource update log is not created when a field is set to the same value.
+        """
+        Event.objects.all().delete()
+        # Simulate a no-op change
+        resource = self.fixture.resource
+        resource.name = resource.name  # set to same value
+        resource.tracker.changed = lambda: {"name": resource.name}  # fake tracker
+        marketplace_handlers.resource_has_been_changed(
+            sender=type(resource), instance=resource, created=False
+        )
+        event_count = Event.objects.filter(
+            event_type="marketplace_resource_update_succeeded",
+            context__resource_uuid=str(resource.uuid),
+        ).count()
+        self.assertEqual(
+            event_count,
+            0,
+            f"Expected 0 events for no-op change, got {event_count}",
+        )
+
+    def test_resource_update_log_created_for_real_change(self):
+        """
+        This test ensures that the resource update log is created when a real change happens.
+        """
+
+        Event.objects.all().delete()
+        resource = self.fixture.resource
+        old_name = resource.name
+        resource.name = "A new name!"
+        resource.tracker.changed = lambda: {"name": old_name}  # fake tracker
+        marketplace_handlers.resource_has_been_changed(
+            sender=type(resource), instance=resource, created=False
+        )
+        event_count = Event.objects.filter(
+            event_type="marketplace_resource_update_succeeded",
+            context__resource_uuid=str(resource.uuid),
+        ).count()
+        self.assertEqual(
+            event_count,
+            1,
+            f"Expected 1 event for real change, got {event_count}",
+        )
+
+    def test_resource_update_log_skipped_for_state_noop_display(self):
+        """
+        This test ensures that the resource update log is not created when the state field changes but the display value does not change.
+        """
+        fixture = fixtures.MarketplaceFixture()
+        Event.objects.all().delete()
+        resource = fixture.resource
+        # Simulate a state change where display value is the same
+        resource.state = resource.state  # set to same value
+        resource.tracker.changed = lambda: {"state": resource.state}  # fake tracker
+        marketplace_handlers.resource_has_been_changed(
+            sender=type(resource), instance=resource, created=False
+        )
+        event_count = Event.objects.filter(
+            event_type="marketplace_resource_update_succeeded",
+            context__resource_uuid=str(resource.uuid),
+        ).count()
+        self.assertEqual(
+            event_count,
+            0,
+            f"Expected 0 events for state display no-op, got {event_count}",
+        )
 
 
 class UpdateOfferingUserUsernameAfterUserChangeTest(APITransactionTestCase):
