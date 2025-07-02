@@ -523,6 +523,7 @@ class OrderTermsOfServiceCreateTest(BaseOrderCreateTest):
 
 
 class OrderEndDateCreateTest(BaseOrderCreateTest):
+    @freeze_time("2024-01-01")
     def test_set_end_date(self):
         user = self.fixture.staff
         response = self.create_order(
@@ -548,6 +549,18 @@ class OrderEndDateCreateTest(BaseOrderCreateTest):
         resource = models.Resource.objects.last()
         end_date = resource.created + datetime.timedelta(days=7)
         self.assertEqual(resource.end_date, end_date.date())
+
+    def test_missing_default_offset_configuration(self):
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        offering.plugin_options = {
+            "is_resource_termination_date_required": True,
+            # Missing default_resource_termination_offset_in_days
+        }
+        offering.save()
+
+        response = self.create_order(self.fixture.owner, offering)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("end_date", response.data)
 
     @freeze_time("2022-01-01")
     def test_resource_is_not_created_if_end_date_later_than_max_end_date(self):
@@ -599,6 +612,46 @@ class OrderEndDateCreateTest(BaseOrderCreateTest):
         }
         offering.save()
         end_date = datetime.date(2031, 12, 25)
+
+        response = self.create_order(
+            self.fixture.owner,
+            offering,
+            {"attributes": {"name": "test", "end_date": end_date}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @freeze_time("2022-01-01")
+    def test_default_date_truncated_by_global_limit(self):
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        offering.plugin_options = {
+            "is_resource_termination_date_required": True,
+            "default_resource_termination_offset_in_days": 3650,  # 10 years
+            "latest_date_for_resource_termination": "2025-01-01",
+        }
+        offering.save()
+
+        response = self.create_order(self.fixture.owner, offering)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        resource = models.Resource.objects.last()
+        self.assertEqual(resource.end_date, datetime.date(2025, 1, 1))
+
+    def test_malformed_date_string(self):
+        response = self.create_order(
+            self.fixture.staff,
+            add_payload={"attributes": {"end_date": "2025/01/01"}},  # Wrong format
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("end_date", response.data)
+
+    @freeze_time("2022-01-01")
+    def test_end_date_before_creation_date(self):
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        offering.plugin_options = {
+            "is_resource_termination_date_required": True,
+        }
+        offering.save()
+        end_date = datetime.date(2021, 12, 31)  # Before creation date
 
         response = self.create_order(
             self.fixture.owner,
