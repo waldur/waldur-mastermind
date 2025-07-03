@@ -1,3 +1,5 @@
+from urllib.parse import urlencode
+
 import factory.fuzzy
 from rest_framework.authtoken import models as authtoken_models
 from rest_framework.reverse import reverse
@@ -119,8 +121,12 @@ class CustomerFactory(
         return url if action is None else url + action + "/"
 
     @classmethod
-    def get_list_url(cls):
-        return "http://testserver" + reverse("customer-list")
+    def get_list_url(cls, fields=None):
+        url = "http://testserver" + reverse("customer-list")
+        if fields is not None:
+            query_string = urlencode({"field": fields}, doseq=True)
+            url += f"?{query_string}"
+        return url
 
 
 class ProjectFactory(

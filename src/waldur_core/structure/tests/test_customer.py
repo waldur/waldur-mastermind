@@ -1,5 +1,6 @@
 import datetime
 from unittest import mock
+from urllib.parse import urlencode
 
 from ddt import data, ddt
 from django.urls import reverse
@@ -29,10 +30,14 @@ class CustomerBaseTest(test.APITransactionTestCase):
     def setUp(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_PROJECTS)
 
-    def _get_customer_url(self, customer):
-        return "http://testserver" + reverse(
+    def _get_customer_url(self, customer, fields=None):
+        url = "http://testserver" + reverse(
             "customer-detail", kwargs={"uuid": customer.uuid.hex}
         )
+        if fields is not None:
+            query_string = urlencode({"field": fields}, doseq=True)
+            url += f"?{query_string}"
+        return url
 
     def _get_project_url(self, project):
         return "http://testserver" + reverse(
@@ -95,7 +100,9 @@ class CustomerListTest(CustomerBaseTest):
     def test_user_can_see_project_he_has_a_role_in_within_customer(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
-        response = self.client.get(self._get_customer_url(self.fixture.customer))
+        response = self.client.get(
+            self._get_customer_url(self.fixture.customer, fields=["projects", "url"])
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         project_urls = set([project["url"] for project in response.data["projects"]])
@@ -111,7 +118,9 @@ class CustomerListTest(CustomerBaseTest):
 
         non_seen_project = factories.ProjectFactory(customer=self.fixture.customer)
 
-        response = self.client.get(self._get_customer_url(self.fixture.customer))
+        response = self.client.get(
+            self._get_customer_url(self.fixture.customer, fields=["projects", "url"])
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         project_urls = set([project["url"] for project in response.data["projects"]])
@@ -140,7 +149,7 @@ class CustomerListTest(CustomerBaseTest):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(len(response.data[0]["projects"]), 0)
+        self.assertEqual(response.data[0]["projects_count"], 0)
 
         response = self.client.get(url, {"query": "abc"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -149,7 +158,7 @@ class CustomerListTest(CustomerBaseTest):
         response = self.client.get(url, {"query": customer_name})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(len(response.data[0]["projects"]), 0)
+        self.assertEqual(response.data[0]["projects_count"], 0)
 
     # Helper methods
     def _check_user_list_access_customers(self, customer, test_function):
