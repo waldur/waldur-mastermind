@@ -800,6 +800,11 @@ class ProjectPermissionLogSerializer(
                 "lookup_field": "uuid",
                 "read_only": True,
             },
+            "role": {
+                "view_name": "role-detail",
+                "lookup_field": "uuid",
+                "read_only": True,
+            },
         }
 
 
