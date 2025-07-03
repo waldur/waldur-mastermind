@@ -7,6 +7,7 @@ from rest_framework import status, test
 
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace_rancher.const import OS_LB_PREFIX
 from waldur_openstack.tests import factories as os_factories
 from waldur_rancher import models as rancher_models
 from waldur_rancher.tests import fixtures
@@ -87,7 +88,7 @@ class ManagedRancherClusterIPTest(test.APITransactionTestCase):
             service_settings=service_settings,
         )
 
-        self.instance.name = f"k8s-lb-{self.resource.slug}"
+        self.instance.name = f"{OS_LB_PREFIX}{self.resource.slug}"
         self.instance.ports.add(self.port)
         self.instance.subnets.add(self.subnet)
         self.instance.save()

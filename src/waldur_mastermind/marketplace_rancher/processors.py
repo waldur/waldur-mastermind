@@ -40,12 +40,7 @@ from waldur_rancher import models as rancher_models
 from waldur_rancher import views as rancher_views
 from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE, NodeRoleType
 
-from . import PLUGIN_NAME, serializers
-
-OS_LB_SECURITY_GROUPS = ["k8s_admin", "k8s_public"]
-OS_SUBNET_4_OCTET_START_IP = 11
-OS_SUBNET_4_OCTET_END_IP = 200
-OS_LB_VM_4_OCTET_IP = 10
+from . import PLUGIN_NAME, const, serializers
 
 
 class RancherCreateProcessor(processors.BaseCreateResourceProcessor):
@@ -77,7 +72,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         self.create_security_groups(tenants)
         load_balancers = self.create_load_balancers(user, project, tenants)
         cluster_resource = self.create_cluster(user, project, tenants)
-        for sg in OS_LB_SECURITY_GROUPS:
+        for sg in const.OS_LB_SECURITY_GROUPS:
             rancher_models.ClusterSecurityGroup.objects.create(
                 cluster=cast(rancher_models.Cluster, cluster_resource.scope),
                 name=sg,
@@ -201,8 +196,8 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 continue
 
             network = ip_network(subnet.cidr, strict=False)
-            first_host = network.network_address + OS_SUBNET_4_OCTET_START_IP
-            last_host = network.network_address + OS_SUBNET_4_OCTET_END_IP
+            first_host = network.network_address + const.OS_SUBNET_4_OCTET_START_IP
+            last_host = network.network_address + const.OS_SUBNET_4_OCTET_END_IP
 
             subnet.allocation_pools = [
                 {
@@ -454,7 +449,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
     ):
         view = os_views.TenantViewSet.as_view({"post": "create_security_group"})
         for tenant in tenants:
-            for group in OS_LB_SECURITY_GROUPS:
+            for group in const.OS_LB_SECURITY_GROUPS:
                 # Wait for tenant to become OK in case if it is being pulled
                 wait_for_tenant(tenant.uuid)
                 response = create_request(
@@ -529,16 +524,16 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             )
             security_groups = os_models.SecurityGroup.objects.filter(
                 tenant=tenant,
-                name__in=OS_LB_SECURITY_GROUPS + ["default"],
+                name__in=const.OS_LB_SECURITY_GROUPS + ["default"],
             )
             subnet_3_oct = subnet.cidr.rsplit(".", maxsplit=1)[0]
             cloud_init_scipt = cloud_init_template.format(subnet_3_oct=subnet_3_oct)
 
             network = ip_network(subnet.cidr, strict=False)
-            lb_address = str(network.network_address + OS_LB_VM_4_OCTET_IP)
+            lb_address = str(network.network_address + const.OS_LB_VM_4_OCTET_IP)
 
             post_data = {
-                "name": f"k8s-lb-{self.order.resource.slug}",
+                "name": f"{const.OS_LB_PREFIX}{self.order.resource.slug}",
                 "flavor": reverse(
                     "openstack-flavor-detail", kwargs={"uuid": flavor.uuid.hex}
                 ),
