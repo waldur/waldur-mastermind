@@ -19,6 +19,7 @@ from waldur_mastermind.marketplace.utils import (
 )
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN
+from waldur_mastermind.marketplace_rancher.const import OS_LB_PREFIX
 from waldur_openstack import models as openstack_models
 from waldur_rancher.exceptions import RancherException
 from waldur_rancher.models import Cluster, ClusterPublicIP, RancherUser
@@ -270,10 +271,10 @@ def create_public_cluster_ip_for_floating_ip(
 
     # Naming convention for Managed Rancher load balancer IPs
     # See ManagedRancherCreateProcessor.create_load_balancers method for details
-    if not floating_ip_instance.name.startswith("k8s-lb-"):
+    if not floating_ip_instance.name.startswith(OS_LB_PREFIX):
         return
 
-    resource_slug = floating_ip_instance.name.replace("k8s-lb-", "", 1)
+    resource_slug = floating_ip_instance.name.replace(OS_LB_PREFIX, "", 1)
 
     resource = marketplace_models.Resource.objects.filter(slug=resource_slug).first()
 
