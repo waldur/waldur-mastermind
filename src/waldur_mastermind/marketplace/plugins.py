@@ -1,26 +1,17 @@
 import logging
+from dataclasses import dataclass
 
 
+@dataclass
 class Component:
-    def __init__(
-        self,
-        type,
-        name,
-        measured_unit,
-        billing_type,
-        factor=1,
-        description="",
-        limit_period="",
-        limit_amount=None,
-    ):
-        self.type = type
-        self.name = name
-        self.measured_unit = measured_unit
-        self.billing_type = billing_type
-        self.factor = factor
-        self.description = description
-        self.limit_period = limit_period
-        self.limit_amount = limit_amount
+    type: str
+    name: str
+    measured_unit: str
+    billing_type: str
+    factor: int = 1
+    description: str = ""
+    limit_period: str = ""
+    limit_amount: int | None = None
 
     def _asdict(self):
         # Note that factor is not serialized to dict because it is not stored in the database.
