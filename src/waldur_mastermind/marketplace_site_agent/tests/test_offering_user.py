@@ -13,8 +13,8 @@ from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
-from waldur_mastermind.marketplace_slurm_remote.tests.fixtures import GlauthUserFixture
+from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME
+from waldur_mastermind.marketplace_site_agent.tests.fixtures import GlauthUserFixture
 
 
 class OfferingUserCreationTest(test.APITransactionTestCase):

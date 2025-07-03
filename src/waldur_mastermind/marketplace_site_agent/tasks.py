@@ -9,7 +9,7 @@ from waldur_core.logging import utils as logging_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OfferingStates, OrderStates
-from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, utils
+from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME, utils
 
 
 def get_offering_ids_for_active_subscriptions(observable_object_type: str):
@@ -34,7 +34,7 @@ def get_offering_ids_for_active_subscriptions(observable_object_type: str):
     return offering_ids
 
 
-@shared_task(name="waldur_mastermind.marketplace_slurm_remote.sync_offering_users")
+@shared_task(name="waldur_mastermind.marketplace_site_agent.sync_offering_users")
 def sync_offering_users():
     offerings = marketplace_models.Offering.objects.filter(
         type=PLUGIN_NAME,
@@ -51,7 +51,7 @@ def sync_offering_users():
 
 
 @shared_task(
-    name="waldur_mastermind.marketplace_slurm_remote.mark_offering_backend_as_disconnected_after_timeout"
+    name="waldur_mastermind.marketplace_site_agent.mark_offering_backend_as_disconnected_after_timeout"
 )
 def mark_offering_backend_as_disconnected_after_timeout():
     one_hour_ago = timezone.now() - datetime.timedelta(hours=1)
@@ -65,7 +65,7 @@ def mark_offering_backend_as_disconnected_after_timeout():
         integration_status.save(update_fields=["status"])
 
 
-@shared_task(name="waldur_mastermind.marketplace_slurm_remote.sync_resources")
+@shared_task(name="waldur_mastermind.marketplace_site_agent.sync_resources")
 def sync_resources():
     """
     Sync resources that haven't been updated in the last hour.
@@ -87,7 +87,7 @@ def sync_resources():
 
 
 @shared_task(
-    name="waldur_mastermind.marketplace_slurm_remote.send_messages_about_pending_orders"
+    name="waldur_mastermind.marketplace_site_agent.send_messages_about_pending_orders"
 )
 def send_messages_about_pending_orders():
     """Send a message about pending orders created 1 hour ago to MQTT"""

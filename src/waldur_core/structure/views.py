@@ -60,7 +60,7 @@ from waldur_core.structure.utils import get_components_usage_data_from_resources
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.enums import ResourceStates
-from waldur_mastermind.marketplace_slurm_remote import utils as remote_slurm_utils
+from waldur_mastermind.marketplace_site_agent import utils as remote_slurm_utils
 
 logger = logging.getLogger(__name__)
 

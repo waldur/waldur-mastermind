@@ -7,7 +7,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.models import OfferingUser, Order
-from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, utils
+from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME, utils
 
 logger = logging.getLogger(__name__)
 
