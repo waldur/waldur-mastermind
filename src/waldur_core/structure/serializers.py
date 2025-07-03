@@ -476,6 +476,10 @@ class CustomerSerializer(
             "url": {"lookup_field": "uuid"},
         }
 
+    def get_optional_fields(self):
+        # Make 'projects' field optional, only rendered if requested via ?field=projects
+        return super().get_optional_fields() + ["projects"]
+
     def get_fields(self):
         fields = super().get_fields()
 
