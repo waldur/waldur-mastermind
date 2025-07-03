@@ -3,14 +3,14 @@ from rest_framework import status, test
 from waldur_core.core.enums import CoreStates
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories
-from waldur_mastermind.marketplace_slurm_remote.tests import (
-    fixtures as marketplace_slurm_remote_fixtures,
+from waldur_mastermind.marketplace_site_agent.tests import (
+    fixtures as site_agent_fixtures,
 )
 
 
 class UnlinkTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = marketplace_slurm_remote_fixtures.MarketplaceSlurmRemoteFixture()
+        self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
         self.url = factories.ResourceFactory.get_url(
             self.fixture.resource, action="unlink"
         )

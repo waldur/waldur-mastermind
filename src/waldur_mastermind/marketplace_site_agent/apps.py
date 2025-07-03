@@ -3,7 +3,7 @@ from django.db.models import signals
 
 
 class MarketplaceSlurmConfig(AppConfig):
-    name = "waldur_mastermind.marketplace_slurm_remote"
+    name = "waldur_mastermind.marketplace_site_agent"
     verbose_name = "Marketplace SLURM Remote"
     service_name = "SLURM remote"
 
@@ -11,12 +11,12 @@ class MarketplaceSlurmConfig(AppConfig):
         from waldur_core.permissions import signals as permission_signals
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
-        from waldur_mastermind.marketplace_slurm_remote import (
+        from waldur_mastermind.marketplace_site_agent import (
             PLUGIN_NAME,
             handlers,
             processor,
         )
-        from waldur_mastermind.marketplace_slurm_remote import (
+        from waldur_mastermind.marketplace_site_agent import (
             registrators as slurm_registrators,
         )
 
@@ -34,33 +34,33 @@ class MarketplaceSlurmConfig(AppConfig):
         signals.post_save.connect(
             handlers.send_done_order_to_message_queue,
             sender=marketplace_models.Order,
-            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_done_order_to_message_queue",
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_done_order_to_message_queue",
         )
 
         signals.post_save.connect(
             handlers.send_pending_order_to_message_queue,
             sender=marketplace_models.Order,
-            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_pending_order_to_message_queue",
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_pending_order_to_message_queue",
         )
 
         signals.post_save.connect(
             handlers.send_offering_user_username_message,
             sender=marketplace_models.OfferingUser,
-            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_offering_user_username_message",
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_offering_user_username_message",
         )
 
         signals.post_save.connect(
             handlers.send_resource_update_message_to_mqtt,
             sender=marketplace_models.Resource,
-            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_resource_status_changed_message_to_mqtt",
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_resource_status_changed_message_to_mqtt",
         )
 
         permission_signals.role_granted.connect(
             handlers.send_role_granted_message_to_mqtt,
-            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_role_granted_message_to_mqtt",
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_role_granted_message_to_mqtt",
         )
 
         permission_signals.role_revoked.connect(
             handlers.send_role_revoked_message_to_mqtt,
-            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_role_revoked_message_to_mqtt",
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_role_revoked_message_to_mqtt",
         )

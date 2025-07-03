@@ -7,11 +7,11 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
+from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME
 from waldur_slurm.tests import factories as slurm_factories
 
 
-class MarketplaceSlurmRemoteFixture(marketplace_fixtures.MarketplaceFixture):
+class MarketplaceSiteAgentFixture(marketplace_fixtures.MarketplaceFixture):
     @cached_property
     def offering(self):
         return marketplace_factories.OfferingFactory(

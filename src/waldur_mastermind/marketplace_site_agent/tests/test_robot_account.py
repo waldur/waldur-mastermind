@@ -7,7 +7,7 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
+from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME
 
 
 class RobotAccountGlauthConfigTest(test.APITransactionTestCase):

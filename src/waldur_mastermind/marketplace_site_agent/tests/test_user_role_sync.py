@@ -8,7 +8,7 @@ from waldur_core.logging.tests import factories as logging_factories
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
+from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME
 
 
 class UserRoleSyncAPITest(test.APITransactionTestCase):

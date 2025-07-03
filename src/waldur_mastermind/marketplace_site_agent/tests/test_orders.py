@@ -14,9 +14,9 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, tasks
-from waldur_mastermind.marketplace_slurm_remote.tests import (
-    fixtures as marketplace_slurm_remote_fixtures,
+from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME, tasks
+from waldur_mastermind.marketplace_site_agent.tests import (
+    fixtures as site_agent_fixtures,
 )
 
 
@@ -77,7 +77,7 @@ class SendMessagesAboutPendingOrdersTest(test.APITransactionTestCase):
 
 class AllocationDeleteTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = marketplace_slurm_remote_fixtures.MarketplaceSlurmRemoteFixture()
+        self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
         self.allocation = self.fixture.allocation
         self.resource = self.fixture.resource
         self.order = marketplace_factories.OrderFactory(
@@ -149,7 +149,7 @@ class AllocationDeleteTest(test.APITransactionTestCase):
 
 class AllocationCreationFailureTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = marketplace_slurm_remote_fixtures.MarketplaceSlurmRemoteFixture()
+        self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
         self.offering = self.fixture.offering
 
         # Add APPROVE_ORDER permission to staff user
@@ -232,7 +232,7 @@ class AllocationCreationFailureTest(test.APITransactionTestCase):
 
 class AllocationCleanupTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = marketplace_slurm_remote_fixtures.MarketplaceSlurmRemoteFixture()
+        self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
         self.allocation = self.fixture.allocation
         self.resource = self.fixture.resource
         self.project = self.fixture.project

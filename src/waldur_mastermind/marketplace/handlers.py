@@ -38,8 +38,8 @@ from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
 )
 from waldur_mastermind.marketplace_script import PLUGIN_NAME as SCRIPT_PLUGIN_NAME
-from waldur_mastermind.marketplace_slurm_remote import (
-    PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
+from waldur_mastermind.marketplace_site_agent import (
+    PLUGIN_NAME as SITE_AGENT_PLUGIN_NAME,
 )
 
 from . import PLUGIN_NAME, callbacks, log, models, tasks, utils
@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 OFFERING_USER_ALLOWED_OFFERING_TYPES = [
     PLUGIN_NAME,
-    SLURM_REMOTE_PLUGIN_NAME,
+    SITE_AGENT_PLUGIN_NAME,
     SCRIPT_PLUGIN_NAME,
 ]
 
