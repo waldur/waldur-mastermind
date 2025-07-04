@@ -1,11 +1,16 @@
+from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
+from waldur_core.logging import models as logging_models
 from waldur_core.permissions import models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.tests import factories
 from waldur_core.structure.models import Project
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace.tests import fixtures
 
@@ -227,3 +232,36 @@ class RoleUpdateDescriptionsTest(test.APITransactionTestCase):
         self.role.refresh_from_db()
         self.assertEqual(self.role.description_en, "Only English updated")
         self.assertEqual(self.role.description_et, "Old description in Estonian")
+
+
+@override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+class UserDeactivationTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.user = self.fixture.owner
+        self.customer = self.fixture.customer
+        self.role = UserRole.objects.get(user=self.user, is_active=True)
+
+    def test_user_deactivated_when_last_role_revoked(self):
+        self.role.revoke()
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="user_deactivated_no_roles"
+            ).exists()
+        )
+
+    def test_user_not_deactivated_if_still_has_roles(self):
+        self.customer.add_user(self.user, ServiceProviderRole.MANAGER)
+        self.role.revoke()
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_active)
+
+    def test_staff_not_deactivated(self):
+        staff = structure_factories.UserFactory(is_active=True, is_staff=True)
+        self.customer.add_user(staff, CustomerRole.OWNER)
+        staff_role = UserRole.objects.get(user=staff, is_active=True)
+        staff_role.revoke()
+        staff.refresh_from_db()
+        self.assertTrue(staff.is_active)
