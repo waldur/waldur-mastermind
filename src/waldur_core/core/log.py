@@ -62,6 +62,7 @@ class UserEventLogger(EventLogger):
             "user_deletion_succeeded",
             "user_password_updated",
             "user_activated",
+            "user_deactivated_no_roles",
             "user_deactivated",
             "user_has_been_created_by_staff",
             "user_password_updated_by_staff",

@@ -489,6 +489,10 @@ CONSTANCE_CONFIG = {
         300,
         "Number of seconds to cache token introspection results.",
     ),
+    "DEACTIVATE_USER_IF_NO_ROLES": (
+        False,
+        "Deactivate user if all roles are revoked (except staff/support)",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -633,6 +637,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION",
         "INVITATION_DISABLE_MULTIPLE_ROLES",
         "DEFAULT_IDP",
+        "DEACTIVATE_USER_IF_NO_ROLES",
     ),
     "FreeIPA settings": (
         "FREEIPA_ENABLED",
