@@ -37,6 +37,7 @@ def sync_instances_and_volumes_of_tenant(serialized_resource):
     name="waldur_mastermind.marketplace_openstack.create_resources_for_lost_instances_and_volumes"
 )
 def create_resources_for_lost_instances_and_volumes():
+    """Create marketplace resources for OpenStack instances and volumes that exist in backend but are missing from marketplace."""
     for offering_type, klass in (
         (INSTANCE_TYPE, openstack_models.Instance),
         (VOLUME_TYPE, openstack_models.Volume),
@@ -57,6 +58,7 @@ def create_resources_for_lost_instances_and_volumes():
     name="waldur_mastermind.marketplace_openstack.refresh_instance_backend_metadata"
 )
 def refresh_instance_backend_metadata():
+    """Refresh metadata for OpenStack instances from backend to ensure marketplace resources have up-to-date information."""
     instances = marketplace_models.Resource.objects.filter(offering__type=INSTANCE_TYPE)
     for instance in instances:
         resource = marketplace_models.Resource.objects.get(scope=instance)

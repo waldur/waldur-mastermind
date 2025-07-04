@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(name="waldur_mastermind.support.pull_support_users")
 def pull_support_users():
+    """Pull support users from the active support backend."""
     if not config.WALDUR_SUPPORT_ENABLED:
         return
 
@@ -29,6 +30,7 @@ def pull_support_users():
 
 @shared_task(name="waldur_mastermind.support.pull_priorities")
 def pull_priorities():
+    """Pull priority levels from the active support backend."""
     if not config.WALDUR_SUPPORT_ENABLED:
         return
 
@@ -266,6 +268,7 @@ def sync_feedback(serialized_feedback):
 
 @shared_task(name="waldur_mastermind.support.sync_request_types")
 def sync_request_types():
+    """Synchronize request types from the active support backend."""
     if not config.WALDUR_SUPPORT_ENABLED:
         return
 

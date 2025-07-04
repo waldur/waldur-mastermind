@@ -200,6 +200,7 @@ def calculate_usage_for_scope(start, end, scope):
 
 @shared_task(name="waldur_mastermind.marketplace.calculate_usage_for_current_month")
 def calculate_usage_for_current_month():
+    """Calculate marketplace resource usage for the current month across all customers and projects."""
     start = invoice_utils.get_current_month_start()
     end = invoice_utils.get_current_month_end()
     scopes = []
@@ -227,6 +228,7 @@ def terminate_resource(serialized_resource, serialized_user):
     name="waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached"
 )
 def terminate_resources_if_project_end_date_has_been_reached():
+    """Terminate resources when their project has reached its end date."""
     expired_projects = structure_models.Project.available_objects.exclude(
         end_date__isnull=True
     ).filter(end_date__lte=timezone.datetime.today())
@@ -264,6 +266,7 @@ def terminate_resources_if_project_end_date_has_been_reached():
     name="waldur_mastermind.marketplace.terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_order"
 )
 def terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_order():
+    """Clean up erred Slurm resources that failed both creation and termination."""
     termination_offerings_types = ["Marketplace.Slurm"]
     resources = models.Resource.objects.filter(
         state=ResourceStates.ERRED,
@@ -310,6 +313,7 @@ def terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_o
 
 @shared_task(name="waldur_mastermind.marketplace.notify_about_stale_resource")
 def notify_about_stale_resource():
+    """Notify customers about resources that have not generated invoice items in the last 3 months."""
     if not config.ENABLE_STALE_RESOURCE_NOTIFICATIONS:
         return
 
@@ -365,6 +369,7 @@ def notify_about_stale_resource():
 
 @shared_task(name="waldur_mastermind.marketplace.terminate_expired_resources")
 def terminate_expired_resources():
+    """Terminate marketplace resources that have reached their end date."""
     expired_resources = models.Resource.objects.filter(
         end_date__lte=timezone.datetime.today(),
         state__in=(ResourceStates.OK, ResourceStates.ERRED),
@@ -416,6 +421,7 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
 
 @shared_task(name="waldur_mastermind.marketplace.notification_about_project_ending")
 def notification_about_project_ending():
+    """Send notifications about projects ending in 1 day and 7 days."""
     date_1 = timezone.datetime.today().date() + datetime.timedelta(days=1)
     utils.notification_about_project_ending(date_1)
 
@@ -425,6 +431,7 @@ def notification_about_project_ending():
 
 @shared_task(name="waldur_mastermind.marketplace.notification_about_resource_ending")
 def notification_about_resource_ending():
+    """Send notifications about resources ending in 1 day and 7 days."""
     date_1 = timezone.datetime.today().date() + datetime.timedelta(days=1)
     date_7 = timezone.datetime.today().date() + datetime.timedelta(days=7)
     expired_resources = models.Resource.objects.exclude(end_date__isnull=True).filter(
@@ -460,6 +467,7 @@ def notification_about_resource_ending():
 
 @shared_task(name="waldur_mastermind.marketplace.send_metrics")
 def send_metrics():
+    """Send anonymous usage metrics and telemetry data to the Waldur team."""
     if not core_models.Feature.objects.filter(key="telemetry.send_metrics").exists():
         return
 
@@ -520,6 +528,7 @@ def copy_future_price_to_current_price():
 
 @shared_task(name="waldur_mastermind.marketplace.process_pending_project_orders")
 def process_pending_project_orders():
+    """Process orders for projects that have become active."""
     active_project_ids = structure_models.Project.objects.filter(
         start_date__lte=timezone.now()
     ).values_list("id", flat=True)
@@ -545,6 +554,7 @@ def process_pending_project_orders():
 
 @shared_task(name="waldur_mastermind.marketplace.mark_resources_as_erred_after_timeout")
 def mark_resources_as_erred_after_timeout():
+    """Mark stale orders and their resources as erred if they have been executing for more than 2 hours."""
     now = timezone.now()
     two_hours_ago = now - datetime.timedelta(hours=2)
     stale_orders = models.Order.objects.filter(

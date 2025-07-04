@@ -47,6 +47,8 @@ class TenantCreateSuccessTask(core_tasks.StateTransitionTask):
 
 
 class TenantPullQuotas(core_tasks.BackgroundTask):
+    """Pull quota limits and usage information for all OpenStack tenants."""
+
     name = "openstack.TenantPullQuotas"
 
     def is_equal(self, other_task):
@@ -70,6 +72,7 @@ class SendSignalTenantPullSucceeded(core_tasks.Task):
 
 @shared_task(name="openstack.mark_as_erred_old_tenants_in_deleting_state")
 def mark_as_erred_old_tenants_in_deleting_state():
+    """Mark OpenStack tenants as erred if they have been in deleting state for more than 1 day."""
     models.Tenant.objects.filter(
         modified__lte=timezone.now() - timezone.timedelta(days=1),
         state=CoreStates.DELETING,
@@ -195,6 +198,8 @@ class BaseDeleteExpiredResourcesTask(core_tasks.BackgroundTask):
 
 
 class DeleteExpiredBackups(BaseDeleteExpiredResourcesTask):
+    """Delete expired OpenStack backup resources that have reached their retention period."""
+
     name = "openstack.DeleteExpiredBackups"
     model = models.Backup
 
@@ -205,6 +210,8 @@ class DeleteExpiredBackups(BaseDeleteExpiredResourcesTask):
 
 
 class DeleteExpiredSnapshots(BaseDeleteExpiredResourcesTask):
+    """Delete expired OpenStack snapshot resources that have reached their retention period."""
+
     name = "openstack.DeleteExpiredSnapshots"
     model = models.Snapshot
 
@@ -250,6 +257,8 @@ class TenantResourcesPullTask(structure_tasks.BackgroundPullTask):
 
 
 class TenantResourcesListPullTask(structure_tasks.BackgroundListPullTask):
+    """Pull OpenStack tenant resources like instances, volumes, and snapshots from backend."""
+
     name = "openstack.tenant_resources_list_pull_task"
     pull_task = TenantResourcesPullTask
     model = models.Tenant
@@ -269,6 +278,8 @@ class TenantSubresourcesPullTask(structure_tasks.BackgroundPullTask):
 
 
 class TenantSubresourcesListPullTask(structure_tasks.BackgroundListPullTask):
+    """Pull OpenStack tenant subresources like security groups, networks, subnets, and ports from backend."""
+
     name = "openstack.tenant_subresources_list_pull_task"
     pull_task = TenantSubresourcesPullTask
     model = models.Tenant
@@ -285,6 +296,8 @@ class TenantPropertiesPullTask(structure_tasks.BackgroundPullTask):
 
 
 class TenantPropertiesListPullTask(structure_tasks.BackgroundListPullTask):
+    """Pull OpenStack tenant properties like flavors, images, and volume types from backend."""
+
     name = "openstack.tenant_properties_list_pull_task"
     pull_task = TenantPropertiesPullTask
     model = models.Tenant

@@ -146,11 +146,15 @@ class ServiceResourcesPullTask(BackgroundPullTask):
 
 
 class ServicePropertiesListPullTask(ServiceListPullTask):
+    """Pull service properties from all active service backends."""
+
     name = "waldur_core.structure.ServicePropertiesListPullTask"
     pull_task = ServicePropertiesPullTask
 
 
 class ServiceResourcesListPullTask(ServiceListPullTask):
+    """Pull resources from all active service backends."""
+
     name = "waldur_core.structure.ServiceResourcesListPullTask"
     pull_task = ServiceResourcesPullTask
 
@@ -245,6 +249,7 @@ def send_change_email_notification(request_serialized):
 
 @shared_task(name="waldur_core.structure.create_customer_permission_reviews")
 def create_customer_permission_reviews():
+    """Create customer permission reviews for customers that need periodic review of user permissions."""
     for customer in structure_models.Customer.objects.all():
         # Skip customers with pending reviews or customers which recently passed permission review
         if structure_models.CustomerPermissionReview.objects.filter(

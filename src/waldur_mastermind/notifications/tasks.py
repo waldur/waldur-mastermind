@@ -29,6 +29,7 @@ def send_broadcast_message_email(broadcast_message_uuid):
 
 @shared_task(name="waldur_mastermind.notifications.send_scheduled_broadcast_messages")
 def send_scheduled_broadcast_messages():
+    """Send broadcast messages that have been scheduled for delivery."""
     messages = models.BroadcastMessage.objects.filter(
         state=models.BroadcastMessage.States.SCHEDULED, send_at__lte=timezone.now()
     )

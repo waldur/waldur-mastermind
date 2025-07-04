@@ -540,6 +540,7 @@ class ExtensionTaskMixin(CeleryTask, metaclass=TaskType):
 
 @shared_task(name="waldur_core.reset_updating_resources")
 def reset_updating_resources():
+    """Reset resources stuck in UPDATING state when their Celery tasks are completed."""
     for model in models.ActionMixin.get_all_models():
         for instance in model.objects.filter(state=CoreStates.UPDATING).exclude(
             task_id=None

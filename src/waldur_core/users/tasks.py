@@ -159,6 +159,7 @@ def send_invitation_rejected(invitation_uuid, sender):
 
 @shared_task(name="waldur_core.users.send_reminder_for_pending_invitations")
 def send_reminder_for_pending_invitations():
+    """Send reminder emails for pending invitations that are about to expire."""
     expiration_date = (
         timezone.now() - settings.WALDUR_CORE["INVITATION_LIFETIME"] - timedelta(days=1)
     )
@@ -263,6 +264,7 @@ def send_mail_notification_about_permission_request_has_been_submitted(
 
 @shared_task(name="waldur_core.users.process_pending_project_invitations")
 def process_pending_project_invitations():
+    """Process project invitations for projects that have become active."""
     project_content_type = ContentType.objects.get_for_model(structure_models.Project)
     active_project_ids = structure_models.Project.objects.filter(
         start_date__lte=timezone.now()

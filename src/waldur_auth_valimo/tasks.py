@@ -70,6 +70,7 @@ class PollTask(tasks.Task):
 
 @shared_task(name="waldur_auth_valimo.cleanup_auth_results")
 def cleanup_auth_results():
+    """Clean up Valimo authentication results older than 7 days."""
     models.AuthResult.objects.filter(
         modified__lte=timezone.now() - timedelta(days=7)
     ).delete()
