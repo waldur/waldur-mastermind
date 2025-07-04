@@ -217,6 +217,7 @@ def pull_cluster_nodes(cluster_id):
 
 @shared_task(name="waldur_rancher.pull_all_clusters_nodes")
 def pull_all_clusters_nodes():
+    """Pull node information for all Rancher clusters and update their states."""
     for cluster in models.Cluster.objects.exclude(backend_id=""):
         pull_cluster_nodes(cluster.id)
         utils.update_cluster_nodes_states(cluster.id)
@@ -451,6 +452,7 @@ class DeleteKeycloakGroupsTask(core_tasks.Task):
 
 @shared_task(name="waldur_rancher.sync_keycloak_users")
 def sync_keycloak_users():
+    """Synchronize Keycloak users with pending group memberships in Rancher."""
     pending_users_memberships = models.KeycloakUserGroupMembership.objects.filter(
         state=KeycloakUserGroupMembershipState.PENDING
     )
@@ -498,6 +500,8 @@ def sync_keycloak_users():
 
 @shared_task(name="waldur_rancher.sync_rancher_roles")
 def sync_rancher_roles():
+    """Synchronize Rancher roles with local role templates for clusters and projects."""
+
     def create_role(remote_role, scope_type, settings):
         logger.info(
             "Creating new %s role %s for Rancher %s",

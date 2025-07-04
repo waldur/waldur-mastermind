@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
     name="waldur_mastermind.proposal.create_reviews_if_strategy_is_after_round"
 )
 def create_reviews_if_strategy_is_after_round():
+    """Create reviews for active rounds with 'after round' review strategy."""
     rounds = proposal_models.Round.objects.filter(
         start_time__lte=timezone.now(),
         cutoff_time__gte=timezone.now(),
@@ -30,6 +31,7 @@ def create_reviews_if_strategy_is_after_round():
     name="waldur_mastermind.proposal.create_reviews_if_strategy_is_after_proposal"
 )
 def create_reviews_if_strategy_is_after_proposal():
+    """Create reviews for active rounds with 'after proposal' review strategy."""
     rounds = proposal_models.Round.objects.filter(
         call__state=CallStates.ACTIVE,
         review_strategy=proposal_models.Round.ReviewStrategies.AFTER_PROPOSAL,
@@ -49,6 +51,7 @@ def create_reviews_if_strategy_is_after_proposal():
     name="waldur_mastermind.proposal.proposals_for_ended_rounds_should_be_cancelled"
 )
 def proposals_for_ended_rounds_should_be_cancelled():
+    """Cancel proposals for rounds that have ended."""
     for proposal in proposal_models.Proposal.objects.exclude(
         state__in=(
             ProposalStates.ACCEPTED,
@@ -70,6 +73,7 @@ def proposals_for_ended_rounds_should_be_cancelled():
 
 @shared_task(name="waldur_mastermind.proposal.expired_reviews_should_be_cancelled")
 def expired_reviews_should_be_cancelled():
+    """Cancel reviews that have expired."""
     for review in proposal_models.Review.objects.filter(
         state__in=(
             proposal_models.Review.States.IN_REVIEW,

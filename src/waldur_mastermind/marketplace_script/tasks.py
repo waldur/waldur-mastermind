@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(name="waldur_marketplace_script.pull_resources")
 def pull_resources():
+    """Pull resources from marketplace script offerings by executing configured pull scripts."""
     for resource in models.Resource.objects.filter(
         offering__type=PLUGIN_NAME,
         offering__secret_options__has_key="pull",
@@ -123,6 +124,7 @@ def dry_run_executor(dry_run_id):
 
 @shared_task(name="waldur_marketplace_script.remove_old_dry_runs")
 def remove_old_dry_runs():
+    """Remove old dry run records that are older than one day."""
     marketplace_script_models.DryRun.objects.filter(
         state=marketplace_script_models.DryRun.States.DONE,
         created__lt=timezone.now() - timezone.timedelta(days=1),

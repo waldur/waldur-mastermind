@@ -65,6 +65,7 @@ def schedule_sync_names():
 
 @shared_task(name="waldur_freeipa.sync_names")
 def sync_names():
+    """Synchronize user names between Waldur and FreeIPA backend."""
     if not config.FREEIPA_ENABLED:
         return
 

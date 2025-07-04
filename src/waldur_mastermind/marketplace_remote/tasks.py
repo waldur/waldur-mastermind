@@ -328,6 +328,13 @@ class OfferingPullTask(BackgroundPullTask):
 
 
 class OfferingListPullTask(BackgroundListPullTask):
+    """Pull and synchronize remote marketplace offerings.
+
+    This task synchronizes offerings from remote Waldur instances, updating
+    local offering data including components, plans, and access endpoints.
+    Runs every 60 minutes via celery beat.
+    """
+
     name = "waldur_mastermind.marketplace_remote.pull_offerings"
     pull_task = OfferingPullTask
 
@@ -413,6 +420,13 @@ class OfferingUserPullTask(BackgroundPullTask):
 
 
 class OfferingUserListPullTask(BackgroundListPullTask):
+    """Pull and synchronize remote marketplace offering users.
+
+    This task synchronizes user associations with marketplace offerings from
+    remote Waldur instances, ensuring local user mappings are up to date.
+    Runs every 60 minutes via celery beat.
+    """
+
     name = "waldur_mastermind.marketplace_remote.pull_offering_users"
     pull_task = OfferingUserPullTask
 
@@ -442,6 +456,13 @@ class ResourcePullTask(BackgroundPullTask):
 
 
 class ResourceListPullTask(BackgroundListPullTask):
+    """Pull and synchronize remote marketplace resources.
+
+    This task synchronizes resource data from remote Waldur instances,
+    updating local resource states and importing remote orders when needed.
+    Runs every 60 minutes via celery beat.
+    """
+
     name = "waldur_mastermind.marketplace_remote.pull_resources"
     pull_task = ResourcePullTask
 
@@ -453,6 +474,12 @@ class ResourceListPullTask(BackgroundListPullTask):
 
 @shared_task
 def pull_offering_resources(serialized_offering):
+    """Pull resources for a specific offering.
+
+    This task pulls all resources associated with a specific offering,
+    triggering individual resource pull tasks for each resource.
+    Used for targeted synchronization of a single offering's resources.
+    """
     offering = deserialize_instance(serialized_offering)
     resources = models.Resource.objects.filter(offering=offering).exclude(backend_id="")
     for resource in resources:
@@ -510,6 +537,13 @@ class OrderStatePullTask(OrderPullTask):
 
 
 class OrderListPullTask(BackgroundListPullTask):
+    """Pull and synchronize remote marketplace orders.
+
+    This task synchronizes order states from remote Waldur instances,
+    updating local order states and associated resource backend IDs.
+    Only processes non-terminal orders. Runs every 60 minutes via celery beat.
+    """
+
     name = "waldur_mastermind.marketplace_remote.pull_orders"
     pull_task = OrderPullTask
 
@@ -574,6 +608,14 @@ class ErredOrderPullTask(OrderPullTask):
 
 
 class ErredOrderListPullTask(BackgroundListPullTask):
+    """Pull and synchronize erred remote marketplace orders.
+
+    This task specifically handles erred local orders that may have been
+    resolved in remote Waldur instances. It synchronizes UPDATE and TERMINATE
+    order states and adjusts local resource states accordingly.
+    Runs daily via celery beat.
+    """
+
     name = "waldur_mastermind.marketplace_remote.pull_erred_orders"
     pull_task = ErredOrderPullTask
 
@@ -591,6 +633,12 @@ class ErredOrderListPullTask(BackgroundListPullTask):
 
 @shared_task
 def pull_offering_orders(serialized_offering):
+    """Pull orders for a specific offering.
+
+    This task pulls all non-terminal orders associated with a specific offering,
+    triggering individual order pull tasks for each order.
+    Used for targeted synchronization of a single offering's orders.
+    """
     offering = deserialize_instance(serialized_offering)
     orders = (
         models.Order.objects.filter(offering=offering)
@@ -687,6 +735,13 @@ class UsagePullTask(BackgroundPullTask):
 
 
 class UsageListPullTask(BackgroundListPullTask):
+    """Pull and synchronize remote marketplace resource usage data.
+
+    This task synchronizes component usage data from remote Waldur instances,
+    including both regular usage and user-specific usage metrics.
+    Pulls usage data from the last 4 months. Runs every 60 minutes via celery beat.
+    """
+
     name = "waldur_mastermind.marketplace_remote.pull_usage"
     pull_task = UsagePullTask
 
@@ -698,6 +753,12 @@ class UsageListPullTask(BackgroundListPullTask):
 
 @shared_task
 def pull_offering_usage(serialized_offering):
+    """Pull usage data for a specific offering.
+
+    This task pulls usage data for all resources associated with a specific
+    offering, starting from each resource's creation date.
+    Used for targeted synchronization of a single offering's usage data.
+    """
     offering = deserialize_instance(serialized_offering)
     resources = models.Resource.objects.exclude(backend_id="").filter(offering=offering)
     for resource in resources:
@@ -794,6 +855,13 @@ class ResourceInvoicePullTask(BackgroundPullTask):
 
 
 class ResourceInvoiceListPullTask(BackgroundListPullTask):
+    """Pull and synchronize remote marketplace resource invoice data.
+
+    This task synchronizes invoice items for marketplace resources from
+    remote Waldur instances, including current and previous month data.
+    Runs every 60 minutes via celery beat.
+    """
+
     name = "waldur_mastermind.marketplace_remote.pull_invoices"
     pull_task = ResourceInvoicePullTask
 
@@ -863,6 +931,13 @@ class ResourceRobotAccountPullTask(BackgroundPullTask):
 
 
 class ResourceRobotAccountListPullTask(BackgroundListPullTask):
+    """Pull and synchronize remote marketplace resource robot accounts.
+
+    This task synchronizes robot account data for marketplace resources from
+    remote Waldur instances, including account types, usernames, and keys.
+    Runs every 60 minutes via celery beat.
+    """
+
     name = "waldur_mastermind.marketplace_remote.pull_robot_accounts"
     pull_task = ResourceRobotAccountPullTask
 
@@ -876,6 +951,12 @@ class ResourceRobotAccountListPullTask(BackgroundListPullTask):
 
 @shared_task
 def pull_offering_robot_accounts(serialized_offering):
+    """Pull robot accounts for a specific offering.
+
+    This task pulls robot account data for all resources associated with a
+    specific offering, excluding terminated resources.
+    Used for targeted synchronization of a single offering's robot accounts.
+    """
     offering = deserialize_instance(serialized_offering)
     resources = (
         models.Resource.objects.filter(offering=offering)
@@ -888,6 +969,12 @@ def pull_offering_robot_accounts(serialized_offering):
 
 @shared_task
 def pull_offering_invoices(serialized_offering):
+    """Pull invoice data for a specific offering.
+
+    This task pulls invoice data for all resources associated with a specific
+    offering, excluding terminated resources.
+    Used for targeted synchronization of a single offering's invoice data.
+    """
     offering = deserialize_instance(serialized_offering)
     resources = (
         models.Resource.objects.filter(offering=offering)
@@ -908,6 +995,18 @@ def update_remote_project_permissions(
     grant=True,
     expiration_time=None,
 ):
+    """Update project permissions in remote Waldur instances.
+
+    This task grants or revokes a specific role for a user on a project
+    in remote Waldur instances. Used to synchronize permission changes.
+
+    Args:
+        serialized_project: Serialized project instance
+        serialized_user: Serialized user instance
+        role_name: Name of the role to grant/revoke
+        grant: Whether to grant (True) or revoke (False) the permission
+        expiration_time: Optional expiration time for the permission
+    """
     project = deserialize_instance(serialized_project)
     user = deserialize_instance(serialized_user)
     new_expiration_time = (
@@ -929,6 +1028,19 @@ def update_remote_customer_permissions(
     grant=True,
     expiration_time=None,
 ):
+    """Update customer permissions in remote Waldur instances.
+
+    This task grants or revokes a specific role for a user on all projects
+    belonging to a customer in remote Waldur instances. Used to synchronize
+    customer-level permission changes.
+
+    Args:
+        serialized_customer: Serialized customer instance
+        serialized_user: Serialized user instance
+        role_name: Name of the role to grant/revoke
+        grant: Whether to grant (True) or revoke (False) the permission
+        expiration_time: Optional expiration time for the permission
+    """
     customer = deserialize_instance(serialized_customer)
     user = deserialize_instance(serialized_user)
     new_expiration_time = (
@@ -945,6 +1057,13 @@ def update_remote_customer_permissions(
     name="waldur_mastermind.marketplace_remote.sync_remote_project_permissions"
 )
 def sync_remote_project_permissions():
+    """Synchronize project permissions with remote Waldur instances.
+
+    This task ensures that project permissions are synchronized between
+    local and remote Waldur instances when eduTEAMS sync is enabled.
+    It creates remote projects if needed and manages user role assignments.
+    Runs every 6 hours via celery beat.
+    """
     if not settings.WALDUR_AUTH_SOCIAL["ENABLE_EDUTEAMS_SYNC"]:
         return
 
@@ -1107,6 +1226,14 @@ def sync_remote_project_permissions():
 
 @shared_task
 def sync_remote_project(serialized_request):
+    """Synchronize a project update request with remote Waldur instances.
+
+    This task processes a project update request and applies the changes
+    to the corresponding remote project.
+
+    Args:
+        serialized_request: Serialized ProjectUpdateRequest instance
+    """
     request = deserialize_instance(serialized_request)
     try:
         utils.update_remote_project(request)
@@ -1118,6 +1245,14 @@ def sync_remote_project(serialized_request):
 
 @shared_task
 def delete_remote_project(serialized_project):
+    """Delete a project from remote Waldur instances.
+
+    This task deletes a project from all remote Waldur instances where
+    it exists, based on the project's backend ID.
+
+    Args:
+        serialized_project: Serialized project instance
+    """
     _, pk = serialized_project.split(":")
     try:
         local_project = structure_models.Project.objects.get(pk=pk)
@@ -1178,6 +1313,11 @@ def delete_remote_project(serialized_project):
 
 @shared_task
 def clean_remote_projects():
+    """Clean up stale projects from remote Waldur instances.
+
+    This task removes projects from remote Waldur instances that correspond
+    to locally removed projects, helping maintain consistency.
+    """
     clients = {}
     projects_backend_ids = set(
         map(
@@ -1223,6 +1363,14 @@ def clean_remote_projects():
 
 @shared_task
 def trigger_order_callback(serialized_order):
+    """Trigger a callback for an order.
+
+    This task sends a POST request to an order's callback URL,
+    typically used to notify external systems about order completion.
+
+    Args:
+        serialized_order: Serialized order instance
+    """
     order = deserialize_instance(serialized_order)
     requests.post(order.callback_url)
 
@@ -1231,6 +1379,12 @@ def trigger_order_callback(serialized_order):
     name="waldur_mastermind.marketplace_remote.notify_about_pending_project_update_requests"
 )
 def notify_about_pending_project_update_requests():
+    """Notify about pending project update requests.
+
+    This task sends email notifications to project owners about pending
+    project update requests that have been waiting for more than a week.
+    Runs weekly via celery beat.
+    """
     week_ago = datetime.now() - timedelta(weeks=1)
     pending_project_update_requests = (
         remote_models.ProjectUpdateRequest.objects.filter(state=ReviewStates.PENDING)
@@ -1261,6 +1415,14 @@ def notify_about_pending_project_update_requests():
     name="waldur_mastermind.marketplace_remote.notify_about_project_details_update"
 )
 def notify_about_project_details_update(serialized_project_update):
+    """Notify about project details update completion.
+
+    This task sends email notifications to relevant users when a project
+    update request has been processed, including details about what changed.
+
+    Args:
+        serialized_project_update: Serialized project update request instance
+    """
     review_request = deserialize_instance(serialized_project_update)
 
     context = {}
@@ -1325,6 +1487,13 @@ class RemoteProjectDataPushTask(BackgroundPullTask):
 
 
 class RemoteProjectDataListPushTask(BackgroundListPullTask):
+    """Push project data to remote Waldur instances.
+
+    This task pushes local project data (name, description, end date, etc.)
+    to remote Waldur instances for projects that have marketplace resources.
+    Runs daily via celery beat.
+    """
+
     name = "waldur_mastermind.marketplace_remote.push_remote_project_data"
     pull_task = RemoteProjectDataPushTask
 
@@ -1339,6 +1508,12 @@ class RemoteResourcePermissionsPushTask(BackgroundPullTask):
 
 @shared_task(name="waldur_mastermind.marketplace_remote.remote_offerings_sync")
 def remote_offerings_sync() -> None:
+    """Synchronize remote offerings based on RemoteSynchronisation configurations.
+
+    This task processes active remote synchronization configurations,
+    running synchronization for each configured remote marketplace.
+    Runs daily via celery beat.
+    """
     for sync in remote_models.RemoteSynchronisation.objects.filter(
         is_active=True,
     ).exclude(state=remote_models.RemoteSynchronisation.States.PROCESSING):

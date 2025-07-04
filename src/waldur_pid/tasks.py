@@ -39,6 +39,7 @@ def link_doi_with_collection(serialized_instance):
 
 @shared_task(name="waldur_pid.update_all_referrables")
 def update_all_referrables():
+    """Update DataCite DOI information for all referrable objects with existing DOIs."""
     for model in mixins.DataciteMixin.get_all_models():
         for referrable in model.objects.exclude(datacite_doi=""):
             try:
@@ -128,6 +129,7 @@ def update_pid(serialized_referrable):
 
 @shared_task(name="waldur_pid.update_all_pid")
 def update_all_pid():
+    """Update all PID (Persistent Identifier) information for referrable objects with DataCite DOIs."""
     for model in mixins.DataciteMixin.get_all_models():
         for referrable in model.objects.exclude(datacite_doi=""):
             serialized_referrable = core_utils.serialize_instance(referrable)

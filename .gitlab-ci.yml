@@ -310,6 +310,7 @@ Upload configuration guide:
     FEATURES_GUIDE_PATH: docs/admin-guide/mastermind-configuration/features.md
     NOTIFICATIONS_GUIDE_PATH: docs/admin-guide/mastermind-configuration/notifications.md
     TEMPLATES_LIST_PATH: docs/admin-guide/mastermind-configuration/templates.md
+    SCHEDULED_JOB_LIST_PATH: docs/admin-guide/mastermind-configuration/scheduled.md
     DEVELOPER_DOCS_PATH: docs/developer-guide
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
@@ -325,6 +326,7 @@ Upload configuration guide:
     - waldur print_commands > $CLI_GUIDE_PATH
     - waldur print_events > $CI_PROJECT_DIR/docs/events.md
     - waldur print_templates > $TEMPLATES_LIST_PATH
+    - waldur print_scheduled_jobs > $SCHEDULED_JOB_LIST_PATH
     - waldur graph_models structure -I Customer,Project,OrganizationGroup,ProjectType,User -o $DEVELOPER_DOCS_PATH/core_structure.png
     - waldur graph_models permissions -I User,Role,UserRole,RolePermission -o $DEVELOPER_DOCS_PATH/core_permissions.png
     - waldur graph_models marketplace -I CategoryGroup,Category,CategoryColumn,Section,Attribute,AttributeOption,CategoryComponent,CategoryComponentUsage,Offering,OfferingComponent,Plan,PlanComponent,Resource,Order -o $DEVELOPER_DOCS_PATH/marketplace.png

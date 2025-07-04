@@ -62,6 +62,7 @@ def notify_customer_owners(serialized_policy):
 
 @shared_task(name="waldur_mastermind.policy.check_polices")
 def check_polices():
+    """Evaluate all policies across all policy types in the system."""
     for klass in core_utils.get_all_subclasses(models.Policy):
         if klass._meta.abstract:
             continue

@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(name="waldur_firecrest.pull_jobs")
 def pull_jobs():
+    """Pull SLURM jobs from Firecrest API for all offering users with valid OAuth tokens."""
     for offering_user in OfferingUser.objects.filter(offering__type=PLUGIN_NAME):
         try:
             oauth_token = OAuthToken.objects.get(

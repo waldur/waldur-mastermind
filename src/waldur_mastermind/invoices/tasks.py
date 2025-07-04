@@ -206,6 +206,7 @@ def format_invoice_csv(invoices):
 
 @shared_task(name="invoices.update_invoices_total_cost")
 def update_invoices_total_cost():
+    """Update cached total cost for current month invoices."""
     year = utils.get_current_year()
     month = utils.get_current_month()
 
@@ -232,6 +233,7 @@ def send_new_invoices_notification():
 
 @shared_task(name="invoices.send_notifications_about_upcoming_ends")
 def send_notifications_about_upcoming_ends():
+    """Send notifications about upcoming end dates of fixed payment profiles."""
     upcoming_ends = utils.get_upcoming_ends_of_fixed_payment_profiles()
 
     for profile in upcoming_ends:
@@ -251,6 +253,7 @@ def send_notifications_about_upcoming_ends():
 
 @shared_task(name="invoices.send_monthly_invoicing_reports_about_customers")
 def send_monthly_invoicing_reports_about_customers():
+    """Send monthly invoicing reports via email to configured recipients."""
     if settings.WALDUR_INVOICES["INVOICE_REPORTING"]["ENABLE"]:
         report = utils.get_monthly_invoicing_reports()
         today = timezone.datetime.today()

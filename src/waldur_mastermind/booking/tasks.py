@@ -13,6 +13,7 @@ from . import PLUGIN_NAME, calendar, utils
     name="waldur_mastermind.booking.send_notifications_about_upcoming_bookings"
 )
 def send_notifications_about_upcoming_bookings():
+    """Send email notifications to users about their upcoming bookings."""
     for info in utils.get_info_about_upcoming_bookings():
         user = info["user"]
         if not user.email or not user.notifications_enabled:
@@ -50,6 +51,7 @@ def rename_google_calendar(serialized_google_calendar):
 
 @shared_task(name="waldur_mastermind.booking.reject_past_bookings")
 def reject_past_bookings():
+    """Reject booking resources that have start times in the past."""
     resources = marketplace_models.Resource.objects.filter(
         offering__type=PLUGIN_NAME,
         state=ResourceStates.CREATING,
