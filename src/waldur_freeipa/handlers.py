@@ -4,8 +4,9 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.log import event_logger
 from waldur_core.core.models import SshPublicKey, User
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.quotas.models import QuotaLimit
 
 from . import models, tasks, utils
@@ -32,53 +33,53 @@ def log_profile_event(sender, instance: Profile, created=False, **kwargs):
     profile = instance
 
     if created:
-        event_logger.info(
+        event_logger.emit(
             "{username} FreeIPA profile has been created.",
-            event_type="freeipa_profile_created",
+            event_type=EventType.FREEIPA_PROFILE_CREATED,
             event_context={
                 "user": profile.user,
                 "username": profile.username,
             },
-            group="freeipa",
+            scopes=[profile.user],
         )
 
     elif profile.tracker.has_changed("is_active") and profile.tracker.previous(
         "is_active"
     ):
-        event_logger.info(
+        event_logger.emit(
             "{username} FreeIPA profile has been disabled.",
-            event_type="freeipa_profile_disabled",
+            event_type=EventType.FREEIPA_PROFILE_DISABLED,
             event_context={
                 "user": profile.user,
                 "username": profile.username,
             },
-            group="freeipa",
+            scopes=[profile.user],
         )
 
     elif profile.tracker.has_changed("is_active") and not profile.tracker.previous(
         "is_active"
     ):
-        event_logger.info(
+        event_logger.emit(
             "{username} FreeIPA profile has been enabled.",
-            event_type="freeipa_profile_enabled",
+            event_type=EventType.FREEIPA_PROFILE_ENABLED,
             event_context={
                 "user": profile.user,
                 "username": profile.username,
             },
-            group="freeipa",
+            scopes=[profile.user],
         )
 
 
 def log_profile_deleted(sender, instance: Profile, **kwargs):
     profile = instance
-    event_logger.info(
+    event_logger.emit(
         "{username} FreeIPA profile has been deleted.",
-        event_type="freeipa_profile_deleted",
+        event_type=EventType.FREEIPA_PROFILE_DELETED,
         event_context={
             "user": profile.user,
             "username": profile.username,
         },
-        group="freeipa",
+        scopes=[profile.user],
     )
 
 

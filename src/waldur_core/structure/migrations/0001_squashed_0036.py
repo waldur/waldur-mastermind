@@ -11,7 +11,7 @@ from django.db import migrations, models
 import waldur_core.core.fields
 import waldur_core.core.models
 import waldur_core.core.validators
-import waldur_core.logging.loggers
+import waldur_core.logging.mixins
 import waldur_core.media.models
 import waldur_core.media.validators
 import waldur_core.permissions.mixins
@@ -194,7 +194,7 @@ class Migration(migrations.Migration):
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.permissions.mixins.PermissionMixin,
-                waldur_core.logging.loggers.LoggableMixin,
+                waldur_core.logging.mixins.LoggableMixin,
                 models.Model,
             ),
         ),
@@ -349,7 +349,7 @@ class Migration(migrations.Migration):
                 "verbose_name_plural": "Service settings",
                 "ordering": ("name",),
             },
-            bases=(models.Model, waldur_core.logging.loggers.LoggableMixin),
+            bases=(models.Model, waldur_core.logging.mixins.LoggableMixin),
         ),
         migrations.CreateModel(
             name="Project",
@@ -813,6 +813,6 @@ class Migration(migrations.Migration):
             options={
                 "ordering": ["created"],
             },
-            bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
+            bases=(waldur_core.logging.mixins.LoggableMixin, models.Model),
         ),
     ]

@@ -5,13 +5,15 @@ from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.log import event_logger
 from waldur_core.core.models import ChangeEmailRequest, StateMixin
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_customer, get_permissions
 from waldur_core.structure.managers import count_customer_users
 from waldur_core.structure.models import (
     AccessSubnet,
+    BaseResource,
     Customer,
     Project,
     ServiceSettings,
@@ -46,13 +48,13 @@ def revoke_roles_on_project_deletion(sender, instance: Project | None = None, **
 
 def log_customer_save(sender, instance: Customer, created=False, **kwargs):
     if created:
-        event_logger.info(
+        event_logger.emit(
             "Customer {customer_name} has been created.",
-            event_type="customer_creation_succeeded",
+            event_type=EventType.CUSTOMER_CREATION_SUCCEEDED,
             event_context={
                 "customer": instance,
             },
-            group="customer",
+            scopes=[instance],
         )
     else:
         changed_fields = instance.tracker.changed().copy()
@@ -91,36 +93,36 @@ def log_customer_save(sender, instance: Customer, created=False, **kwargs):
             current_value = getattr(instance, name)
             message = f"{message} {name.capitalize()} has been changed from '{previous_value}' to '{current_value}'."
 
-        event_logger.info(
+        event_logger.emit(
             message,
-            event_type="customer_update_succeeded",
+            event_type=EventType.CUSTOMER_UPDATE_SUCCEEDED,
             event_context={
                 "customer": instance,
             },
-            group="customer",
+            scopes=[instance],
         )
 
 
 def log_customer_delete(sender, instance: Customer, **kwargs):
-    event_logger.info(
+    event_logger.emit(
         "Customer {customer_name} has been deleted.",
-        event_type="customer_deletion_succeeded",
+        event_type=EventType.CUSTOMER_DELETION_SUCCEEDED,
         event_context={
             "customer": instance,
         },
-        group="customer",
+        scopes=[instance],
     )
 
 
 def log_project_save(sender, instance: Project, created=False, **kwargs):
     if created:
-        event_logger.info(
+        event_logger.emit(
             "Project {project_name} has been created.",
-            event_type="project_creation_succeeded",
+            event_type=EventType.PROJECT_CREATION_SUCCEEDED,
             event_context={
                 "project": instance,
             },
-            group="project",
+            scopes=[instance, instance.customer],
         )
     else:
         changed_fields = instance.tracker.changed().copy()
@@ -134,64 +136,67 @@ def log_project_save(sender, instance: Project, created=False, **kwargs):
             current_value = getattr(instance, name)
             message = f"{message} {name.capitalize()} has been changed from '{previous_value}' to '{current_value}'."
 
-        event_logger.info(
+        event_logger.emit(
             message,
-            event_type="project_update_succeeded",
+            event_type=EventType.PROJECT_UPDATE_SUCCEEDED,
             event_context={"project": instance},
-            group="project",
+            scopes=[instance, instance.customer],
         )
 
 
 def log_project_delete(sender, instance: Project, **kwargs):
-    event_logger.info(
+    event_logger.emit(
         "Project {project_name} has been deleted.",
-        event_type="project_deletion_succeeded",
+        event_type=EventType.PROJECT_DELETION_SUCCEEDED,
         event_context={
             "project": instance,
         },
-        group="project",
+        scopes=[instance, instance.customer],
     )
 
 
-def log_resource_deleted(sender, instance, **kwargs):
-    event_logger.info(
+def log_resource_deleted(sender, instance: BaseResource, **kwargs):
+    event_logger.emit(
         "{resource_full_name} has been deleted.",
-        event_type="resource_deletion_succeeded",
+        event_type=EventType.RESOURCE_DELETION_SUCCEEDED,
         event_context={"resource": instance},
-        group="resource",
+        scopes=[instance, instance.project, instance.project.customer],
     )
 
 
-def log_resource_imported(sender, instance, **kwargs):
+def log_resource_imported(sender, instance: BaseResource, **kwargs):
     if not instance.pk:
         return
-    event_logger.info(
+    event_logger.emit(
         "Resource {resource_full_name} has been imported.",
-        event_type="resource_import_succeeded",
+        event_type=EventType.RESOURCE_IMPORT_SUCCEEDED,
         event_context={"resource": instance},
-        group="resource",
+        scopes=[instance, instance.project, instance.project.customer],
     )
 
 
-def log_resource_creation_succeeded(instance):
-    event_logger.info(
+def log_resource_creation_succeeded(instance: BaseResource):
+    event_logger.emit(
         "Resource {resource_name} has been created.",
-        event_type="resource_creation_succeeded",
+        event_type=EventType.RESOURCE_CREATION_SUCCEEDED,
         event_context={"resource": instance},
-        group="resource",
+        scopes=[instance, instance.project, instance.project.customer],
     )
 
 
-def log_resource_creation_failed(instance):
-    event_logger.error(
+def log_resource_creation_failed(instance: BaseResource):
+    event_logger.emit(
         "Resource {resource_name} creation has failed.",
-        event_type="resource_creation_failed",
+        event_type=EventType.RESOURCE_CREATION_FAILED,
         event_context={"resource": instance},
-        group="resource",
+        scopes=[instance, instance.project, instance.project.customer],
+        level="error",
     )
 
 
-def log_resource_creation_scheduled(sender, instance, created=False, **kwargs):
+def log_resource_creation_scheduled(
+    sender, instance: BaseResource, created=False, **kwargs
+):
     if (
         created
         and isinstance(instance, StateMixin)
@@ -200,17 +205,17 @@ def log_resource_creation_scheduled(sender, instance, created=False, **kwargs):
         transaction.on_commit(lambda: _log_resource_creation_scheduled(instance))
 
 
-def _log_resource_creation_scheduled(instance):
+def _log_resource_creation_scheduled(instance: BaseResource):
     if instance.pk:
-        event_logger.info(
+        event_logger.emit(
             "Resource {resource_name} creation has been scheduled.",
-            event_type="resource_creation_scheduled",
+            event_type=EventType.RESOURCE_CREATION_SCHEDULED,
             event_context={"resource": instance},
-            group="resource",
+            scopes=[instance, instance.project, instance.project.customer],
         )
 
 
-def log_resource_action(sender, instance, name, source, target, **kwargs):
+def log_resource_action(sender, instance: BaseResource, name, source, target, **kwargs):
     if isinstance(instance, StateMixin):
         if source == CoreStates.CREATING:
             if target == CoreStates.OK:
@@ -219,15 +224,15 @@ def log_resource_action(sender, instance, name, source, target, **kwargs):
                 log_resource_creation_failed(instance)
 
     if isinstance(instance, StateMixin) and target == CoreStates.DELETION_SCHEDULED:
-        event_logger.info(
+        event_logger.emit(
             "Resource {resource_name} deletion has been scheduled.",
-            event_type="resource_deletion_scheduled",
+            event_type=EventType.RESOURCE_DELETION_SCHEDULED,
             event_context={"resource": instance},
-            group="resource",
+            scopes=[instance, instance.project, instance.project.customer],
         )
 
 
-def generate_access_subnet_changes(instance, created=False):
+def generate_access_subnet_changes(instance: AccessSubnet, created=False):
     changed_dict = instance.tracker.changed()
     changes_string = f"Access subnet {instance} has been updated.\n"
     for key, value in changed_dict.items():
@@ -237,31 +242,31 @@ def generate_access_subnet_changes(instance, created=False):
     return changes_string
 
 
-def log_access_subnet_update_succeeded(instance):
+def log_access_subnet_update_succeeded(instance: AccessSubnet):
     changes = generate_access_subnet_changes(instance)
-    event_logger.info(
+    event_logger.emit(
         changes,
-        event_type="access_subnet_update_succeeded",
+        event_type=EventType.ACCESS_SUBNET_UPDATE_SUCCEEDED,
         event_context={"access_subnet": instance},
-        group="access_subnet",
+        scopes=[instance, instance.customer],
     )
 
 
-def log_access_subnet_creation_succeeded(instance):
-    event_logger.info(
+def log_access_subnet_creation_succeeded(instance: AccessSubnet):
+    event_logger.emit(
         f"Access subnet {instance} has been created.",
-        event_type="access_subnet_creation_succeeded",
+        event_type=EventType.ACCESS_SUBNET_CREATION_SUCCEEDED,
         event_context={"access_subnet": instance},
-        group="access_subnet",
+        scopes=[instance, instance.customer],
     )
 
 
 def log_access_subnet_deletion_succeeded(sender, instance: AccessSubnet, **kwargs):
-    event_logger.info(
+    event_logger.emit(
         f"Access subnet {instance} has been deleted.",
-        event_type="access_subnet_deletion_succeeded",
+        event_type=EventType.ACCESS_SUBNET_DELETION_SUCCEEDED,
         event_context={"access_subnet": instance},
-        group="access_subnet",
+        scopes=[instance, instance.customer],
     )
 
 

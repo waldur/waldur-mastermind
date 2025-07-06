@@ -3,6 +3,7 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 import waldur_core.core.fields
+import waldur_core.logging.mixins
 
 
 class Migration(migrations.Migration):
@@ -47,7 +48,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             bases=(
-                waldur_core.logging.loggers.LoggableMixin,
+                waldur_core.logging.mixins.LoggableMixin,
                 models.Model,
             ),
         ),

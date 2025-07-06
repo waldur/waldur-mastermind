@@ -3,7 +3,8 @@ import logging
 from django.db import transaction
 from django.db.models import Sum
 
-from waldur_core.core.log import event_logger
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Project
 
 from . import log, models
@@ -193,14 +194,14 @@ class MonthlyCompensation:
             diff = new_expected_consumption - self.credit.expected_consumption
             self.credit.expected_consumption = new_expected_consumption
             self.credit.save(update_fields=["expected_consumption"])
-            event_logger.info(
+            event_logger.emit(
                 "Reduction of {customer_name} expected consumption by {consumption} according to linear minimal consumption logic.",
-                event_type="reduction_of_customer_expected_consumption",
+                event_type=EventType.REDUCTION_OF_CUSTOMER_EXPECTED_CONSUMPTION,
                 event_context={
                     "consumption": diff,
                     "customer": self.customer,
                 },
-                group="credit",
+                scopes=[self.customer],
             )
 
         for project_credit, tail in self._project_tails.items():
@@ -218,22 +219,22 @@ class MonthlyCompensation:
                 diff = new_expected_consumption - project_credit.expected_consumption
                 project_credit.expected_consumption = new_expected_consumption
                 project_credit.save(update_fields=["expected_consumption"])
-                event_logger.info(
+                event_logger.emit(
                     "Reduction of {project_name} expected consumption by {consumption} according to linear minimal consumption logic.",
-                    event_type="reduction_of_project_expected_consumption",
+                    event_type=EventType.REDUCTION_OF_PROJECT_EXPECTED_CONSUMPTION,
                     event_context={
                         "consumption": diff,
                         "customer": self.customer,
                         "project": project_credit.project,
                     },
-                    group="credit",
+                    scopes=[self.customer, project_credit.project],
                 )
 
     def get_total_project_compensation(self, project: Project):
         return sum(
             c.unit_price * -1
             for c in self.compensations
-            if c.resource.project == project
+            if c.resource and c.resource.project == project
         )
 
     @transaction.atomic
@@ -249,61 +250,61 @@ class MonthlyCompensation:
         self.credit.save(update_fields=["value"])
 
         if self.tail:
-            event_logger.info(
+            event_logger.emit(
                 "Reduction of {customer_name} credit by {consumption} due to minimal consumption of {minimal_consumption}",
-                event_type="reduction_of_customer_credit_due_to_minimal_consumption",
+                event_type=EventType.REDUCTION_OF_CUSTOMER_CREDIT_DUE_TO_MINIMAL_CONSUMPTION,
                 event_context={
                     "consumption": self.tail,
                     "minimal_consumption": self.credit.minimal_consumption,
                     "customer": self.customer,
                 },
-                group="credit",
+                scopes=[self.customer],
             )
 
         for invoice_item in self.compensations:
-            event_logger.info(
+            event_logger.emit(
                 "Reduction of {customer_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
-                event_type="reduction_of_customer_credit",
+                event_type=EventType.REDUCTION_OF_CUSTOMER_CREDIT,
                 event_context={
                     "consumption": invoice_item.unit_price,
                     "customer": self.customer,
                     "invoice_item": str(invoice_item),
                 },
-                group="credit",
+                scopes=[self.customer],
             )
-            event_logger.info(
+            event_logger.emit(
                 "Reduction of {project_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
-                event_type="reduction_of_project_credit",
+                event_type=EventType.REDUCTION_OF_PROJECT_CREDIT,
                 event_context={
                     "consumption": invoice_item.unit_price,
                     "customer": self.customer,
                     "project": invoice_item.project,
                     "invoice_item": str(invoice_item),
                 },
-                group="credit",
+                scopes=[self.customer, invoice_item.project],
             )
             # Because bulk_create is used for InvoiceItem, the post_save signals
             # will not be sent, and event would not be emitted by handler.
-            event_logger.info(
+            event_logger.emit(
                 "Invoice item has been created",
-                event_type="invoice_item_created",
+                event_type=EventType.INVOICE_ITEM_CREATED,
                 event_context={
                     "invoice_item": invoice_item,
                 },
-                group="invoice_item",
+                scopes=[invoice_item.invoice.customer, invoice_item.invoice],
             )
 
         for project_credit, tail in self._project_tails.items():
-            event_logger.info(
+            event_logger.emit(
                 "Reduction of {project_name} credit by {consumption} due to minimal consumption of {minimal_consumption}",
-                event_type="reduction_of_project_credit_due_to_minimal_consumption",
+                event_type=EventType.REDUCTION_OF_PROJECT_CREDIT_DUE_TO_MINIMAL_CONSUMPTION,
                 event_context={
                     "consumption": tail,
                     "minimal_consumption": project_credit.minimal_consumption,
                     "customer": self.customer,
                     "project": project_credit.project,
                 },
-                group="credit",
+                scopes=[self.customer, project_credit.project],
             )
 
     def get_project_credit_consumption(self, project):
@@ -349,6 +350,9 @@ class MonthlyCompensation:
             self.__init__(self.customer)
 
         if not self.credit:
+            return
+
+        if not self.invoice:
             return
 
         compensation_items = self.invoice.items.filter(credit=self.credit)

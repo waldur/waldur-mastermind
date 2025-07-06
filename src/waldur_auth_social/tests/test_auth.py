@@ -6,6 +6,7 @@ from rest_framework import status, test
 from rest_framework.reverse import reverse
 
 from waldur_core.core.models import SshPublicKey, User
+from waldur_core.logging.enums import EventType
 from waldur_core.structure.tests import factories as structure_factories
 
 
@@ -108,7 +109,7 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
         self.assertEqual(keys.count(), 1)
 
     @responses.activate
-    @mock.patch("waldur_core.core.log.event_logger.info")
+    @mock.patch("waldur_core.logging.event_logger.emit")
     def test_when_user_is_updated_events_are_emitted(
         self, mock_event_logger: mock.Mock
     ):
@@ -133,9 +134,9 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
                 "first_name: Steve -> John\n"
                 "last_name: Jobs -> Snow"
             ),
-            event_type="user_update_succeeded",
+            event_type=EventType.USER_UPDATE_SUCCEEDED,
             event_context={"affected_user": mock.ANY},
-            group="user",
+            scopes=mock.ANY,
         )
 
     @responses.activate

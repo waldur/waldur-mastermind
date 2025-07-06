@@ -271,9 +271,9 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
 
         self.client.get(self.url, {"state": self.state, "code": self.code})
 
-        mock_event_logger.info.assert_called_once()
+        mock_event_logger.emit.assert_called_once()
         user = User.objects.get(username=user_info["sub"])
-        _args, kwargs = mock_event_logger.info.call_args
+        _args, kwargs = mock_event_logger.emit.call_args
         self.assertEqual(kwargs["event_type"], "auth_logged_in_with_oauth")
         self.assertEqual(kwargs["event_context"]["user"], user)
         self.assertEqual(kwargs["event_context"]["provider"], self.provider.provider)

@@ -2,9 +2,14 @@ import logging
 
 from celery import shared_task
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q, QuerySet
 
+from waldur_core.core.models import User
 from waldur_core.logging import backend, models, utils
-from waldur_core.logging.models import BaseHook, Event, Feed, SystemNotification
+from waldur_core.logging.event_logger import get_event_groups
+from waldur_core.logging.models import BaseHook, Event, Feed
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import get_active_tokens
 
@@ -20,7 +25,46 @@ def process_event(event_id):
     process_system_notification(event)
 
 
-def process_system_notification(event):
+def get_hooks(
+    event_type,
+    project: structure_models.Project | None = None,
+    customer: structure_models.Customer | None = None,
+):
+    groups = [g[0].value for g in get_event_groups().items() if event_type in g[1]]
+
+    for hook in models.SystemNotification.objects.filter(
+        Q(event_types__contains=event_type) | Q(event_groups__has_any_keys=groups)
+    ):
+        hook_class = hook.hook_content_type.model_class()
+        users_qs: list[QuerySet[User]] = []
+
+        if project:
+            if "admin" in hook.roles:
+                users_qs.append(get_users(project, RoleEnum.PROJECT_ADMIN))
+            if "manager" in hook.roles:
+                users_qs.append(get_users(project, RoleEnum.PROJECT_MANAGER))
+            if "owner" in hook.roles:
+                users_qs.append(get_users(project.customer, RoleEnum.CUSTOMER_OWNER))
+
+        if customer:
+            if "owner" in hook.roles:
+                users_qs.append(get_users(customer, RoleEnum.CUSTOMER_OWNER))
+
+        if len(users_qs) > 1:
+            users = users_qs[0].union(*users_qs[1:]).distinct()
+        elif len(users_qs) == 1:
+            users = users_qs[0]
+        else:
+            users = []
+
+        for user in users:
+            if user.email:
+                yield hook_class(
+                    user=user, event_types=hook.event_types, email=user.email
+                )
+
+
+def process_system_notification(event: models.Event):
     project_ct = ContentType.objects.get_for_model(structure_models.Project)
     project_feed = Feed.objects.filter(event=event, content_type=project_ct).first()
     project = project_feed and project_feed.scope
@@ -29,9 +73,7 @@ def process_system_notification(event):
     customer_feed = Feed.objects.filter(event=event, content_type=customer_ct).first()
     customer = customer_feed and customer_feed.scope
 
-    for hook in SystemNotification.get_hooks(
-        event.event_type, project=project, customer=customer
-    ):
+    for hook in get_hooks(event.event_type, project=project, customer=customer):
         if check_event(event, hook):
             hook.process(event)
 
@@ -44,7 +86,7 @@ def get_matching_hooks(event):
     return [hook for hook in active_hooks if check_event(event, hook)]
 
 
-def check_event(event, hook):
+def check_event(event: models.Event, hook):
     # Check that event matches with hook
     if event.event_type not in hook.all_event_types:
         return False

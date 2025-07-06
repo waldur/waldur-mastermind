@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable
 from decimal import Decimal
-from typing import cast
+from typing import Any, Literal, cast
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, RegexValidator
@@ -407,6 +407,7 @@ class Offering(
     files: models.Manager["OfferingFile"]
     endpoints: models.Manager["OfferingAccessEndpoint"]
     roles: models.Manager["OfferingUserRole"]
+    get_state_display: Callable[[], Literal["Draft", "Active", "Paused", "Archived"]]
 
     class States(OfferingStates):
         pass
@@ -1003,6 +1004,7 @@ class Resource(
     usages: models.Manager["ComponentUsage"]
     endpoints: models.Manager["ResourceAccessEndpoint"]
     users: models.Manager["ResourceUser"]
+    get_state_display: Callable[[], str]
 
     class States(ResourceStates):
         pass
@@ -1018,7 +1020,7 @@ class Resource(
 
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
-    parent = models.ForeignKey(
+    parent = models.ForeignKey["Resource"](
         on_delete=models.SET_NULL,
         to="Resource",
         related_name="children",
@@ -1226,6 +1228,7 @@ class Order(
     completed_at = models.DateTimeField(
         _("completion time"), null=True, blank=True, editable=False
     )
+    get_type_display: Callable[[], str]
 
     class Permissions:
         customer_path = "project__customer"
@@ -1520,6 +1523,7 @@ class ScopedServiceAccount(BaseServiceAccount):
 
     email = models.EmailField(max_length=320, default="")
     preferred_identifier = models.CharField(max_length=32, blank=True)
+    scope: Any
 
     def __str__(self):
         return f"Service account {self.username} for {self.scope}"

@@ -10,7 +10,7 @@ from waldur_core.core.admin import (
     format_json_field,
 )
 from waldur_core.logging import models
-from waldur_core.logging.loggers import get_event_groups, get_valid_events
+from waldur_core.logging.event_logger import get_event_groups, get_valid_events
 
 
 class JSONMultipleChoiceField(forms.MultipleChoiceField):

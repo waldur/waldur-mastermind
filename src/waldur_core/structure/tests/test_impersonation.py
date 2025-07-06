@@ -5,7 +5,7 @@ from rest_framework.authtoken.models import Token
 
 from waldur_core.core import models as core_models
 from waldur_core.core.authentication import ImpersonationAuthentication
-from waldur_core.logging import loggers
+from waldur_core.logging import event_logger
 from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories, fixtures
 
@@ -78,20 +78,13 @@ class ImpersonationTest(test.APITransactionTestCase):
         )
         user.impersonator = self.fixture.staff
 
-        class TestLogger(loggers.EventLogger):
-            user = core_models.User
-
-            class Meta:
-                event_types = ("test_event",)
-
-        loggers.event_logger.register("test_event", TestLogger)
-        loggers.event_logger.info(
+        event_logger.emit(
             "Test",
             event_type="test_event",
             event_context={
                 "user": user,
             },
-            group="test_event",
+            scopes=[],
         )
 
         event_log = logging_models.Event.objects.get(event_type="test_event")

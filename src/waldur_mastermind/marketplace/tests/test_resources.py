@@ -20,7 +20,7 @@ from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
 from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
-from waldur_mastermind.marketplace import callbacks, log, models, plugins
+from waldur_mastermind.marketplace import callbacks, models, plugins
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
@@ -682,36 +682,6 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         )
         order.init_cost()
         self.assertEqual(order.cost, 50)
-
-
-@ddt
-class ResourceNotificationTest(test.APITransactionTestCase):
-    @data(
-        "log_resource_creation_succeeded",
-        "log_resource_creation_failed",
-        "log_resource_update_succeeded",
-        "log_resource_update_failed",
-        "log_resource_terminate_succeeded",
-        "log_resource_terminate_failed",
-    )
-    @mock.patch("waldur_mastermind.marketplace.log.tasks")
-    def test_notify_about_resource_change(self, log_func_name, mock_tasks):
-        resource = factories.ResourceFactory()
-        log_func = getattr(log, log_func_name)
-
-        if log_func_name == "log_resource_update_succeeded":
-            changed_data = [
-                {"name": "field1", "from": "old_value1", "to": "new_value1"},
-                {"name": "field2", "from": "old_value2", "to": "new_value2"},
-            ]
-            log_func(resource, changed_data)
-        else:
-            log_func(resource)
-
-        if log_func_name != "log_resource_update_succeeded":
-            mock_tasks.notify_about_resource_change.delay.assert_called_once()
-        else:
-            mock_tasks.notify_about_resource_change.delay.assert_not_called()
 
 
 class ResourceUpdateTest(test.APITransactionTestCase):

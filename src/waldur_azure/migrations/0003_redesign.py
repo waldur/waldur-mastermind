@@ -13,7 +13,7 @@ import waldur_core.core.fields
 import waldur_core.core.models
 import waldur_core.core.shims
 import waldur_core.core.validators
-import waldur_core.logging.loggers
+import waldur_core.logging.mixins
 
 
 class Migration(migrations.Migration):
@@ -141,7 +141,7 @@ class Migration(migrations.Migration):
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
-                waldur_core.logging.loggers.LoggableMixin,
+                waldur_core.logging.mixins.LoggableMixin,
                 models.Model,
             ),
         ),
@@ -224,7 +224,7 @@ class Migration(migrations.Migration):
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
-                waldur_core.logging.loggers.LoggableMixin,
+                waldur_core.logging.mixins.LoggableMixin,
                 models.Model,
             ),
         ),
@@ -313,7 +313,7 @@ class Migration(migrations.Migration):
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
-                waldur_core.logging.loggers.LoggableMixin,
+                waldur_core.logging.mixins.LoggableMixin,
                 models.Model,
             ),
         ),
@@ -441,7 +441,7 @@ class Migration(migrations.Migration):
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
-                waldur_core.logging.loggers.LoggableMixin,
+                waldur_core.logging.mixins.LoggableMixin,
                 models.Model,
             ),
         ),
@@ -534,7 +534,7 @@ class Migration(migrations.Migration):
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
-                waldur_core.logging.loggers.LoggableMixin,
+                waldur_core.logging.mixins.LoggableMixin,
                 models.Model,
             ),
         ),
@@ -631,7 +631,7 @@ class Migration(migrations.Migration):
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
-                waldur_core.logging.loggers.LoggableMixin,
+                waldur_core.logging.mixins.LoggableMixin,
                 models.Model,
             ),
         ),

@@ -9,7 +9,7 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.mixins import ScopeMixin
 from waldur_core.logging import models, utils
-from waldur_core.logging.loggers import expand_event_groups
+from waldur_core.logging.event_logger import expand_event_groups
 
 
 class BaseHookFilter(django_filters.FilterSet):

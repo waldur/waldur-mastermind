@@ -7,7 +7,7 @@ from rest_framework import serializers
 
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import RestrictedSerializerMixin
-from waldur_core.logging import backend, loggers, models, utils
+from waldur_core.logging import backend, event_logger, models, utils
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +57,10 @@ class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
         """
         fields = super().get_fields()
         fields["event_types"] = serializers.MultipleChoiceField(
-            choices=loggers.get_valid_events(), required=False
+            choices=event_logger.get_valid_events(), required=False
         )
         fields["event_groups"] = serializers.MultipleChoiceField(
-            choices=loggers.get_event_groups_keys(), required=False
+            choices=event_logger.get_event_groups_keys(), required=False
         )
         return fields
 
@@ -81,7 +81,7 @@ class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
         if "event_groups" in attrs:
             events = list(attrs.get("event_types", []))
             groups = list(attrs.get("event_groups", []))
-            events = sorted(set(loggers.expand_event_groups(groups)) | set(events))
+            events = sorted(set(event_logger.expand_event_groups(groups)) | set(events))
 
             attrs["event_types"] = events
             attrs["event_groups"] = groups

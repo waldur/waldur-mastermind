@@ -38,10 +38,11 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.log import event_logger
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import (
     has_permission,
@@ -670,12 +671,12 @@ class UserViewSet(core_views.ActionsViewSet):
         user.set_password(serializer.validated_data["new_password"])
         user.save()
 
-        event_logger.info(
+        event_logger.emit(
             "Password has been changed for user {affected_user_username} by %s."
             % self.request.user,
-            event_type="user_password_updated_by_staff",
+            event_type=EventType.USER_PASSWORD_UPDATED_BY_STAFF,
             event_context={"affected_user": user},
-            group="user",
+            scopes=[user],
         )
         logger.info(
             f"Password has been changed for user {user} by {self.request.user}."
@@ -719,11 +720,11 @@ class UserViewSet(core_views.ActionsViewSet):
 
     def perform_create(self, serializer):
         user = serializer.save()
-        event_logger.info(
+        event_logger.emit(
             "User {affected_user_username} has been created by %s." % self.request.user,
-            event_type="user_has_been_created_by_staff",
+            event_type=EventType.USER_HAS_BEEN_CREATED_BY_STAFF,
             event_context={"affected_user": user},
-            group="user",
+            scopes=[user],
         )
         logger.info(f"User {user} has been created by {self.request.user}.")
 

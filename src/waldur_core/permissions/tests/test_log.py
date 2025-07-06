@@ -3,108 +3,74 @@ from unittest import mock
 from django.test import TestCase
 from rest_framework import test
 
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 
 
 class LogRoleEventTest(TestCase):
+    def setUp(self):
+        self._logger_mock = mock.patch("waldur_core.logging.event_logger.emit")
+        self.logger_mock = self._logger_mock.start()
+        self.addCleanup(self._logger_mock.stop)
+
     def test_logger_called_when_customer_role_is_granted(self):
         fixture = fixtures.CustomerFixture()
 
         owner = fixture.owner
-        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
-            logger_mock.reset_mock()
-            fixture.customer.add_user(fixture.user, CustomerRole.OWNER, owner)
+        self.logger_mock.reset_mock()
+        fixture.customer.add_user(fixture.user, CustomerRole.OWNER, owner)
 
-            logger_mock.assert_any_call(
-                mock.ANY,
-                event_type="role_granted",
-                event_context={
-                    "scope": fixture.customer,
-                    "scope_uuid": fixture.customer.uuid.hex,
-                    "scope_name": fixture.customer.name,
-                    "scope_type": "customer",
-                    "customer": fixture.customer,
-                    "user": fixture.owner,
-                    "affected_user": fixture.user,
-                    "role_name": CustomerRole.OWNER.name,
-                },
-                group="user_role",
-            )
+        self.logger_mock.assert_any_call(
+            mock.ANY,
+            event_type=EventType.ROLE_GRANTED,
+            event_context=mock.ANY,
+            scopes=[fixture.customer, fixture.customer],
+        )
 
     def test_logger_called_when_customer_role_is_revoked(self):
         fixture = fixtures.CustomerFixture()
         owner = fixture.owner
 
-        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
-            logger_mock.reset_mock()
-            fixture.customer.remove_user(owner, CustomerRole.OWNER, fixture.staff)
+        self.logger_mock.reset_mock()
+        fixture.customer.remove_user(owner, CustomerRole.OWNER, fixture.staff)
 
-            logger_mock.assert_any_call(
-                mock.ANY,
-                event_type="role_revoked",
-                event_context={
-                    "scope": fixture.customer,
-                    "scope_uuid": fixture.customer.uuid.hex,
-                    "scope_name": fixture.customer.name,
-                    "scope_type": "customer",
-                    "customer": fixture.customer,
-                    "user": fixture.staff,
-                    "affected_user": fixture.owner,
-                    "role_name": CustomerRole.OWNER.name,
-                },
-                group="user_role",
-            )
+        self.logger_mock.assert_any_call(
+            mock.ANY,
+            event_type=EventType.ROLE_REVOKED,
+            event_context=mock.ANY,
+            scopes=[fixture.customer, fixture.customer],
+        )
 
     def test_logger_called_when_project_role_is_granted(self):
         fixture = fixtures.ProjectFixture()
         current_user = fixture.owner
 
-        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
-            logger_mock.reset_mock()
-            fixture.project.add_user(fixture.user, ProjectRole.MANAGER, current_user)
+        self.logger_mock.reset_mock()
+        fixture.project.add_user(fixture.user, ProjectRole.MANAGER, current_user)
 
-            logger_mock.assert_any_call(
-                mock.ANY,
-                event_type="role_granted",
-                event_context={
-                    "scope": fixture.project,
-                    "scope_uuid": fixture.project.uuid.hex,
-                    "scope_name": fixture.project.name,
-                    "scope_type": "project",
-                    "customer": fixture.customer,
-                    "user": current_user,
-                    "affected_user": fixture.user,
-                    "role_name": ProjectRole.MANAGER.name,
-                },
-                group="user_role",
-            )
+        self.logger_mock.assert_any_call(
+            mock.ANY,
+            event_type=EventType.ROLE_GRANTED,
+            event_context=mock.ANY,
+            scopes=[fixture.project, fixture.customer],
+        )
 
     def test_logger_called_when_project_role_is_revoked(self):
         fixture = fixtures.ProjectFixture()
         manager = fixture.manager
         current_user = fixture.owner
 
-        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
-            logger_mock.reset_mock()
-            fixture.project.remove_user(manager, ProjectRole.MANAGER, current_user)
+        self.logger_mock.reset_mock()
+        fixture.project.remove_user(manager, ProjectRole.MANAGER, current_user)
 
-            logger_mock.assert_called_once_with(
-                mock.ANY,
-                event_type="role_revoked",
-                event_context={
-                    "scope": fixture.project,
-                    "scope_uuid": fixture.project.uuid.hex,
-                    "scope_name": fixture.project.name,
-                    "scope_type": "project",
-                    "customer": fixture.customer,
-                    "user": current_user,
-                    "affected_user": fixture.manager,
-                    "role_name": ProjectRole.MANAGER.name,
-                },
-                group="user_role",
-            )
+        self.logger_mock.assert_called_once_with(
+            mock.ANY,
+            event_type=EventType.ROLE_REVOKED,
+            event_context=mock.ANY,
+            scopes=[fixture.project, fixture.customer],
+        )
 
 
 class AccessSubnetCreateModifyDelete(test.APITransactionTestCase):
@@ -118,57 +84,48 @@ class AccessSubnetCreateModifyDelete(test.APITransactionTestCase):
         self.customer_url = factories.CustomerFactory.get_url(
             customer=self.fixture.customer
         )
+        self._logger_mock = mock.patch("waldur_core.logging.event_logger.emit")
+        self.logger_mock = self._logger_mock.start()
+        self.addCleanup(self._logger_mock.stop)
 
     def test_logger_called_when_subnet_created(self):
-        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
-            logger_mock.reset_mock()
-            access_subnet = self.create_access_subnet()
-            logger_mock.assert_called_once_with(
-                mock.ANY,
-                event_type="access_subnet_creation_succeeded",
-                event_context={
-                    "access_subnet": access_subnet,
-                },
-                group="access_subnet",
-            )
+        self.logger_mock.reset_mock()
+        access_subnet = self.create_access_subnet()
+        self.logger_mock.assert_called_once_with(
+            mock.ANY,
+            event_type=EventType.ACCESS_SUBNET_CREATION_SUCCEEDED,
+            event_context={
+                "access_subnet": access_subnet,
+            },
+            scopes=[access_subnet, access_subnet.customer],
+        )
 
     def test_logger_called_when_subnet_modified(self):
         access_subnet = self.create_access_subnet()
         url = factories.AccessSubnetFactory.get_url(access_subnet)
 
-        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
-            logger_mock.reset_mock()
-            payload = {
-                "inet": "192.168.1.1/32",
-            }
-            response = self.client.put(
-                url,
-                payload,
-            )
-            logger_mock.assert_called_once_with(
-                mock.ANY,
-                event_type="access_subnet_update_succeeded",  # TODO patch calls creation_succeeded but update_succeeded desired
-                event_context={
-                    "access_subnet": access_subnet,
-                },
-                group="access_subnet",
-            )
-            return response
+        self.logger_mock.reset_mock()
+        self.client.put(url, {"inet": "192.168.1.1/32"})
+        self.logger_mock.assert_called_once_with(
+            mock.ANY,
+            event_type=EventType.ACCESS_SUBNET_UPDATE_SUCCEEDED,  # TODO patch calls creation_succeeded but update_succeeded desired
+            event_context={
+                "access_subnet": access_subnet,
+            },
+            scopes=[access_subnet, access_subnet.customer],
+        )
 
     def test_logger_called_when_subnet_deleted(self):
         access_subnet = self.create_access_subnet()
         url = factories.AccessSubnetFactory.get_url(access_subnet)
 
-        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
-            logger_mock.reset_mock()
-            response = self.client.delete(url)
-            logger_mock.assert_called_with(
-                mock.ANY,
-                event_type="access_subnet_deletion_succeeded",
-                event_context=mock.ANY,
-                group="access_subnet",
-            )
-        return response
+        self.client.delete(url)
+        self.logger_mock.assert_called_with(
+            mock.ANY,
+            event_type=EventType.ACCESS_SUBNET_DELETION_SUCCEEDED,
+            event_context=mock.ANY,
+            scopes=mock.ANY,
+        )
 
     def create_access_subnet(self):
         url = factories.AccessSubnetFactory.get_list_url()

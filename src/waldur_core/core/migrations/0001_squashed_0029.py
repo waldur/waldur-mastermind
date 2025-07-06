@@ -10,7 +10,7 @@ from django.db import migrations, models
 
 import waldur_core.core.fields
 import waldur_core.core.validators
-import waldur_core.logging.loggers
+import waldur_core.logging.mixins
 import waldur_core.media.models
 
 
@@ -258,7 +258,7 @@ class Migration(migrations.Migration):
                 "verbose_name_plural": "users",
                 "ordering": ["username"],
             },
-            bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
+            bases=(waldur_core.logging.mixins.LoggableMixin, models.Model),
             managers=[
                 ("objects", django.contrib.auth.models.UserManager()),
             ],
@@ -302,7 +302,7 @@ class Migration(migrations.Migration):
                 "ordering": ["name"],
                 "unique_together": {("user", "name")},
             },
-            bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
+            bases=(waldur_core.logging.mixins.LoggableMixin, models.Model),
         ),
         migrations.CreateModel(
             name="ChangeEmailRequest",

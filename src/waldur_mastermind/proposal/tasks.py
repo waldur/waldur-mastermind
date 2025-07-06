@@ -3,7 +3,9 @@ import logging
 from celery import shared_task
 from django.utils import timezone
 
-from waldur_core.core.log import event_logger
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
+from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal import utils
 from waldur_mastermind.proposal.enums import CallStates, ProposalStates
@@ -62,11 +64,11 @@ def proposals_for_ended_rounds_should_be_cancelled():
         proposal.state = ProposalStates.CANCELED
         proposal.save(update_fields=["state"])
 
-        event_logger.info(
+        event_logger.emit(
             f"Proposal {proposal.name} has been canceled.",
-            event_type="proposal_canceled",
+            event_type=EventType.PROPOSAL_CANCELED,
             event_context={"proposal": proposal},
-            group="proposal",
+            scopes=[_get_customer(proposal)],
         )
         logger.info(f"Proposal {proposal.name} has been canceled.")
 
@@ -84,10 +86,10 @@ def expired_reviews_should_be_cancelled():
             review.state = proposal_models.Review.States.REJECTED
             review.save(update_fields=["state"])
 
-            event_logger.info(
+            event_logger.emit(
                 f"Review for {review.proposal.name} has been canceled.",
-                event_type="review_canceled",
+                event_type=EventType.REVIEW_CANCELED,
                 event_context={"review": review},
-                group="review",
+                scopes=[_get_customer(review)],
             )
             logger.info(f"Review {review.proposal.name} has been canceled.")

@@ -9,7 +9,8 @@ from django.db.models import Q
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.log import event_logger
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Project
 from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -34,40 +35,40 @@ def log_invoice_state_transition(
         return
 
     if state == models.Invoice.States.CREATED:
-        event_logger.info(
+        event_logger.emit(
             "Invoice for customer {customer_name} has been created.",
-            event_type="invoice_created",
+            event_type=EventType.INVOICE_CREATED,
             event_context={
                 "month": instance.month,
                 "year": instance.year,
                 "customer": instance.customer,
                 "invoice": instance,
             },
-            group="invoice",
+            scopes=[instance, instance.customer],
         )
     elif state == models.Invoice.States.PAID:
-        event_logger.info(
+        event_logger.emit(
             "Invoice for customer {customer_name} has been paid.",
-            event_type="invoice_paid",
+            event_type=EventType.INVOICE_PAID,
             event_context={
                 "month": instance.month,
                 "year": instance.year,
                 "customer": instance.customer,
                 "invoice": instance,
             },
-            group="invoice",
+            scopes=[instance, instance.customer],
         )
     elif state == models.Invoice.States.CANCELED:
-        event_logger.info(
+        event_logger.emit(
             "Invoice for customer {customer_name} has been canceled.",
-            event_type="invoice_canceled",
+            event_type=EventType.INVOICE_CANCELED,
             event_context={
                 "month": instance.month,
                 "year": instance.year,
                 "customer": instance.customer,
                 "invoice": instance,
             },
-            group="invoice",
+            scopes=[instance, instance.customer],
         )
 
 
@@ -207,25 +208,25 @@ def log_credit(sender, instance: CustomerCredit, created=False, **kwargs):
     credit = instance
 
     if created:
-        event_logger.info(
+        event_logger.emit(
             "{customer_name} credit has been created. Value: {new_value}",
-            event_type="create_of_credit_by_staff",
+            event_type=EventType.CREATE_OF_CREDIT_BY_STAFF,
             event_context={
                 "new_value": int(credit.value),
                 "customer": credit.customer,
             },
-            group="credit",
+            scopes=[credit.customer],
         )
     elif credit.tracker.has_changed("value"):
-        event_logger.info(
+        event_logger.emit(
             "{customer_name} credit has been updated from {old_value} to {new_value}. ",
-            event_type="update_of_credit_by_staff",
+            event_type=EventType.UPDATE_OF_CREDIT_BY_STAFF,
             event_context={
                 "new_value": int(credit.value),
                 "old_value": int(credit.tracker.previous("value")),
                 "customer": credit.customer,
             },
-            group="credit",
+            scopes=[credit.customer],
         )
 
 
@@ -233,13 +234,13 @@ def log_invoice_item_save(
     sender, instance: models.InvoiceItem, created=False, **kwargs
 ):
     if created:
-        event_logger.info(
+        event_logger.emit(
             f"Invoice item {instance.name} has been created.",
-            event_type="invoice_item_created",
+            event_type=EventType.INVOICE_ITEM_CREATED,
             event_context={
                 "invoice_item": instance,
             },
-            group="invoice_item",
+            scopes=[instance.invoice, instance.invoice.customer],
         )
     else:
 
@@ -283,22 +284,22 @@ def log_invoice_item_save(
         ]
         if changes:
             diff = ", ".join(changes)
-            event_logger.info(
+            event_logger.emit(
                 f"Invoice item {instance.name} has been updated. Details: {diff}.",
-                event_type="invoice_item_updated",
+                event_type=EventType.INVOICE_ITEM_UPDATED,
                 event_context={
                     "invoice_item": instance,
                 },
-                group="invoice_item",
+                scopes=[instance.invoice, instance.invoice.customer],
             )
 
 
 def log_invoice_item_delete(sender, instance: models.InvoiceItem, **kwargs):
-    event_logger.info(
+    event_logger.emit(
         f"Invoice item {instance.name} has been deleted.",
-        event_type="invoice_item_deleted",
+        event_type=EventType.INVOICE_ITEM_DELETED,
         event_context={
             "invoice_item": instance,
         },
-        group="invoice_item",
+        scopes=[instance.invoice, instance.invoice.customer],
     )

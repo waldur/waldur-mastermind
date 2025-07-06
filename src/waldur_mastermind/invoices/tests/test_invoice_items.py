@@ -33,7 +33,7 @@ class InvoiceItemDeleteTest(test.APITransactionTestCase):
         response = self.delete_invoice_item(self.fixture.user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @mock.patch("waldur_core.core.log.event_logger.info")
+    @mock.patch("waldur_core.logging.event_logger.emit")
     def test_event_is_emitted(self, logger_mock):
         self.delete_invoice_item(self.fixture.staff)
         self.assertEqual(
@@ -62,7 +62,7 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
         response = self.update_invoice_item(self.fixture.user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @mock.patch("waldur_core.core.log.event_logger.info")
+    @mock.patch("waldur_core.logging.event_logger.emit")
     def test_event_is_emitted(self, logger_mock):
         self.update_invoice_item(self.fixture.staff)
         self.assertEqual(
@@ -181,7 +181,7 @@ class InvoiceItemCompensationTest(test.APITransactionTestCase):
         response = self.create_compensation(self.fixture.user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @mock.patch("waldur_core.core.log.event_logger.info")
+    @mock.patch("waldur_core.logging.event_logger.emit")
     def test_event_is_emitted(self, logger_mock):
         self.create_compensation(self.fixture.staff)
         self.assertEqual(

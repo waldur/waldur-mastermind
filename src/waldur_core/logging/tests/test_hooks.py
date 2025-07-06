@@ -4,7 +4,7 @@ from django.urls import reverse
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
-from waldur_core.logging import loggers, models, tasks
+from waldur_core.logging import event_logger, models, tasks
 from waldur_core.logging.tests.factories import WebHookFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -18,8 +18,8 @@ class BaseHookApiTest(test.APITransactionTestCase):
         self.author = structure_factories.UserFactory()
         self.other_user = structure_factories.UserFactory()
 
-        self.valid_event_types = loggers.get_valid_events()[:3]
-        self.valid_event_groups = loggers.get_event_groups_keys()[:3]
+        self.valid_event_types = event_logger.get_valid_events()[:3]
+        self.valid_event_groups = event_logger.get_event_groups_keys()[:3]
 
 
 class HookCreationViewTest(BaseHookApiTest):
@@ -44,7 +44,7 @@ class HookCreationViewTest(BaseHookApiTest):
 
     def test_user_can_subscribe_to_event_groups(self):
         event_groups = self.valid_event_groups
-        event_types = loggers.expand_event_groups(event_groups)
+        event_types = event_logger.expand_event_groups(event_groups)
 
         self.client.force_authenticate(user=self.author)
         response = self.client.post(
@@ -85,7 +85,7 @@ class HookUpdateTest(BaseHookApiTest):
     )
     def test_author_can_update_event_groups(self, hook):
         event_groups = self.valid_event_groups
-        event_types = loggers.expand_event_groups(event_groups)
+        event_types = event_logger.expand_event_groups(event_groups)
 
         self.client.force_authenticate(user=self.author)
         response = self.update_hook(hook, {"event_groups": event_groups})
@@ -195,7 +195,7 @@ class SystemNotificationTest(test.APITransactionTestCase):
         self.assertFalse(self.admin.email in mail.outbox[0].to)
 
     def test_event_groups(self):
-        groups = loggers.get_event_groups()
+        groups = event_logger.get_event_groups()
         group = list(groups.keys())[0]
         self.system_notification.event_groups = [group]
         self.system_notification.event_types = []

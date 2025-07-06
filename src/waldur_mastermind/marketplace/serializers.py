@@ -3190,7 +3190,7 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
             resource.end_date = end_date
             resource.end_date_requested_by = user
             resource.save(update_fields=["end_date", "end_date_requested_by"])
-        log.log_marketplace_resource_end_date_has_been_updated(resource, user)
+        log.log_resource_end_date_has_been_updated(resource, user)
 
 
 class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):

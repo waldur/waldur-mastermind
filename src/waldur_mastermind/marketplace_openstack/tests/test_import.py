@@ -361,7 +361,7 @@ class TenantImportTest(BaseBackendTestCase):
             ).exists()
         )
 
-    @patch("waldur_core.core.log.event_logger.info")
+    @patch("waldur_core.logging.event_logger.emit")
     def test_event_is_emitted(self, logger_mock: mock.Mock):
         self.import_tenant()
 

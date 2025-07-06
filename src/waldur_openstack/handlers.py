@@ -4,8 +4,9 @@ from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.log import event_logger
 from waldur_core.core.models import SshPublicKey
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.quotas.models import QuotaLimit
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -73,84 +74,89 @@ def log_tenant_quota_update(sender, instance: QuotaLimit, created=False, **kwarg
     old_value_representation = quota.scope.format_quota(
         quota.name, quota.tracker.previous("value")
     )
-    event_logger.info(
+    event_logger.emit(
         f"{{quota_name}} quota limit has been changed from {old_value_representation} to {new_value_representation} for tenant {{tenant_name}}.",
-        event_type="openstack_tenant_quota_limit_updated",
+        event_type=EventType.OPENSTACK_TENANT_QUOTA_LIMIT_UPDATED,
         event_context={
             "quota_name": quota.name,
             "tenant": tenant,
             "limit": quota.value,
             "old_limit": quota.tracker.previous("value"),
         },
-        group="openstack_tenant_quota",
+        scopes=[tenant, tenant.project, tenant.project.customer],
     )
 
 
 def log_security_group_cleaned(sender, instance: models.SecurityGroup, **kwargs):
-    event_logger.info(
+    event_logger.emit(
         "Security group %s has been cleaned from cache." % instance.name,
-        event_type="openstack_security_group_cleaned",
+        event_type=EventType.OPENSTACK_SECURITY_GROUP_CLEANED,
         event_context={
             "security_group": instance,
         },
-        group="openstack_security_group",
+        scopes=[instance, instance.tenant],
     )
 
 
 def log_security_group_rule_cleaned(
     sender, instance: models.SecurityGroupRule, **kwargs
 ):
-    event_logger.info(
+    event_logger.emit(
         "Security group rule %s has been cleaned from cache." % str(instance),
-        event_type="openstack_security_group_rule_cleaned",
+        event_type=EventType.OPENSTACK_SECURITY_GROUP_RULE_CLEANED,
         event_context={
             "security_group_rule": instance,
         },
-        group="openstack_security_group_rule",
+        scopes=[instance, instance.security_group],
     )
 
 
 def log_network_cleaned(sender, instance: models.Network, **kwargs):
-    event_logger.info(
+    event_logger.emit(
         "Network %s has been cleaned from cache." % instance.name,
-        event_type="openstack_network_cleaned",
+        event_type=EventType.OPENSTACK_NETWORK_CLEANED,
         event_context={
             "network": instance,
         },
-        group="openstack_network",
+        scopes=[instance, instance.tenant],
     )
 
 
 def log_subnet_cleaned(sender, instance: models.SubNet, **kwargs):
-    event_logger.info(
+    event_logger.emit(
         "SubNet %s has been cleaned." % instance.name,
-        event_type="openstack_subnet_cleaned",
+        event_type=EventType.OPENSTACK_SUBNET_CLEANED,
         event_context={
             "subnet": instance,
         },
-        group="openstack_subnet",
+        scopes=[instance, instance.network],
     )
 
 
 def log_server_group_cleaned(sender, instance: models.ServerGroup, **kwargs):
-    event_logger.info(
+    event_logger.emit(
         "Server group %s has been cleaned from cache." % instance.name,
-        event_type="openstack_server_group_cleaned",
+        event_type=EventType.OPENSTACK_SERVER_GROUP_CLEANED,
         event_context={
             "server_group": instance,
         },
-        group="openstack_server_group",
+        scopes=[instance, instance.tenant],
     )
+
+
+def get_resource_scopes(resource):
+    project = resource.project
+    return {resource, project, project.customer}
 
 
 def _log_scheduled_action(resource, action, action_details):
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
-    event_logger.info(
+    event_logger.emit(
         f'Operation "{message}" has been scheduled for {class_name} "{resource.name}"',
         event_type=_get_action_event_type(action, "scheduled"),
         event_context={"resource": resource, "action_details": action_details},
-        group="openstack_resource_action",
+        scopes=get_resource_scopes(resource),
     )
 
 
@@ -159,22 +165,22 @@ def _log_succeeded_action(resource, action, action_details):
         return
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
-    event_logger.info(
+    event_logger.emit(
         f'Successfully executed "{message}" operation for {class_name} "{resource.name}"',
         event_type=_get_action_event_type(action, "succeeded"),
         event_context={"resource": resource, "action_details": action_details},
-        group="openstack_resource_action",
+        scopes=get_resource_scopes(resource),
     )
 
 
 def _log_failed_action(resource, action, action_details):
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
-    event_logger.warning(
+    event_logger.emit(
         f'Failed to execute "{message}" operation for {class_name} "{resource.name}"',
         event_type=_get_action_event_type(action, "failed"),
         event_context={"resource": resource, "action_details": action_details},
-        group="openstack_resource_action",
+        scopes=get_resource_scopes(resource),
     )
 
 
@@ -183,7 +189,9 @@ def _get_action_message(action, action_details):
 
 
 def _get_action_event_type(action, event_state):
-    return "resource_{}_{}".format(action.replace(" ", "_").lower(), event_state)
+    return EventType(
+        "resource_{}_{}".format(action.replace(" ", "_").lower(), event_state)
+    )
 
 
 def log_action(sender, instance: models.Instance, created=False, **kwargs):

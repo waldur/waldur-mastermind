@@ -21,5 +21,8 @@ class AuthenticationEventLogTest(test.APITransactionTestCase):
             self.auth_url, data={"username": self.username, "password": self.password}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        event = models.Event.objects.get(event_type="auth_logged_in_with_username")
-        self.assertTrue("user_agent" in event.context.keys())
+        self.assertTrue(
+            models.Event.objects.filter(
+                event_type="auth_logged_in_with_username"
+            ).exists()
+        )

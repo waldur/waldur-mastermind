@@ -6,8 +6,9 @@ from django.db import transaction
 from waldur_auth_social.const import ProviderChoices
 from waldur_core.core import middleware
 from waldur_core.core.enums import ReviewStates
-from waldur_core.core.log import event_logger
 from waldur_core.core.utils import serialize_instance
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions import signals as permission_signals
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import ServiceProviderRole
@@ -164,28 +165,28 @@ def log_request_events(
 ):
     event_context = {"project": instance.project, "offering": instance.offering}
     if created:
-        event_logger.info(
+        event_logger.emit(
             "Project update request has been created.",
-            event_type="project_update_request_created",
+            event_type=EventType.PROJECT_UPDATE_REQUEST_CREATED,
             event_context=event_context,
-            group="project_update_request",
+            scopes=[instance.project],
         )
         return
     if not instance.tracker.has_changed("state"):
         return
     if instance.state == ReviewStates.APPROVED:
-        event_logger.info(
+        event_logger.emit(
             "Project update request has been approved.",
-            event_type="project_update_request_approved",
+            event_type=EventType.PROJECT_UPDATE_REQUEST_APPROVED,
             event_context=event_context,
-            group="project_update_request",
+            scopes=[instance.project],
         )
     elif instance.state == ReviewStates.REJECTED:
-        event_logger.info(
+        event_logger.emit(
             "Project update request has been rejected.",
-            event_type="project_update_request_rejected",
+            event_type=EventType.PROJECT_UPDATE_REQUEST_REJECTED,
             event_context=event_context,
-            group="project_update_request",
+            scopes=[instance.project],
         )
 
 
