@@ -134,7 +134,7 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
         self.client.force_login(self.fixture.offering_owner)
         url = self.get_action_url(self.robot_account, action)
 
-        with mock.patch("waldur_core.core.log.event_logger.info") as logger_mock:
+        with mock.patch("waldur_core.logging.event_logger.emit") as logger_mock:
             response = self.client.post(url, data=data, format="json" if data else None)
             self.assertEqual(
                 response.status_code,

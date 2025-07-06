@@ -10,7 +10,7 @@ from django.db import migrations, models
 
 import waldur_core.core.fields
 import waldur_core.core.validators
-import waldur_core.logging.loggers
+import waldur_core.logging.mixins
 import waldur_core.media.models
 import waldur_core.media.validators
 import waldur_core.structure.models
@@ -402,7 +402,7 @@ class Migration(migrations.Migration):
                 "verbose_name": "Offering",
                 "ordering": ["name"],
             },
-            bases=(models.Model, waldur_core.logging.loggers.LoggableMixin),
+            bases=(models.Model, waldur_core.logging.mixins.LoggableMixin),
         ),
         migrations.CreateModel(
             name="OfferingComponent",
@@ -661,7 +661,7 @@ class Migration(migrations.Migration):
                 "ordering": ("created",),
                 "verbose_name": "Order",
             },
-            bases=(models.Model, waldur_core.logging.loggers.LoggableMixin),
+            bases=(models.Model, waldur_core.logging.mixins.LoggableMixin),
         ),
         migrations.CreateModel(
             name="Plan",
@@ -777,7 +777,7 @@ class Migration(migrations.Migration):
             options={
                 "ordering": ("name",),
             },
-            bases=(models.Model, waldur_core.logging.loggers.LoggableMixin),
+            bases=(models.Model, waldur_core.logging.mixins.LoggableMixin),
         ),
         migrations.CreateModel(
             name="Resource",

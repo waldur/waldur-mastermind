@@ -8,6 +8,8 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.core.enums import CoreStates
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 
 from . import log, models, signals, tasks, utils
@@ -45,7 +47,12 @@ def resource_creation_succeeded(resource: models.Resource, validate=False):
         resource.save(update_fields=["state"])
 
     signals.resource_creation_succeeded.send(sender=models.Resource, instance=resource)
-    log.log_resource_creation_succeeded(resource)
+    event_logger.emit(
+        "Resource {resource_name} has been created.",
+        event_type=EventType.MARKETPLACE_RESOURCE_CREATE_SUCCEEDED,
+        event_context={"resource": resource},
+        scopes=log.get_resource_scopes(resource),
+    )
     return order
 
 
@@ -62,7 +69,13 @@ def resource_creation_failed(resource: models.Resource, validate=False):
     if order:
         copy_error_from_resource_to_order(resource, order)
 
-    log.log_resource_creation_failed(resource)
+    event_logger.emit(
+        "Resource {resource_name} creation has failed.",
+        event_type=EventType.MARKETPLACE_RESOURCE_CREATE_FAILED,
+        event_context={"resource": resource},
+        scopes=log.get_resource_scopes(resource),
+        level="error",
+    )
     return order
 
 
@@ -90,7 +103,12 @@ def resource_creation_canceled(resource: models.Resource, validate=False):
         resource.set_state_terminated()
         resource.save(update_fields=["state"])
 
-    log.log_resource_creation_canceled(resource)
+    event_logger.emit(
+        "Resource {resource_name} creation has been canceled.",
+        event_type=EventType.MARKETPLACE_RESOURCE_CREATE_CANCELED,
+        event_context={"resource": resource},
+        scopes=log.get_resource_scopes(resource),
+    )
     return order
 
 
@@ -179,7 +197,13 @@ def resource_update_failed(resource: models.Resource, validate=False):
     else:
         logger.info("Resource %s is already in erred state, skip transition", resource)
 
-    log.log_resource_update_failed(resource)
+    event_logger.emit(
+        "Resource {resource_name} update has failed.",
+        event_type=EventType.MARKETPLACE_RESOURCE_UPDATE_FAILED,
+        event_context={"resource": resource},
+        scopes=log.get_resource_scopes(resource),
+        level="error",
+    )
     return order
 
 
@@ -197,7 +221,13 @@ def resource_update_canceled(resource: models.Resource, validate=False):
     else:
         logger.info("Resource %s is already in OK state, skip transition", resource)
 
-    log.log_resource_update_canceled(resource)
+    event_logger.emit(
+        "Resource {resource_name} update has canceled.",
+        event_type=EventType.MARKETPLACE_RESOURCE_UPDATE_CANCELED,
+        event_context={"resource": resource},
+        scopes=log.get_resource_scopes(resource),
+        level="error",
+    )
     return order
 
 
@@ -217,7 +247,12 @@ def resource_deletion_succeeded(resource: models.Resource, validate=False):
         )
 
     signals.resource_deletion_succeeded.send(models.Resource, instance=resource)
-    log.log_resource_terminate_succeeded(resource)
+    event_logger.emit(
+        "Resource {resource_name} has been deleted.",
+        event_type=EventType.MARKETPLACE_RESOURCE_TERMINATE_SUCCEEDED,
+        event_context={"resource": resource},
+        scopes=log.get_resource_scopes(resource),
+    )
     return order
 
 
@@ -234,7 +269,13 @@ def resource_deletion_failed(resource: models.Resource, validate=False):
     else:
         logger.info("Resource %s is already in OK state, skip transition", resource)
 
-    log.log_resource_terminate_failed(resource)
+    event_logger.emit(
+        "Resource {resource_name} deletion has failed.",
+        event_type=EventType.MARKETPLACE_RESOURCE_TERMINATE_FAILED,
+        event_context={"resource": resource},
+        scopes=log.get_resource_scopes(resource),
+        level="error",
+    )
     return order
 
 
@@ -250,7 +291,13 @@ def resource_deletion_canceled(resource: models.Resource, validate=False):
         resource.set_state_ok()
         resource.save(update_fields=["state"])
 
-    log.log_resource_terminate_canceled(resource)
+    event_logger.emit(
+        "Resource {resource_name} terminate has canceled.",
+        event_type=EventType.MARKETPLACE_RESOURCE_TERMINATE_CANCELED,
+        event_context={"resource": resource},
+        scopes=log.get_resource_scopes(resource),
+        level="error",
+    )
     return order
 
 
@@ -261,7 +308,12 @@ def resource_erred_on_backend(resource: models.Resource, validate=False):
     resource.set_state_erred()
     resource.save(update_fields=["state"])
 
-    log.log_resource_erred_on_backend(resource)
+    event_logger.emit(
+        "Resource {resource_name} got error on backend.",
+        event_type=EventType.MARKETPLACE_RESOURCE_ERRED_ON_BACKEND,
+        event_context={"resource": resource},
+        scopes=log.get_resource_scopes(resource),
+    )
 
 
 def set_order_state(resource: models.Resource, order_type, new_state, validate=False):

@@ -30,9 +30,9 @@ Here are the guidelines for writing good log events.
 
 * Use the name of an entity instead of its `__str__`.
 
-  **Right:** `event_logger.info('Environment %s has been updated.', env.name)`
+  **Right:** `event_logger.emit('Environment %s has been updated.', env.name)`
 
-  **Wrong:** `event_logger.info('Environment %s has been updated.', env)`
+  **Wrong:** `event_logger.emit('Environment %s has been updated.', env)`
 
 * Don't put quotes around names or entity types.
 

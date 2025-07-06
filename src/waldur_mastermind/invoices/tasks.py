@@ -12,7 +12,8 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.log import event_logger
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace.tasks import copy_future_price_to_current_price
@@ -284,14 +285,13 @@ def set_to_zero_overdue_credits():
     ).exclude(value=0):
         credit.value = 0
         credit.save()
-        event_logger.info(
+        event_logger.emit(
             "Credit has been set to zero due as the end date {credit_end_date} has arrived.",
-            event_type="set_to_zero_overdue_credit",
+            event_type=EventType.SET_TO_ZERO_OVERDUE_CREDIT,
             event_context={
                 "customer": credit.customer,
                 "credit_end_date": credit.end_date,
             },
-            group="credit",
         )
 
 

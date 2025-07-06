@@ -3,7 +3,8 @@ import logging
 from celery import shared_task
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.log import event_logger
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.policy import models
@@ -13,7 +14,7 @@ from . import utils
 logger = logging.getLogger(__name__)
 
 
-def send_emails(emails, policy):
+def send_emails(emails, policy: "models.ProjectEstimatedCostPolicy"):
     scope_class = policy.scope.__class__.__name__
 
     if emails:
@@ -30,15 +31,15 @@ def send_emails(emails, policy):
             emails,
         )
 
-    event_logger.info(
+    event_logger.emit(
         "Cost policy has been triggered and emails have been sent.",
-        event_type="policy_notification",
+        event_type=EventType.POLICY_NOTIFICATION,
         event_context={
             "policy_uuid": policy.uuid.hex,
             "scope": f"{scope_class} UUID: {policy.scope.uuid.hex}",
             "emails": str(emails),
         },
-        group="policy_notification",
+        scopes=[],
     )
 
 

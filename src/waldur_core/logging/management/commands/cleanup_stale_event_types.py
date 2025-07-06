@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from waldur_core.logging import loggers
+from waldur_core.logging import event_logger
 from waldur_core.logging.models import EventTypesMixin
 
 
@@ -10,7 +10,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write("Checking event types of hooks...")
 
-        valid_events = loggers.get_valid_events()
+        valid_events = event_logger.get_valid_events()
         changed_hooks = 0
         for model in EventTypesMixin.get_all_models():
             for hook in model.objects.all():

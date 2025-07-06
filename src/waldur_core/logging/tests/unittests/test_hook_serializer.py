@@ -1,11 +1,11 @@
 import unittest
 
-from waldur_core.logging import loggers, serializers
+from waldur_core.logging import event_logger, serializers
 
 
 class HookSerializerTest(unittest.TestCase):
     def setUp(self):
-        self.events = loggers.get_valid_events()[:3]
+        self.events = event_logger.get_valid_events()[:3]
 
     def test_valid_web_settings(self):
         serializer = serializers.WebHookSerializer(

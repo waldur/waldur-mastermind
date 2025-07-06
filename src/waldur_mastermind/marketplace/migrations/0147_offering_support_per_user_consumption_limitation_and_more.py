@@ -6,7 +6,7 @@ import model_utils.fields
 from django.db import migrations, models
 
 import waldur_core.core.fields
-import waldur_core.logging.loggers
+import waldur_core.logging.mixins
 
 
 class Migration(migrations.Migration):
@@ -80,6 +80,6 @@ class Migration(migrations.Migration):
             options={
                 "unique_together": {("resource", "component", "user")},
             },
-            bases=(models.Model, waldur_core.logging.loggers.LoggableMixin),
+            bases=(models.Model, waldur_core.logging.mixins.LoggableMixin),
         ),
     ]

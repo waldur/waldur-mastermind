@@ -4,21 +4,22 @@ import re
 from django.db import transaction
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.log import event_logger
 from waldur_core.core.utils import get_system_robot
-from waldur_core.structure import models as structure_models
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
+from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
-from waldur_mastermind.policy import tasks
+from waldur_mastermind.policy import models, tasks
 
 from . import enums, structures
 
 logger = logging.getLogger(__name__)
 
 
-def notify_project_team(policy):
+def notify_project_team(policy: models.Policy):
     serialized_policy = core_utils.serialize_instance(policy)
     tasks.notify_project_team.delay(serialized_policy)
 
@@ -27,15 +28,15 @@ def notify_project_team(policy):
         policy.uuid.hex,
     )
 
-    event_logger.info(
+    event_logger.emit(
         "Cost policy has been triggered and notification to project members has been scheduled.",
-        event_type="notify_project_team",
+        event_type=EventType.NOTIFY_PROJECT_TEAM,
         event_context={"policy_uuid": policy.uuid.hex},
-        group="policy_action",
+        scopes=[],
     )
 
 
-def notify_organization_owners(policy):
+def notify_organization_owners(policy: models.Policy):
     serialized_policy = core_utils.serialize_instance(policy)
     tasks.notify_customer_owners.delay(serialized_policy)
 
@@ -44,15 +45,15 @@ def notify_organization_owners(policy):
         policy.uuid.hex,
     )
 
-    event_logger.info(
+    event_logger.emit(
         "Cost policy has been triggered and notification to organization owners has been scheduled.",
-        event_type="notify_organization_owners",
+        event_type=EventType.NOTIFY_ORGANIZATION_OWNERS,
         event_context={"policy_uuid": policy.uuid.hex},
-        group="policy_action",
+        scopes=[],
     )
 
 
-def terminate_resources(policy):
+def terminate_resources(policy: models.Policy):
     from waldur_mastermind.marketplace import tasks as marketplace_tasks
 
     user = get_system_robot()
@@ -61,9 +62,9 @@ def terminate_resources(policy):
         state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING)
     )
 
-    if isinstance(policy.scope, structure_models.Project):
+    if isinstance(policy.scope, Project):
         resources = resources.filter(project=policy.scope)
-    elif isinstance(policy.scope, structure_models.Customer):
+    elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
     else:
         # Assuming that policy scope is an offering
@@ -93,12 +94,12 @@ def terminate_resources(policy):
                 str(resource),
             )
 
-            event_logger.info(
+            event_logger.emit(
                 "Cost policy has been triggered and termination order has been created. Resource: %s."
                 % str(resource),
-                event_type="terminate_resources",
+                event_type=EventType.TERMINATE_RESOURCES,
                 event_context={"policy_uuid": policy.uuid.hex},
-                group="policy_action",
+                scopes=[],
             )
 
             marketplace_tasks.process_order_on_commit(order, user)
@@ -110,11 +111,11 @@ def block_creation_of_new_resources(policy, created):
             "Policy action block_creation_of_new_resources has been triggered. Policy UUID: %s.",
             policy.uuid.hex,
         )
-        event_logger.info(
+        event_logger.emit(
             "Cost policy has been triggered and creation of new resource has been blocked.",
-            event_type="block_creation_of_new_resources",
+            event_type=EventType.BLOCK_CREATION_OF_NEW_RESOURCES,
             event_context={"policy_uuid": policy.uuid.hex},
-            group="policy_action",
+            scopes=[],
         )
         raise PolicyException(
             f"Creation of new resources in this project is prohibited by policy {policy.uuid.hex}."
@@ -127,18 +128,18 @@ def block_modification_of_existing_resources(policy, created):
             "Policy action block_modification_of_existing_resources has been triggered. Policy UUID: %s.",
             policy.uuid.hex,
         )
-        event_logger.info(
+        event_logger.emit(
             "Cost policy has been triggered and updating existing resource has been blocked.",
-            event_type="block_modification_of_existing_resources",
+            event_type=EventType.BLOCK_MODIFICATION_OF_EXISTING_RESOURCES,
             event_context={"policy_uuid": policy.uuid.hex},
-            group="policy_action",
+            scopes=[],
         )
         raise PolicyException(
             "Modification of new resources in this project is not available due to a policy."
         )
 
 
-def request_downscaling(policy):
+def request_downscaling(policy: models.Policy):
     resources = marketplace_models.Resource.objects.filter(
         offering__plugin_options__supports_downscaling=True
     ).exclude(
@@ -148,9 +149,9 @@ def request_downscaling(policy):
         )
     )
 
-    if isinstance(policy.scope, structure_models.Project):
+    if isinstance(policy.scope, Project):
         resources = resources.filter(project=policy.scope)
-    elif isinstance(policy.scope, structure_models.Customer):
+    elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
     else:
         # Assuming that policy scope is an offering
@@ -162,28 +163,28 @@ def request_downscaling(policy):
         policy.uuid.hex,
         ", ".join([r.name for r in resources]),
     )
-    event_logger.info(
+    event_logger.emit(
         "Cost policy has been triggered and downscaling has been requested. Resources: %s"
         % ", ".join([str(r) for r in resources]),
-        event_type="block_modification_of_existing_resources",
+        event_type=EventType.BLOCK_MODIFICATION_OF_EXISTING_RESOURCES,
         event_context={"policy_uuid": policy.uuid.hex},
-        group="policy_action",
+        scopes=[],
     )
 
 
-def reset_downscaling(policy):
-    resources = marketplace_models.Resource.filter(
+def reset_downscaling(policy: models.Policy):
+    resources = marketplace_models.Resource.objects.filter(
         offering__plugin_options__supports_downscaling=True
-    ).objects.exclude(
+    ).exclude(
         state__in=(
             ResourceStates.TERMINATED,
             ResourceStates.TERMINATING,
         )
     )
 
-    if isinstance(policy.scope, structure_models.Project):
+    if isinstance(policy.scope, Project):
         resources = resources.filter(project=policy.scope)
-    elif isinstance(policy.scope, structure_models.Customer):
+    elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
     else:
         # Assuming that policy scope is an offering
@@ -197,14 +198,14 @@ def reset_downscaling(policy):
     )
 
 
-def restrict_members(policy):
+def restrict_members(policy: models.Policy):
     resources = marketplace_models.Resource.objects.filter(
         offering__plugin_options__service_provider_can_create_offering_user=True
     ).exclude(state__in=(ResourceStates.TERMINATED,))
 
-    if isinstance(policy.scope, structure_models.Project):
+    if isinstance(policy.scope, Project):
         resources = resources.filter(project=policy.scope)
-    elif isinstance(policy.scope, structure_models.Customer):
+    elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
     else:
         # Assuming that policy scope is an offering
@@ -217,23 +218,23 @@ def restrict_members(policy):
         policy.uuid.hex,
         ", ".join([r.name for r in resources]),
     )
-    event_logger.info(
+    event_logger.emit(
         "Cost policy has been triggered and account removal has been requested. Resources: %s"
         % ", ".join([str(r) for r in resources]),
-        event_type="restrict_members",
+        event_type=EventType.RESTRICT_MEMBERS,
         event_context={"policy_uuid": policy.uuid.hex},
-        group="policy_action",
+        scopes=[],
     )
 
 
-def reset_member_restriction(policy):
+def reset_member_restriction(policy: models.Policy):
     resources = marketplace_models.Resource.objects.filter(
         offering__plugin_options__service_provider_can_create_offering_user=True
     ).exclude(state__in=(ResourceStates.TERMINATED,))
 
-    if isinstance(policy.scope, structure_models.Project):
+    if isinstance(policy.scope, Project):
         resources = resources.filter(project=policy.scope)
-    elif isinstance(policy.scope, structure_models.Customer):
+    elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
     else:
         # Assuming that policy scope is an offering
@@ -248,14 +249,14 @@ def reset_member_restriction(policy):
     )
 
 
-def request_pausing(policy):
+def request_pausing(policy: models.Policy):
     resources = marketplace_models.Resource.objects.filter(
         offering__plugin_options__supports_pausing=True
     ).exclude(state__in=(ResourceStates.TERMINATED,))
 
-    if isinstance(policy.scope, structure_models.Project):
+    if isinstance(policy.scope, Project):
         resources = resources.filter(project=policy.scope)
-    elif isinstance(policy.scope, structure_models.Customer):
+    elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
     else:
         # Assuming that policy scope is an offering
@@ -267,23 +268,23 @@ def request_pausing(policy):
         policy.uuid.hex,
         ", ".join([r.name for r in resources]),
     )
-    event_logger.info(
+    event_logger.emit(
         "Cost policy has been triggered and pausing has been requested. Resources: %s"
         % ", ".join([str(r) for r in resources]),
-        event_type="block_modification_of_existing_resources",
+        event_type=EventType.BLOCK_MODIFICATION_OF_EXISTING_RESOURCES,
         event_context={"policy_uuid": policy.uuid.hex},
-        group="policy_action",
+        scopes=[],
     )
 
 
-def reset_pausing(policy):
+def reset_pausing(policy: models.Policy):
     resources = marketplace_models.Resource.objects.filter(
         offering__plugin_options__supports_pausing=True
     ).exclude(state__in=(ResourceStates.TERMINATED,))
 
-    if isinstance(policy.scope, structure_models.Project):
+    if isinstance(policy.scope, Project):
         resources = resources.filter(project=policy.scope)
-    elif isinstance(policy.scope, structure_models.Customer):
+    elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
     else:
         # Assuming that policy scope is an offering
@@ -297,7 +298,7 @@ def reset_pausing(policy):
     )
 
 
-def notify_external_user(policy):
+def notify_external_user(policy: models.Policy):
     serialized_policy = core_utils.serialize_instance(policy)
     tasks.notify_external_user.delay(serialized_policy)
 
@@ -306,11 +307,11 @@ def notify_external_user(policy):
         policy.uuid.hex,
     )
 
-    event_logger.info(
+    event_logger.emit(
         "Cost policy has been triggered and notification to external user has been scheduled.",
-        event_type="notify_external_user",
+        event_type=EventType.NOTIFY_EXTERNAL_USER,
         event_context={"policy_uuid": policy.uuid.hex},
-        group="policy_action",
+        scopes=[],
     )
 
 

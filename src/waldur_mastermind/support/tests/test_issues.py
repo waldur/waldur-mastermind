@@ -14,7 +14,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests.factories import ResourceFactory
 from waldur_mastermind.support import models, utils
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
-from waldur_mastermind.support.log import get_issue_scopes
+from waldur_mastermind.support.handlers import get_issue_scopes
 from waldur_mastermind.support.tests import base, factories
 from waldur_openstack.tests import (
     fixtures as openstack_fixtures,

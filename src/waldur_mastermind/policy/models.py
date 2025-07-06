@@ -21,7 +21,7 @@ from waldur_mastermind.invoices import (
 )
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import enums, policy_actions, structures
+from . import enums, structures
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,8 @@ class Policy(
         raise NotImplementedError()
 
     def get_all_actions(self) -> list[structures.PolicyAction]:
+        from . import policy_actions
+
         actions: list[structures.PolicyAction] = []
 
         for action_name in self.actions.split(","):

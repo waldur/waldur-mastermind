@@ -29,7 +29,6 @@ from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.marketplace_support.utils import get_order_issue
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.backend import SupportBackend
-from waldur_mastermind.support.log import IssueEventLogger
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests.base import BaseTest
 
@@ -647,17 +646,6 @@ class NotificationTest(BaseTest):
         # Trigger handler
         self.issue.backend_id = "TST-1"
         self.issue.save()
-
-
-class IssueLogTest(test.APITransactionTestCase):
-    def test_get_logger_scope_if_issue_resource_is_order(self):
-        order = marketplace_factories.OrderFactory()
-        issue = support_factories.IssueFactory()
-        issue.resource = order
-        issue.save()
-        logger = IssueEventLogger
-        scope = logger.get_scopes({"issue": issue})
-        self.assertTrue(order.project in scope)
 
 
 class ProcessingTest(test.APITransactionTestCase):

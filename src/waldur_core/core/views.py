@@ -55,7 +55,8 @@ from waldur_core.core.serializers import (
     VersionSerializer,
 )
 from waldur_core.core.utils import format_homeport_link
-from waldur_core.logging.loggers import event_logger
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.structure.permissions import IsStaffOrSupportUser
 
 logger = logging.getLogger(__name__)
@@ -163,11 +164,11 @@ class ObtainAuthToken(APIView):
         if not user:
             logger.debug("Not returning auth token: user %s does not exist", username)
             cache.set(auth_failure_key, auth_failures + 1, lockout_time_in_mins * 60)
-            event_logger.info(
+            event_logger.emit(
                 "User {username} failed to authenticate with username and password.",
-                event_type="auth_login_failed_with_username",
+                event_type=EventType.AUTH_LOGIN_FAILED_WITH_USERNAME,
                 event_context={"username": username},
-                group="auth",
+                scopes=[],
             )
 
             return Response(
@@ -191,12 +192,12 @@ class ObtainAuthToken(APIView):
 
         logger.debug("Returning token for successful login of user %s", user)
 
-        event_logger.info(
+        event_logger.emit(
             "User {user_username} with full name {user_full_name} "
             "authenticated successfully with username and password.",
-            event_type="auth_logged_in_with_username",
+            event_type=EventType.AUTH_LOGGED_IN_WITH_USERNAME,
             event_context={"user": user, "request": request},
-            group="auth",
+            scopes=[user],
         )
 
         return Response({"token": token.key})
@@ -216,11 +217,11 @@ class LogoutView(generics.GenericAPIView):
     )
     def post(self, request, format=None):
         request.user.auth_token.delete()
-        event_logger.info(
+        event_logger.emit(
             "User {user_username} with full name {user_full_name} logged out.",
-            event_type="auth_logged_out",
+            event_type=EventType.AUTH_LOGGED_OUT,
             event_context={"user": request.user, "request": request},
-            group="auth",
+            scopes=[request.user],
         )
         logout_url = None
         authentication_method = get_authentication_method(request)

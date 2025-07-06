@@ -3,6 +3,7 @@ import datetime
 import logging
 import textwrap
 import uuid
+from typing import cast
 
 import httpx
 import reversion
@@ -61,7 +62,8 @@ from waldur_core.core.utils import (
     month_start,
     order_with_nulls,
 )
-from waldur_core.logging.loggers import event_logger
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.fixtures import (
@@ -2974,11 +2976,20 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     def unlink(self, request, uuid=None):
         if not request.user.is_staff:
             raise PermissionDenied()
-        obj: models.Order = self.get_object()
-        logger.info("Starting unlink for order %s", obj.uuid)
-        log.log_order_unlink(obj)
+        order: models.Order = self.get_object()
+        logger.info("Starting unlink for order %s", order.uuid)
+        event_logger.emit(
+            "Order {order_uuid} for resource {resource_name} has been unlinked. Type: {type}",
+            event_type=EventType.MARKETPLACE_ORDER_UNLINKED,
+            event_context={
+                "order": order,
+                "type": order.get_type_display(),
+                "resource_name": order.resource.name,
+            },
+            scopes=log.get_order_scopes(order),
+        )
         try:
-            obj.delete()
+            order.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             logger.error(
@@ -3052,19 +3063,24 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         and without checking current state of the resource. It is intended to be used
         for removing resource stuck in transitioning state.
         """
-        obj: models.Resource = self.get_object()
-        log.log_resource_unlink(obj)
-        logger.info("Starting unlink for resource %s", obj.uuid)
+        resource: models.Resource = self.get_object()
+        event_logger.emit(
+            "Resource {resource_name} has been unlinked.",
+            event_type=EventType.MARKETPLACE_RESOURCE_UNLINKED,
+            event_context={"resource": resource},
+            scopes=log.get_resource_scopes(resource),
+        )
+        logger.info("Starting unlink for resource %s", resource.uuid)
         try:
-            if obj.scope:
-                obj.scope.delete()
-            obj.delete()
-            logger.debug("Resource %s has been unlinked", obj.uuid)
+            if resource.scope:
+                resource.scope.delete()
+            resource.delete()
+            logger.debug("Resource %s has been unlinked", resource.uuid)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             logger.error(
                 "Error during resource unlink. Error %s",
-                obj,
+                resource,
                 str(e),
             )
 
@@ -3201,13 +3217,18 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         )
 
         if not is_staff_action:
-            log.log_marketplace_resource_end_date_has_been_updated_by_provider(
-                resource, request.user
+            template = (
+                "End date of marketplace resource %(resource_name)s has been updated by provider."
+                " End date: %(end_date)s."
+                " User: %(user)s."
             )
         else:
-            log.log_marketplace_resource_end_date_has_been_updated_by_staff(
-                resource, request.user
+            template = (
+                "End date of marketplace resource %(resource_name)s has been updated by staff."
+                " End date: %(end_date)s."
+                " User: %(user)s."
             )
+        log.log_resource_end_date_has_been_updated(resource, request.user, template)
 
         return Response(status=status.HTTP_200_OK)
 
@@ -3543,7 +3564,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
 
     @action(detail=True, methods=["post"])
     def set_as_erred(self, request, uuid=None):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -3578,7 +3599,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     )
     @action(detail=True, methods=["post"])
     def set_as_ok(self, request, uuid=None):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
 
         if resource.state == ResourceStates.OK:
             logger.warning("Resource %s is already in OK state", resource)
@@ -3622,7 +3643,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
 
     @action(detail=True, methods=["post"])
     def set_limits(self, request, uuid=None):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -3682,7 +3703,7 @@ class ResourceOfferingsViewSet(ListAPIView):
     def get_queryset(self):
         user = self.request.user
         category = self.get_category()
-        qs: ResourceQuerySet = models.Resource.objects.all()
+        qs = cast(ResourceQuerySet, models.Resource.objects.all())
         offerings = (
             qs.filter_for_service_consumer(user)
             .filter(offering__category=category)
@@ -4005,11 +4026,10 @@ class OfferingUsersViewSet(
         serializer.is_valid(raise_exception=True)
         offering_user.is_restricted = serializer.validated_data["is_restricted"]
         offering_user.save(update_fields=["is_restricted"])
-        event_logger.info(
+        event_logger.emit(
             f"Restriction status for user {offering_user.user.username} in offering {offering_user.offering.name} has been set to {offering_user.is_restricted} by {request.user.username}.",
-            event_type="marketplace_offering_user_restriction_updated",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_RESTRICTION_UPDATED,
             event_context={"offering_user": offering_user},
-            group="marketplace_offering_user",
         )
         logger.info(
             f"Restriction status for user {offering_user.user.username} in offering {offering_user.offering.name} has been set to {offering_user.is_restricted} by {request.user.username}."

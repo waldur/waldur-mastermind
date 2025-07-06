@@ -19,7 +19,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.managers import SummaryQuerySet
 from waldur_core.logging import backend, filters, models, serializers, utils
-from waldur_core.logging.loggers import get_event_groups
+from waldur_core.logging.event_logger import get_event_groups
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class WebHookViewSet(BaseHookViewSet):
                 request_only=True,
                 name="webhook-create",
                 value={
-                    "event_types": ["resource_start_succeeded"],
+                    "event_types": ["customer_update_succeeded"],
                     "event_groups": ["users"],
                     "destination_url": "http://example.com/",
                 },

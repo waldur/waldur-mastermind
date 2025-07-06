@@ -16,6 +16,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core.utils import broadcast_mail, format_homeport_link, pwgen
 from waldur_core.structure import models as structure_models
 from waldur_core.users import models, utils
+from waldur_core.users.enums import InvitationState
 from waldur_core.users.utils import generate_safe_username
 
 logger = logging.getLogger(__name__)
@@ -29,11 +30,9 @@ def cancel_expired_invitations(invitations=None):
     """
     expiration_date = timezone.now() - settings.WALDUR_CORE["INVITATION_LIFETIME"]
     if not invitations:
-        invitations = models.Invitation.objects.filter(
-            state=models.Invitation.State.PENDING
-        )
+        invitations = models.Invitation.objects.filter(state=InvitationState.PENDING)
     invitations = invitations.filter(created__lte=expiration_date)
-    invitations.update(state=models.Invitation.State.EXPIRED)
+    invitations.update(state=InvitationState.EXPIRED)
 
     for invitation in invitations:
         context = utils.get_invitation_context(invitation, invitation.created_by.email)
@@ -164,7 +163,7 @@ def send_reminder_for_pending_invitations():
         timezone.now() - settings.WALDUR_CORE["INVITATION_LIFETIME"] - timedelta(days=1)
     )
     pending_invitations = models.Invitation.objects.filter(
-        state=models.Invitation.State.PENDING, created__lte=expiration_date
+        state=InvitationState.PENDING, created__lte=expiration_date
     )
 
     for invitation in pending_invitations:
@@ -207,7 +206,9 @@ def get_or_create_user(invitation_uuid, sender):
         invitation.save(update_fields=["error_message"])
         raise
     if created:
-        sender = invitation.created_by.full_name or invitation.created_by.username
+        sender = invitation.created_by and (
+            invitation.created_by.full_name or invitation.created_by.username
+        )
         context = utils.get_invitation_context(invitation, sender)
         context["username"] = username
         context["password"] = password
@@ -270,14 +271,16 @@ def process_pending_project_invitations():
         start_date__lte=timezone.now()
     ).values_list("id", flat=True)
     invitations = models.Invitation.objects.filter(
-        state=models.Invitation.State.PENDING_PROJECT,
+        state=InvitationState.PENDING_PROJECT,
         object_id__in=active_project_ids,
         content_type=project_content_type,
     )
     for invitation in invitations:
-        invitation.state = models.Invitation.State.PENDING
+        invitation.state = InvitationState.PENDING
         invitation.save()
-        sender = invitation.created_by.full_name or invitation.created_by.username
+        sender = invitation.created_by and (
+            invitation.created_by.full_name or invitation.created_by.username
+        )
         transaction.on_commit(
             lambda: process_invitation.delay(invitation.uuid.hex, sender)
         )

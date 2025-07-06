@@ -10,7 +10,7 @@ from django.db import migrations, models
 import waldur_core.core.fields
 import waldur_core.core.models
 import waldur_core.core.validators
-import waldur_core.logging.loggers
+import waldur_core.logging.mixins
 import waldur_core.structure.models
 
 
@@ -135,7 +135,7 @@ class Migration(migrations.Migration):
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
+                waldur_core.logging.mixins.LoggableMixin,
                 models.Model,
             ),
         ),
@@ -299,7 +299,7 @@ class Migration(migrations.Migration):
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
+                waldur_core.logging.mixins.LoggableMixin,
                 models.Model,
             ),
         ),
@@ -850,7 +850,7 @@ class Migration(migrations.Migration):
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
+                waldur_core.logging.mixins.LoggableMixin,
                 models.Model,
             ),
         ),
@@ -1220,6 +1220,6 @@ class Migration(migrations.Migration):
                 "abstract": False,
                 "unique_together": set(),
             },
-            bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
+            bases=(waldur_core.logging.mixins.LoggableMixin, models.Model),
         ),
     ]

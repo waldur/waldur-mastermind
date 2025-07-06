@@ -18,8 +18,6 @@ from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.utils import send_mail
-from waldur_core.permissions.enums import RoleEnum
-from waldur_core.permissions.utils import get_users
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +64,7 @@ class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
 
     @property
     def all_event_types(self):
-        from waldur_core.logging import loggers
+        from waldur_core.logging import event_logger
 
         self_types = set(self.event_types)
         try:
@@ -77,7 +75,7 @@ class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
         else:
             return (
                 self_types
-                | set(loggers.expand_event_groups(base_types.event_groups))
+                | set(event_logger.expand_event_groups(base_types.event_groups))
                 | set(base_types.event_types)
             )
 
@@ -186,50 +184,6 @@ class SystemNotification(EventTypesMixin, models.Model):
     @staticmethod
     def get_valid_roles():
         return "admin", "manager", "owner"
-
-    @classmethod
-    def get_hooks(cls, event_type, project=None, customer=None):
-        from waldur_core.logging import loggers
-
-        groups = [
-            g[0]
-            for g in loggers.event_logger.get_all_groups().items()
-            if event_type in g[1]
-        ]
-
-        for hook in cls.objects.filter(
-            models.Q(event_types__contains=event_type)
-            | models.Q(event_groups__has_any_keys=groups)
-        ):
-            hook_class = hook.hook_content_type.model_class()
-            users_qs = []
-
-            if project:
-                if "admin" in hook.roles:
-                    users_qs.append(get_users(project, RoleEnum.PROJECT_ADMIN))
-                if "manager" in hook.roles:
-                    users_qs.append(get_users(project, RoleEnum.PROJECT_MANAGER))
-                if "owner" in hook.roles:
-                    users_qs.append(
-                        get_users(project.customer, RoleEnum.CUSTOMER_OWNER)
-                    )
-
-            if customer:
-                if "owner" in hook.roles:
-                    users_qs.append(get_users(customer, RoleEnum.CUSTOMER_OWNER))
-
-            if len(users_qs) > 1:
-                users = users_qs[0].union(*users_qs[1:]).distinct()
-            elif len(users_qs) == 1:
-                users = users_qs[0]
-            else:
-                users = []
-
-            for user in users:
-                if user.email:
-                    yield hook_class(
-                        user=user, event_types=hook.event_types, email=user.email
-                    )
 
     def __str__(self):
         return f"{self.hook_content_type} | {self.name}"

@@ -4,7 +4,7 @@ from django.urls import reverse
 
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.logging import models
-from waldur_core.logging.loggers import get_valid_events
+from waldur_core.logging.event_logger import get_valid_events
 from waldur_core.structure.tests import factories as structure_factories
 
 

@@ -15,9 +15,10 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.core.log import event_logger
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import is_uuid_like
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -146,16 +147,16 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
             payment.save()
 
-            event_logger.info(
+            event_logger.emit(
                 'Payment for invoice ({month}/{year}) has been added."',
-                event_type="payment_created",
+                event_type=EventType.PAYMENT_CREATED,
                 event_context={
                     "month": invoice.month,
                     "year": invoice.year,
                     "customer": invoice.customer,
                     "invoice": invoice,
                 },
-                group="invoice",
+                scopes=[invoice, invoice.customer],
             )
 
         invoice.state = models.Invoice.States.PAID
@@ -452,13 +453,13 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         invoice_item.invoice = invoice
         invoice_item.save()
 
-        event_logger.info(
+        event_logger.emit(
             f"Invoice item has been migrated from {old_invoice} to {invoice}",
-            event_type="invoice_item_updated",
+            event_type=EventType.INVOICE_ITEM_UPDATED,
             event_context={
                 "invoice_item": invoice_item,
             },
-            group="invoice_item",
+            scopes=[invoice_item.invoice, invoice_item.invoice.customer],
         )
 
         return Response(
@@ -751,16 +752,16 @@ class PaymentViewSet(core_views.ActionsViewSet):
         payment.invoice = invoice
         payment.save(update_fields=["invoice"])
 
-        event_logger.info(
+        event_logger.emit(
             "Payment for invoice ({month}/{year}) has been added.",
-            event_type="payment_created",
+            event_type=EventType.PAYMENT_CREATED,
             event_context={
                 "month": invoice.month,
                 "year": invoice.year,
                 "customer": invoice.customer,
                 "invoice": invoice,
             },
-            group="invoice",
+            scopes=[invoice, invoice.customer],
         )
 
         return Response(
@@ -787,19 +788,21 @@ class PaymentViewSet(core_views.ActionsViewSet):
     def unlink_from_invoice(self, request, uuid=None):
         payment: models.Payment = self.get_object()
         invoice = payment.invoice
+        if not invoice:
+            raise exceptions.ValidationError(_("Payment is not linked to any invoice."))
         payment.invoice = None
         payment.save(update_fields=["invoice"])
 
-        event_logger.info(
+        event_logger.emit(
             "Payment for invoice ({month}/{year}) has been removed.",
-            event_type="payment_removed",
+            event_type=EventType.PAYMENT_REMOVED,
             event_context={
                 "month": invoice.month,
                 "year": invoice.year,
                 "customer": invoice.customer,
                 "invoice": invoice,
             },
-            group="invoice",
+            scopes=[invoice, invoice.customer],
         )
 
         return Response(
@@ -812,15 +815,15 @@ class PaymentViewSet(core_views.ActionsViewSet):
     def perform_create(self, serializer):
         super().perform_create(serializer)
         payment: models.Payment = serializer.instance
-        event_logger.info(
+        event_logger.emit(
             "Payment for {customer_name} in the amount of {amount} has been added.",
-            event_type="payment_added",
+            event_type=EventType.PAYMENT_ADDED,
             event_context={
                 "amount": payment.sum,
                 "customer": payment.profile.organization,
                 "invoice": payment.invoice,
             },
-            group="payment",
+            scopes=[payment.invoice, payment.profile.organization],
         )
 
     def perform_destroy(self, instance: models.Payment):
@@ -828,15 +831,15 @@ class PaymentViewSet(core_views.ActionsViewSet):
         amount = instance.sum
         super().perform_destroy(instance)
 
-        event_logger.info(
+        event_logger.emit(
             "Payment for {customer_name} in the amount of {amount} has been removed.",
-            event_type="payment_removed",
+            event_type=EventType.PAYMENT_REMOVED,
             event_context={
                 "amount": amount,
                 "customer": customer,
                 "invoice": instance.invoice,
             },
-            group="payment",
+            scopes=[customer, instance.invoice],
         )
 
 

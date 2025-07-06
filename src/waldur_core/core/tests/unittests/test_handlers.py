@@ -13,7 +13,7 @@ NOTIFICATION_SETTINGS = {
 }
 
 
-@mock.patch("waldur_core.core.log.event_logger.info")
+@mock.patch("waldur_core.logging.event_logger.emit")
 class LogUserSaveTest(TestCase):
     """Tests for logging and notifications when user data is updated."""
 
