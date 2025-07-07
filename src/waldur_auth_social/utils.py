@@ -90,13 +90,11 @@ def create_or_update_oauth_user(
         # Use all_objects to reactivate a user who might have been deactivated
         user = cast(User, User.all_objects.get(**lookup_params))
 
+        if not user.is_active:
+            raise OAuthException(identity_provider.provider, "User is deactivated.")
+
         # Prepare for update
         update_fields = set()
-        if not user.is_active:
-            user.is_active = True
-            update_fields.add("is_active")
-        user.last_sync = timezone.now()
-        update_fields.add("last_sync")
 
         for field, value in payload.items():
             if getattr(user, field) != value:
@@ -104,6 +102,8 @@ def create_or_update_oauth_user(
                 update_fields.add(field)
 
         if update_fields:
+            user.last_sync = timezone.now()
+            update_fields.add("last_sync")
             user.save(update_fields=update_fields)
 
     except User.DoesNotExist:
