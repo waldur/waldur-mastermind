@@ -108,12 +108,12 @@ def create_or_update_oauth_user(
 
     except User.DoesNotExist:
         created = True
+        merged_dict = {**lookup_params, **payload}
         user = cast(
             User,
             User.objects.create_user(
                 registration_method=identity_provider.provider,
-                **lookup_params,
-                **payload,
+                **merged_dict,
             ),
         )
         user.set_unusable_password()
