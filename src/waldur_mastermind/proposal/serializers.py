@@ -110,6 +110,7 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
             "plan_details",
             "options",
             "components",
+            "created",
         ]
         extra_kwargs = {
             "offering": {
