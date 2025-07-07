@@ -30,4 +30,8 @@ for provider in const.ProviderChoices.CHOICES:
 
 
 def register_in(router):
-    router.register(r"identity-providers", views.IdentityProvidersViewSet)
+    router.register(
+        r"identity-providers",
+        views.IdentityProvidersViewSet,
+        basename="identity-providers",
+    )
