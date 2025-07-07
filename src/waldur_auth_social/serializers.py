@@ -137,7 +137,12 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
         default_values = PROVIDER_DEFAULTS.get(provider)
         if default_values:
             for key, value in default_values.items():
-                validated_data.setdefault(key, value)
+                if isinstance(value, dict):
+                    validated_data.setdefault(key, {})
+                    for nested_key, nested_value in value.items():
+                        validated_data[key].setdefault(nested_key, nested_value)
+                else:
+                    validated_data.setdefault(key, value)
         return super().create(validated_data)
 
 
