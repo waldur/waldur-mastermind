@@ -17,6 +17,7 @@ from waldur_core.permissions.utils import (
 from waldur_core.structure.managers import (
     get_connected_customers_by_permission,
 )
+from waldur_core.users.enums import InvitationState
 
 from . import models
 
@@ -97,7 +98,7 @@ class GroupInvitationFilter(BaseInvitationFilter):
 
 
 class InvitationFilter(BaseInvitationFilter):
-    state = django_filters.MultipleChoiceFilter(choices=models.Invitation.State.CHOICES)
+    state = django_filters.MultipleChoiceFilter(choices=InvitationState.CHOICES)
     email = django_filters.CharFilter(lookup_expr="icontains")
 
     o = django_filters.OrderingFilter(
@@ -130,7 +131,7 @@ class PermissionRequestFilter(django_filters.FilterSet):
 
 
 def filter_pending_invitations(user):
-    subquery = Q(state=models.Invitation.State.PENDING) & (
+    subquery = Q(state=InvitationState.PENDING) & (
         Q(civil_number="") | Q(civil_number=user.civil_number)
     )
     if settings.WALDUR_CORE["VALIDATE_INVITATION_EMAIL"]:

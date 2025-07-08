@@ -84,9 +84,6 @@ class Invitation(
     class Permissions:
         customer_path = "customer"
 
-    class State(InvitationState):
-        pass
-
     class ExecutionState:
         SCHEDULED = "Scheduled"
         PROCESSING = "Processing"
@@ -109,7 +106,7 @@ class Invitation(
     )
 
     state = models.CharField(
-        max_length=10, choices=State.CHOICES, default=State.PENDING
+        max_length=10, choices=InvitationState.CHOICES, default=InvitationState.PENDING
     )
     execution_state = FSMField(
         choices=ExecutionState.CHOICES, default=ExecutionState.SCHEDULED

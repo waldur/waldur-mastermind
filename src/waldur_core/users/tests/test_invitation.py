@@ -18,6 +18,7 @@ from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models, tasks
+from waldur_core.users.enums import InvitationState
 from waldur_core.users.tests import factories
 from waldur_core.users.utils import get_invitation_link, get_invitation_token
 from waldur_mastermind.proposal.tests.factories import ProposalFactory
@@ -419,7 +420,7 @@ class InvitationCreateTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         invitation = models.Invitation.objects.get(uuid=response.data["uuid"])
-        self.assertEqual(invitation.state, models.Invitation.State.REQUESTED)
+        self.assertEqual(invitation.state, InvitationState.REQUESTED)
 
     @data("customer_owner", "staff")
     def test_staff_and_owner_can_pass_extra_invitation_text(self, user):
@@ -463,9 +464,7 @@ class InvitationCreateTest(BaseInvitationTest):
             factories.InvitationBaseFactory.get_list_url(), data=payload
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(
-            response.data["state"], models.Invitation.State.PENDING_PROJECT
-        )
+        self.assertEqual(response.data["state"], InvitationState.PENDING_PROJECT)
 
     def test_proposal_creator_can_create_invitation(self):
         ProposalRole.MANAGER.add_permission(PermissionEnum.MANAGE_PROPOSAL)
@@ -526,9 +525,7 @@ class InvitationCancelTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.project_invitation.refresh_from_db()
-        self.assertEqual(
-            self.project_invitation.state, models.Invitation.State.CANCELED
-        )
+        self.assertEqual(self.project_invitation.state, InvitationState.CANCELED)
 
     @data("project_admin", "user")
     def test_user_without_access_cannot_cancel_project_invitation(self, user):
@@ -551,9 +548,7 @@ class InvitationCancelTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.customer_invitation.refresh_from_db()
-        self.assertEqual(
-            self.customer_invitation.state, models.Invitation.State.CANCELED
-        )
+        self.assertEqual(self.customer_invitation.state, InvitationState.CANCELED)
 
     def test_owner_can_not_cancel_customer_invitation(self):
         CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
@@ -580,7 +575,7 @@ class InvitationCancelTest(BaseInvitationTest):
 
         self.assertEqual(
             models.Invitation.objects.get(uuid=invitation.uuid).state,
-            models.Invitation.State.EXPIRED,
+            InvitationState.EXPIRED,
         )
 
         self.assertEqual(len(mail.outbox), 1)
@@ -694,7 +689,7 @@ class InvitationSendTest(BaseInvitationTest):
     @freeze_time("2018-05-15")
     def test_user_can_resend_expired_invitation(self):
         customer_expired_invitation = factories.CustomerInvitationFactory(
-            state=models.Invitation.State.EXPIRED
+            state=InvitationState.EXPIRED
         )
 
         self.client.force_authenticate(user=self.staff)
@@ -706,9 +701,7 @@ class InvitationSendTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         customer_expired_invitation.refresh_from_db()
-        self.assertEqual(
-            customer_expired_invitation.state, models.Invitation.State.PENDING
-        )
+        self.assertEqual(customer_expired_invitation.state, InvitationState.PENDING)
         self.assertEqual(customer_expired_invitation.created, timezone.now())
 
     @override_settings(task_always_eager=True)
@@ -743,9 +736,7 @@ class InvitationAcceptTest(BaseInvitationTest):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.project_invitation.refresh_from_db()
-        self.assertEqual(
-            self.project_invitation.state, models.Invitation.State.ACCEPTED
-        )
+        self.assertEqual(self.project_invitation.state, InvitationState.ACCEPTED)
         self.assertTrue(self.project.has_user(self.user, self.project_invitation.role))
 
     def test_authenticated_user_can_accept_customer_invitation(self):
@@ -758,9 +749,7 @@ class InvitationAcceptTest(BaseInvitationTest):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.customer_invitation.refresh_from_db()
-        self.assertEqual(
-            self.customer_invitation.state, models.Invitation.State.ACCEPTED
-        )
+        self.assertEqual(self.customer_invitation.state, InvitationState.ACCEPTED)
         self.assertTrue(
             self.customer.has_user(self.user, self.customer_invitation.role)
         )
@@ -863,7 +852,7 @@ class InvitationAcceptTest(BaseInvitationTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.project_invitation.refresh_from_db()
-        self.assertEqual(self.project_invitation.state, models.Invitation.State.PENDING)
+        self.assertEqual(self.project_invitation.state, InvitationState.PENDING)
 
     @override_config(ENABLE_STRICT_CHECK_ACCEPTING_INVITATION=True)
     def test_user_can_accept_invitation_with_different_case_emails(self):
@@ -880,7 +869,7 @@ class InvitationAcceptTest(BaseInvitationTest):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         invitation.refresh_from_db()
-        self.assertEqual(invitation.state, models.Invitation.State.ACCEPTED)
+        self.assertEqual(invitation.state, InvitationState.ACCEPTED)
 
     @override_config(ENABLE_STRICT_CHECK_ACCEPTING_INVITATION=True)
     def test_user_can_accept_invitation_with_mixed_case_emails(self):
@@ -900,7 +889,7 @@ class InvitationAcceptTest(BaseInvitationTest):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         invitation.refresh_from_db()
-        self.assertEqual(invitation.state, models.Invitation.State.ACCEPTED)
+        self.assertEqual(invitation.state, InvitationState.ACCEPTED)
         self.assertTrue(invitation.scope.has_user(mixed_case_user, invitation.role))
 
     @override_config(ENABLE_STRICT_CHECK_ACCEPTING_INVITATION=True)
@@ -919,7 +908,7 @@ class InvitationAcceptTest(BaseInvitationTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         invitation.refresh_from_db()
-        self.assertEqual(invitation.state, models.Invitation.State.PENDING)
+        self.assertEqual(invitation.state, InvitationState.PENDING)
         self.assertFalse(invitation.scope.has_user(self.user, invitation.role))
         # Check that the error message is about emails not being equal
         self.assertIn(
@@ -942,13 +931,13 @@ class InvitationAcceptTest(BaseInvitationTest):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         invitation.refresh_from_db()
-        self.assertEqual(invitation.state, models.Invitation.State.ACCEPTED)
+        self.assertEqual(invitation.state, InvitationState.ACCEPTED)
         self.assertTrue(invitation.scope.has_user(self.user, invitation.role))
 
 
 class InvitationApproveTest(BaseInvitationTest):
     def test_anonymous_user_can_approve_requested_invitation(self):
-        self.project_invitation.state = models.Invitation.State.REQUESTED
+        self.project_invitation.state = InvitationState.REQUESTED
         self.project_invitation.save()
         response = self.client.post(
             factories.InvitationBaseFactory.get_list_url("approve"),
@@ -957,10 +946,10 @@ class InvitationApproveTest(BaseInvitationTest):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
         self.project_invitation.refresh_from_db()
-        self.assertEqual(self.project_invitation.state, models.Invitation.State.PENDING)
+        self.assertEqual(self.project_invitation.state, InvitationState.PENDING)
 
     def test_anonymous_user_can_not_approve_pending_invitation(self):
-        self.project_invitation.state = models.Invitation.State.PENDING
+        self.project_invitation.state = InvitationState.PENDING
         self.project_invitation.save()
         response = self.client.post(
             factories.InvitationBaseFactory.get_list_url("approve"),
@@ -972,7 +961,7 @@ class InvitationApproveTest(BaseInvitationTest):
 
 class InvitationRejectTest(BaseInvitationTest):
     def test_anonymous_user_can_reject_requested_invitation(self):
-        self.project_invitation.state = models.Invitation.State.REQUESTED
+        self.project_invitation.state = InvitationState.REQUESTED
         self.project_invitation.save()
 
         response = self.client.post(
@@ -982,12 +971,10 @@ class InvitationRejectTest(BaseInvitationTest):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.project_invitation.refresh_from_db()
-        self.assertEqual(
-            self.project_invitation.state, models.Invitation.State.REJECTED
-        )
+        self.assertEqual(self.project_invitation.state, InvitationState.REJECTED)
 
     def test_anonymous_user_can_not_reject_rejected_invitation(self):
-        self.project_invitation.state = models.Invitation.State.REJECTED
+        self.project_invitation.state = InvitationState.REJECTED
         self.project_invitation.save()
 
         response = self.client.post(

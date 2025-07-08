@@ -23,6 +23,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import Customer, Project
 from waldur_core.users import filters, models, serializers, tasks
+from waldur_core.users.enums import InvitationState
 from waldur_core.users.utils import can_manage_invitation_with, parse_invitation_token
 
 
@@ -46,7 +47,7 @@ class InvitationViewSet(ProtectedViewSet):
         if isinstance(invitation.scope, Project):
             project = cast(Project, invitation.scope)
             if project.start_date and project.start_date > timezone.now().date():
-                invitation.state = models.Invitation.State.PENDING_PROJECT
+                invitation.state = InvitationState.PENDING_PROJECT
                 invitation.save()
                 return
 
@@ -55,7 +56,7 @@ class InvitationViewSet(ProtectedViewSet):
             settings.WALDUR_CORE["ONLY_STAFF_CAN_INVITE_USERS"]
             and not self.request.user.is_staff
         ):
-            invitation.state = models.Invitation.State.REQUESTED
+            invitation.state = InvitationState.REQUESTED
             invitation.save()
             transaction.on_commit(
                 lambda: tasks.send_invitation_requested.delay(
@@ -124,19 +125,19 @@ class InvitationViewSet(ProtectedViewSet):
         if not can_manage_invitation_with(self.request, invitation.scope):
             raise PermissionDenied()
         elif invitation.state not in (
-            models.Invitation.State.PENDING,
-            models.Invitation.State.EXPIRED,
-            models.Invitation.State.CANCELED,
+            InvitationState.PENDING,
+            InvitationState.EXPIRED,
+            InvitationState.CANCELED,
         ):
             raise ValidationError(
                 _("Only pending, expired and canceled invitations can be resent.")
             )
 
         if invitation.state in [
-            models.Invitation.State.EXPIRED,
-            models.Invitation.State.CANCELED,
+            InvitationState.EXPIRED,
+            InvitationState.CANCELED,
         ]:
-            invitation.state = models.Invitation.State.PENDING
+            invitation.state = InvitationState.PENDING
             invitation.created = timezone.now()
             invitation.save()
 
@@ -155,8 +156,8 @@ class InvitationViewSet(ProtectedViewSet):
         if not can_manage_invitation_with(self.request, invitation.scope):
             raise PermissionDenied()
         elif invitation.state not in [
-            models.Invitation.State.PENDING,
-            models.Invitation.State.PENDING_PROJECT,
+            InvitationState.PENDING,
+            InvitationState.PENDING_PROJECT,
         ]:
             raise ValidationError(
                 _("Only pending or planned invitations can be canceled.")
@@ -217,7 +218,7 @@ class InvitationViewSet(ProtectedViewSet):
     def check(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
 
-        if invitation.state != models.Invitation.State.PENDING:
+        if invitation.state != InvitationState.PENDING:
             return Response(status=status.HTTP_404_NOT_FOUND)
         elif invitation.civil_number:
             return Response(

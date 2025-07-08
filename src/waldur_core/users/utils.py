@@ -18,6 +18,7 @@ from waldur_core.permissions.utils import (
     has_permission,
 )
 from waldur_core.users import models
+from waldur_core.users.enums import InvitationState
 from waldur_freeipa import tasks
 from waldur_freeipa.backend import FreeIPABackend
 from waldur_freeipa.models import Profile
@@ -80,7 +81,7 @@ def parse_invitation_token(token):
 
     try:
         invitation = models.Invitation.objects.get(
-            uuid=parts[1], state=models.Invitation.State.REQUESTED
+            uuid=parts[1], state=InvitationState.REQUESTED
         )
     except models.Invitation.DoesNotExist:
         raise serializers.ValidationError("Invalid invitation UUID.")
