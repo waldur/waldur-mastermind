@@ -331,7 +331,7 @@ Upload configuration guide:
     - waldur graph_models permissions -I User,Role,UserRole,RolePermission -o $DEVELOPER_DOCS_PATH/core_permissions.png
     - waldur graph_models marketplace -I CategoryGroup,Category,CategoryColumn,Section,Attribute,AttributeOption,CategoryComponent,CategoryComponentUsage,Offering,OfferingComponent,Plan,PlanComponent,Resource,Order -o $DEVELOPER_DOCS_PATH/marketplace.png
     - cp -rv $CI_PROJECT_DIR/docs/* $DEVELOPER_DOCS_PATH
-    - git add $CONF_GUIDE_PATH $FEATURES_GUIDE_PATH $CLI_GUIDE_PATH $DEVELOPER_DOCS_PATH $TEMPLATES_LIST_PATH $NOTIFICATIONS_GUIDE_PATH
+    - git add $CONF_GUIDE_PATH $FEATURES_GUIDE_PATH $CLI_GUIDE_PATH $DEVELOPER_DOCS_PATH $TEMPLATES_LIST_PATH $NOTIFICATIONS_GUIDE_PATH $SCHEDULED_JOB_LIST_PATH
     - git commit -m "Update configuration, CLI and developer guide" || exit 0
     - git branch new-configuration-guide
     - git push --set-upstream origin new-configuration-guide:master
