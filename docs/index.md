@@ -1,22 +1,14 @@
 # Developer documentation
 
-- [Installation from source code](install-from-src.md)
-- [Workflow](workflow.md)
-- [Settings policy](settings-policy.md)
-- [Permissions](permissions.md)
-- [Managed entities](managed-entities.md)
-- [Resource actions](resource-actions.md)
-- [Logging](logging.md)
-- [Background processing](background.md)
-- [Quotas](quotas.md)
-- [Tasks and executors](tasks-and-executors.md)
-- [How to write serializers](how-to-write-serializers.md)
-- [How to write views](how-to-write-views.md)
-- [How to write tests](how-to-write-tests.md)
-- [How to write docs](how-to-write-docs.md)
-- [How to add a new language](how-to-add-new-language.md)
-- [Internationalization](i18n.md)
-- [Plugins](plugins/index.md)
-- [Events](events.md)
-- [Models](models.md)
-- [Templates](templates.md)
+This documentation provides comprehensive guidance for Waldur development. It covers essential topics including
+installation and setup, core architectural concepts like permissions and managed entities, background processing
+systems, and development best practices.
+
+Key areas covered:
+
+- Installation and development workflow setup
+- Core concepts: permissions, managed entities, background processing, quotas, logging
+- Development guides: serializers, views, tests, documentation, resource actions
+- Localization and internationalization
+- System architecture: events, models, templates
+- Plugin development and existing plugin implementations
