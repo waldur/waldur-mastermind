@@ -3233,7 +3233,7 @@ class ResourceBackendMetadataSerializer(serializers.ModelSerializer):
         fields = ("backend_metadata",)
 
 
-class ResourceBackendMetadataResponseSerializer(serializers.Serializer):
+class ResourceResponseStatusSerializer(serializers.Serializer):
     status = serializers.CharField(read_only=True)
 
 

@@ -2146,6 +2146,10 @@ class ProviderOfferingViewSet(
         structure_permissions.is_owner
     ]
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        description="Refresh offering user usernames.",
+    )
     @action(detail=True, methods=["post"])
     def refresh_offering_usernames(self, request, uuid=None):
         offering: models.Offering = self.get_object()
@@ -3456,6 +3460,10 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
         core_validators.StateValidator(ResourceStates.OK),
     ]
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        description="Update resource options.",
+    )
     @action(detail=True, methods=["post"])
     def update_options(self, request, uuid=None):
         resource = self.get_object()
@@ -3489,6 +3497,10 @@ class ProviderResourceViewSet(BaseResourceViewSet):
         permissions.user_can_set_end_date_by_provider
     ]
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        description="Set resource backend ID.",
+    )
     @action(detail=True, methods=["post"])
     def set_backend_id(self, request, uuid=None):
         resource = self.get_object()
@@ -3524,6 +3536,10 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     ]
     set_backend_id_serializer_class = serializers.ResourceBackendIDSerializer
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        description="Submit resource report.",
+    )
     @action(detail=True, methods=["post"])
     def submit_report(self, request, uuid=None):
         resource = self.get_object()
@@ -3543,9 +3559,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     submit_report_serializer_class = serializers.ResourceReportSerializer
 
     @extend_schema(
-        responses={
-            status.HTTP_200_OK: serializers.ResourceBackendMetadataResponseSerializer
-        }
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer}
     )
     @action(detail=True, methods=["post"])
     def set_backend_metadata(self, request, uuid=None):
@@ -3571,11 +3585,11 @@ class ProviderResourceViewSet(BaseResourceViewSet):
         serializers.ResourceBackendMetadataSerializer
     )
 
-    @action(detail=True, methods=["post"])
     @extend_schema(
         responses={status.HTTP_200_OK: None},
         description="Set the resource as erred.",
     )
+    @action(detail=True, methods=["post"])
     def set_as_erred(self, request, uuid=None):
         resource: models.Resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
@@ -3654,6 +3668,9 @@ class ProviderResourceViewSet(BaseResourceViewSet):
         )
     ]
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer}
+    )
     @action(detail=True, methods=["post"])
     def set_limits(self, request, uuid=None):
         resource: models.Resource = self.get_object()
