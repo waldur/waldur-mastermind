@@ -3542,6 +3542,11 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     ]
     submit_report_serializer_class = serializers.ResourceReportSerializer
 
+    @extend_schema(
+        responses={
+            status.HTTP_200_OK: serializers.ResourceBackendMetadataResponseSerializer
+        }
+    )
     @action(detail=True, methods=["post"])
     def set_backend_metadata(self, request, uuid=None):
         resource = self.get_object()
@@ -3567,6 +3572,10 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     )
 
     @action(detail=True, methods=["post"])
+    @extend_schema(
+        responses={status.HTTP_200_OK: None},
+        description="Set the resource as erred.",
+    )
     def set_as_erred(self, request, uuid=None):
         resource: models.Resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
