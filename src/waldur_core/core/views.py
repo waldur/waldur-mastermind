@@ -619,6 +619,8 @@ class ExtraContextTemplateView(TemplateView):
 
 
 class CreateReversionMixin:
+    """Mixin to automatically create revision tracking for create operations."""
+
     def perform_create(self, serializer):
         with reversion.create_revision():
             super().perform_update(serializer)
@@ -627,6 +629,8 @@ class CreateReversionMixin:
 
 
 class UpdateReversionMixin:
+    """Mixin to automatically create revision tracking for update operations."""
+
     def perform_update(self, serializer):
         with reversion.create_revision():
             super().perform_update(serializer)

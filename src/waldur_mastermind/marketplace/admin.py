@@ -183,6 +183,8 @@ class ConnectedResourceMixin:
 
 
 class ParentInlineMixin:
+    """Mixin to get parent object from request in Django admin inline views."""
+
     def get_parent_object_from_request(self, request):
         """
         Returns the parent object from the request or None.

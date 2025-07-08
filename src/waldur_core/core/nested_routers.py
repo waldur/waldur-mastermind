@@ -44,6 +44,8 @@ class LookupMixin:
 
 
 class NestedMixin:
+    """Mixin for creating nested routers that handle hierarchical URL structures."""
+
     def __init__(
         self,
         parent_router: SimpleRouter | DefaultRouter | NestedMixin,
