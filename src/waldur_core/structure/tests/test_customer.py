@@ -3,11 +3,14 @@ from unittest import mock
 from urllib.parse import urlencode
 
 from ddt import data, ddt
+from django.db import DEFAULT_DB_ALIAS, connections
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.core.pagination import RESULT_COUNT_HEADER
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
@@ -1171,3 +1174,28 @@ class CustomerResourceQuotasTest(test.APITransactionTestCase):
         self.assertEqual(disk_component["usage"], 0)
         self.assertEqual(disk_component["limit_usage"], 10)
         self.assertEqual(disk_component["measured_unit"], "GB")
+
+
+class CustomerListHeadOptimizationTest(test.APITransactionTestCase):
+    def test_head_query_count_does_not_depend_on_queryset_size(self):
+        self.client.force_authenticate(user=factories.UserFactory(is_staff=True))
+
+        # Warm-up caches
+        self.client.head(factories.CustomerFactory.get_list_url())
+
+        def count_queries():
+            with CaptureQueriesContext(connections[DEFAULT_DB_ALIAS]) as queries:
+                response = self.client.head(factories.CustomerFactory.get_list_url())
+                return len(queries), int(dict(response.headers)[RESULT_COUNT_HEADER])
+
+        factories.CustomerFactory.create_batch(3)
+        first_pass_queries_count, first_pass_queryset_size = count_queries()
+
+        factories.CustomerFactory.create_batch(3)
+        second_pass_queries_count, second_pass_queryset_size = count_queries()
+
+        self.assertGreater(first_pass_queries_count, 0)
+        self.assertEqual(first_pass_queries_count, second_pass_queries_count)
+
+        self.assertEqual(first_pass_queryset_size, 3)
+        self.assertEqual(second_pass_queryset_size, 6)

@@ -4,6 +4,8 @@ from rest_framework import pagination
 from rest_framework.response import Response
 from rest_framework.utils.urls import remove_query_param, replace_query_param
 
+RESULT_COUNT_HEADER = "X-Result-Count"
+
 
 class LinkHeaderPagination(pagination.PageNumberPagination):
     page_size_query_param = "page_size"
@@ -26,7 +28,7 @@ class LinkHeaderPagination(pagination.PageNumberPagination):
         )
 
         headers = {
-            "X-Result-Count": self.page.paginator.count,
+            RESULT_COUNT_HEADER: self.page.paginator.count,
             "Link": link,
         }
 
