@@ -4,6 +4,7 @@ from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
+from waldur_mastermind.marketplace.models import Offering
 from waldur_openstack.utils import get_valid_availability_zones
 
 from . import models
@@ -21,6 +22,7 @@ class SharedTenantFilterSet(django_filters.FilterSet):
     tenant = core_filters.URLFilter(
         view_name="openstack-tenant-detail", method="filter_tenant"
     )
+    offering_uuid = django_filters.UUIDFilter(method="filter_offering")
 
     def filter_tenant(self, queryset, name, value):
         try:
@@ -28,6 +30,17 @@ class SharedTenantFilterSet(django_filters.FilterSet):
         except models.Tenant.DoesNotExist:
             return queryset.none()
         return queryset.filter(tenants=tenant)
+
+    def filter_offering(self, queryset, name, value):
+        try:
+            offering = Offering.objects.get(uuid=value)
+        except Offering.DoesNotExist:
+            return queryset.none()
+        if not offering.scope:
+            return queryset.none()
+
+        tenants = models.Tenant.objects.filter(service_settings=offering.scope)
+        return queryset.filter(tenants__in=tenants).distinct()
 
 
 class SecurityGroupFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
