@@ -262,6 +262,8 @@ class OfferingImportableFilterBackend(BaseFilterBackend):
 
 
 class OfferingFilterMixin(django_filters.FilterSet):
+    """Mixin to provide common offering-related filters."""
+
     offering = core_filters.URLFilter(
         view_name="marketplace-provider-offering-detail",
         field_name="offering__uuid",

@@ -131,6 +131,8 @@ class FormRequestAdminMixin:
 
 
 class ChangeReadonlyMixin:
+    """Mixin to set different readonly fields for add and change views in Django admin."""
+
     add_readonly_fields = ()
     change_readonly_fields = ()
 
@@ -147,6 +149,8 @@ class ChangeReadonlyMixin:
 
 
 class ProtectedModelMixin:
+    """Mixin to handle protected model deletion errors gracefully in Django admin."""
+
     def delete_view(self, request, *args, **kwargs):
         try:
             response = super().delete_view(request, *args, **kwargs)

@@ -121,6 +121,8 @@ class RoleViewSet(ActionsViewSet):
 
 
 class UserRoleMixin:
+    """Mixin to provide user role management functionality for viewsets."""
+
     @extend_schema(
         parameters=[
             OpenApiParameter(

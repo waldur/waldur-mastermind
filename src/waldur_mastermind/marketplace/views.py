@@ -142,6 +142,8 @@ class BaseMarketplaceView(core_views.ActionsViewSet):
 
 
 class PublicViewsetMixin:
+    """Mixin to allow anonymous access to offerings when configured."""
+
     def get_permissions(self):
         if config.ANONYMOUS_USER_CAN_VIEW_OFFERINGS and self.action in [
             "list",
@@ -153,6 +155,8 @@ class PublicViewsetMixin:
 
 
 class ConnectedOfferingDetailsMixin:
+    """Mixin to provide offering details action for connected resources."""
+
     @extend_schema(responses=serializers.PublicOfferingDetailsSerializer, filters=False)
     @action(detail=True, methods=["get"])
     def offering(self, request, *args, **kwargs):

@@ -80,6 +80,8 @@ class ReadOnlyAdminMixin:
 
 
 class CopyButtonMixin:
+    """Mixin to add copy-to-clipboard functionality to form fields in Django admin."""
+
     class Media:
         js = (settings.STATIC_URL + "landing/js/copy2clipboard.js",)
 

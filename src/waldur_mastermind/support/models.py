@@ -331,6 +331,8 @@ class Comment(
 
 
 class FileMixin:
+    """Mixin to provide file-related functionality and properties."""
+
     @property
     def file_size(self) -> int:
         if self.file:

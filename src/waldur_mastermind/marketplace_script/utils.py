@@ -160,6 +160,8 @@ def execute_script(image, command, src, dry_run=False, **kwargs):
 
 
 class ContainerExecutorMixin:
+    """Mixin to execute scripts in containers for marketplace script processing."""
+
     hook_type = NotImplemented
 
     def send_request(self, user, resource=None, dry_run=False):
