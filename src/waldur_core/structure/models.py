@@ -15,7 +15,7 @@ from django.core.validators import (
     MinValueValidator,
 )
 from django.db import models, transaction
-from django.db.models import Q, signals
+from django.db.models import Model, Q, signals
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
@@ -859,7 +859,7 @@ class BaseResource(
 
     @classmethod
     @lru_cache(maxsize=1)
-    def get_all_models(cls):
+    def get_all_models(cls) -> list[type[Model]]:
         return [model for model in apps.get_models() if issubclass(model, cls)]
 
     @classmethod
