@@ -13,7 +13,10 @@ from rest_framework.filters import BaseFilterBackend
 from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.filters import ExternalFilterBackend
+from waldur_core.core.filters import (
+    ExternalFilterBackend,
+    get_generic_field_filter,
+)
 from waldur_core.core.utils import get_ordering, is_uuid_like, order_with_nulls
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure import models
@@ -509,8 +512,8 @@ class ServiceSettingsFilter(NameFilterSet):
     customer = django_filters.UUIDFilter(field_name="customer__uuid")
     customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
     scope_uuid = django_filters.UUIDFilter(
-        method=core_filters.get_generic_field_filter(
-            models.BaseResource.get_all_models()
+        method=get_generic_field_filter(
+            models_to_search=models.BaseResource.get_all_models()
         ),
         label="Scope UUID",
     )

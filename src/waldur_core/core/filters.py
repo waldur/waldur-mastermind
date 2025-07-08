@@ -1,8 +1,9 @@
+from collections.abc import Callable
 from urllib.parse import urlparse
 
 import django_filters
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Model, Q, QuerySet
 from django.forms.fields import MultipleChoiceField
 from django.urls import resolve
 from django_filters.constants import EMPTY_VALUES
@@ -287,13 +288,80 @@ class ReviewStateFilter(MappedMultipleChoiceFilter):
         super().__init__(*args, **kwargs)
 
 
-def get_generic_field_filter(get_related_models: list):
-    def generic_field_filter(queryset, name, value):
-        for klass in get_related_models:
-            if klass.objects.filter(uuid=value).exists():
-                obj = klass.objects.get(uuid=value)
-                ct = ContentType.objects.get_for_model(klass)
-                return queryset.filter(object_id=obj.id, content_type=ct)
-        return queryset.none()
+def get_generic_field_filter(
+    models_to_search: list[type[Model]],
+    field_name: str = "uuid",
+    lookup_expr: str = "exact",
+) -> Callable[[QuerySet, str, str], QuerySet]:
+    """
+    A factory that produces a filter method for searching across generic relations.
 
+    This function is designed to be used as the `method` for a django-filter Filter.
+    It generates and returns a filter function that will query a specific field
+    across a predefined list of models.
+
+    Args:
+        models_to_search (list[Model]): A list of model classes to search within.
+        field_name (str): The name of the field to filter on in the scope models
+                          (e.g., 'uuid', 'name'). Defaults to 'uuid'.
+        lookup_expr (str): The lookup expression to use (e.g., 'exact', 'icontains').
+                           Defaults to 'exact'.
+
+    Returns:
+        A callable with the signature `(queryset, name, value)` which performs the
+        actual filtering logic.
+
+    Example Usage:
+        from waldur_core.structure import models
+
+        class MyFilter(django_filters.FilterSet):
+            scope_uuid = django_filters.UUIDFilter(
+                method=get_generic_field_filter(
+                    models_to_search=models.BaseResource.get_all_models(),
+                    field_name='uuid'
+                ),
+                label="Scope UUID",
+            )
+    """
+
+    def generic_field_filter(queryset: QuerySet, name: str, value: str) -> QuerySet:
+        """
+        The actual filter function that will be executed by django-filter.
+        It uses the models and field name provided by the parent factory.
+        """
+        # If no value is provided by the user, do not filter.
+        if not value:
+            return queryset
+
+        # This Q object will aggregate all the conditions with OR.
+        query = Q()
+        lookup = (
+            f"{field_name}__{lookup_expr}"  # e.g., "uuid__exact" or "name__icontains"
+        )
+
+        # Iterate over the list of models provided to the factory.
+        for model_class in models_to_search:
+            # Robustness: Skip any model that doesn't have the target field.
+            if not hasattr(model_class, field_name):
+                continue
+
+            # Find the primary keys of all instances of this model
+            # that match the user's value.
+            matching_pks = model_class.objects.filter(**{lookup: value}).values_list(
+                "pk", flat=True
+            )
+
+            # If we found any matches for this model type...
+            if matching_pks.exists():
+                content_type = ContentType.objects.get_for_model(model_class)
+                # ...add a condition to our main query to include objects of this
+                # content_type whose object_id is in our list of matching PKs.
+                query |= Q(content_type=content_type, object_id__in=list(matching_pks))
+
+        # If the final query is not empty, apply it.
+        # Otherwise, it means the user searched for a value that exists nowhere,
+        # so we should return an empty queryset.
+        return queryset.filter(query) if query else queryset.none()
+
+    # The factory returns the inner function.
     return generic_field_filter

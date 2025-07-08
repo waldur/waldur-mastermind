@@ -14,7 +14,6 @@ from waldur_core.core.models import DescribableMixin, User, UuidMixin
 from waldur_core.permissions.enums import RoleEnum
 
 from . import signals
-from .enums import TYPE_MAP
 
 
 class RoleManager(models.Manager):
@@ -108,29 +107,6 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
             instance=self,
             current_user=current_user,
         )
-
-    @classmethod
-    def get_scope_model_references(cls):
-        """Return the app.model references for supported scope types."""
-        return [f"{app}.{model}" for _, (app, model) in TYPE_MAP.items()]
-
-    @classmethod
-    def get_scope_content_types(cls):
-        """Get ContentType objects for all supported scopes."""
-        from django.apps import apps
-
-        model_refs = cls.get_scope_model_references()
-        models = []
-
-        for ref in model_refs:
-            try:
-                models.append(apps.get_model(ref))
-            except LookupError:
-                pass
-
-        if models:
-            return ContentType.objects.get_for_models(*models)
-        return {}
 
     class Meta:
         ordering = ["created"]

@@ -1,5 +1,7 @@
+from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Model
 
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import (
@@ -55,3 +57,7 @@ class PermissionMixin:
             .exclude(notifications_enabled=False)
             .values_list("email", flat=True)
         )
+
+
+def get_permission_aggregates() -> list[type[Model]]:
+    return [model for model in apps.get_models() if issubclass(model, PermissionMixin)]

@@ -10,7 +10,10 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
-from waldur_core.core.filters import LooseMultipleChoiceFilter
+from waldur_core.core.filters import (
+    LooseMultipleChoiceFilter,
+    get_generic_field_filter,
+)
 from waldur_core.core.models import User
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
@@ -99,8 +102,8 @@ class OfferingFilter(
     description = django_filters.CharFilter(lookup_expr="icontains")
     keyword = django_filters.CharFilter(method="filter_keyword", label="Keyword")
     scope_uuid = django_filters.UUIDFilter(
-        method=core_filters.get_generic_field_filter(
-            [structure_models.ServiceSettings]
+        method=get_generic_field_filter(
+            models_to_search=[structure_models.ServiceSettings]
         ),
         label="Scope UUID",
     )
