@@ -20,7 +20,7 @@ from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView
 from drf_spectacular.utils import OpenApiExample, extend_schema
 from packaging import version
-from rest_framework import exceptions, generics, serializers, status, viewsets
+from rest_framework import exceptions, generics, mixins, serializers, status, viewsets
 from rest_framework import mixins as rf_mixins
 from rest_framework import permissions as rf_permissions
 from rest_framework.decorators import api_view, permission_classes
@@ -946,3 +946,24 @@ class ActionMethodMixin:
                 return Response(status=status.HTTP_404_NOT_FOUND)
 
         return func
+
+
+ORIGINAL_LIST_MODEL_MIXIN_LIST = mixins.ListModelMixin.list
+
+
+def optimized_head_list(cls, request, *args, **kwargs):
+    """
+    Mixin to optimize HEAD requests for DRF views bypassing serializer processing
+    """
+    # HEAD requests are mapped to list by default router
+    if request.method != "HEAD":
+        return ORIGINAL_LIST_MODEL_MIXIN_LIST(cls, request, *args, **kwargs)
+    paginator = cls.pagination_class()
+    queryset = cls.filter_queryset(cls.get_queryset())
+    paginator.paginate_queryset(queryset, request)
+    # Paginator expects serialized data, but we don't need it, thus empty list
+    return paginator.get_paginated_response([])
+
+
+# Monkey-patching
+mixins.ListModelMixin.list = optimized_head_list  # type: ignore

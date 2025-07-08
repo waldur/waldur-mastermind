@@ -82,7 +82,11 @@ BASE_USER_PARAMETERS = [
 ]
 
 
-class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
+class CustomerViewSet(
+    UserRoleMixin,
+    core_mixins.EagerLoadMixin,
+    viewsets.ModelViewSet,
+):
     queryset = models.Customer.objects.all().order_by("name")
     serializer_class = serializers.CustomerSerializer
     lookup_field = "uuid"
@@ -521,6 +525,8 @@ class UserViewSet(core_views.ActionsViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        if not self.request.user.is_authenticated:
+            return qs.none()
         if self.request.user.is_staff or self.request.user.is_support:
             return qs
         return qs.filter(is_active=True)

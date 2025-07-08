@@ -19,6 +19,7 @@ from rest_framework import exceptions as rest_exceptions
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.pagination import RESULT_COUNT_HEADER
 from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.logging import models as event_models
 from waldur_core.media.utils import dummy_image
@@ -2468,8 +2469,8 @@ class ListCustomerProjectsTest(test.APITransactionTestCase):
         self.assertIsInstance(data, list)
         self.assertLessEqual(len(data), 10)  # default page size is 10
         headers = dict(response.headers)
-        self.assertIn("X-Result-Count", headers)
-        self.assertGreaterEqual(int(headers["X-Result-Count"]), 15)
+        self.assertIn(RESULT_COUNT_HEADER, headers)
+        self.assertGreaterEqual(int(headers[RESULT_COUNT_HEADER]), 15)
         self.assertIn("Link", headers)
 
 
