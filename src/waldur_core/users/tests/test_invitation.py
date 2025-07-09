@@ -24,6 +24,95 @@ from waldur_core.users.utils import get_invitation_link, get_invitation_token
 from waldur_mastermind.proposal.tests.factories import ProposalFactory
 
 
+class InvitationFieldValidationTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.customer = structure_factories.CustomerFactory()
+        self.customer_owner = structure_factories.UserFactory()
+        self.customer.add_user(self.customer_owner, CustomerRole.OWNER)
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_INVITATIONS)
+
+    def test_extra_invitation_text_within_limit(self):
+        """Test that extra_invitation_text with 250 characters or less is valid"""
+        self.client.force_authenticate(user=self.staff)
+
+        valid_text = "a" * 250  # Exactly 250 characters
+        payload = {
+            "email": "test@example.com",
+            "scope": structure_factories.CustomerFactory.get_url(self.customer),
+            "role": CustomerRole.OWNER.uuid.hex,
+            "extra_invitation_text": valid_text,
+        }
+
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify the text was saved correctly
+        invitation = models.Invitation.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(invitation.extra_invitation_text, valid_text)
+
+    def test_extra_invitation_text_exceeds_limit(self):
+        """Test that extra_invitation_text with more than 250 characters is invalid"""
+        self.client.force_authenticate(user=self.staff)
+
+        invalid_text = "a" * 251  # 251 characters - exceeds limit
+        payload = {
+            "email": "test@example.com",
+            "scope": structure_factories.CustomerFactory.get_url(self.customer),
+            "role": CustomerRole.OWNER.uuid.hex,
+            "extra_invitation_text": invalid_text,
+        }
+
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("extra_invitation_text", response.data)
+
+    def test_extra_invitation_text_empty_is_valid(self):
+        """Test that empty extra_invitation_text is valid"""
+        self.client.force_authenticate(user=self.staff)
+
+        payload = {
+            "email": "test@example.com",
+            "scope": structure_factories.CustomerFactory.get_url(self.customer),
+            "role": CustomerRole.OWNER.uuid.hex,
+            "extra_invitation_text": "",
+        }
+
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify the text was saved correctly
+        invitation = models.Invitation.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(invitation.extra_invitation_text, "")
+
+    def test_extra_invitation_text_omitted_is_valid(self):
+        """Test that omitting extra_invitation_text is valid (defaults to empty)"""
+        self.client.force_authenticate(user=self.staff)
+
+        payload = {
+            "email": "test@example.com",
+            "scope": structure_factories.CustomerFactory.get_url(self.customer),
+            "role": CustomerRole.OWNER.uuid.hex,
+        }
+
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify the text defaults to empty
+        invitation = models.Invitation.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(invitation.extra_invitation_text, "")
+
+
 class BaseInvitationTest(test.APITransactionTestCase):
     def setUp(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)

@@ -125,7 +125,7 @@ class Invitation(
         ),
     )
     full_name = models.CharField(_("full name"), max_length=100, blank=True)
-    extra_invitation_text = models.TextField(blank=True)
+    extra_invitation_text = models.TextField(blank=True, max_length=250)
 
     def get_expiration_time(self):
         return self.created + settings.WALDUR_CORE["INVITATION_LIFETIME"]
