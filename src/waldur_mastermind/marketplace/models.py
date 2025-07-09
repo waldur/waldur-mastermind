@@ -61,6 +61,14 @@ class ServiceProvider(
     waldur_core.media.mixins.ImageModelMixin,
     TimeStampedModel,
 ):
+    """
+    Service provider model representing organizations that offer services.
+
+    Represents organizations that provide services in the marketplace.
+    Includes notification settings, API credentials, and lead contact
+    information for order processing.
+    """
+
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
     enable_notifications = models.BooleanField(default=True)
     api_secret_code = models.CharField(max_length=255, null=True, blank=True)
@@ -128,6 +136,14 @@ class CategoryGroup(
     core_models.UuidMixin,
     TimeStampedModel,
 ):
+    """
+    Organizational grouping for categories.
+
+    Provides hierarchical organization of marketplace categories
+    with title, icon, and description. Used to group related
+    categories for better navigation and organization.
+    """
+
     title = models.CharField(blank=False, max_length=255)
     icon = models.FileField(
         upload_to="marketplace_category_group_icons",
@@ -156,6 +172,14 @@ class Category(
     quotas_models.QuotaModelMixin,
     TimeStampedModel,
 ):
+    """
+    Main category model for marketplace offerings.
+
+    Provides categorization for marketplace offerings with quota management,
+    default flags for VM/volume/tenant categories, and backend integration.
+    Supports offering organization and filtering in the marketplace.
+    """
+
     id: int
     columns: models.Manager["CategoryColumn"]
     sections: models.Manager["Section"]
@@ -235,6 +259,14 @@ class CategoryColumn(
     core_models.UuidMixin,
 ):
     """
+    Configuration model for rendering resource tables with custom columns.
+
+    Defines custom columns for resource tables with attribute mapping
+    and widget support for UI customization. Allows filtering and
+    sorting by resource attributes.
+    """
+
+    """
     This model is needed in order to render resources table with extra columns.
     Usually each column corresponds to specific resource attribute.
     However, one table column may correspond to several resource attributes.
@@ -278,6 +310,14 @@ class CategoryColumn(
 
 
 class Section(TimeStampedModel):
+    """
+    Organizational section within categories containing related attributes.
+
+    Groups related attributes within a category with support for
+    standalone tab rendering. Used for organizing complex attribute
+    sets in the marketplace UI.
+    """
+
     attributes: models.Manager["Attribute"]
 
     key = models.CharField(primary_key=True, max_length=255)
@@ -293,10 +333,23 @@ class Section(TimeStampedModel):
         return str(self.title)
 
 
-InternalNameValidator = RegexValidator(r"^[a-zA-Z0-9_\-\/:]+$")
+InternalNameValidator = RegexValidator(
+    r"^[a-zA-Z0-9_\-\/:]+$",
+    message="Internal name must contain only alphanumeric characters, underscores, hyphens, and slashes.",
+)
+
+# Regex validator for internal names allowing alphanumeric characters, underscores, hyphens, and slashes
 
 
 class Attribute(TimeStampedModel):
+    """
+    Configuration model for category attributes.
+
+    Defines attributes with types, validation rules, and default values.
+    Supports various attribute types for dynamic form generation in
+    the marketplace interface.
+    """
+
     options: models.Manager["AttributeOption"]
 
     key = models.CharField(
@@ -317,6 +370,13 @@ class Attribute(TimeStampedModel):
 
 
 class AttributeOption(models.Model):
+    """
+    Options for choice-based attributes.
+
+    Provides key-value pairs for dropdown selections in choice-based
+    attributes. Used to define available options for attribute selection.
+    """
+
     attribute = models.ForeignKey(
         Attribute, related_name="options", on_delete=models.CASCADE
     )
@@ -331,6 +391,14 @@ class AttributeOption(models.Model):
 
 
 class BaseComponent(LoggableMixin, core_models.DescribableMixin):
+    """
+    Abstract base class for measured units.
+
+    Provides common functionality for measured units with name, type,
+    and measurement unit fields. Used for billing and usage tracking
+    across different component types.
+    """
+
     class Meta:
         abstract = True
 
@@ -358,6 +426,14 @@ class BaseComponent(LoggableMixin, core_models.DescribableMixin):
 
 
 class CategoryComponent(BaseComponent, core_models.UuidMixin):
+    """
+    Category-level component definition.
+
+    Defines components at the category level with unique type constraint
+    per category. Used as a template for offering components and provides
+    base component definitions for categories.
+    """
+
     class Meta:
         unique_together = ("type", "category")
 
@@ -370,6 +446,14 @@ class CategoryComponent(BaseComponent, core_models.UuidMixin):
 
 
 class CategoryComponentUsage(core_mixins.ScopeMixin):
+    """
+    Usage tracking for category components.
+
+    Tracks usage of category components with date-based reporting
+    and fixed usage override capabilities. Used for monitoring
+    and reporting component consumption.
+    """
+
     component = models.ForeignKey(on_delete=models.CASCADE, to=CategoryComponent)
     date = models.DateField()
     reported_usage = models.BigIntegerField(null=True)
@@ -381,6 +465,18 @@ class CategoryComponentUsage(core_mixins.ScopeMixin):
 
 
 def offering_has_plans(offering):
+    """
+    Validator function checking if offering has associated plans.
+
+    Checks if the offering has plans directly or inherits plans from its parent.
+    Used as a condition for offering state transitions.
+
+    Args:
+        offering: Offering instance to check
+
+    Returns:
+        bool: True if offering has plans, False otherwise
+    """
     return offering.plans.count() or (offering.parent and offering.parent.plans.count())
 
 
@@ -400,6 +496,14 @@ class Offering(
     waldur_core.media.mixins.ImageModelMixin,
     common_mixins.BackendMetadataMixin,
 ):
+    """
+    Central marketplace offering model.
+
+    Provides comprehensive functionality for marketplace offerings including
+    state management, pricing, attributes, and integration with external systems.
+    Supports different offering types, billing models, and access control.
+    """
+
     children: models.Manager["Offering"]
     components: models.Manager["OfferingComponent"]
     plans: models.Manager["Plan"]
@@ -619,6 +723,14 @@ class OfferingComponent(
     core_mixins.ScopeMixin,
     core_models.BackendMixin,
 ):
+    """
+    Offering-specific component with billing configuration.
+
+    Extends BaseComponent with billing configuration, limits, and validation.
+    Supports different billing types (fixed, usage, limit) and provides
+    comprehensive component management for offerings.
+    """
+
     components: models.Manager["PlanComponent"]
 
     class Meta:
@@ -695,6 +807,14 @@ class Plan(
     core_mixins.ScopeMixin,
     LoggableMixin,
 ):
+    """
+    Pricing plan model with component-based pricing.
+
+    Defines pricing plans for offerings with component-based pricing,
+    organization group restrictions, and cost estimation capabilities.
+    Supports different billing types and pricing models.
+    """
+
     """
     Plan unit price is computed as a sum of its fixed components'
     price multiplied by component amount when offering with plans
@@ -799,6 +919,14 @@ class Plan(
 
 
 class PlanComponent(LoggableMixin, models.Model):
+    """
+    Component pricing within plans.
+
+    Defines pricing for individual components within plans with
+    amount, price, and future price tracking. Used for detailed
+    cost calculation and billing management.
+    """
+
     class Meta:
         unique_together = ("plan", "component")
         ordering = ("component__name",)
@@ -856,6 +984,14 @@ class Screenshot(
     core_models.NameMixin,
     core_models.BackendMixin,
 ):
+    """
+    Visual content for offerings.
+
+    Provides screenshot functionality for offerings with image
+    and thumbnail support. Used for visual presentation of
+    offerings in the marketplace.
+    """
+
     image = models.ImageField(upload_to=get_upload_path)
     thumbnail = models.ImageField(upload_to=get_upload_path, editable=False, null=True)
     offering = models.ForeignKey(
@@ -877,6 +1013,14 @@ class Screenshot(
 
 
 class CostEstimateMixin(models.Model):
+    """
+    Mixin for cost estimation functionality.
+
+    Provides cost estimation with plan-based calculations and policy
+    validation. Used for calculating costs based on limits and plans
+    with policy compliance checking.
+    """
+
     class Meta:
         abstract = True
 
@@ -896,6 +1040,14 @@ class CostEstimateMixin(models.Model):
 
 
 class RequestTypeMixin(CostEstimateMixin):
+    """
+    Mixin for request type handling.
+
+    Extends CostEstimateMixin with request type-specific cost calculation
+    for different operation types (CREATE, UPDATE, etc.). Provides
+    pricing logic based on request type and plan switching.
+    """
+
     class Types(RequestTypes):
         pass
 
@@ -928,6 +1080,14 @@ class RequestTypeMixin(CostEstimateMixin):
 
 
 class SafeAttributesMixin(models.Model):
+    """
+    Mixin for safe attribute handling.
+
+    Provides safe attribute functionality excluding secret attributes.
+    Used for secure attribute access that filters out sensitive
+    information like passwords and credentials.
+    """
+
     class Meta:
         abstract = True
 
@@ -955,6 +1115,14 @@ class ResourceDetailsMixin(
     core_models.SlugMixin,
     core_models.DescribableMixin,
 ):
+    """
+    Mixin combining resource details with cost estimation.
+
+    Provides comprehensive resource details including cost estimation,
+    safe attributes, and end date management. Used for resource
+    lifecycle management and billing calculations.
+    """
+
     class Meta:
         abstract = True
 
@@ -985,6 +1153,14 @@ class Resource(
     core_models.ErrorMessageMixin,
     core_models.LastSyncMixin,
 ):
+    """
+    Core marketplace resource model representing provisioned services.
+
+    Represents provisioned services with state management, usage tracking,
+    and backend integration. Provides comprehensive resource lifecycle
+    management including billing, quotas, and access control.
+    """
+
     """
     Core resource is abstract model, marketplace resource is not abstract,
     therefore we don't need to compromise database query efficiency when
@@ -1163,6 +1339,14 @@ class Resource(
 
 class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixin):
     """
+    Time-framed billing plan tracking for resources.
+
+    Tracks billing plans for specific timeframes during resource lifecycle.
+    Allows for plan changes over time and maintains historical billing
+    information for accurate cost calculation.
+    """
+
+    """
     This model allows to track billing plan for timeframes during resource lifecycle.
     """
 
@@ -1191,6 +1375,14 @@ class Order(
     SafeAttributesMixin,
     TimeStampedModel,
 ):
+    """
+    Order processing model with approval workflow.
+
+    Manages order lifecycle with state transitions, approval workflow,
+    and review tracking by consumers and providers. Supports different
+    order types and comprehensive order management.
+    """
+
     old_plan = models.ForeignKey(
         on_delete=models.CASCADE, to=Plan, related_name="+", null=True, blank=True
     )
@@ -1322,6 +1514,13 @@ class Order(
 
 
 class ComponentQuota(TimeStampedModel):
+    """
+    Resource-level quota management for components.
+
+    Manages quotas for resource components with limit and usage tracking.
+    Provides quota enforcement and monitoring for resource consumption.
+    """
+
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name="quotas"
     )
@@ -1346,6 +1545,14 @@ class ComponentUsage(
     core_models.UuidMixin,
     LoggableMixin,
 ):
+    """
+    Detailed usage tracking for resource components.
+
+    Tracks component usage with billing period and plan period associations.
+    Supports recurring usage patterns and provides detailed consumption
+    data for billing and reporting.
+    """
+
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name="usages"
     )
@@ -1399,6 +1606,14 @@ class ComponentUserUsage(
     LoggableMixin,
 ):
     """
+    Per-user component usage tracking.
+
+    Tracks component usage on a per-user basis for resources.
+    Provides user-specific consumption data for detailed billing
+    and usage analysis.
+    """
+
+    """
     This model represents an amount of a component consumed by a user.
     """
 
@@ -1418,6 +1633,13 @@ class ComponentUserUsageLimit(
     core_models.UuidMixin,
     LoggableMixin,
 ):
+    """
+    Per-user usage limits for components.
+
+    Defines usage limits for individual users on specific components.
+    Provides granular control over user consumption and resource access.
+    """
+
     resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource)
     component = models.ForeignKey(
         on_delete=models.CASCADE,
@@ -1441,6 +1663,14 @@ class OfferingFile(
     core_models.NameMixin,
     TimeStampedModel,
 ):
+    """
+    File attachments for offerings.
+
+    Provides file attachment functionality for offerings with
+    upload management. Used for documentation, guides, and
+    other supplementary materials.
+    """
+
     offering = models.ForeignKey(
         on_delete=models.CASCADE, to=Offering, related_name="files"
     )
@@ -1463,6 +1693,14 @@ class OfferingUser(
     common_mixins.BackendMetadataMixin,
     LoggableMixin,
 ):
+    """
+    User accounts within offerings.
+
+    Manages user accounts with username mapping and restriction flags.
+    Provides user management functionality for offering-specific
+    access control and account management.
+    """
+
     offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     username = models.CharField(max_length=100, blank=True, null=True)
@@ -1484,6 +1722,14 @@ class OfferingUser(
 
 
 class OfferingUserGroup(TimeStampedModel, common_mixins.BackendMetadataMixin):
+    """
+    User groups for offerings.
+
+    Provides user group functionality for offerings with project
+    associations. Used for managing group-based access control
+    and permissions within offerings.
+    """
+
     projects = models.ManyToManyField(structure_models.Project, blank=True)
     offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
 
@@ -1492,6 +1738,14 @@ class OfferingUserGroup(TimeStampedModel, common_mixins.BackendMetadataMixin):
 
 
 class CategoryHelpArticle(models.Model):
+    """
+    Help documentation linked to categories.
+
+    Provides help documentation with URL references linked to
+    specific categories. Used for contextual help and documentation
+    in the marketplace interface.
+    """
+
     title = models.CharField(max_length=255, null=True, blank=True)
     url = models.URLField()
     categories = models.ManyToManyField(Category, related_name="articles", blank=True)
@@ -1506,6 +1760,14 @@ class BaseServiceAccount(
     LoggableMixin,
     core_models.ErrorMessageMixin,
 ):
+    """
+    Abstract base class for service accounts.
+
+    Provides common functionality for service accounts with username,
+    description, and error handling. Used as base for different
+    service account types.
+    """
+
     username = models.CharField(max_length=32, blank=True)
     description = models.TextField(blank=True)
 
@@ -1518,6 +1780,14 @@ class BaseServiceAccount(
 
 
 class ScopedServiceAccount(BaseServiceAccount):
+    """
+    Abstract scoped service account.
+
+    Extends BaseServiceAccount with email and identifier fields.
+    Provides scoped service account functionality with additional
+    user details and scope-specific management.
+    """
+
     class Meta:
         abstract = True
 
@@ -1537,6 +1807,13 @@ class ScopedServiceAccount(BaseServiceAccount):
 
 
 class ProjectServiceAccount(ScopedServiceAccount):
+    """
+    Service account scoped to projects.
+
+    Provides service account functionality scoped to specific projects.
+    Used for project-level resource access management and automation.
+    """
+
     project = models.ForeignKey(
         on_delete=models.CASCADE,
         to=structure_models.Project,
@@ -1552,6 +1829,13 @@ class ProjectServiceAccount(ScopedServiceAccount):
 
 
 class CustomerServiceAccount(ScopedServiceAccount):
+    """
+    Service account scoped to customers.
+
+    Provides service account functionality scoped to specific customers.
+    Used for organization-level access management and automation.
+    """
+
     customer = models.ForeignKey(
         on_delete=models.CASCADE,
         to=structure_models.Customer,
@@ -1569,6 +1853,14 @@ class CustomerServiceAccount(ScopedServiceAccount):
 class RobotAccount(
     BaseServiceAccount, common_mixins.BackendMetadataMixin, core_models.BackendMixin
 ):
+    """
+    Automated service account for resources.
+
+    Provides automated service account functionality with state management,
+    key storage, and user access control. Used for automated resource
+    access and API integration.
+    """
+
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
     keys = models.JSONField(blank=True, default=list)
     get_state_display: Callable[[], str]
@@ -1644,6 +1936,13 @@ class RobotAccount(
 
 
 class OfferingAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
+    """
+    Access endpoints for offerings.
+
+    Provides access endpoint functionality for offerings with URL management.
+    Used for defining access points and integration endpoints for offerings.
+    """
+
     url = core_fields.BackendURLField()
     offering = models.ForeignKey(
         on_delete=models.CASCADE, to=Offering, related_name="endpoints"
@@ -1651,6 +1950,13 @@ class OfferingAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
 
 
 class ResourceAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
+    """
+    Access endpoints for resources.
+
+    Provides access endpoint functionality for resources with URL management.
+    Used for defining access points and integration endpoints for resources.
+    """
+
     url = core_fields.BackendURLField()
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name="endpoints"
@@ -1658,6 +1964,14 @@ class ResourceAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
 
 
 class OfferingUserRole(core_models.UuidMixin, core_models.NameMixin):
+    """
+    User roles within offerings.
+
+    Defines user roles for offerings providing permission management
+    and access control. Used for role-based access control within
+    offering contexts.
+    """
+
     offering = models.ForeignKey(
         on_delete=models.CASCADE, to=Offering, related_name="roles"
     )
@@ -1667,6 +1981,14 @@ class OfferingUserRole(core_models.UuidMixin, core_models.NameMixin):
 
 
 class ResourceUser(TimeStampedModel, core_models.UuidMixin):
+    """
+    User-role assignments for resources.
+
+    Manages user-role assignments for resources with timestamp tracking.
+    Provides fine-grained access control and permission management
+    for individual resources.
+    """
+
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name="users"
     )
@@ -1689,6 +2011,14 @@ class ResourceUser(TimeStampedModel, core_models.UuidMixin):
 
 
 class IntegrationStatus(core_models.UuidMixin):
+    """
+    Backend integration status tracking.
+
+    Tracks integration status with different agent types and connection
+    monitoring. Provides visibility into backend service health and
+    connectivity status.
+    """
+
     class States:
         UNKNOWN = 1
         ACTIVE = 2
@@ -1758,6 +2088,14 @@ class BackendResource(
     TimeStampedModel,
     common_mixins.BackendMetadataMixin,
 ):
+    """
+    Backend resource representation for import capabilities.
+
+    Represents resources in external backends that can be imported
+    into the marketplace. Provides metadata and identification for
+    backend resource discovery and import processes.
+    """
+
     """This model represents a resource in backend, which could be imported."""
 
     offering = models.ForeignKey(to=Offering, on_delete=models.CASCADE)
@@ -1767,6 +2105,14 @@ class BackendResource(
 class BackendResourceRequest(
     core_models.UuidMixin, TimeStampedModel, core_models.ErrorMessageMixin
 ):
+    """
+    Backend resource request processing.
+
+    Manages backend resource requests with state management and
+    timing tracking. Provides request lifecycle management for
+    backend operations and resource processing.
+    """
+
     class States:
         SENT = "Sent"
         PROCESSING = "Processing"
