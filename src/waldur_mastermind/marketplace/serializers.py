@@ -29,6 +29,7 @@ from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.mixins import GetValueMixin
 from waldur_core.core.models import NAME_LENGTH, User, get_ssh_key_fingerprints
 from waldur_core.core.validators import BackendURLValidator, validate_ssh_public_key
+from waldur_core.permissions import models as permission_models
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
@@ -124,6 +125,15 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
     supports_pausing = serializers.BooleanField(
         required=False,
         help_text="If set to True, it will be possible to pause resources",
+    )
+    minimal_team_count_for_provisioning = serializers.IntegerField(
+        required=False,
+        help_text="Minimal team count required for provisioning of resources",
+        min_value=1,
+    )
+    required_team_role_for_provisioning = serializers.CharField(
+        required=False,
+        help_text="Required user role in a project for provisioning of resources",
     )
 
 
@@ -2836,6 +2846,60 @@ class OrderCreateSerializer(
                 _("Terms of service for offering '%s' have not been accepted.")
                 % offering
             )
+
+        project = cast(structure_models.Project, attrs["project"])
+        minimal_team_count_for_provisioning = offering.plugin_options.get(
+            "minimal_team_count_for_provisioning"
+        )
+
+        project_user_count = project.get_users().count()
+
+        if minimal_team_count_for_provisioning:
+            try:
+                minimal_team_count_for_provisioning_int = int(
+                    minimal_team_count_for_provisioning
+                )
+            except ValueError or TypeError:
+                raise ValidationError(
+                    "Invalid value for minimal_team_count_for_provisioning setting, expected positive integer."
+                )
+
+            if project_user_count < minimal_team_count_for_provisioning_int:
+                raise ValidationError(
+                    _(
+                        "The required minimal team count is not satisfied for the project '%s'. Required - %s, actual - %s."
+                    )
+                    % (project, minimal_team_count_for_provisioning, project_user_count)
+                )
+
+        required_team_role_for_provisioning = offering.plugin_options.get(
+            "required_team_role_for_provisioning"
+        )
+        if required_team_role_for_provisioning:
+            project_ct = ContentType.objects.get_for_model(structure_models.Project)
+            role = permission_models.Role.objects.filter(
+                name=required_team_role_for_provisioning,
+                content_type=project_ct,
+                is_active=True,
+            ).first()
+            if not role:
+                raise ValidationError(
+                    _(
+                        "The required active project role '%s' for provisioning does not exist in the system."
+                    )
+                    % required_team_role_for_provisioning
+                )
+
+            if not project.get_users(role).exists():
+                raise ValidationError(
+                    _(
+                        "Users with the required role '%s' are not found in the project '%s'."
+                    )
+                    % (
+                        project,
+                        required_team_role_for_provisioning,
+                    )
+                )
         return attrs
 
 

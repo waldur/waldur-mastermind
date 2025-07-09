@@ -190,6 +190,52 @@ class OrderCreateTest(BaseOrderCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Order.objects.filter(created_by=user).exists())
 
+    def test_creation_fails_if_project_team_count_not_satisfied(self):
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        offering.plugin_options = {"minimal_team_count_for_provisioning": 1}
+        offering.save()
+
+        response = self.create_order(user, offering)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_creation_succeeds_if_project_team_count_satisfied(self):
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        offering.plugin_options = {"minimal_team_count_for_provisioning": 1}
+        offering.save()
+        self.fixture.admin
+
+        response = self.create_order(user, offering)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_creation_fails_if_project_role_requirement_not_satisfied(self):
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        offering.plugin_options = {
+            "required_team_role_for_provisioning": ProjectRole.ADMIN.name
+        }
+        offering.save()
+
+        response = self.create_order(user, offering)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_creation_succeeds_if_project_role_requirement_satisfied(self):
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        offering.plugin_options = {
+            "required_team_role_for_provisioning": ProjectRole.ADMIN.name
+        }
+        offering.save()
+        self.fixture.admin
+
+        response = self.create_order(user, offering)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
 
 @ddt
 @mock.patch(
