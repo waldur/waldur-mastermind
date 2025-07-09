@@ -4826,6 +4826,14 @@ class OpenStackBackend(ServiceBackend):
         # remove stale groups
         stale_groups = tenant_groups.filter(backend_id__in=(local_ids - remote_ids))
         instance.security_groups.remove(*stale_groups)
+        for security_group in stale_groups:
+            event_logger.emit(
+                "Removed security group %s from instance %s"
+                % (security_group.name, instance.name),
+                EventType.OPENSTACK_SECURITY_GROUP_REMOVED_LOCALLY,
+                {"instance": instance, "security_group": security_group},
+                scopes=[instance],
+            )
 
         # add missing groups
         for group_id in remote_ids - local_ids:
@@ -4838,6 +4846,13 @@ class OpenStackBackend(ServiceBackend):
                 )
             else:
                 instance.security_groups.add(security_group)
+                event_logger.emit(
+                    "Removed security group %s from instance %s"
+                    % (security_group.name, instance.name),
+                    EventType.OPENSTACK_SECURITY_GROUP_ADDED_LOCALLY,
+                    {"instance": instance, "security_group": security_group},
+                    scopes=[instance],
+                )
 
     @log_backend_action()
     def push_instance_security_groups(self, instance: models.Instance):
@@ -4849,10 +4864,18 @@ class OpenStackBackend(ServiceBackend):
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
+        group_map = {
+            group.backend_id: group
+            for group in models.SecurityGroup.objects.filter(
+                tenant=instance.tenant
+            ).exclude(backend_id="")
+        }
+
         local_ids = set(
             models.SecurityGroup.objects.filter(instances=instance)
             .exclude(backend_id="")
             .values_list("backend_id", flat=True)
+            .distinct()
         )
 
         # remove stale groups
@@ -4869,6 +4892,14 @@ class OpenStackBackend(ServiceBackend):
                 logger.info(
                     "Removed security group %s from instance %s", group_id, server_id
                 )
+                local_group = group_map.get(group_id)
+                event_logger.emit(
+                    "Removed security group %s from instance %s"
+                    % (local_group and local_group.name or group_id, instance.name),
+                    EventType.OPENSTACK_SECURITY_GROUP_REMOVED_REMOTELY,
+                    {"instance": instance, "security_group": local_group},
+                    scopes=[instance],
+                )
 
         # add missing groups
         for group_id in local_ids - remote_ids:
@@ -4883,6 +4914,14 @@ class OpenStackBackend(ServiceBackend):
             else:
                 logger.info(
                     "Added security group %s to instance %s", group_id, server_id
+                )
+                local_group = group_map.get(group_id)
+                event_logger.emit(
+                    "Added security group %s to instance %s"
+                    % (local_group and local_group.name or group_id, instance.name),
+                    EventType.OPENSTACK_SECURITY_GROUP_ADDED_REMOTELY,
+                    {"instance": instance, "security_group": local_group},
+                    scopes=[instance],
                 )
 
     @log_backend_action()
