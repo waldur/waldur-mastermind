@@ -657,6 +657,7 @@ class ComponentUserUsageLimitFactory(
     @classmethod
     def get_url(cls, integration_status=None, action=None):
         if integration_status is None:
+            # TODO: fix typo
             integration_status = IntegrationStatusFactory()
         url = "http://testserver" + reverse(
             "component-user-usage-limit-detail",
@@ -675,3 +676,57 @@ class ComponentUserUsageLimitFactory(
             return
 
         self.resource.project.add_user(self.user.user, ProjectRole.ADMIN)
+
+
+class BackendResourceFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.BackendResource],
+):
+    project = factory.SubFactory(structure_factories.ProjectFactory)
+    offering = factory.SubFactory(OfferingFactory)
+    name = factory.Sequence(lambda n: "importable-resource-%s" % n)
+    backend_id = factory.Sequence(lambda n: "backend-id-%s" % n)
+    backend_metadata = {}
+
+    class Meta:
+        model = models.BackendResource
+
+    @classmethod
+    def get_url(cls, backend_resource=None, action=None):
+        if backend_resource is None:
+            backend_resource = BackendResourceFactory()
+        url = "http://testserver" + reverse(
+            "backend-resource-detail",
+            kwargs={"uuid": backend_resource.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("backend-resource-list")
+        return url if action is None else url + action + "/"
+
+
+class BackendResourceRequestFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.BackendResourceRequest],
+):
+    offering = factory.SubFactory(OfferingFactory)
+
+    class Meta:
+        model = models.BackendResourceRequest
+
+    @classmethod
+    def get_url(cls, backend_resource_request=None, action=None):
+        if backend_resource_request is None:
+            backend_resource_request = BackendResourceFactory()
+        url = "http://testserver" + reverse(
+            "backend-resource-request-detail",
+            kwargs={"uuid": backend_resource_request.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("backend-resource-request-list")
+        return url if action is None else url + action + "/"

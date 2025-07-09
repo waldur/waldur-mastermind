@@ -1000,6 +1000,40 @@ class ProviderPlanFilterBackend(BaseFilterBackend):
         return queryset.filter(offering__customer_id__in=customer_ids)
 
 
+class BackendResourceFilter(
+    core_filters.CreatedModifiedFilter,
+    structure_filters.NameFilterSet,
+    django_filters.FilterSet,
+):
+    o = django_filters.OrderingFilter(fields=("created",))
+    offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
+    backend_id = django_filters.CharFilter(
+        field_name="backend_id", lookup_expr="exact", label="Backend ID"
+    )
+
+    class Meta:
+        model = models.BackendResource
+        fields = []
+
+
+class BackendResourceRequestFilter(
+    core_filters.CreatedModifiedFilter,
+    django_filters.FilterSet,
+):
+    o = django_filters.OrderingFilter(fields=("created",))
+    offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+    started = django_filters.DateTimeFilter(lookup_expr="gte", label="Created after")
+    finished = django_filters.DateTimeFilter(lookup_expr="gte", label="Modified after")
+    state = core_filters.MappedMultipleChoiceFilter(
+        models.BackendResourceRequest.States.CHOICES
+    )
+
+    class Meta:
+        models = models.BackendResourceRequest
+        fields = []
+
+
 def user_extra_query(user):
     customer_ids = get_connected_customers(
         user, (RoleEnum.CUSTOMER_OWNER, RoleEnum.CUSTOMER_MANAGER)

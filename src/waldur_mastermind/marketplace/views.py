@@ -5363,3 +5363,226 @@ class ComponentUserUsageLimitViewSet(core_views.ActionsViewSet):
             ["resource.project.customer", "resource.project"],
         )
     ]
+
+
+class BackendResourceViewSet(core_views.ActionsViewSet):
+    """
+    The viewset provides endpoints for management over backend resources.
+    A site agent is expected to call these endpoints for creation, update and deletion of backend resources.
+    The `import_resource` endpoint is responsible for importing of a backend resorce into Waldur and
+    only staff can perform this operation.
+    """
+
+    lookup_field = "uuid"
+    queryset = models.BackendResource.objects.all().order_by("-created")
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.BackendResourceFilter
+    serializer_class = serializers.BackendResourceSerializer
+    disabled_actions = ["update", "partial_update"]
+    import_resource_serializer_class = serializers.BackendResourceImportSerializer
+
+    def check_create_permissions(request, view, obj=None):
+        serializer = view.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        offering = serializer.validated_data.get("offering")
+
+        if not offering:
+            raise PermissionDenied()
+
+        if has_permission(
+            request, PermissionEnum.MANAGE_OFFERING_BACKEND_RESOURCES, offering
+        ) or has_permission(
+            request,
+            PermissionEnum.MANAGE_OFFERING_BACKEND_RESOURCES,
+            offering.customer,
+        ):
+            return
+
+        raise PermissionDenied()
+
+    create_permissions = [check_create_permissions]
+
+    list_permissions = retrieve_permissions = destroy_permissions = (
+        update_permissions
+    ) = partial_update_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_OFFERING_BACKEND_RESOURCES,
+            ["offering", "offering.customer"],
+        )
+    ]
+
+    @extend_schema(
+        request=serializers.BackendResourceImportSerializer,
+        responses={status.HTTP_200_OK: serializers.ResourceSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def import_resource(self, request, uuid=None):
+        import_resource_serializer = self.get_serializer(data=request.data)
+        import_resource_serializer.is_valid(raise_exception=True)
+
+        backend_resource = self.get_object()
+
+        plan = import_resource_serializer.validated_data.get("plan", None)
+        project = backend_resource.project
+        offering = backend_resource.offering
+
+        backend_id = backend_resource.backend_id
+        logger.info(
+            "Importing the backend resource %s (%s)", backend_resource.name, backend_id
+        )
+
+        if models.Resource.objects.filter(
+            offering=offering, backend_id=backend_id, state=ResourceStates.OK
+        ).exists():
+            raise rf_exceptions.ValidationError(
+                _("Resource has been imported already.")
+            )
+
+        limits = backend_resource.backend_metadata.get("limits", {})
+        resource = models.Resource(
+            project=project,
+            offering=offering,
+            backend_id=backend_id,
+            plan=plan,
+            state=ResourceStates.OK,
+            name=backend_resource.name,
+            limits=limits,
+        )
+        resource.init_cost()
+        resource.save()
+
+        logger.info(
+            "The backend resource %s (%s) has been imported, creating a fake order",
+            backend_resource.name,
+            backend_id,
+        )
+
+        order = models.Order(
+            created=resource.created,
+            created_by=request.user,
+            resource=resource,
+            offering=resource.offering,
+            project=resource.project,
+            limits=resource.limits,
+            state=OrderStates.DONE,
+            consumer_reviewed_by=request.user,
+            provider_reviewed_by=request.user,
+            consumer_reviewed_at=resource.created,
+            provider_reviewed_at=resource.created,
+        )
+        order.save()
+
+        logger.info(
+            "The automatic order for resource %s (%s) has been created",
+            resource.name,
+            resource.backend_id,
+        )
+
+        logger.info(
+            "Deleting BackendResource instance %s (%s) after succesful import",
+            backend_resource.name,
+            backend_resource.backend_id,
+        )
+
+        backend_resource.delete()
+
+        resource_serializer = serializers.ResourceSerializer(
+            resource, context=self.get_serializer_context()
+        )
+        return Response(data=resource_serializer.data, status=status.HTTP_201_CREATED)
+
+    import_resource_permissions = [structure_permissions.is_staff]
+
+
+class BackendResourceRequestViewSet(core_views.ActionsViewSet):
+    """
+    The viewset provides endpoints for requesting list of ready-to-import backend resources.
+    After creation of the request, a site agent is expected to process it.
+    The agent should:
+    - create BackendResources missing in Waldur using the BackendResourceViewSet
+    - manage the state of the request using `start_processing`, `set_done`, `set_erred` endpoints in this class
+    """
+
+    lookup_field = "uuid"
+    queryset = models.BackendResourceRequest.objects.all().order_by("-created")
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.BackendResourceRequestFilter
+    serializer_class = serializers.BackendResourceReqSerializer
+    disabled_actions = ["update", "partial_update", "destroy"]
+    create_permissions = [structure_permissions.is_staff]
+
+    def perform_create(self, serializer) -> None:
+        serializer.save()
+        request = serializer.instance
+        utils.publish_backend_resource_request(request)
+
+    @extend_schema(
+        request=None,
+        responses={status.HTTP_200_OK: dict},
+    )
+    @action(detail=True, methods=["post"])
+    def start_processing(self, request, uuid=None):
+        resource_request = self.get_object()
+        resource_request.start_processing()
+        resource_request.save()
+
+        return Response(
+            {"status": _("Request state set to processing.")}, status=status.HTTP_200_OK
+        )
+
+    start_processing_validators = [
+        core_validators.StateValidator(models.BackendResourceRequest.States.SENT)
+    ]
+
+    @extend_schema(
+        request=None,
+        responses={status.HTTP_200_OK: dict},
+    )
+    @action(detail=True, methods=["post"])
+    def set_done(self, request, uuid=None):
+        resource_request = self.get_object()
+
+        resource_request.set_done()
+        resource_request.save()
+
+        return Response(
+            {"status": _("Request state set to done.")}, status=status.HTTP_200_OK
+        )
+
+    set_done_validators = [
+        core_validators.StateValidator(models.BackendResourceRequest.States.PROCESSING)
+    ]
+
+    @extend_schema(
+        request=serializers.BackendResourceRequestSetErredSerializer,
+        responses={status.HTTP_200_OK: dict},
+    )
+    @action(detail=True, methods=["post"])
+    def set_erred(self, request, uuid=None):
+        resource_request = self.get_object()
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        error_message = serializer.validated_data["error_message"]
+        error_traceback = serializer.validated_data["error_traceback"]
+
+        resource_request.set_erred()
+        resource_request.error_message = error_message
+        resource_request.error_traceback = error_traceback
+        resource_request.save(
+            update_fields=["error_message", "error_traceback", "state", "finished"]
+        )
+        resource_request.save()
+
+        return Response(
+            {"status": _("Request state set to erred.")}, status=status.HTTP_200_OK
+        )
+
+    set_erred_serializer_class = serializers.BackendResourceRequestSetErredSerializer
+
+    start_processing_permissions = set_done_permissions = set_erred_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_OFFERING_BACKEND_RESOURCES,
+            ["offering", "offering.customer"],
+        )
+    ]
