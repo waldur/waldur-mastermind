@@ -24,7 +24,6 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
-from waldur_core.core.clean_html import clean_html
 from waldur_core.core.enums import CoreStates, CoreStateType
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.mixins import GetValueMixin
@@ -655,15 +654,14 @@ class CategoryHelpArticleSerializer(serializers.ModelSerializer):
         fields = ("title", "url")
 
 
-class CategorySerializerForForNestedFields(serializers.HyperlinkedModelSerializer):
+class CategorySerializerForForNestedFields(
+    serializers.HyperlinkedModelSerializer,
+):
     class Meta:
         model = models.Category
         fields = ("url", "uuid", "title")
         extra_kwargs = {
-            "url": {
-                "lookup_field": "uuid",
-                "view_name": "marketplace-category-detail",
-            },
+            "url": {"lookup_field": "uuid", "view_name": "marketplace-category-detail"}
         }
 
 
@@ -907,12 +905,14 @@ class QuotasUpdateSerializer(serializers.Serializer):
 
 
 class BasePlanSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
 ):
     organization_groups = structure_serializers.OrganizationGroupSerializer(
         many=True, read_only=True
     )
     is_active = serializers.SerializerMethodField()
+    description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 
     class Meta:
         model = models.Plan
@@ -1009,9 +1009,6 @@ class BasePlanSerializer(
                     price += plan_component.price
 
         return price
-
-    def validate_description(self, value):
-        return clean_html(value)
 
 
 class BasePublicPlanSerializer(BasePlanSerializer):
@@ -1859,6 +1856,10 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
     )
     options = OfferingOptionsSerializer(required=False)
     resource_options = OfferingOptionsSerializer(required=False)
+    description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    full_description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    terms_of_service = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    vendor_details = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 
     def validate(self, attrs):
         if not self.instance:
@@ -1882,18 +1883,6 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         if offering_type not in plugins.manager.backends.keys():
             raise rf_exceptions.ValidationError(_("Invalid value."))
         return offering_type
-
-    def validate_terms_of_service(self, value):
-        return clean_html(value.strip())
-
-    def validate_description(self, value):
-        return clean_html(value.strip())
-
-    def validate_full_description(self, value):
-        return clean_html(value.strip())
-
-    def validate_vendor_details(self, value):
-        return clean_html(value.strip())
 
     def _validate_attributes(self, attrs):
         category = attrs.get("category")
@@ -2071,14 +2060,9 @@ class OfferingOverviewUpdateSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    def validate_terms_of_service(self, value):
-        return clean_html(value.strip())
-
-    def validate_description(self, value):
-        return clean_html(value.strip())
-
-    def validate_full_description(self, value):
-        return clean_html(value.strip())
+    description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    full_description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    terms_of_service = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 
     class Meta:
         model = models.Offering

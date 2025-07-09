@@ -12,7 +12,6 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
-from waldur_core.core.clean_html import clean_html
 from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.models import Role
@@ -556,6 +555,7 @@ class PublicCallSerializer(
     documents = CallDocumentSerializer(many=True, read_only=True)
     resource_templates = serializers.SerializerMethodField()
     fixed_duration_in_days = serializers.ReadOnlyField()
+    description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 
     class Meta:
         model = models.Call
@@ -599,9 +599,6 @@ class PublicCallSerializer(
             "reviewer_identity_visible_to_submitters": {"required": False},
             "reviews_visible_to_submitters": {"required": False},
         }
-
-    def validate_description(self, value):
-        return clean_html(value.strip())
 
     def get_start_date(self, obj) -> datetime:
         first_round = obj.round_set.order_by("start_time").first()
@@ -1076,6 +1073,7 @@ class ProposalSerializer(
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_uuid = serializers.UUIDField(source="created_by.uuid", read_only=True)
     project_name = serializers.ReadOnlyField(source="project.name")
+    description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 
     class Meta:
         model = models.Proposal
@@ -1118,9 +1116,6 @@ class ProposalSerializer(
             "approved_by": {"lookup_field": "uuid", "view_name": "user-detail"},
             "project": {"lookup_field": "uuid", "view_name": "project-detail"},
         }
-
-    def validate_description(self, value):
-        return clean_html(value.strip())
 
     def validate(self, attrs):
         if self.instance:
