@@ -59,7 +59,10 @@ class DescribableMixin(models.Model):
 
 class NameMixin(models.Model):
     """
-    Mixin to add a standardized "name" field.
+    Mixin to add a standardized "name" field with validation.
+
+    Provides a CharField with maximum length of 150 characters and
+    validates the name using the validate_name validator.
     """
 
     class Meta:
@@ -76,6 +79,10 @@ SLUG_NAME_LIMIT = 8
 class SlugMixin(models.Model):
     """
     Mixin to automatically generate a name-based slug.
+
+    Generates unique slugs based on the source field (default: 'name')
+    during save operations. Uses generate_slug() to ensure uniqueness
+    by appending numeric suffixes when needed.
     """
 
     slug = models.SlugField()
@@ -96,6 +103,19 @@ class SlugMixin(models.Model):
 
 
 def generate_slug(name, klass):
+    """
+    Generate a unique slug for a model instance.
+
+    Creates a slug from the given name and ensures uniqueness by
+    appending numeric suffixes if conflicts exist.
+
+    Args:
+        name: The source name to generate slug from
+        klass: The model class to check for existing slugs
+
+    Returns:
+        A unique slug string
+    """
     base_slug = slugify(name)[:SLUG_NAME_LIMIT]
 
     existing_slugs = klass.objects.filter(slug__startswith=base_slug).values_list(
@@ -118,6 +138,9 @@ def generate_slug(name, klass):
 class UiDescribableMixin(DescribableMixin):
     """
     Mixin to add a standardized "description" and "icon url" fields.
+
+    Extends DescribableMixin with an icon_url field for UI display purposes.
+    The icon_url field accepts URLs up to 500 characters.
     """
 
     class Meta:
@@ -129,6 +152,9 @@ class UiDescribableMixin(DescribableMixin):
 class UuidMixin(models.Model):
     """
     Mixin to identify models by UUID.
+
+    Provides a UUID field for unique model identification.
+    The UUID is automatically generated and used as a primary identifier.
     """
 
     class Meta:
@@ -139,7 +165,10 @@ class UuidMixin(models.Model):
 
 class ErrorMessageMixin(models.Model):
     """
-    Mixin to add a standardized "error_message" and "error_traceback" fields.
+    Mixin to add standardized error handling fields.
+
+    Provides error_message and error_traceback TextField for storing
+    error information and debugging details when operations fail.
     """
 
     class Meta:
@@ -150,6 +179,14 @@ class ErrorMessageMixin(models.Model):
 
 
 class LastSyncMixin(models.Model):
+    """
+    Mixin to track last synchronization time.
+
+    Provides a last_sync DateTimeField that defaults to the current time
+    and is not editable through forms. Used for tracking when data was
+    last synchronized with external systems.
+    """
+
     class Meta:
         abstract = True
 
@@ -207,6 +244,17 @@ class User(
     PermissionsMixin,
     ImageModelMixin,
 ):
+    """
+    Main user model with comprehensive user management.
+
+    Provides authentication, user profile details, permissions,
+    and image support. Includes methods for email handling,
+    permission checking, and change request management.
+
+    Inherits from multiple mixins to provide UUID identification,
+    logging capabilities, slug generation, and user detail fields.
+    """
+
     username = models.CharField(
         _("username"),
         max_length=128,
@@ -408,6 +456,13 @@ class User(
 
 
 class ImpersonatedUser(User):
+    """
+    Proxy model of User for impersonation functionality.
+
+    Extends User model with impersonator tracking and logging capabilities.
+    Used when one user is impersonating another user's session.
+    """
+
     class Meta:
         proxy = True
 
@@ -444,6 +499,14 @@ class ImpersonatedUser(User):
 
 
 class ChangeEmailRequest(UuidMixin, TimeStampedModel):
+    """
+    Model for handling user email change requests.
+
+    Stores temporary email change requests with UUID identification
+    and timestamp tracking. Each user can have only one active
+    email change request at a time.
+    """
+
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     email = models.EmailField()
 
@@ -453,6 +516,23 @@ class ChangeEmailRequest(UuidMixin, TimeStampedModel):
 
 
 def get_ssh_key_fingerprints(ssh_key):
+    """
+    Calculate SSH key fingerprints in multiple formats.
+
+    Generates MD5, SHA256, and SHA512 fingerprints from an SSH public key.
+    MD5 fingerprints are deprecated due to known collisions but maintained
+    for compatibility.
+
+    Args:
+        ssh_key: SSH public key string
+
+    Returns:
+        Tuple of (md5_fingerprint, sha256_fingerprint, sha512_fingerprint)
+
+    References:
+        - http://stackoverflow.com/a/6682934/175349
+        - http://www.ietf.org/rfc/rfc4716.txt Section 4
+    """
     # How to get fingerprint_md5 from ssh key:
     # http://stackoverflow.com/a/6682934/175349
     # http://www.ietf.org/rfc/rfc4716.txt Section 4.
@@ -480,9 +560,14 @@ def get_ssh_key_fingerprints(ssh_key):
 @reversion.register()
 class SshPublicKey(TimeStampedModel, LoggableMixin, UuidMixin, models.Model):
     """
-    User public key.
+    User SSH public key for remote access.
 
-    Used for injection into VMs for remote access.
+    Stores SSH public keys with automatic fingerprint calculation
+    (MD5, SHA256, SHA512) and validation. Used for injection into
+    VMs and other resources for secure remote access.
+
+    Automatically calculates and stores multiple fingerprint formats
+    when the public key is saved or updated.
     """
 
     user = models.ForeignKey[User](
@@ -552,7 +637,12 @@ class SshPublicKey(TimeStampedModel, LoggableMixin, UuidMixin, models.Model):
 
 
 class RuntimeStateMixin(models.Model):
-    """Provide runtime_state field"""
+    """
+    Mixin to provide runtime state tracking.
+
+    Adds a runtime_state field with predefined ONLINE/OFFLINE states.
+    Used to track the current operational status of resources.
+    """
 
     class RuntimeStates:
         ONLINE = "online"
@@ -573,6 +663,14 @@ class RuntimeStateMixin(models.Model):
 
 
 class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
+    """
+    Mixin implementing finite state machine (FSM) functionality.
+
+    Provides state management with transitions between creation, updating,
+    deletion, OK, and error states. Includes error handling capabilities
+    and concurrent transition support.
+    """
+
     class Meta:
         abstract = True
 
@@ -634,8 +732,12 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
 
 
 class DescendantMixin:
-    """Mixin to provide child-parent relationships.
-    Each related model can provide list of its parents.
+    """
+    Mixin to provide child-parent relationships.
+
+    Each related model can provide list of its parents through the
+    get_parents() method. Used for hierarchical data structures
+    where objects have parent-child relationships.
     """
 
     def get_parents(self):
@@ -645,8 +747,10 @@ class DescendantMixin:
 
 class AbstractFieldTracker(FieldTracker):
     """
-    Workaround for abstract models
-    https://gist.github.com/sbnoemi/7618916
+    Workaround for abstract models field tracking.
+
+    Extends FieldTracker to work properly with abstract models.
+    See: https://gist.github.com/sbnoemi/7618916
     """
 
     def finalize_class(self, sender, name, **kwargs):
@@ -658,9 +762,11 @@ class AbstractFieldTracker(FieldTracker):
 
 class BackendModelMixin:
     """
-    Represents model that is connected to backend object.
+    Mixin for models connected to backend objects.
 
-    This model cannot be created or updated via admin, because we do not support queries to backend from admin interface.
+    Represents models that are synchronized with external backend systems.
+    These models cannot be created or updated via admin interface because
+    backend queries are not supported in the admin.
     """
 
     @classmethod
@@ -674,6 +780,10 @@ class BackendModelMixin:
 class BackendMixin(models.Model):
     """
     Mixin to add standard backend_id field.
+
+    Provides a backend_id CharField for storing identifiers from
+    external backend systems. Used for mapping local objects to
+    their corresponding backend representations.
     """
 
     class Meta:
@@ -683,11 +793,25 @@ class BackendMixin(models.Model):
 
 
 class Feature(models.Model):
+    """
+    Model for feature flags configuration.
+
+    Stores boolean feature flags with unique keys.
+    Used to enable/disable features across the application.
+    """
+
     key = models.TextField(max_length=255, unique=True)
     value = models.BooleanField(default=False)
 
 
 class NotificationTemplate(UuidMixin, NameMixin, TimeStampedModel):
+    """
+    Model for storing notification templates.
+
+    Stores template paths for different notification types.
+    Used by the notification system to render email and other notifications.
+    """
+
     path = models.CharField(
         _("path"), max_length=150, help_text=_("Example: 'flatpages/default.html'")
     )
@@ -700,6 +824,14 @@ class NotificationTemplate(UuidMixin, NameMixin, TimeStampedModel):
 
 
 class Notification(UuidMixin, DescribableMixin, TimeStampedModel):
+    """
+    Model for notification configuration.
+
+    Defines notification types with unique keys, enabled/disabled status,
+    and associated templates. Used to configure which notifications
+    are sent and how they are rendered.
+    """
+
     key = models.CharField(max_length=255, unique=True, blank=False)
     enabled = models.BooleanField(
         default=True, help_text=_("Indicates if notification is enabled or disabled")
@@ -714,6 +846,14 @@ class Notification(UuidMixin, DescribableMixin, TimeStampedModel):
 
 
 class ActionMixin(StateMixin):
+    """
+    Mixin for action tracking with state management.
+
+    Extends StateMixin with action tracking fields including action name,
+    action details (JSON), and task ID for background task tracking.
+    Used for models that need to track ongoing operations.
+    """
+
     class Meta:
         abstract = True
 
