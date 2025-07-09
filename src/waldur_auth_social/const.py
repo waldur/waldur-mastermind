@@ -1,6 +1,7 @@
 class ProviderChoices:
     TARA = "tara"
     EDUTEAMS = "eduteams"
+    REMOTE_EDUTEAMS = "remote-eduteams"
     KEYCLOAK = "keycloak"
 
     CHOICES = (TARA, EDUTEAMS, KEYCLOAK)
@@ -37,7 +38,19 @@ PROVIDER_DEFAULTS = {
     },
     ProviderChoices.EDUTEAMS: {
         "user_field": "username",
-        "user_claim": "sub voperson_id",
+        "user_claim": "sub",
+        "attribute_mapping": {
+            "first_name": "given_name",
+            "last_name": "family_name",
+            "affiliations": "voperson_external_affiliation",
+            "email": "email",
+        },
+        "extra_fields": "eduperson_assurance",
+        "extra_scope": "profile email eduperson_assurance ssh_public_key",
+    },
+    ProviderChoices.REMOTE_EDUTEAMS: {
+        "user_field": "username",
+        "user_claim": "voperson_id",
         "attribute_mapping": {
             "first_name": "given_name",
             "last_name": "family_name",

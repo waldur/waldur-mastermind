@@ -203,6 +203,9 @@ VALID_JWT_TOKEN = jwt.encode(VALID_JWT_PAYLOAD, "test_secret")
     OIDC_USER_FIELD="username",
 )
 class OIDCAuthenticationTest(test.APITransactionTestCase):
+    def tearDown(self):
+        cache.clear()
+
     @respx.mock
     def test_successful_authentication(self):
         """Test successful authentication with valid token and introspection response"""
