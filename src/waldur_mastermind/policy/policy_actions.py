@@ -355,7 +355,7 @@ POLICY_ACTIONS = {
         action_type=enums.PolicyActionTypes.THRESHOLD,
         method=block_modification_of_existing_resources,
         reset_method=None,
-        ignored_fields=["modified", "current_usages", "report"],
+        ignored_fields=["modified", "current_usages", "report", "last_sync"],
     ),
     "request_downscaling": structures.PolicyAction(
         action_type=enums.PolicyActionTypes.IMMEDIATE,
