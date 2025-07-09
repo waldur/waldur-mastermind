@@ -36,7 +36,6 @@ from waldur_mastermind.marketplace.utils import (
     get_consumer_approvers,
     get_provider_approvers,
 )
-from waldur_mastermind.support.backend import get_active_backend
 
 logger = logging.getLogger(__name__)
 
@@ -482,7 +481,7 @@ def send_metrics():
     params = {
         "deployment_id": hashlib.sha256(site_name.encode()).hexdigest(),
         "deployment_type": deployment_type,
-        "helpdesk_backend": get_active_backend().backend_name,
+        "helpdesk_backend": config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE,
         "helpdesk_integration_status": config.WALDUR_SUPPORT_ENABLED,
         "number_of_users": core_models.User.objects.filter(is_active=True).count(),
         "number_of_offerings": models.Offering.objects.filter(
