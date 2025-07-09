@@ -2159,7 +2159,7 @@ def prepare_messages(
 
         # Check if user has access to offering
         linked_offerings = models.Offering.objects.all().filter_for_user(user)
-        if offering not in linked_offerings:
+        if not linked_offerings.filter(id=offering.id).exists():
             logger.debug(
                 "The user %s does not have access to the offering %s", user, offering
             )
