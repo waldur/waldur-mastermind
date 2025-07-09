@@ -46,6 +46,15 @@ class OpenStackFixture(ProjectFixture):
         )
 
     @cached_property
+    def router(self):
+        return factories.RouterFactory(
+            tenant=self.tenant,
+            service_settings=self.settings,
+            project=self.project,
+            state=CoreStates.OK,
+        )
+
+    @cached_property
     def floating_ip(self):
         return factories.FloatingIPFactory(
             service_settings=self.settings,

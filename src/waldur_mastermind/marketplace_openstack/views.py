@@ -26,8 +26,15 @@ class MarketplaceTenantViewSet(core_views.ActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         tenant = serializer.save()
-        skip = serializer.validated_data["skip_connection_extnet"]
-        TenantCreateExecutor.execute(tenant, skip_connection_extnet=skip)
+        skip_connection_extnet = serializer.validated_data["skip_connection_extnet"]
+        skip_creation_of_default_router = serializer.validated_data[
+            "skip_creation_of_default_router"
+        ]
+        TenantCreateExecutor.execute(
+            tenant,
+            skip_connection_extnet=skip_connection_extnet,
+            skip_creation_of_default_router=skip_creation_of_default_router,
+        )
 
         return response.Response(
             {"uuid": tenant.uuid.hex}, status=status.HTTP_201_CREATED

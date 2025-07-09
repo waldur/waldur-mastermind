@@ -2483,7 +2483,9 @@ class OpenStackBackend(ServiceBackend):
         self.pull_subnets(network=network)
 
     @log_backend_action()
-    def create_subnet(self, subnet: models.SubNet):
+    def create_subnet(
+        self, subnet: models.SubNet, skip_creation_of_default_router=False
+    ):
         session = get_tenant_session(subnet.tenant)
         neutron = get_neutron_client(session)
 
@@ -2513,7 +2515,8 @@ class OpenStackBackend(ServiceBackend):
                 subnet.gateway_ip = backend_subnet["gateway_ip"]
 
             # Automatically create router for subnet
-            self.connect_subnet(subnet)
+            if not skip_creation_of_default_router:
+                self.connect_subnet(subnet)
         except neutron_exceptions.NeutronException as e:
             raise OpenStackBackendError(e)
         else:
