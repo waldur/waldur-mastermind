@@ -50,3 +50,15 @@ class MarketplaceTenantCreateTest(test.APITransactionTestCase):
             self.assertEqual(
                 value, patcher.execute.call_args[1]["skip_connection_extnet"]
             )
+
+    @data(True, False)
+    def test_skip_creation_of_default_router(self, value):
+        payload = self.get_valid_payload()
+        payload["skip_creation_of_default_router"] = value
+        with mock.patch(
+            "waldur_mastermind.marketplace_openstack.views.TenantCreateExecutor"
+        ) as patcher:
+            common_utils.create_request(self.view, self.fixture.staff, payload)
+            self.assertEqual(
+                value, patcher.execute.call_args[1]["skip_creation_of_default_router"]
+            )

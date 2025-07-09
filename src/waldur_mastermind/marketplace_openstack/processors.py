@@ -27,6 +27,7 @@ class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
         "user_password",
         "subnet_cidr",
         "skip_connection_extnet",
+        "skip_creation_of_default_router",
         "availability_zone",
     )
 
