@@ -267,6 +267,7 @@ class OIDCAuthentication(BaseAuthentication):
             if not data.get("active"):
                 raise AuthenticationFailed("Token is inactive or invalid.")
 
+            # Only cache active tokens
             cache.set(cache_key, data, timeout=cache_timeout)
 
         user_identifier = data.get(user_field)
