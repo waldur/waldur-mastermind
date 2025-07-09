@@ -90,3 +90,6 @@ class IdentityProvider(models.Model):
 
     class Meta:
         ordering = ["label"]
+
+    def __str__(self):
+        return f"{self.label}: {self.provider} / {self.is_active}"
