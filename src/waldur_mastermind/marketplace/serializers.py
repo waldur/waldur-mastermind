@@ -5300,3 +5300,112 @@ class OfferingGroupsSerializer(serializers.Serializer):
     customer_name = serializers.CharField(read_only=True)
     customer_uuid = serializers.CharField(read_only=True)
     offerings = OfferingReferenceSerializer(many=True, read_only=True)
+
+
+class BackendResourceSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    project = serializers.SlugRelatedField(
+        queryset=structure_models.Project.objects.all(), slug_field="uuid"
+    )
+    project_name = serializers.CharField(read_only=True, source="project.name")
+    project_url = serializers.HyperlinkedRelatedField(
+        source="project",
+        lookup_field="uuid",
+        view_name="project-detail",
+        read_only=True,
+    )
+
+    offering = serializers.SlugRelatedField(
+        queryset=models.Offering.objects.all(),
+        slug_field="uuid",
+    )
+    offering_name = serializers.CharField(read_only=True, source="offering.name")
+    offering_url = serializers.HyperlinkedRelatedField(
+        source="offering",
+        lookup_field="uuid",
+        view_name="marketplace-public-offering-detail",
+        read_only=True,
+    )
+
+    class Meta:
+        model = models.BackendResource
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "created",
+            "modified",
+            "project",
+            "project_name",
+            "project_url",
+            "offering",
+            "offering_name",
+            "offering_url",
+            "backend_id",
+            "backend_metadata",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+            },
+        }
+        view_name = "backend-resource-detail"
+
+
+class BackendResourceImportSerializer(serializers.Serializer):
+    plan = serializers.SlugRelatedField(
+        queryset=models.Plan.objects.all(), slug_field="uuid", required=False
+    )
+
+
+# Using shortened "Request" name due to conflict resulting a `spectacular` error
+class BackendResourceReqSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    offering = serializers.SlugRelatedField(
+        queryset=models.Offering.objects.all(), slug_field="uuid", required=True
+    )
+    offering_name = serializers.CharField(read_only=True, source="offering.name")
+    offering_url = serializers.HyperlinkedRelatedField(
+        source="offering",
+        lookup_field="uuid",
+        view_name="marketplace-public-offering-detail",
+        read_only=True,
+    )
+
+    class Meta:
+        model = models.BackendResourceRequest
+        fields = (
+            "url",
+            "created",
+            "modified",
+            "started",
+            "finished",
+            "state",
+            "offering",
+            "offering_name",
+            "offering_url",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+            },
+        }
+        view_name = "backend-resource-request-detail"
+        read_only_fields = (
+            "state",
+            "started",
+            "finished",
+        )
+
+
+class BackendResourceRequestSetErredSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.ModelSerializer
+):
+    class Meta:
+        model = models.BackendResourceRequest
+        fields = ("error_message", "error_traceback")
+        protected_fields = ("error_message", "error_traceback")

@@ -10,7 +10,7 @@ from django.db.models.constraints import UniqueConstraint
 from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
-from django_fsm import FSMIntegerField, transition
+from django_fsm import FSMField, FSMIntegerField, transition
 from model_utils import FieldTracker
 from model_utils.models import TimeFramedModel, TimeStampedModel
 from model_utils.tracker import FieldInstanceTracker
@@ -1749,6 +1749,58 @@ class IntegrationStatus(core_models.UuidMixin):
 
     def set_last_request_timestamp(self):
         self.last_request_timestamp = timezone.now()
+
+
+class BackendResource(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.BackendMixin,
+    TimeStampedModel,
+    common_mixins.BackendMetadataMixin,
+):
+    """This model represents a resource in backend, which could be imported."""
+
+    offering = models.ForeignKey(to=Offering, on_delete=models.CASCADE)
+    project = models.ForeignKey(to=structure_models.Project, on_delete=models.CASCADE)
+
+
+class BackendResourceRequest(
+    core_models.UuidMixin, TimeStampedModel, core_models.ErrorMessageMixin
+):
+    class States:
+        SENT = "Sent"
+        PROCESSING = "Processing"
+        DONE = "Done"
+        ERRED = "Erred"
+
+        CHOICES = (
+            (SENT, SENT),
+            (PROCESSING, PROCESSING),
+            (DONE, DONE),
+            (ERRED, ERRED),
+        )
+
+    started = models.DateTimeField(
+        blank=True, null=True, help_text=_("Time when request processing started")
+    )
+    finished = models.DateTimeField(
+        blank=True, null=True, help_text=_("Time when request processing finished")
+    )
+
+    state = FSMField(choices=States.CHOICES, default=States.SENT)
+    offering = models.ForeignKey(to=Offering, on_delete=models.CASCADE)
+
+    @transition(field=state, source=States.SENT, target=States.PROCESSING)
+    def start_processing(self):
+        self.started = timezone.now()
+
+    @transition(field=state, source=States.PROCESSING, target=States.DONE)
+    def set_done(self):
+        self.finished = timezone.now()
+
+    @transition(field=state, source="*", target=States.ERRED)
+    def set_erred(self):
+        self.finished = timezone.now()
 
 
 reversion.register(Screenshot)

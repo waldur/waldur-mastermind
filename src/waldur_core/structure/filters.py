@@ -197,6 +197,8 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
         label="Return a list of projects where current user is manager or a customer owner.",
     )
 
+    slug = django_filters.CharFilter(field_name="slug", lookup_expr="exact")
+
     can_admin = django_filters.BooleanFilter(
         widget=BooleanWidget,
         method="filter_can_admin",

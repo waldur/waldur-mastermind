@@ -5,6 +5,7 @@ from waldur_core.logging import utils as logging_utils
 from waldur_core.permissions import models as permission_models
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.models import OfferingUser, Order
 from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME, utils
@@ -24,7 +25,7 @@ def send_done_order_to_message_queue(sender, instance: Order, created=False, **k
         return
 
     payload = {"order_uuid": order.uuid.hex}
-    messages = utils.prepare_messages(
+    messages = marketplace_utils.prepare_messages(
         offering, payload, logging_utils.ObservableObjectType.ORDER
     )
     if messages:
@@ -49,7 +50,7 @@ def send_pending_order_to_message_queue(
         return
 
     payload = {"order_uuid": order.uuid.hex}
-    messages = utils.prepare_messages(
+    messages = marketplace_utils.prepare_messages(
         offering, payload, logging_utils.ObservableObjectType.ORDER
     )
     if messages:
@@ -77,7 +78,7 @@ def send_offering_user_username_message(
         "offering_user_uuid": offering_user.uuid.hex,
         "user_uuid": offering_user.user.uuid.hex,
     }
-    messages = utils.prepare_messages(
+    messages = marketplace_utils.prepare_messages(
         offering_user.offering,
         payload,
         logging_utils.ObservableObjectType.OFFERING_USER,
@@ -121,7 +122,7 @@ def process_role_changed(permission: permission_models.UserRole, granted: bool):
             "role_name": permission.role.name,
             "granted": granted,
         }
-        messages = utils.prepare_messages(
+        messages = marketplace_utils.prepare_messages(
             offering, payload, logging_utils.ObservableObjectType.USER_ROLE
         )
         all_messages.extend(messages)

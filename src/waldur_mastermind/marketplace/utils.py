@@ -1,5 +1,6 @@
 import datetime
 import hashlib
+import json
 import logging
 import math
 import os
@@ -35,6 +36,9 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
+from waldur_core.logging import models as logging_models
+from waldur_core.logging import tasks as logging_tasks
+from waldur_core.logging import utils as logging_utils
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
@@ -2095,3 +2099,96 @@ def move_offering(
             logger.info(f"Permission {permission} has been revoked")
 
     logger.info("Offering %s has been moved to provider %s", offering, target_customer)
+
+
+def prepare_messages(
+    offering: models.Offering,
+    message_payload: dict,
+    affected_object: logging_utils.ObservableObjectType,
+) -> list[dict[str, str]]:
+    """Helper function to prepare event messages for marketplace events.
+
+    Generates event messages for users who have subscribed to events related to marketplace
+    offerings they have access to. Each message includes a vhost, topic and payload.
+
+    Args:
+        offering: Marketplace offering instance to generate messages for
+        message_payload: Dictionary containing event-specific data to be included in the message
+        affected_object: Type of event for the topic name (e.g. "order" or "user_role")
+
+    Returns:
+        List of dictionaries, each containing:
+            - vhost: User UUID hex string
+            - topic: Topic string in format "subscription/{sub_uuid}/offering/{offering_uuid}/{affected_object}"
+            - payload: JSON string containing the input payload plus offering_uuid
+
+    Example:
+        >>> messages = prepare_messages(
+        ...     offering=some_offering,
+        ...     payload={"order_uuid": "123"},
+        ...     affected_object=ObservableObjectType.ORDER
+        ... )
+        >>> messages[0]
+        {
+            'vhost': 'user-uuid-hex',
+            'topic': 'subscription/sub-uuid/offering/off-uuid/order',
+            'payload': '{"order_uuid": "123", "offering_uuid": "off-uuid"}'
+        }
+    """
+
+    logger.debug(
+        "Preparing messages for event %s, offering %s",
+        affected_object.value,
+        offering,
+    )
+    event_subscriptions = logging_models.EventSubscription.objects.filter(
+        observable_objects__contains=[{"object_type": affected_object.value}]
+    )
+
+    if not event_subscriptions.exists():
+        logger.debug(
+            "No event subscriptions exist for %s, skipping message sending",
+            affected_object.value,
+        )
+        return []
+
+    messages_to_send = []
+    for event_subscription in event_subscriptions:
+        user = event_subscription.user
+        logger.info("Processing subscription for user %s", user)
+
+        # Check if user has access to offering
+        linked_offerings = models.Offering.objects.all().filter_for_user(user)
+        if offering not in linked_offerings:
+            logger.debug(
+                "The user %s does not have access to the offering %s", user, offering
+            )
+            continue
+
+        topic_name = f"subscription/{event_subscription.uuid.hex}/offering/{offering.uuid.hex}/{affected_object.value}"
+        message_payload["offering_uuid"] = offering.uuid.hex
+        message_payload_str = json.dumps(message_payload)
+        vhost_name = user.uuid.hex
+        messages_to_send.append(
+            {"vhost": vhost_name, "topic": topic_name, "payload": message_payload_str}
+        )
+
+    return messages_to_send
+
+
+def publish_backend_resource_request(request: models.BackendResourceRequest):
+    """
+    Send a message to RabbitMQ requesting a list of resources for the offering.
+    """
+    logger.info("Requesting a list of backend resources for offering %s via RabbitMQ")
+
+    payload = {
+        "backend_resource_request_uuid": request.uuid.hex,
+    }
+    messages = prepare_messages(
+        request.offering,
+        payload,
+        logging_utils.ObservableObjectType.IMPORTABLE_RESOURCES,
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)

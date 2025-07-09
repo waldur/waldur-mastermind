@@ -167,6 +167,16 @@ def register_in(router):
         views.ComponentUserUsageLimitViewSet,
         basename="component-user-usage-limit",
     )
+    router.register(
+        r"backend-resources",
+        views.BackendResourceViewSet,
+        basename="backend-resource",
+    )
+    router.register(
+        r"backend-resource-requests",
+        views.BackendResourceRequestViewSet,
+        basename="backend-resource-request",
+    )
 
 
 urlpatterns = [
