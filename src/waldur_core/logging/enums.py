@@ -138,6 +138,14 @@ class EventType(str, Enum):
     OPENSTACK_SECURITY_GROUP_RULE_IMPORTED = "openstack_security_group_rule_imported"
     OPENSTACK_SECURITY_GROUP_RULE_UPDATED = "openstack_security_group_rule_updated"
     OPENSTACK_SECURITY_GROUP_UPDATED = "openstack_security_group_updated"
+    OPENSTACK_SECURITY_GROUP_ADDED_REMOTELY = "openstack_security_group_added_remotely"
+    OPENSTACK_SECURITY_GROUP_REMOVED_REMOTELY = (
+        "openstack_security_group_removed_remotely"
+    )
+    OPENSTACK_SECURITY_GROUP_ADDED_LOCALLY = "openstack_security_group_added_locally"
+    OPENSTACK_SECURITY_GROUP_REMOVED_LOCALLY = (
+        "openstack_security_group_removed_locally"
+    )
     OPENSTACK_SERVER_GROUP_CLEANED = "openstack_server_group_cleaned"
     OPENSTACK_SERVER_GROUP_CREATED = "openstack_server_group_created"
     OPENSTACK_SERVER_GROUP_DELETED = "openstack_server_group_deleted"

@@ -10,6 +10,7 @@ from novaclient import exceptions as nova_exceptions
 from rest_framework import test
 
 from waldur_core.core.enums import CoreStates
+from waldur_core.logging.enums import EventType
 from waldur_mastermind.marketplace_openstack.tests.mocks import MockTenant
 from waldur_openstack import models
 from waldur_openstack.backend import OpenStackBackend
@@ -814,3 +815,162 @@ class PullServerGroupsTest(BaseBackendTestCase):
         self.call_backend()
 
         self.assertRaises(models.ServerGroup.DoesNotExist, server_group.refresh_from_db)
+
+
+@ddt
+class PullInstanceSecurityGroupsTest(BaseBackendTestCase):
+    def setUp(self):
+        super().setUp()
+        self.instance = self.fixture.instance
+        self.security_group = self.fixture.security_group
+
+    def call_backend(self):
+        return self.backend.pull_instance_security_groups(self.instance)
+
+    def test_missing_security_groups_are_added(self):
+        # Arrange
+        self.instance.security_groups.clear()
+        self.mocked_nova.servers.list_security_group.return_value = [
+            mock.Mock(id=self.security_group.backend_id)
+        ]
+
+        # Act
+        self.call_backend()
+
+        # Assert
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.security_groups.count(), 1)
+        self.assertEqual(self.instance.security_groups.first(), self.security_group)
+
+    def test_stale_security_groups_are_removed(self):
+        # Arrange
+        self.instance.security_groups.add(self.security_group)
+        self.mocked_nova.servers.list_security_group.return_value = []
+
+        # Act
+        self.call_backend()
+
+        # Assert
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.security_groups.count(), 0)
+
+    @mock.patch("waldur_core.logging.event_logger.emit")
+    def test_event_is_logged_when_security_group_is_added(self, mock_emit: mock.Mock):
+        # Arrange
+        self.instance.security_groups.clear()
+        mock_emit.reset_mock()
+        self.mocked_nova.servers.list_security_group.return_value = [
+            mock.Mock(id=self.security_group.backend_id)
+        ]
+
+        # Act
+        self.call_backend()
+
+        # Assert
+        mock_emit.assert_called_with(
+            mock.ANY,
+            EventType.OPENSTACK_SECURITY_GROUP_ADDED_LOCALLY,
+            mock.ANY,
+            scopes=[self.instance],
+        )
+
+    @mock.patch("waldur_core.logging.event_logger.emit")
+    def test_event_is_logged_when_security_group_is_removed(self, mock_emit: mock.Mock):
+        # Arrange
+        self.instance.security_groups.add(self.security_group)
+        mock_emit.reset_mock()
+        self.mocked_nova.servers.list_security_group.return_value = []
+
+        # Act
+        self.call_backend()
+
+        # Assert
+        mock_emit.assert_called_with(
+            mock.ANY,
+            EventType.OPENSTACK_SECURITY_GROUP_REMOVED_LOCALLY,
+            mock.ANY,
+            scopes=[self.instance],
+        )
+
+
+@ddt
+class PushInstanceSecurityGroupsTest(BaseBackendTestCase):
+    def setUp(self):
+        super().setUp()
+        self.instance = self.fixture.instance
+        self.security_group = self.fixture.security_group
+
+    def call_backend(self):
+        return self.backend.push_instance_security_groups(self.instance)
+
+    def test_stale_security_groups_are_removed(self):
+        # Arrange
+        self.mocked_nova.servers.list_security_group.return_value = [
+            mock.Mock(id=self.security_group.backend_id)
+        ]
+        self.instance.security_groups.clear()
+
+        # Act
+        self.call_backend()
+
+        # Assert
+        self.mocked_nova.servers.remove_security_group.assert_called_once_with(
+            self.instance.backend_id, self.security_group.backend_id
+        )
+
+    def test_missing_security_groups_are_added(self):
+        # Arrange
+        self.mocked_nova.servers.list_security_group.return_value = []
+        self.instance.security_groups.add(self.security_group)
+
+        # Act
+        self.call_backend()
+
+        # Assert
+        self.mocked_nova.servers.add_security_group.assert_called_once_with(
+            self.instance.backend_id, self.security_group.backend_id
+        )
+
+    @mock.patch("waldur_core.logging.event_logger.emit")
+    def test_event_is_logged_when_security_group_is_removed(self, mock_emit: mock.Mock):
+        # Arrange
+        self.mocked_nova.servers.list_security_group.return_value = [
+            mock.Mock(id=self.security_group.backend_id)
+        ]
+        self.instance.security_groups.clear()
+        mock_emit.reset_mock()
+
+        # Act
+        self.call_backend()
+
+        # Assert
+        mock_emit.assert_called_once_with(
+            mock.ANY,
+            EventType.OPENSTACK_SECURITY_GROUP_REMOVED_REMOTELY,
+            {
+                "instance": self.instance,
+                "security_group": self.security_group,
+            },
+            scopes=[self.instance],
+        )
+
+    @mock.patch("waldur_core.logging.event_logger.emit")
+    def test_event_is_logged_when_security_group_is_added(self, mock_emit: mock.Mock):
+        # Arrange
+        self.mocked_nova.servers.list_security_group.return_value = []
+        self.instance.security_groups.add(self.security_group)
+        mock_emit.reset_mock()
+
+        # Act
+        self.call_backend()
+
+        # Assert
+        mock_emit.assert_called_once_with(
+            mock.ANY,
+            EventType.OPENSTACK_SECURITY_GROUP_ADDED_REMOTELY,
+            {
+                "instance": self.instance,
+                "security_group": self.security_group,
+            },
+            scopes=[self.instance],
+        )
