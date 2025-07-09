@@ -20,7 +20,6 @@ from rest_framework.authtoken import models as authtoken_models
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
-from waldur_core.core.clean_html import clean_html
 from waldur_core.core.enums import CoreStates, CoreStateType
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.permissions.enums import PermissionEnum
@@ -226,6 +225,7 @@ class ProjectSerializer(
     oecd_fos_2007_label = serializers.ReadOnlyField(
         source="get_oecd_fos_2007_code_display"
     )
+    description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 
     class Meta:
         model = models.Project
@@ -297,9 +297,6 @@ class ProjectSerializer(
                 {"start_date": _("Cannot be earlier than the current date.")}
             )
         return start_date
-
-    def validate_description(self, value):
-        return clean_html(value.strip())
 
     def validate_end_date(self, end_date):
         if end_date and end_date < timezone.datetime.today().date():
@@ -1444,16 +1441,17 @@ class BasePropertySerializer(
         model = NotImplemented
 
 
-class UserAgreementSerializer(serializers.HyperlinkedModelSerializer):
+class UserAgreementSerializer(
+    serializers.HyperlinkedModelSerializer,
+):
+    content = core_serializers.HTMLCleanField()
+
     class Meta:
         model = models.UserAgreement
         fields = ("url", "uuid", "content", "agreement_type", "created", "modified")
         extra_kwargs = {
             "url": {"lookup_field": "uuid", "view_name": "user-agreements-detail"}
         }
-
-    def validate_content(self, value):
-        return clean_html(value.strip())
 
 
 class NotificationTemplateDetailSerializers(serializers.ModelSerializer):

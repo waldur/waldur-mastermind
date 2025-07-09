@@ -23,6 +23,7 @@ from rest_framework import serializers as rf_serializers
 from rest_framework.fields import Field, ReadOnlyField
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.clean_html import clean_html
 from waldur_core.core.models import generate_slug
 from waldur_core.core.signals import pre_serializer_fields
 from waldur_mastermind.common.serializers import StringListSerializer
@@ -657,3 +658,31 @@ class VersionSerializer(serializers.Serializer):
 
 class LogoutSerializer(serializers.Serializer):
     logout_url = serializers.URLField(read_only=True)
+
+
+class HTMLCleanField(serializers.CharField):
+    """
+    A CharField that automatically cleans HTML content using the clean_html utility.
+
+    This field ensures consistent HTML sanitization across the application by
+    automatically cleaning any HTML content that is provided to it.
+
+    Usage:
+        class MySerializer(serializers.ModelSerializer):
+            description = HTMLCleanField()
+            content = HTMLCleanField(required=False, allow_blank=True)
+
+            class Meta:
+                model = MyModel
+                fields = ('description', 'content')
+    """
+
+    def to_internal_value(self, data):
+        # First, let the parent CharField handle basic validation
+        value = super().to_internal_value(data)
+
+        # Then clean the HTML content if it's not empty
+        if value:
+            return clean_html(value.strip())
+
+        return value
