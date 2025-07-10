@@ -15,7 +15,7 @@ import waldur_core.logging.mixins
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("marketplace", "0167_backendresourcerequest_backendresource"),
+        ("marketplace", "0168_alter_attribute_key_alter_attributeoption_key_and_more"),
     ]
 
     operations = [
