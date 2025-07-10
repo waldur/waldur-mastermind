@@ -1903,7 +1903,7 @@ class ProviderOfferingViewSet(
         )
 
     @extend_schema(
-        request=serializers.OfferingComponentSerializer,
+        request=serializers.UpdateOfferingComponent,
         responses=None,
     )
     @action(detail=True, methods=["post"])

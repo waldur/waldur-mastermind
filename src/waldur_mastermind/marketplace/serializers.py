@@ -1278,13 +1278,18 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
 
         return super().create(validated_data)
 
-    def get_factor(self, offering_component: models.OfferingComponent) -> int:
+    def get_factor(self, offering_component: models.OfferingComponent) -> int | None:
         builtin_components = plugins.manager.get_components(
             offering_component.offering.type
         )
         for c in builtin_components:
             if c.type == offering_component.type:
                 return c.factor
+
+
+# Used only for OpenAPI schema generation
+class UpdateOfferingComponent(OfferingComponentSerializer):
+    uuid = serializers.UUIDField()
 
 
 class ExportImportOfferingComponentSerializer(OfferingComponentSerializer):
