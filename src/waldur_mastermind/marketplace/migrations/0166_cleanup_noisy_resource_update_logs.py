@@ -24,9 +24,7 @@ def cleanup_noisy_resource_update_logs(apps, schema_editor):
         matches = pattern.findall(event.message)
         if matches and all(f == t for _, f, t in matches):
             ids_to_delete.append(event.id)
-
         processed += 1
-
         # Delete in batches for better performance
         if len(ids_to_delete) >= batch_size:
             Event.objects.filter(id__in=ids_to_delete).delete()
@@ -35,20 +33,17 @@ def cleanup_noisy_resource_update_logs(apps, schema_editor):
                 f"Deleted batch of {len(ids_to_delete)} events (total deleted: {deleted})"
             )
             ids_to_delete = []
-
         # Print progress every 1000 records
         if processed % 1000 == 0:
             percentage = (processed / total_events) * 100
             print(
                 f"Processed {processed}/{total_events} events ({percentage:.1f}%), deleted {deleted}"
             )
-
     # Delete any remaining events
     if ids_to_delete:
         Event.objects.filter(id__in=ids_to_delete).delete()
         deleted += len(ids_to_delete)
         print(f"Deleted final batch of {len(ids_to_delete)} events")
-
     print(f"Cleanup completed! Processed {processed} events, deleted {deleted} total.")
 
 
