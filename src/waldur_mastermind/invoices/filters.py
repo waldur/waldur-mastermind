@@ -1,4 +1,5 @@
 import django_filters
+from django.db.models import F, Sum
 from django_filters.widgets import BooleanWidget
 from rest_framework import filters
 
@@ -20,12 +21,16 @@ class InvoiceFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(fields=("created", "year", "month"))
 
     def filter_min_sum(self, queryset, name, value):
-        ids = [invoice.id for invoice in queryset.all() if invoice.total >= value]
-        return queryset.filter(id__in=ids)
+        # Use database aggregation instead of Python loop to avoid N+1 queries
+        return queryset.annotate(
+            total_sum=Sum("items__unit_price") * (1 + F("tax_percent") / 100)
+        ).filter(total_sum__gte=value)
 
     def filter_max_sum(self, queryset, name, value):
-        ids = [invoice.id for invoice in queryset.all() if invoice.total <= value]
-        return queryset.filter(id__in=ids)
+        # Use database aggregation instead of Python loop to avoid N+1 queries
+        return queryset.annotate(
+            total_sum=Sum("items__unit_price") * (1 + F("tax_percent") / 100)
+        ).filter(total_sum__lte=value)
 
     class Meta:
         model = models.Invoice
