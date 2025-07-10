@@ -1,6 +1,7 @@
 import importlib
 import inspect
 import pkgutil
+import re
 
 from django.apps import apps
 from django.core.management.base import BaseCommand
@@ -178,7 +179,7 @@ class Command(BaseCommand):
             short_desc = short_desc.replace("\n", " ").replace("|", "\\|").strip()
 
             # Create anchor link
-            anchor = name.lower().replace("mixin", "-mixin")
+            anchor = name.lower().replace("mixin", "mixin")
 
             markdown += f"| [`{name}`](#{anchor}) | `{module}` | {short_desc} |\n"
 
@@ -191,7 +192,7 @@ class Command(BaseCommand):
             description = mixin["description"]
 
             # Create anchor
-            anchor = name.lower().replace("mixin", "-mixin")
+            anchor = name.lower().replace("mixin", "mixin")
 
             markdown += f"### {name}\n\n"
             markdown += f"**Module:** `{module}`\n\n"
@@ -200,6 +201,18 @@ class Command(BaseCommand):
             if description and description != "No description available":
                 # Clean and format description
                 formatted_desc = description.replace("<br>", "\n").strip()
+
+                # Fix list formatting
+                formatted_desc = re.sub(
+                    r"^(\d+\.)  ", r"\1 ", formatted_desc, flags=re.MULTILINE
+                )
+                formatted_desc = re.sub(
+                    r"^\* +", "- ", formatted_desc, flags=re.MULTILINE
+                )
+                formatted_desc = re.sub(
+                    r"^  - ", "- ", formatted_desc, flags=re.MULTILINE
+                )
+
                 markdown += f"**Description:**\n{formatted_desc}\n\n"
             else:
                 markdown += "**Description:** No description available.\n\n"
