@@ -19,11 +19,23 @@ def get_rules(user):
     rules = []
     for rule in Rule.objects.all():
         if set(user.affiliations or []) & set(rule.user_affiliations) or any(
-            re.match(pattern, user.email) for pattern in rule.user_email_patterns
+            _is_pattern_match(pattern, user.email)
+            for pattern in rule.user_email_patterns
         ):
             rules.append(rule)
 
     return rules
+
+
+def _is_pattern_match(pattern, email):
+    """Safely check if email matches pattern, handling invalid regex patterns."""
+    if not pattern or not isinstance(pattern, str):
+        return False
+    try:
+        return bool(re.match(pattern, email))
+    except re.error as e:
+        logger.warning("Invalid regex pattern '%s': %s", pattern, e)
+        return False
 
 
 def get_or_create_project(customer, user, project_role) -> Project | None:

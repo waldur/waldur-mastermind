@@ -3,6 +3,7 @@ from unittest.mock import call, patch
 
 from django.test import TestCase
 
+from waldur_autoprovisioning import handlers
 from waldur_autoprovisioning.tests import factories as autoprovisioning_factories
 from waldur_core.core.models import User
 from waldur_core.permissions.fixtures import ProjectRole
@@ -105,3 +106,32 @@ class CreateProjectWithOutResourcesTest(TestCase):
         ).get()
         self.assertFalse(project.is_removed)
         self.assertTrue(project.has_user(user, ProjectRole.MANAGER))
+
+
+class InvalidRegexPatternsTest(TestCase):
+    def test_is_pattern_match_with_invalid_regex(self):
+        self.assertFalse(handlers._is_pattern_match("*invalid", "test@example.com"))
+        self.assertFalse(handlers._is_pattern_match("+invalid", "test@example.com"))
+        self.assertFalse(handlers._is_pattern_match("?invalid", "test@example.com"))
+        self.assertFalse(handlers._is_pattern_match("", "test@example.com"))
+        self.assertFalse(handlers._is_pattern_match(None, "test@example.com"))
+        self.assertFalse(handlers._is_pattern_match(123, "test@example.com"))
+
+    def test_is_pattern_match_with_valid_regex(self):
+        self.assertTrue(
+            handlers._is_pattern_match(".*@example.com", "test@example.com")
+        )
+        self.assertFalse(handlers._is_pattern_match(".*@other.com", "test@example.com"))
+        self.assertTrue(handlers._is_pattern_match("test.*", "test@example.com"))
+
+    @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
+    def test_get_rules_handles_invalid_regex_patterns(self, mock_process_order):
+        rule = autoprovisioning_factories.RuleFactory()
+        rule.user_email_patterns = ["*invalid", ".+@example.com", "+alsoinvalid"]
+        rule.save()
+
+        user = User.objects.create(username="testuser", email="test@example.com")
+
+        rules = handlers.get_rules(user)
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0], rule)
