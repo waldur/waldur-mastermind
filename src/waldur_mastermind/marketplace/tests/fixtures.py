@@ -162,3 +162,30 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
         self.offering_customer.add_user(user, ServiceProviderRole.MANAGER)
         self.offering.add_user(user, OfferingRole.MANAGER)
         return user
+
+    @cached_property
+    def maintenance_announcement(self):
+        return marketplace_factories.MaintenanceAnnouncementFactory(
+            service_provider=self.service_provider,
+            created_by=self.service_owner,
+        )
+
+    @cached_property
+    def maintenance_announcement_offering(self):
+        return marketplace_factories.MaintenanceAnnouncementOfferingFactory(
+            maintenance=self.maintenance_announcement,
+            offering=self.offering,
+        )
+
+    @cached_property
+    def maintenance_announcement_template(self):
+        return marketplace_factories.MaintenanceAnnouncementTemplateFactory(
+            service_provider=self.service_provider,
+        )
+
+    @cached_property
+    def maintenance_announcement_offering_template(self):
+        return marketplace_factories.MaintenanceAnnouncementOfferingTemplateFactory(
+            maintenance_template=self.maintenance_announcement_template,
+            offering=self.offering,
+        )

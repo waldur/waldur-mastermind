@@ -5457,3 +5457,158 @@ class BackendResourceRequestSetErredSerializer(
         model = models.BackendResourceRequest
         fields = ("error_message", "error_traceback")
         protected_fields = ("error_message", "error_traceback")
+
+
+class MaintenanceAnnouncementOfferingSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.MaintenanceAnnouncementOffering
+        fields = [
+            "url",
+            "uuid",
+            "maintenance",
+            "offering",
+            "impact_level",
+            "impact_description",
+        ]
+        extra_kwargs = {
+            "url": {
+                "view_name": "marketplace-maintenance-announcement-offering-detail",
+                "lookup_field": "uuid",
+            },
+            "maintenance": {
+                "view_name": "marketplace-maintenance-announcement-detail",
+                "lookup_field": "uuid",
+            },
+            "offering": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-provider-offering-detail",
+            },
+        }
+
+    def validate_maintenance(self, value):
+        user = self.context["request"].user
+        if not (user.is_staff or value.service_provider.customer.has_user(user)):
+            raise serializers.ValidationError(
+                "You are not related to this service provider's customer."
+            )
+        return value
+
+
+class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
+    affected_offerings = MaintenanceAnnouncementOfferingSerializer(
+        source="affected_offerings.all",
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = models.MaintenanceAnnouncement
+        fields = [
+            "url",
+            "uuid",
+            "name",
+            "message",
+            "maintenance_type",
+            "state",
+            "scheduled_start",
+            "scheduled_end",
+            "actual_start",
+            "actual_end",
+            "service_provider",
+            "created_by",
+            "affected_offerings",
+        ]
+        read_only_fields = ("state", "actual_start", "actual_end", "created_by")
+        extra_kwargs = {
+            "service_provider": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-service-provider-detail",
+            },
+            "url": {
+                "view_name": "marketplace-maintenance-announcement-detail",
+                "lookup_field": "uuid",
+            },
+            "created_by": {
+                "view_name": "user-detail",
+                "lookup_field": "uuid",
+                "read_only": True,
+            },
+        }
+
+    def validate_service_provider(self, value):
+        user = self.context["request"].user
+        if not (user.is_staff or value.customer.has_user(user)):
+            raise serializers.ValidationError(
+                "You are not related to this service provider's customer."
+            )
+        return value
+
+    def create(self, validated_data):
+        request = self.context["request"]
+        validated_data["created_by"] = request.user
+        return super().create(validated_data)
+
+
+class MaintenanceAnnouncementOfferingTemplateSerializer(
+    MaintenanceAnnouncementOfferingSerializer
+):
+    class Meta(MaintenanceAnnouncementOfferingSerializer.Meta):
+        model = models.MaintenanceAnnouncementOfferingTemplate
+        fields = [
+            "url",
+            "uuid",
+            "maintenance_template",
+            "offering",
+            "impact_level",
+            "impact_description",
+        ]
+
+        extra_kwargs = {
+            "url": {
+                "view_name": "marketplace-maintenance-announcement-offering-detail",
+                "lookup_field": "uuid",
+            },
+            "maintenance_template": {
+                "view_name": "marketplace-maintenance-announcement-template-detail",
+                "lookup_field": "uuid",
+            },
+            "offering": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-provider-offering-detail",
+            },
+        }
+
+    def validate_maintenance_template(self, value):
+        user = self.context["request"].user
+        if not (user.is_staff or value.service_provider.customer.has_user(user)):
+            raise serializers.ValidationError(
+                "You are not related to this service provider's customer."
+            )
+        return value
+
+
+class MaintenanceAnnouncementTemplateSerializer(MaintenanceAnnouncementSerializer):
+    class Meta(MaintenanceAnnouncementSerializer.Meta):
+        model = models.MaintenanceAnnouncementTemplate
+        fields = [
+            "url",
+            "uuid",
+            "name",
+            "message",
+            "maintenance_type",
+            "service_provider",
+            "affected_offerings",
+        ]
+        extra_kwargs = {
+            "service_provider": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-service-provider-detail",
+            },
+            "url": {
+                "view_name": "marketplace-maintenance-announcement-template-detail",
+                "lookup_field": "uuid",
+            },
+        }
+
+    def create(self, validated_data):
+        return serializers.HyperlinkedModelSerializer.create(self, validated_data)

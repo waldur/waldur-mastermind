@@ -14,6 +14,7 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
+    ImpactLevel,
     OfferingStates,
     ResourceStates,
 )
@@ -729,4 +730,113 @@ class BackendResourceRequestFactory(
     @classmethod
     def get_list_url(cls, action=None):
         url = "http://testserver" + reverse("backend-resource-request-list")
+        return url if action is None else url + action + "/"
+
+
+class MaintenanceAnnouncementFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.MaintenanceAnnouncement
+
+    name = factory.Sequence(lambda n: f"Maintenance {n}")
+    message = factory.Sequence(lambda n: f"Maintenance message {n}")
+    scheduled_start = factory.LazyFunction(timezone.now)
+    scheduled_end = factory.LazyAttribute(
+        lambda o: o.scheduled_start + timezone.timedelta(hours=2)
+    )
+    service_provider = factory.SubFactory(ServiceProviderFactory)
+    created_by = factory.SubFactory(structure_factories.UserFactory)
+
+    @classmethod
+    def get_url(cls, announcement=None, action=None):
+        if announcement is None:
+            announcement = MaintenanceAnnouncementFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-maintenance-announcement-detail",
+            kwargs={"uuid": announcement.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-maintenance-announcement-list")
+        return url if action is None else url + action + "/"
+
+
+class MaintenanceAnnouncementOfferingFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.MaintenanceAnnouncementOffering
+
+    maintenance = factory.SubFactory(MaintenanceAnnouncementFactory)
+    offering = factory.SubFactory(OfferingFactory)
+    impact_level = ImpactLevel.DEGRADED_PERFORMANCE
+    impact_description = factory.Sequence(lambda n: f"Impact description {n}")
+
+    @classmethod
+    def get_url(cls, obj=None, action=None):
+        if obj is None:
+            obj = MaintenanceAnnouncementOfferingFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-maintenance-announcement-offering-detail",
+            kwargs={"uuid": obj.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse(
+            "marketplace-maintenance-announcement-offering-list"
+        )
+        return url if action is None else url + action + "/"
+
+
+class MaintenanceAnnouncementTemplateFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.MaintenanceAnnouncementTemplate
+
+    name = factory.Sequence(lambda n: f"Maintenance template {n}")
+    message = factory.Sequence(lambda n: f"Maintenance template message {n}")
+    service_provider = factory.SubFactory(ServiceProviderFactory)
+
+    @classmethod
+    def get_url(cls, template=None, action=None):
+        if template is None:
+            template = MaintenanceAnnouncementTemplateFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-maintenance-announcement-template-detail",
+            kwargs={"uuid": template.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse(
+            "marketplace-maintenance-announcement-template-list"
+        )
+        return url if action is None else url + action + "/"
+
+
+class MaintenanceAnnouncementOfferingTemplateFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.MaintenanceAnnouncementOfferingTemplate
+
+    maintenance_template = factory.SubFactory(MaintenanceAnnouncementTemplateFactory)
+    offering = factory.SubFactory(OfferingFactory)
+    impact_level = ImpactLevel.DEGRADED_PERFORMANCE
+    impact_description = factory.Sequence(lambda n: f"Impact template description {n}")
+
+    @classmethod
+    def get_url(cls, obj=None, action=None):
+        if obj is None:
+            obj = MaintenanceAnnouncementOfferingTemplateFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-maintenance-announcement-template-offering-detail",
+            kwargs={"uuid": obj.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse(
+            "marketplace-maintenance-announcement-template-offering-list"
+        )
         return url if action is None else url + action + "/"

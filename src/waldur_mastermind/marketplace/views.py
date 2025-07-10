@@ -5586,3 +5586,33 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
             ["offering", "offering.customer"],
         )
     ]
+
+
+class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.MaintenanceAnnouncement.objects.all().order_by("-created")
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    serializer_class = serializers.MaintenanceAnnouncementSerializer
+
+
+class MaintenanceAnnouncementOfferingViewSet(core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.MaintenanceAnnouncementOffering.objects.all().order_by("-created")
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    serializer_class = serializers.MaintenanceAnnouncementOfferingSerializer
+
+
+class MaintenanceAnnouncementTemplateViewSet(core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.MaintenanceAnnouncementTemplate.objects.all().order_by("-created")
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    serializer_class = serializers.MaintenanceAnnouncementTemplateSerializer
+
+
+class MaintenanceAnnouncementOfferingTemplateViewSet(core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.MaintenanceAnnouncementOfferingTemplate.objects.all().order_by(
+        "-created"
+    )
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    serializer_class = serializers.MaintenanceAnnouncementOfferingTemplateSerializer
