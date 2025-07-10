@@ -1,3 +1,5 @@
+import re
+
 from rest_framework import serializers
 
 from waldur_autoprovisioning import models
@@ -50,6 +52,28 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
                 "lookup_field": "uuid",
             },
         }
+
+    def validate_user_email_patterns(self, value):
+        """Validate that all email patterns are valid regex patterns."""
+        if not value:
+            return value
+
+        invalid_patterns = []
+        for pattern in value:
+            if not pattern or not isinstance(pattern, str):
+                invalid_patterns.append(pattern)
+                continue
+            try:
+                re.compile(pattern)
+            except re.error:
+                invalid_patterns.append(pattern)
+
+        if invalid_patterns:
+            raise serializers.ValidationError(
+                f"Invalid regex patterns: {invalid_patterns}"
+            )
+
+        return value
 
 
 class RulePlansSerializer(serializers.HyperlinkedModelSerializer):
