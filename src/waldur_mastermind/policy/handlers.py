@@ -155,14 +155,21 @@ def customer_credit_offerings_list_changed_handler(
     sender, instance, action, reverse, model, pk_set, **kwargs
 ):
     if action in ("post_add", "post_remove", "post_clear"):
-        offerings = marketplace_models.Offering.objects.filter(pk__in=pk_set)
-        customer_ids = invoices_models.CustomerCredit.objects.filter(
-            offerings__in=offerings
-        ).values_list("customer_id", flat=True)
+        # Handle the case when pk_set is None (e.g., during clear() operation)
+        if pk_set is None:
+            # For clear operations, evaluate policies for the customer credit instance
+            policies = models.CustomerEstimatedCostPolicy.objects.filter(
+                scope_id=instance.customer_id
+            )
+        else:
+            offerings = marketplace_models.Offering.objects.filter(pk__in=pk_set)
+            customer_ids = invoices_models.CustomerCredit.objects.filter(
+                offerings__in=offerings
+            ).values_list("customer_id", flat=True)
+            policies = models.CustomerEstimatedCostPolicy.objects.filter(
+                scope_id__in=customer_ids
+            )
 
-        policies = models.CustomerEstimatedCostPolicy.objects.filter(
-            scope_id__in=customer_ids
-        )
         if policies.count() > 0:
             utils.evaluate_policies(policies)
 

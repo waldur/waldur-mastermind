@@ -59,14 +59,27 @@ class MonthlyCompensation:
             ).select_related("project")  # Prefetch related project data
         }
         credit_offerings = list(self.credit.offerings.all())
+        credit_offering_ids = (
+            set(offering.id for offering in credit_offerings)
+            if credit_offerings
+            else set()
+        )
+
+        # Optimize query to avoid N+1 problem by using select_related and filtering in database
+        items_queryset = self.invoice.items.exclude(
+            resource__isnull=True
+        ).select_related(
+            "resource", "resource__offering", "resource__project", "project"
+        )
+
+        # Filter by credit offerings in the database if they exist
+        if credit_offering_ids:
+            items_queryset = items_queryset.filter(
+                resource__offering_id__in=credit_offering_ids
+            )
 
         items: list[models.InvoiceItem] = sorted(
-            [
-                i
-                for i in self.invoice.items.exclude(resource__isnull=True)
-                # if credit offerings are limited, check if item belongs to the limited offering
-                if not credit_offerings or i.resource.offering in credit_offerings
-            ],
+            list(items_queryset),
             key=models.InvoiceItem._price,
         )
 
