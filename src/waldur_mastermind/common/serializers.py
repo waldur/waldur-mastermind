@@ -49,7 +49,12 @@ def validate_options(options, attributes, optional=False):
                 params["max_value"] = option.get("max")
 
         if "choices" in option:
-            params["choices"] = option["choices"]
+            # Only add choices parameter to field types that support it
+            if field_class in (
+                serializers.ChoiceField,
+                serializers.MultipleChoiceField,
+            ):
+                params["choices"] = option["choices"]
 
         fields[name] = field_class(**params)
 

@@ -1,220 +1,464 @@
 # How to write serializers
 
-## Object identity
+This guide provides comprehensive patterns and best practices for writing serializers in Waldur MasterMind, based on analysis of the current codebase architecture.
 
-When you're writing serializer, you may want user to reliably specify
-particular object in API request and serialize object in API response.
-Basically there are six aspects to consider:
+## Core Serializer Architecture Principles
 
-1) Consistency. We need to ensure consistent serialization format for
-    API request and response not only within particular application, but
-    also within whole system across different applications.
-2) Reliability. We need to reliable identify object using some stable
-    field so that value of this field would be the same even if all
-    other fields are changed.
-3) Security. We need to ensure that user has permission to get access
-    to the object in question. Typically API renders 400 error if user
-    specifies object he doesn't have access to in API request. On the
-    backend side permission check should be done consistently.
-4) Universality. There are generic API endpoints which accept objects
-    from different application.
-5) Performance. We need to consider how much data serializer fetches
-    from database so that it wouldn't fetch data which is not used
-    anyways and doesn't perform multiple queries when it's enough to
-    issue single query.
-6) Extensibility. Usually serializer does not have outside
-    dependencies. But sometimes it makes sense to inject extra fields to
-    the serializer defined in other application.
+### Mixin-Based Composition
 
-Therefore you may ask what is the best way to reliably and consistently
-identify object in API.
+Waldur uses extensive mixin composition to build complex serializers with reusable functionality. The recommended order follows Python's Method Resolution Order (MRO):
 
-In terms of frontend rendering, user is usually concerned with object
-name. Typically we use name only as filtering parameter because names
-are not unique. That's why object identity is implemented via a
-[UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier).
-Please note that usually we're not exposing ID in REST API in favor of
-UUID because it allows easy [distribution of databases across multiple
-servers](https://blog.codinghorror.com/primary-keys-ids-versus-guids/).
+```python
+class ResourceSerializer(
+    DomainSpecificMixin,                    # e.g., SshPublicKeySerializerMixin
+    core_serializers.RestrictedSerializerMixin,    # Field filtering
+    PermissionFieldFilteringMixin,          # Security filtering
+    core_serializers.AugmentedSerializerMixin,     # Core extensions
+    serializers.HyperlinkedModelSerializer,        # DRF base
+):
+```
 
-In order to decouple client and server we're implementing
-[HATEOAS](https://en.wikipedia.org/wiki/HATEOAS) component of REST API.
-That's why usually we're using HyperlinkedRelatedField serializer, for
-example:
+### Key Mixin Classes
+
+1. **AugmentedSerializerMixin**: Core functionality for signal injection and related fields
+2. **RestrictedSerializerMixin**: Field-level control to avoid over-fetching
+3. **PermissionFieldFilteringMixin**: Security filtering based on user permissions
+4. **SlugSerializerMixin**: Slug field management with staff-only editing
+5. **CountrySerializerMixin**: Internationalization support
+
+## Object Identity and HATEOAS
+
+### UUID-Based Identity
+
+All objects are identified by UUIDs rather than database IDs for distributed database support:
 
 ```python
 project = serializers.HyperlinkedRelatedField(
     queryset=models.Project.objects.all(),
     view_name='project-detail',
-    lookup_field='uuid',
-    write_only=True)
+    lookup_field='uuid',  # Always use UUID
+    write_only=True
+)
 ```
 
-There are four notes here:
+### Consistent URL Patterns
 
-1) We need to specify `lookup_field` explicitly because it's default
-    value is 'pk'.
-2) We need to specify `view_name` explicitly in order to avoid clash of
-    models names between different applications. You need to ensure that
-    it matches view name specified in urls.py module.
-3) When debug mode is enabled, you may navigate to related objects via
-    hyperlinks using browsable API renderer and select related object
-    from the list.
-4) Serialized hyperlink contains not only UUID, but also application
-    name and model. It allows to use serialized URL as request parameter
-    for generic API endpoint. Generic API works with different models
-    from arbitrary applications. Thus UUID alone is not enough for full
-    unambiguous identification of the object in this case.
-
-## Generic serializers
-
-Typically serializer allows you to specify object related to one
-particular database model. However it is not always the case. For
-example, issue serializer allows you to specify object related to any
-model with quota. In this case you would need to use GenericRelatedField
-serializer. It is expected that related\_models parameter provides a
-list of all valid models.
+- Detail views: `{model_name}-detail`
+- List views: `{model_name}-list`
+- Custom actions: `{model_name}-{action}`
 
 ```python
-class IssueSerializer(JiraPropertySerializer):
-    scope = core_serializers.GenericRelatedField(
-        source='resource',
-        related_models=structure_models.ResourceMixin.get_all_models(),
-        required=False
+class Meta:
+    extra_kwargs = {
+        "url": {"lookup_field": "uuid"},
+        "customer": {"lookup_field": "uuid"},
+        "project": {"lookup_field": "uuid", "view_name": "project-detail"},
+    }
+```
+
+## Automatic Related Field Generation
+
+### Related Paths Pattern
+
+Use `related_paths` to automatically generate related object fields:
+
+```python
+class ProjectSerializer(core_serializers.AugmentedSerializerMixin, ...):
+    class Meta:
+        model = models.Project
+        fields = (
+            'url', 'uuid', 'name', 'customer',
+            'customer_uuid', 'customer_name', 'customer_native_name'
+        )
+        related_paths = {
+            'customer': ('uuid', 'name', 'native_name', 'abbreviation'),
+            'type': ('name', 'uuid'),
+        }
+```
+
+This automatically generates: `customer_uuid`, `customer_name`, `customer_native_name`, `customer_abbreviation`, etc.
+
+## Security and Permissions
+
+### Permission-Based Field Filtering
+
+Always use `PermissionFieldFilteringMixin` for related fields to ensure users can only reference objects they have access to:
+
+```python
+class ResourceSerializer(PermissionFieldFilteringMixin, ...):
+    def get_filtered_field_names(self):
+        return ('project', 'service_settings', 'customer')
+```
+
+### Permission List Serializers
+
+For `many=True` relationships, use `PermissionListSerializer`:
+
+```python
+class PermissionProjectSerializer(BasicProjectSerializer):
+    class Meta(BasicProjectSerializer.Meta):
+        list_serializer_class = PermissionListSerializer
+```
+
+### Staff-Only Fields
+
+Restrict sensitive fields to staff users:
+
+```python
+class Meta:
+    staff_only_fields = (
+        "access_subnets", "accounting_start_date",
+        "default_tax_percent", "backend_id"
+    )
+
+def get_fields(self):
+    fields = super().get_fields()
+    if not self.context['request'].user.is_staff:
+        for field_name in self.Meta.staff_only_fields:
+            if field_name in fields:
+                fields[field_name].read_only = True
+    return fields
+```
+
+### Protected Fields
+
+Use `protected_fields` to make fields read-only during updates:
+
+```python
+class Meta:
+    protected_fields = ("customer", "service_settings", "end_date_requested_by")
+```
+
+## Performance Optimization
+
+### Eager Loading
+
+Always implement `eager_load()` static methods for query optimization:
+
+```python
+@staticmethod
+def eager_load(queryset, request=None):
+    return queryset.select_related(
+        'customer', 'project', 'service_settings'
+    ).prefetch_related(
+        'security_groups', 'volumes', 'floating_ips'
+    ).only(
+        'uuid', 'name', 'created', 'customer__uuid', 'customer__name'
     )
 ```
 
-Usually `get_all_models` method is implemented in base class and uses
-Django application registry which provides access to all registered
-models. Consider the following example:
+### Optional Fields
+
+Mark expensive computation fields as optional:
 
 ```python
-@classmethod
-@lru_cache(maxsize=1)
-def get_all_models(cls):
-    return [model for model in apps.get_models() if issubclass(model, cls)]
+def get_optional_fields(self):
+    return super().get_optional_fields() + ["projects", "billing_price_estimate"]
 ```
 
-In terms of database model reference to the resource is stored as
-generic foreign key, for example:
+Users can request these fields via `?field=projects` query parameter.
+
+### Restricted Field Rendering
+
+Use `RestrictedSerializerMixin` to allow field selection:
 
 ```python
-resource_content_type = models.ForeignKey(ContentType, blank=True, null=True, related_name='jira_issues')
-resource_object_id = models.PositiveIntegerField(blank=True, null=True)
+# URL: /api/projects/?field=name&field=uuid
+# Only renders 'name' and 'uuid' fields
+```
+
+## Complex Validation Patterns
+
+### Hierarchical Validation
+
+Implement validation in layers:
+
+```python
+def validate(self, attrs):
+    # 1. Cross-field validation
+    self.validate_cross_field_constraints(attrs)
+
+    # 2. Permission validation
+    if attrs.get('end_date'):
+        if not has_permission(self.context['request'],
+                             PermissionEnum.DELETE_PROJECT,
+                             attrs.get('customer')):
+            raise exceptions.PermissionDenied()
+
+    # 3. Business rule validation
+    self.validate_business_rules(attrs)
+
+    return attrs
+```
+
+### Dynamic Field Behavior
+
+Use `get_fields()` for context-dependent field behavior:
+
+```python
+def get_fields(self):
+    fields = super().get_fields()
+
+    # Time-based restrictions
+    if (isinstance(self.instance, models.Project)
+        and self.instance.start_date
+        and self.instance.start_date < timezone.now().date()):
+        fields["start_date"].read_only = True
+
+    # Role-based restrictions
+    if not self.context["request"].user.is_staff:
+        fields["max_service_accounts"].read_only = True
+
+    return fields
+```
+
+### External API Integration
+
+For external validation (e.g., VAT numbers):
+
+```python
+def validate(self, attrs):
+    vat_code = attrs.get('vat_code')
+    country = attrs.get('country')
+
+    if vat_code:
+        # Format validation
+        if not pyvat.is_vat_number_format_valid(vat_code, country):
+            raise serializers.ValidationError(
+                {"vat_code": _("VAT number has invalid format.")}
+            )
+
+        # External API validation
+        check_result = pyvat.check_vat_number(vat_code, country)
+        if check_result.is_valid:
+            attrs["vat_name"] = check_result.business_name
+            attrs["vat_address"] = check_result.business_address
+        elif check_result.is_valid is False:
+            raise serializers.ValidationError(
+                {"vat_code": _("VAT number is invalid.")}
+            )
+
+    return attrs
+```
+
+## Service Configuration Patterns
+
+### Options Pattern for Flexible Configuration
+
+Use the options pattern for service-specific configuration without model changes:
+
+```python
+class OpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer):
+    class Meta:
+        secret_fields = ("backend_url", "username", "password", "certificate")
+
+    # Map to options.* for flexible storage
+    availability_zone = serializers.CharField(source="options.availability_zone")
+    dns_nameservers = serializers.ListField(source="options.dns_nameservers")
+    external_network_id = serializers.CharField(source="options.external_network_id")
+```
+
+### Secret Field Management
+
+Protect sensitive configuration data:
+
+```python
+class Meta:
+    secret_fields = ("password", "certificate", "private_key", "api_token")
+```
+
+## Complex Resource Orchestration
+
+### Transactional Resource Creation
+
+For resources that create multiple related objects:
+
+```python
+@transaction.atomic
+def create(self, validated_data):
+    # Extract sub-resource data
+    quotas = validated_data.pop("quotas", {})
+    subnet_cidr = validated_data.pop("subnet_cidr")
+
+    # Create main resource
+    resource = super().create(validated_data)
+
+    # Create related resources
+    self._create_default_network(resource, subnet_cidr)
+    self._create_security_groups(resource)
+    self._apply_quotas(resource, quotas)
+
+    return resource
+
+def _create_default_network(self, resource, cidr):
+    # Implementation with proper error handling
+    pass
+```
+
+## Advanced Serializer Patterns
+
+### Nested Resource Serializers
+
+For complex relationships:
+
+```python
+class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer):
+    security_groups = OpenStackNestedSecurityGroupSerializer(many=True, required=False)
+    floating_ips = OpenStackNestedFloatingIPSerializer(many=True, required=False)
+    volumes = OpenStackDataVolumeSerializer(many=True, required=False)
+
+    def validate_security_groups(self, security_groups):
+        # Validate security groups belong to same tenant
+        return security_groups
+```
+
+### Generic Relationships
+
+For polymorphic relationships:
+
+```python
+scope = core_serializers.GenericRelatedField(
+    related_models=structure_models.BaseResource.get_all_models(),
+    required=False,
+    allow_null=True,
+)
+
+# In model:
+resource_content_type = models.ForeignKey(ContentType, ...)
+resource_object_id = models.PositiveIntegerField(...)
 resource = GenericForeignKey('resource_content_type', 'resource_object_id')
 ```
 
-## Secure serializers
+## Signal-Based Field Injection
 
-In Waldur we're using role-based-access-control (RBAC) for restricting
-system access to authorized users. In terms of serializers there are two
-abstract base serializer classes, PermissionFieldFilteringMixin and
-PermissionListSerializer which allow to filter related fields. They are
-needed in order to constrain the list of entities that can be used as a
-value for the field. Consider the following example:
+### Extensible Serializers
+
+Avoid circular dependencies by using signals for field injection:
 
 ```python
-class ResourceSerializer(PermissionFieldFilteringMixin,
-                         core_serializers.AugmentedSerializerMixin,
-                         serializers.HyperlinkedModelSerializer):
-    project = serializers.HyperlinkedRelatedField(
-        queryset=models.Project.objects.all(),
-        view_name='project-detail',
-        lookup_field='uuid')
-
-    class Meta(object):
-        model = NotImplemented
-        fields = (
-            'project', 'project_name', 'project_uuid',
-        )
-        related_paths = ('project',)
-
-    def get_filtered_field_names(self):
-        return 'project',
-```
-
-By using PermissionFieldFilteringMixin we ensure that value of project
-field is validated against current user so that only authorized user
-which has corresponding role in either project or customer is allowed to
-use this serializer.
-
-## High-performance serializers
-
-### Avoiding over-fetching
-
-By default serializer renders value for all fields specified in fields
-parameter. However, sometimes user does not really need to transfer all
-fields over the network. It is especially important when you're
-targeting at mobile users with slow network or even regular users when
-serializer renders a lot of data which is thrown away by application
-anyways.
-
-If you want to allow user to specify exactly and explicitly list of
-fields to render, you just need to use RestrictedSerializerMixin.
-
-### Avoiding under-fetching
-
-By default Django doesn't optimize database queries to the related
-objects, so separate query is executed each time when related object is
-needed. Fortunately enough, Django provides you with powerful methods to
-join database queries together and cache resulting queryset in RAM using
-identity map, so that instead of performing multiple consequent queries
-to the database it's enough to issue single query.
-
-So in order to reduce number of requests to DB your view should use
-EagerLoadMixin. It is expected that corresponding serializer implements
-static method `eager_load`, which selects objects necessary for
-serialization.
-
-Consider the following example:
-
-```python
-class BaseServiceViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
+# Host serializer
+class ProjectSerializer(core_serializers.AugmentedSerializerMixin, ...):
     pass
 
-
-class ServiceSettingsSerializer(PermissionFieldFilteringMixin,
-                                core_serializers.AugmentedSerializerMixin,
-                                serializers.HyperlinkedModelSerializer):
-
-    @staticmethod
-    def eager_load(queryset):
-        return queryset.select_related('customer').prefetch_related('quotas', 'certifications')
-```
-
-## Extensible serializers
-
-Usually serializer does not have outside dependencies, but sometimes it
-makes sense to inject extra fields to the serializer defined in other
-application so that it would not introduce [circular
-dependencies](https://en.wikipedia.org/wiki/Circular_dependency). Please
-note that this mechanism should be used with caution as it makes harder
-to track dependencies.
-
-The main idea is that instead of introducing circular dependency we're
-introducing extension point. This extension point is used in depending
-application in order to inject new fields to existing serializer.
-
-Example of host serializer implementation:
-
-```python
-class ProjectSerializer(core_serializers.RestrictedSerializerMixin,
-                        PermissionFieldFilteringMixin,
-                        core_serializers.AugmentedSerializerMixin):
-    pass
-```
-
-Guest application should subscribe to `pre_serializer_fields` signal and
-inject additional fields. Example of signal handler implementation:
-
-```python
-def add_price_estimate(sender, fields, **kwargs):
-    fields['billing_price_estimate'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_billing_price_estimate', get_price_estimate)
-
+# Guest application injects fields
+def add_marketplace_resource_uuid(sender, fields, **kwargs):
+    fields["marketplace_resource_uuid"] = serializers.SerializerMethodField()
+    setattr(sender, "get_marketplace_resource_uuid", get_marketplace_resource_uuid)
 
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.ProjectSerializer,
-    receiver=add_price_estimate,
+    receiver=add_marketplace_resource_uuid,
 )
 ```
+
+## Standard Meta Class Configuration
+
+### Complete Meta Example
+
+```python
+class Meta:
+    model = models.MyModel
+    fields = (
+        "url", "uuid", "name", "customer", "customer_uuid", "customer_name",
+        "created", "description", "state", "backend_id"
+    )
+    extra_kwargs = {
+        "url": {"lookup_field": "uuid"},
+        "customer": {"lookup_field": "uuid"},
+    }
+    related_paths = {
+        "customer": ("uuid", "name", "native_name"),
+    }
+    protected_fields = ("customer", "backend_id")
+    staff_only_fields = ("backend_id", "internal_notes")
+    list_serializer_class = PermissionListSerializer  # For many=True
+```
+
+## Custom Field Types
+
+### Specialized Fields
+
+- **HTMLCleanField**: Automatically sanitizes HTML content
+- **DictSerializerField**: Handles JSON dictionary serialization
+- **GenericRelatedField**: Supports multiple model types in relations
+- **MappedChoiceField**: Maps choice values for API consistency
+
+```python
+description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+options = serializers.DictField()
+state = MappedChoiceField(
+    choices=[(v, k) for k, v in CoreStates.CHOICES],
+    choice_mappings={v: k for k, v in CoreStates.CHOICES},
+    read_only=True,
+)
+```
+
+## Testing Serializers
+
+### Factory-Based Testing
+
+Use factory classes for test data generation:
+
+```python
+def test_project_serializer():
+    project = factories.ProjectFactory()
+    serializer = ProjectSerializer(project)
+    data = serializer.data
+
+    assert 'customer_uuid' in data
+    assert 'customer_name' in data
+    assert data['url'].endswith(f'/api/projects/{project.uuid}/')
+```
+
+### Permission Testing
+
+Test permission-based filtering:
+
+```python
+def test_permission_filtering(self, user):
+    customer = factories.CustomerFactory()
+    project = factories.ProjectFactory(customer=customer)
+
+    # User with no permissions should not see the project
+    serializer = ProjectSerializer(context={'request': rf.get('/', user=user)})
+    queryset = serializer.fields['customer'].queryset
+    assert customer not in queryset
+```
+
+## Common Pitfalls and Best Practices
+
+### Do's
+
+1. **Always use UUID lookup fields** for all hyperlinked relationships
+2. **Implement eager_load()** for any serializer used in list views
+3. **Use PermissionFieldFilteringMixin** for all related fields
+4. **Follow the mixin order** for consistent behavior
+5. **Use related_paths** for automatic related field generation
+6. **Implement comprehensive validation** at multiple levels
+7. **Use transactions** for multi-resource creation
+8. **Mark expensive fields as optional**
+
+### Don'ts
+
+1. **Don't use `fields = '__all__'`** - always be explicit
+2. **Don't forget lookup_field='uuid'** in extra_kwargs
+3. **Don't skip permission filtering** for security-sensitive fields
+4. **Don't implement custom field logic** without using established patterns
+5. **Don't create circular dependencies** - use signal injection instead
+6. **Don't ignore performance** - always consider query optimization
+7. **Don't hardcode view names** - use consistent naming patterns
+
+## Migration from Legacy Patterns
+
+### Updating Existing Serializers
+
+When updating legacy serializers:
+
+1. Add missing mixins in the correct order
+2. Implement `eager_load()` static methods
+3. Add `related_paths` for automatic field generation
+4. Add permission filtering with `get_filtered_field_names()`
+5. Use `protected_fields` instead of custom read-only logic
+6. Update to use `lookup_field='uuid'` consistently
+
+This comprehensive guide provides the patterns and practices needed to write maintainable, secure, and performant serializers that follow Waldur's architectural conventions.
