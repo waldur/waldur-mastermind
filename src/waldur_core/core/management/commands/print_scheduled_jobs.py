@@ -51,7 +51,7 @@ def format_schedule(schedule):
             else:
                 cron_expr = schedule_str
 
-            return f"Cron: {cron_expr}"
+            return f"Cron: `{cron_expr}`"
 
     return str(schedule)
 
