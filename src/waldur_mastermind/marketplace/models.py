@@ -37,7 +37,10 @@ from waldur_core.structure.mixins import CoordinatesMixin
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     CategoryColumnWidget,
+    ImpactLevel,
     LimitPeriods,
+    MaintenanceState,
+    MaintenanceType,
     OfferingStates,
     OrderStates,
     RequestTypes,
@@ -2154,3 +2157,203 @@ reversion.register(OfferingComponent)
 reversion.register(PlanComponent)
 reversion.register(Plan, follow=("components",))
 reversion.register(Offering, follow=("components", "plans", "screenshots"))
+
+
+class MaintenanceAnnouncement(
+    core_models.UuidMixin, core_models.NameMixin, TimeStampedModel, LoggableMixin
+):
+    message = models.CharField(_("message"), max_length=2000, blank=True)
+    maintenance_type = models.PositiveSmallIntegerField(
+        choices=MaintenanceType.CHOICES,
+        default=MaintenanceType.SCHEDULED,
+        help_text=_("Type of maintenance being performed"),
+    )
+
+    state = FSMIntegerField(
+        default=MaintenanceState.DRAFT, choices=MaintenanceState.CHOICES
+    )
+
+    scheduled_start = models.DateTimeField(
+        help_text=_("When the maintenance is scheduled to begin")
+    )
+    scheduled_end = models.DateTimeField(
+        help_text=_("When the maintenance is scheduled to complete")
+    )
+    actual_start = models.DateTimeField(
+        null=True, blank=True, help_text=_("When the maintenance actually began")
+    )
+    actual_end = models.DateTimeField(
+        null=True, blank=True, help_text=_("When the maintenance actually completed")
+    )
+
+    service_provider = models.ForeignKey(
+        ServiceProvider,
+        on_delete=models.CASCADE,
+        related_name="maintenance_announcements",
+        help_text=_("Service provider announcing the maintenance"),
+    )
+
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_maintenance_announcements",
+    )
+
+    tracker = FieldTracker()
+
+    class Meta:
+        verbose_name = _("Maintenance announcement")
+        verbose_name_plural = _("Maintenance announcements")
+        ordering = ["-scheduled_start"]
+
+    class Permissions:
+        customer_path = "service_provider__customer"
+
+    @property
+    def affected_offerings_count(self):
+        """Count of affected offerings"""
+        return self.affected_offerings.count()
+
+    @transition(
+        field=state, source=MaintenanceState.DRAFT, target=MaintenanceState.SCHEDULED
+    )
+    def schedule(self):
+        """Publish the maintenance announcement"""
+        pass
+
+    @transition(
+        field=state,
+        source=MaintenanceState.SCHEDULED,
+        target=MaintenanceState.IN_PROGRESS,
+    )
+    def start_maintenance(self):
+        """Mark maintenance as started"""
+        if not self.actual_start:
+            self.actual_start = timezone.now()
+
+    @transition(
+        field=state,
+        source=MaintenanceState.IN_PROGRESS,
+        target=MaintenanceState.COMPLETED,
+    )
+    def complete_maintenance(self):
+        """Mark maintenance as completed"""
+        if not self.actual_end:
+            self.actual_end = timezone.now()
+
+    @transition(
+        field=state,
+        source=[MaintenanceState.DRAFT, MaintenanceState.SCHEDULED],
+        target=MaintenanceState.CANCELLED,
+    )
+    def cancel_maintenance(self):
+        """Cancel the maintenance"""
+        pass
+
+    def get_log_fields(self):
+        return (
+            "uuid",
+            "title",
+            "maintenance_type",
+            "severity",
+            "state",
+            "scheduled_start",
+            "scheduled_end",
+            "service_provider",
+            "created_by",
+        )
+
+    def __str__(self):
+        return f"{self.name} - {self.get_state_display()}"
+
+
+class MaintenanceAnnouncementOffering(core_models.UuidMixin, TimeStampedModel):
+    maintenance = models.ForeignKey(
+        MaintenanceAnnouncement,
+        on_delete=models.CASCADE,
+        related_name="affected_offerings",
+    )
+    offering = models.ForeignKey(
+        Offering, on_delete=models.CASCADE, related_name="maintenance_announcements"
+    )
+    impact_level = models.PositiveSmallIntegerField(
+        choices=ImpactLevel.CHOICES,
+        default=ImpactLevel.DEGRADED_PERFORMANCE,
+        help_text=_("Expected impact on this offering"),
+    )
+    impact_description = models.TextField(
+        blank=True,
+        help_text=_("Specific description of how this offering will be affected"),
+    )
+
+    class Meta:
+        unique_together = ("maintenance", "offering")
+        verbose_name = _("Maintenance affected offering")
+        verbose_name_plural = _("Maintenance affected offerings")
+
+    class Permissions:
+        customer_path = "maintenance__service_provider__customer"
+
+    def __str__(self):
+        return f"{self.maintenance.name} affects {self.offering.name}"
+
+
+class MaintenanceAnnouncementTemplate(
+    core_models.UuidMixin, core_models.NameMixin, TimeStampedModel
+):
+    message = models.CharField(_("message"), max_length=2000, blank=True)
+    maintenance_type = models.PositiveSmallIntegerField(
+        choices=MaintenanceType.CHOICES,
+        default=MaintenanceType.SCHEDULED,
+        help_text=_("Type of maintenance being performed"),
+    )
+
+    service_provider = models.ForeignKey(
+        ServiceProvider,
+        on_delete=models.CASCADE,
+        related_name="+",
+        help_text=_("Service provider announcing the maintenance"),
+    )
+
+    tracker = FieldTracker()
+
+    class Meta:
+        verbose_name = _("Maintenance announcement")
+        verbose_name_plural = _("Maintenance announcements")
+        ordering = ["-created"]
+
+    class Permissions:
+        customer_path = "service_provider__customer"
+
+    def __str__(self):
+        return f"{self.name} - {self.get_state_display()}"
+
+
+class MaintenanceAnnouncementOfferingTemplate(core_models.UuidMixin, TimeStampedModel):
+    maintenance_template = models.ForeignKey(
+        MaintenanceAnnouncementTemplate,
+        on_delete=models.CASCADE,
+        related_name="+",
+    )
+    offering = models.ForeignKey(Offering, on_delete=models.CASCADE, related_name="+")
+    impact_level = models.PositiveSmallIntegerField(
+        choices=ImpactLevel.CHOICES,
+        default=ImpactLevel.DEGRADED_PERFORMANCE,
+        help_text=_("Expected impact on this offering"),
+    )
+    impact_description = models.TextField(
+        blank=True,
+        help_text=_("Specific description of how this offering will be affected"),
+    )
+
+    class Meta:
+        unique_together = ("maintenance_template", "offering")
+        verbose_name = _("Maintenance affected offering")
+        verbose_name_plural = _("Maintenance affected offerings")
+
+    class Permissions:
+        customer_path = "maintenance_template__service_provider__customer"
+
+    def __str__(self):
+        return f"{self.maintenance_template.name} affects {self.offering.name}"

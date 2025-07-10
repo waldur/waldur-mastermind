@@ -33,6 +33,7 @@ CONSTANCE_ADDITIONAL_FIELDS = {
         "waldur_core.core.serializers.ListField",
         {"required": False},
     ],
+    "choice_field": ["django.forms.ChoiceField", {"required": False}],
 }
 CONSTANCE_CONFIG = {
     "SITE_NAME": ("Waldur", "Human-friendly name of the Waldur deployment."),
@@ -493,6 +494,15 @@ CONSTANCE_CONFIG = {
         False,
         "Deactivate user if all roles are revoked (except staff/support)",
     ),
+    "MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES": (
+        60,
+        "How many minutes before scheduled maintenance users should be notified.",
+    ),
+    "MAINTENANCE_ANNOUNCEMENT_NOTIFY_SYSTEM": (
+        ["AdminAnnouncement"],
+        "How maintenance notifications are delivered. Choices: AdminAnnouncement or BroadcastMessage.",
+        "list_field",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -541,6 +551,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "Notifications": (
         "COMMON_FOOTER_TEXT",
         "COMMON_FOOTER_HTML",
+        "MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES",
+        "MAINTENANCE_ANNOUNCEMENT_NOTIFY_SYSTEM",
     ),
     "Links": (
         "DOCS_URL",

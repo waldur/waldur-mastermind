@@ -168,3 +168,49 @@ ResourceStatesType = Literal[
     "Terminating",
     "Terminated",
 ]
+
+
+class MaintenanceState:
+    DRAFT = 1
+    SCHEDULED = 2
+    IN_PROGRESS = 3
+    COMPLETED = 4
+    CANCELLED = 5
+
+    CHOICES = (
+        (DRAFT, "Draft"),
+        (SCHEDULED, "Scheduled"),
+        (IN_PROGRESS, "In progress"),
+        (COMPLETED, "Completed"),
+        (CANCELLED, "Cancelled"),
+    )
+
+
+class MaintenanceType:
+    SCHEDULED = 1
+    EMERGENCY = 2
+    SECURITY = 3
+    UPGRADE = 4
+    PATCH = 5
+
+    CHOICES = (
+        (SCHEDULED, "Scheduled maintenance"),
+        (EMERGENCY, "Emergency maintenance"),
+        (SECURITY, "Security maintenance"),
+        (UPGRADE, "System upgrade"),
+        (PATCH, "Patch deployment"),
+    )
+
+
+class ImpactLevel:
+    NO_IMPACT = 1
+    DEGRADED_PERFORMANCE = 2
+    PARTIAL_OUTAGE = 3
+    FULL_OUTAGE = 4
+
+    CHOICES = (
+        (NO_IMPACT, "No impact"),
+        (DEGRADED_PERFORMANCE, "Degraded performance"),
+        (PARTIAL_OUTAGE, "Partial outage"),
+        (FULL_OUTAGE, "Full outage"),
+    )

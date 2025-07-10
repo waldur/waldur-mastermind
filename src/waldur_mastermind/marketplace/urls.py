@@ -177,6 +177,26 @@ def register_in(router):
         views.BackendResourceRequestViewSet,
         basename="backend-resource-request",
     )
+    router.register(
+        r"marketplace-maintenance-announcements",
+        views.MaintenanceAnnouncementViewSet,
+        basename="marketplace-maintenance-announcement",
+    )
+    router.register(
+        r"marketplace-maintenance-announcement-offerings",
+        views.MaintenanceAnnouncementOfferingViewSet,
+        basename="marketplace-maintenance-announcement-offering",
+    )
+    router.register(
+        r"marketplace-maintenance-announcements-template",
+        views.MaintenanceAnnouncementTemplateViewSet,
+        basename="marketplace-maintenance-announcement-template",
+    )
+    router.register(
+        r"marketplace-maintenance-announcement-template-offerings",
+        views.MaintenanceAnnouncementOfferingTemplateViewSet,
+        basename="marketplace-maintenance-announcement-template-offering",
+    )
 
 
 urlpatterns = [
