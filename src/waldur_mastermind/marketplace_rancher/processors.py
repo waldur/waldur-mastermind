@@ -117,35 +117,45 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             aggregated_limits = {
                 CORES_TYPE: sum(limits[CORES_TYPE] for limits in tenant_limits),
                 RAM_TYPE: sum(limits[RAM_TYPE] for limits in tenant_limits),
-                STORAGE_TYPE: sum(limits[STORAGE_TYPE] for limits in tenant_limits),
             }
 
-            tenant_max_cpu = self.order.offering.plugin_options.get(
-                "managed_rancher_tenant_max_cpu"
-            )
-            if tenant_max_cpu and aggregated_limits[CORES_TYPE] > tenant_max_cpu:
-                raise rf_serializers.ValidationError(
-                    f"The requested total CPU limit {aggregated_limits[CORES_TYPE]} cores exceeds the maximum allowed {tenant_max_cpu} cores for tenants."
-                )
+            type_to_max_limit = {
+                CORES_TYPE: self.order.offering.plugin_options.get(
+                    "managed_rancher_tenant_max_cpu"
+                ),
+                RAM_TYPE: self.order.offering.plugin_options.get(
+                    "managed_rancher_tenant_max_ram"
+                ),
+                STORAGE_TYPE: self.order.offering.plugin_options.get(
+                    "managed_rancher_tenant_max_disk"
+                ),
+            }
 
-            tenant_max_ram = self.order.offering.plugin_options.get(
-                "managed_rancher_tenant_max_ram"
-            )
-            if tenant_max_ram and aggregated_limits[RAM_TYPE] > tenant_max_ram * 1024:
-                raise rf_serializers.ValidationError(
-                    f"The requested total RAM limit {aggregated_limits[RAM_TYPE]} MB exceeds the maximum allowed {tenant_max_ram * 1024} MB for tenants."
+            # Collect limits for storage quotas across the tenants and sum them
+            tenant_storage_limits = []
+            for tenant_limit in tenant_limits:
+                tenant_storage_limit = sum(
+                    limit_value
+                    for limit_type, limit_value in tenant_limit.items()
+                    if limit_type.startswith("gigabytes_") or limit_type == STORAGE_TYPE
                 )
+                tenant_storage_limits.append(tenant_storage_limit)
+            aggregated_limits[STORAGE_TYPE] = sum(tenant_storage_limits)
 
-            tenant_max_disk = self.order.offering.plugin_options.get(
-                "managed_rancher_tenant_max_disk"
-            )
-            if (
-                tenant_max_disk
-                and aggregated_limits[STORAGE_TYPE] > tenant_max_disk * 1024
-            ):
-                raise rf_serializers.ValidationError(
-                    f"The requested total Disk limit {aggregated_limits[STORAGE_TYPE]} MB exceeds the maximum allowed {tenant_max_disk * 1024} MB for tenants."
-                )
+            for limit_type, aggregated_limit in aggregated_limits.items():
+                max_allowed_limit = type_to_max_limit[limit_type]
+
+                if not max_allowed_limit:
+                    continue
+
+                if limit_type != CORES_TYPE:
+                    # Convert GBs to MBs
+                    max_allowed_limit *= 1024
+
+                if aggregated_limit > max_allowed_limit:
+                    raise rf_serializers.ValidationError(
+                        f"The requested total {limit_type} limit {aggregated_limit} cores exceeds the maximum allowed {max_allowed_limit} for tenants."
+                    )
 
         orders = []
         orders_data = []

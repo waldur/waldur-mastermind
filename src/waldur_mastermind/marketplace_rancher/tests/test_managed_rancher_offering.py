@@ -3,7 +3,7 @@ from rest_framework import test
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import TENANT_TYPE
+from waldur_mastermind.marketplace_openstack import STORAGE_MODE_DYNAMIC, TENANT_TYPE
 from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN, PLUGIN_NAME
 from waldur_openstack.tests import (
     factories as openstack_factories,
@@ -85,7 +85,7 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
 
         self.order.refresh_from_db()
         self.assertEqual(self.order.state, OrderStates.ERRED)
-        self.assertIn("The requested total CPU limit", self.order.error_message)
+        self.assertIn("The requested total cores limit", self.order.error_message)
 
     def test_cluster_creation_fails_when_ram_limit_exceeded(self):
         self.offering.plugin_options.update(
@@ -97,7 +97,7 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
 
         self.order.refresh_from_db()
         self.assertEqual(self.order.state, OrderStates.ERRED)
-        self.assertIn("The requested total RAM limit", self.order.error_message)
+        self.assertIn("The requested total ram limit", self.order.error_message)
 
     def test_cluster_creation_fails_when_disk_limit_exceeded(self):
         self.offering.plugin_options.update(
@@ -109,4 +109,23 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
 
         self.order.refresh_from_db()
         self.assertEqual(self.order.state, OrderStates.ERRED)
-        self.assertIn("The requested total Disk limit", self.order.error_message)
+        self.assertIn("The requested total storage limit", self.order.error_message)
+
+    def test_cluster_creation_fails_when_disk_limit_exceeded_for_dynamic_storage(self):
+        self.offering.plugin_options.update(
+            {
+                "managed_rancher_tenant_max_disk": 100,
+            }
+        )
+        self.openstack_offering.plugin_options.update(
+            {
+                "storage_mode": STORAGE_MODE_DYNAMIC,
+            }
+        )
+        self.openstack_offering.save()
+
+        marketplace_utils.process_order(self.order, self.fixture.staff)
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.ERRED)
+        self.assertIn("The requested total storage limit", self.order.error_message)
