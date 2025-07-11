@@ -184,6 +184,19 @@ class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = "uuid"
     filterset_class = filters.VolumeTypeFilter
 
+    @decorators.action(detail=False, methods=["get"])
+    def names(self, request):
+        """
+        Return a list of unique volume type names.
+        """
+        names = (
+            models.VolumeType.objects.filter(disabled=False)
+            .values_list("name", flat=True)
+            .distinct()
+            .order_by("name")
+        )
+        return response.Response(names, status=status.HTTP_200_OK)
+
 
 class SecurityGroupViewSet(structure_views.ResourceViewSet):
     queryset = models.SecurityGroup.objects.all().order_by("tenant__name")
