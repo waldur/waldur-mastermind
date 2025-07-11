@@ -3,6 +3,7 @@ import logging
 import requests
 from django.conf import settings
 from requests.auth import HTTPBasicAuth
+from rest_framework import status
 
 from waldur_core.logging.exceptions import RabbitMQError
 
@@ -41,10 +42,10 @@ class RabbitMQManagementBackend:
             )
             return False
 
-        if response.status_code == 201:
+        if response.status_code == status.HTTP_201_CREATED:
             logger.info("Virtual host '%s' created successfully", vhost_name)
             return True
-        elif response.status_code == 204:
+        elif response.status_code == status.HTTP_204_NO_CONTENT:
             logger.warning("Virtual host '%s' already exists", vhost_name)
             return True
         else:
@@ -76,7 +77,7 @@ class RabbitMQManagementBackend:
             )
             return False
 
-        if response.status_code != 204:
+        if response.status_code != status.HTTP_204_NO_CONTENT:
             logger.error(
                 "Failed to delete virtual host %s, status code: %s, response: %s",
                 vhost_name,
@@ -102,7 +103,7 @@ class RabbitMQManagementBackend:
             logger.error("Unable to list virtual hosts in RabbitMQ, error: %s", exc)
             return []
 
-        if response.status_code != 200:
+        if response.status_code != status.HTTP_200_OK:
             logger.error(
                 "Failed to list virtual hosts, status code: %s, response: %s",
                 response.status_code,
@@ -142,7 +143,7 @@ class RabbitMQManagementBackend:
             )
             return []
 
-        if response.status_code != 200:
+        if response.status_code != status.HTTP_200_OK:
             logger.error(
                 "Failed to list permissions for vhost %s, status code: %s, response: %s",
                 vhost_name,
@@ -182,10 +183,10 @@ class RabbitMQManagementBackend:
             logger.info("Creating a user '%s' in RabbitMQ", username)
             response = requests.put(url, json=payload, auth=self.rmq_auth, timeout=10)
 
-            if response.status_code == 201:
+            if response.status_code == status.HTTP_201_CREATED:
                 logger.info("User '%s' created successfully in RabbitMQ", username)
                 return True
-            elif response.status_code == 204:
+            elif response.status_code == status.HTTP_204_NO_CONTENT:
                 logger.warning("User '%s' already exists in RabbitMQ", username)
                 return True
             else:
@@ -243,7 +244,10 @@ class RabbitMQManagementBackend:
                 url, json=permissions, auth=self.rmq_auth, timeout=10
             )
 
-            if response.status_code in (201, 204):
+            if response.status_code in (
+                status.HTTP_201_CREATED,
+                status.HTTP_204_NO_CONTENT,
+            ):
                 logger.info(
                     "Permissions for user '%s' on vhost '%s' set successfully.",
                     username,
@@ -290,8 +294,11 @@ class RabbitMQManagementBackend:
         try:
             response = requests.delete(url, auth=self.rmq_auth, timeout=10)
 
-            if response.status_code == 204:
+            if response.status_code == status.HTTP_204_NO_CONTENT:
                 logger.info("User %s deleted successfully from RabbitMQ", username)
+                return True
+            elif response.status_code == status.HTTP_404_NOT_FOUND:
+                logger.info("The user %s does not exist in RabbitMQ")
                 return True
             else:
                 logger.error(
@@ -329,7 +336,7 @@ class RabbitMQManagementBackend:
             logger.error("Unable to list users in RabbitMQ, error: %s", exc)
             return []
 
-        if response.status_code != 200:
+        if response.status_code != status.HTTP_200_OK:
             logger.error(
                 "Failed to list users, status code: %s, response: %s",
                 response.status_code,
@@ -363,10 +370,10 @@ class RabbitMQManagementBackend:
             )
             raise
 
-        if response.status_code == 404:
+        if response.status_code == status.HTTP_404_NOT_FOUND:
             logger.debug("User %s not found in RabbitMQ", username)
             return None
-        elif response.status_code == 200:
+        elif response.status_code == status.HTTP_200_OK:
             try:
                 return response.json()
             except requests.JSONDecodeError:
@@ -397,10 +404,10 @@ class RabbitMQManagementBackend:
             )
             raise
 
-        if response.status_code == 404:
+        if response.status_code == status.HTTP_404_NOT_FOUND:
             logger.debug("User %s connections not found in RabbitMQ", username)
             return []
-        elif response.status_code == 200:
+        elif response.status_code == status.HTTP_200_OK:
             try:
                 return response.json()
             except requests.JSONDecodeError:
