@@ -264,7 +264,7 @@ class ManagedRancherPluginOptionsSerializer(serializers.Serializer):
         required=False,
     )
     managed_rancher_tenant_max_ram = serializers.IntegerField(
-        help_text=_("Max number of RAM for tenants"),
+        help_text=_("Max number of RAM for tenants (GB)"),
         required=False,
     )
     managed_rancher_tenant_max_disk = serializers.IntegerField(
