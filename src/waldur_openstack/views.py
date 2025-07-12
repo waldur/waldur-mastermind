@@ -184,11 +184,12 @@ class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = "uuid"
     filterset_class = filters.VolumeTypeFilter
 
+    @extend_schema(
+        description="Return a list of unique volume type names.",
+        responses=list[str],
+    )
     @decorators.action(detail=False, methods=["get"])
     def names(self, request):
-        """
-        Return a list of unique volume type names.
-        """
         names = (
             models.VolumeType.objects.filter(disabled=False)
             .values_list("name", flat=True)
