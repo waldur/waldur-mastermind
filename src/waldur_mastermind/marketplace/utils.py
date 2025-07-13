@@ -164,6 +164,7 @@ def validate_order(order, request):
 
 
 def create_screenshot_thumbnail(screenshot):
+    """Create a thumbnail for a screenshot."""
     pic = screenshot.image
     fh = storage.open(pic.name, "rb")
     image = Image.open(fh)
@@ -573,6 +574,7 @@ def get_is_limit_based(serializer, scope) -> bool | None:
 
 
 def add_marketplace_offering(sender, fields, **kwargs):
+    """Add marketplace offering related fields to the serializer."""
     fields["marketplace_offering_uuid"] = serializers.SerializerMethodField()
     setattr(sender, "get_marketplace_offering_uuid", get_marketplace_offering_uuid)
 

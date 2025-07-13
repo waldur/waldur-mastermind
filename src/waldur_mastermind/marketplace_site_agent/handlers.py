@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def send_done_order_to_message_queue(sender, instance: Order, created=False, **kwargs):
+    """Send completed marketplace order to message queue for site agent processing."""
     order = instance
     if created:
         return
@@ -35,6 +36,7 @@ def send_done_order_to_message_queue(sender, instance: Order, created=False, **k
 def send_pending_order_to_message_queue(
     sender, instance: Order, created=False, **kwargs
 ):
+    """Send pending marketplace order to message queue for site agent processing."""
     order = instance
     if created:
         return

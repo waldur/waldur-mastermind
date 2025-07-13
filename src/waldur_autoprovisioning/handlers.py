@@ -127,6 +127,7 @@ def get_or_create_order(
 
 
 def handle_new_user(sender, instance: User, created=False, **kwargs):
+    """Create project and order for new user based on autoprovisioning rules."""
     user = instance
 
     rules: list = get_rules(user)

@@ -62,6 +62,7 @@ def create_offering_from_tenant(
 
 
 def archive_offering(sender, instance: Tenant, **kwargs):
+    """Archive marketplace offerings when OpenStack tenant is deleted."""
     marketplace_models.Offering.objects.filter(scope=instance).update(
         state=OfferingStates.ARCHIVED
     )
@@ -325,6 +326,7 @@ def create_marketplace_resource_for_imported_resources(
 def import_resource_metadata_when_resource_is_created(
     sender, instance: marketplace_models.Resource, created=False, **kwargs
 ):
+    """Import OpenStack resource metadata when marketplace resource is created."""
     if not created:
         return
 
@@ -367,6 +369,7 @@ def update_openstack_tenant_usages(
 def create_offering_component_for_volume_type(
     sender, instance: VolumeType, created=False, **kwargs
 ):
+    """Create marketplace offering component when OpenStack volume type is created."""
     volume_type = instance
 
     try:

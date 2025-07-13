@@ -5,6 +5,7 @@ from waldur_openstack_replication.models import Migration
 
 
 def handle_migration_post_save(sender, instance: Migration, created, **kwargs):
+    """Handle migration post-save events."""
     migration = instance
     if created:
         return

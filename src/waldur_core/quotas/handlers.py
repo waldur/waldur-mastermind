@@ -12,6 +12,7 @@ def count_quota_handler_factory(count_quota_field):
     """Creates handler that will recalculate count_quota on creation/deletion"""
 
     def recalculate_count_quota(sender, instance, **kwargs):
+        """Recalculate count quota when an instance is created or deleted."""
         signal = kwargs["signal"]
         if signal == signals.post_save and kwargs.get("created"):
             count_quota_field.add_usage(instance, delta=1)
@@ -34,6 +35,7 @@ def get_ancestors(scope):
 
 
 def get_field(quota):
+    """Get the quota field for a given quota."""
     fields = quota.scope.get_quotas_fields()
     try:
         return next(f for f in fields if f.name == quota.name)
@@ -75,6 +77,7 @@ def handle_aggregated_quotas(sender, instance: QuotaUsage, **kwargs):
 
 
 def delete_quotas_when_model_is_deleted(sender, instance, **kwargs):
+    """Delete all quotas related to a model when it is deleted."""
     QuotaLimit.objects.filter(scope=instance).delete()
     QuotaUsage.objects.filter(scope=instance).delete()
 
@@ -82,6 +85,8 @@ def delete_quotas_when_model_is_deleted(sender, instance, **kwargs):
 def projects_customer_has_been_changed(
     sender, project, old_customer, new_customer, created=False, **kwargs
 ):
+    """Recalculate quotas when a project's customer has been changed."""
+
     def recalculate_quotas(field_class):
         for counter_field in structure_models.Customer.get_quotas_fields(
             field_class=field_class

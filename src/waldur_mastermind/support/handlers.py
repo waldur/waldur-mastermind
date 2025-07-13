@@ -185,6 +185,7 @@ def send_issue_updated_notification(
 def create_feedback_if_issue_has_been_resolved(
     sender, instance: models.Issue, created=False, **kwargs
 ):
+    """Create feedback request when support issue transitions to resolved state."""
     if not settings.ISSUE_FEEDBACK_ENABLE:
         return
 

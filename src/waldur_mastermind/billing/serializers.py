@@ -106,6 +106,7 @@ def get_price_estimate(serializer, scope):
 
 
 def add_price_estimate(sender, fields, **kwargs):
+    """Add a billing price estimate field to the serializer."""
     fields["billing_price_estimate"] = serializers.SerializerMethodField()
     setattr(sender, "get_billing_price_estimate", get_price_estimate)
 

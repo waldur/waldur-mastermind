@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 def apply_campaign_to_pending_invoices(
     sender, instance: Campaign, created=False, **kwargs
 ):
+    """Apply campaign discounts to pending invoices and create discounted resources."""
     from waldur_mastermind.invoices import models as invoices_models
     from waldur_mastermind.marketplace import models as marketplace_models
 

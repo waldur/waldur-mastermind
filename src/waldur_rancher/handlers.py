@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 def delete_node_if_related_instance_has_been_deleted(
     sender, instance: Instance, **kwargs
 ):
+    """Delete a Rancher node if its related OpenStack instance has been deleted."""
     try:
         node = models.Node.objects.get(instance=instance)
         backend = node.cluster.get_backend()
@@ -28,6 +29,7 @@ def delete_node_if_related_instance_has_been_deleted(
 def delete_cluster_if_all_related_nodes_have_been_deleted(
     sender, instance: Node, **kwargs
 ):
+    """Delete a Rancher cluster if all its related nodes have been deleted."""
     node = instance
     try:
         if (
@@ -43,6 +45,7 @@ def delete_cluster_if_all_related_nodes_have_been_deleted(
 def set_error_state_for_node_if_related_instance_deleting_is_failed(
     sender, instance: Instance, created=False, **kwargs
 ):
+    """Set error state for a Rancher node if its related OpenStack instance deletion fails."""
     if created:
         return
 
@@ -60,6 +63,7 @@ def set_error_state_for_node_if_related_instance_deleting_is_failed(
 def set_error_state_for_cluster_if_related_node_deleting_is_failed(
     sender, instance: Node, created=False, **kwargs
 ):
+    """Set error state for a Rancher cluster if a related node deletion fails."""
     node = instance
 
     if created:
@@ -73,6 +77,7 @@ def set_error_state_for_cluster_if_related_node_deleting_is_failed(
 
 
 def delete_catalog_if_scope_has_been_deleted(sender, instance, **kwargs):
+    """Delete a catalog if its scope has been deleted."""
     content_type = ContentType.objects.get_for_model(instance)
     models.Catalog.objects.filter(
         object_id=instance.id, content_type=content_type
@@ -80,6 +85,7 @@ def delete_catalog_if_scope_has_been_deleted(sender, instance, **kwargs):
 
 
 def delete_keycloak_group_from_backend(sender, instance: KeycloakGroup, **kwargs):
+    """Delete a Keycloak group from the backend."""
     group = instance
     try:
         _, settings = utils.get_keycloak_group_scope_and_settings(group)
@@ -105,6 +111,7 @@ def delete_keycloak_group_from_backend(sender, instance: KeycloakGroup, **kwargs
 def delete_keycloak_user_group_membership_from_backend(
     sender, instance: KeycloakUserGroupMembership, **kwargs
 ):
+    """Delete a Keycloak user group membership from the backend."""
     try:
         group = instance.group
     except models.KeycloakGroup.DoesNotExist:
@@ -144,6 +151,7 @@ def delete_keycloak_user_group_membership_from_backend(
 def add_group_to_rancher_scope(
     sender, instance: KeycloakGroup, created=False, **kwargs
 ):
+    """Add a Keycloak group to Rancher scope."""
     if not created:
         return
 
@@ -174,6 +182,7 @@ def add_group_to_rancher_scope(
 
 
 def remove_group_from_rancher_scope(sender, instance: KeycloakGroup, **kwargs):
+    """Remove a Keycloak group from Rancher scope."""
     group = instance
     try:
         scope, settings = utils.get_keycloak_group_scope_and_settings(group)

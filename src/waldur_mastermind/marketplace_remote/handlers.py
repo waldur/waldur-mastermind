@@ -191,6 +191,7 @@ def log_request_events(
 
 
 def trigger_order_callback(sender, instance: Order, created=False, **kwargs):
+    """Trigger HTTP callback when marketplace order state changes."""
     if not instance.callback_url:
         return
 

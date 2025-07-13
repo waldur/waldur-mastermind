@@ -3499,6 +3499,7 @@ def get_instance_url(
 
 
 def add_instance_fields(sender, fields, **kwargs):
+    """Add instance-related fields to the serializer."""
     fields["instance_uuid"] = serializers.SerializerMethodField()
     setattr(sender, "get_instance_uuid", get_instance_uuid)
     fields["instance_name"] = serializers.SerializerMethodField()

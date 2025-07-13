@@ -16,12 +16,14 @@ logger = logging.getLogger(__name__)
 
 
 def schedule_sync(*args, **kwargs):
+    """Schedule a synchronization task."""
     tasks.schedule_sync()
 
 
 def schedule_sync_on_quota_change(
     sender, instance: QuotaLimit, created=False, **kwargs
 ):
+    """Schedule a synchronization task when a quota is changed."""
     if instance.name != utils.QUOTA_NAME:
         return
     if created and instance.value == -1:
@@ -30,6 +32,7 @@ def schedule_sync_on_quota_change(
 
 
 def log_profile_event(sender, instance: Profile, created=False, **kwargs):
+    """Log FreeIPA profile creation, enable, and disable events."""
     profile = instance
 
     if created:
@@ -71,6 +74,7 @@ def log_profile_event(sender, instance: Profile, created=False, **kwargs):
 
 
 def log_profile_deleted(sender, instance: Profile, **kwargs):
+    """Log FreeIPA profile deletion events."""
     profile = instance
     event_logger.emit(
         "{username} FreeIPA profile has been deleted.",
@@ -86,15 +90,18 @@ def log_profile_deleted(sender, instance: Profile, **kwargs):
 def schedule_ssh_key_sync_when_key_is_created(
     sender, instance: SshPublicKey, created=False, **kwargs
 ):
+    """Schedule an SSH key synchronization task when a key is created."""
     if created:
         schedule_ssh_key_sync(instance)
 
 
 def schedule_ssh_key_sync_when_key_is_deleted(sender, instance: SshPublicKey, **kwargs):
+    """Schedule an SSH key synchronization task when a key is deleted."""
     schedule_ssh_key_sync(instance)
 
 
 def schedule_ssh_key_sync(ssh_key):
+    """Schedule an SSH key synchronization task."""
     try:
         profile = models.Profile.objects.get(user=ssh_key.user)
     except ObjectDoesNotExist:
@@ -109,6 +116,7 @@ def schedule_ssh_key_sync(ssh_key):
 
 
 def update_user(sender, instance: User, created=False, **kwargs):
+    """Update a user's FreeIPA profile when their user account is updated."""
     user = instance
 
     if created:

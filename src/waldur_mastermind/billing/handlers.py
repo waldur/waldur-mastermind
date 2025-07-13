@@ -10,18 +10,21 @@ logger = logging.getLogger(__name__)
 
 
 def create_price_estimate(sender, instance, created=False, **kwargs):
+    """Create price estimate when customer or project is created."""
     if not created:
         return
     models.PriceEstimate.objects.create(scope=instance)
 
 
 def delete_stale_price_estimate(sender, instance, **kwargs):
+    """Delete price estimates when customer or project is deleted."""
     models.PriceEstimate.objects.filter(scope=instance).delete()
 
 
 def update_estimate_when_invoice_is_created(
     sender, instance: Invoice, created=False, **kwargs
 ):
+    """Update price estimates when new invoice is created for customer."""
     if not created:
         return
     transaction.on_commit(lambda: update_estimates_for_customer(instance.customer))
@@ -36,6 +39,7 @@ def update_estimates_for_customer(customer):
 
 
 def process_invoice_item(sender, instance: InvoiceItem, created=False, **kwargs):
+    """Process invoice item changes and update related price estimates."""
     if not created and not set(instance.tracker.changed()) & {
         "unit_price",
         "start",

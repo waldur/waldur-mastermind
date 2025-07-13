@@ -240,6 +240,17 @@ class RancherClient:
             },
         )
 
+    def get_cluster_roles(self, clusterId=None, roleTemplateId=None):
+        params = {}
+        if clusterId:
+            params["clusterId"] = clusterId
+        if roleTemplateId:
+            params["roleTemplateId"] = roleTemplateId
+        return self._get(
+            "clusterroletemplatebindings",
+            params=params,
+        )["data"]
+
     def get_cluster_group_role(
         self, group_id=None, cluster_id=None, role=None
     ) -> list[dict]:
@@ -272,6 +283,17 @@ class RancherClient:
             json={
                 "roleTemplateId": role,
                 "projectId": project_id,
+                "userId": user_id,
+            },
+        )
+
+    def create_cluster_user_role(self, user_id, cluster, role):
+        return self._post(
+            "clusterroletemplatebindings",
+            json={
+                "roleTemplateId": role,
+                "clusterId": cluster,
+                "type": "clusterroletemplatebinding",
                 "userId": user_id,
             },
         )

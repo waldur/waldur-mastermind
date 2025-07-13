@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 def request_ssh_key_for_heappe_robot_account(
     sender, instance: marketplace_models.RobotAccount, created=False, **kwargs
 ):
+    """Request an SSH key for a HEAppE robot account."""
     if created:
         return
 
