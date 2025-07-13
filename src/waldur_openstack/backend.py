@@ -4175,7 +4175,8 @@ class OpenStackBackend(ServiceBackend):
         if connected_internal_network_names is None:
             connected_internal_network_names = set()
 
-        session = get_tenant_session(tenant)
+        # hypervisor_hostname forces to use admin session
+        session = get_keystone_session(tenant.service_settings)
         nova = get_nova_client(session)
 
         try:
