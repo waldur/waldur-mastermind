@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 def customer_estimated_cost_policy_trigger_handler(
     sender, instance, created=False, **kwargs
 ):
+    """Evaluate customer cost policies when invoice items are updated."""
     invoice_item = instance
     policies = models.CustomerEstimatedCostPolicy.objects.filter(
         scope=invoice_item.invoice.customer
@@ -28,6 +29,7 @@ def customer_estimated_cost_policy_trigger_handler(
 def project_estimated_cost_policy_trigger_handler(
     sender, instance, created=False, **kwargs
 ):
+    """Evaluate project cost policies when invoice items are updated."""
     invoice_item = instance
     policies = models.ProjectEstimatedCostPolicy.objects.filter(
         scope=invoice_item.project
@@ -99,6 +101,7 @@ def get_estimated_cost_policy_handler_for_observable_class(klass, observable_cla
 def customer_credit_changed_handler(
     sender, instance: CustomerCredit, created=False, **kwargs
 ):
+    """Handle customer credit value changes and evaluate related policies."""
     customer_credit = instance
 
     if not customer_credit.tracker.has_changed("value"):

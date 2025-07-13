@@ -1338,6 +1338,7 @@ def get_rancher_cluster_for_openstack_instance(
 
 
 def add_rancher_cluster_to_openstack_instance(sender, fields, **kwargs):
+    """Add Rancher cluster information to OpenStack instance serializer."""
     fields["rancher_cluster"] = serializers.SerializerMethodField()
     setattr(sender, "get_rancher_cluster", get_rancher_cluster_for_openstack_instance)
 

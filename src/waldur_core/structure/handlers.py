@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def change_users_quota(sender, instance: UserRole, **kwargs):
+    """Update the user count quota for a customer when a user's role is changed."""
     # Skip synchronization of custom roles
     if not instance.role.is_system_role:
         return
@@ -47,6 +48,7 @@ def revoke_roles_on_project_deletion(sender, instance: Project | None = None, **
 
 
 def log_customer_save(sender, instance: Customer, created=False, **kwargs):
+    """Log customer creation and updates."""
     if created:
         event_logger.emit(
             "Customer {customer_name} has been created.",
@@ -104,6 +106,7 @@ def log_customer_save(sender, instance: Customer, created=False, **kwargs):
 
 
 def log_customer_delete(sender, instance: Customer, **kwargs):
+    """Log customer deletion."""
     event_logger.emit(
         "Customer {customer_name} has been deleted.",
         event_type=EventType.CUSTOMER_DELETION_SUCCEEDED,
@@ -115,6 +118,7 @@ def log_customer_delete(sender, instance: Customer, **kwargs):
 
 
 def log_project_save(sender, instance: Project, created=False, **kwargs):
+    """Log project creation and updates."""
     if created:
         event_logger.emit(
             "Project {project_name} has been created.",
@@ -145,6 +149,7 @@ def log_project_save(sender, instance: Project, created=False, **kwargs):
 
 
 def log_project_delete(sender, instance: Project, **kwargs):
+    """Log project deletion."""
     event_logger.emit(
         "Project {project_name} has been deleted.",
         event_type=EventType.PROJECT_DELETION_SUCCEEDED,
@@ -156,6 +161,7 @@ def log_project_delete(sender, instance: Project, **kwargs):
 
 
 def log_resource_deleted(sender, instance: BaseResource, **kwargs):
+    """Log resource deletion."""
     event_logger.emit(
         "{resource_full_name} has been deleted.",
         event_type=EventType.RESOURCE_DELETION_SUCCEEDED,
@@ -165,6 +171,7 @@ def log_resource_deleted(sender, instance: BaseResource, **kwargs):
 
 
 def log_resource_imported(sender, instance: BaseResource, **kwargs):
+    """Log resource import."""
     if not instance.pk:
         return
     event_logger.emit(
@@ -176,6 +183,7 @@ def log_resource_imported(sender, instance: BaseResource, **kwargs):
 
 
 def log_resource_creation_succeeded(instance: BaseResource):
+    """Log successful resource creation."""
     event_logger.emit(
         "Resource {resource_name} has been created.",
         event_type=EventType.RESOURCE_CREATION_SUCCEEDED,
@@ -185,6 +193,7 @@ def log_resource_creation_succeeded(instance: BaseResource):
 
 
 def log_resource_creation_failed(instance: BaseResource):
+    """Log failed resource creation."""
     event_logger.emit(
         "Resource {resource_name} creation has failed.",
         event_type=EventType.RESOURCE_CREATION_FAILED,
@@ -197,6 +206,7 @@ def log_resource_creation_failed(instance: BaseResource):
 def log_resource_creation_scheduled(
     sender, instance: BaseResource, created=False, **kwargs
 ):
+    """Log scheduled resource creation."""
     if (
         created
         and isinstance(instance, StateMixin)
@@ -216,6 +226,7 @@ def _log_resource_creation_scheduled(instance: BaseResource):
 
 
 def log_resource_action(sender, instance: BaseResource, name, source, target, **kwargs):
+    """Log resource state transitions."""
     if isinstance(instance, StateMixin):
         if source == CoreStates.CREATING:
             if target == CoreStates.OK:
@@ -233,6 +244,7 @@ def log_resource_action(sender, instance: BaseResource, name, source, target, **
 
 
 def generate_access_subnet_changes(instance: AccessSubnet, created=False):
+    """Generate a string describing the changes to an access subnet."""
     changed_dict = instance.tracker.changed()
     changes_string = f"Access subnet {instance} has been updated.\n"
     for key, value in changed_dict.items():
@@ -243,6 +255,7 @@ def generate_access_subnet_changes(instance: AccessSubnet, created=False):
 
 
 def log_access_subnet_update_succeeded(instance: AccessSubnet):
+    """Log successful access subnet updates."""
     changes = generate_access_subnet_changes(instance)
     event_logger.emit(
         changes,
@@ -253,6 +266,7 @@ def log_access_subnet_update_succeeded(instance: AccessSubnet):
 
 
 def log_access_subnet_creation_succeeded(instance: AccessSubnet):
+    """Log successful access subnet creation."""
     event_logger.emit(
         f"Access subnet {instance} has been created.",
         event_type=EventType.ACCESS_SUBNET_CREATION_SUCCEEDED,
@@ -262,6 +276,7 @@ def log_access_subnet_creation_succeeded(instance: AccessSubnet):
 
 
 def log_access_subnet_deletion_succeeded(sender, instance: AccessSubnet, **kwargs):
+    """Log successful access subnet deletion."""
     event_logger.emit(
         f"Access subnet {instance} has been deleted.",
         event_type=EventType.ACCESS_SUBNET_DELETION_SUCCEEDED,
@@ -271,6 +286,7 @@ def log_access_subnet_deletion_succeeded(sender, instance: AccessSubnet, **kwarg
 
 
 def log_access_subnet_save(sender, instance: AccessSubnet, created=False, **kwargs):
+    """Log access subnet creation and updates."""
     if created:
         log_access_subnet_creation_succeeded(instance)
     else:
@@ -278,6 +294,7 @@ def log_access_subnet_save(sender, instance: AccessSubnet, created=False, **kwar
 
 
 def update_resource_start_time(sender, instance, created=False, **kwargs):
+    """Update the start time of a resource when its runtime state changes."""
     if created:
         return
 
@@ -304,6 +321,7 @@ def delete_service_settings_on_scope_delete(sender, instance, **kwargs):
 
 
 def update_customer_users_count(sender, **kwargs):
+    """Update the user count for all customers."""
     for customer in Customer.objects.all():
         usage = count_customer_users(customer)
         customer.set_quota_usage("nc_user_count", usage)
@@ -312,6 +330,7 @@ def update_customer_users_count(sender, **kwargs):
 def change_email_has_been_requested(
     sender, instance: ChangeEmailRequest, created=False, **kwargs
 ):
+    """Send a notification when a user requests to change their email."""
     if not created:
         return
 
@@ -322,6 +341,7 @@ def change_email_has_been_requested(
 
 
 def permissions_request_approved(sender, permission, structure, **kwargs):
+    """Send a notification when a permission request has been approved."""
     permission_serialized = core_utils.serialize_instance(permission)
     structure_serialized = core_utils.serialize_instance(structure)
     transaction.on_commit(

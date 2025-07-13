@@ -15,11 +15,13 @@ from waldur_core.structure.models import Customer
 
 
 def create_auth_token(sender, instance: User, created=False, **kwargs):
+    """Create a token for a new user."""
     if created:
         Token.objects.create(user=instance)
 
 
 def preserve_fields_before_update(sender, instance: User, **kwargs):
+    """Preserve fields of a user instance before it is updated."""
     if instance.pk is None:
         return
 
@@ -42,6 +44,7 @@ def delete_error_message(sender, instance, name, source, target, **kwargs):
 
 
 def set_default_token_lifetime(sender, instance: User, created=False, **kwargs):
+    """Set the default token lifetime for a new user."""
     if created:
         # if settings used directly in model - django creates new migration every time settings change
         # Therefore - set default token_lifetime value in handler.
@@ -52,6 +55,7 @@ def set_default_token_lifetime(sender, instance: User, created=False, **kwargs):
 
 
 def log_user_save(sender, instance: User, created=False, **kwargs):
+    """Log user creation, update, and activation/deactivation events."""
     if created:
         event_logger.emit(
             "User {affected_user_username} has been created.",
@@ -180,6 +184,7 @@ def log_user_save(sender, instance: User, created=False, **kwargs):
 
 
 def log_user_delete(sender, instance: User, **kwargs):
+    """Log user deletion events."""
     event_logger.emit(
         "User {affected_user_username} has been deleted.",
         event_type=EventType.USER_DELETION_SUCCEEDED,
@@ -189,6 +194,7 @@ def log_user_delete(sender, instance: User, **kwargs):
 
 
 def log_ssh_key_save(sender, instance: SshPublicKey, created=False, **kwargs):
+    """Log SSH key creation events."""
     if created:
         event_logger.emit(
             "SSH key {ssh_key_name} has been created for user%s with username {user_username}."
@@ -200,6 +206,7 @@ def log_ssh_key_save(sender, instance: SshPublicKey, created=False, **kwargs):
 
 
 def log_ssh_key_delete(sender, instance: SshPublicKey, **kwargs):
+    """Log SSH key deletion events."""
     event_logger.emit(
         "SSH key {ssh_key_name} has been deleted for user%s with username {user_username}."
         % (" {user_full_name}" if instance.user.full_name else ""),
@@ -210,6 +217,7 @@ def log_ssh_key_delete(sender, instance: SshPublicKey, **kwargs):
 
 
 def log_token_create(sender, instance: Token, created=False, **kwargs):
+    """Log token creation events."""
     if created:
         event_logger.emit(
             "Token has been updated for {affected_user_username}",
@@ -220,4 +228,5 @@ def log_token_create(sender, instance: Token, created=False, **kwargs):
 
 
 def constance_updated(sender, key, old_value, new_value, **kwargs):
+    """Clear the API configuration cache when a Constance setting is updated."""
     cache.delete("API_CONFIGURATION")

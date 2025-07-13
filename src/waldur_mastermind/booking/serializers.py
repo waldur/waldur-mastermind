@@ -112,6 +112,7 @@ def get_google_calendar_public(serializer, offering: Offering) -> bool | None:
 
 
 def add_google_calendar_info(sender, fields, **kwargs):
+    """Add a Google Calendar info field to the serializer."""
     fields["google_calendar_is_public"] = serializers.SerializerMethodField()
     setattr(sender, "get_google_calendar_is_public", get_google_calendar_public)
 
@@ -128,6 +129,7 @@ core_signals.pre_serializer_fields.connect(
 
 
 def get_google_calendar_link(serializer, offering) -> str | None:
+    """Get the Google Calendar link for an offering."""
     try:
         return offering.googlecalendar.http_link
     except AttributeError:
@@ -135,6 +137,7 @@ def get_google_calendar_link(serializer, offering) -> str | None:
 
 
 def add_google_calendar_link(sender, fields, **kwargs):
+    """Add a Google Calendar link field to the serializer."""
     fields["google_calendar_link"] = serializers.SerializerMethodField()
     setattr(sender, "get_google_calendar_link", get_google_calendar_link)
 

@@ -873,6 +873,7 @@ def get_payment_profiles(serializer, customer: structure_models.Customer):
 
 
 def add_payment_profile(sender, fields, **kwargs):
+    """Add a payment profile field to the serializer."""
     fields["payment_profiles"] = serializers.SerializerMethodField()
     setattr(sender, "get_payment_profiles", get_payment_profiles)
 
@@ -1116,6 +1117,7 @@ def get_project_credit(serializer, project) -> float | None:
 
 
 def add_project_credit(sender, fields, **kwargs):
+    """Add a project credit field to the serializer."""
     fields["project_credit"] = serializers.SerializerMethodField()
     setattr(sender, "get_project_credit", get_project_credit)
 
@@ -1134,6 +1136,7 @@ def get_customer_credit(serializer, customer) -> float | None:
 
 
 def add_customer_credit(sender, fields, **kwargs):
+    """Add a customer credit field to the serializer."""
     fields["customer_credit"] = serializers.SerializerMethodField()
     setattr(sender, "get_customer_credit", get_customer_credit)
 
@@ -1154,6 +1157,7 @@ def get_customer_unallocated_credit(serializer, customer) -> float | None:
 
 
 def add_customer_unallocated_credit(sender, fields, **kwargs):
+    """Add a customer unallocated credit field to the serializer."""
     fields["customer_unallocated_credit"] = serializers.SerializerMethodField()
     setattr(sender, "get_customer_unallocated_credit", get_customer_unallocated_credit)
 

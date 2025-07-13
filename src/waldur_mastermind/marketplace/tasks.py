@@ -57,6 +57,7 @@ def process_order(serialized_order, serialized_user):
 
 @shared_task
 def create_screenshot_thumbnail(uuid):
+    """Create a thumbnail for a screenshot."""
     screenshot = models.Screenshot.objects.get(uuid=uuid)
     utils.create_screenshot_thumbnail(screenshot)
 
@@ -216,6 +217,7 @@ def calculate_usage_for_current_month():
 
 @shared_task
 def terminate_resource(serialized_resource, serialized_user):
+    """Terminate a resource."""
     resource = core_utils.deserialize_instance(serialized_resource)
     user = core_utils.deserialize_instance(serialized_user)
     response = utils.terminate_resource(resource, user)

@@ -4128,11 +4128,13 @@ def get_is_service_provider(serializer, scope) -> bool:
 
 
 def add_service_provider(sender, fields, **kwargs):
+    """Add a service provider field to the serializer."""
     fields["is_service_provider"] = serializers.SerializerMethodField()
     setattr(sender, "get_is_service_provider", get_is_service_provider)
 
 
 def add_service_provider_uuid(sender, fields, **kwargs):
+    """Add a service provider UUID field to the serializer."""
     fields["service_provider_uuid"] = serializers.SlugRelatedField(
         slug_field="uuid",
         source="serviceprovider",
@@ -4142,6 +4144,7 @@ def add_service_provider_uuid(sender, fields, **kwargs):
 
 
 def add_service_provider_url(sender, fields, **kwargs):
+    """Add a service provider URL field to the serializer."""
     fields["service_provider"] = serializers.HyperlinkedRelatedField(
         lookup_field="uuid",
         view_name="marketplace-service-provider-detail",
@@ -4162,6 +4165,7 @@ def get_call_managing_organization_uuid(serializer, scope) -> str | None:
 
 
 def add_call_managing_organization_uuid(sender, fields, **kwargs):
+    """Add a call managing organization UUID field to the serializer."""
     fields["call_managing_organization_uuid"] = serializers.SerializerMethodField()
     setattr(
         sender,
@@ -4239,6 +4243,7 @@ def get_marketplace_resource_count(
 
 
 def add_marketplace_resource_count(sender, fields, **kwargs):
+    """Add a marketplace resource count field to the serializer."""
     fields["marketplace_resource_count"] = serializers.SerializerMethodField()
     setattr(sender, "get_marketplace_resource_count", get_marketplace_resource_count)
 
@@ -5270,6 +5275,7 @@ def get_integration_status(serializer, offering):
 
 
 def add_integration_status(sender, fields, **kwargs):
+    """Add an integration status field to the serializer."""
     fields["integration_status"] = serializers.SerializerMethodField()
     setattr(sender, "get_integration_status", get_integration_status)
 

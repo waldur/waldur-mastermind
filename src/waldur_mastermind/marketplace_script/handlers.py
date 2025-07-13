@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 def resource_options_have_been_changed(
     sender, instance: Resource, created=False, **kwargs
 ):
+    """Handle script execution when marketplace resource options are changed."""
     if created:
         return
 

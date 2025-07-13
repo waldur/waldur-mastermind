@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 def create_marketplace_resource_for_imported_cluster(
     sender, instance: Cluster, offering=None, plan=None, **kwargs
 ):
+    """Create marketplace resource when Rancher cluster is imported from external system."""
     if not offering:
         # When cluster is imported directly (ie without marketplace),
         # marketplace resources are not created.
@@ -127,6 +128,7 @@ def update_argocd_secret_when_resource_options_changed(
 def copy_invoice_items_when_cluster_is_provisioned(
     sender, instance: marketplace_models.Resource, **kwargs
 ):
+    """Copy invoice items from parent project to provisioned Rancher cluster resource."""
     resource = instance
     tracker = cast(FieldInstanceTracker, resource.tracker)
     if not tracker.has_changed("state"):

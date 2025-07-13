@@ -11,11 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 def process_hook(sender, instance: Event, created=False, **kwargs):
+    """Process a hook for a given event."""
     if get_matching_hooks(instance):
         transaction.on_commit(lambda: tasks.process_event.delay(instance.pk))
 
 
 def delete_stale_event_subscriptions(sender, instance: Token, **kwargs):
+    """Delete stale event subscriptions for a user when their token is deleted."""
     user = instance.user
     stale_event_subscriptions = models.EventSubscription.objects.filter(user=user)
     if stale_event_subscriptions.count() == 0:

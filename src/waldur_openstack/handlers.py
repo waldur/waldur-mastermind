@@ -62,6 +62,7 @@ def remove_ssh_key_from_all_tenants_on_it_deletion(
 
 
 def log_tenant_quota_update(sender, instance: QuotaLimit, created=False, **kwargs):
+    """Log tenant quota updates."""
     quota = instance
     if created or not isinstance(quota.scope, models.Tenant):
         return
@@ -88,6 +89,7 @@ def log_tenant_quota_update(sender, instance: QuotaLimit, created=False, **kwarg
 
 
 def log_security_group_cleaned(sender, instance: models.SecurityGroup, **kwargs):
+    """Log security group cleanup."""
     event_logger.emit(
         "Security group %s has been cleaned from cache." % instance.name,
         event_type=EventType.OPENSTACK_SECURITY_GROUP_CLEANED,
@@ -101,6 +103,7 @@ def log_security_group_cleaned(sender, instance: models.SecurityGroup, **kwargs)
 def log_security_group_rule_cleaned(
     sender, instance: models.SecurityGroupRule, **kwargs
 ):
+    """Log security group rule cleanup."""
     event_logger.emit(
         "Security group rule %s has been cleaned from cache." % str(instance),
         event_type=EventType.OPENSTACK_SECURITY_GROUP_RULE_CLEANED,
@@ -112,6 +115,7 @@ def log_security_group_rule_cleaned(
 
 
 def log_network_cleaned(sender, instance: models.Network, **kwargs):
+    """Log network cleanup."""
     event_logger.emit(
         "Network %s has been cleaned from cache." % instance.name,
         event_type=EventType.OPENSTACK_NETWORK_CLEANED,
@@ -123,6 +127,7 @@ def log_network_cleaned(sender, instance: models.Network, **kwargs):
 
 
 def log_subnet_cleaned(sender, instance: models.SubNet, **kwargs):
+    """Log subnet cleanup."""
     event_logger.emit(
         "SubNet %s has been cleaned." % instance.name,
         event_type=EventType.OPENSTACK_SUBNET_CLEANED,
@@ -134,6 +139,7 @@ def log_subnet_cleaned(sender, instance: models.SubNet, **kwargs):
 
 
 def log_server_group_cleaned(sender, instance: models.ServerGroup, **kwargs):
+    """Log server group cleanup."""
     event_logger.emit(
         "Server group %s has been cleaned from cache." % instance.name,
         event_type=EventType.OPENSTACK_SERVER_GROUP_CLEANED,
@@ -224,6 +230,7 @@ def log_action(sender, instance: models.Instance, created=False, **kwargs):
 
 
 def delete_state_service_properties(sender, instance: models.Tenant, **kwargs):
+    """Delete state service properties."""
     models.Image.objects.filter(tenants=None).delete()
     models.Flavor.objects.filter(tenants=None).delete()
     models.VolumeType.objects.filter(tenants=None).delete()

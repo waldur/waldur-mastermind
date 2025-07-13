@@ -61,6 +61,7 @@ SERVICE_ACCOUNT_TYPE = "Service account"
 
 
 def create_screenshot_thumbnail(sender, instance: Screenshot, created=False, **kwargs):
+    """Create a thumbnail for a screenshot."""
     if not created:
         return
 
@@ -129,6 +130,7 @@ RESOURCE_TYPE_HANDLERS = {
 
 
 def log_order_events(sender, instance: Order, created=False, **kwargs):
+    """Log order creation and state transition events."""
     order = instance
 
     if created:
@@ -163,6 +165,7 @@ def log_order_events(sender, instance: Order, created=False, **kwargs):
 
 
 def log_resource_events(sender, instance: Resource, created=False, **kwargs):
+    """Log resource creation request events."""
     resource = instance
     # Skip logging for imported resource
     if created and instance.state == ResourceStates.CREATING:
@@ -175,6 +178,7 @@ def log_resource_events(sender, instance: Resource, created=False, **kwargs):
 
 
 def init_resource_parent(sender, instance: Resource, created=False, **kwargs):
+    """Initialize the parent resource for a newly created resource."""
     if not created or instance.tracker.has_changed("parent_id"):
         return
 
@@ -207,6 +211,7 @@ def init_resource_parent(sender, instance: Resource, created=False, **kwargs):
 def notify_approvers_when_order_is_created(
     sender, instance: Order, created=False, **kwargs
 ):
+    """Notify approvers when an order is created."""
     order: models.Order = instance
     if created and order.state in (
         OrderStates.PENDING_CONSUMER,
@@ -241,6 +246,7 @@ def notify_approvers_when_order_is_created(
 
 
 def close_service_accounts_on_project_deletion(sender, instance: Project, **kwargs):
+    """Close service accounts associated with a project when the project is deleted."""
     project: structure_models.Project = instance
 
     service_accounts = models.ProjectServiceAccount.objects.filter(project=project)
@@ -263,6 +269,7 @@ def close_service_accounts_on_project_deletion(sender, instance: Project, **kwar
 def close_customer_service_accounts_on_customer_deletion(
     sender, instance: Customer, **kwargs
 ):
+    """Close service accounts associated with a customer when the customer is deleted."""
     customer: structure_models.Customer = instance
     service_accounts = models.CustomerServiceAccount.objects.filter(customer=customer)
     if not service_accounts.exists():
@@ -283,6 +290,7 @@ def close_customer_service_accounts_on_customer_deletion(
 def process_invitations_and_orders_when_project_start_date_is_unset(
     sender, instance: Project, created=False, **kwargs
 ):
+    """Process pending invitations and orders when a project's start date is unset."""
     if created:
         return
 
@@ -333,6 +341,7 @@ def process_invitations_and_orders_when_project_start_date_is_unset(
 def update_resource_when_order_is_rejected_or_erred(
     sender, instance: Order, created=False, **kwargs
 ):
+    """Update resource state when an order is rejected or erred."""
     order: models.Order = instance
     if not order.tracker.has_changed("state"):
         return
@@ -358,6 +367,7 @@ def update_resource_when_order_is_rejected_or_erred(
 
 
 def sync_resource_limit_when_order(sender, instance: Order, created=False, **kwargs):
+    """Synchronize resource limits when an order is created."""
     order: models.Order = instance
     if order.type != models.Order.Types.CREATE:
         return
@@ -375,6 +385,8 @@ def sync_resource_limit_when_order(sender, instance: Order, created=False, **kwa
 def update_category_quota_when_offering_is_created(
     sender, instance: Offering, created=False, **kwargs
 ):
+    """Update category quota when an offering is created or its state changes."""
+
     def get_delta():
         if created:
             if instance.state == OfferingStates.ACTIVE:
@@ -394,11 +406,13 @@ def update_category_quota_when_offering_is_created(
 def update_category_quota_when_offering_is_deleted(
     sender, instance: Offering, **kwargs
 ):
+    """Update category quota when an offering is deleted."""
     if instance.state == OfferingStates.ACTIVE:
         instance.category.add_quota_usage("offering_count", -1)
 
 
 def update_category_offerings_count(sender, **kwargs):
+    """Update the count of offerings for each category."""
     for category in models.Category.objects.all():
         value = models.Offering.objects.filter(
             category=category, state=OfferingStates.ACTIVE
@@ -409,6 +423,7 @@ def update_category_offerings_count(sender, **kwargs):
 def delete_service_setting_when_offering_is_deleted(
     sender, instance: Offering, **kwargs
 ):
+    """Delete service settings when an offering is deleted."""
     offering: models.Offering = instance
     try:
         service_settings = offering.scope
@@ -424,6 +439,7 @@ def delete_service_setting_when_offering_is_deleted(
 def create_resource_plan_period_when_resource_is_created(
     sender, instance: Resource, created=False, **kwargs
 ):
+    """Create a resource plan period when a resource is created."""
     if created:
         return
 
@@ -467,6 +483,7 @@ def close_resource_plan_period_when_resource_is_terminated(
 def switch_resource_plan_period_when_plan_is_updated(
     sender, instance: Resource, created=False, **kwargs
 ):
+    """Switch the resource plan period when a resource's plan is updated."""
     if created:
         return
 
@@ -486,6 +503,7 @@ def switch_resource_plan_period_when_plan_is_updated(
 
 
 def change_order_state(sender, instance, created=False, **kwargs):
+    """Change the state of an order based on resource state changes."""
     if created or not instance.tracker.has_changed("state"):
         return
 
@@ -503,6 +521,7 @@ def change_order_state(sender, instance, created=False, **kwargs):
 
 
 def terminate_resource(sender, instance, **kwargs):
+    """Terminate a resource."""
     try:
         resource = models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
@@ -534,6 +553,7 @@ def connect_resource_handlers(*resources):
 
 
 def synchronize_resource_metadata_on_save(sender, instance, created=False, **kwargs):
+    """Synchronize resource metadata on save."""
     fields = {
         "action",
         "action_details",
@@ -560,6 +580,7 @@ def synchronize_resource_metadata_on_save(sender, instance, created=False, **kwa
 
 
 def synchronize_resource_metadata_on_delete(sender, instance, **kwargs):
+    """Synchronize resource metadata on delete."""
     try:
         resource = models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
@@ -602,6 +623,7 @@ def update_or_create_quotas(resource: Resource):
 
 
 def sync_limits(sender, instance: Resource, created=False, **kwargs):
+    """Synchronize resource limits."""
     if not created and not instance.tracker.has_changed("limits"):
         return
     transaction.on_commit(lambda: update_or_create_quotas(instance))
@@ -609,6 +631,7 @@ def sync_limits(sender, instance: Resource, created=False, **kwargs):
 
 @transaction.atomic()
 def limit_update_succeeded(sender, order: models.Order, **kwargs):
+    """Handle successful limit updates."""
     resource = order.resource
     old_limits = resource.limits
     resource.limits = order.limits
@@ -628,6 +651,7 @@ def limit_update_succeeded(sender, order: models.Order, **kwargs):
 
 
 def limit_update_failed(sender, order: models.Order, error_message, **kwargs):
+    """Handle failed limit updates."""
     order.set_state_erred()
     order.error_message = error_message
     order.save()
@@ -651,6 +675,7 @@ def limit_update_failed(sender, order: models.Order, error_message, **kwargs):
 def update_customer_of_offering_if_project_has_been_moved(
     sender, project, old_customer, new_customer, **kwargs
 ):
+    """Update the customer of an offering if the project has been moved."""
     for offering in models.Offering.objects.filter(
         project=project, customer=old_customer
     ):
@@ -704,6 +729,7 @@ def enable_nonempty_service_settings(offering):
 def disable_archived_service_settings_without_existing_resource(
     sender, instance: Resource, created=False, **kwargs
 ):
+    """Disable archived service settings if there are no existing resources."""
     if created:
         return
 
@@ -724,6 +750,7 @@ def disable_archived_service_settings_without_existing_resource(
 def disable_service_settings_without_existing_resource_when_archived(
     sender, instance: Offering, created=False, **kwargs
 ):
+    """Disable service settings without existing resources when an offering is archived."""
     if created:
         return
 
@@ -739,6 +766,7 @@ def disable_service_settings_without_existing_resource_when_archived(
 def enable_service_settings_with_existing_resource(
     sender, instance: Resource, created=False, **kwargs
 ):
+    """Enable service settings if there are existing resources."""
     if created:
         return
 
@@ -757,6 +785,7 @@ def enable_service_settings_with_existing_resource(
 def enable_service_settings_when_not_archived(
     sender, instance: Offering, created=False, **kwargs
 ):
+    """Enable service settings when an offering is not archived."""
     if created:
         return
 
@@ -772,6 +801,7 @@ def enable_service_settings_when_not_archived(
 def plan_component_has_been_updated(
     sender, instance: PlanComponent, created=False, **kwargs
 ):
+    """Log plan component updates."""
     if created:
         return
 
@@ -819,6 +849,7 @@ def plan_component_has_been_updated(
 def offering_component_has_been_created_or_updated(
     sender, instance: OfferingComponent, created=False, **kwargs
 ):
+    """Log offering component creation and updates."""
     if created:
         event_logger.emit(
             f"Offering component {instance.name} has been created.",
@@ -846,6 +877,7 @@ def offering_component_has_been_created_or_updated(
 
 
 def offering_component_has_been_deleted(sender, instance: OfferingComponent, **kwargs):
+    """Log offering component deletion."""
     event_logger.emit(
         f"Offering component {instance.name} has been deleted.",
         event_type=EventType.MARKETPLACE_OFFERING_COMPONENT_DELETED,
@@ -857,6 +889,7 @@ def offering_component_has_been_deleted(sender, instance: OfferingComponent, **k
 
 
 def plan_has_been_created_or_updated(sender, instance: Plan, created=False, **kwargs):
+    """Log plan creation, update, and archiving events."""
     if created:
         event_logger.emit(
             f"Plan {instance.name} has been created.",
@@ -898,6 +931,7 @@ def plan_has_been_created_or_updated(sender, instance: Plan, created=False, **kw
 def offering_has_been_created_or_updated(
     sender, instance: Offering, created=False, **kwargs
 ):
+    """Log offering creation and state updates."""
     if created:
         event_logger.emit(
             "Offering has been created.",
@@ -924,6 +958,7 @@ def offering_has_been_created_or_updated(
 
 
 def resource_has_been_changed(sender, instance: Resource, created=False, **kwargs):
+    """Log resource changes."""
     if created:
         return
 
@@ -1027,6 +1062,7 @@ def resource_has_been_changed(sender, instance: Resource, created=False, **kwarg
 def resource_state_has_been_changed(
     sender, instance: Resource, created=False, **kwargs
 ):
+    """Handle resource state changes."""
     if created:
         return
 
@@ -1047,6 +1083,7 @@ def resource_state_has_been_changed(
 def delete_expired_project_if_every_resource_has_been_terminated(
     sender, instance: Resource, created=False, **kwargs
 ):
+    """Delete an expired project if all its resources have been terminated."""
     if created:
         return
 
@@ -1080,6 +1117,7 @@ def delete_expired_project_if_every_resource_has_been_terminated(
 
 
 def log_offering_user_created(sender, instance: OfferingUser, created=False, **kwargs):
+    """Log offering user creation."""
     if not created:
         return
     event_logger.emit(
@@ -1091,6 +1129,7 @@ def log_offering_user_created(sender, instance: OfferingUser, created=False, **k
 
 
 def log_offering_user_deleted(sender, instance: OfferingUser, **kwargs):
+    """Log offering user deletion."""
     event_logger.emit(
         f"Account for user {instance.user.username} in offering {instance.offering.name} has been deleted.",
         event_type=EventType.MARKETPLACE_OFFERING_USER_DELETED,
@@ -1124,6 +1163,7 @@ def generate_changes_string(changed_dict, instance, account_type):
 def log_service_account_created_or_updated(
     sender, instance: ScopedServiceAccount, created=False, **kwargs
 ):
+    """Log service account creation and updates."""
     if not created:
         changed_string = generate_changes_string(
             instance.tracker.changed(), instance, SERVICE_ACCOUNT_TYPE
@@ -1144,6 +1184,7 @@ def log_service_account_created_or_updated(
 
 
 def log_service_account_deleted(sender, instance: ScopedServiceAccount, **kwargs):
+    """Log service account deletion."""
     event_logger.emit(
         "Service account {service_account_username} has been deleted.",
         event_type=EventType.SERVICE_ACCOUNT_DELETED,
@@ -1155,6 +1196,7 @@ def log_service_account_deleted(sender, instance: ScopedServiceAccount, **kwargs
 def log_resource_robot_account_created_or_updated(
     sender, instance: RobotAccount, created=False, **kwargs
 ):
+    """Log resource robot account creation and updates."""
     if not created:
         changed_string = generate_changes_string(
             instance.tracker.changed(), instance, ROBOT_ACCOUNT_TYPE
@@ -1175,6 +1217,7 @@ def log_resource_robot_account_created_or_updated(
 
 
 def log_resource_robot_account_deleted(sender, instance: RobotAccount, **kwargs):
+    """Log resource robot account deletion."""
     event_logger.emit(
         "Robot account {robot_account_username} has been deleted.",
         event_type=EventType.RESOURCE_ROBOT_ACCOUNT_DELETED,
@@ -1184,6 +1227,7 @@ def log_resource_robot_account_deleted(sender, instance: RobotAccount, **kwargs)
 
 
 def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
+    """Create offering users when a project role is granted."""
     if not isinstance(instance.scope, structure_models.Project):
         return
     project = instance.scope
@@ -1221,6 +1265,7 @@ def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
 
 
 def create_offering_user_for_new_resource(sender, instance: Resource, **kwargs):
+    """Create an offering user for a new resource."""
     resource = instance
     project = resource.project
     users = project.get_users()
@@ -1262,6 +1307,7 @@ def create_offering_user_for_new_resource(sender, instance: Resource, **kwargs):
 def update_offering_user_username_after_offering_settings_change(
     sender, instance: Offering, created=False, **kwargs
 ):
+    """Update offering user usernames after offering settings change."""
     if created:
         return
 
@@ -1311,6 +1357,7 @@ def update_offering_user_username_after_user_change(sender, instance: User, **kw
 def update_offering_user_username_after_freeipa_profile_update(
     sender, instance: Profile, created=False, **kwargs
 ):
+    """Update offering user usernames after FreeIPA profile update."""
     profile = instance
 
     if not profile.tracker.has_changed("username") or not created:
@@ -1336,6 +1383,7 @@ def update_offering_user_username_after_freeipa_profile_update(
 
 
 def notify_user_about_rejected_order(sender, instance: Order, created=False, **kwargs):
+    """Notify user about rejected order."""
     if created:
         return
 
@@ -1355,6 +1403,7 @@ def notify_user_about_rejected_order(sender, instance: Order, created=False, **k
 def log_offering_role_created_or_updated(
     sender, instance: OfferingUserRole, created=False, **kwargs
 ):
+    """Log offering role creation and updates."""
     if created:
         event_logger.emit(
             f"Offering role {instance.name} has been created.",
@@ -1378,6 +1427,7 @@ def log_offering_role_created_or_updated(
 def log_resource_user_created(
     sender, instance: models.ResourceUser, created=False, **kwargs
 ):
+    """Log resource user creation."""
     if created:
         event_logger.emit(
             f"User {instance.user.username} has been assigned"
@@ -1391,6 +1441,7 @@ def log_resource_user_created(
 
 
 def log_offering_role_deleted(sender, instance: OfferingUserRole, **kwargs):
+    """Log offering role deletion."""
     event_logger.emit(
         f"Offering role {instance.name} has been deleted.",
         event_type=EventType.MARKETPLACE_OFFERING_ROLE_DELETED,
@@ -1402,6 +1453,7 @@ def log_offering_role_deleted(sender, instance: OfferingUserRole, **kwargs):
 
 
 def log_resource_user_deleted(sender, instance: models.ResourceUser, **kwargs):
+    """Log resource user deletion."""
     event_logger.emit(
         f"User {instance.user.username} has been unassigned"
         f" role {instance.role.name} in resource {instance.resource.name}.",

@@ -249,6 +249,7 @@ def get_promotion_campaigns(serializer, offering):
 
 
 def add_promotion_campaigns(sender, fields, **kwargs):
+    """Add promotion campaigns to the serializer."""
     fields["promotion_campaigns"] = serializers.SerializerMethodField()
     setattr(sender, "get_promotion_campaigns", get_promotion_campaigns)
 

@@ -37,5 +37,6 @@ def get_issue(serializer, scope):
 
 
 def add_issue(sender, fields, **kwargs):
+    """Add an issue field to the serializer."""
     fields["issue"] = serializers.SerializerMethodField()
     setattr(sender, "get_issue", get_issue)

@@ -41,6 +41,7 @@ def log(
 
 
 def log_role_granted(sender, instance, current_user: User | None = None, **kwargs):
+    """Log the event of a user being granted a role."""
     log(
         instance,
         current_user,
@@ -50,6 +51,7 @@ def log_role_granted(sender, instance, current_user: User | None = None, **kwarg
 
 
 def log_role_revoked(sender, instance, current_user=None, **kwargs):
+    """Log the event of a user having a role revoked."""
     log(
         instance,
         current_user,
@@ -59,6 +61,7 @@ def log_role_revoked(sender, instance, current_user=None, **kwargs):
 
 
 def log_role_updated(sender, instance, current_user=None, **kwargs):
+    """Log the event of a user's role being updated."""
     old_time = (instance.tracker.previous("expiration_time"),)
     new_time = (instance.expiration_time,)
     log(
@@ -72,6 +75,7 @@ def log_role_updated(sender, instance, current_user=None, **kwargs):
 
 
 def deactivate_user_if_no_roles(sender, instance, current_user=None, **kwargs):
+    """Deactivate a user if they no longer have any active roles."""
     if not config.DEACTIVATE_USER_IF_NO_ROLES:
         return
     user = instance.user

@@ -207,6 +207,7 @@ def _create_issue_if_membership_changed(instance, summary):
 def create_issue_if_membership_changed(
     sender, instance: UserRole, created=False, **kwargs
 ):
+    """Create support issue when user role membership changes in organization."""
     logger.info(
         "Handling membership change event. Created: %s, Instance: %s, Is active: %s",
         created,

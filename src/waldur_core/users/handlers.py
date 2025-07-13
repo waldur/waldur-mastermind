@@ -9,6 +9,7 @@ from . import tasks
 def create_notification_about_permission_request_has_been_submitted(
     sender, instance: PermissionRequest, created=False, **kwargs
 ):
+    """Send a notification when a permission request has been submitted."""
     if created:
         return
 

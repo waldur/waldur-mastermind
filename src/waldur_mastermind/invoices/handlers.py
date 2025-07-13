@@ -102,6 +102,7 @@ def update_invoice_item_on_project_name_update(sender, instance: Project, **kwar
 
 
 def emit_invoice_created_event(sender, instance: Invoice, created=False, **kwargs):
+    """Emit invoice created signal when invoice state changes to CREATED."""
     if created:
         return
 
