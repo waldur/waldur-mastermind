@@ -40,27 +40,34 @@ class ManualApproveTest(test.APITransactionTestCase):
             marketplace_models.Order.objects.filter(resource=resource).exists()
         )
 
-    def _check_membership(self) -> bool:
+    def _check_membership(self, proposal_role, project_role=None) -> bool:
         user = UserFactory()
-        self.proposal.add_user(user, ProposalRole.MEMBER)
+        self.proposal.add_user(user, proposal_role)
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.approve_url, {"allocation_comment": "done"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.proposal.refresh_from_db()
-        return has_user(self.proposal.project, user, ProjectRole.MEMBER)
+
+        return has_user(self.proposal.project, user, project_role)
 
     def test_when_proposal_approved_users_are_added_to_the_project(self):
+        project_role = ProjectRole.MEMBER
+        proposal_role = ProposalRole.MEMBER
         models.ProposalProjectRoleMapping.objects.create(
             call=self.fixture.call,
-            project_role=ProjectRole.MEMBER,
-            proposal_role=ProposalRole.MEMBER,
+            project_role=project_role,
+            proposal_role=proposal_role,
         )
-        result = self._check_membership()
+        result = self._check_membership(proposal_role, project_role)
         self.assertTrue(result)
 
     def test_unmapped_roles_are_not_added_to_the_project(self):
-        result = self._check_membership()
+        models.ProposalProjectRoleMapping.objects.create(
+            call=self.fixture.call,
+            proposal_role=ProposalRole.MANAGER,
+        )
+        result = self._check_membership(ProposalRole.MANAGER)
         self.assertFalse(result)
 
     @data(
