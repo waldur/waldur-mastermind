@@ -33,7 +33,7 @@ class ProposalProjectRoleMappingTest(test.APITestCase):
         "staff",
         "call_manager",
     )
-    def test_user_can_create_and_update_mapping(self, user):
+    def test_user_can_create_update_delete_mapping(self, user):
         response = self._auth_and_create_mapping(user)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -54,7 +54,7 @@ class ProposalProjectRoleMappingTest(test.APITestCase):
         self.assertEqual(response.data["proposal_role"], ProposalRole.MEMBER.name)
 
         response = self.client.delete(response.data["url"])
-        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
     @data(
         "owner",
@@ -70,7 +70,7 @@ class ProposalProjectRoleMappingTest(test.APITestCase):
     @data(
         "owner",
     )
-    def test_user_cannot_update_mapping(self, user):
+    def test_user_cannot_update_delete_mapping(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         mapping = models.ProposalProjectRoleMapping.objects.create(
@@ -85,4 +85,6 @@ class ProposalProjectRoleMappingTest(test.APITestCase):
                 "project_role": ProjectRole.ADMIN.name,
             },
         )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -967,7 +967,7 @@ class ProposalProjectRoleMappingViewSet(ActionsViewSet):
     queryset = models.ProposalProjectRoleMapping.objects.all().order_by("call")
     filterset_class = filters.ProposalProjectRoleMappingFilter
     filter_backends = (DjangoFilterBackend,)
-    disabled_actions = ["destroy"]
+    permission_classes = [proposal_permissions.CanUpdateCallPermission]
 
     def get_queryset(self):
         return filter_queryset_for_user(

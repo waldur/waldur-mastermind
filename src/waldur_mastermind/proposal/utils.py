@@ -78,7 +78,10 @@ def allocate_proposal(proposal: proposal_models.Proposal):
     for mapping in proposal.round.call.proposalprojectrolemapping_set.all():  # type: ignore
         users = get_users(proposal, mapping.proposal_role)
         for user in users:
-            project.add_user(user, mapping.project_role)
+            if mapping.project_role:
+                project.add_user(user, mapping.project_role)
+            else:
+                continue
 
     for requested_resource in requested_resources:
         with transaction.atomic():
