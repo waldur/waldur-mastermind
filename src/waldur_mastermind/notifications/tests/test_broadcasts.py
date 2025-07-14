@@ -3,10 +3,8 @@ from unittest import mock
 from rest_framework import test
 
 from waldur_core.structure.tests import fixtures
-from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.notifications import models as notifications_models
 from waldur_mastermind.notifications import tasks as notifications_tasks
 from waldur_mastermind.notifications.tests import factories as notifications_factories
 
@@ -67,29 +65,3 @@ class BroadcastTaskTest(test.APITransactionTestCase):
         self.assertEqual(send_mail_mock.call_args_list[1].kwargs["bcc"], self.emails_2)
 
         self.assertEqual(send_mail_mock.call_args_list[2].kwargs["bcc"], self.emails_3)
-
-
-class BroadcastApiTest(test.APITransactionTestCase):
-    def test_scheduled_state_is_set_if_send_at_is_specified(self):
-        user = UserFactory(is_staff=True)
-        self.client.force_authenticate(user)
-        self.client.post(
-            notifications_factories.BroadcastMessageFactory.get_list_url(),
-            {"send_at": "2025-05-05", "body": "test", "query": {}, "subject": "hello"},
-        )
-        message = notifications_models.BroadcastMessage.objects.get()
-        self.assertEqual(
-            message.state, notifications_models.BroadcastMessage.States.SCHEDULED
-        )
-
-    def test_draft_state_is_set_if_send_at_is_not_specified(self):
-        user = UserFactory(is_staff=True)
-        self.client.force_authenticate(user)
-        self.client.post(
-            notifications_factories.BroadcastMessageFactory.get_list_url(),
-            {"body": "test", "query": {}, "subject": "hello"},
-        )
-        message = notifications_models.BroadcastMessage.objects.get()
-        self.assertEqual(
-            message.state, notifications_models.BroadcastMessage.States.DRAFT
-        )

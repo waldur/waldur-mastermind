@@ -31,6 +31,14 @@ class BroadcastMessageViewSet(ActionsViewSet):
         tasks.send_broadcast_message_email.delay(broadcast_message.uuid)
         return Response(status=status.HTTP_202_ACCEPTED)
 
+    @extend_schema(request=None, responses=None)
+    @decorators.action(detail=True, methods=["post"])
+    def schedule(self, request, *args, **kwargs):
+        broadcast_message: models.BroadcastMessage = self.get_object()
+        broadcast_message.state = models.BroadcastMessage.States.SCHEDULED
+        broadcast_message.save(update_fields=["state"])
+        return Response(status=status.HTTP_200_OK)
+
     @extend_schema(request=serializers.QuerySerializer)
     @decorators.action(detail=False)
     def recipients(self, request, *args, **kwargs):
