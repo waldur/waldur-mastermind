@@ -109,10 +109,13 @@ def create_or_update_oauth_user(
     except User.DoesNotExist:
         created = True
         merged_dict = {**lookup_params, **payload}
+        registration_method = identity_provider.provider
+        if identity_provider.provider == ProviderChoices.REMOTE_EDUTEAMS:
+            registration_method = ProviderChoices.EDUTEAMS
         user = cast(
             User,
             User.objects.create_user(
-                registration_method=identity_provider.provider,
+                registration_method=registration_method,
                 **merged_dict,
             ),
         )
