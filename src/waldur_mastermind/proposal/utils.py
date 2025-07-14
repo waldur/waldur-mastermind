@@ -4,7 +4,6 @@ from django.db import transaction
 from django.db.models import OuterRef
 
 from waldur_core.core.utils import SubqueryCount, get_system_robot
-from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -76,9 +75,10 @@ def allocate_proposal(proposal: proposal_models.Proposal):
         requested_offering__state=RequestedOfferingStates.ACCEPTED
     )
 
-    project_role = proposal.round.call.default_project_role or RoleEnum.PROJECT_ADMIN
-    for user in get_users(proposal):
-        project.add_user(user, project_role)
+    for mapping in proposal.round.call.proposalprojectrolemapping_set.all():  # type: ignore
+        users = get_users(proposal, mapping.proposal_role)
+        for user in users:
+            project.add_user(user, mapping.project_role)
 
     for requested_resource in requested_resources:
         with transaction.atomic():

@@ -50,7 +50,6 @@ class CallAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "fixed_duration_in_days",
-                    "default_project_role",
                     "external_url",
                     "backend_id",
                 )
@@ -69,6 +68,11 @@ class CallAdmin(admin.ModelAdmin):
     )
 
 
+class ProposalProjectRoleMappingAdmin(admin.ModelAdmin):
+    list_display = ("call", "proposal_role", "project_role")
+    search_fields = ("call__name", "proposal_role__name", "project_role__name")
+
+
 class RoundAdmin(admin.ModelAdmin):
     list_display = ("call", "start_time", "cutoff_time")
 
@@ -84,6 +88,7 @@ class ReviewAdmin(admin.ModelAdmin):
 
 admin.site.register(models.CallManagingOrganisation)
 admin.site.register(models.Call, CallAdmin)
+admin.site.register(models.ProposalProjectRoleMapping, ProposalProjectRoleMappingAdmin)
 admin.site.register(models.CallResourceTemplate)
 admin.site.register(models.Round, RoundAdmin)
 admin.site.register(models.Proposal, ProposalAdmin)

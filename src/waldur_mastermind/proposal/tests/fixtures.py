@@ -36,6 +36,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
             enums.PermissionEnum.LIST_CALLS,
             enums.PermissionEnum.LIST_ROUNDS,
             enums.PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            enums.PermissionEnum.UPDATE_CALL,
         ):
             CallRole.MANAGER.add_permission(perm)
             self.call_organizer_role.add_permission(perm)
@@ -43,7 +44,6 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         CallRole.REVIEWER.add_permission(enums.PermissionEnum.LIST_PROPOSALS)
         CallRole.REVIEWER.add_permission(enums.PermissionEnum.LIST_CALLS)
         self.call_organizer_role.add_permission(enums.PermissionEnum.CREATE_CALL)
-        self.call_organizer_role.add_permission(enums.PermissionEnum.LIST_CALLS)
 
     @cached_property
     def manager(self):

@@ -5,6 +5,7 @@ from waldur_core.permissions.fixtures import ProjectRole, ProposalRole
 from waldur_core.permissions.utils import has_user
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.tests import fixtures
 
@@ -39,18 +40,28 @@ class ManualApproveTest(test.APITransactionTestCase):
             marketplace_models.Order.objects.filter(resource=resource).exists()
         )
 
-    def test_when_proposal_approved_users_are_added(self):
+    def _check_membership(self) -> bool:
         user = UserFactory()
-        self.fixture.call.default_project_role = ProjectRole.MEMBER
-        self.fixture.call.save()
         self.proposal.add_user(user, ProposalRole.MEMBER)
-
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.approve_url, {"allocation_comment": "done"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.proposal.refresh_from_db()
-        self.assertTrue(has_user(self.proposal.project, user, ProjectRole.MEMBER))
+        return has_user(self.proposal.project, user, ProjectRole.MEMBER)
+
+    def test_when_proposal_approved_users_are_added_to_the_project(self):
+        models.ProposalProjectRoleMapping.objects.create(
+            call=self.fixture.call,
+            project_role=ProjectRole.MEMBER,
+            proposal_role=ProposalRole.MEMBER,
+        )
+        result = self._check_membership()
+        self.assertTrue(result)
+
+    def test_unmapped_roles_are_not_added_to_the_project(self):
+        result = self._check_membership()
+        self.assertFalse(result)
 
     @data(
         "proposal_creator",
