@@ -79,7 +79,7 @@ class HandleNewUserTest(TestCase):
         self.assertTrue(project.has_user(user, ProjectRole.ADMIN))
 
 
-class CreateProjectWithOutResourcesTest(TestCase):
+class CreateProjectWithoutResourcesTest(TestCase):
     def setUp(self):
         self.rule = autoprovisioning_factories.RuleFactory()
         self.rule.user_email_patterns = [".+@example.com"]

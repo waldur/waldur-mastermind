@@ -7,7 +7,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
 
-class Rule(TimeStampedModel, core_models.UuidMixin):
+class Rule(TimeStampedModel, core_models.UuidMixin, core_models.NameMixin):
     class Permissions:
         customer_path = "customer"
 

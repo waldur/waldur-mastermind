@@ -14,6 +14,13 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
         required=False,
         allow_null=True,
     )
+    customer_name = serializers.CharField(source="customer.name", read_only=True)
+    customer_uuid = serializers.CharField(source="customer.uuid", read_only=True)
+
+    project_role_description = serializers.CharField(
+        source="project_role.description", read_only=True
+    )
+    project_role_name = serializers.CharField(required=False, allow_null=True)
     plans = serializers.HyperlinkedRelatedField(
         view_name="autoprovisioning-rule-plan-detail",
         lookup_field="uuid",
@@ -34,12 +41,17 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.Rule
         fields = (
+            "name",
             "uuid",
             "url",
             "user_affiliations",
             "user_email_patterns",
             "customer",
+            "customer_name",
+            "customer_uuid",
             "project_role",
+            "project_role_name",
+            "project_role_description",
             "plans",
         )
         extra_kwargs = {
@@ -74,6 +86,41 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
             )
 
         return value
+
+    def validate(self, attrs):
+        project_role = attrs.get("project_role")
+        project_role_name = attrs.get("project_role_name")
+
+        # Treat empty string as None for project_role_name
+        if project_role_name == "":
+            project_role_name = None
+            attrs.pop("project_role_name", None)
+
+        # Check that exactly one of project_role or project_role_name is provided
+        if project_role and project_role_name:
+            raise serializers.ValidationError(
+                "Cannot specify both project_role and project_role_name. Choose one."
+            )
+
+        # Require at least one role specification for both creation and updates
+        if not project_role and not project_role_name:
+            raise serializers.ValidationError(
+                "Either project_role or project_role_name must be provided."
+            )
+
+        # If project_role_name is provided, look up the role by name
+        if project_role_name:
+            try:
+                role = Role.project_roles().get(name=project_role_name)
+                attrs["project_role"] = role
+            except Role.DoesNotExist:
+                raise serializers.ValidationError(
+                    f"Project role with name '{project_role_name}' does not exist."
+                )
+            # Remove project_role_name from attrs as it's not a model field
+            attrs.pop("project_role_name", None)
+
+        return attrs
 
 
 class RulePlansSerializer(serializers.HyperlinkedModelSerializer):

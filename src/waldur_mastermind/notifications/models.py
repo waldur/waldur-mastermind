@@ -36,6 +36,9 @@ class BroadcastMessage(UuidMixin):
     query = models.JSONField()
     emails = models.JSONField()
 
+    def __str__(self):
+        return f"{self.subject} / {self.author} / {self.created}"
+
 
 class AdminAnnouncement(UuidMixin, DescribableMixin, TimeStampedModel):
     class Type:
