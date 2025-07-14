@@ -4,6 +4,7 @@ import factory
 from rest_framework.reverse import reverse
 
 from waldur_core.core.tests.types import BaseMetaFactory
+from waldur_core.permissions import fixtures as permissions_fixtures
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models
@@ -290,4 +291,38 @@ class ReviewFactory(
     @classmethod
     def get_list_url(cls, action=None):
         url = "http://testserver" + reverse("proposal-review-list")
+        return url if action is None else url + action + "/"
+
+
+class ProposalProjectRoleMappingFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ProposalProjectRoleMapping],
+):
+    class Meta:
+        model = models.ProposalProjectRoleMapping
+
+    call = factory.SubFactory(CallFactory)
+    proposal_role = factory.LazyFunction(
+        lambda: permissions_fixtures.ProposalRole.MANAGER
+    )
+    project_role = factory.LazyFunction(
+        lambda: permissions_fixtures.ProjectRole.MANAGER
+    )
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse(
+            "call-proposal-project-role-mapping-list",
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_url(cls, mapping=None, action=None):
+        if mapping is None:
+            mapping = ProposalProjectRoleMappingFactory()
+        url = "http://testserver" + reverse(
+            "call-proposal-project-role-mapping-detail",
+            kwargs={"uuid": mapping.uuid.hex},
+        )
+
         return url if action is None else url + action + "/"

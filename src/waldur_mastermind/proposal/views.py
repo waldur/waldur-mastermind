@@ -959,3 +959,17 @@ class RoundViewSet(ReadOnlyActionsViewSet):
             page, many=True, context={"round_obj": round_obj}
         )
         return self.get_paginated_response(serializer.data)
+
+
+class ProposalProjectRoleMappingViewSet(ActionsViewSet):
+    lookup_field = "uuid"
+    serializer_class = serializers.ProposalProjectRoleMappingSerializer
+    queryset = models.ProposalProjectRoleMapping.objects.all().order_by("call")
+    filterset_class = filters.ProposalProjectRoleMappingFilter
+    filter_backends = (DjangoFilterBackend,)
+    disabled_actions = ["destroy"]
+
+    def get_queryset(self):
+        return filter_queryset_for_user(
+            super().get_queryset(), self.request.user
+        ).order_by("call")

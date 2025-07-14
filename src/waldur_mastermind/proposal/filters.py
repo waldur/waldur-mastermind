@@ -195,3 +195,11 @@ class RequestedResourceFilter(django_filters.FilterSet):
     class Meta:
         model = models.RequestedResource
         fields = ["created"]
+
+
+class ProposalProjectRoleMappingFilter(django_filters.FilterSet):
+    call_uuid = django_filters.UUIDFilter(field_name="call__uuid")
+
+    class Meta:
+        model = models.ProposalProjectRoleMapping
+        fields = []

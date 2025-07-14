@@ -11,6 +11,7 @@ from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 from model_utils.tracker import FieldInstanceTracker
+from rest_framework.exceptions import ValidationError
 
 import waldur_core.media.mixins
 from waldur_core.core import models as core_models
@@ -110,8 +111,6 @@ class Call(
         marketplace_models.Offering, through="RequestedOffering"
     )
     documents = models.ManyToManyField(CallDocument, related_name="call_documents")
-    # It is used for mapping PROPOSAL.MEMBER role to one of project roles
-    default_project_role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True)
     external_url = models.URLField(blank=True, null=True)
 
     reviewer_identity_visible_to_submitters = models.BooleanField(
@@ -148,6 +147,51 @@ class Call(
     @property
     def customer(self):
         return self.manager.customer
+
+
+def filter_call_proposal_project_role_mappings(user):
+    return Q(
+        call__manager__customer__callmanagingorganisation__in=managers.get_connected_call_organizers(
+            user
+        )
+    )
+
+
+class ProposalProjectRoleMapping(
+    core_models.UuidMixin,
+):
+    """This model is used to map proposal roles to project roles in call scope."""
+
+    class Permissions:
+        customer_path = "call__manager__customer"
+        build_query = filter_call_proposal_project_role_mappings
+
+    call = models.ForeignKey(Call, on_delete=models.CASCADE)
+    proposal_role = models.ForeignKey(
+        Role,
+        on_delete=models.CASCADE,
+        null=False,
+        related_name="proposal_role_mappings",
+    )
+    project_role = models.ForeignKey(
+        Role,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="project_role_mappings",
+    )
+
+    class Meta:
+        unique_together = ("call", "proposal_role")
+
+    def clean(self):
+        if (
+            self.project_role
+            and self.project_role.content_type.model_class().__name__ != "Project"
+        ):
+            raise ValidationError(_("Role should belong to the project type."))
+        if self.proposal_role.content_type.model_class().__name__ != "Proposal":
+            raise ValidationError(_("Role should belong to the proposal type."))
 
 
 class RequestedOffering(
