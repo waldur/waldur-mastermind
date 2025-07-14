@@ -20,7 +20,10 @@ from waldur_rancher.exceptions import RancherException
 def is_order_ready(uuid):
     order = Order.objects.get(uuid=uuid)
     if order.state == OrderStates.ERRED:
-        raise RancherException("Order is in erred state.")
+        if order.error_message:
+            raise RancherException(order.error_message)
+        else:
+            raise RancherException("Order is in erred state.")
     return order.state == OrderStates.DONE
 
 
