@@ -2951,7 +2951,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     set_state_erred_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
-            ["offering.customer"],
+            ["offering.customer", "offering.customer.serviceprovider"],
         )
     ]
 
