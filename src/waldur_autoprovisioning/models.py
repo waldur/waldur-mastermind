@@ -20,7 +20,14 @@ class Rule(TimeStampedModel, core_models.UuidMixin, core_models.NameMixin):
         blank=True,
     )
     customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
-    plans = models.ManyToManyField(marketplace_models.Plan, through="RulePlans")
+    plan = models.ForeignKey(
+        marketplace_models.Plan,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
+    plan_attributes = models.JSONField(blank=True, default=dict)
+    plan_limits = models.JSONField(blank=True, default=dict)
     project_role = models.ForeignKey(
         to=Role,
         on_delete=models.CASCADE,
@@ -31,19 +38,3 @@ class Rule(TimeStampedModel, core_models.UuidMixin, core_models.NameMixin):
     @classmethod
     def get_url_name(cls):
         return "autoprovisioning-rule"
-
-
-class RulePlans(TimeStampedModel, core_models.UuidMixin):
-    class Permissions:
-        customer_path = "rule__customer"
-
-    rule = models.ForeignKey(Rule, on_delete=models.CASCADE)
-    plan = models.ForeignKey(
-        marketplace_models.Plan, related_name="+", on_delete=models.CASCADE
-    )
-    attributes = models.JSONField(blank=True, default=dict)
-    limits = models.JSONField(blank=True, default=dict)
-
-    @classmethod
-    def get_url_name(cls):
-        return "autoprovisioning-rule-plan"

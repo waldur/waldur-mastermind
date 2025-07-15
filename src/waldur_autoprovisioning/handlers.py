@@ -143,10 +143,10 @@ def handle_new_user(sender, instance: User, created=False, **kwargs):
         if not project:
             continue
 
-        for rule_plan in rule.ruleplans_set.all():
-            plan = rule_plan.plan
-            attributes = rule_plan.attributes
-            limits = rule_plan.limits
+        if rule.plan:
+            plan = rule.plan
+            attributes = rule.plan_attributes
+            limits = rule.plan_limits
 
             order, order_created = get_or_create_order(
                 project, user, plan.offering, plan, limits, attributes

@@ -19,16 +19,3 @@ class RuleViewSet(ActionsViewSet):
     destroy_permissions = update_permissions = partial_update_permissions = [
         structure_permissions.is_staff
     ]
-
-
-class RulePlansViewSet(ActionsViewSet):
-    queryset = models.RulePlans.objects.all().order_by("-rule")
-    serializer_class = serializers.RulePlansSerializer
-    filter_backends = [
-        DjangoFilterBackend,
-        structure_filters.GenericRoleFilter,
-    ]
-    lookup_field = "uuid"
-    destroy_permissions = update_permissions = partial_update_permissions = [
-        structure_permissions.is_staff
-    ]

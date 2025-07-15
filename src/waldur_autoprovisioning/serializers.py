@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from waldur_autoprovisioning import models
 from waldur_core.permissions.models import Role
+from waldur_mastermind.marketplace import models as marketplace_models
 
 
 class RuleSerializer(serializers.HyperlinkedModelSerializer):
@@ -20,12 +21,26 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
     project_role_description = serializers.CharField(
         source="project_role.description", read_only=True
     )
-    project_role_name = serializers.CharField(required=False, allow_null=True)
-    plans = serializers.HyperlinkedRelatedField(
-        view_name="autoprovisioning-rule-plan-detail",
+    project_role_name = serializers.CharField(
+        required=False, allow_null=True, write_only=True
+    )
+    project_role_dispay_name = serializers.CharField(
+        source="project_role.name", read_only=True
+    )
+    plan = serializers.HyperlinkedRelatedField(
+        view_name="marketplace-plan-detail",
         lookup_field="uuid",
-        read_only=True,
-        many=True,
+        queryset=marketplace_models.Plan.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    plan_attributes = serializers.DictField(
+        required=False,
+        default=dict,
+    )
+    plan_limits = serializers.DictField(
+        required=False,
+        default=dict,
     )
     user_affiliations = serializers.ListField(
         child=serializers.CharField(),
@@ -50,9 +65,12 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
             "customer_name",
             "customer_uuid",
             "project_role",
-            "project_role_name",
+            "project_role_name",  # used for accepting role name to set
+            "project_role_dispay_name",  # used for displaying the role name
             "project_role_description",
-            "plans",
+            "plan",
+            "plan_attributes",
+            "plan_limits",
         )
         extra_kwargs = {
             "url": {
@@ -61,6 +79,10 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
             },
             "customer": {
                 "view_name": "customer-detail",
+                "lookup_field": "uuid",
+            },
+            "plan": {
+                "view_name": "marketplace-plan-detail",
                 "lookup_field": "uuid",
             },
         }
@@ -121,32 +143,3 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
             attrs.pop("project_role_name", None)
 
         return attrs
-
-
-class RulePlansSerializer(serializers.HyperlinkedModelSerializer):
-    attributes = serializers.DictField(
-        required=False,
-        default=dict,
-    )
-    limits = serializers.DictField(
-        required=False,
-        default=dict,
-    )
-
-    class Meta:
-        model = models.RulePlans
-        fields = ("uuid", "url", "rule", "plan", "attributes", "limits")
-        extra_kwargs = {
-            "url": {
-                "view_name": "autoprovisioning-rule-plan-detail",
-                "lookup_field": "uuid",
-            },
-            "rule": {
-                "view_name": "autoprovisioning-rule-detail",
-                "lookup_field": "uuid",
-            },
-            "plan": {
-                "view_name": "marketplace-plan-detail",
-                "lookup_field": "uuid",
-            },
-        }

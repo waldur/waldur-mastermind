@@ -10,25 +10,29 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import PLUGIN_NAME as MARKETPLACE_BASIC
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 
 
 class HandleNewUserTest(TestCase):
     def setUp(self):
-        self.rule_plan_1 = autoprovisioning_factories.RulePlansFactory()
-        self.rule = self.rule_plan_1.rule
-        self.rule.user_email_patterns = [".+@example.com"]
-        self.rule.save()
-        self.plan_1 = self.rule_plan_1.plan
+        self.plan_1 = marketplace_factories.PlanFactory()
         self.plan_1.offering.type = MARKETPLACE_BASIC
         self.plan_1.offering.save()
 
-        self.rule_plan_2 = autoprovisioning_factories.RulePlansFactory(
-            rule=self.rule, limits={"vcpu": 4, "ram": 8192, "storage": 100}
+        self.rule_1 = autoprovisioning_factories.RuleFactory(
+            plan=self.plan_1, user_email_patterns=[".+@example.com"]
         )
-        self.plan_2 = self.rule_plan_2.plan
+
+        self.plan_2 = marketplace_factories.PlanFactory()
         self.plan_2.offering.type = TENANT_TYPE
         self.plan_2.offering.save()
+
+        self.rule_2 = autoprovisioning_factories.RuleFactory(
+            plan=self.plan_2,
+            user_email_patterns=[".+@example.com"],
+            plan_limits={"vcpu": 4, "ram": 8192, "storage": 100},
+        )
 
     def _verify_creating_order(self, plan, user, mock_process_order):
         self.assertTrue(
@@ -66,14 +70,14 @@ class HandleNewUserTest(TestCase):
         self._verify_creating_order(self.plan_1, user, mock_process_order)
 
         resource = self._verify_creating_order(self.plan_2, user, mock_process_order)
-        self.assertEqual(resource.limits, self.rule_plan_2.limits)
+        self.assertEqual(resource.limits, self.rule_2.plan_limits)
         self.assertTrue(
             structure_models.Project.available_objects.filter(
-                name=user.username, customer=self.rule.customer
+                name=user.username, customer=self.rule_1.customer
             ).exists()
         )
         project = structure_models.Project.available_objects.filter(
-            name=user.username, customer=self.rule.customer
+            name=user.username, customer=self.rule_1.customer
         ).get()
         self.assertFalse(project.is_removed)
         self.assertTrue(project.has_user(user, ProjectRole.ADMIN))
@@ -81,7 +85,7 @@ class HandleNewUserTest(TestCase):
 
 class CreateProjectWithoutResourcesTest(TestCase):
     def setUp(self):
-        self.rule = autoprovisioning_factories.RuleFactory()
+        self.rule = autoprovisioning_factories.RuleFactory(plan=None)
         self.rule.user_email_patterns = [".+@example.com"]
         self.rule.save()
 

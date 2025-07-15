@@ -7,8 +7,7 @@ from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 class AutoprovisioningFixture(marketplace_fixtures.MarketplaceFixture):
     def __init__(self):
         super().__init__()
-        autoprovisioning_factories.RulePlansFactory(rule=self.rule, plan=self.plan)
 
     @cached_property
     def rule(self):
-        return autoprovisioning_factories.RuleFactory()
+        return autoprovisioning_factories.RuleFactory(plan=self.plan)

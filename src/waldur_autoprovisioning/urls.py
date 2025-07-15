@@ -7,8 +7,3 @@ def register_in(router):
         views.RuleViewSet,
         basename="autoprovisioning-rule",
     )
-    router.register(
-        r"autoprovisioning-rule-plans",
-        views.RulePlansViewSet,
-        basename="autoprovisioning-rule-plan",
-    )
