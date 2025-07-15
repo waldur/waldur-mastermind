@@ -73,6 +73,7 @@ class EventType(str, Enum):
     )
     MARKETPLACE_PLAN_CREATED = "marketplace_plan_created"
     MARKETPLACE_PLAN_UPDATED = "marketplace_plan_updated"
+    MARKETPLACE_PLAN_DELETED = "marketplace_plan_deleted"
     MARKETPLACE_RESOURCE_CREATE_CANCELED = "marketplace_resource_create_canceled"
     MARKETPLACE_RESOURCE_CREATE_FAILED = "marketplace_resource_create_failed"
     MARKETPLACE_RESOURCE_CREATE_REQUESTED = "marketplace_resource_create_requested"
@@ -398,6 +399,7 @@ EVENT_GROUP_MAPPING = {
         EventType.MARKETPLACE_PLAN_COMPONENT_QUOTA_UPDATED,
         EventType.MARKETPLACE_PLAN_CREATED,
         EventType.MARKETPLACE_PLAN_UPDATED,
+        EventType.MARKETPLACE_PLAN_DELETED,
     ],
     EventGroup.PERMISSIONS: [
         EventType.ROLE_GRANTED,

@@ -129,6 +129,7 @@ from waldur_mastermind.support import models as support_models
 from waldur_pid import models as pid_models
 
 from . import filters, log, models, permissions, plugins, serializers, tasks, utils
+from .handlers import get_plan_scopes
 
 logger = logging.getLogger(__name__)
 
@@ -2465,7 +2466,7 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     filterset_class = filters.PlanFilter
     filter_backends = (DjangoFilterBackend, filters.ProviderPlanFilterBackend)
 
-    disabled_actions = ["destroy"]
+    destroy_permissions = [structure_permissions.is_staff]
     update_validators = partial_update_validators = [validate_plan_update]
 
     update_permissions = partial_update_permissions = [
@@ -2474,6 +2475,21 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
             ["offering.customer"],
         )
     ]
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        logger.info(
+            f"Plan {instance.name} from {instance.offering.name} deleted by user {user}."
+        )
+        event_logger.emit(
+            f"Plan {instance.name} from {instance.offering.name} deleted by user {user}.",
+            event_type=EventType.MARKETPLACE_PLAN_DELETED,
+            event_context={
+                "plan": instance,
+            },
+            scopes=get_plan_scopes(instance),
+        )
+        super().perform_destroy(instance)
 
     @extend_schema(
         request=serializers.PricesUpdateSerializer,
