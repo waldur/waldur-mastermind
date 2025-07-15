@@ -6,27 +6,6 @@ from waldur_core.permissions.models import Role
 from waldur_mastermind.marketplace import models as marketplace_models
 
 
-class RulePlansInlineForm(forms.ModelForm):
-    class Meta:
-        model = models.RulePlans
-        fields = "__all__"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["plan"].queryset = marketplace_models.Plan.objects.select_related(
-            "offering"
-        ).order_by("offering__name", "name")
-        self.fields["plan"].label_from_instance = (
-            lambda obj: f"{obj.offering.name} | {obj.name}"
-        )
-
-
-class RulePlansInline(admin.TabularInline):
-    model = models.RulePlans
-    form = RulePlansInlineForm
-    extra = 1
-
-
 class RuleForm(forms.ModelForm):
     class Meta:
         model = models.Rule
@@ -35,17 +14,25 @@ class RuleForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["project_role"].queryset = Role.project_roles()
+        if "plan" in self.fields:
+            self.fields[
+                "plan"
+            ].queryset = marketplace_models.Plan.objects.select_related(
+                "offering"
+            ).order_by("offering__name", "name")
+            self.fields["plan"].label_from_instance = (
+                lambda obj: f"{obj.offering.name} | {obj.name}"
+            )
 
 
 class RuleAdmin(admin.ModelAdmin):
     form = RuleForm
-    inlines = [RulePlansInline]
-    list_display = ("customer", "project_role", "get_offering_names")
+    list_display = ("customer", "project_role", "get_offering_name")
 
-    def get_offering_names(self, obj):
-        return ", ".join(set(plan.offering.name for plan in obj.plans.all()))
+    def get_offering_name(self, obj):
+        return obj.plan.offering.name if obj.plan else "No plan"
 
-    get_offering_names.short_description = "Offerings"
+    get_offering_name.short_description = "Offering"
 
 
 admin.site.register(models.Rule, RuleAdmin)

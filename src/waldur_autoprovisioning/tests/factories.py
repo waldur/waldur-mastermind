@@ -16,14 +16,6 @@ class RuleFactory(
     user_affiliations = factory.LazyFunction(list)
     user_email_patterns = factory.LazyFunction(list)
     customer = factory.SubFactory(structure_factories.CustomerFactory)
-
-
-class RulePlansFactory(
-    factory.django.DjangoModelFactory,
-    metaclass=BaseMetaFactory[autoprovisioning_models.RulePlans],
-):
-    class Meta:
-        model = autoprovisioning_models.RulePlans
-
     plan = factory.SubFactory(marketplace_factories.PlanFactory)
-    rule = factory.SubFactory(RuleFactory)
+    plan_attributes = factory.LazyFunction(dict)
+    plan_limits = factory.LazyFunction(dict)
