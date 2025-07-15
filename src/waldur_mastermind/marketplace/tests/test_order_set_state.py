@@ -83,7 +83,7 @@ class OrderSetStateDoneTest(BaseOrderSetStateTest):
 
 @ddt
 class OrderSetStateErredTest(BaseOrderSetStateTest):
-    @data("staff", "offering_owner")
+    @data("staff", "offering_owner", "service_manager")
     def test_authorized_user_can_set_erred_state(self, user):
         self.order.state = OrderStates.EXECUTING
         self.order.save()
