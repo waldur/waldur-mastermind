@@ -122,6 +122,26 @@ class PlanUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
+class PlanDeleteTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.plan = factories.PlanFactory()
+        self.url = factories.PlanFactory.get_url(self.plan)
+
+    def test_staff_user_can_delete_plan(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(models.Plan.objects.filter(pk=self.plan.pk).exists())
+
+    @data("owner", "customer_support", "admin", "global_support")
+    def test_unauthorized_user_can_not_delete_plan(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
 class PlanArchiveTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
