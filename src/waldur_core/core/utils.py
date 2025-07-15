@@ -185,18 +185,18 @@ def find_template_from_registry(app, event_type, template_suffix):
 
 
 def send_mail(
-    subject,
-    body,
-    to: list | tuple,
-    from_email=None,
-    html_message=None,
-    filename=None,
-    attachment=None,
-    content_type="text/plain",
-    bcc=None,
-    reply_to=None,
-    fail_silently=False,
-):
+    subject: str,
+    body: str,
+    to: list[str] | tuple[str, ...],
+    from_email: str | None = None,
+    html_message: str | None = None,
+    filename: str | None = None,
+    attachment: str | None = None,
+    content_type: str = "text/plain",
+    bcc: list[str] | None = None,
+    reply_to: str | None = None,
+    fail_silently: bool = False,
+) -> int:
     from waldur_core.logging.models import EmailLog
 
     from_email = from_email or settings.DEFAULT_FROM_EMAIL
@@ -225,10 +225,16 @@ def send_mail(
         email.attach(filename, attachment, content_type)
 
     result = email.send(fail_silently=fail_silently)
+
+    # Extend emails with BCC recipients if provided
+    logged_emails = list(to)
+    if bcc is not None:
+        logged_emails.extend(bcc)
+
     EmailLog.objects.create(
         subject=subject,
         body=email.body,
-        emails=to,
+        emails=logged_emails,
     )
     return result
 

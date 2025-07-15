@@ -24,6 +24,41 @@ class EmailLogCreateTest(test.APITransactionTestCase):
             ).exists()
         )
 
+    def test_create_log_with_bcc(self):
+        send_mail(
+            subject="notify user with bcc",
+            body="notification text with bcc",
+            to=["user_1@example.com", "user_2@example.com"],
+            bcc=["bcc_1@example.com", "bcc_2@example.com"],
+            from_email="from@example.com",
+        )
+        email_log = models.EmailLog.objects.get(
+            subject="notify user with bcc",
+            body="notification text with bcc",
+        )
+        # Check that both TO and BCC recipients are logged
+        self.assertIn("user_1@example.com", email_log.emails)
+        self.assertIn("user_2@example.com", email_log.emails)
+        self.assertIn("bcc_1@example.com", email_log.emails)
+        self.assertIn("bcc_2@example.com", email_log.emails)
+        # Check that all emails are present
+        self.assertEqual(len(email_log.emails), 4)
+
+    def test_create_log_with_none_bcc(self):
+        send_mail(
+            subject="notify user with none bcc",
+            body="notification text with none bcc",
+            to=["user_1@example.com"],
+            bcc=None,
+            from_email="from@example.com",
+        )
+        email_log = models.EmailLog.objects.get(
+            subject="notify user with none bcc",
+            body="notification text with none bcc",
+        )
+        # Check that only TO recipients are logged when BCC is None
+        self.assertEqual(email_log.emails, ["user_1@example.com"])
+
 
 @ddt
 class EmailLogViewTest(test.APITransactionTestCase):
