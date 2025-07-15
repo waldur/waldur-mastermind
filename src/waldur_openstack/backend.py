@@ -1263,6 +1263,7 @@ class OpenStackBackend(ServiceBackend):
 
     def pull_tenant_subnets(self, tenant: models.Tenant):
         self.pull_subnets(tenant)
+        self.pull_shared_subnets()
 
     def pull_subnets(self, tenant: models.Tenant | None = None, network=None):
         neutron = get_neutron_client(self.admin_session)
@@ -1363,6 +1364,26 @@ class OpenStackBackend(ServiceBackend):
                     scopes=[subnet, subnet.network],
                 )
             stale_subnets.delete()
+
+    def pull_shared_subnets(self):
+        """Synchronize external/shared subnets"""
+        neutron = get_neutron_client(self.admin_session)
+
+        try:
+            external_networks = neutron.list_networks(
+                **{"router:external": True, "shared": True}
+            )["networks"]
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        for ext_network in external_networks:
+            try:
+                network = models.Network.objects.get(backend_id=ext_network["id"])
+            except models.Network.DoesNotExist:
+                continue
+
+            # Now sync subnets for this network
+            self.pull_subnets(network=network)
 
     def _backend_subnet_to_subnet(self, backend_subnet, **kwargs):
         subnet = models.SubNet(
