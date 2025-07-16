@@ -304,12 +304,53 @@ class OpenStackTenantQuotaSerializer(serializers.Serializer):
     security_group_rule_count = serializers.IntegerField(min_value=1, required=False)
 
 
+class OpenStackFixedIpSerializer(serializers.Serializer):
+    ip_address = serializers.IPAddressField()
+    subnet_id = serializers.CharField()
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        subnet_id = attrs.get("subnet_id")
+        port_ip = attrs.get("ip_address")
+
+        try:
+            subnet = models.SubNet.objects.get(backend_id=subnet_id)
+        except models.SubNet.DoesNotExist:
+            raise serializers.ValidationError(_("Subnet with this ID does not exist."))
+
+        ip_addr = ip_address(port_ip)
+
+        if subnet.allocation_pools:
+            in_allocation_pool = False
+            for pool in subnet.allocation_pools:
+                start_ip = ip_address(pool["start"])
+                end_ip = ip_address(pool["end"])
+                if start_ip <= ip_addr <= end_ip:
+                    in_allocation_pool = True
+                    break
+
+            if not in_allocation_pool:
+                logger.info(
+                    "Requested IP address %s is outside the allocation pools.",
+                    ip_address,
+                )
+
+        return attrs
+
+
+@extend_schema_field(OpenStackFixedIpSerializer(many=True))
+class OpenStackFixedIpField(serializers.JSONField):
+    pass
+
+
 class OpenStackFloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
     port = serializers.HyperlinkedRelatedField(
         view_name="openstack-port-detail",
         lookup_field="uuid",
         read_only=True,
     )
+
+    port_fixed_ips = OpenStackFixedIpField(source="port.fixed_ips", read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.FloatingIP
@@ -322,6 +363,7 @@ class OpenStackFloatingIPSerializer(structure_serializers.BaseResourceActionSeri
             "tenant_uuid",
             "port",
             "external_address",
+            "port_fixed_ips",
         )
         related_paths = ("tenant",)
         read_only_fields = (
@@ -1107,45 +1149,6 @@ class OpenStackAllowedAddressPairSerializer(serializers.Serializer):
 
 @extend_schema_field(OpenStackAllowedAddressPairSerializer(many=True))
 class OpenStackAllowedAddressPairField(serializers.JSONField):
-    pass
-
-
-class OpenStackFixedIpSerializer(serializers.Serializer):
-    ip_address = serializers.IPAddressField()
-    subnet_id = serializers.CharField()
-
-    def validate(self, attrs):
-        attrs = super().validate(attrs)
-        subnet_id = attrs.get("subnet_id")
-        port_ip = attrs.get("ip_address")
-
-        try:
-            subnet = models.SubNet.objects.get(backend_id=subnet_id)
-        except models.SubNet.DoesNotExist:
-            raise serializers.ValidationError(_("Subnet with this ID does not exist."))
-
-        ip_addr = ip_address(port_ip)
-
-        if subnet.allocation_pools:
-            in_allocation_pool = False
-            for pool in subnet.allocation_pools:
-                start_ip = ip_address(pool["start"])
-                end_ip = ip_address(pool["end"])
-                if start_ip <= ip_addr <= end_ip:
-                    in_allocation_pool = True
-                    break
-
-            if not in_allocation_pool:
-                logger.info(
-                    "Requested IP address %s is outside the allocation pools.",
-                    ip_address,
-                )
-
-        return attrs
-
-
-@extend_schema_field(OpenStackFixedIpSerializer(many=True))
-class OpenStackFixedIpField(serializers.JSONField):
     pass
 
 
