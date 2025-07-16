@@ -24,7 +24,7 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
     project_role_name = serializers.CharField(
         required=False, allow_null=True, write_only=True
     )
-    project_role_dispay_name = serializers.CharField(
+    project_role_display_name = serializers.CharField(
         source="project_role.name", read_only=True
     )
     plan = serializers.HyperlinkedRelatedField(
@@ -52,6 +52,24 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
         required=False,
         default=list,
     )
+    plan_name = serializers.CharField(
+        source="plan.name", required=False, read_only=True
+    )
+    offering_name = serializers.CharField(
+        source="plan.offering.name", required=False, read_only=True
+    )
+    offering_uuid = serializers.UUIDField(
+        source="plan.offering.uuid", required=False, read_only=True
+    )
+    category_title = serializers.CharField(
+        source="plan.offering.category.title", required=False, read_only=True
+    )
+    category_url = serializers.HyperlinkedRelatedField(
+        source="plan.offering.category",
+        view_name="marketplace-category-detail",
+        lookup_field="uuid",
+        read_only=True,
+    )
 
     class Meta:
         model = models.Rule
@@ -66,11 +84,16 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
             "customer_uuid",
             "project_role",
             "project_role_name",  # used for accepting role name to set
-            "project_role_dispay_name",  # used for displaying the role name
+            "project_role_display_name",  # used for displaying the role name
             "project_role_description",
             "plan",
             "plan_attributes",
             "plan_limits",
+            "plan_name",
+            "offering_name",
+            "offering_uuid",
+            "category_title",
+            "category_url",
         )
         extra_kwargs = {
             "url": {
