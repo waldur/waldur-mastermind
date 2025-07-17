@@ -419,6 +419,8 @@ class InvoiceItem(
         plan_component = self.get_plan_component()
         if not plan_component:
             return
+        if not plan_component.component:
+            return
         if plan_component.component.billing_type == BillingTypes.FIXED or (
             plan_component.component.billing_type == BillingTypes.LIMIT
             and plan_component.component.limit_period != LimitPeriods.TOTAL

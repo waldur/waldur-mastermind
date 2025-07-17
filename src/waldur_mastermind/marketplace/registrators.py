@@ -18,15 +18,13 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
+    RequestTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.models import ComponentUsage
 from waldur_mastermind.promotions import models as promotions_models
 
 logger = logging.getLogger(__name__)
-
-LimitPeriods = LimitPeriods
-OrderTypes = marketplace_models.Order.Types
 
 
 class MarketplaceRegistrator(registrators.BaseRegistrator):
@@ -182,7 +180,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 # Avoid creating invoice item for limit-based components
                 # if limit period is total and resource is not being created
                 if offering_component.limit_period == LimitPeriods.TOTAL:
-                    if order_type == OrderTypes.CREATE:
+                    if order_type == RequestTypes.CREATE:
                         self.create_component_item(
                             source, plan_component, invoice, start, end
                         )
@@ -194,8 +192,8 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
             if (
                 is_fixed
-                or (is_one and order_type == OrderTypes.CREATE)
-                or (is_switch and order_type == OrderTypes.UPDATE)
+                or (is_one and order_type == RequestTypes.CREATE)
+                or (is_switch and order_type == RequestTypes.UPDATE)
             ):
                 unit_price = plan_component.price
                 unit = plan.unit
@@ -407,6 +405,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             invoice: Invoice containing the item to update
             new_quantity: New limit quantity
         """
+        if not source.plan:
+            return
+
         invoice_item = invoice_models.InvoiceItem.objects.get(
             resource=source,
             details__offering_component_type=component_type,
@@ -590,7 +591,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         ):
             cls.create_discounted_resource(sender, instance, created)
             registrators.RegistrationManager.register(
-                resource, timezone.now(), order_type=OrderTypes.CREATE
+                resource, timezone.now(), order_type=RequestTypes.CREATE
             )
 
         if (
@@ -604,7 +605,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         ):
             registrators.RegistrationManager.terminate(resource, timezone.now())
             registrators.RegistrationManager.register(
-                resource, timezone.now(), order_type=OrderTypes.UPDATE
+                resource, timezone.now(), order_type=RequestTypes.UPDATE
             )
 
         if resource.state != ResourceStates.CREATING and resource_tracker.has_changed(
@@ -668,6 +669,8 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             offering_component: Offering component configuration
         """
         if resource.state != ResourceStates.OK:
+            return
+        if not resource.plan:
             return
         related_invoice_items = invoice_models.InvoiceItem.objects.filter(
             resource=resource,

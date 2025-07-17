@@ -1178,6 +1178,7 @@ class Resource(
     marketplace resource model as a primary mean.
     """
 
+    id: int
     children: models.Manager["Resource"]
     quotas: models.Manager["ComponentQuota"]
     usages: models.Manager["ComponentUsage"]

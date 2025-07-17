@@ -14,6 +14,7 @@ class MarketplaceRancherConfig(AppConfig):
 
     def ready(self):
         from waldur_core.structure import signals as structure_signals
+        from waldur_mastermind.invoices.models import InvoiceItem
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
@@ -76,6 +77,12 @@ class MarketplaceRancherConfig(AppConfig):
             handlers.copy_invoice_items_when_cluster_is_provisioned,
             sender=marketplace_models.Resource,
             dispatch_uid="waldur_mastermind.marketplace_rancher.copy_invoice_items_when_cluster_is_provisioned",
+        )
+
+        signals.post_save.connect(
+            handlers.copy_invoice_item_from_openstack,
+            sender=InvoiceItem,
+            dispatch_uid="waldur_mastermind.marketplace_rancher.copy_invoice_item_from_openstack",
         )
 
         signals.post_save.connect(
