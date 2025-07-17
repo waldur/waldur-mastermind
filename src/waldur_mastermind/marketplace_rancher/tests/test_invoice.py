@@ -1,8 +1,11 @@
 from rest_framework import test
 
-from waldur_core.structure.tests.factories import ProjectFactory
+from waldur_core.structure.tests.factories import CustomerFactory, ProjectFactory
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.invoices.tests.factories import InvoiceItemFactory
+from waldur_mastermind.invoices.tests.factories import (
+    InvoiceFactory,
+    InvoiceItemFactory,
+)
 from waldur_mastermind.invoices.utils import (
     get_current_month_end,
     get_current_month_start,
@@ -20,15 +23,21 @@ from waldur_rancher.tests.factories import ClusterFactory, NodeFactory
 
 
 class RancherInvoiceTest(test.APITransactionTestCase):
-    def test_invoice_is_copied_from_tenant_to_cluster(self):
-        start = get_current_month_start()
-        end = get_current_month_end()
+    def setUp(self):
+        self.start = get_current_month_start()
+        self.end = get_current_month_end()
 
+    def create_invoice_items(self):
+        start = self.start
+        end = self.end
+
+        customer = CustomerFactory()
+        invoice = InvoiceFactory(customer=customer)
         cluster_project = ProjectFactory()
         cluster = ClusterFactory(project=cluster_project)
+        vm_project = ProjectFactory()
 
         for i in (1, 2):
-            vm_project = ProjectFactory()
             vpc = TenantFactory(project=vm_project)
             vm = InstanceFactory(project=vm_project, tenant=vpc)
             vpc_offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
@@ -38,6 +47,7 @@ class RancherInvoiceTest(test.APITransactionTestCase):
                 offering=vpc_offering,
             )
             InvoiceItemFactory(
+                invoice=invoice,
                 resource=vpc_resource,
                 project=vm_project,
                 unit_price=100,
@@ -94,7 +104,10 @@ class RancherInvoiceTest(test.APITransactionTestCase):
         )
         resource_creation_succeeded(resource)
 
-        items = invoices_models.InvoiceItem.objects.filter(resource=resource)
+        return invoices_models.InvoiceItem.objects.filter(resource=resource)
+
+    def test_invoice_is_copied_from_tenant_to_cluster(self):
+        items = self.create_invoice_items()
 
         self.assertEqual(items.count(), 3)
 
@@ -103,3 +116,28 @@ class RancherInvoiceTest(test.APITransactionTestCase):
 
         self.assertTrue(items.filter(article_code="vpc").exists())
         self.assertTrue(items.filter(article_code="rancher").exists())
+
+    def test_invoice_changes_are_propagated_from_openstack_to_rancher(self):
+        items = self.create_invoice_items()
+
+        # There should be one aggregated invoice item
+        self.assertEqual(1, items.filter(backend_uuid__isnull=True).count())
+
+        # There should be two tracked invoice items
+        self.assertEqual(2, items.filter(backend_uuid__isnull=False).count())
+
+        new_quantity = get_full_days(self.start, self.end) * 20
+        for downstream_item in items.filter(backend_uuid__isnull=False):
+            upstream_item = invoices_models.InvoiceItem.objects.get(
+                uuid=downstream_item.backend_uuid
+            )
+
+            upstream_item.quantity = new_quantity
+            upstream_item.save(update_fields=["quantity"])
+
+            downstream_item.refresh_from_db()
+            self.assertEqual(downstream_item.quantity, new_quantity)
+
+        aggregated_item = items.get(backend_uuid__isnull=True)
+        aggregated_item.refresh_from_db()
+        self.assertEqual(aggregated_item.quantity, new_quantity * 2)

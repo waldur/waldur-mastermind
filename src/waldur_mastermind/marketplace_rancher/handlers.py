@@ -20,6 +20,10 @@ from waldur_mastermind.marketplace.utils import (
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN
 from waldur_mastermind.marketplace_rancher.const import OS_LB_PREFIX
+from waldur_mastermind.marketplace_rancher.utils import (
+    sync_aggregated_invoice_item,
+    sync_managed_rancher_invoice_items,
+)
 from waldur_openstack import models as openstack_models
 from waldur_rancher.exceptions import RancherException
 from waldur_rancher.models import Cluster, ClusterPublicIP, RancherUser
@@ -160,6 +164,7 @@ def copy_invoice_items_when_cluster_is_provisioned(
     # Copy invoice items from linked tenants to the new cluster resource.
     for invoice_item in source_items:
         invoice_item.pk = None
+        invoice_item.backend_uuid = invoice_item.uuid
         invoice_item.uuid = uuid4()
         invoice_item.resource = resource
         invoice_item.invoice = invoice
@@ -248,6 +253,25 @@ def copy_invoice_items_when_cluster_is_provisioned(
             details=details,
             quantity=total_quantity,
         )
+
+
+def copy_invoice_item_from_openstack(
+    sender, instance: InvoiceItem, created=False, **kwargs
+):
+    upstream_invoice_item = instance
+    if not upstream_invoice_item.resource:
+        return
+    if not upstream_invoice_item.resource.offering.type == TENANT_TYPE:
+        return
+    try:
+        downstream_invoice_item = InvoiceItem.objects.get(
+            backend_uuid=upstream_invoice_item.uuid
+        )
+    except InvoiceItem.DoesNotExist:
+        # It is okay if OS VPC invoice item is not connected to Managed Rancher invoice item
+        return
+    sync_managed_rancher_invoice_items(upstream_invoice_item, downstream_invoice_item)
+    sync_aggregated_invoice_item(upstream_invoice_item, downstream_invoice_item)
 
 
 def create_public_cluster_ip_for_floating_ip(
