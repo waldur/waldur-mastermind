@@ -435,6 +435,9 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.BaseResource):
 
 
 class Router(structure_models.BaseResource):
+    class Meta(structure_models.BaseResource.Meta):
+        unique_together = [["tenant", "backend_id"]]
+
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="routers"
     )
@@ -562,6 +565,9 @@ class SubNet(structure_models.BaseResource):
 
 
 class Port(structure_models.BaseResource):
+    class Meta(structure_models.BaseResource.Meta):
+        unique_together = [["tenant", "backend_id"]]
+
     floating_ips: models.Manager["FloatingIP"]
 
     tenant = models.ForeignKey(
