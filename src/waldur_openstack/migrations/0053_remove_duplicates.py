@@ -43,13 +43,5 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RunPython(delete_port_duplicates),
-        migrations.AlterUniqueTogether(
-            name="port",
-            unique_together={("tenant", "backend_id")},
-        ),
         migrations.RunPython(delete_router_duplicates),
-        migrations.AlterUniqueTogether(
-            name="router",
-            unique_together={("tenant", "backend_id")},
-        ),
     ]
