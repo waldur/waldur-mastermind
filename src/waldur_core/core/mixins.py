@@ -195,3 +195,35 @@ class GetValueMixin:
 
     def get_from_attrs_or_instance(self, attrs, field_name, default=None):
         return attrs.get(field_name, getattr(self.instance, field_name, default))
+
+
+class ProjectNameTemplateMixin(django_models.Model):
+    """Mixin for models that need to generate project names from templates."""
+
+    class Meta:
+        abstract = True
+
+    project_name_template = django_models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Template for project name. Supports {username}, {email}, {full_name} variables",
+    )
+
+    def resolve_project_name(self, user):
+        """
+        Resolve project name using template or default to username.
+
+        Args:
+            user: User instance for template variable substitution
+
+        Returns:
+            str: Resolved project name
+        """
+        if self.project_name_template:
+            return self.project_name_template.format(
+                username=user.username,
+                email=user.email,
+                full_name=user.get_full_name() or user.username,
+            )
+        return user.username

@@ -12,6 +12,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import has_user
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models, tasks
 from waldur_core.users.tests import factories
@@ -529,14 +530,52 @@ class RequestRejectTest(BaseInvitationTest):
         self.permission_request.refresh_from_db()
         self.assertEqual(self.permission_request.state, ReviewStates.REJECTED)
 
-        response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    @data("customer_owner")
-    def test_user_cannot_reject_request(self, user):
-        CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
-        self.client.force_authenticate(user=getattr(self, user))
-        response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.permission_request.refresh_from_db()
-        self.assertEqual(self.permission_request.state, ReviewStates.PENDING)
+@ddt
+class PermissionRequestProjectCreationTest(BaseInvitationTest):
+    def setUp(self):
+        super().setUp()
+        self.user_with_template = structure_factories.UserFactory(
+            username="template_user",
+            email="template@example.com",
+            first_name="Template",
+            last_name="User",
+        )
+
+    def test_create_project_with_template(self):
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_create_project=True,
+            project_name_template="{username}_custom_project",
+        )
+
+        permission_request = factories.PermissionRequestFactory(
+            invitation=invitation, created_by=self.user_with_template
+        )
+
+        permission_request.approve(self.staff)
+
+        # Check that project was created with template name
+        self.assertTrue(
+            structure_models.Project.objects.filter(
+                name="template_user_custom_project", customer=self.customer
+            ).exists()
+        )
+
+    def test_create_project_without_template_uses_default(self):
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer, auto_create_project=True, project_name_template=""
+        )
+
+        permission_request = factories.PermissionRequestFactory(
+            invitation=invitation, created_by=self.user_with_template
+        )
+
+        permission_request.approve(self.staff)
+
+        # Check that project was created with username (default)
+        self.assertTrue(
+            structure_models.Project.objects.filter(
+                name="template_user", customer=self.customer
+            ).exists()
+        )

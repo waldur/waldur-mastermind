@@ -1,8 +1,10 @@
 import datetime
+from decimal import Decimal
 from unittest import mock
 from urllib.parse import urlencode
 
 from ddt import data, ddt
+from django.core.exceptions import ValidationError
 from django.db import DEFAULT_DB_ALIAS, connections
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -1199,3 +1201,111 @@ class CustomerListHeadOptimizationTest(test.APITransactionTestCase):
 
         self.assertEqual(first_pass_queryset_size, 3)
         self.assertEqual(second_pass_queryset_size, 6)
+
+
+class CustomerDefaultTaxPercentValidationTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.customer = factories.CustomerFactory()
+        self.staff = factories.UserFactory(is_staff=True)
+
+    def test_valid_tax_percent_decimal_values(self):
+        """Test that valid Decimal values are accepted."""
+        valid_values = [
+            Decimal("0"),
+            Decimal("0.00"),
+            Decimal("10.50"),
+            Decimal("25.75"),
+            Decimal("100.00"),
+            Decimal("200.00"),
+        ]
+
+        for value in valid_values:
+            self.customer.default_tax_percent = value
+            try:
+                self.customer.full_clean()
+            except ValidationError:
+                self.fail(f"Valid value {value} should not raise ValidationError")
+
+    def test_tax_percent_minimum_value_validation(self):
+        """Test that values below 0 are rejected."""
+        invalid_values = [
+            Decimal("-0.01"),
+            Decimal("-1.00"),
+            Decimal("-10.50"),
+        ]
+
+        for value in invalid_values:
+            self.customer.default_tax_percent = value
+            with self.assertRaises(ValidationError) as context:
+                self.customer.full_clean()
+            self.assertIn("default_tax_percent", str(context.exception))
+
+    def test_tax_percent_maximum_value_validation(self):
+        """Test that values above 200 are rejected."""
+        invalid_values = [
+            Decimal("200.01"),
+            Decimal("250.00"),
+            Decimal("999.99"),
+        ]
+
+        for value in invalid_values:
+            self.customer.default_tax_percent = value
+            with self.assertRaises(ValidationError) as context:
+                self.customer.full_clean()
+            self.assertIn("default_tax_percent", str(context.exception))
+
+    def test_tax_percent_boundary_values(self):
+        """Test boundary values are handled correctly."""
+        # Test exact boundary values
+        boundary_values = [
+            Decimal("0.00"),  # Minimum allowed
+            Decimal("200.00"),  # Maximum allowed
+        ]
+
+        for value in boundary_values:
+            self.customer.default_tax_percent = value
+            try:
+                self.customer.full_clean()
+            except ValidationError:
+                self.fail(f"Boundary value {value} should not raise ValidationError")
+
+    def test_tax_percent_precision_validation(self):
+        """Test that the field handles decimal precision correctly."""
+        # Test with 2 decimal places (should work)
+        self.customer.default_tax_percent = Decimal("15.99")
+        try:
+            self.customer.full_clean()
+        except ValidationError:
+            self.fail("Value with 2 decimal places should be valid")
+
+    def test_tax_percent_api_validation(self):
+        """Test validation through the API."""
+        self.client.force_authenticate(user=self.staff)
+        url = factories.CustomerFactory.get_url(self.customer)
+
+        # Test valid value
+        response = self.client.patch(url, {"default_tax_percent": "15.50"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Test invalid value (below minimum)
+        response = self.client.patch(url, {"default_tax_percent": "-1.00"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("default_tax_percent", response.data)
+
+        # Test invalid value (above maximum)
+        response = self.client.patch(url, {"default_tax_percent": "250.00"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("default_tax_percent", response.data)
+
+    def test_tax_percent_default_value(self):
+        """Test that the default value is correctly set."""
+        new_customer = factories.CustomerFactory()
+        self.assertEqual(new_customer.default_tax_percent, Decimal("0"))
+
+    def test_tax_percent_string_conversion(self):
+        """Test that string values are properly converted to Decimal."""
+        self.customer.default_tax_percent = "25.50"
+        self.customer.save()
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.default_tax_percent, Decimal("25.50"))
+        self.assertIsInstance(self.customer.default_tax_percent, Decimal)

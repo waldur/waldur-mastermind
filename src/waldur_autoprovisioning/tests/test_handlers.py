@@ -111,6 +111,18 @@ class CreateProjectWithoutResourcesTest(TestCase):
         self.assertFalse(project.is_removed)
         self.assertTrue(project.has_user(user, ProjectRole.MANAGER))
 
+    @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
+    def test_create_project_with_name_template(self, mock_process_order):
+        self.rule.project_name_template = "{username}_auto_project"
+        self.rule.save()
+        user = User.objects.create(username="testuser", email="test@example.com")
+        self.assertEqual(mock_process_order.call_count, 0)
+        project = structure_models.Project.available_objects.filter(
+            name="testuser_auto_project", customer=self.rule.customer
+        ).get()
+        self.assertFalse(project.is_removed)
+        self.assertTrue(project.has_user(user, ProjectRole.ADMIN))
+
 
 class InvalidRegexPatternsTest(TestCase):
     def test_is_pattern_match_with_invalid_regex(self):
@@ -139,3 +151,61 @@ class InvalidRegexPatternsTest(TestCase):
         rules = handlers.get_rules(user)
         self.assertEqual(len(rules), 1)
         self.assertEqual(rules[0], rule)
+
+
+class GetOrCreateProjectWithTemplateTest(TestCase):
+    def setUp(self):
+        self.rule = autoprovisioning_factories.RuleFactory(
+            project_name_template="{username}_custom_workspace"
+        )
+        self.user = User.objects.create(
+            username="test_user",
+            email="test@example.com",
+            first_name="Test",
+            last_name="User",
+        )
+
+    @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
+    def test_get_or_create_project_uses_template(self, mock_process_order):
+        project = handlers.get_or_create_project(self.rule, self.user)
+
+        self.assertIsNotNone(project)
+        self.assertEqual(project.name, "test_user_custom_workspace")
+        self.assertEqual(project.customer, self.rule.customer)
+        self.assertTrue(project.has_user(self.user, ProjectRole.ADMIN))
+
+    @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
+    def test_get_or_create_project_without_template_uses_username(
+        self, mock_process_order
+    ):
+        self.rule.project_name_template = ""
+        self.rule.save()
+
+        project = handlers.get_or_create_project(self.rule, self.user)
+
+        self.assertIsNotNone(project)
+        self.assertEqual(project.name, "test_user")
+        self.assertEqual(project.customer, self.rule.customer)
+        self.assertTrue(project.has_user(self.user, ProjectRole.ADMIN))
+
+    @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
+    def test_get_or_create_project_returns_existing_project(self, mock_process_order):
+        # Create project first time
+        project1 = handlers.get_or_create_project(self.rule, self.user)
+
+        # Call again should return same project
+        project2 = handlers.get_or_create_project(self.rule, self.user)
+
+        self.assertEqual(project1.id, project2.id)
+        self.assertEqual(project1.name, "test_user_custom_workspace")
+
+    @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
+    def test_get_or_create_project_with_custom_role(self, mock_process_order):
+        self.rule.project_role = ProjectRole.MANAGER
+        self.rule.save()
+
+        project = handlers.get_or_create_project(self.rule, self.user)
+
+        self.assertIsNotNone(project)
+        self.assertTrue(project.has_user(self.user, ProjectRole.MANAGER))
+        self.assertFalse(project.has_user(self.user, ProjectRole.ADMIN))
