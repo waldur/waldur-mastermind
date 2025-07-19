@@ -4832,9 +4832,24 @@ class OpenStackBackend(ServiceBackend):
         session = get_tenant_session(instance.tenant)
         nova = get_nova_client(session)
         server_id = instance.backend_id
+
+        logger.info(
+            f"Starting security group sync for instance {instance.name} "
+            f"(UUID: {instance.uuid}, backend_id: {server_id}) "
+            f"in tenant {instance.tenant.name}"
+        )
+
         try:
             remote_groups = nova.servers.list_security_group(server_id)
+            logger.info(
+                f"Nova API returned {len(remote_groups)} security groups for server {server_id}: "
+                f"{[{'id': g.id, 'name': getattr(g, 'name', 'unknown')} for g in remote_groups]}"
+            )
         except nova_exceptions.ClientException as e:
+            logger.error(
+                f"Failed to fetch security groups from Nova API for server {server_id} "
+                f"in tenant {instance.tenant.name}: {e}"
+            )
             raise OpenStackBackendError(e)
         tenant_groups = models.SecurityGroup.objects.filter(tenant=instance.tenant)
 
@@ -4845,8 +4860,24 @@ class OpenStackBackend(ServiceBackend):
             .values_list("backend_id", flat=True)
         )
 
+        logger.info(
+            f"Security group sync comparison for instance {instance.name}: "
+            f"remote_ids={remote_ids}, local_ids={local_ids}, "
+            f"to_remove={local_ids - remote_ids}, to_add={remote_ids - local_ids}"
+        )
+
         # remove stale groups
         stale_groups = tenant_groups.filter(backend_id__in=(local_ids - remote_ids))
+        if stale_groups.exists():
+            stale_group_info = [
+                {"name": sg.name, "uuid": str(sg.uuid), "backend_id": sg.backend_id}
+                for sg in stale_groups
+            ]
+            logger.info(
+                f"Removing {stale_groups.count()} stale security groups from instance {instance.name}: "
+                f"{stale_group_info}. Remote groups returned by Nova: "
+                f"{[{'id': g.id, 'name': getattr(g, 'name', 'unknown')} for g in remote_groups]}"
+            )
         instance.security_groups.remove(*stale_groups)
         for security_group in stale_groups:
             event_logger.emit(
