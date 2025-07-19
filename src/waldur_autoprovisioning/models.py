@@ -2,12 +2,18 @@ from django.db import models
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
+from waldur_core.core.mixins import ProjectNameTemplateMixin
 from waldur_core.permissions.models import Role
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
 
-class Rule(TimeStampedModel, core_models.UuidMixin, core_models.NameMixin):
+class Rule(
+    TimeStampedModel,
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    ProjectNameTemplateMixin,
+):
     class Permissions:
         customer_path = "customer"
 

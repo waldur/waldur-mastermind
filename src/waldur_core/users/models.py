@@ -11,6 +11,7 @@ from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
+from waldur_core.core.mixins import ProjectNameTemplateMixin
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import add_user
 from waldur_core.structure.models import Customer
@@ -40,18 +41,13 @@ class BaseInvitation(core_models.UuidMixin, core_mixins.ScopeMixin, TimeStampedM
     )
 
 
-class GroupInvitation(BaseInvitation):
+class GroupInvitation(BaseInvitation, ProjectNameTemplateMixin):
     is_active = models.BooleanField(default=True)
 
     # New fields for project creation alternative
     auto_create_project = models.BooleanField(
         default=False,
         help_text="Create project and grant project permissions instead of customer permissions",
-    )
-    project_name_template = models.CharField(
-        max_length=255,
-        blank=True,
-        help_text="Template for project name. Supports {username}, {email}, {full_name} variables",
     )
     project_role = models.ForeignKey(
         to=Role,
@@ -191,7 +187,7 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
     )
 
     @transaction.atomic
-    def approve(self, user, comment=None):
+    def approve(self, user: core_models.User, comment: str = None):
         super().approve(user, comment)
 
         if self.invitation.auto_create_project:
@@ -234,12 +230,6 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
         return project
 
     def _resolve_project_name(self):
-        if self.invitation.project_name_template:
-            return self.invitation.project_name_template.format(
-                username=self.created_by.username,
-                email=self.created_by.email,
-                full_name=self.created_by.get_full_name() or self.created_by.username,
-            )
-        return f"{self.created_by.username}_project"
+        return self.invitation.resolve_project_name(self.created_by)
 
     tracker = cast(FieldInstanceTracker, FieldTracker())

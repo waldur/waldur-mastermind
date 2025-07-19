@@ -38,21 +38,24 @@ def _is_pattern_match(pattern, email):
         return False
 
 
-def get_or_create_project(customer, user, project_role) -> Project | None:
+def get_or_create_project(rule: Rule, user: User) -> Project | None:
     project = None
-    project_role = project_role or Role.project_admin()
+    project_role = rule.project_role or Role.project_admin()
 
     try:
-        project = Project.available_objects.get(name=user.username, customer=customer)
+        project_name = rule.resolve_project_name(user)
+        project = Project.available_objects.get(
+            name=project_name, customer=rule.customer
+        )
 
         if not project.has_user(user, project_role):
             project.add_user(user, project_role)
 
     except Project.MultipleObjectsReturned:
-        logger.warning("Multiple projects with the same name %s exist.", user.username)
+        logger.warning("Multiple projects with the same name %s exist.", project_name)
     except Project.DoesNotExist:
         project = Project.available_objects.create(
-            customer=customer, name=user.username
+            customer=rule.customer, name=project_name
         )
         project.add_user(user, project_role)
 
@@ -136,9 +139,7 @@ def handle_new_user(sender, instance: User, created=False, **kwargs):
         return
 
     for rule in rules:
-        project: Project | None = get_or_create_project(
-            rule.customer, user, rule.project_role
-        )
+        project: Project | None = get_or_create_project(rule, user)
 
         if not project:
             continue

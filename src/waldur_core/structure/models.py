@@ -431,9 +431,9 @@ class Customer(
     )
     default_tax_percent = models.DecimalField(
         default=Decimal(0),
-        max_digits=4,
+        max_digits=5,
         decimal_places=2,
-        validators=[MinValueValidator(0), MaxValueValidator(200)],
+        validators=[MinValueValidator(Decimal(0)), MaxValueValidator(Decimal(200))],
     )
     blocked = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
