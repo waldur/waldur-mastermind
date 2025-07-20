@@ -2966,8 +2966,10 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "customer_name",
             "offering_uuid",
             "offering_name",
+            "offering_slug",
             "parent_offering_uuid",
             "parent_offering_name",
+            "parent_offering_slug",
             "parent_uuid",
             "parent_name",
             "backend_metadata",
@@ -3053,12 +3055,14 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     )
     offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
     offering_name = serializers.ReadOnlyField(source="offering.name")
+    offering_slug = serializers.ReadOnlyField(source="offering.slug")
     parent_offering_uuid = serializers.UUIDField(
         read_only=True, source="offering.parent.uuid"
     )
     parent_offering_name = serializers.ReadOnlyField(source="offering.parent.name")
     parent_uuid = serializers.UUIDField(read_only=True, source="parent.uuid")
     parent_name = serializers.ReadOnlyField(source="parent.name")
+    parent_slug = serializers.ReadOnlyField(source="parent.slug")
     # If resource is usage-based, frontend would render button to show and report usage
     is_usage_based = serializers.ReadOnlyField(source="offering.is_usage_based")
     is_limit_based = serializers.ReadOnlyField(source="offering.is_limit_based")
