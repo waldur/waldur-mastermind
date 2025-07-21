@@ -12,6 +12,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="port",
             name="backend_id",
-            field=models.CharField(blank=True, null=True),
+            field=models.CharField(max_length=255, blank=True, null=True),
         ),
     ]
