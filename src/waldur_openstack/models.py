@@ -441,6 +441,7 @@ class Router(structure_models.BaseResource):
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="routers"
     )
+    backend_id = models.CharField(max_length=255, blank=True, null=True)
     routes = JSONField(default=list)
     fixed_ips = JSONField(default=list)
     ports = models.ManyToManyField("Port", related_name="routers", blank=True)
