@@ -606,7 +606,7 @@ class Port(structure_models.BaseResource):
             "and subnet_id is a backend id of the subnet"
         ),
     )
-    backend_id = models.CharField(max_length=255, blank=True)
+    backend_id = models.CharField(max_length=255, blank=True, null=True)
     allowed_address_pairs = JSONField(
         default=list,
         help_text=_(
