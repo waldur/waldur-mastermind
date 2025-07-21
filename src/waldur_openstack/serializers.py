@@ -2972,6 +2972,7 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
         instance.security_groups.add(*security_groups)
         instance.server_group = server_group
         for port in ports:
+            port.backend_id = None
             port.instance = instance
             port.save()
         for floating_ip, subnet in floating_ips_with_subnets:
