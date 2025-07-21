@@ -1,6 +1,7 @@
 import uuid
 from unittest import mock
 
+import factory
 from celery import Signature
 from cinderclient import exceptions as cinder_exceptions
 from ddt import data, ddt
@@ -352,6 +353,30 @@ class InstanceCreateTest(test.APITransactionTestCase):
         response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_can_create_instance_with_multiple_ports(self):
+        data = self.get_valid_data()
+        second_subnet = factories.SubNetFactory(
+            network=self.fixture.network,
+            tenant=self.fixture.tenant,
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            state=CoreStates.OK,
+            backend_id=factory.Sequence(lambda n: "subnet_%s" % n),
+        )
+        data["ports"].append({"subnet": factories.SubNetFactory.get_url(second_subnet)})
+
+        response = self.create_instance(data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        instance = models.Instance.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(instance.ports.count(), 2)
+        self.assertTrue(
+            instance.ports.filter(subnet=self.fixture.subnet, backend_id=None).exists(),
+        )
+        self.assertTrue(
+            instance.ports.filter(subnet=second_subnet, backend_id=None).exists(),
+        )
 
     def test_show_volume_type_in_instance_serializer(self):
         instance = factories.InstanceFactory()
