@@ -771,6 +771,11 @@ class ReviewViewSet(ActionsViewSet):
         review: models.Review = self.get_object()
         review.state = models.Review.States.IN_REVIEW
         review.save()
+        review.proposal.state = ProposalStates.IN_REVIEW
+        review.proposal.save()
+        logger.info(
+            f"Review {review.uuid}, by {review.reviewer.full_name} for proposal {review.proposal.name} has been accepted. Proposal state changed to IN_REVIEW."
+        )
         return response.Response(
             "Review has been accepted.",
             status=status.HTTP_200_OK,
