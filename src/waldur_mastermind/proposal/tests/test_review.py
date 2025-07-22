@@ -184,6 +184,7 @@ class ActionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.review.refresh_from_db()
         self.assertTrue(self.review.state, models.Review.States.IN_REVIEW)
+        self.assertTrue(self.review.proposal.state, ProposalStates.IN_REVIEW)
 
     @data(
         "owner",
