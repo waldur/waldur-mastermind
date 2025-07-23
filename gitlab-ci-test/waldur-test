@@ -4,8 +4,8 @@ set -e
 TEST_MODE="${1:-UNIT}"
 
 echo "[+] Install dependencies in case of absence"
-pip3 install poetry==2.1.2
-pip3 install --upgrade setuptools==78.1.0
+pip3 install poetry==2.1.3
+pip3 install --upgrade setuptools==80.9.0
 poetry install -vvv
 
 echo "[+] Setup test settings"

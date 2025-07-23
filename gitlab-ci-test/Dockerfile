@@ -15,7 +15,7 @@ RUN apt-get update    &&\
     python3-dev
 
 RUN python3 -m pip install --upgrade pip
-RUN pip3 install poetry==2.1.2
+RUN pip3 install poetry==2.1.3
 
 # Copy poetry files
 COPY pyproject.toml /tmp/mnt/pyproject.toml

@@ -128,7 +128,7 @@ Run type checkings:
   script:
     - |
       pip3 install poetry==2.1.2
-      pip3 install --upgrade setuptools==78.1.0
+      pip3 install --upgrade setuptools==80.9.0
       poetry install -vvv
       pyright src/waldur_core/structure/models.py \
              src/waldur_mastermind/marketplace_remote/processors.py \

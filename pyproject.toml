@@ -86,7 +86,7 @@ drf-orjson-renderer = "^1.7.3"
 psycopg = {extras = ["binary"], version = "^3.2.6"}
 python-magic = "^0.4.27"
 stomp-py = "^8.2.0"
-setuptools = "^78.1.0"
+setuptools = "^80.9.0"
 hvac = "^2.3.0"
 python-keycloak = "^5.5.0"
 django-stubs-ext = "^5.1.3"
