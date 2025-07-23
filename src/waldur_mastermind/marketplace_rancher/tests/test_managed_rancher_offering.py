@@ -1,4 +1,5 @@
 from rest_framework import test
+from rest_framework.serializers import ValidationError
 
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OrderStates
@@ -12,6 +13,11 @@ from waldur_openstack.tests import (
     fixtures as openstack_fixtures,
 )
 from waldur_rancher.tests import factories as rancher_factories
+
+
+class Request:
+    def __init__(self, request_user):
+        self.user = request_user
 
 
 class ClusterTenantLimitsTest(test.APITransactionTestCase):
@@ -51,6 +57,7 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
                 "managed_rancher_load_balancer_system_volume_type_name": "prod",
                 "managed_rancher_load_balancer_data_volume_size_gb": 50,
                 "managed_rancher_load_balancer_data_volume_type_name": "prod",
+                "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
             }
         )
         self.offering.secret_options.update(
@@ -81,11 +88,13 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
                 "managed_rancher_tenant_max_cpu": self.cpu_number * 4 + 1,
             }
         )
-        marketplace_utils.process_order(self.order, self.fixture.staff)
+        with self.assertRaises(ValidationError) as context:
+            marketplace_utils.validate_order(self.order, Request(self.fixture.staff))
 
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.state, OrderStates.ERRED)
-        self.assertIn("The requested total cores limit", self.order.error_message)
+        details = str(context.exception.detail)
+
+        self.assertIn("The requested total cores limit", details)
+        self.assertNotIn("MB", details)
 
     def test_cluster_creation_fails_when_ram_limit_exceeded(self):
         self.offering.plugin_options.update(
@@ -93,11 +102,12 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
                 "managed_rancher_tenant_max_ram": self.ram_size * 4 + 1,
             }
         )
-        marketplace_utils.process_order(self.order, self.fixture.staff)
+        with self.assertRaises(ValidationError) as context:
+            marketplace_utils.validate_order(self.order, Request(self.fixture.staff))
 
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.state, OrderStates.ERRED)
-        self.assertIn("The requested total ram limit", self.order.error_message)
+        details = str(context.exception.detail)
+        self.assertIn("The requested total ram limit", details)
+        self.assertIn("MB", details)
 
     def test_cluster_creation_fails_when_disk_limit_exceeded(self):
         self.offering.plugin_options.update(
@@ -105,11 +115,12 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
                 "managed_rancher_tenant_max_disk": 100,
             }
         )
-        marketplace_utils.process_order(self.order, self.fixture.staff)
+        with self.assertRaises(ValidationError) as context:
+            marketplace_utils.validate_order(self.order, Request(self.fixture.staff))
 
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.state, OrderStates.ERRED)
-        self.assertIn("The requested total storage limit", self.order.error_message)
+        details = str(context.exception.detail)
+        self.assertIn("The requested total storage limit", details)
+        self.assertIn("MB", details)
 
     def test_cluster_creation_fails_when_disk_limit_exceeded_for_dynamic_storage(self):
         self.offering.plugin_options.update(
@@ -124,8 +135,9 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
         )
         self.openstack_offering.save()
 
-        marketplace_utils.process_order(self.order, self.fixture.staff)
+        with self.assertRaises(ValidationError) as context:
+            marketplace_utils.validate_order(self.order, Request(self.fixture.staff))
 
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.state, OrderStates.ERRED)
-        self.assertIn("The requested total storage limit", self.order.error_message)
+        details = str(context.exception.detail)
+        self.assertIn("The requested total storage limit", details)
+        self.assertIn("MB", details)

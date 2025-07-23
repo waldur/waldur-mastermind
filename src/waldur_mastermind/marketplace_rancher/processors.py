@@ -1,3 +1,4 @@
+import collections
 from ipaddress import ip_network
 from time import sleep
 from typing import cast
@@ -113,52 +114,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         )
 
     def create_tenants(self, user, project: Project) -> list[os_models.Tenant]:
-        def validate_all_tenant_limits(tenant_limits: list[dict[str, int]]):
-            aggregated_limits = {
-                CORES_TYPE: sum(limits[CORES_TYPE] for limits in tenant_limits),
-                RAM_TYPE: sum(limits[RAM_TYPE] for limits in tenant_limits),
-            }
-
-            type_to_max_limit = {
-                CORES_TYPE: self.order.offering.plugin_options.get(
-                    "managed_rancher_tenant_max_cpu"
-                ),
-                RAM_TYPE: self.order.offering.plugin_options.get(
-                    "managed_rancher_tenant_max_ram"
-                ),
-                STORAGE_TYPE: self.order.offering.plugin_options.get(
-                    "managed_rancher_tenant_max_disk"
-                ),
-            }
-
-            # Collect limits for storage quotas across the tenants and sum them
-            tenant_storage_limits = []
-            for tenant_limit in tenant_limits:
-                tenant_storage_limit = sum(
-                    limit_value
-                    for limit_type, limit_value in tenant_limit.items()
-                    if limit_type.startswith("gigabytes_") or limit_type == STORAGE_TYPE
-                )
-                tenant_storage_limits.append(tenant_storage_limit)
-            aggregated_limits[STORAGE_TYPE] = sum(tenant_storage_limits)
-
-            for limit_type, aggregated_limit in aggregated_limits.items():
-                max_allowed_limit = type_to_max_limit[limit_type]
-
-                if not max_allowed_limit:
-                    continue
-
-                if limit_type != CORES_TYPE:
-                    # Convert GBs to MBs
-                    max_allowed_limit *= 1024
-
-                if aggregated_limit > max_allowed_limit:
-                    raise rf_serializers.ValidationError(
-                        f"The requested total {limit_type} limit {aggregated_limit} cores exceeds the maximum allowed {max_allowed_limit} for tenants."
-                    )
-
-        orders = []
-        orders_data = []
+        tenants = []
         openstack_offering_uuid_list = cast(
             list[str], self.order.attributes["openstack_offering_uuid_list"]
         )
@@ -169,34 +125,14 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 "name": f"os-tenant-{project.slug}-{offering.slug}",
             }
             limits = self.get_tenant_limits(offering)
-            orders_data.append(
-                {
-                    "offering": offering,
-                    "plan": plan,
-                    "attributes": attributes,
-                    "limits": limits,
-                }
+            order_uuid = submit_creation_order(
+                user, offering, plan, project, attributes, limits
             )
+            order = Order.objects.get(uuid=order_uuid)
+            tenant = cast(os_models.Tenant, order.resource.scope)
+            tenants.append(tenant)
 
-        tenant_limits = [order_data["limits"] for order_data in orders_data]
-        validate_all_tenant_limits(tenant_limits)
-
-        for order_data in orders_data:
-            orders.append(
-                submit_creation_order(
-                    user,
-                    order_data["offering"],
-                    order_data["plan"],
-                    project,
-                    order_data["attributes"],
-                    order_data["limits"],
-                )
-            )
-
-        return [
-            cast(os_models.Tenant, order.resource.scope)
-            for order in Order.objects.filter(uuid__in=orders)
-        ]
+        return tenants
 
     def update_subnets(self, tenants: list[os_models.Tenant]):
         # Limit applocation pools for subnets used for Rancher nodes
@@ -607,6 +543,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         available_service_settings = self.validate_openstack_offerings()
         self.validate_flavors(available_service_settings)
         self.validate_volume_types(available_service_settings)
+        self.validate_limits()
 
     def validate_flavors(self, available_service_settings: list[int]):
         worker_nodes_flavor_name = self.order.attributes["worker_nodes_flavor_name"]
@@ -680,6 +617,54 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     raise rf_serializers.ValidationError(
                         f"Volume type {volume_type_name} is not available in OpenStack offering {service_setting}"
                     )
+
+    def validate_limits(self):
+        aggregated_limits = collections.defaultdict(int)
+        openstack_offering_uuid_list = cast(
+            list[str], self.order.attributes["openstack_offering_uuid_list"]
+        )
+        for offering_uuid in openstack_offering_uuid_list:
+            offering = Offering.objects.get(uuid=offering_uuid)
+            limits = self.get_tenant_limits(offering)
+            aggregated_limits[CORES_TYPE] += limits[CORES_TYPE]
+            aggregated_limits[RAM_TYPE] += limits[RAM_TYPE]
+            aggregated_limits[STORAGE_TYPE] += sum(
+                limit_value
+                for limit_type, limit_value in limits.items()
+                if limit_type.startswith("gigabytes_") or limit_type == STORAGE_TYPE
+            )
+
+        type_to_max_limit = {
+            CORES_TYPE: self.order.offering.plugin_options.get(
+                "managed_rancher_tenant_max_cpu"
+            ),
+            RAM_TYPE: self.order.offering.plugin_options.get(
+                "managed_rancher_tenant_max_ram"
+            ),
+            STORAGE_TYPE: self.order.offering.plugin_options.get(
+                "managed_rancher_tenant_max_disk"
+            ),
+        }
+
+        for limit_type, aggregated_limit in aggregated_limits.items():
+            max_allowed_limit = type_to_max_limit[limit_type]
+
+            if not max_allowed_limit:
+                continue
+
+            if limit_type != CORES_TYPE:
+                # Convert GBs to MBs
+                max_allowed_limit *= 1024
+
+            if limit_type == CORES_TYPE:
+                units = "cores"
+            else:
+                units = "MB"
+
+            if aggregated_limit > max_allowed_limit:
+                raise rf_serializers.ValidationError(
+                    f"The requested total {limit_type} limit {aggregated_limit} {units} exceeds the maximum allowed {max_allowed_limit} for tenants."
+                )
 
     def validate_openstack_offerings(self):
         available_offerings = set(
