@@ -466,6 +466,9 @@ class CallResourceTemplateSerializer(
     requested_offering_name = serializers.ReadOnlyField(
         source="requested_offering.offering.name"
     )
+    requested_offering_plan = BasePublicPlanSerializer(
+        read_only=True, source="requested_offering.plan"
+    )
     requested_offering_uuid = serializers.UUIDField(
         source="requested_offering.uuid", read_only=True
     )
@@ -485,6 +488,7 @@ class CallResourceTemplateSerializer(
             "requested_offering",
             "requested_offering_name",
             "requested_offering_uuid",
+            "requested_offering_plan",
             "created_by",
             "created_by_name",
             "created",
