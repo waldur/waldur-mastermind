@@ -326,3 +326,24 @@ class SupportSection(NotificationSection):
             NotificationTemplate("summary.txt", "summary"),
         ],
     )
+
+
+class ProposalSection(NotificationSection):
+    class Meta:
+        key = "proposal"
+
+    proposal_state_changed = Notification(
+        "proposal_state_changed",
+        "A notification about the proposal state changes (submitted → in review → accepted/rejected).",
+        templates=[
+            NotificationTemplate(
+                "proposal_state_changed_message.txt", "proposal_state_changed"
+            ),
+            NotificationTemplate(
+                "proposal_state_changed_message.html", "proposal_state_changed"
+            ),
+            NotificationTemplate(
+                "proposal_state_changed_subject.txt", "proposal_state_changed"
+            ),
+        ],
+    )

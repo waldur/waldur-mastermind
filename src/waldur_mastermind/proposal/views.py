@@ -40,6 +40,7 @@ from waldur_mastermind.proposal import (
     filters,
     models,
     serializers,
+    tasks,
     utils,
 )
 from waldur_mastermind.proposal import permissions as proposal_permissions
@@ -534,8 +535,12 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         proposal = self.get_object()
+        previous_state = proposal.state
         proposal.state = ProposalStates.SUBMITTED
         proposal.save()
+        tasks.notify_user_about_proposal_state_update.delay(
+            proposal.uuid, previous_state, proposal.state
+        )
         return response.Response(
             "Proposal has been submitted.",
             status=status.HTTP_200_OK,
@@ -622,6 +627,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @decorators.action(detail=True, methods=["post"])
     def approve(self, request, uuid=None):
         proposal = self.get_object()
+        previous_state = proposal.state
         utils.allocate_proposal(proposal)
         proposal.state = ProposalStates.ACCEPTED
         serializer = self.get_serializer(data=request.data)
@@ -630,6 +636,9 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             "allocation_comment", ""
         )
         proposal.save()
+        tasks.notify_user_about_proposal_state_update.delay(
+            proposal.uuid, previous_state, proposal.state
+        )
         return response.Response(
             "Proposal has been approved.",
             status=status.HTTP_200_OK,
@@ -652,6 +661,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @decorators.action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         proposal = self.get_object()
+        previous_state = proposal.state
         proposal.state = ProposalStates.REJECTED
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -659,6 +669,9 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             "allocation_comment", ""
         )
         proposal.save()
+        tasks.notify_user_about_proposal_state_update.delay(
+            proposal.uuid, previous_state, proposal.state
+        )
         return response.Response(
             "Proposal has been rejected.",
             status=status.HTTP_200_OK,
@@ -771,10 +784,14 @@ class ReviewViewSet(ActionsViewSet):
         review: models.Review = self.get_object()
         review.state = models.Review.States.IN_REVIEW
         review.save()
+        proposal_old_state = review.proposal.state
         review.proposal.state = ProposalStates.IN_REVIEW
         review.proposal.save()
         logger.info(
             f"Review {review.uuid}, by {review.reviewer.full_name} for proposal {review.proposal.name} has been accepted. Proposal state changed to IN_REVIEW."
+        )
+        tasks.notify_user_about_proposal_state_update.delay(
+            review.proposal.uuid, proposal_old_state, review.proposal.state
         )
         return response.Response(
             "Review has been accepted.",
