@@ -22,10 +22,10 @@ class ChecklistStatsTest(test.APITransactionTestCase):
         self.question1 = factories.QuestionFactory(checklist=self.checklist)
         self.question2 = factories.QuestionFactory(checklist=self.checklist)
         models.Answer.objects.create(
-            user=self.fixture.manager, question=self.question1, value=True
+            user=self.fixture.manager, question=self.question1, answer_data=True
         )
         models.Answer.objects.create(
-            user=self.fixture.manager, question=self.question2, value=True
+            user=self.fixture.manager, question=self.question2, answer_data=True
         )
 
     def get_customer_stats(self):
@@ -86,7 +86,7 @@ class AnswerTest(test.APITransactionTestCase):
         response = common_utils.create_request(
             self.view,
             self.fixture.staff,
-            post_data=[{"question_uuid": self.question.uuid.hex, "value": True}],
+            post_data=[{"question_uuid": self.question.uuid.hex, "answer_data": "OK"}],
             checklist_uuid=self.question.checklist.uuid.hex,
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -100,7 +100,7 @@ class AnswerTest(test.APITransactionTestCase):
         response = common_utils.create_request(
             self.view,
             self.fixture.staff,
-            post_data=[{"question_uuid": self.question.uuid.hex, "value": True}],
+            post_data=[{"question_uuid": self.question.uuid.hex, "answer_data": "OK"}],
             query_params={"on_behalf_user_uuid": self.fixture.user.uuid.hex},
             checklist_uuid=self.question.checklist.uuid.hex,
         )
@@ -115,7 +115,7 @@ class AnswerTest(test.APITransactionTestCase):
         response = common_utils.create_request(
             self.view,
             self.fixture.global_support,
-            post_data=[{"question_uuid": self.question.uuid.hex, "value": True}],
+            post_data=[{"question_uuid": self.question.uuid.hex, "answer_data": "OK"}],
             query_params={"on_behalf_user_uuid": self.fixture.user.uuid.hex},
             checklist_uuid=self.question.checklist.uuid.hex,
         )
@@ -130,7 +130,7 @@ class AnswerTest(test.APITransactionTestCase):
         response = common_utils.create_request(
             self.view,
             self.fixture.staff,
-            post_data=[{"question_uuid": self.question.uuid.hex, "value": True}],
+            post_data=[{"question_uuid": self.question.uuid.hex, "answer_data": "OK"}],
             query_params={"on_behalf_user_uuid": "INVALID"},
             checklist_uuid=self.question.checklist.uuid.hex,
         )
@@ -140,7 +140,7 @@ class AnswerTest(test.APITransactionTestCase):
         response = common_utils.create_request(
             self.view,
             self.fixture.staff,
-            post_data=[{"question_uuid": self.question.uuid.hex, "value": True}],
+            post_data=[{"question_uuid": self.question.uuid.hex, "answer_data": "OK"}],
             query_params={
                 "on_behalf_user_uuid": "bb223745-1111-1111-1111-c3ae54678d38"
             },

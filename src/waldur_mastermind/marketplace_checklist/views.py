@@ -1,25 +1,31 @@
 import uuid
 
-from django.db.models import Count, F, Q
+from django.db.models import Count, Q
 from django.utils.translation import gettext_lazy as _
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework import permissions as rf_permissions
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import GenericAPIView, get_object_or_404
 from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
+from waldur_core.core import permissions as core_permissions
+from waldur_core.core import views as core_views
 from waldur_core.core.models import User
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
+from waldur_core.structure import filters as structure_filters
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.permissions import is_administrator, is_owner
 
-from . import models, serializers
+from . import filters, models, serializers
 
 
 def get_score(num, den):
@@ -57,29 +63,90 @@ class CategoryChecklistsView(ListModelMixin, GenericViewSet):
         return filter_checklists_by_roles(qs, self.request.user)
 
 
-class ChecklistListView(ListModelMixin, GenericViewSet):
+class ChecklistReadOnlyView(core_views.ReadOnlyActionsViewSet):
     queryset = models.Checklist.objects.all()
     serializer_class = serializers.ChecklistSerializer
+    lookup_field = "uuid"
 
     def get_queryset(self):
         qs = super().get_queryset()
         return filter_checklists_by_roles(qs, self.request.user)
 
+    @extend_schema(
+        description="Return questions available for current user.",
+        request=None,
+        responses=serializers.QuestionSerializer(many=True),
+    )
+    @action(detail=True, methods=["get"])
+    def questions(self, request, uuid=None):
+        checklist = self.get_object()
+        user = request.user
+        questions = checklist.get_visible_questions(user)
+        data = serializers.QuestionSerializer(questions, many=True).data
+        return Response(data, status=status.HTTP_200_OK)
 
-class ChecklistDetailView(RetrieveModelMixin, GenericViewSet):
-    queryset = models.Checklist.objects.all()
-    serializer_class = serializers.ChecklistSerializer
+
+class ChecklistAdminView(core_views.ActionsViewSet):
+    queryset = models.Checklist.objects.all().order_by("-created")
+    serializer_class = serializers.ChecklistAdminSerializer
+    create_serializer_class = update_serializer_class = (
+        partial_update_serializer_class
+    ) = serializers.CreateChecklistSerializer
+    filter_backends = [
+        DjangoFilterBackend,
+        structure_filters.GenericRoleFilter,
+    ]
+    lookup_field = "uuid"
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+    @extend_schema(
+        description="Return checklist questions.",
+        request=None,
+        responses=serializers.QuestionAdminSerializer(many=True),
+        operation_id="marketplace_checklists_admin_checklist_questions",
+    )
+    @action(detail=True, methods=["get"])
+    def questions(self, request, uuid=None):
+        checklist = self.get_object()
+        questions = checklist.questions.all()
+        data = serializers.QuestionAdminSerializer(
+            questions, context={"request": request}, many=True
+        ).data
+        return Response(data, status=status.HTTP_200_OK)
 
 
-class QuestionsView(ListModelMixin, GenericViewSet):
-    serializer_class = serializers.ChecklistQuestionSerializer
+class QuestionsAdminView(core_views.ActionsViewSet):
+    queryset = models.Question.objects.all().order_by("-checklist__created", "order")
+    serializer_class = serializers.QuestionAdminSerializer
+    filter_backends = [
+        DjangoFilterBackend,
+        structure_filters.GenericRoleFilter,
+    ]
+    lookup_field = "uuid"
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+    filterset_class = filters.QuestionFilter
 
-    def get_queryset(self):
-        if "checklist_uuid" not in self.kwargs:
-            return models.Question.objects.none()
-        return models.Question.objects.filter(
-            checklist__uuid=self.kwargs["checklist_uuid"]
-        )
+
+class QuestionOptionAdminViewSet(core_views.ActionsViewSet):
+    queryset = models.QuestionOption.objects.all().order_by(
+        "question__checklist", "question"
+    )
+    serializer_class = serializers.QuestionOptionsAdminSerializer
+    filter_backends = [
+        DjangoFilterBackend,
+        structure_filters.GenericRoleFilter,
+    ]
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+    lookup_field = "uuid"
+    filterset_class = filters.QuestionOptionFilter
+
+
+class QuestionDependencyViewSet(core_views.ActionsViewSet):
+    serializer_class = serializers.QuestionDependencySerializer
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+    lookup_field = "uuid"
+    queryset = models.QuestionDependency.objects.all()
+    filterset_class = filters.QuestionDependencyFilter
 
 
 class StatsView(GenericAPIView):
@@ -104,7 +171,6 @@ class StatsView(GenericAPIView):
             correct_count = models.Answer.objects.filter(
                 user__in=customer_users,
                 question__checklist=checklist,
-                value=F("question__correct_answer"),
             ).count()
             points.append(
                 dict(
@@ -136,25 +202,15 @@ class ProjectStatsView(GenericAPIView):
         checklists = []
         for checklist in models.Checklist.objects.all():
             users = project.get_users()
-            qs = models.Answer.objects.filter(
+            answers_count = models.Answer.objects.filter(
                 user__in=users, question__checklist=checklist
-            )
+            ).count()
             total = checklist.questions.count() * users.count()
-            positive_count = qs.filter(value=F("question__correct_answer")).count()
-            negative_count = (
-                qs.exclude(value__isnull=True)
-                .exclude(value=F("question__correct_answer"))
-                .count()
-            )
-            unknown_count = total - positive_count - negative_count
             checklists.append(
                 dict(
                     name=checklist.name,
                     uuid=checklist.uuid,
-                    positive_count=positive_count,
-                    negative_count=negative_count,
-                    unknown_count=unknown_count,
-                    score=get_score(positive_count, total)
+                    score=get_score(answers_count, total)
                     if total > 0
                     else 100,  # consider empty lists as fully compliant
                 )
@@ -184,13 +240,12 @@ class CustomerStatsView(GenericAPIView):
             project_users = project.get_users()
             customer_users = customer.get_users(RoleEnum.CUSTOMER_OWNER)
             users_count = project_users.count() + customer_users.count()
-            correct_count = (
+            answers_count = (
                 models.Answer.objects.filter(
                     Q(user__in=project_users) | Q(user__in=customer_users)
                 )
                 .filter(
                     question__checklist=checklist,
-                    value=F("question__correct_answer"),
                 )
                 .count()
             )
@@ -198,7 +253,7 @@ class CustomerStatsView(GenericAPIView):
                 dict(
                     name=project.name,
                     uuid=project.uuid.hex,
-                    score=get_score(correct_count, total_questions * users_count),
+                    score=get_score(answers_count, total_questions * users_count),
                 )
             )
         return Response(points)
@@ -327,7 +382,7 @@ class AnswersSubmitView(CreateModelMixin, GenericViewSet):
             models.Answer.objects.update_or_create(
                 question=question,
                 user=user,
-                defaults={"value": answer["value"]},
+                defaults={"answer_data": answer["answer_data"]},
             )
 
         headers = self.get_success_headers(serializer.data)
@@ -349,9 +404,8 @@ class UserStatsView(GenericAPIView):
         total_count = models.Question.objects.filter(
             checklist__in=visible_checklists
         ).count()
-        correct_count = models.Answer.objects.filter(
-            value=F("question__correct_answer"),
+        answers_count = models.Answer.objects.filter(
             question__checklist__in=visible_checklists,
             user=user,
         ).count()
-        return Response({"score": get_score(correct_count, total_count)})
+        return Response({"score": get_score(answers_count, total_count)})
