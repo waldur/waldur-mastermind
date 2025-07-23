@@ -1,8 +1,10 @@
 import logging
 
 from celery import shared_task
+from constance import config
 from django.utils import timezone
 
+from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.permissions import _get_customer
@@ -93,3 +95,50 @@ def expired_reviews_should_be_cancelled():
                 scopes=[_get_customer(review)],
             )
             logger.info(f"Review {review.proposal.name} has been canceled.")
+
+
+@shared_task(name="waldur_mastermind.proposal.notify_user_about_proposal_state_update")
+def notify_user_about_proposal_state_update(proposal_uuid, previous_state, new_state):
+    proposal = proposal_models.Proposal.objects.get(uuid=proposal_uuid)
+
+    if not proposal.created_by.email:  # type: ignore
+        logger.warning(
+            f"Cannot send proposal state update notification. Proposal {proposal.uuid} creator has no valid email."
+        )
+
+    proposal_link = core_utils.format_homeport_link(
+        "proposals/{proposal_uuid}/",
+        proposal_uuid=proposal.uuid,
+    )
+    project_link = None
+    if new_state == ProposalStates.ACCEPTED:
+        try:
+            project_link = core_utils.format_homeport_link(
+                "projects/{project_uuid}/",
+                project_uuid=proposal.project.uuid,  # type: ignore
+            )
+        except AttributeError:
+            pass
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "new_state": new_state,
+        "previous_state": previous_state,
+        "proposal_url": proposal_link,
+        "project_url": project_link,
+        "project_name": proposal.project.name if proposal.project else None,
+        "proposal_name": proposal.name,
+        "proposal_creator_name": proposal.created_by.full_name,  # type: ignore
+        "call_name": proposal.round.call.name,
+        "update_date": proposal.modified,
+        "duration": proposal.duration_in_days,
+        "rejection_feedback": proposal.allocation_comment,
+        "review_period": proposal.round.review_duration_in_days,
+    }
+
+    core_utils.broadcast_mail(
+        "proposal",
+        "proposal_state_changed",
+        context,
+        [proposal.created_by.email],  # type: ignore
+    )

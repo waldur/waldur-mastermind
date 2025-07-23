@@ -8,6 +8,7 @@ from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
+from waldur_mastermind.proposal import tasks
 from waldur_mastermind.proposal.enums import ProposalStates, RequestedOfferingStates
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,11 @@ def process_proposals_pending_reviewers(proposal: proposal_models.Proposal):
     for reviewer in get_available_reviewer(proposal):
         proposal_models.Review.objects.create(reviewer=reviewer, proposal=proposal)
 
+    old_state = proposal.state
     proposal.state = ProposalStates.IN_REVIEW
+    tasks.notify_user_about_proposal_state_update.delay(
+        proposal.uuid, old_state, proposal.state
+    )
     return proposal.save()
 
 

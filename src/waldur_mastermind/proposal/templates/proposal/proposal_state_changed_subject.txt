@@ -1,0 +1,1 @@
+Proposal state update: {{ proposal_name }} - {{ new_state }}
