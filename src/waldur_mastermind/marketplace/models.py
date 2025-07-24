@@ -42,6 +42,7 @@ from waldur_mastermind.marketplace.enums import (
     MaintenanceState,
     MaintenanceType,
     OfferingStates,
+    OfferingUserStates,
     OrderStates,
     RequestTypes,
     ResourceStates,
@@ -1712,14 +1713,125 @@ class OfferingUser(
         default=False,
         help_text=_("Signal to service if the user account is restricted or not"),
     )
-    tracker = cast(FieldInstanceTracker, FieldTracker())
+    state = FSMIntegerField(
+        default=OfferingUserStates.CREATION_REQUESTED,
+        choices=OfferingUserStates.CHOICES,
+    )
+    service_provider_comment = models.TextField(
+        blank=True,
+        help_text=_(
+            "Additional comment for pending states like validation or account linking"
+        ),
+    )
+    tracker = cast(
+        FieldInstanceTracker,
+        FieldTracker(
+            fields=["username", "state", "is_restricted", "service_provider_comment"]
+        ),
+    )
 
     class Meta:
         unique_together = ("offering", "user")
         ordering = ["username"]
 
+    @transition(
+        field=state,
+        source=OfferingUserStates.CREATION_REQUESTED,
+        target=OfferingUserStates.CREATING,
+    )
+    def begin_creating(self):
+        pass
+
+    @transition(
+        field=state,
+        source=[
+            OfferingUserStates.CREATION_REQUESTED,
+            OfferingUserStates.CREATING,
+            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+            OfferingUserStates.PENDING_ACCOUNT_LINKING,
+            OfferingUserStates.ERROR,
+        ],
+        target=OfferingUserStates.OK,
+    )
+    def set_ok(self):
+        pass
+
+    @transition(
+        field=state,
+        source=[OfferingUserStates.CREATING, OfferingUserStates.ERROR],
+        target=OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+    )
+    def set_pending_additional_validation(self, comment=None):
+        if comment:
+            self.service_provider_comment = comment
+
+    @transition(
+        field=state,
+        source=[OfferingUserStates.CREATING, OfferingUserStates.ERROR],
+        target=OfferingUserStates.PENDING_ACCOUNT_LINKING,
+    )
+    def set_pending_account_linking(self, comment=None):
+        if comment:
+            self.service_provider_comment = comment
+
+    @transition(
+        field=state,
+        source=[
+            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+            OfferingUserStates.PENDING_ACCOUNT_LINKING,
+        ],
+        target=OfferingUserStates.OK,
+    )
+    def set_validation_complete(self):
+        self.service_provider_comment = ""  # Clear comment when validation is complete
+
+    @transition(
+        field=state,
+        source=OfferingUserStates.OK,
+        target=OfferingUserStates.DELETION_REQUESTED,
+    )
+    def request_deletion(self):
+        pass
+
+    @transition(
+        field=state,
+        source=OfferingUserStates.DELETION_REQUESTED,
+        target=OfferingUserStates.DELETING,
+    )
+    def set_deleting(self):
+        pass
+
+    @transition(
+        field=state,
+        source=OfferingUserStates.DELETING,
+        target=OfferingUserStates.DELETED,
+    )
+    def set_deleted(self):
+        pass
+
+    @transition(field=state, source="*", target=OfferingUserStates.ERROR)
+    def set_error(self):
+        pass
+
+    def save(self, *args, **kwargs):
+        # Backward compatibility: if username is being set/changed and state is not OK, transition to OK
+        if (
+            self.username
+            and self.state != OfferingUserStates.OK
+            and self.tracker.has_changed("username")
+        ):
+            self.set_ok()
+        super().save(*args, **kwargs)
+
     def get_log_fields(self):
-        return ("offering", "user", "username", "is_restricted")
+        return (
+            "offering",
+            "user",
+            "username",
+            "is_restricted",
+            "get_state_display",
+            "service_provider_comment",
+        )
 
     def __str__(self) -> str:
         return f"{self.offering.name}: {self.username}"

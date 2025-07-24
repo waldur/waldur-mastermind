@@ -50,6 +50,7 @@ class EventType(str, Enum):
     MARKETPLACE_OFFERING_ROLE_UPDATED = "marketplace_offering_role_updated"
     MARKETPLACE_OFFERING_UPDATED = "marketplace_offering_updated"
     MARKETPLACE_OFFERING_USER_CREATED = "marketplace_offering_user_created"
+    MARKETPLACE_OFFERING_USER_UPDATED = "marketplace_offering_user_updated"
     MARKETPLACE_OFFERING_USER_DELETED = "marketplace_offering_user_deleted"
     MARKETPLACE_OFFERING_USER_RESTRICTION_UPDATED = (
         "marketplace_offering_user_restriction_updated"

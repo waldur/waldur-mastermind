@@ -32,6 +32,7 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
+    OfferingUserStates,
     OrderStates,
     ResourceStates,
     RobotAccountStates,
@@ -799,6 +800,7 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
     )
     provider_uuid = django_filters.UUIDFilter(field_name="offering__customer__uuid")
     is_restricted = django_filters.BooleanFilter(field_name="is_restricted")
+    state = core_filters.MappedMultipleChoiceFilter(OfferingUserStates.CHOICES)
     o = django_filters.OrderingFilter(fields=("created", "modified", "username"))
     query = django_filters.CharFilter(method="filter_query")
 
