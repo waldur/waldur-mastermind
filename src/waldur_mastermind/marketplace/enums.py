@@ -82,6 +82,35 @@ class RobotAccountStates:
     VALUES = [val for (_, val) in CHOICES]
 
 
+class OfferingUserStates:
+    # creation flow
+    CREATION_REQUESTED = 1
+    CREATING = 2
+    PENDING_ACCOUNT_LINKING = 3
+    PENDING_ADDITIONAL_VALIDATION = 4
+    OK = 5
+    # removal flow
+    DELETION_REQUESTED = 6
+    DELETING = 7
+    DELETED = 8
+    # unexpected
+    ERROR = 9
+
+    CHOICES = (
+        (CREATION_REQUESTED, "Requested"),
+        (CREATING, "Creating"),
+        (PENDING_ACCOUNT_LINKING, "Pending account linking"),
+        (PENDING_ADDITIONAL_VALIDATION, "Pending additional validation"),
+        (OK, "OK"),
+        (DELETION_REQUESTED, "Requested deletion"),
+        (DELETING, "Deleting"),
+        (DELETED, "Deleted"),
+        (ERROR, "Error"),
+    )
+
+    VALUES = [val for (_, val) in CHOICES]
+
+
 class RequestTypes:
     CREATE = 1
     UPDATE = 2

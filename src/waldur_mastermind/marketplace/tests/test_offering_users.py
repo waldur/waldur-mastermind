@@ -11,7 +11,7 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import OfferingUserStates, ResourceStates
 from waldur_mastermind.marketplace.models import OfferingUser
 
 from . import factories, fixtures
@@ -346,12 +346,8 @@ class OferingUserRestrictedUpdateTest(test.APITransactionTestCase):
         self.offering_user = OfferingUser.objects.create(
             offering=self.offering, user=user, username="user"
         )
-        CustomerRole.OWNER.add_permission(
-            PermissionEnum.UPDATE_OFFERING_USER_RESTRICTION
-        )
-        ServiceProviderRole.MANAGER.add_permission(
-            PermissionEnum.UPDATE_OFFERING_USER_RESTRICTION
-        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
 
     def get_url(self, offering_user, action):
         url = "http://testserver" + reverse(
@@ -384,3 +380,483 @@ class OferingUserRestrictedUpdateTest(test.APITransactionTestCase):
                 event_type="marketplace_offering_user_restriction_updated"
             ).exists()
         )
+
+
+@ddt
+class OfferingUserStateTransitionTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+        user = UserFactory()
+
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering, user=user, username="user"
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+
+    def get_url(self, offering_user, action):
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        return url + action + "/"
+
+    def test_new_offering_user_has_creation_requested_state(self):
+        """Test that newly created OfferingUser has CREATION_REQUESTED state by default."""
+        user = UserFactory()
+        offering_user = OfferingUser.objects.create(offering=self.offering, user=user)
+        self.assertEqual(offering_user.state, OfferingUserStates.CREATION_REQUESTED)
+
+    def test_set_pending_additional_validation_transition(self):
+        """Test transition to PENDING_ADDITIONAL_VALIDATION state with comment."""
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_pending_additional_validation")
+        payload = {"comment": "Additional documents required"}
+        response = self.client.post(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment, "Additional documents required"
+        )
+
+    def test_set_pending_account_linking_transition(self):
+        """Test transition to PENDING_ACCOUNT_LINKING state with comment."""
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_pending_account_linking")
+        payload = {"comment": "Please link your existing account"}
+        response = self.client.post(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.PENDING_ACCOUNT_LINKING
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment,
+            "Please link your existing account",
+        )
+
+    def test_set_validation_complete_transition(self):
+        """Test transition from pending states to OK and comment clearing."""
+        self.offering_user.state = OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        self.offering_user.service_provider_comment = "Some validation comment"
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_validation_complete")
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
+        self.assertEqual(self.offering_user.service_provider_comment, "")
+
+    def test_state_transition_without_comment(self):
+        """Test state transitions work without providing comment."""
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_pending_additional_validation")
+        response = self.client.post(url, {})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        )
+        self.assertEqual(self.offering_user.service_provider_comment, "")
+
+    def test_unauthorized_user_cannot_change_state(self):
+        """Test that unauthorized users cannot change offering user state."""
+        unauthorized_user = UserFactory()
+        self.client.force_authenticate(user=unauthorized_user)
+        url = self.get_url(self.offering_user, "set_validation_complete")
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_state_fields_in_serializer_output(self):
+        """Test that state and comment fields are included in serializer output."""
+        self.offering_user.state = OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        self.offering_user.service_provider_comment = "Test comment"
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("state", response.data)
+        self.assertIn("service_provider_comment", response.data)
+        self.assertEqual(response.data["state"], "Pending additional validation")
+        self.assertEqual(response.data["service_provider_comment"], "Test comment")
+
+
+@ddt
+class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING_USER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+
+    def test_create_offering_user_with_username_sets_ok_state(self):
+        """Test that creating OfferingUser with username automatically sets state to OK."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        payload = {
+            "offering_uuid": self.offering.uuid.hex,
+            "user_uuid": self.fixture.user.uuid.hex,
+            "username": "testuser",
+        }
+        response = self.client.post(reverse("marketplace-offering-user-list"), payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        offering_user = OfferingUser.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(offering_user.state, OfferingUserStates.OK)
+        self.assertEqual(offering_user.username, "testuser")
+
+    def test_create_offering_user_without_username_keeps_creation_requested_state(self):
+        """Test that creating OfferingUser without username keeps CREATION_REQUESTED state."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        payload = {
+            "offering_uuid": self.offering.uuid.hex,
+            "user_uuid": self.fixture.user.uuid.hex,
+        }
+        response = self.client.post(reverse("marketplace-offering-user-list"), payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        offering_user = OfferingUser.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(offering_user.state, OfferingUserStates.CREATION_REQUESTED)
+
+    def test_update_offering_user_with_username_sets_ok_state(self):
+        """Test that updating OfferingUser with username automatically sets state to OK."""
+        user = UserFactory()
+        offering_user = OfferingUser.objects.create(
+            offering=self.offering,
+            user=user,
+            state=OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+        )
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        payload = {"username": "updated_username"}
+        response = self.client.patch(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.state, OfferingUserStates.OK)
+        self.assertEqual(offering_user.username, "updated_username")
+
+    def test_update_offering_user_without_username_preserves_state(self):
+        """Test that updating other fields doesn't change state."""
+        user = UserFactory()
+        offering_user = OfferingUser.objects.create(
+            offering=self.offering,
+            user=user,
+            state=OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+        )
+        # Set username manually after creation to avoid triggering FSM transition
+        OfferingUser.objects.filter(pk=offering_user.pk).update(
+            username="existing_username"
+        )
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        payload = {
+            "username": "existing_username"
+        }  # Update same username (no actual change)
+        response = self.client.patch(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_user.refresh_from_db()
+        self.assertEqual(
+            offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        )  # State unchanged
+
+    def test_model_save_with_username_change_sets_ok_state(self):
+        """Test that model save method automatically sets state to OK when username changes."""
+        user = UserFactory()
+        offering_user = OfferingUser.objects.create(
+            offering=self.offering, user=user, state=OfferingUserStates.CREATING
+        )
+
+        # Simulate username being set
+        offering_user.username = "direct_save_username"
+        offering_user.save()
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.state, OfferingUserStates.OK)
+
+
+class SetOfferingsUsernameBackwardCompatibilityTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.service_provider = factories.ServiceProviderFactory(
+            customer=self.fixture.customer
+        )
+        self.offering1 = factories.OfferingFactory(customer=self.fixture.customer)
+        self.offering2 = factories.OfferingFactory(customer=self.fixture.customer)
+
+        # Add user to project so they can be found by get_connected_projects
+        self.fixture.project.add_user(self.fixture.user, ProjectRole.MEMBER)
+
+        # Create resources for offerings
+        self.resource1 = factories.ResourceFactory(
+            offering=self.offering1,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+        self.resource2 = factories.ResourceFactory(
+            offering=self.offering2,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+
+    def test_set_offerings_username_creates_offering_users_with_ok_state(self):
+        """Test that set_offerings_username creates OfferingUsers with OK state."""
+        url = (
+            "http://testserver"
+            + reverse(
+                "marketplace-service-provider-detail",
+                kwargs={"uuid": self.service_provider.uuid.hex},
+            )
+            + "set_offerings_username/"
+        )
+
+        payload = {"user_uuid": self.fixture.user.uuid.hex, "username": "test_username"}
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Check that OfferingUsers were created with OK state
+        offering_users = OfferingUser.objects.filter(user=self.fixture.user)
+        self.assertEqual(offering_users.count(), 2)
+
+        for offering_user in offering_users:
+            self.assertEqual(offering_user.state, OfferingUserStates.OK)
+            self.assertEqual(offering_user.username, "test_username")
+
+    def test_set_offerings_username_updates_existing_offering_users_to_ok_state(self):
+        """Test that set_offerings_username updates existing OfferingUsers to OK state."""
+        # Create existing OfferingUsers with different states
+        offering_user1 = OfferingUser.objects.create(
+            offering=self.offering1,
+            user=self.fixture.user,
+            state=OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+        )
+        offering_user2 = OfferingUser.objects.create(
+            offering=self.offering2,
+            user=self.fixture.user,
+            state=OfferingUserStates.CREATING,
+        )
+
+        url = (
+            "http://testserver"
+            + reverse(
+                "marketplace-service-provider-detail",
+                kwargs={"uuid": self.service_provider.uuid.hex},
+            )
+            + "set_offerings_username/"
+        )
+
+        payload = {
+            "user_uuid": self.fixture.user.uuid.hex,
+            "username": "updated_username",
+        }
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Check that existing OfferingUsers were updated to OK state
+        offering_user1.refresh_from_db()
+        offering_user2.refresh_from_db()
+
+        self.assertEqual(offering_user1.state, OfferingUserStates.OK)
+        self.assertEqual(offering_user1.username, "updated_username")
+        self.assertEqual(offering_user2.state, OfferingUserStates.OK)
+        self.assertEqual(offering_user2.username, "updated_username")
+
+    def test_set_offerings_username_without_username_does_not_change_state(self):
+        """Test that set_offerings_username without username doesn't change state."""
+        offering_user = OfferingUser.objects.create(
+            offering=self.offering1,
+            user=self.fixture.user,
+            state=OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+        )
+        # Set username manually after creation to avoid triggering FSM transition
+        OfferingUser.objects.filter(pk=offering_user.pk).update(
+            username="existing_username"
+        )
+
+        url = (
+            "http://testserver"
+            + reverse(
+                "marketplace-service-provider-detail",
+                kwargs={"uuid": self.service_provider.uuid.hex},
+            )
+            + "set_offerings_username/"
+        )
+
+        payload = {
+            "user_uuid": self.fixture.user.uuid.hex,
+            "username": "",  # Empty username
+        }
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(url, payload)
+
+        # Should still succeed but not change state
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        offering_user.refresh_from_db()
+        self.assertEqual(
+            offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        )  # State unchanged
+
+
+@ddt
+class OfferingUserStateFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+
+        # Create offering users with different states
+        self.user1 = UserFactory()
+        self.user2 = UserFactory()
+        self.user3 = UserFactory()
+
+        self.offering_user1 = OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.user1,
+            state=OfferingUserStates.CREATION_REQUESTED,
+        )
+        self.offering_user2 = OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.user2,
+            state=OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+        )
+        self.offering_user3 = OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.user3,
+            username="user3",
+            state=OfferingUserStates.OK,
+        )
+
+    def test_filter_by_single_state(self):
+        """Test filtering by a single state value."""
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(
+            reverse("marketplace-offering-user-list"),
+            {"state": "Requested"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.offering_user1.uuid.hex)
+
+    def test_filter_by_multiple_states(self):
+        """Test filtering by multiple state values."""
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(
+            reverse("marketplace-offering-user-list"),
+            {"state": ["Requested", "OK"]},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+        returned_uuids = {item["uuid"] for item in response.data}
+        expected_uuids = {
+            self.offering_user1.uuid.hex,
+            self.offering_user3.uuid.hex,
+        }
+        self.assertEqual(returned_uuids, expected_uuids)
+
+    def test_filter_by_pending_additional_validation_state(self):
+        """Test filtering by pending additional validation state."""
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(
+            reverse("marketplace-offering-user-list"),
+            {"state": "Pending additional validation"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.offering_user2.uuid.hex)
+
+    def test_filter_by_nonexistent_state(self):
+        """Test filtering by a state that doesn't exist returns validation error."""
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(
+            reverse("marketplace-offering-user-list"),
+            {"state": "NonexistentState"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("state", response.data)
+
+    def test_filter_combines_with_other_filters(self):
+        """Test that state filter can be combined with other filters."""
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(
+            reverse("marketplace-offering-user-list"),
+            {
+                "state": ["Requested", "OK"],
+                "offering_uuid": self.offering.uuid.hex,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+        # All results should be from the same offering
+        for item in response.data:
+            self.assertEqual(item["offering_uuid"], self.offering.uuid.hex)
+
+    def test_no_state_filter_returns_all_users(self):
+        """Test that without state filter, all offering users are returned."""
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(reverse("marketplace-offering-user-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)

@@ -60,6 +60,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
     OfferingStates,
+    OfferingUserStates,
     OrderStates,
     OrderStatesType,
     ResourceStates,
@@ -610,7 +611,7 @@ class ServiceProviderApiSecretCodeSerializer(serializers.Serializer):
 
 class SetOfferingsUsernameSerializer(serializers.Serializer):
     user_uuid = serializers.UUIDField()
-    username = serializers.CharField()
+    username = serializers.CharField(allow_blank=True)
 
 
 class NestedAttributeOptionSerializer(serializers.ModelSerializer):
@@ -3876,6 +3877,8 @@ class OfferingUserSerializer(
     )
     customer_name = serializers.ReadOnlyField(source="offering.customer.name")
     is_restricted = serializers.ReadOnlyField()
+    state = serializers.SerializerMethodField()
+    service_provider_comment = serializers.ReadOnlyField()
 
     class Meta:
         model = models.OfferingUser
@@ -3895,6 +3898,8 @@ class OfferingUserSerializer(
             "customer_uuid",
             "customer_name",
             "is_restricted",
+            "state",
+            "service_provider_comment",
         )
         extra_kwargs = dict(
             url={
@@ -3902,6 +3907,21 @@ class OfferingUserSerializer(
                 "view_name": "marketplace-offering-user-detail",
             },
         )
+
+    def get_state(
+        self, offering_user: models.OfferingUser
+    ) -> Literal[
+        "Requested",
+        "Creating",
+        "Pending account linking",
+        "Pending additional validation",
+        "OK",
+        "Requested deletion",
+        "Deleting",
+        "Deleted",
+        "Error",
+    ]:
+        return offering_user.get_state_display()
 
     def to_internal_value(self, data):
         # Pre-process data to convert UUID fields to URL fields before field validation
@@ -3978,7 +3998,17 @@ class OfferingUserSerializer(
                 _("It is not allowed to create users for current offering.")
             )
 
-        return super().create(validated_data)
+        instance = super().create(validated_data)
+
+        # Set state to OK for backward compatibility when username is provided during creation
+        if (
+            instance.username
+            and instance.state == OfferingUserStates.CREATION_REQUESTED
+        ):
+            instance.set_ok()
+            instance.save(update_fields=["state"])
+
+        return instance
 
     def update(self, instance: models.OfferingUser, validated_data):
         request = self.context["request"]
@@ -3989,7 +4019,9 @@ class OfferingUserSerializer(
         ):
             raise rf_exceptions.PermissionDenied()
 
-        return super().update(instance, validated_data)
+        instance = super().update(instance, validated_data)
+
+        return instance
 
 
 class OfferingUserUpdateRestrictionSerializer(serializers.Serializer):
@@ -4000,9 +4032,25 @@ class OfferingUserUpdateRestrictionSerializer(serializers.Serializer):
         offering_user = self.instance
         offering = offering_user.offering
         if not has_permission(
-            request, PermissionEnum.UPDATE_OFFERING_USER_RESTRICTION, offering.customer
+            request, PermissionEnum.UPDATE_OFFERING_USER, offering.customer
         ):
             raise rf_exceptions.PermissionDenied()
+        return attrs
+
+
+class OfferingUserStateTransitionSerializer(serializers.Serializer):
+    comment = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        offering_user = self.instance
+        offering = offering_user.offering
+
+        if not has_permission(
+            request, PermissionEnum.UPDATE_OFFERING_USER, offering.customer
+        ):
+            raise rf_exceptions.PermissionDenied()
+
         return attrs
 
 

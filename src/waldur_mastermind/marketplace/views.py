@@ -269,9 +269,13 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
 
         for offering_id in offering_ids:
-            models.OfferingUser.objects.update_or_create(
-                user=user, offering_id=offering_id, defaults={"username": username}
+            offering_user, created = models.OfferingUser.objects.get_or_create(
+                user=user, offering_id=offering_id
             )
+            # Update username - only set if non-empty to avoid unwanted state transitions
+            if username:
+                offering_user.username = username
+                offering_user.save()  # This triggers the FSM transition via model save method
 
         return Response(
             {
@@ -4073,12 +4077,76 @@ class OfferingUsersViewSet(
         offering_user.is_restricted = serializer.validated_data["is_restricted"]
         offering_user.save(update_fields=["is_restricted"])
         event_logger.emit(
-            f"Restriction status for user {offering_user.user.username} in offering {offering_user.offering.name} has been set to {offering_user.is_restricted} by {request.user.username}.",
+            f"Restriction status for user {offering_user.user} in offering {offering_user.offering.name} has been set to {offering_user.is_restricted}.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_RESTRICTION_UPDATED,
             event_context={"offering_user": offering_user},
         )
+        return Response(status=status.HTTP_200_OK)
+
+    set_pending_additional_validation_permissions = (
+        set_validation_complete_permissions
+    ) = set_pending_account_linking_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_USER,
+            ["offering.customer"],
+        )
+    ]
+
+    @extend_schema(
+        request=serializers.OfferingUserStateTransitionSerializer,
+        responses=None,
+    )
+    @action(detail=True, methods=["post"])
+    def set_pending_additional_validation(self, request, uuid=None):
+        offering_user: models.OfferingUser = self.get_object()
+        serializer = serializers.OfferingUserStateTransitionSerializer(
+            data=request.data, context={"request": request}, instance=offering_user
+        )
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get("comment", "")
+        offering_user.set_pending_additional_validation(comment=comment)
+        offering_user.save(update_fields=["state", "service_provider_comment"])
+        event_logger.emit(
+            f"User {offering_user.user} in offering {offering_user.offering.name} set to pending additional validation.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+            event_context={"offering_user": offering_user},
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    @extend_schema(
+        request=serializers.OfferingUserStateTransitionSerializer,
+        responses=None,
+    )
+    @action(detail=True, methods=["post"])
+    def set_pending_account_linking(self, request, uuid=None):
+        offering_user: models.OfferingUser = self.get_object()
+        serializer = serializers.OfferingUserStateTransitionSerializer(
+            data=request.data, context={"request": request}, instance=offering_user
+        )
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get("comment", "")
+        offering_user.set_pending_account_linking(comment=comment)
+        offering_user.save(update_fields=["state", "service_provider_comment"])
+        event_logger.emit(
+            f"User {offering_user.user} in offering {offering_user.offering.name} set to pending account linking.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_RESTRICTION_UPDATED,
+            event_context={"offering_user": offering_user},
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    @extend_schema(responses=None)
+    @action(detail=True, methods=["post"])
+    def set_validation_complete(self, request, uuid=None):
+        offering_user: models.OfferingUser = self.get_object()
+        offering_user.set_validation_complete()
+        offering_user.save(update_fields=["state", "service_provider_comment"])
+        event_logger.emit(
+            f"User {offering_user.user} in offering {offering_user.offering.name} validation completed.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+            event_context={"offering_user": offering_user},
+        )
         logger.info(
-            f"Restriction status for user {offering_user.user.username} in offering {offering_user.offering.name} has been set to {offering_user.is_restricted} by {request.user.username}."
+            f"User {offering_user.user.username} in offering {offering_user.offering.name} validation completed by {request.user.username}."
         )
         return Response(status=status.HTTP_200_OK)
 
