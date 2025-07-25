@@ -38,7 +38,7 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
             "created_by_username",
         )
 
-    def get_scope_type(self, invitation: models.Invitation) -> str:
+    def get_scope_type(self, invitation: models.Invitation) -> str | None:
         if not invitation.content_type:
             return
         for name, (app_label, model_name) in TYPE_MAP.items():
@@ -77,7 +77,8 @@ class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
     def validate(self, attrs):
         role: Role = attrs["role"]
         scope = attrs["scope"]
-        if not isinstance(scope, role.content_type.model_class()):
+        model_class = role.content_type.model_class()
+        if model_class and not isinstance(scope, model_class):
             raise serializers.ValidationError(
                 "Role and scope should belong to the same content type."
             )
@@ -97,6 +98,10 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
         allow_null=True,
     )
 
+    def validate_user_email_patterns(self, value):
+        models.GroupInvitation.validate_user_email_patterns(value)
+        return value
+
     class Meta:
         model = models.GroupInvitation
         fields = BaseInvitationSerializer.Meta.fields + (
@@ -104,6 +109,8 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
             "auto_create_project",
             "project_name_template",
             "project_role",
+            "user_affiliations",
+            "user_email_patterns",
         )
         read_only_fields = BaseInvitationSerializer.Meta.read_only_fields + (
             "is_active",

@@ -1,5 +1,4 @@
 import logging
-import re
 
 from django.db import transaction
 
@@ -13,29 +12,6 @@ from waldur_mastermind.marketplace.models import Order, Resource
 from waldur_mastermind.marketplace.tasks import process_order_on_commit
 
 logger = logging.getLogger(__name__)
-
-
-def get_rules(user):
-    rules = []
-    for rule in Rule.objects.all():
-        if set(user.affiliations or []) & set(rule.user_affiliations) or any(
-            _is_pattern_match(pattern, user.email)
-            for pattern in rule.user_email_patterns
-        ):
-            rules.append(rule)
-
-    return rules
-
-
-def _is_pattern_match(pattern, email):
-    """Safely check if email matches pattern, handling invalid regex patterns."""
-    if not pattern or not isinstance(pattern, str):
-        return False
-    try:
-        return bool(re.match(pattern, email))
-    except re.error as e:
-        logger.warning("Invalid regex pattern '%s': %s", pattern, e)
-        return False
 
 
 def get_or_create_project(rule: Rule, user: User) -> Project | None:
@@ -133,7 +109,7 @@ def handle_new_user(sender, instance: User, created=False, **kwargs):
     """Create project and order for new user based on autoprovisioning rules."""
     user = instance
 
-    rules: list = get_rules(user)
+    rules: list = Rule.get_objects_by_user_patterns(user)
 
     if not rules:
         return

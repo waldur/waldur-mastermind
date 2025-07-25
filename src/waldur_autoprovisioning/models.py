@@ -13,18 +13,11 @@ class Rule(
     core_models.UuidMixin,
     core_models.NameMixin,
     ProjectNameTemplateMixin,
+    core_models.UserDetailsMatchMixin,
 ):
     class Permissions:
         customer_path = "customer"
 
-    user_affiliations = models.JSONField(
-        default=list,
-        blank=True,
-    )
-    user_email_patterns = models.JSONField(
-        default=list,
-        blank=True,
-    )
     customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     plan = models.ForeignKey(
         marketplace_models.Plan,

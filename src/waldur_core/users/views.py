@@ -299,18 +299,29 @@ class GroupInvitationViewSet(ProtectedViewSet):
     @action(detail=True, methods=["post"], filter_backends=[])
     def submit_request(self, request, uuid=None):
         invitation: models.GroupInvitation = self.get_object()
+        user = request.user
 
         if not invitation.is_active:
             raise ValidationError(_("Only pending invitation can be requested."))
 
         if (
             models.PermissionRequest.objects.filter(
-                invitation=invitation, created_by=request.user
+                invitation=invitation, created_by=user
             )
             .exclude(state=ReviewStates.REJECTED)
             .exists()
         ):
             raise ValidationError(_("Request has been created already."))
+
+        allowed = invitation in models.GroupInvitation.get_objects_by_user_patterns(
+            user, required=False
+        )
+
+        if not allowed:
+            raise ValidationError(
+                "You are not allowed to accept this invitation. "
+                "Your email or organization must match the invitation restrictions."
+            )
 
         permission_request = models.PermissionRequest.objects.create(
             invitation=invitation,

@@ -17,6 +17,7 @@ from model_utils import FieldTracker
 from model_utils.fields import AutoLastModifiedField
 from model_utils.models import TimeStampedModel
 from model_utils.tracker import FieldInstanceTracker
+from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 from reversion import revisions as reversion
 
@@ -865,3 +866,64 @@ class ActionMixin(StateMixin):
     @lru_cache(maxsize=1)
     def get_all_models(cls):
         return [model for model in apps.get_models() if issubclass(model, cls)]
+
+
+class UserDetailsMatchMixin(models.Model):
+    class Meta:
+        abstract = True
+
+    user_affiliations = models.JSONField(
+        default=list,
+        blank=True,
+    )
+    user_email_patterns = models.JSONField(
+        default=list,
+        blank=True,
+    )
+
+    @classmethod
+    def get_objects_by_user_patterns(cls, user, required=True):
+        items = []
+        for item in cls.objects.all():
+            if (
+                not required
+                and not item.user_email_patterns
+                and not item.user_affiliations
+            ):
+                items.append(item)
+
+            if set(user.affiliations or []) & set(item.user_affiliations) or any(
+                cls._is_pattern_match(pattern, user.email)
+                for pattern in item.user_email_patterns
+            ):
+                items.append(item)
+
+        return items
+
+    def _is_pattern_match(pattern, email):
+        """Safely check if email matches pattern, handling invalid regex patterns."""
+        if not pattern or not isinstance(pattern, str):
+            return False
+        try:
+            return bool(re.match(pattern, email))
+        except re.error as e:
+            logger.warning("Invalid regex pattern '%s': %s", pattern, e)
+            return False
+
+    @staticmethod
+    def validate_user_email_patterns(patterns: list) -> None:
+        invalid_patterns = []
+
+        for pattern in patterns:
+            if not pattern or not isinstance(pattern, str):
+                invalid_patterns.append(pattern)
+                continue
+            try:
+                re.compile(pattern)
+            except re.error:
+                invalid_patterns.append(pattern)
+
+        if invalid_patterns:
+            raise serializers.ValidationError(
+                f"Invalid regex patterns: {invalid_patterns}"
+            )
