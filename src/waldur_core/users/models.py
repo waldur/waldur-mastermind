@@ -41,7 +41,9 @@ class BaseInvitation(core_models.UuidMixin, core_mixins.ScopeMixin, TimeStampedM
     )
 
 
-class GroupInvitation(BaseInvitation, ProjectNameTemplateMixin):
+class GroupInvitation(
+    BaseInvitation, ProjectNameTemplateMixin, core_models.UserDetailsMatchMixin
+):
     is_active = models.BooleanField(default=True)
 
     # New fields for project creation alternative

@@ -579,3 +579,70 @@ class PermissionRequestProjectCreationTest(BaseInvitationTest):
                 name="template_user", customer=self.customer
             ).exists()
         )
+
+
+class GroupInvitationPatternTest(BaseGroupInvitationTest):
+    def setUp(self):
+        super().setUp()
+        self.invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            user_email_patterns=[".*@example.com", "test@.*"],
+            user_affiliations=["staff", "student"],
+        )
+        self.url = factories.CustomerGroupInvitationFactory.get_url(
+            self.invitation, "submit_request"
+        )
+
+    def test_user_with_matching_email_can_submit_request(self):
+        user = structure_factories.UserFactory(email="user@example.com")
+        self.client.force_authenticate(user=user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_user_with_matching_affiliation_can_submit_request(self):
+        user = structure_factories.UserFactory(affiliations=["staff"])
+        self.client.force_authenticate(user=user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_user_with_non_matching_email_and_affiliation_cannot_submit_request(self):
+        user = structure_factories.UserFactory(
+            email="user@other.com",
+            affiliations=["other"],
+        )
+        self.client.force_authenticate(user=user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_user_can_submit_request_if_no_patterns_defined(self):
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            user_email_patterns=[],
+            user_affiliations=[],
+        )
+        url = factories.CustomerGroupInvitationFactory.get_url(
+            invitation, "submit_request"
+        )
+        user = structure_factories.UserFactory(
+            email="any@email.com",
+            affiliations=[],
+        )
+        self.client.force_authenticate(user=user)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_user_with_matching_email_pattern_can_submit_request(self):
+        user = structure_factories.UserFactory(email="test@domain.com")
+        self.client.force_authenticate(user=user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_user_with_no_affiliations_cannot_submit_request_if_affiliations_required(
+        self,
+    ):
+        user = structure_factories.UserFactory(
+            email="user@other.com",
+        )
+        self.client.force_authenticate(user=user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
