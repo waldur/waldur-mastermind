@@ -2369,7 +2369,6 @@ class MaintenanceAnnouncement(
             "uuid",
             "title",
             "maintenance_type",
-            "severity",
             "state",
             "scheduled_start",
             "scheduled_end",
