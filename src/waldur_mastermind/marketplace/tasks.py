@@ -473,6 +473,10 @@ def send_metrics():
     if not core_models.Feature.objects.filter(key="telemetry.send_metrics").exists():
         return
 
+    # skip sending if setting is unset
+    if not config.TELEMETRY_URL:
+        return
+
     site_name = config.HOMEPORT_URL
     deployment_type = core_utils.get_deployment_type()
     first_event = logging_models.Event.objects.order_by("created").first()
