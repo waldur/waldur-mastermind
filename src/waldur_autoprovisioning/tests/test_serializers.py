@@ -4,6 +4,7 @@ from waldur_autoprovisioning.serializers import RuleSerializer
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.permissions.tests import factories as permission_factories
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
 class RuleSerializerTest(TestCase):
@@ -252,3 +253,34 @@ class RuleSerializerProjectRoleTest(TestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn("non_field_errors", serializer.errors)
         self.assertIn("does not exist", str(serializer.errors["non_field_errors"]))
+
+
+class RuleSerializerPlanFieldTest(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.request = self.factory.get("/")
+        self.customer = structure_factories.CustomerFactory()
+        self.plan = marketplace_factories.PlanFactory()
+        self.base_data = {
+            "name": "test_rule",
+            "customer": structure_factories.CustomerFactory.get_url(self.customer),
+            "user_email_patterns": [".*@example.com"],
+            "user_affiliations": ["org"],
+            "project_role": permission_factories.RoleFactory.get_url(ProjectRole.ADMIN),
+        }
+
+    def test_public_plan_is_accepted(self):
+        data = self.base_data.copy()
+        data["plan"] = marketplace_factories.PlanFactory.get_public_url(self.plan)
+
+        serializer = RuleSerializer(data=data, context={"request": self.request})
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        rule = serializer.save()
+        self.assertEqual(rule.plan, self.plan)
+
+    def test_private_plan_is_not_accepted(self):
+        data = self.base_data.copy()
+        data["plan"] = marketplace_factories.PlanFactory.get_url(self.plan)
+
+        serializer = RuleSerializer(data=data, context={"request": self.request})
+        self.assertFalse(serializer.is_valid())

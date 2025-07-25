@@ -3,6 +3,7 @@ from rest_framework import serializers
 from waldur_autoprovisioning import models
 from waldur_core.permissions.models import Role
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.fields import PublicPlanField
 
 
 class RuleSerializer(serializers.HyperlinkedModelSerializer):
@@ -25,9 +26,10 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
     project_role_display_name = serializers.CharField(
         source="project_role.name", read_only=True
     )
-    plan = serializers.HyperlinkedRelatedField(
-        view_name="marketplace-plan-detail",
+    plan = PublicPlanField(
         lookup_field="uuid",
+        lookup_url_kwarg="plan_uuid",
+        view_name="marketplace-public-offering-plan-detail",
         queryset=marketplace_models.Plan.objects.all(),
         required=False,
         allow_null=True,
