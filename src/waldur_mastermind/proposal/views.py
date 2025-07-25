@@ -541,6 +541,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         tasks.notify_user_about_proposal_state_update.delay(
             proposal.uuid, previous_state, proposal.state
         )
+        tasks.notify_call_managers_about_new_proposal_submission.delay(proposal.uuid)
         return response.Response(
             "Proposal has been submitted.",
             status=status.HTTP_200_OK,

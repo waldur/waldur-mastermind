@@ -145,6 +145,10 @@ class Call(
         return get_users(self, RoleEnum.CALL_REVIEWER)
 
     @property
+    def call_managers(self):
+        return get_users(self, RoleEnum.CALL_MANAGER)
+
+    @property
     def customer(self):
         return self.manager.customer
 

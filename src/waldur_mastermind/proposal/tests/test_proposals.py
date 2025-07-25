@@ -224,6 +224,9 @@ class ActionTest(test.APITransactionTestCase):
         structure_factories.NotificationFactory(
             key="proposal.proposal_state_changed",
         )
+        structure_factories.NotificationFactory(
+            key="proposal.new_proposal_submitted",
+        )
 
     @mock.patch(
         "waldur_mastermind.proposal.views.tasks.notify_user_about_proposal_state_update.delay"
@@ -232,7 +235,7 @@ class ActionTest(test.APITransactionTestCase):
         "staff",
         "proposal_creator",
     )
-    def test_force_approval_of_proposal_creates_project(self, user, mock_notify):
+    def test_user_can_submit_proposal(self, user, mock_notify):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.post(self.url)
@@ -245,12 +248,14 @@ class ActionTest(test.APITransactionTestCase):
 
     @override_settings(task_always_eager=True)
     @data("proposal_creator")
-    def test_notification_is_sent_to_proposal_creator(self, user):
+    def test_notifications_are_sent_after_submission(self, user):
         user = getattr(self.fixture, user)
+        call_manager = self.fixture.call_manager
+        self.proposal.round.call.add_user(call_manager, CallRole.MANAGER)
         self.client.force_authenticate(user)
         self.client.post(self.url)
         # Verify that notification email has been sent to proposal creator
-        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(len(mail.outbox), 2)
         self.assertEqual(mail.outbox[0].to, [user.email])
         # Verify notification content
         proposal_url = core_utils.format_homeport_link(
@@ -265,6 +270,21 @@ class ActionTest(test.APITransactionTestCase):
         self.assertIn(f"New state: {ProposalStates.SUBMITTED}", body)
         self.assertIn(f"View Proposal: {proposal_url}", body)
 
+        # Verify that notification email has been sent to call manager
+        self.assertEqual(mail.outbox[1].to, [call_manager.email])
+        proposal_url = core_utils.format_homeport_link(
+            "call-management/{customer_uuid}/proposals/{proposal_uuid}/",
+            customer_uuid=self.proposal.round.call.manager.customer.uuid,
+            proposal_uuid=self.proposal.uuid,
+        )
+        body = mail.outbox[1].body
+        self.assertIn("A new proposal has been submitted to the call", body)
+        self.assertIn(self.proposal.name, body)
+        self.assertIn(proposal_url, body)
+        self.assertIn(self.proposal.created_by.full_name, body)
+        self.assertIn(self.proposal.round.name, body)
+        self.assertIn(self.proposal.round.call.name, body)
+
     @data(
         "owner",
         "customer_support",
@@ -276,7 +296,7 @@ class ActionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @override_settings(task_always_eager=True)
-    def test_set_project_start_date_if_proposal_has_been_approved(self):
+    def test_force_approval_of_proposal_creates_project(self):
         self.proposal.state = ProposalStates.IN_REVIEW
         self.proposal.save()
 
@@ -287,7 +307,6 @@ class ActionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.proposal.refresh_from_db()
         self.assertTrue(self.proposal.project)
-        self.assertEqual(self.proposal.project.start_date, None)
 
         # Verify proposal creator has been notified
         self.assertEqual(len(mail.outbox), 1)
@@ -302,6 +321,8 @@ class ActionTest(test.APITransactionTestCase):
         self.assertIn(f"New state: {ProposalStates.ACCEPTED}", body)
         self.assertIn(f"View Project: {project_url}", body)
 
+    def test_set_project_start_date_if_proposal_has_been_approved(self):
+        self.client.force_authenticate(self.fixture.staff)
         new_proposal = factories.ProposalFactory(
             round=self.fixture.round,
             state=ProposalStates.IN_REVIEW,

@@ -347,3 +347,18 @@ class ProposalSection(NotificationSection):
             ),
         ],
     )
+    new_proposal_submitted = Notification(
+        "new_proposal_submitted",
+        "A notification to the call manager about a new proposal submission.",
+        templates=[
+            NotificationTemplate(
+                "new_proposal_submitted_message.txt", "new_proposal_submitted"
+            ),
+            NotificationTemplate(
+                "new_proposal_submitted_message.html", "new_proposal_submitted"
+            ),
+            NotificationTemplate(
+                "new_proposal_submitted_subject.txt", "new_proposal_submitted"
+            ),
+        ],
+    )
