@@ -142,3 +142,33 @@ def notify_user_about_proposal_state_update(proposal_uuid, previous_state, new_s
         context,
         [proposal.created_by.email],  # type: ignore
     )
+
+
+@shared_task(
+    name="waldur_mastermind.proposal.notify_call_managers_about_new_proposal_submission"
+)
+def notify_call_managers_about_new_proposal_submission(proposal_uuid):
+    proposal = proposal_models.Proposal.objects.get(uuid=proposal_uuid)
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "proposal_url": core_utils.format_homeport_link(
+            "call-management/{customer_uuid}/proposals/{proposal_uuid}/",
+            customer_uuid=proposal.round.call.manager.customer.uuid,
+            proposal_uuid=proposal.uuid,
+        ),
+        "proposal_name": proposal.name,
+        "proposal_creator_name": proposal.created_by.full_name,  # type: ignore
+        "call_name": proposal.round.call.name,
+        "round_name": proposal.round.name,
+        "submission_date": proposal.modified,
+    }
+
+    recipients = list(proposal.round.call.call_managers.values_list("email", flat=True))
+
+    core_utils.broadcast_mail(
+        "proposal",
+        "new_proposal_submitted",
+        context,
+        recipients,
+    )

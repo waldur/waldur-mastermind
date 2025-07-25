@@ -1,0 +1,27 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <p>Dear call manager,</p>
+
+    <p>A new proposal has been submitted to the call "{{ call_name }}".</p>
+
+    <p>
+        <strong>Proposal details:</strong><br>
+        - Name: {{ proposal_name }}<br>
+        - Submitted by: {{ proposal_creator_name }}<br>
+        - Submission date: {{ submission_date }}<br>
+        - Round: {{ round_name }}
+    </p>
+
+    <p>
+        You can review this proposal by visiting the following URL:<br>
+        <a href="{{ proposal_url }}">{{ proposal_url }}</a>
+    </p>
+
+    <p>
+        This is an automated message from the {{ site_name }}. Please do not reply to this email.
+    </p>
+</body>
+</html>

@@ -1,0 +1,14 @@
+Dear call manager,
+
+A new proposal has been submitted to the call "{{ call_name }}".
+
+Proposal details:
+- Name: {{ proposal_name }}
+- Submitted by: {{ proposal_creator_name }}
+- Submission date: {{ submission_date }}
+- Round: {{ round_name }}
+
+You can review this proposal by visiting the following URL:
+{{ proposal_url }}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.
