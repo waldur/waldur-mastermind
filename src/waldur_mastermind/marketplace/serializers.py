@@ -5523,6 +5523,19 @@ class BackendResourceRequestSetErredSerializer(
 
 
 class MaintenanceAnnouncementOfferingSerializer(serializers.HyperlinkedModelSerializer):
+    impact_level_display = serializers.SerializerMethodField()
+    offering_name = serializers.CharField(read_only=True, source="offering.name")
+
+    def get_impact_level_display(
+        self, obj: models.MaintenanceAnnouncement
+    ) -> Literal[
+        "No impact",
+        "Degraded performance",
+        "Partial outage",
+        "Full outage",
+    ]:
+        return obj.get_impact_level_display()
+
     class Meta:
         model = models.MaintenanceAnnouncementOffering
         fields = [
@@ -5531,7 +5544,9 @@ class MaintenanceAnnouncementOfferingSerializer(serializers.HyperlinkedModelSeri
             "maintenance",
             "offering",
             "impact_level",
+            "impact_level_display",
             "impact_description",
+            "offering_name",
         ]
         extra_kwargs = {
             "url": {
@@ -5563,6 +5578,21 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
         many=True,
         read_only=True,
     )
+    service_provider_name = serializers.CharField(
+        read_only=True, source="service_provider.name"
+    )
+    state = serializers.SerializerMethodField()
+
+    def get_state(
+        self, obj: models.MaintenanceAnnouncement
+    ) -> Literal[
+        "Draft",
+        "Scheduled",
+        "In progress",
+        "Completed",
+        "Cancelled",
+    ]:
+        return obj.get_state_display()
 
     class Meta:
         model = models.MaintenanceAnnouncement
@@ -5580,6 +5610,8 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
             "service_provider",
             "created_by",
             "affected_offerings",
+            "service_provider_name",
+            "state",
         ]
         read_only_fields = ("state", "actual_start", "actual_end", "created_by")
         extra_kwargs = {
