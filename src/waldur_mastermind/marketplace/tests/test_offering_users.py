@@ -413,6 +413,18 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         offering_user = OfferingUser.objects.create(offering=self.offering, user=user)
         self.assertEqual(offering_user.state, OfferingUserStates.CREATION_REQUESTED)
 
+    def test_begin_creating_transition(self):
+        """Test transition to CREATING state."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        self.offering_user.state = OfferingUserStates.CREATION_REQUESTED
+        self.offering_user.save()
+        url = self.get_url(self.offering_user, "begin_creating")
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.CREATING)
+
     def test_set_pending_additional_validation_transition(self):
         """Test transition to PENDING_ADDITIONAL_VALIDATION state with comment."""
         self.offering_user.state = OfferingUserStates.CREATING
@@ -466,6 +478,18 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
         self.assertEqual(self.offering_user.service_provider_comment, "")
+
+    def test_set_ok_transition(self):
+        """Test transition to OK state."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save()
+        url = self.get_url(self.offering_user, "set_ok")
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
 
     def test_state_transition_without_comment(self):
         """Test state transitions work without providing comment."""
