@@ -43,7 +43,7 @@ class RemoteEduteamsUserTest(TestCase):
         mock_user = structure_factories.UserFactory()
         mock_create_or_update.return_value = (mock_user, True)
 
-        result = pull_remote_eduteams_user(self.username)
+        result, _ = pull_remote_eduteams_user(self.username)
 
         # Verify get_remote_eduteams_user_info was called
         mock_get_user_info.assert_called_once_with(self.username)
@@ -74,7 +74,7 @@ class RemoteEduteamsUserTest(TestCase):
         mock_user = structure_factories.UserFactory()
         mock_create_or_update.return_value = (mock_user, True)
 
-        result = pull_remote_eduteams_user(self.username)
+        result, _ = pull_remote_eduteams_user(self.username)
 
         # Verify email remains unchanged
         call_args = mock_create_or_update.call_args
@@ -95,7 +95,7 @@ class RemoteEduteamsUserTest(TestCase):
         mock_user = structure_factories.UserFactory()
         mock_create_or_update.return_value = (mock_user, True)
 
-        result = pull_remote_eduteams_user(self.username)
+        result, _ = pull_remote_eduteams_user(self.username)
 
         # Verify email list is converted to empty string when empty
         call_args = mock_create_or_update.call_args
@@ -116,7 +116,7 @@ class RemoteEduteamsUserTest(TestCase):
         mock_user = structure_factories.UserFactory()
         mock_create_or_update.return_value = (mock_user, True)
 
-        result = pull_remote_eduteams_user(self.username)
+        result, _ = pull_remote_eduteams_user(self.username)
 
         # Verify function works without email field
         call_args = mock_create_or_update.call_args
@@ -153,7 +153,7 @@ class RemoteEduteamsUserTest(TestCase):
         """Test when user not found remotely and doesn't exist locally"""
         mock_get_user_info.side_effect = NotFound("User not found")
 
-        result = pull_remote_eduteams_user(self.username)
+        result, _ = pull_remote_eduteams_user(self.username)
 
         # Verify function returns None
         self.assertIsNone(result)
@@ -232,7 +232,7 @@ class RemoteEduteamsUserTest(TestCase):
         mock_user = structure_factories.UserFactory()
         mock_create_or_update.return_value = (mock_user, True)
 
-        result = pull_remote_eduteams_user(self.username)
+        result, _ = pull_remote_eduteams_user(self.username)
 
         # Verify first email is used
         call_args = mock_create_or_update.call_args

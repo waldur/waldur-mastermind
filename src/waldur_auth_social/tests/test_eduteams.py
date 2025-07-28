@@ -162,3 +162,35 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
 
         remote_user.refresh_from_db()
         self.assertFalse(remote_user.is_active)
+
+    @responses.activate
+    def test_notifications_disabled_for_newly_created_user(self):
+        """Test that notifications are disabled for newly created remote eduTEAMS users."""
+        self.setup_user_info()
+        user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_login(user)
+
+        response = self.client.post(self.url, {"cuid": self.valid_cuid})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        new_user = User.objects.get(username=self.valid_cuid)
+        self.assertFalse(new_user.notifications_enabled)
+
+    @responses.activate
+    def test_notifications_preserved_for_existing_user(self):
+        """Test that notifications are preserved for existing remote eduTEAMS users."""
+        self.setup_user_info()
+        user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_login(user)
+
+        existing_user = structure_factories.UserFactory(
+            username=self.valid_cuid,
+            email="foo@example.com",
+            notifications_enabled=True,
+        )
+
+        response = self.client.post(self.url, {"cuid": self.valid_cuid})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        existing_user.refresh_from_db()
+        self.assertTrue(existing_user.notifications_enabled)
