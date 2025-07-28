@@ -76,7 +76,8 @@ def set_tax_percent_on_invoice_creation(sender, instance: Invoice, **kwargs):
     if instance.pk is not None:
         return
 
-    instance.tax_percent = instance.customer.default_tax_percent
+    if not instance.tax_percent:
+        instance.tax_percent = instance.customer.default_tax_percent
 
 
 def set_project_name_on_invoice_item_creation(
