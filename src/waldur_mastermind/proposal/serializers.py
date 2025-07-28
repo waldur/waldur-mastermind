@@ -947,7 +947,7 @@ class ProtectedCallSerializer(PublicCallSerializer):
         if not permissions_utils.has_permission(
             request,
             permissions_enums.PermissionEnum.CREATE_CALL,
-            customer,
+            customer.callmanagingorganisation,
         ):
             raise PermissionDenied()
 
