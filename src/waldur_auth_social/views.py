@@ -298,7 +298,13 @@ class RemoteEduteamsView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         cuid = serializer.validated_data["cuid"]
 
-        user = pull_remote_eduteams_user(cuid)
+        user, created = pull_remote_eduteams_user(cuid)
         if user is None:
             raise NotFound("User %s has not been found" % cuid)
+
+        # Disable notifications for newly created users
+        if created and user.notifications_enabled:
+            user.notifications_enabled = False
+            user.save(update_fields=["notifications_enabled"])
+
         return Response({"uuid": user.uuid.hex})
