@@ -109,6 +109,7 @@ from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     OfferingStates,
+    OfferingUserStates,
     OrderStates,
     ResourceStates,
     RobotAccountStates,
@@ -4085,10 +4086,32 @@ class OfferingUsersViewSet(
 
     set_pending_additional_validation_permissions = (
         set_validation_complete_permissions
-    ) = set_pending_account_linking_permissions = [
+    ) = set_pending_account_linking_permissions = begin_creating_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_USER,
             ["offering.customer"],
+        )
+    ]
+
+    @extend_schema(
+        request=None,
+        responses=None,
+    )
+    @action(detail=True, methods=["post"])
+    def begin_creating(self, request, uuid=None):
+        offering_user: models.OfferingUser = self.get_object()
+        offering_user.begin_creating()
+        offering_user.save(update_fields=["state"])
+        event_logger.emit(
+            f"User {offering_user.user} in offering {offering_user.offering.name} creation has begun.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+            event_context={"offering_user": offering_user},
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    begin_creating_validators = [
+        core_validators.StateValidator(
+            OfferingUserStates.CREATION_REQUESTED, state_enum=OfferingUserStates
         )
     ]
 
@@ -4113,6 +4136,14 @@ class OfferingUsersViewSet(
         )
         return Response(status=status.HTTP_200_OK)
 
+    set_pending_additional_validation_validators = [
+        core_validators.StateValidator(
+            OfferingUserStates.CREATING,
+            OfferingUserStates.ERROR,
+            state_enum=OfferingUserStates,
+        )
+    ]
+
     @extend_schema(
         request=serializers.OfferingUserStateTransitionSerializer,
         responses=None,
@@ -4134,7 +4165,15 @@ class OfferingUsersViewSet(
         )
         return Response(status=status.HTTP_200_OK)
 
-    @extend_schema(responses=None)
+    set_pending_account_linking_validators = [
+        core_validators.StateValidator(
+            OfferingUserStates.CREATING,
+            OfferingUserStates.ERROR,
+            state_enum=OfferingUserStates,
+        )
+    ]
+
+    @extend_schema(request=None, responses=None)
     @action(detail=True, methods=["post"])
     def set_validation_complete(self, request, uuid=None):
         offering_user: models.OfferingUser = self.get_object()
@@ -4149,6 +4188,44 @@ class OfferingUsersViewSet(
             f"User {offering_user.user.username} in offering {offering_user.offering.name} validation completed by {request.user.username}."
         )
         return Response(status=status.HTTP_200_OK)
+
+    set_validation_complete_validators = [
+        core_validators.StateValidator(
+            OfferingUserStates.PENDING_ACCOUNT_LINKING,
+            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+            state_enum=OfferingUserStates,
+        )
+    ]
+
+    @extend_schema(
+        request=None,
+        responses=None,
+    )
+    @action(detail=True, methods=["post"])
+    def set_ok(self, request, uuid=None):
+        offering_user: models.OfferingUser = self.get_object()
+        offering_user.set_ok()
+        offering_user.save(update_fields=["state"])
+        event_logger.emit(
+            f"User {offering_user.user} in offering {offering_user.offering.name} set to OK.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+            event_context={"offering_user": offering_user},
+        )
+        logger.info(
+            f"User {offering_user.user.username} in offering {offering_user.offering.name} set to OK by {request.user.username}."
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    set_ok_validators = [
+        core_validators.StateValidator(
+            OfferingUserStates.CREATION_REQUESTED,
+            OfferingUserStates.CREATING,
+            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+            OfferingUserStates.PENDING_ACCOUNT_LINKING,
+            OfferingUserStates.ERROR,
+            state_enum=OfferingUserStates,
+        )
+    ]
 
 
 class OfferingUserGroupViewSet(core_views.ActionsViewSet):

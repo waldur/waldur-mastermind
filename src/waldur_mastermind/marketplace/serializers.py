@@ -3872,6 +3872,7 @@ class OfferingUserSerializer(
     )
     user_username = serializers.ReadOnlyField(source="user.username")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
+    user_email = serializers.ReadOnlyField(source="user.email")
     customer_uuid = serializers.UUIDField(
         read_only=True, source="offering.customer.uuid"
     )
@@ -3893,6 +3894,7 @@ class OfferingUserSerializer(
             "user_uuid",
             "user_username",
             "user_full_name",
+            "user_email",
             "created",
             "modified",
             "customer_uuid",
@@ -5491,6 +5493,7 @@ class BackendResourceReqSerializer(
         model = models.BackendResourceRequest
         fields = (
             "url",
+            "uuid",
             "created",
             "modified",
             "started",
@@ -5507,6 +5510,7 @@ class BackendResourceReqSerializer(
         }
         view_name = "backend-resource-request-detail"
         read_only_fields = (
+            "uuid",
             "state",
             "started",
             "finished",
