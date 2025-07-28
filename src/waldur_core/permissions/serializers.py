@@ -169,7 +169,7 @@ class PermissionSerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(read_only=True, source="role.name")
     role_description = serializers.CharField(read_only=True, source="role.description")
     role_uuid = serializers.UUIDField(read_only=True, source="role.uuid")
-    scope_type = serializers.CharField(read_only=True, source="scope._meta.model_name")
+    scope_type = serializers.SerializerMethodField()
     scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
     scope_name = serializers.CharField(read_only=True, source="scope.name")
     customer_uuid = serializers.UUIDField(read_only=True, source="scope.customer.uuid")
@@ -194,6 +194,13 @@ class PermissionSerializer(serializers.ModelSerializer):
             "customer_uuid",
             "customer_name",
         )
+
+    def get_scope_type(self, obj) -> str | None:
+        model_name = obj.scope._meta.model_name
+        for key, (app, model) in TYPE_MAP.items():
+            if model == model_name:
+                return key
+        return model_name
 
 
 class UserRoleMutateSerializer(serializers.Serializer):
