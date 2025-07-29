@@ -1165,18 +1165,22 @@ django = ">=4.2"
 
 [[package]]
 name = "django-dbtemplates"
-version = "4.0"
+version = "0.0.0"
 description = "Template loader for templates stored in the database"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 groups = ["main"]
-files = [
-    {file = "django-dbtemplates-4.0.tar.gz", hash = "sha256:e6fa3d47824183731071339a589ec1e8910ee6eef5ddad89239008a36e3c5d43"},
-    {file = "django_dbtemplates-4.0-py3-none-any.whl", hash = "sha256:a6ca7a921841a1cc411dadc7e10b61299bc4c0534b2a0ae53365e8494573bc93"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 django-appconf = ">=0.4"
+
+[package.source]
+type = "git"
+url = "https://github.com/jazzband/django-dbtemplates"
+reference = "master"
+resolved_reference = "10e7de2eda78577507361e2b25a721d29d9229e8"
 
 [[package]]
 name = "django-extensions"
@@ -5182,4 +5186,4 @@ requests = ">=2.25.1,<3.0.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10,<3.12"
-content-hash = "6de37d14287b37aa0bb6f48174a5278ff67fa5cddab03e8a9076894a96c0105e"
+content-hash = "b98fa41b56a12f43770507924eda7c318e81f6fa051f996165661849de686975"
