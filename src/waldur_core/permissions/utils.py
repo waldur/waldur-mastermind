@@ -45,6 +45,11 @@ def permission_factory(permission, sources=None):
 
         raise exceptions.PermissionDenied()
 
+    # Attach metadata to the function object
+    # This makes the raw data available for inspection.
+    setattr(permission_function, "permission", permission)
+    setattr(permission_function, "sources", sources)
+
     return permission_function
 
 

@@ -1,6 +1,9 @@
+from typing import Any
+
 from drf_spectacular.drainage import get_override
 from drf_spectacular.openapi import AutoSchema
 from drf_spectacular.plumbing import (
+    ComponentRegistry,
     OpenApiTypes,
     build_array_type,
     build_basic_type,
@@ -13,6 +16,38 @@ from waldur_core.core.serializers import RestrictedSerializerMixin
 
 
 class WaldurOpenApiInspector(AutoSchema):
+    def get_operation(
+        self,
+        path: str,
+        path_regex: str,
+        path_prefix: str,
+        method: str,
+        registry: ComponentRegistry,
+    ) -> dict[str, Any] | None:
+        operation = super().get_operation(
+            path, path_regex, path_prefix, method, registry
+        )
+        if not hasattr(self.view, "action"):
+            return operation
+        permission_checks = getattr(self.view, self.view.action + "_permissions", [])
+        if not isinstance(permission_checks, list):
+            return operation
+
+        permissions_data = []
+        for check in permission_checks:
+            if hasattr(check, "permission"):
+                permissions_data.append(
+                    {
+                        "permission": check.permission.value,
+                        "scopes": check.sources,
+                    }
+                )
+
+        if permissions_data:
+            operation["x-permissions"] = permissions_data
+
+        return operation
+
     def get_description(self) -> str:
         action_or_method = getattr(
             self.view, getattr(self.view, "action", self.method.lower()), None
