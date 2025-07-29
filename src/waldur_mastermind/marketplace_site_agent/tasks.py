@@ -103,7 +103,10 @@ def send_messages_about_pending_orders():
     )
 
     for order in pending_orders:
-        payload = {"order_uuid": order.uuid.hex}
+        payload = {
+            "order_uuid": order.uuid.hex,
+            "order_state": order.get_state_display(),
+        }
         offering = order.offering
         messages = marketplace_utils.prepare_messages(
             offering, payload, logging_utils.ObservableObjectType.ORDER
