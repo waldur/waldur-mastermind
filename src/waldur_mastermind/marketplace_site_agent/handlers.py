@@ -25,7 +25,7 @@ def send_done_order_to_message_queue(sender, instance: Order, created=False, **k
     if not order.tracker.has_changed("state") or order.state != OrderStates.DONE:
         return
 
-    payload = {"order_uuid": order.uuid.hex}
+    payload = {"order_uuid": order.uuid.hex, "order_state": order.get_state_display()}
     messages = marketplace_utils.prepare_messages(
         offering, payload, logging_utils.ObservableObjectType.ORDER
     )
@@ -51,7 +51,7 @@ def send_pending_order_to_message_queue(
     ):
         return
 
-    payload = {"order_uuid": order.uuid.hex}
+    payload = {"order_uuid": order.uuid.hex, "order_state": order.get_state_display()}
     messages = marketplace_utils.prepare_messages(
         offering, payload, logging_utils.ObservableObjectType.ORDER
     )
