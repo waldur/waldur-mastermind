@@ -64,7 +64,7 @@ django-axes = "^7.0.0"
 google-api-python-client = "^2.176.0"
 google-auth-oauthlib = "^1.2.2"
 django-health-check = "^3.16.2"
-django-dbtemplates = "4.0"
+django-dbtemplates = {git = "https://github.com/jazzband/django-dbtemplates", rev="master"}
 pydantic = "^2.10.6"
 cryptography = "44.0.1"
 kubernetes = ">=31.0.0"
