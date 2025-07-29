@@ -16,6 +16,11 @@ from waldur_core.core.serializers import RestrictedSerializerMixin
 
 
 class WaldurOpenApiInspector(AutoSchema):
+    method_mapping = {
+        **AutoSchema.method_mapping,
+        "head": "head",
+    }
+
     def get_operation(
         self,
         path: str,
@@ -27,6 +32,13 @@ class WaldurOpenApiInspector(AutoSchema):
         operation = super().get_operation(
             path, path_regex, path_prefix, method, registry
         )
+        # Exclude HEAD operations for detail views
+        if method == "HEAD":
+            if getattr(self.view, "detail", False):
+                return None
+            else:
+                operation["responses"] = {"200": {"description": "No response body"}}
+
         if not hasattr(self.view, "action"):
             return operation
         permission_checks = getattr(self.view, self.view.action + "_permissions", [])

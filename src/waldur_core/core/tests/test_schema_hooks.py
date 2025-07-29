@@ -1,4 +1,7 @@
+import unittest
+
 from waldur_core.core.schema_hooks import (
+    add_result_count_header,
     make_fields_optional,
     remove_waldur_cookie_auth,
     transform_paginated_arrays,
@@ -190,3 +193,55 @@ def test_transform_paginated_arrays():
 
     result = transform_paginated_arrays(schema.copy(), None)
     assert result == expected_schema
+
+
+class TestAddResultCountHeader(unittest.TestCase):
+    def test_adds_header_to_list_operation_response(self):
+        """Test header reference added to list operation responses"""
+        result = {
+            "paths": {
+                "/items/": {
+                    "get": {
+                        "operationId": "item_list",
+                        "responses": {
+                            "200": {
+                                "content": {
+                                    "application/json": {"schema": {"type": "array"}}
+                                }
+                            }
+                        },
+                    }
+                }
+            }
+        }
+        modified = add_result_count_header(result, None)
+
+        response = modified["paths"]["/items/"]["get"]["responses"]["200"]
+        self.assertIn("headers", response)
+        self.assertEqual(
+            response["headers"]["x-result-count"],
+            {"$ref": "#/components/headers/XResultCount"},
+        )
+
+    def test_skips_non_list_operations(self):
+        """Test header not added to non-list operations"""
+        result = {
+            "paths": {
+                "/items/": {
+                    "get": {
+                        "operationId": "item_detail",
+                        "responses": {
+                            "200": {
+                                "content": {
+                                    "application/json": {"schema": {"type": "object"}}
+                                }
+                            }
+                        },
+                    }
+                }
+            }
+        }
+        modified = add_result_count_header(result, None)
+
+        response = modified["paths"]["/items/"]["get"]["responses"]["200"]
+        self.assertNotIn("headers", response)

@@ -139,6 +139,62 @@ def transform_paginated_arrays(result, generator, **kwargs):
     return result
 
 
+def add_result_count_header(result, generator, **kwargs):
+    """
+    Adds x-result-count header to all paginated endpoints using a reusable component.
+    """
+    # Define reusable header component
+    header_name = "XResultCount"
+    header_def = {
+        "description": "Total number of results available",
+        "schema": {"type": "integer"},
+        "example": 42,
+    }
+
+    # Ensure components section exists
+    components = result.setdefault("components", {})
+    headers = components.setdefault("headers", {})
+
+    # Add header definition to components if not exists
+    if header_name not in headers:
+        headers[header_name] = header_def
+
+    # Process all endpoints
+    for path_item in result.get("paths", {}).values():
+        for operation in path_item.values():
+            if not operation.get("operationId", "").endswith("_list"):
+                continue
+
+            responses = operation.get("responses", {})
+            if not responses:
+                continue
+
+            # Process all 2xx responses
+            for status_code, response in responses.items():
+                if not status_code.startswith("2"):
+                    continue
+
+                # Get content schemas
+                content = response.get("content", {})
+                if not content:
+                    continue
+
+                # Check each media type schema for pagination
+                for media_obj in content.values():
+                    schema = media_obj.get("schema")
+                    if not schema:
+                        continue
+
+                    # Add header reference to response
+                    if "headers" not in response:
+                        response["headers"] = {}
+                    response["headers"]["x-result-count"] = {
+                        "$ref": f"#/components/headers/{header_name}"
+                    }
+                    break  # Only need to add once per response
+    return result
+
+
 def make_fields_optional(result, generator, **kwargs):
     """
     Modifies an OpenAPI schema to make all fields optional in responses for
