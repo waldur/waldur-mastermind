@@ -202,7 +202,7 @@ CREATE_PERMISSIONS = {
     "offering": PermissionEnum.CREATE_OFFERING_PERMISSION,
     "call": PermissionEnum.CREATE_CALL_PERMISSION,
     "proposal": PermissionEnum.MANAGE_PROPOSAL,
-    "call_organizer": PermissionEnum.CREATE_CUSTOMER_PERMISSION,
+    "call_organizer": PermissionEnum.CREATE_CALL_PERMISSION,
     "service_provider": PermissionEnum.CREATE_CUSTOMER_PERMISSION,
 }
 
@@ -213,7 +213,7 @@ UPDATE_PERMISSIONS = {
     "offering": PermissionEnum.UPDATE_OFFERING_PERMISSION,
     "call": PermissionEnum.UPDATE_CALL_PERMISSION,
     "proposal": PermissionEnum.UPDATE_PROPOSAL_PERMISSION,
-    "call_organizer": PermissionEnum.UPDATE_CUSTOMER_PERMISSION,
+    "call_organizer": PermissionEnum.UPDATE_CALL_PERMISSION,
     "service_provider": PermissionEnum.UPDATE_CUSTOMER_PERMISSION,
 }
 
@@ -224,7 +224,7 @@ DELETE_PERMISSIONS = {
     "offering": PermissionEnum.DELETE_OFFERING_PERMISSION,
     "call": PermissionEnum.DELETE_CALL_PERMISSION,
     "proposal": PermissionEnum.DELETE_PROPOSAL_PERMISSION,
-    "call_organizer": PermissionEnum.DELETE_CUSTOMER_PERMISSION,
+    "call_organizer": PermissionEnum.DELETE_CALL_PERMISSION,
     "service_provider": PermissionEnum.DELETE_CUSTOMER_PERMISSION,
 }
 
