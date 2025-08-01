@@ -38,11 +38,11 @@ def create_monthly_invoices():
         Q(state=models.Invoice.States.PENDING, year__lt=date.year)
         | Q(state=models.Invoice.States.PENDING, year=date.year, month__lt=date.month)
     )
+    set_to_zero_overdue_credits()
     for invoice in old_invoices:
         try:
             with transaction.atomic():
                 process_invoice_credits(invoice)
-                set_to_zero_overdue_credits()
                 invoice.set_created()
         except Exception:
             logger.exception("Unable to process invoice %s", invoice)
