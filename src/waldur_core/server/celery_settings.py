@@ -1,6 +1,8 @@
 import warnings
 from datetime import timedelta
 
+from celery.schedules import crontab
+
 from waldur_core.core import WaldurExtension
 
 CELERY_TASK_QUEUES = {
@@ -22,7 +24,8 @@ CELERY_BEAT_SCHEDULE = {
     },
     "pull-service-resources": {
         "task": "waldur_core.structure.ServiceResourcesListPullTask",
-        "schedule": timedelta(hours=1),
+        # Pull resources strictly at the beginning of an hour
+        "schedule": crontab(minute=0),
         "args": (),
     },
     "check-expired-permissions": {
