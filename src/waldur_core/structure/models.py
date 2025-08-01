@@ -438,7 +438,7 @@ class Customer(
     blocked = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
     organization_groups = models.ManyToManyField(
-        OrganizationGroup, related_name="customers", blank=True
+        to=OrganizationGroup, related_name="customers", blank=True
     )
     tracker = cast(FieldInstanceTracker, FieldTracker())
     objects = NetManager()
