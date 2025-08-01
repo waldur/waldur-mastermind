@@ -1,6 +1,7 @@
 import datetime
 
 from ddt import data, ddt
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
@@ -538,6 +539,33 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.resource.save()
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @freeze_time("2025-07-31T21:25:00Z")
+    @override_settings(TIME_ZONE="Europe/Tallinn")
+    def test_usage_timezone_billing_period_calculation(self):
+        """
+        Test that usage sent at July 31st 21:25 UTC is recorded for August billing period
+        when timezone is Europe/Tallinn (UTC+3).
+
+        This simulates the scenario where:
+        - Agent sends usage at 2025-08-01 00:25 in their UTC+3 timezone (Europe/Tallinn)
+        - Waldur receives it at 2025-07-31T21:25:00Z (UTC)
+        - Billing period should be calculated for August, not July
+        """
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", self.get_usage_data()
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.offering_component,
+        )
+
+        expected_billing_period = datetime.date(2025, 8, 1)
+        self.assertEqual(usage.billing_period, expected_billing_period)
 
     def submit_usage(self, **extra):
         payload = self.get_valid_payload()

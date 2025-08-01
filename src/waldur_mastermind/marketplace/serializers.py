@@ -3739,7 +3739,8 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
 
         components_map = self.get_components_map(resource.plan.offering)
         now = timezone.now()
-        billing_period = core_utils.month_start(now)
+        local_now = timezone.localtime(now)
+        billing_period = core_utils.month_start(local_now)
         user: User = self.context["request"].user
         if user.is_anonymous:
             user = None
