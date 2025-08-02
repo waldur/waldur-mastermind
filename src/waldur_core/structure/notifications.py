@@ -362,3 +362,27 @@ class ProposalSection(NotificationSection):
             ),
         ],
     )
+    new_review_submitted = Notification(
+        "new_review_submitted",
+        "A notification to the call manager about a new review submission.",
+        templates=[
+            NotificationTemplate(
+                "new_review_submitted_message.txt", "new_review_submitted"
+            ),
+            NotificationTemplate(
+                "new_review_submitted_message.html", "new_review_submitted"
+            ),
+            NotificationTemplate(
+                "new_review_submitted_subject.txt", "new_review_submitted"
+            ),
+        ],
+    )
+    review_rejected = Notification(
+        "review_rejected",
+        "A notification to the call managers about a rejected review.",
+        templates=[
+            NotificationTemplate("review_rejected_message.txt", "review_rejected"),
+            NotificationTemplate("review_rejected_message.html", "review_rejected"),
+            NotificationTemplate("review_rejected_subject.txt", "review_rejected"),
+        ],
+    )

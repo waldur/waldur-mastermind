@@ -101,7 +101,7 @@ def expired_reviews_should_be_cancelled():
 def notify_user_about_proposal_state_update(proposal_uuid, previous_state, new_state):
     proposal = proposal_models.Proposal.objects.get(uuid=proposal_uuid)
 
-    if not proposal.created_by.email:  # type: ignore
+    if not proposal.created_by or not proposal.created_by.email:
         logger.warning(
             f"Cannot send proposal state update notification. Proposal {proposal.uuid} creator has no valid email."
         )
@@ -128,7 +128,9 @@ def notify_user_about_proposal_state_update(proposal_uuid, previous_state, new_s
         "project_url": project_link,
         "project_name": proposal.project.name if proposal.project else None,
         "proposal_name": proposal.name,
-        "proposal_creator_name": proposal.created_by.full_name,  # type: ignore
+        "proposal_creator_name": proposal.created_by.full_name
+        if proposal.created_by
+        else "Unknown",
         "call_name": proposal.round.call.name,
         "update_date": proposal.modified,
         "duration": proposal.duration_in_days,
@@ -140,7 +142,9 @@ def notify_user_about_proposal_state_update(proposal_uuid, previous_state, new_s
         "proposal",
         "proposal_state_changed",
         context,
-        [proposal.created_by.email],  # type: ignore
+        [proposal.created_by.email]
+        if proposal.created_by and proposal.created_by.email
+        else [],
     )
 
 
@@ -158,7 +162,9 @@ def notify_call_managers_about_new_proposal_submission(proposal_uuid):
             proposal_uuid=proposal.uuid,
         ),
         "proposal_name": proposal.name,
-        "proposal_creator_name": proposal.created_by.full_name,  # type: ignore
+        "proposal_creator_name": proposal.created_by.full_name
+        if proposal.created_by
+        else "Unknown",
         "call_name": proposal.round.call.name,
         "round_name": proposal.round.name,
         "submission_date": proposal.modified,
@@ -169,6 +175,70 @@ def notify_call_managers_about_new_proposal_submission(proposal_uuid):
     core_utils.broadcast_mail(
         "proposal",
         "new_proposal_submitted",
+        context,
+        recipients,
+    )
+
+
+@shared_task(name="waldur_mastermind.proposal.notify_call_managers_about_new_review")
+def notify_call_managers_about_new_review(review_uuid):
+    review = proposal_models.Review.objects.get(uuid=review_uuid)
+    review_counts = utils.get_proposal_review_counts(review.proposal)
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "review_url": core_utils.format_homeport_link(
+            "call-management/{customer_uuid}/review/{review_uuid}/",
+            customer_uuid=review.proposal.round.call.manager.customer.uuid,
+            review_uuid=review.uuid,
+        ),
+        "proposal_name": review.proposal.name,
+        "call_name": review.proposal.round.call.name,
+        "reviewer_name": review.reviewer.full_name,
+        "submission_date": review.modified,
+        "score": review.summary_score,
+        "max_score": "5",
+        **review_counts,
+    }
+
+    recipients = list(
+        review.proposal.round.call.call_managers.values_list("email", flat=True)
+    )
+    core_utils.broadcast_mail(
+        "proposal",
+        "new_review_submitted",
+        context,
+        recipients,
+    )
+
+
+@shared_task(
+    name="waldur_mastermind.proposal.notify_call_managers_about_rejected_review"
+)
+def notify_call_managers_about_rejected_review(review_uuid):
+    review = proposal_models.Review.objects.get(uuid=review_uuid)
+    review_counts = utils.get_proposal_review_counts(review.proposal)
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "proposal_name": review.proposal.name,
+        "call_name": review.proposal.round.call.name,
+        "reviewer_name": review.reviewer.full_name,
+        "assign_date": review.created,
+        "rejection_date": review.modified,
+        "create_review_link": core_utils.format_homeport_link(
+            "call-management/{customer_uuid}/proposals/",
+            customer_uuid=review.proposal.round.call.manager.customer.uuid,
+        ),
+        **review_counts,
+    }
+
+    recipients = list(
+        review.proposal.round.call.call_managers.values_list("email", flat=True)
+    )
+    core_utils.broadcast_mail(
+        "proposal",
+        "review_rejected",
         context,
         recipients,
     )

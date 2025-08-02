@@ -1,0 +1,1 @@
+Alert: review assignment rejected for {{ proposal_name }}
