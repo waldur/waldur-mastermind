@@ -128,3 +128,28 @@ def create_reviews_of_round(call_round: proposal_models.Round):
         )
     ):
         process_proposals_pending_reviewers(proposal)
+
+
+def get_proposal_review_counts(proposal: proposal_models.Proposal) -> dict:
+    base_queryset = proposal_models.Review.objects.filter(proposal=proposal)
+
+    submitted_reviews = base_queryset.filter(
+        state=proposal_models.Review.States.SUBMITTED
+    ).count()
+
+    rejected_reviews = base_queryset.filter(
+        state=proposal_models.Review.States.REJECTED
+    ).count()
+
+    pending_reviews = base_queryset.filter(
+        state__in=[
+            proposal_models.Review.States.CREATED,
+            proposal_models.Review.States.IN_REVIEW,
+        ]
+    ).count()
+
+    return {
+        "submitted_reviews": submitted_reviews,
+        "rejected_reviews": rejected_reviews,
+        "pending_reviews": pending_reviews,
+    }

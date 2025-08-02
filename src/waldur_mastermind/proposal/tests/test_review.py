@@ -1,6 +1,11 @@
+from unittest import mock
+
 from ddt import data, ddt
+from django.core import mail
+from django.test import override_settings
 from rest_framework import status, test
 
+from waldur_core.permissions.fixtures import CallRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import ProposalStates
@@ -196,11 +201,7 @@ class ActionTest(test.APITransactionTestCase):
         response = self.client.post(self.url_accept)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data(
-        "staff",
-        "reviewer_1",
-    )
-    def test_user_can_submit(self, user):
+    def _submit_review(self, user):
         url = factories.ReviewFactory.get_url(self.review, "submit")
         self.review.state = models.Review.States.IN_REVIEW
         self.review.save()
@@ -214,12 +215,56 @@ class ActionTest(test.APITransactionTestCase):
                 "summary_private_comment": "summary private",
             },
         )
+        return response
+
+    @mock.patch(
+        "waldur_mastermind.proposal.tasks.notify_call_managers_about_new_review.delay"
+    )
+    @data(
+        "staff",
+        "reviewer_1",
+    )
+    def test_user_can_submit(self, user, mock_notify):
+        response = self._submit_review(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.review.refresh_from_db()
         self.assertTrue(self.review.state, models.Review.States.SUBMITTED)
         self.assertTrue(self.review.summary_score, 4)
         self.assertTrue(self.review.summary_public_comment, "summary public")
         self.assertTrue(self.review.summary_private_comment, "summary private")
+
+        # Verify notification task was called
+        mock_notify.assert_called_once_with(self.review.uuid)
+
+    @override_settings(task_always_eager=True)
+    @data("reviewer_1")
+    def test_notifications_after_submit(self, user):
+        structure_factories.NotificationFactory(
+            key="proposal.new_review_submitted",
+        )
+        call_manager = self.fixture.call_manager
+        self.review.proposal.round.call.add_user(call_manager, CallRole.MANAGER)
+        response = self._submit_review(user)
+        user = getattr(self.fixture, user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify notification email was sent
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [call_manager.email])
+
+        subject = mail.outbox[0].subject
+        self.assertIn(
+            f"Review submitted for proposal: {self.review.proposal.name}", subject
+        )
+
+        body = mail.outbox[0].body
+        self.assertIn(
+            f'A review has been submitted for proposal "{self.review.proposal.name}" in call "{self.review.proposal.round.call.name}".',
+            body,
+        )
+        self.assertIn(user.first_name, body)
+        self.assertIn("Review Progress:", body)
+        self.assertIn(str(self.review.summary_score), body)
 
     @data(
         "owner",
@@ -231,6 +276,40 @@ class ActionTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_settings(task_always_eager=True)
+    @data("reviewer_1")
+    def test_notifications_after_reject(self, user):
+        structure_factories.NotificationFactory(
+            key="proposal.review_rejected",
+        )
+        call_manager = self.fixture.call_manager
+        self.review.proposal.round.call.add_user(call_manager, CallRole.MANAGER)
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            factories.ReviewFactory.get_url(self.review, "reject"),
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify notification email was sent
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [call_manager.email])
+
+        subject = mail.outbox[0].subject
+        self.assertIn(
+            f"Alert: review assignment rejected for {self.review.proposal.name}",
+            subject,
+        )
+
+        body = mail.outbox[0].body
+        self.assertIn(
+            f'A reviewer has rejected their assignment to review proposal "{self.review.proposal.name}" in call "{self.review.proposal.round.call.name}".',
+            body,
+        )
+        self.assertIn(user.first_name, body)
+        self.assertIn("Review Progress:", body)
 
 
 @ddt

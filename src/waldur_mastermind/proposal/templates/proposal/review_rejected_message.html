@@ -1,0 +1,38 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Reviewer Assignment Rejected</title>
+</head>
+<body>
+    <p>Dear call manager,</p>
+
+    <p>A reviewer has rejected their assignment to review proposal "{{ proposal_name }}" in call "{{ call_name }}".</p>
+
+    <p>
+        <strong>Assignment details:</strong><br>
+        - Reviewer: {{ reviewer_name }}<br>
+        - Assigned date: {{ assign_date }}<br>
+        - Rejected date: {{ rejection_date }}
+    </p>
+
+    <p>
+        <strong style="color: #d9534f;">ACTION REQUIRED:</strong> Please assign a new reviewer to maintain the minimum required number of reviews for this proposal.
+    </p>
+
+    <p>
+        <strong>Review Progress:</strong><br>
+        - Submitted reviews: {{ submitted_reviews }}<br>
+        - Pending reviews: {{ pending_reviews }}<br>
+        - Rejected reviews: {{ rejected_reviews }}<br>
+    </p>
+
+    <p>
+        You can assign a new reviewer by visiting:<br>
+        <a href="{{ create_review_link }}">{{ create_review_link }}</a>
+    </p>
+
+    <p>
+        This is an automated message from the {{ site_name }}. Please do not reply to this email.
+    </p>
+</body>
+</html>

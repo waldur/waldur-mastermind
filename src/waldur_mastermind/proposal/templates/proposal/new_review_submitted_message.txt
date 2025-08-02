@@ -1,0 +1,18 @@
+Dear call manager,
+
+A review has been submitted for proposal "{{ proposal_name }}" in call "{{ call_name }}".
+
+Review summary:
+- Reviewer: {{ reviewer_name }}
+- Submission date: {{ submission_date }}
+- Score: {{ score }}/{{ max_score }}
+
+Review Progress:
+- Submitted reviews: {{ submitted_reviews }}
+- Pending reviews: {{ pending_reviews }}
+- Rejected reviews: {{ rejected_reviews }}
+
+You can view the full review details at:
+{{ review_url }}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.

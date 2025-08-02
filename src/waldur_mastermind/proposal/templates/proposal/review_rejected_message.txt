@@ -1,0 +1,20 @@
+Dear call manager,
+
+A reviewer has rejected their assignment to review proposal "{{ proposal_name }}" in call "{{ call_name }}".
+
+Assignment details:
+- Reviewer: {{ reviewer_name }}
+- Assigned date: {{ assign_date }}
+- Rejected date: {{ rejection_date }}
+
+ACTION REQUIRED: Please assign a new reviewer to maintain the minimum required number of reviews for this proposal.
+
+Review Progress:
+- Submitted reviews: {{ submitted_reviews }}
+- Pending reviews: {{ pending_reviews }}
+- Rejected reviews: {{ rejected_reviews }}
+
+You can assign a new reviewer by visiting:
+{{ create_review_link }}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.

@@ -147,6 +147,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     @cached_property
     def proposal_submitted(self):
         return proposal_factories.ProposalFactory(
+            name="Proposal submitted",
             round=self.round,
             state=ProposalStates.SUBMITTED,
             project=self.proposal_project,

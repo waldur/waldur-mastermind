@@ -813,6 +813,7 @@ class ReviewViewSet(ActionsViewSet):
         review: models.Review = self.get_object()
         review.state = models.Review.States.REJECTED
         review.save()
+        tasks.notify_call_managers_about_rejected_review.delay(review.uuid)
         return response.Response(
             "Review has been rejected.",
             status=status.HTTP_200_OK,
@@ -837,6 +838,7 @@ class ReviewViewSet(ActionsViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save(state=models.Review.States.SUBMITTED)
+        tasks.notify_call_managers_about_new_review.delay(review.uuid)
         return response.Response(
             "Review has been submitted.",
             status=status.HTTP_200_OK,

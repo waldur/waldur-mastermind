@@ -1,0 +1,1 @@
+Review submitted for proposal: {{ proposal_name }}
