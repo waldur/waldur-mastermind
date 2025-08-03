@@ -191,6 +191,11 @@ def can_manage_invitation_with(request, scope):
     if has_permission(request, permission, customer):
         return True
 
+    # In the call scope, to allow call_organizer role to manage invitation, we have to set permission scope to callmanagingorganisation
+    if scope._meta.model_name == "call" and customer.callmanagingorganisation:
+        if has_permission(request, permission, customer.callmanagingorganisation):
+            return True
+
     return False
 
 
