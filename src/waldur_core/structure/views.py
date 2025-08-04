@@ -1012,3 +1012,13 @@ class AuthTokenViewSet(ActionsViewSet):
 
     def get_queryset(self):
         return get_active_tokens()
+
+
+class ExternalLinkViewSet(viewsets.ModelViewSet):
+    queryset = models.ExternalLink.objects.all()
+    serializer_class = serializers.ExternalLinkSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend, rf_filters.OrderingFilter)
+    filterset_class = filters.ExternalLinkFilter
+    permission_classes = (core_permissions.IsAdminOrReadOnly,)
+    ordering_fields = ("name", "url")

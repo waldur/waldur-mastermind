@@ -776,3 +776,20 @@ class AccessSubnetFilter(django_filters.FilterSet):
             "inet",
             "description",
         ]
+
+
+class ExternalLinkFilter(django_filters.FilterSet):
+    query = django_filters.CharFilter(method="filter_query")
+
+    class Meta:
+        model = models.ExternalLink
+        fields = ()
+
+    def filter_query(self, queryset, name, value):
+        if value:
+            return queryset.filter(
+                Q(name__icontains=value)
+                | Q(link__icontains=value)
+                | Q(description__icontains=value)
+            ).distinct()
+        return queryset
