@@ -38,6 +38,9 @@ class WaldurOpenApiInspector(AutoSchema):
                 return None
             else:
                 operation["responses"] = {"200": {"description": "No response body"}}
+                operation["description"] = (
+                    "Get number of items in the collection matching the request parameters."
+                )
 
         if not hasattr(self.view, "action"):
             return operation
