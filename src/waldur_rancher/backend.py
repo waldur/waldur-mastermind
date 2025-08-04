@@ -21,6 +21,7 @@ from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
+from waldur_openstack import models as openstack_models
 from waldur_openstack.models import Instance
 from waldur_rancher.enums import (
     SERVER_ROLE,
@@ -464,10 +465,13 @@ class RancherBackend(ServiceBackend):
             mem_capacity_raw = capacity.pop(
                 "memory", "0Ki"
             )  # The API returns memory data in KB
-            mem_capacity_kb = mem_capacity_raw.replace("Ki", "")
-            capacity["memory"] = (
-                f"{int(mem_capacity_kb) // 1024}Mi"  # convert to MB and save
-            )
+            if "Ki" in mem_capacity_raw:
+                # Convert KB to MB
+                mem_capacity_kb = mem_capacity_raw.replace("Ki", "")
+                capacity["memory"] = f"{int(mem_capacity_kb) // 1024}Mi"
+            else:
+                # Memory is already in MB
+                capacity["memory"] = mem_capacity_raw
             cluster.capacity = capacity
             cluster.requested = backend_cluster["requested"]
 
@@ -504,8 +508,29 @@ class RancherBackend(ServiceBackend):
         ]
         return self.get_importable_resources(models.Cluster, remote_clusters)
 
-    def import_cluster(self, backend_id, project):
+    def import_cluster_public_ips(self, cluster: models.Cluster, name_prefix: str):
+        if not cluster.tenant:
+            logger.warning(
+                "Tenant is not set for cluster %s (%s)",
+                cluster.name,
+                cluster.backend_id,
+            )
+            return
+
+        lb_instances = cluster.tenant.instances.filter(name__startswith=name_prefix)
+        for load_balancer in lb_instances:
+            if load_balancer.floating_ips.count() == 0:
+                continue
+            models.ClusterPublicIP.objects.get_or_create(
+                cluster=cluster,
+                floating_ip=load_balancer.floating_ips.first(),
+            )
+
+    def import_cluster(self, backend_id, project, tenant_uuid=None):
         backend_cluster = self.client.get_cluster(backend_id)
+        tenant = None
+        if tenant_uuid:
+            tenant = openstack_models.Tenant.objects.filter(uuid=tenant_uuid).first()
 
         if not backend_cluster.get("state", "") == models.Cluster.RuntimeStates.ACTIVE:
             raise RancherException("Cannot import K8s cluster in non-active state.")
@@ -518,6 +543,7 @@ class RancherBackend(ServiceBackend):
             state=CoreStates.OK,
             runtime_state=backend_cluster["state"],
             settings=self.settings,
+            tenant=tenant,
         )
         self.pull_cluster(cluster, backend_cluster)
         return cluster
@@ -563,6 +589,13 @@ class RancherBackend(ServiceBackend):
 
             # Update details in all cases.
             self.pull_node(node)
+
+            # Set instance to nodes if it is not set
+            if not node.instance and cluster.tenant:
+                instance = cluster.tenant.instances.filter(name=node.name).first()
+                if instance:
+                    node.instance = instance
+                    node.save(update_fields=["instance"])
 
         # Update nodes states.
         utils.update_cluster_nodes_states(cluster.id)

@@ -8,10 +8,10 @@ repos:
         files: ^src/|docker/
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.12.0
+    rev: v0.12.5
     hooks:
       - id: ruff-format
-      - id: ruff
+      - id: ruff-check
         args:
           - --fix
           - --unsafe-fixes
