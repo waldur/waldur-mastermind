@@ -5511,6 +5511,8 @@ class BackendResourceReqSerializer(
             "offering",
             "offering_name",
             "offering_url",
+            "error_message",
+            "error_traceback",
         )
         extra_kwargs = {
             "url": {
@@ -5523,6 +5525,8 @@ class BackendResourceReqSerializer(
             "state",
             "started",
             "finished",
+            "error_message",
+            "error_traceback",
         )
 
 
