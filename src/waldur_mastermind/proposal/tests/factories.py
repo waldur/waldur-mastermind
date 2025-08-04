@@ -7,6 +7,9 @@ from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.permissions import fixtures as permissions_fixtures
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace_checklist.tests import (
+    factories as checklist_factories,
+)
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import RequestedOfferingStates
 
@@ -325,4 +328,51 @@ class ProposalProjectRoleMappingFactory(
             kwargs={"uuid": mapping.uuid.hex},
         )
 
+        return url if action is None else url + action + "/"
+
+
+# Checklist Integration Factories
+
+
+class ProposalChecklistCompletionFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ProposalChecklistCompletion],
+):
+    class Meta:
+        model = models.ProposalChecklistCompletion
+
+    proposal = factory.SubFactory(ProposalFactory)
+    checklist = factory.SubFactory(checklist_factories.ChecklistFactory)
+
+    @classmethod
+    def get_url(cls, completion=None, action=None):
+        if completion is None:
+            completion = ProposalChecklistCompletionFactory()
+        url = "http://testserver" + reverse(
+            "proposal-checklist-completion-detail",
+            kwargs={"uuid": completion.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+
+class ProposalChecklistAnswerFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ProposalChecklistAnswer],
+):
+    class Meta:
+        model = models.ProposalChecklistAnswer
+
+    proposal_completion = factory.SubFactory(ProposalChecklistCompletionFactory)
+    question = factory.SubFactory(checklist_factories.QuestionFactory)
+    user = factory.SubFactory(structure_factories.UserFactory)
+    answer_data = factory.LazyAttribute(lambda _: "Sample answer")
+
+    @classmethod
+    def get_url(cls, answer=None, action=None):
+        if answer is None:
+            answer = ProposalChecklistAnswerFactory()
+        url = "http://testserver" + reverse(
+            "proposal-checklist-answer-detail",
+            kwargs={"uuid": answer.uuid.hex},
+        )
         return url if action is None else url + action + "/"

@@ -6,6 +6,7 @@ from . import enums
 
 
 def is_valid_operator_for_question_type(question_type, operator):
+    """Validates if a comparison operator is compatible with a specific question type."""
     valid_operators = {
         "equals": [
             enums.QuestionTypes.NUMBER,
@@ -40,6 +41,7 @@ def _is_valid_trigger_value(
     answer_data: list[str] | str | int | float | bool | datetime.date,
     question_type: str,
 ) -> bool:
+    """Internal validator that checks if answer data matches expected format for the question type."""
     if (
         isinstance(answer_data, list)
         and len(answer_data) == 1
@@ -89,6 +91,7 @@ def is_valid_condition_value(
     answer_data: list[str] | str | int | float | bool | datetime.date,
     question_type: str,
 ) -> bool:
+    """Validates values used in question dependencies and conditions, allowing text lists for text inputs."""
     if isinstance(answer_data, list) and question_type in [
         enums.QuestionTypes.TEXT_INPUT,
         enums.QuestionTypes.TEXT_AREA,
@@ -102,6 +105,7 @@ def is_valid_answer(
     answer_data: list[str] | str | int | float | bool | datetime.date,
     question_type: str,
 ) -> bool:
+    """Validates user-submitted answers, ensuring strings for text inputs and proper formats for other types."""
     if isinstance(answer_data, str) and question_type in [
         enums.QuestionTypes.TEXT_INPUT,
         enums.QuestionTypes.TEXT_AREA,
@@ -112,6 +116,7 @@ def is_valid_answer(
 
 
 def apply_operator(user_answer: any, required_value: any, operator: str) -> bool:
+    """Core comparison engine that applies operators between user answers and required values for dependency evaluation and review triggering."""
     if user_answer is None:
         return False
 

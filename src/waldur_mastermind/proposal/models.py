@@ -22,6 +22,9 @@ from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.models import SafeAttributesMixin
+from waldur_mastermind.marketplace_checklist import enums as checklist_enums
+from waldur_mastermind.marketplace_checklist import models as checklist_models
+from waldur_mastermind.marketplace_checklist.mixins import ChecklistCompletionMixin
 from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
@@ -38,6 +41,8 @@ class CallDocument(
     core_models.UuidMixin,
     core_models.DescribableMixin,
 ):
+    """Documentation files attached to calls for proposals."""
+
     call_documents: models.Manager["Call"]
 
     call = models.ForeignKey["Call"]("Call", on_delete=models.CASCADE)
@@ -56,6 +61,8 @@ class CallManagingOrganisation(
     waldur_core.media.mixins.ImageModelMixin,
     TimeStampedModel,
 ):
+    """Organizations that create and manage calls for proposals, with one-to-one relationship to Waldur customers."""
+
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
 
     class Permissions:
@@ -94,6 +101,8 @@ class Call(
     core_models.SlugMixin,
     PermissionMixin,
 ):
+    """Main entity representing calls for proposals with states (draft, active, archived). Contains configuration for reviewer visibility, review settings, and fixed duration parameters."""
+
     class States(CallStates):
         pass
 
@@ -130,7 +139,21 @@ class Call(
         blank=True,
         help_text="Fixed duration in days that applies to all proposals in this call",
     )
+
+    # Compliance checklist integration
+    compliance_checklist = models.ForeignKey(
+        checklist_models.Checklist,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        limit_choices_to={
+            "checklist_type": checklist_enums.ChecklistTypes.PROPOSAL_COMPLIANCE
+        },
+        help_text="Compliance checklist that proposals must complete before submission",
+    )
+
     objects = managers.CallManager()
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Permissions:
         customer_path = "manager__customer"
@@ -152,6 +175,14 @@ class Call(
     def customer(self):
         return self.manager.customer
 
+    def clean(self):
+        """Prevent changing checklist if proposals exist."""
+        if self.pk and self.tracker.has_changed("compliance_checklist"):
+            if self.proposal_set.exists():
+                raise ValidationError(
+                    "Cannot change compliance checklist when proposals exist"
+                )
+
 
 def filter_call_proposal_project_role_mappings(user):
     return Q(
@@ -164,6 +195,8 @@ def filter_call_proposal_project_role_mappings(user):
 class ProposalProjectRoleMapping(
     core_models.UuidMixin,
 ):
+    """Maps proposal roles to project roles in call scope for automatic role assignment upon proposal acceptance."""
+
     """This model is used to map proposal roles to project roles in call scope."""
 
     class Permissions:
@@ -204,6 +237,8 @@ class RequestedOffering(
     TimeStampedModel,
     core_models.DescribableMixin,
 ):
+    """Marketplace offerings available within calls, with approval workflow and state management (requested, accepted, canceled)."""
+
     class Permissions:
         customer_path = "offering__customer"
 
@@ -238,6 +273,8 @@ class CallResourceTemplate(
     TimeStampedModel,
     core_models.DescribableMixin,
 ):
+    """Predefined resource templates that proposal creators must use to standardize resource requests across proposals."""
+
     """Predefined resource templates that proposal creators must use"""
 
     class Permissions:
@@ -286,6 +323,8 @@ class Round(
     TimeStampedModel,
     core_models.UuidMixin,
 ):
+    """Time-bounded submission periods within calls, with configurable review strategies, allocation strategies, and scoring thresholds."""
+
     class ReviewStrategies:
         AFTER_ROUND = "after_round"
         AFTER_PROPOSAL = "after_proposal"
@@ -382,6 +421,8 @@ class ProposalDocumentation(
     TimeStampedModel,
     core_models.UuidMixin,
 ):
+    """Supporting documentation files uploaded with proposals in PDF format."""
+
     proposal = models.ForeignKey["Proposal"]("Proposal", on_delete=models.CASCADE)
     file = models.FileField(
         upload_to="proposal_project_supporting_documentation",
@@ -412,6 +453,8 @@ class Proposal(
     structure_models.StructureLoggableMixin,
     structure_models.ProjectOECDFOS2007CodeMixin,
 ):
+    """Individual proposals submitted to rounds with states (draft, submitted, in_review, accepted, rejected, canceled). Links to Waldur projects and contains detailed project information."""
+
     class States(ProposalStates):
         pass
 
@@ -467,12 +510,45 @@ class Proposal(
     class Meta:
         ordering = ["round__start_time"]
 
+    def can_submit(self):
+        """Check if proposal can be submitted."""
+        # Check if call requires compliance checklist
+        if self.round.call.compliance_checklist:
+            try:
+                completion = self.checklist_completion
+                if not completion.is_completed:
+                    completion_pct = completion.get_completion_percentage()
+                    unanswered = completion.get_unanswered_required_questions()
+                    unanswered_count = unanswered.count()
+                    return (
+                        False,
+                        f"Compliance checklist must be completed before submission ({completion_pct}% complete, {unanswered_count} required questions remaining)",
+                    )
+            except ProposalChecklistCompletion.DoesNotExist:
+                return (
+                    False,
+                    "Compliance checklist completion object missing - please contact support",
+                )
+
+        return True, None
+
+    def submit(self, user):
+        """Submit proposal after validation."""
+        can_submit, error = self.can_submit()
+        if not can_submit:
+            raise ValidationError(error)
+
+        self.state = ProposalStates.SUBMITTED
+        self.save()
+
 
 class RequestedResource(
     core_models.UuidMixin,
     TimeStampedModel,
     core_models.DescribableMixin,
 ):
+    """Specific resource requests within proposals, linking to marketplace resources with attributes and limits configuration."""
+
     class Permissions:
         project_path = "proposal__project"
 
@@ -510,6 +586,8 @@ class Review(
     TimeStampedModel,
     core_models.UuidMixin,
 ):
+    """Peer review system with detailed scoring, public/private comments, and field-specific feedback for all proposal aspects."""
+
     class States:
         CREATED = "created"
         IN_REVIEW = "in_review"
@@ -575,6 +653,8 @@ class ReviewComment(
     TimeStampedModel,
     core_models.UuidMixin,
 ):
+    """Individual comments within reviews for detailed feedback discussion."""
+
     review = models.ForeignKey(Review, on_delete=models.CASCADE)
     message = models.CharField(max_length=255)
 
@@ -584,5 +664,57 @@ class ResourceAllocator(
     core_models.UuidMixin,
     core_models.NameMixin,
 ):
+    """Entity responsible for allocating resources from calls to specific projects upon proposal acceptance."""
+
     call = models.ForeignKey(Call, on_delete=models.CASCADE)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
+
+
+class ProposalChecklistCompletion(
+    ChecklistCompletionMixin,
+    core_models.UuidMixin,
+    TimeStampedModel,
+):
+    """Tracks compliance checklist completion for individual proposals."""
+
+    proposal = models.OneToOneField(
+        Proposal, on_delete=models.CASCADE, related_name="checklist_completion"
+    )
+
+    checklist = models.ForeignKey(checklist_models.Checklist, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ["proposal", "checklist"]
+        verbose_name = "Proposal checklist completion"
+        verbose_name_plural = "Proposal checklist completions"
+
+    def __str__(self):
+        return f"{self.proposal.name} - {self.checklist.name}"
+
+    @classmethod
+    def get_url_name(cls):
+        return "proposal-checklist-completion"
+
+
+class ProposalChecklistAnswer(core_models.UuidMixin, checklist_models.AbstractAnswer):
+    """Proposal-specific answers to checklist questions, inheriting from AbstractAnswer."""
+
+    proposal_completion = models.ForeignKey(
+        ProposalChecklistCompletion, on_delete=models.CASCADE, related_name="answers"
+    )
+
+    class Meta:
+        unique_together = ["proposal_completion", "question", "user"]
+        verbose_name = "Proposal checklist answer"
+        verbose_name_plural = "Proposal checklist answers"
+
+    def save(self, *args, **kwargs):
+        """Override save to update completion status after saving."""
+        super().save(*args, **kwargs)
+
+        # Update completion status after saving
+        self.proposal_completion.update_completion_status()
+
+    @classmethod
+    def get_url_name(cls):
+        return "proposal-checklist-answer"
