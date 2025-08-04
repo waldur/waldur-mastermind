@@ -5,7 +5,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace_checklist", "0006_alter_checklist_options_and_more"),
+        ("marketplace_checklist", "0007_alter_answer_reviewed_by"),
     ]
 
     operations = [
