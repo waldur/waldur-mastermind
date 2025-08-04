@@ -845,6 +845,10 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 limits[volume_type_quota_name] += volume_size * 1024
         return limits
 
+    @classmethod
+    def get_resource_model(cls):
+        return rancher_models.Cluster
+
 
 class ManagedRancherDeleteProcessor(processors.AbstractDeleteResourceProcessor):
     def send_request(self, user, resource: Resource) -> bool:

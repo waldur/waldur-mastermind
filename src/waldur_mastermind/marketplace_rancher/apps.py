@@ -18,6 +18,7 @@ class MarketplaceRancherConfig(AppConfig):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
+        from waldur_mastermind.marketplace_rancher import executors
         from waldur_openstack import models as openstack_models
         from waldur_rancher import models as rancher_models
         from waldur_rancher.apps import RancherConfig
@@ -43,6 +44,9 @@ class MarketplaceRancherConfig(AppConfig):
                 replace(component, billing_type=BillingTypes.USAGE)
                 for component in TENANT_COMPONENTS
             ],
+            get_importable_resources_backend_method="get_importable_clusters",
+            import_resource_backend_method="import_cluster",
+            import_resource_executor=executors.ManagedRancherImportExecutor,
         )
 
         marketplace_handlers.connect_resource_metadata_handlers(rancher_models.Cluster)

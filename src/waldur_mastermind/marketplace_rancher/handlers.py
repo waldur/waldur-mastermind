@@ -39,14 +39,45 @@ def create_marketplace_resource_for_imported_cluster(
         # When cluster is imported directly (ie without marketplace),
         # marketplace resources are not created.
         return
+
+    resource_params = {
+        "name": instance.name,
+        "scope": instance,
+    }
+
+    if offering.type == MANAGED_RANCHER_PLUGIN:
+        # Create a new resource for cluster
+        cluster_offering = offering.scope
+        # Get a plan for the cluster resource
+        cluster_resource_plan = None
+        if plan:
+            cluster_resource_plan = marketplace_models.Plan.objects.filter(
+                offering=cluster_offering, backend_id=plan.id
+            ).first()
+
+        cluster_resource = marketplace_models.Resource(
+            project=instance.project,
+            state=get_resource_state(instance.state),
+            name=instance.name,
+            scope=instance,
+            created=instance.created,
+            plan=cluster_resource_plan,
+            offering=cluster_offering,
+        )
+        cluster_resource.init_cost()
+        cluster_resource.save()
+
+        # Create a top-level resource
+        resource_name = f"managed-{instance.name}"
+        resource_params.update({"name": resource_name, "scope": cluster_resource})
+
     resource = marketplace_models.Resource(
         project=instance.project,
         state=get_resource_state(instance.state),
-        name=instance.name,
-        scope=instance,
         created=instance.created,
         plan=plan,
         offering=offering,
+        **resource_params,
     )
 
     resource.init_cost()

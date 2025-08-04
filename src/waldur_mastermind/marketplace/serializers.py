@@ -3636,6 +3636,14 @@ class ImportResourceSerializer(serializers.Serializer):
     plan = serializers.SlugRelatedField(
         queryset=models.Plan.objects.all(), slug_field="uuid", required=False
     )
+    # The field contains optional data required for importing resources in different plugins
+    # For example, tenant_uuid is expected for successful linking cluster to an OpenStack tenant
+    additional_details = serializers.JSONField(
+        required=False,
+        allow_null=True,
+        default={},
+        write_only=True,
+    )
 
     def get_fields(self):
         fields = super().get_fields()

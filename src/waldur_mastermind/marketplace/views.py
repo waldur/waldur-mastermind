@@ -1239,13 +1239,23 @@ class ProviderOfferingViewSet(
         if (
             not method
             or not offering.scope
-            or not hasattr(offering.scope, "get_backend")
+            or not (
+                hasattr(offering.scope, "get_backend")
+                # Case of nested offerings like in Managed Rancher
+                or hasattr(offering.scope.scope, "get_backend")
+            )
         ):
             raise rf_exceptions.ValidationError(
                 "Current offering plugin does not support resource import"
             )
 
-        backend = offering.scope.get_backend()
+        # Case of nested offerings like in Managed Rancher
+        # If offering.scope is an Offering, we need to get the backend from its scope
+        if isinstance(offering.scope, models.Offering) and offering.scope.scope:
+            backend = offering.scope.scope.get_backend()
+        else:
+            backend = offering.scope.get_backend()
+
         try:
             if isinstance(offering.scope, structure_models.BaseResource):
                 resources = getattr(backend, method)(offering.scope)
@@ -1280,9 +1290,16 @@ class ProviderOfferingViewSet(
         plan = import_resource_serializer.validated_data.get("plan", None)
         project = import_resource_serializer.validated_data["project"]
         backend_id = import_resource_serializer.validated_data["backend_id"]
+        additional_details = import_resource_serializer.validated_data.get(
+            "additional_details", {}
+        )
 
         offering: models.Offering = self.get_object()
-        backend = offering.scope.get_backend()
+        if isinstance(offering.scope, models.Offering):
+            # Managed Rancher case
+            backend = offering.scope.scope.get_backend()
+        else:
+            backend = offering.scope.get_backend()
         method = plugins.manager.import_resource_backend_method(offering.type)
         if not method:
             raise rf_exceptions.ValidationError(
@@ -1295,8 +1312,15 @@ class ProviderOfferingViewSet(
             field = "tenant"
         else:
             field = "service_settings"
+
+        if isinstance(offering.scope, models.Offering):
+            # Managed Rancher case
+            value = offering.scope.scope
+        else:
+            value = offering.scope
+
         if resource_model.objects.filter(
-            **{field: offering.scope}, backend_id=backend_id
+            **{field: value}, backend_id=backend_id
         ).exists():
             raise rf_exceptions.ValidationError(
                 _("Resource has been imported already.")
@@ -1309,7 +1333,7 @@ class ProviderOfferingViewSet(
                 )
             else:
                 resource = getattr(backend, method)(
-                    backend_id=backend_id, project=project
+                    backend_id=backend_id, project=project, **additional_details
                 )
         except ServiceBackendError as e:
             raise rf_exceptions.ValidationError(str(e))
