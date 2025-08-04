@@ -363,3 +363,26 @@ class AccessSubnetFactory(
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("access-subnets-list")
+
+
+class ExternalLinkFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.ExternalLink]
+):
+    class Meta:
+        model = models.ExternalLink
+
+    name = factory.Sequence(lambda n: "External Link %s" % n)
+    link = factory.Sequence(lambda n: "https://example.com/%s" % n)
+
+    @classmethod
+    def get_url(cls, external_link=None):
+        if external_link is None:
+            external_link = ExternalLinkFactory()
+        url = "http://testserver" + reverse(
+            "external-links-detail", kwargs={"uuid": external_link.uuid.hex}
+        )
+        return url
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("external-links-list")

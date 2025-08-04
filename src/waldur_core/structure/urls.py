@@ -43,6 +43,11 @@ def register_in(router):
         views.AccessSubnetViewSet,
         basename="access-subnets",
     )
+    router.register(
+        r"external-links",
+        views.ExternalLinkViewSet,
+        basename="external-links",
+    )
 
 
 urlpatterns = []

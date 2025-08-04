@@ -1600,3 +1600,22 @@ class CountrySerializer(serializers.Serializer):
 
 class ConsoleUrlSerializer(serializers.Serializer):
     url = serializers.URLField(read_only=True)
+
+
+class ExternalLinkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.ExternalLink
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "description",
+            "link",
+            "image",
+            "created",
+            "modified",
+        )
+
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid", "view_name": "external-links-detail"},
+        }

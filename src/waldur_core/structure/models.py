@@ -1226,3 +1226,25 @@ class UserAgreement(core_models.UuidMixin, LoggableMixin, TimeStampedModel):
 
 
 reversion.register(Customer)
+
+
+class ExternalLink(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.DescribableMixin,
+    ImageModelMixin,
+    TimeStampedModel,
+):
+    """
+    Model for external links associated with waldur.
+
+    Provides a way to store URLs with names and descriptions for
+    external systems.
+    """
+
+    class Meta:
+        verbose_name = _("External link")
+        verbose_name_plural = _("External links")
+        ordering = ("name",)
+
+    link = models.URLField(max_length=500)
