@@ -22,6 +22,8 @@ from waldur_mastermind.marketplace.serializers import (
     OfferingComponentSerializer,
     OfferingOptionsField,
 )
+from waldur_mastermind.marketplace_checklist import enums as checklist_enums
+from waldur_mastermind.marketplace_checklist import models as checklist_models
 from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
@@ -918,11 +920,25 @@ class ProtectedCallSerializer(PublicCallSerializer):
         help_text="Whether proposal submitters can see review comments and scores",
         required=False,
     )
+    compliance_checklist = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=checklist_models.Checklist.objects.filter(
+            checklist_type=checklist_enums.ChecklistTypes.PROPOSAL_COMPLIANCE
+        ),
+        required=False,
+        allow_null=True,
+        help_text="Compliance checklist that proposals must complete before submission",
+    )
+    compliance_checklist_name = serializers.CharField(
+        source="compliance_checklist.name", read_only=True
+    )
 
     class Meta(PublicCallSerializer.Meta):
         fields = PublicCallSerializer.Meta.fields + (
             "created_by",
             "reference_code",
+            "compliance_checklist",
+            "compliance_checklist_name",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
@@ -942,6 +958,16 @@ class ProtectedCallSerializer(PublicCallSerializer):
             )
 
         return manager
+
+    def validate_compliance_checklist(self, value):
+        """Prevent changing compliance checklist if proposals exist."""
+        call: models.Call = self.instance
+        if call and models.Proposal.objects.filter(round__call=call).exists():
+            if value != call.compliance_checklist:
+                raise serializers.ValidationError(
+                    "Cannot change compliance checklist when proposals exist"
+                )
+        return value
 
     def create(self, validated_data):
         request = self.context["request"]
@@ -1063,6 +1089,10 @@ class ProposalSerializer(
     project_name = serializers.ReadOnlyField(source="project.name")
     description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 
+    # Compliance fields
+    compliance_status = serializers.SerializerMethodField()
+    can_submit = serializers.SerializerMethodField()
+
     class Meta:
         model = models.Proposal
         fields = [
@@ -1090,6 +1120,8 @@ class ProposalSerializer(
             "oecd_fos_2007_label",
             "allocation_comment",
             "created",
+            "compliance_status",
+            "can_submit",
         ]
         read_only_fields = (
             "created_by",
@@ -1171,6 +1203,41 @@ class ProposalSerializer(
                 pass
 
         return fields
+
+    @extend_schema_field(serializers.DictField(allow_null=True))
+    def get_compliance_status(self, obj):
+        """Get compliance checklist status."""
+        if not obj.round.call.compliance_checklist:
+            return None
+
+        if not hasattr(obj, "checklist_completion"):
+            return {
+                "error": "Compliance checklist not initialized",
+                "has_checklist": True,
+                "is_completed": False,
+                "requires_review": False,
+                "completion_percentage": 0,
+            }
+
+        completion = obj.checklist_completion
+        return {
+            "has_checklist": True,
+            "is_completed": completion.is_completed,
+            "requires_review": completion.requires_review,
+            "completion_percentage": completion.get_completion_percentage(),
+            "reviewed_by": completion.reviewed_by.full_name
+            if completion.reviewed_by
+            else None,
+            "reviewed_at": completion.reviewed_at,
+            "checklist_name": completion.checklist.name,
+            "unanswered_required_count": completion.get_unanswered_required_questions().count(),
+        }
+
+    @extend_schema_field(serializers.DictField())
+    def get_can_submit(self, obj):
+        """Get whether proposal can be submitted."""
+        can_submit, error = obj.can_submit()
+        return {"can_submit": can_submit, "error": error}
 
 
 class RoundReviewerSerializer(serializers.Serializer):
@@ -1296,3 +1363,332 @@ class ProposalProjectRoleMappingSerializer(serializers.HyperlinkedModelSerialize
             fields["proposal_role"].read_only = True
             fields["call"].read_only = True
         return fields
+
+
+# Checklist Integration Serializers
+class ProposalChecklistCompletionSerializer(serializers.ModelSerializer):
+    """Serializer for proposal checklist completion status."""
+
+    completion_percentage = serializers.SerializerMethodField()
+    review_trigger_summary = serializers.SerializerMethodField()
+    unanswered_required_questions = serializers.SerializerMethodField()
+    checklist_name = serializers.CharField(source="checklist.name", read_only=True)
+    checklist_description = serializers.CharField(
+        source="checklist.description", read_only=True
+    )
+    reviewed_by_name = serializers.CharField(
+        source="reviewed_by.full_name", read_only=True
+    )
+
+    class Meta:
+        model = models.ProposalChecklistCompletion
+        fields = (
+            "uuid",
+            "is_completed",
+            "requires_review",
+            "reviewed_by",
+            "reviewed_by_name",
+            "reviewed_at",
+            "review_notes",
+            "completion_percentage",
+            "review_trigger_summary",
+            "unanswered_required_questions",
+            "checklist_name",
+            "checklist_description",
+            "created",
+            "modified",
+        )
+        read_only_fields = (
+            "uuid",
+            "is_completed",
+            "requires_review",
+            "completion_percentage",
+            "review_trigger_summary",
+            "unanswered_required_questions",
+            "checklist_name",
+            "checklist_description",
+            "created",
+            "modified",
+        )
+
+    @extend_schema_field(serializers.FloatField())
+    def get_completion_percentage(self, obj):
+        return obj.get_completion_percentage()
+
+    @extend_schema_field(serializers.ListField())
+    def get_review_trigger_summary(self, obj):
+        return obj.get_review_trigger_summary()
+
+    @extend_schema_field(serializers.ListField())
+    def get_unanswered_required_questions(self, obj):
+        unanswered = obj.get_unanswered_required_questions()
+        return [
+            {
+                "uuid": str(q.uuid),
+                "description": q.description,
+                "question_type": q.question_type,
+            }
+            for q in unanswered
+        ]
+
+
+class ProposalChecklistAnswerSerializer(serializers.ModelSerializer):
+    """Serializer for proposal checklist answers."""
+
+    question_uuid = serializers.UUIDField(write_only=True)
+    question_description = serializers.CharField(
+        source="question.description", read_only=True
+    )
+    question_type = serializers.CharField(
+        source="question.question_type", read_only=True
+    )
+    question_required = serializers.BooleanField(
+        source="question.required", read_only=True
+    )
+    question_solution = serializers.CharField(
+        source="question.solution", read_only=True
+    )
+    user_name = serializers.CharField(source="user.full_name", read_only=True)
+
+    class Meta:
+        model = models.ProposalChecklistAnswer
+        fields = (
+            "uuid",
+            "question_uuid",
+            "question_description",
+            "question_type",
+            "question_required",
+            "question_solution",
+            "answer_data",
+            "requires_review",
+            "user",
+            "user_name",
+            "created",
+            "modified",
+        )
+        read_only_fields = (
+            "uuid",
+            "question_description",
+            "question_type",
+            "question_required",
+            "question_solution",
+            "requires_review",
+            "user",
+            "user_name",
+            "created",
+            "modified",
+        )
+
+
+class ProposalChecklistQuestionSerializer(serializers.ModelSerializer):
+    """Serializer for checklist questions in proposal context."""
+
+    existing_answer = serializers.SerializerMethodField()
+    question_options = serializers.SerializerMethodField()
+
+    class Meta:
+        model = checklist_models.Question
+        fields = (
+            "uuid",
+            "description",
+            "question_type",
+            "required",
+            "solution",
+            "order",
+            "existing_answer",
+            "question_options",
+        )
+        read_only_fields = (
+            "uuid",
+            "description",
+            "question_type",
+            "required",
+            "solution",
+            "order",
+            "existing_answer",
+            "question_options",
+        )
+
+    @extend_schema_field(serializers.DictField(allow_null=True))
+    def get_existing_answer(self, obj):
+        """Get existing answer for this question in the current proposal context."""
+        request = self.context.get("request")
+        proposal = self.context.get("proposal")
+
+        if not request or not proposal:
+            return None
+
+        try:
+            completion = proposal.checklist_completion
+            answer = completion.answers.get(question=obj, user=request.user)
+            return ProposalChecklistAnswerSerializer(answer, context=self.context).data
+        except (
+            models.ProposalChecklistCompletion.DoesNotExist,
+            models.ProposalChecklistAnswer.DoesNotExist,
+        ):
+            return None
+
+    @extend_schema_field(serializers.ListField(allow_null=True))
+    def get_question_options(self, obj):
+        """Get question options for select-type questions."""
+        if obj.question_type in ["single_select", "multi_select"]:
+            return [
+                {
+                    "uuid": str(option.uuid),
+                    "label": option.label,
+                    "order": option.order,
+                }
+                for option in obj.question_options.all().order_by("order")
+            ]
+        return []
+
+
+class ProposalChecklistAnswerSubmitSerializer(serializers.Serializer):
+    """Serializer for submitting checklist answers."""
+
+    question_uuid = serializers.UUIDField()
+    answer_data = serializers.JSONField()
+
+    def validate(self, attrs):
+        """Validate the answer submission."""
+        question_uuid = attrs["question_uuid"]
+        answer_data = attrs["answer_data"]
+
+        # Get the proposal from context
+        proposal = self.context.get("proposal")
+        if not proposal:
+            raise serializers.ValidationError("Proposal context is required")
+
+        # Check if proposal has checklist completion
+        if not hasattr(proposal, "checklist_completion"):
+            raise serializers.ValidationError("Proposal has no compliance checklist")
+
+        # Validate question belongs to the proposal's checklist
+        try:
+            question = proposal.checklist_completion.checklist.questions.get(
+                uuid=question_uuid
+            )
+        except checklist_models.Question.DoesNotExist:
+            raise serializers.ValidationError(
+                f"Question {question_uuid} not found in proposal's checklist"
+            )
+
+        # Validate answer format using the question's validation
+        if not question.is_valid_answer(answer_data):
+            raise serializers.ValidationError(
+                f"Invalid answer format for question type {question.question_type}"
+            )
+
+        attrs["question"] = question
+        return attrs
+
+
+class ProposalChecklistAnswerSubmitResponseSerializer(serializers.Serializer):
+    """Response serializer for compliance answer submission."""
+
+    detail = serializers.CharField()
+    completion = ProposalChecklistCompletionSerializer()
+
+
+class ProposalComplianceChecklistResponseSerializer(serializers.Serializer):
+    """Response serializer for compliance checklist endpoint."""
+
+    checklist = serializers.SerializerMethodField()
+    completion = ProposalChecklistCompletionSerializer()
+    questions = ProposalChecklistQuestionSerializer(many=True)
+
+    @extend_schema_field(serializers.DictField())
+    def get_checklist(self, obj):
+        """Get checklist basic information."""
+        return {
+            "uuid": str(obj["checklist"].uuid),
+            "name": obj["checklist"].name,
+            "description": obj["checklist"].description,
+            "checklist_type": obj["checklist"].checklist_type,
+        }
+
+
+class CallComplianceOverviewSerializer(serializers.Serializer):
+    """Serializer for call manager compliance overview."""
+
+    checklist = serializers.SerializerMethodField()
+    proposals = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.DictField(allow_null=True))
+    def get_checklist(self, call):
+        """Get checklist information."""
+        if not call.compliance_checklist:
+            return None
+
+        return {
+            "uuid": str(call.compliance_checklist.uuid),
+            "name": call.compliance_checklist.name,
+            "description": call.compliance_checklist.description,
+            "total_questions": call.compliance_checklist.questions.count(),
+            "required_questions": call.compliance_checklist.questions.filter(
+                required=True
+            ).count(),
+        }
+
+    @extend_schema_field(serializers.ListField())
+    def get_proposals(self, call):
+        """Get proposal compliance status."""
+        proposals_data = []
+
+        for proposal in models.Proposal.objects.filter(round__call=call):
+            proposal_data = {
+                "uuid": str(proposal.uuid),
+                "name": proposal.name,
+                "state": proposal.state,
+                "created_by": proposal.created_by.full_name
+                if proposal.created_by
+                else None,
+                "created_by_uuid": str(proposal.created_by.uuid)
+                if proposal.created_by
+                else None,
+                "compliance": None,
+            }
+
+            # Add compliance information if exists
+            if hasattr(proposal, "checklist_completion"):
+                completion = proposal.checklist_completion
+                proposal_data["compliance"] = {
+                    "is_completed": completion.is_completed,
+                    "requires_review": completion.requires_review,
+                    "completion_percentage": completion.get_completion_percentage(),
+                    "reviewed_by": completion.reviewed_by.full_name
+                    if completion.reviewed_by
+                    else None,
+                    "reviewed_at": completion.reviewed_at,
+                    "review_triggers": completion.get_review_trigger_summary(),
+                    "unanswered_required_count": completion.get_unanswered_required_questions().count(),
+                }
+
+            proposals_data.append(proposal_data)
+
+        return proposals_data
+
+
+class CallComplianceReviewSerializer(serializers.Serializer):
+    """Serializer for call manager to review proposal compliance."""
+
+    proposal_uuid = serializers.UUIDField()
+    review_notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_proposal_uuid(self, value):
+        """Validate that proposal belongs to the call."""
+        call = self.context.get("call")
+        if not call:
+            raise serializers.ValidationError("Call context is required")
+
+        try:
+            proposal: models.Proposal = models.Proposal.objects.get(
+                round__call=call, uuid=value
+            )
+            if not hasattr(proposal, "checklist_completion"):
+                raise serializers.ValidationError(
+                    "Proposal has no compliance checklist"
+                )
+            return value
+        except models.Proposal.DoesNotExist:
+            raise serializers.ValidationError("Proposal not found in this call")

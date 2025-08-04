@@ -7,7 +7,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone as timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import decorators, exceptions, response, status, viewsets
 from rest_framework import permissions as rf_permissions
 
@@ -51,6 +51,7 @@ from waldur_mastermind.proposal.enums import (
 )
 
 from .managers import get_connected_call_organizers
+from .models import Proposal
 from .serializers import ReviewSubmitSerializer
 
 logger = logging.getLogger(__name__)
@@ -211,7 +212,6 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @extend_schema(
         description="Activate a call.",
         request=None,
-        responses={status.HTTP_200_OK: None},
     )
     @decorators.action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
@@ -234,7 +234,6 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @extend_schema(
         description="Archive a call.",
         request=None,
-        responses={status.HTTP_200_OK: None},
     )
     @decorators.action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
@@ -473,6 +472,149 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         serializers.CallResourceTemplateSerializer
     )
 
+    # Call Manager Compliance Endpoints
+    compliance_overview_permissions = [permission_factory(PermissionEnum.UPDATE_CALL)]
+
+    @extend_schema(
+        description="Get compliance overview for call manager showing all proposals and their compliance status.",
+        responses=serializers.CallComplianceOverviewSerializer,
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def compliance_overview(self, request, uuid=None):
+        """Get compliance overview for call manager."""
+        call = self.get_object()
+
+        if not call.compliance_checklist:
+            return response.Response(
+                {
+                    "detail": "No compliance checklist configured for this call",
+                    "checklist": None,
+                    "proposals": [],
+                }
+            )
+
+        # Serialize the compliance overview
+        overview_data = serializers.CallComplianceOverviewSerializer(
+            call, context={"request": request}
+        ).data
+
+        return response.Response(overview_data)
+
+    review_proposal_compliance_permissions = [
+        permission_factory(PermissionEnum.UPDATE_CALL)
+    ]
+
+    @extend_schema(
+        description="Mark proposal compliance as reviewed by call manager.",
+        request=serializers.CallComplianceReviewSerializer,
+        responses=dict[str, str],
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def review_proposal_compliance(self, request, uuid=None):
+        """Mark proposal compliance as reviewed by call manager."""
+        call = self.get_object()
+
+        # Validate input
+        serializer = serializers.CallComplianceReviewSerializer(
+            data=request.data, context={"call": call, "request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        proposal_uuid = serializer.validated_data["proposal_uuid"]
+        review_notes = serializer.validated_data.get("review_notes", "")
+
+        try:
+            proposal: Proposal = Proposal.objects.get(
+                round__call=call, uuid=proposal_uuid
+            )
+            completion = proposal.checklist_completion
+
+            completion.reviewed_by = request.user
+            completion.reviewed_at = timezone.now()
+            completion.review_notes = review_notes
+            completion.save()
+
+            return response.Response(
+                {
+                    "detail": "Compliance review completed successfully",
+                    "proposal_uuid": str(proposal_uuid),
+                    "reviewed_by": request.user.full_name,
+                    "reviewed_at": completion.reviewed_at,
+                }
+            )
+
+        except models.Proposal.DoesNotExist:
+            return response.Response(
+                {"detail": "Proposal not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        except models.ProposalChecklistCompletion.DoesNotExist:
+            return response.Response(
+                {"detail": "Proposal has no compliance checklist"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    proposal_compliance_answers_permissions = [
+        permission_factory(PermissionEnum.UPDATE_CALL)
+    ]
+
+    @extend_schema(
+        description="Get detailed compliance answers for a specific proposal (call managers only).",
+        responses=serializers.ProposalChecklistAnswerSerializer(many=True),
+        parameters=[
+            OpenApiParameter(
+                name="proposal_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the proposal",
+            )
+        ],
+    )
+    @decorators.action(
+        detail=True,
+        methods=["get"],
+        url_path="proposals/(?P<proposal_uuid>[^/.]+)/compliance-answers",
+    )
+    def proposal_compliance_answers(self, request, uuid=None, proposal_uuid=None):
+        """Get detailed compliance answers for a specific proposal."""
+        call: models.Call = self.get_object()
+
+        try:
+            proposal = models.Proposal.objects.get(uuid=proposal_uuid, round__call=call)
+
+            if not hasattr(proposal, "checklist_completion"):
+                return response.Response(
+                    {"detail": "Proposal has no compliance checklist"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            completion = proposal.checklist_completion
+            answers = completion.answers.all().select_related("question", "user")
+
+            answers_data = serializers.ProposalChecklistAnswerSerializer(
+                answers, many=True, context={"request": request}
+            ).data
+
+            return response.Response(
+                {
+                    "proposal": {
+                        "uuid": str(proposal.uuid),
+                        "name": proposal.name,
+                        "created_by": proposal.created_by.full_name
+                        if proposal.created_by
+                        else None,
+                    },
+                    "completion": serializers.ProposalChecklistCompletionSerializer(
+                        completion, context={"request": request}
+                    ).data,
+                    "answers": answers_data,
+                }
+            )
+
+        except models.Proposal.DoesNotExist:
+            return response.Response(
+                {"detail": "Proposal not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
 
 class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     lookup_field = "uuid"
@@ -691,6 +833,135 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         serializers.ProposalApproveSerializer
     )
 
+    # Checklist Integration Endpoints
+    @extend_schema(
+        description="Get compliance checklist for proposal with questions and existing answers.",
+        responses=serializers.ProposalComplianceChecklistResponseSerializer,
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def compliance_checklist(self, request, uuid=None):
+        """Get compliance checklist for proposal."""
+        proposal = self.get_object()
+
+        # Check if call has compliance checklist
+        if not proposal.round.call.compliance_checklist:
+            return response.Response(
+                {"detail": "No compliance checklist configured for this call"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Check if proposal has completion tracking
+        if not hasattr(proposal, "checklist_completion"):
+            return response.Response(
+                {"detail": "Compliance checklist not initialized for this proposal"},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        completion = proposal.checklist_completion
+        checklist = completion.checklist
+
+        # Get visible questions using checklist module logic
+        questions = checklist.get_visible_questions(request.user)
+
+        # Create response data using the serializer
+        response_data = {
+            "checklist": checklist,
+            "completion": completion,
+            "questions": questions,
+        }
+
+        response_serializer = serializers.ProposalComplianceChecklistResponseSerializer(
+            response_data, context={"request": request, "proposal": proposal}
+        )
+
+        return response.Response(response_serializer.data)
+
+    submit_compliance_answers_permissions = [
+        permission_factory(PermissionEnum.MANAGE_PROPOSAL)
+    ]
+
+    @extend_schema(
+        description="Submit compliance checklist answers (Proposal managers only).",
+        request=serializers.ProposalChecklistAnswerSubmitSerializer(many=True),
+        responses={200: serializers.ProposalChecklistAnswerSubmitResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def submit_compliance_answers(self, request, uuid=None):
+        """Submit compliance checklist answers."""
+        proposal = self.get_object()
+
+        # Check if proposal has compliance checklist
+        if not hasattr(proposal, "checklist_completion"):
+            return response.Response(
+                {"detail": "No compliance checklist configured for this proposal"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        completion = proposal.checklist_completion
+
+        # Validate input data
+        serializer = serializers.ProposalChecklistAnswerSubmitSerializer(
+            data=request.data,
+            many=True,
+            context={"proposal": proposal, "request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        # Process each answer
+        for answer_data in serializer.validated_data:
+            question = answer_data["question"]
+            answer_value = answer_data["answer_data"]
+
+            # Create or update answer
+            models.ProposalChecklistAnswer.objects.update_or_create(
+                proposal_completion=completion,
+                question=question,
+                user=request.user,
+                defaults={"answer_data": answer_value},
+            )
+
+        # Return updated completion status
+        completion.refresh_from_db()
+
+        # Create response data using the serializer
+        response_data = {
+            "detail": "Compliance answers submitted successfully",
+            "completion": completion,
+        }
+
+        response_serializer = (
+            serializers.ProposalChecklistAnswerSubmitResponseSerializer(
+                response_data, context={"request": request}
+            )
+        )
+
+        return response.Response(
+            response_serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        description="Get compliance checklist completion status.",
+        responses=serializers.ProposalChecklistCompletionSerializer,
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def compliance_status(self, request, uuid=None):
+        """Get compliance checklist completion status."""
+        proposal = self.get_object()
+
+        if not hasattr(proposal, "checklist_completion"):
+            return response.Response(
+                {"detail": "No compliance checklist configured for this proposal"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        completion = proposal.checklist_completion
+        completion_data = serializers.ProposalChecklistCompletionSerializer(
+            completion, context={"request": request}
+        ).data
+
+        return response.Response(completion_data)
+
 
 class ReviewViewSet(ActionsViewSet):
     lookup_field = "uuid"
@@ -746,23 +1017,30 @@ class ReviewViewSet(ActionsViewSet):
             authorized_query | submitter_query
         ).order_by("created")
 
-    def perform_create(self, serializer):
+    def check_create_permissions(request, view, obj=None):
+        """Check permissions for creating reviews."""
+        serializer = view.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         proposal = serializer.validated_data["proposal"]
 
         if not has_permission(
-            self.request, PermissionEnum.MANAGE_PROPOSAL_REVIEW, proposal.round.call
-        ):
-            raise exceptions.PermissionDenied()
-        return super().perform_create(serializer)
-
-    def perform_destroy(self, instance):
-        if not has_permission(
-            self.request,
+            request.user,
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            instance.proposal.round.call,
+            proposal.round.call,
         ):
             raise exceptions.PermissionDenied()
-        super().perform_destroy(instance)
+
+    def check_destroy_permissions(request, view, obj=None):
+        """Check permissions for destroying reviews."""
+        if obj and not has_permission(
+            request.user,
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            obj.proposal.round.call,
+        ):
+            raise exceptions.PermissionDenied()
+
+    create_permissions = [check_create_permissions]
+    destroy_permissions = [check_destroy_permissions]
 
     def action_permission_check(request, view, obj: models.Review | None = None):
         if not obj:

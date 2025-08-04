@@ -19,6 +19,8 @@ class Category(
     core_models.NameMixin,
     core_models.DescribableMixin,
 ):
+    """Groups checklists by category with icon support for UI display."""
+
     checklists: models.Manager["Checklist"]
 
     icon = models.FileField(
@@ -42,6 +44,8 @@ class Checklist(
     core_models.DescribableMixin,
     TimeStampedModel,
 ):
+    """Main container for compliance questions, associated with customers/roles and typed by compliance area."""
+
     questions: models.Manager["Question"]
 
     category = models.ForeignKey(
@@ -78,6 +82,8 @@ class Checklist(
 
 
 class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMixin):
+    """Individual questions with configurable types, optional images, ordering, and review trigger logic based on answer values."""
+
     checklist = models.ForeignKey(
         to=Checklist,
         on_delete=models.CASCADE,
@@ -142,7 +148,7 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMi
     def is_valid_answer(
         self, answer_data: list[str] | str | int | float | bool | datetime.date | None
     ) -> bool:
-        if self.required and not answer_data:
+        if self.required and answer_data is None:
             return False
 
         return utils.is_valid_answer(answer_data, self.question_type)
@@ -168,6 +174,8 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMi
 
 
 class QuestionOption(core_models.UuidMixin):
+    """Multiple choice options for questions with ordering support."""
+
     question = models.ForeignKey(
         Question, on_delete=models.CASCADE, related_name="question_options"
     )
@@ -182,6 +190,8 @@ class QuestionOption(core_models.UuidMixin):
 
 
 class QuestionDependency(core_models.UuidMixin, TimeStampedModel):
+    """Conditional visibility logic - questions can depend on other questions' answers with circular dependency prevention."""
+
     question = models.ForeignKey(
         Question, on_delete=models.CASCADE, related_name="dependencies"
     )
@@ -245,7 +255,9 @@ class QuestionDependency(core_models.UuidMixin, TimeStampedModel):
         ordering = ("created",)
 
 
-class Answer(TimeStampedModel):
+class AbstractAnswer(TimeStampedModel):
+    """Base class for checklist answers with automatic review flagging and tracking."""
+
     user = models.ForeignKey(to=core_models.User, on_delete=models.CASCADE)
     question = models.ForeignKey(to=Question, on_delete=models.CASCADE)
     answer_data = models.JSONField(
@@ -264,7 +276,7 @@ class Answer(TimeStampedModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="reviewed_answers",
+        related_name="reviewed_%(class)s_answers",  # Use %(class)s for unique related names
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
     review_notes = models.TextField(
@@ -272,7 +284,7 @@ class Answer(TimeStampedModel):
     )
 
     class Meta:
-        unique_together = ["user", "question"]
+        abstract = True
 
     def __str__(self):
         return f"{self.user.username} - {self.question.description[:30]}..."
@@ -281,5 +293,11 @@ class Answer(TimeStampedModel):
         """Auto-check if review is required when saving"""
         if not self.pk:
             self.requires_review = self.question.should_trigger_review(self.answer_data)
-
         super().save(*args, **kwargs)
+
+
+class Answer(AbstractAnswer):
+    """User responses stored as JSON with automatic review flagging, reviewer tracking, and unique user-question constraints."""
+
+    class Meta:
+        unique_together = ["user", "question"]
