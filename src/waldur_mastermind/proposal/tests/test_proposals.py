@@ -554,3 +554,24 @@ class TaskTest(test.APITransactionTestCase):
         from waldur_core.logging.models import Event
 
         self.assertTrue(Event.objects.filter(event_type="proposal_canceled").exists())
+
+    @override_settings(task_always_eager=True)
+    def test_notifications_for_cancelled_proposals(self):
+        structure_factories.NotificationFactory(
+            key="proposal.proposal_cancelled",
+        )
+        self.round.cutoff_time = datetime.datetime.now() - datetime.timedelta(days=1)
+        self.round.save()
+        tasks.proposals_for_ended_rounds_should_be_cancelled()
+        self.proposal.refresh_from_db()
+
+        # Verify that notification email has been sent to proposal creator
+        # in fixtures.py there are two proposals belong to this round; therefore, there are two emails in the mail outbox
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(mail.outbox[0].to, [self.proposal.created_by.email])
+        body = mail.outbox[0].body
+        self.assertIn(
+            f'Your proposal "{self.proposal.name}" in call "{self.proposal.round.call.name}" has been canceled',
+            body,
+        )
+        self.assertIn("Cancellation details:", body)

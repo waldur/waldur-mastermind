@@ -1,0 +1,1 @@
+Proposal canceled: {{ proposal_name }}

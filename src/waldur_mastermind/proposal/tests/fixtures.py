@@ -136,6 +136,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     @cached_property
     def proposal(self):
         return proposal_factories.ProposalFactory(
+            name="New Proposal",
             round=self.round,
             project=self.proposal_project,
         )
