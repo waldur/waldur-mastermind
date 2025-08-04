@@ -347,6 +347,22 @@ class ProposalSection(NotificationSection):
             ),
         ],
     )
+    proposal_cancelled = Notification(
+        "proposal_cancelled",
+        "A notification to proposal creator about the proposal cancellation.",
+        templates=[
+            NotificationTemplate(
+                "proposal_cancelled_message.txt", "proposal_cancelled"
+            ),
+            NotificationTemplate(
+                "proposal_cancelled_message.html", "proposal_cancelled"
+            ),
+            NotificationTemplate(
+                "proposal_cancelled_subject.txt", "proposal_cancelled"
+            ),
+        ],
+    )
+
     new_proposal_submitted = Notification(
         "new_proposal_submitted",
         "A notification to the call manager about a new proposal submission.",

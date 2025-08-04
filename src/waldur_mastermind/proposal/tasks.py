@@ -56,13 +56,15 @@ def create_reviews_if_strategy_is_after_proposal():
 )
 def proposals_for_ended_rounds_should_be_cancelled():
     """Cancel proposals for rounds that have ended."""
+    date = timezone.now()
+    cancellation_date = date.strftime("%Y-%m-%d %H:%M:%S")
     for proposal in proposal_models.Proposal.objects.exclude(
         state__in=(
             ProposalStates.ACCEPTED,
             ProposalStates.REJECTED,
             ProposalStates.CANCELED,
         )
-    ).filter(round__cutoff_time__lt=timezone.now()):
+    ).filter(round__cutoff_time__lt=date):
         proposal.state = ProposalStates.CANCELED
         proposal.save(update_fields=["state"])
 
@@ -73,6 +75,12 @@ def proposals_for_ended_rounds_should_be_cancelled():
             scopes=[_get_customer(proposal)],
         )
         logger.info(f"Proposal {proposal.name} has been canceled.")
+
+        # Schedule notification to the proposal creator
+        notify_proposal_creator_about_cancelled_proposal.apply_async(
+            args=(proposal.uuid, cancellation_date),
+            countdown=10,  # 10 second delay
+        )
 
 
 @shared_task(name="waldur_mastermind.proposal.expired_reviews_should_be_cancelled")
@@ -241,4 +249,42 @@ def notify_call_managers_about_rejected_review(review_uuid):
         "review_rejected",
         context,
         recipients,
+    )
+
+
+@shared_task(
+    name="waldur_mastermind.proposal.notify_proposal_creator_about_cancelled_proposal"
+)
+def notify_proposal_creator_about_cancelled_proposal(proposal_uuid, cancellation_date):
+    proposal = proposal_models.Proposal.objects.get(uuid=proposal_uuid)
+
+    if not proposal.created_by or not proposal.created_by.email:
+        logger.warning(
+            f"Cannot send proposal cancellation notification. Proposal {proposal.uuid} creator has no valid email."
+        )
+        return
+
+    proposal_link = core_utils.format_homeport_link(
+        "proposals/{proposal_uuid}/",
+        proposal_uuid=proposal.uuid,
+    )
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "proposal_name": proposal.name,
+        "call_name": proposal.round.call.name,
+        "cancellation_date": cancellation_date,
+        "proposal_url": proposal_link,
+        "proposal_creator_name": proposal.created_by.full_name
+        if proposal.created_by
+        else "Unknown",
+    }
+
+    core_utils.broadcast_mail(
+        "proposal",
+        "proposal_cancelled",
+        context,
+        [proposal.created_by.email]
+        if proposal.created_by and proposal.created_by.email
+        else [],
     )

@@ -1,0 +1,17 @@
+Dear {{ proposal_creator_name }},
+
+Your proposal "{{ proposal_name }}" in call "{{ call_name }}" has been canceled.
+
+Cancellation details:
+- Proposal: {{ proposal_name }}
+- Cancellation date: {{ cancellation_date }}
+- Reason for cancellation: Round closure/The submission deadline has passed and the proposal was not finalized
+
+All draft proposals are automatically canceled when a round closes. This ensures that only fully submitted proposals proceed to the review stage.
+
+You can still view your proposal by visiting:
+{{ proposal_url }}
+
+If you would like to resubmit your proposal, please check for upcoming rounds in this call or other relevant calls.
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.
