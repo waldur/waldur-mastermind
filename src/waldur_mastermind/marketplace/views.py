@@ -5791,6 +5791,7 @@ class MaintenanceAnnouncementTemplateViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.MaintenanceAnnouncementTemplate.objects.all().order_by("-created")
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.MaintenanceAnnouncementTemplateFilter
     serializer_class = serializers.MaintenanceAnnouncementTemplateSerializer
 
 
@@ -5800,4 +5801,5 @@ class MaintenanceAnnouncementOfferingTemplateViewSet(core_views.ActionsViewSet):
         "-created"
     )
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.MaintenanceAnnouncementOfferingTemplateFilter
     serializer_class = serializers.MaintenanceAnnouncementOfferingTemplateSerializer

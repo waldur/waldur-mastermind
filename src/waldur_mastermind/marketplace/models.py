@@ -2313,6 +2313,9 @@ class MaintenanceAnnouncement(
         related_name="created_maintenance_announcements",
     )
 
+    external_reference_url = models.URLField(
+        blank=True, help_text="Optional reference to an external maintenance tracker"
+    )
     tracker = FieldTracker()
 
     class Meta:
@@ -2377,7 +2380,7 @@ class MaintenanceAnnouncement(
         )
 
     def __str__(self):
-        return f"{self.name} - {self.get_state_display()}"
+        return f"{self.name} - {self.state}"
 
 
 class MaintenanceAnnouncementOffering(core_models.UuidMixin, TimeStampedModel):
@@ -2439,7 +2442,7 @@ class MaintenanceAnnouncementTemplate(
         customer_path = "service_provider__customer"
 
     def __str__(self):
-        return f"{self.name} - {self.get_state_display()}"
+        return f"{self.name} - {self.get_maintenance_type_display()}"
 
 
 class MaintenanceAnnouncementOfferingTemplate(core_models.UuidMixin, TimeStampedModel):
