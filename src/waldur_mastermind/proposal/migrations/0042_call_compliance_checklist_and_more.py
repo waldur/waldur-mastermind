@@ -12,7 +12,7 @@ import waldur_core.core.fields
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("checklist", "0010_rename_app_from_marketplace_checklist"),
+        ("checklist", "0001_squashed_0012_alter_answer_value"),
         ("proposal", "0041_remove_call_default_project_role"),
     ]
 
