@@ -1036,6 +1036,34 @@ class BackendResourceRequestFilter(
         fields = []
 
 
+class MaintenanceAnnouncementTemplateFilter(django_filters.FilterSet):
+    service_provider_uuid = django_filters.UUIDFilter(
+        field_name="service_provider__uuid"
+    )
+    maintenance_type = django_filters.NumberFilter(field_name="maintenance_type")
+    o = django_filters.OrderingFilter(fields=("created", "name"))
+
+    class Meta:
+        model = models.MaintenanceAnnouncementTemplate
+        fields = []
+
+
+class MaintenanceAnnouncementOfferingTemplateFilter(django_filters.FilterSet):
+    maintenance_template_uuid = django_filters.UUIDFilter(
+        field_name="maintenance_template__uuid"
+    )
+    service_provider_uuid = django_filters.UUIDFilter(
+        field_name="maintenance_template__service_provider__uuid"
+    )
+    offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+    impact_level = django_filters.NumberFilter(field_name="impact_level")
+    o = django_filters.OrderingFilter(fields=("created",))
+
+    class Meta:
+        model = models.MaintenanceAnnouncementOfferingTemplate
+        fields = []
+
+
 def user_extra_query(user):
     customer_ids = get_connected_customers(
         user, (RoleEnum.CUSTOMER_OWNER, RoleEnum.CUSTOMER_MANAGER)

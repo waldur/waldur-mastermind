@@ -5596,7 +5596,7 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True,
     )
     service_provider_name = serializers.CharField(
-        read_only=True, source="service_provider.name"
+        read_only=True, source="service_provider.customer.name"
     )
     state = serializers.SerializerMethodField()
 
@@ -5619,6 +5619,7 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
             "name",
             "message",
             "maintenance_type",
+            "external_reference_url",
             "state",
             "scheduled_start",
             "scheduled_end",
