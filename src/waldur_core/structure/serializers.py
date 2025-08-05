@@ -256,7 +256,7 @@ class ProjectSerializer(
             "resources_count",
             "max_service_accounts",
         )
-        protected_fields = ("end_date_requested_by",)
+        read_only_fields = ("end_date_requested_by",)
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
             "customer": {"lookup_field": "uuid"},
