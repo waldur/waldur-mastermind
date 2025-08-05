@@ -14,6 +14,9 @@ from model_utils.tracker import FieldInstanceTracker
 from rest_framework.exceptions import ValidationError
 
 import waldur_core.media.mixins
+from waldur_core.checklist import enums as checklist_enums
+from waldur_core.checklist import models as checklist_models
+from waldur_core.checklist.mixins import ChecklistCompletionMixin
 from waldur_core.core import models as core_models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.mixins import PermissionMixin
@@ -22,9 +25,6 @@ from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.models import SafeAttributesMixin
-from waldur_mastermind.marketplace_checklist import enums as checklist_enums
-from waldur_mastermind.marketplace_checklist import models as checklist_models
-from waldur_mastermind.marketplace_checklist.mixins import ChecklistCompletionMixin
 from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,

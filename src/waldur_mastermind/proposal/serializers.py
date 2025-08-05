@@ -11,6 +11,8 @@ from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.reverse import reverse
 
+from waldur_core.checklist import enums as checklist_enums
+from waldur_core.checklist import models as checklist_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
@@ -22,8 +24,6 @@ from waldur_mastermind.marketplace.serializers import (
     OfferingComponentSerializer,
     OfferingOptionsField,
 )
-from waldur_mastermind.marketplace_checklist import enums as checklist_enums
-from waldur_mastermind.marketplace_checklist import models as checklist_models
 from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
@@ -1445,9 +1445,6 @@ class ProposalChecklistAnswerSerializer(serializers.ModelSerializer):
     question_required = serializers.BooleanField(
         source="question.required", read_only=True
     )
-    question_solution = serializers.CharField(
-        source="question.solution", read_only=True
-    )
     user_name = serializers.CharField(source="user.full_name", read_only=True)
 
     class Meta:
@@ -1458,7 +1455,6 @@ class ProposalChecklistAnswerSerializer(serializers.ModelSerializer):
             "question_description",
             "question_type",
             "question_required",
-            "question_solution",
             "answer_data",
             "requires_review",
             "user",
@@ -1493,7 +1489,6 @@ class ProposalChecklistQuestionSerializer(serializers.ModelSerializer):
             "description",
             "question_type",
             "required",
-            "solution",
             "order",
             "existing_answer",
             "question_options",
@@ -1503,7 +1498,6 @@ class ProposalChecklistQuestionSerializer(serializers.ModelSerializer):
             "description",
             "question_type",
             "required",
-            "solution",
             "order",
             "existing_answer",
             "question_options",

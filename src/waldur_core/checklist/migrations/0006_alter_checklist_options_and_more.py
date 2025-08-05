@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         (
-            "marketplace_checklist",
+            "checklist",
             "0002_translations_squashed_0005_remove_checklistprojectrole_checklist_and_more",
         ),
     ]
@@ -298,7 +298,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="question_options",
-                        to="marketplace_checklist.question",
+                        to="checklist.question",
                     ),
                 ),
             ],
@@ -360,7 +360,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="dependent_questions",
-                        to="marketplace_checklist.question",
+                        to="checklist.question",
                     ),
                 ),
                 (
@@ -368,7 +368,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="dependencies",
-                        to="marketplace_checklist.question",
+                        to="checklist.question",
                     ),
                 ),
             ],

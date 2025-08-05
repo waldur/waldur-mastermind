@@ -568,8 +568,25 @@ class TaskTest(test.APITransactionTestCase):
         # Verify that notification email has been sent to proposal creator
         # in fixtures.py there are two proposals belong to this round; therefore, there are two emails in the mail outbox
         self.assertEqual(len(mail.outbox), 2)
-        self.assertEqual(mail.outbox[0].to, [self.proposal.created_by.email])
-        body = mail.outbox[0].body
+
+        # Check that both expected email recipients are present (order doesn't matter)
+        email_recipients = [mail.to for mail in mail.outbox]
+        expected_recipients = [
+            [self.proposal.created_by.email],
+            [self.fixture.proposal_submitted.created_by.email],
+        ]
+
+        self.assertEqual(sorted(email_recipients), sorted(expected_recipients))
+
+        # Find the email for self.proposal and verify its content
+        proposal_email = None
+        for email in mail.outbox:
+            if email.to == [self.proposal.created_by.email]:
+                proposal_email = email
+                break
+
+        self.assertIsNotNone(proposal_email, "Email for self.proposal not found")
+        body = proposal_email.body
         self.assertIn(
             f'Your proposal "{self.proposal.name}" in call "{self.proposal.round.call.name}" has been canceled',
             body,

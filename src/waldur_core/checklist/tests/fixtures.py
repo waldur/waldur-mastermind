@@ -1,9 +1,9 @@
 from django.utils.functional import cached_property
 
-from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace_checklist.tests import (
+from waldur_core.checklist.tests import (
     factories as marketplace_checklist_factories,
 )
+from waldur_core.structure.tests import fixtures as structure_fixtures
 
 
 class CheckListFixture(structure_fixtures.CustomerFixture):

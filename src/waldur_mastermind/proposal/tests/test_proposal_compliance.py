@@ -11,12 +11,12 @@ from unittest.mock import patch
 from ddt import data, ddt
 from rest_framework import status, test
 
-from waldur_core.permissions.fixtures import ProposalRole
-from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace_checklist import enums as checklist_enums
-from waldur_mastermind.marketplace_checklist.tests import (
+from waldur_core.checklist import enums as checklist_enums
+from waldur_core.checklist.tests import (
     factories as checklist_factories,
 )
+from waldur_core.permissions.fixtures import ProposalRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.tests import factories as proposal_factories
 from waldur_mastermind.proposal.tests import fixtures as proposal_fixtures

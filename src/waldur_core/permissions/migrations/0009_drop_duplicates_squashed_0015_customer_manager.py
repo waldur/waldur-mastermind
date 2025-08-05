@@ -121,6 +121,10 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("permissions", "0008_customer_role"),
+        ("logging", "0002_immutable_default_json_squashed_0015_event_index"),
+        ("structure", "0001_squashed_0036"),
+        ("marketplace", "0001_squashed_0076"),
+        ("contenttypes", "0001_initial"),
     ]
 
     operations = [
