@@ -9,7 +9,6 @@ from waldur_core.media.mixins import ImageModelMixin
 from waldur_core.media.validators import ImageValidator
 from waldur_core.permissions.models import Role
 from waldur_core.structure.models import Customer
-from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import enums, utils
 
@@ -24,7 +23,7 @@ class Category(
     checklists: models.Manager["Checklist"]
 
     icon = models.FileField(
-        upload_to="marketplace_checklist_category_icons",
+        upload_to="checklist_category_icons",
         blank=True,
         null=True,
         validators=[ImageValidator],
@@ -90,17 +89,6 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMi
         related_name="questions",
     )
     order = models.PositiveIntegerField(default=0)
-    category = models.ForeignKey(
-        to=marketplace_models.Category,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-    )
-    solution = models.TextField(
-        blank=True,
-        null=True,
-        help_text=_("Guidance shown when answer needs clarification"),
-    )
     required = models.BooleanField(default=False)
     question_type = models.CharField(
         max_length=20,

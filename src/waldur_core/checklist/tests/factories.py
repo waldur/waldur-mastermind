@@ -3,7 +3,6 @@ from django.urls import reverse
 
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 from .. import enums, models
 
@@ -56,7 +55,6 @@ class QuestionFactory(
     description = factory.Sequence(lambda n: "question-%s" % n)
     checklist = factory.SubFactory(ChecklistFactory)
     order = factory.Sequence(int)
-    category = factory.SubFactory(marketplace_factories.CategoryFactory)
     question_type = enums.QuestionTypes.TEXT_INPUT
     operator = enums.OPERATORS[2][0]  # contains
 

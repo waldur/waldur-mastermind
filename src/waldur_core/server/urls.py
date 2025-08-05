@@ -4,6 +4,7 @@ from django.conf.urls import include
 from django.contrib import admin
 from django.urls import path, re_path
 
+from waldur_core.checklist import urls as checklist_urls
 from waldur_core.core import WaldurExtension
 from waldur_core.core import views as core_views
 from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP
@@ -29,6 +30,7 @@ logging_urls.register_in(router)
 permissions_urls.register_in(router)
 structure_urls.register_in(router)
 users_urls.register_in(router)
+checklist_urls.register_in(router)
 
 urlpatterns = [
     re_path(r"^admin/", admin.site.urls),
@@ -93,6 +95,11 @@ urlpatterns += [
     re_path(r"^api/", include("waldur_core.logging.urls")),
     re_path(r"^api/", include("waldur_core.media.urls")),
     re_path(r"^api/", include("waldur_core.structure.urls")),
+    re_path(r"^api/", include("waldur_core.checklist.urls")),
+]
+
+
+urlpatterns += [
     re_path(r"^api/configuration/", core_views.configuration_detail),
     re_path(r"^api/override-settings/", core_views.override_db_settings),
     re_path(r"^api/version/", core_views.version_detail),

@@ -3,13 +3,13 @@ import datetime
 import factory
 from rest_framework.reverse import reverse
 
+from waldur_core.checklist.tests import (
+    factories as checklist_factories,
+)
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.permissions import fixtures as permissions_fixtures
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_checklist.tests import (
-    factories as checklist_factories,
-)
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import RequestedOfferingStates
 

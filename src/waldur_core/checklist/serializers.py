@@ -191,7 +191,6 @@ class QuestionDependencySerializer(
 class QuestionSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    category_uuid = serializers.UUIDField(read_only=True, source="category.uuid")
     question_options = QuestionOptionsSerializer(many=True, read_only=True)
 
     class Meta:
@@ -199,8 +198,6 @@ class QuestionSerializer(
         fields = [
             "uuid",
             "description",
-            "solution",
-            "category_uuid",
             "image",
             "question_options",
         ]
@@ -275,7 +272,7 @@ class QuestionAdminSerializer(QuestionSerializer):
 class ImportExportQuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Question
-        fields = ("id", "description", "solution", "order")
+        fields = ("id", "description", "order")
 
 
 class AnswerListSerializer(serializers.ModelSerializer):

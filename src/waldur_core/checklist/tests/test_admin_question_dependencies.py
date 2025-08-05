@@ -1,8 +1,8 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
-from waldur_mastermind.marketplace_checklist import enums, models
-from waldur_mastermind.marketplace_checklist.tests import factories, fixtures
+from waldur_core.checklist import enums, models
+from waldur_core.checklist.tests import factories, fixtures
 
 
 @ddt

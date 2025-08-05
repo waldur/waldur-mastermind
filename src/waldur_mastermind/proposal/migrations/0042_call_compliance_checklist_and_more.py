@@ -12,7 +12,7 @@ import waldur_core.core.fields
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("marketplace_checklist", "0007_alter_answer_reviewed_by"),
+        ("checklist", "0011_alter_answer_id_alter_category_icon_and_more"),
         ("proposal", "0041_remove_call_default_project_role"),
     ]
 
@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
                 limit_choices_to={"checklist_type": "proposal_compliance"},
                 null=True,
                 on_delete=django.db.models.deletion.PROTECT,
-                to="marketplace_checklist.checklist",
+                to="checklist.checklist",
             ),
         ),
         migrations.CreateModel(
@@ -81,7 +81,7 @@ class Migration(migrations.Migration):
                     "checklist",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to="marketplace_checklist.checklist",
+                        to="checklist.checklist",
                     ),
                 ),
                 (
@@ -172,7 +172,7 @@ class Migration(migrations.Migration):
                     "question",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to="marketplace_checklist.question",
+                        to="checklist.question",
                     ),
                 ),
                 (

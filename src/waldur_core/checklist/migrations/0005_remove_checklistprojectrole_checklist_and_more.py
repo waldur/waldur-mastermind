@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         ("permissions", "0015_customer_manager"),
-        ("marketplace_checklist", "0004_translations"),
+        ("checklist", "0004_translations"),
     ]
 
     operations = [

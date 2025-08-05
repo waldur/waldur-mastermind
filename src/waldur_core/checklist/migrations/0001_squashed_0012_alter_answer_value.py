@@ -143,7 +143,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="questions",
-                        to="marketplace_checklist.checklist",
+                        to="checklist.checklist",
                     ),
                 ),
                 (
@@ -234,7 +234,7 @@ class Migration(migrations.Migration):
                     models.FileField(
                         blank=True,
                         null=True,
-                        upload_to="marketplace_checklist_category_icons",
+                        upload_to="checklist_category_icons",
                         validators=[
                             waldur_core.media.validators.FileTypeValidator(
                                 allowed_types=[
@@ -263,7 +263,7 @@ class Migration(migrations.Migration):
                 null=True,
                 on_delete=django.db.models.deletion.SET_NULL,
                 related_name="checklists",
-                to="marketplace_checklist.category",
+                to="checklist.category",
             ),
         ),
         migrations.CreateModel(
@@ -287,7 +287,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="project_roles",
-                        to="marketplace_checklist.checklist",
+                        to="checklist.checklist",
                     ),
                 ),
             ],
@@ -313,7 +313,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="customer_roles",
-                        to="marketplace_checklist.checklist",
+                        to="checklist.checklist",
                     ),
                 ),
             ],
@@ -351,7 +351,7 @@ class Migration(migrations.Migration):
                     "question",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to="marketplace_checklist.question",
+                        to="checklist.question",
                     ),
                 ),
                 (
