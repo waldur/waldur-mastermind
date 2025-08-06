@@ -221,6 +221,8 @@ def get_quantity(unit, start, end) -> decimal.Decimal:
         return utils.get_full_hours(start, end)
     elif unit == Units.PER_DAY:
         return utils.get_full_days(start, end)
+    elif unit == Units.PER_QUARTER:
+        return core_utils.get_full_quarters(start, end)
     elif unit == Units.PER_HALF_MONTH:
         if (start.day == 1 and end.day == 15) or (
             start.day == 16 and end.day == month_days

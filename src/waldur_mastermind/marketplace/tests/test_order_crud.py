@@ -465,6 +465,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
     @data(
         LimitPeriods.TOTAL,
         LimitPeriods.MONTH,
+        LimitPeriods.QUARTERLY,
         LimitPeriods.ANNUAL,
     )
     def test_offering_limit_is_valid(self, limit_period):
@@ -494,6 +495,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
     @data(
         LimitPeriods.TOTAL,
         LimitPeriods.MONTH,
+        LimitPeriods.QUARTERLY,
         LimitPeriods.ANNUAL,
     )
     def test_offering_limit_is_invalid(self, limit_period):

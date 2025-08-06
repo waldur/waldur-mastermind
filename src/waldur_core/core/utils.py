@@ -613,3 +613,81 @@ def get_valid_notification_keys():
         for notification in notifications:
             valid_keys.add(f"{section_key}.{notification['path']}")
     return valid_keys
+
+
+# Quarterly date utilities
+def get_current_quarter():
+    """Get current quarter (1-4) based on current month."""
+    return (timezone.now().month - 1) // 3 + 1
+
+
+def get_current_quarter_start():
+    """Get start of current quarter."""
+    now = timezone.now()
+    quarter = get_current_quarter()
+    quarter_start_month = (quarter - 1) * 3 + 1
+    return now.replace(
+        month=quarter_start_month, day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+
+
+def get_current_quarter_end():
+    """Get end of current quarter."""
+    now = timezone.now()
+    quarter = get_current_quarter()
+    quarter_end_month = quarter * 3
+    # Get last day of quarter end month
+    last_day = calendar.monthrange(now.year, quarter_end_month)[1]
+    return now.replace(
+        month=quarter_end_month,
+        day=last_day,
+        hour=23,
+        minute=59,
+        second=59,
+        microsecond=999999,
+    )
+
+
+def get_quarter_start(date):
+    """Get start of quarter for given date."""
+    quarter = (date.month - 1) // 3 + 1
+    quarter_start_month = (quarter - 1) * 3 + 1
+    return date.replace(
+        month=quarter_start_month, day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+
+
+def get_quarter_end(date):
+    """Get end of quarter for given date."""
+    quarter = (date.month - 1) // 3 + 1
+    quarter_end_month = quarter * 3
+    # Get last day of quarter end month
+    last_day = calendar.monthrange(date.year, quarter_end_month)[1]
+    return date.replace(
+        month=quarter_end_month,
+        day=last_day,
+        hour=23,
+        minute=59,
+        second=59,
+        microsecond=999999,
+    )
+
+
+def get_full_quarters(start, end):
+    """Calculate number of full quarters between start and end dates."""
+    start_quarter = get_quarter_start(start)
+    end_quarter = get_quarter_end(end)
+
+    # Calculate quarters between dates
+    quarters = 0
+    current = start_quarter
+    while current <= end_quarter:
+        if current >= start and current <= end:
+            quarters += 1
+        # Move to next quarter
+        if current.month <= 9:
+            current = current.replace(month=current.month + 3)
+        else:
+            current = current.replace(year=current.year + 1, month=current.month - 9)
+
+    return quarters
