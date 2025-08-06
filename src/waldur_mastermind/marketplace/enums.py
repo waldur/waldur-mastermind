@@ -24,6 +24,7 @@ class BillingTypes:
 
 class LimitPeriods:
     MONTH = "month"
+    QUARTERLY = "quarterly"
     ANNUAL = "annual"
     TOTAL = "total"
 
@@ -31,6 +32,11 @@ class LimitPeriods:
         (
             MONTH,
             "Maximum monthly - every month service provider "
+            "can report up to the amount requested by user.",
+        ),
+        (
+            QUARTERLY,
+            "Maximum quarterly - every quarter service provider "
             "can report up to the amount requested by user.",
         ),
         (

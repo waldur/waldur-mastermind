@@ -214,6 +214,7 @@ class InvoiceTerminateTest(test.APITransactionTestCase):
 
     @ddt.data(
         LimitPeriods.MONTH,
+        LimitPeriods.QUARTERLY,
         LimitPeriods.ANNUAL,
     )
     def test_when_item_is_terminated_quantity_is_updated_if_component_is_month_or_annual_limit(

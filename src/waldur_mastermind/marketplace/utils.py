@@ -297,6 +297,26 @@ def validate_limit_amount(value, component):
                 _("Monthly limit exceeds threshold %s.") % component.limit_amount
             )
 
+    elif component.limit_period == LimitPeriods.QUARTERLY:
+        quarter_start = core_utils.get_current_quarter_start()
+        quarter_end = core_utils.get_current_quarter_end()
+        current = (
+            (
+                models.ComponentQuota.objects.filter(
+                    component=component,
+                    modified__gte=quarter_start,
+                    modified__lte=quarter_end,
+                )
+                .exclude(limit=-1)
+                .aggregate(sum=Sum("limit"))["sum"]
+            )
+            or 0
+        )
+        if current + value > component.limit_amount:
+            raise serializers.ValidationError(
+                _("Quarterly limit exceeds threshold %s.") % component.limit_amount
+            )
+
     elif component.limit_period == LimitPeriods.ANNUAL:
         current = (
             (

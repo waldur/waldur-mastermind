@@ -753,7 +753,7 @@ class OfferingComponent(
     )
     # limit_period and limit_amount fields are used if billing_type is USAGE or LIMIT
     limit_period = models.CharField(
-        choices=LimitPeriods.CHOICES, blank=True, null=True, max_length=6
+        choices=LimitPeriods.CHOICES, blank=True, null=True, max_length=10
     )
     limit_amount = models.IntegerField(blank=True, null=True)
     # unit_factor is for metadata only and is not involved in any computations in Mastermind
@@ -779,6 +779,21 @@ class OfferingComponent(
 
         if self.limit_period == LimitPeriods.MONTH:
             usages = usages.filter(date=core_utils.month_start(date))
+        elif self.limit_period == LimitPeriods.QUARTERLY:
+            # Convert date to datetime for quarter calculations
+            if isinstance(date, timezone.datetime):
+                datetime_obj = date
+            else:
+                datetime_obj = timezone.datetime.combine(
+                    date, timezone.datetime.min.time()
+                )
+                datetime_obj = timezone.make_aware(datetime_obj)
+
+            quarter_start = core_utils.get_quarter_start(datetime_obj)
+            quarter_end = core_utils.get_quarter_end(datetime_obj)
+            usages = usages.filter(
+                date__gte=quarter_start.date(), date__lte=quarter_end.date()
+            )
         elif self.limit_period == LimitPeriods.ANNUAL:
             usages = usages.filter(date__year=date.year)
 

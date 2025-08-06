@@ -459,6 +459,40 @@ class SubmitUsageTest(test.APITransactionTestCase):
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    @freeze_time("2019-06-19")  # Q2
+    def test_total_amount_exceeds_quarterly_limit(self):
+        self.offering_component.limit_period = LimitPeriods.QUARTERLY
+        self.offering_component.limit_amount = 100
+        self.offering_component.save()
+
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            component=self.offering_component,
+            usage=99,
+            date=parse_datetime("2019-05-11"),  # Same quarter (Q2)
+            billing_period=parse_datetime("2019-05-01"),
+        )
+
+        response = self.submit_usage()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @freeze_time("2019-06-19")  # Q2
+    def test_total_amount_does_not_exceed_quarterly_limit(self):
+        self.offering_component.limit_period = LimitPeriods.QUARTERLY
+        self.offering_component.limit_amount = 100
+        self.offering_component.save()
+
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            component=self.offering_component,
+            usage=50,
+            date=parse_datetime("2019-04-11"),  # Same quarter (Q2)
+            billing_period=parse_datetime("2019-04-01"),
+        )
+
+        response = self.submit_usage()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     @freeze_time("2019-06-19")
     def test_total_amount_exceeds_annual_limit(self):
         self.offering_component.limit_period = LimitPeriods.ANNUAL
