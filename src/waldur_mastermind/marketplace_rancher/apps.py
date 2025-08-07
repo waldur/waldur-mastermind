@@ -20,6 +20,7 @@ class MarketplaceRancherConfig(AppConfig):
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace_rancher import executors
         from waldur_openstack import models as openstack_models
+        from waldur_rancher import executors as rancher_executors
         from waldur_rancher import models as rancher_models
         from waldur_rancher.apps import RancherConfig
 
@@ -34,6 +35,7 @@ class MarketplaceRancherConfig(AppConfig):
             service_type=RancherConfig.service_name,
             get_importable_resources_backend_method="get_importable_clusters",
             import_resource_backend_method="import_cluster",
+            pull_resource_executor=rancher_executors.ClusterPullExecutor,
         )
 
         manager.register(

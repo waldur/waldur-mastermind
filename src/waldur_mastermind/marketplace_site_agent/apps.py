@@ -13,6 +13,7 @@ class MarketplaceSlurmConfig(AppConfig):
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace_site_agent import (
             PLUGIN_NAME,
+            executors,
             handlers,
             processor,
         )
@@ -29,6 +30,7 @@ class MarketplaceSlurmConfig(AppConfig):
             delete_resource_processor=processor.DeleteAllocationProcessor,
             can_update_limits=True,
             enable_remote_support=True,
+            pull_resource_executor=executors.AgentResourcePullExecutor,
         )
 
         signals.post_save.connect(
