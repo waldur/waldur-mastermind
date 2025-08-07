@@ -12,6 +12,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.checklist import enums as checklist_enums
+from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.tests import (
     factories as checklist_factories,
 )
@@ -74,9 +75,16 @@ class ProposalComplianceTestMixin:
         self.fixture.call.save()
 
         # Ensure checklist completion exists (for existing proposals created before checklist was assigned)
-        if not hasattr(self.fixture.proposal, "checklist_completion"):
-            proposal_models.ProposalChecklistCompletion.objects.create(
-                proposal=self.fixture.proposal, checklist=self.compliance_checklist
+        if not self.fixture.proposal.checklist_completion:
+            from django.contrib.contenttypes.models import ContentType
+
+            proposal_content_type = ContentType.objects.get_for_model(
+                self.fixture.proposal
+            )
+            checklist_models.ChecklistCompletion.objects.create(
+                scope_content_type=proposal_content_type,
+                scope_object_id=self.fixture.proposal.id,
+                checklist=self.compliance_checklist,
             )
 
         # Ensure proposal creator has MANAGER role (since factory doesn't call perform_create)
@@ -88,6 +96,15 @@ class ProposalComplianceTestMixin:
                 ProposalRole.MANAGER,
                 created_by=self.fixture.proposal_creator,
             )
+
+    def _create_checklist_answer(self, completion, question, user, answer_data):
+        """Helper method to create a checklist answer using direct foreign key."""
+        return checklist_models.Answer.objects.create(
+            completion=completion,
+            question=question,
+            user=user,
+            answer_data=answer_data,
+        )
 
 
 @ddt
@@ -111,8 +128,8 @@ class ProposalComplianceCreationTest(
         )
 
         # Verify checklist completion was created by the signal
-        self.assertTrue(hasattr(new_proposal, "checklist_completion"))
         completion = new_proposal.checklist_completion
+        self.assertIsNotNone(completion)
         self.assertEqual(completion.checklist, self.compliance_checklist)
         self.assertFalse(completion.is_completed)
         self.assertFalse(completion.requires_review)
@@ -132,13 +149,13 @@ class ProposalComplianceCreationTest(
         )
 
         # Verify no checklist completion was created
-        self.assertFalse(hasattr(proposal, "checklist_completion"))
+        self.assertIsNone(proposal.checklist_completion)
 
     def test_existing_proposal_completion_status(self):
         """Test that existing proposal gets completion object and shows proper status."""
         # The fixture proposal should have completion object
-        self.assertTrue(hasattr(self.fixture.proposal, "checklist_completion"))
         completion = self.fixture.proposal.checklist_completion
+        self.assertIsNotNone(completion)
 
         # Initially incomplete
         self.assertFalse(completion.is_completed)
@@ -161,7 +178,7 @@ class ProposalComplianceAPITest(
         """Test proposal manager can get compliance checklist."""
         url = (
             proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
-            + "compliance_checklist/"
+            + "checklist/"
         )
         self.client.force_authenticate(self.fixture.proposal_creator)
 
@@ -200,20 +217,27 @@ class ProposalComplianceAPITest(
             round=round_without_checklist, created_by=self.fixture.proposal_creator
         )
 
+        # Ensure proposal creator has MANAGER role
+        proposal_without_checklist.add_user(
+            self.fixture.proposal_creator,
+            ProposalRole.MANAGER,
+            created_by=self.fixture.proposal_creator,
+        )
+
         url = (
             proposal_factories.ProposalFactory.get_url(proposal_without_checklist)
-            + "compliance_checklist/"
+            + "checklist/"
         )
         self.client.force_authenticate(self.fixture.proposal_creator)
 
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_submit_compliance_answers_as_proposal_manager(self):
         """Test proposal manager can submit compliance answers."""
         url = (
             proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
-            + "submit_compliance_answers/"
+            + "submit_answers/"
         )
         self.client.force_authenticate(self.fixture.proposal_creator)
 
@@ -247,7 +271,7 @@ class ProposalComplianceAPITest(
         """Test that certain answers trigger review requirements."""
         url = (
             proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
-            + "submit_compliance_answers/"
+            + "submit_answers/"
         )
         self.client.force_authenticate(self.fixture.proposal_creator)
 
@@ -276,7 +300,7 @@ class ProposalComplianceAPITest(
         """Test submitting invalid answer format."""
         url = (
             proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
-            + "submit_compliance_answers/"
+            + "submit_answers/"
         )
         self.client.force_authenticate(self.fixture.proposal_creator)
 
@@ -295,7 +319,7 @@ class ProposalComplianceAPITest(
         """Test getting compliance status."""
         url = (
             proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
-            + "compliance_status/"
+            + "completion_status/"
         )
         self.client.force_authenticate(self.fixture.proposal_creator)
 
@@ -311,7 +335,7 @@ class ProposalComplianceAPITest(
         """Test that non-proposal managers can also access compliance checklist."""
         url = (
             proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
-            + "compliance_checklist/"
+            + "checklist/"
         )
         user = getattr(self.fixture, user_role)
         self.client.force_authenticate(user)
@@ -323,7 +347,7 @@ class ProposalComplianceAPITest(
         """Test that unauthorized users cannot submit answers."""
         url = (
             proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
-            + "submit_compliance_answers/"
+            + "submit_answers/"
         )
         self.client.force_authenticate(
             self.fixture.reviewer_1
@@ -467,14 +491,14 @@ class CallManagerComplianceTest(
     def _submit_test_answers(self):
         """Helper method to submit test answers."""
         completion = self.fixture.proposal.checklist_completion
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.required_question,
             user=self.fixture.proposal_creator,
             answer_data=True,
         )
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.optional_question,
             user=self.fixture.proposal_creator,
             answer_data="Test additional info",
@@ -483,8 +507,8 @@ class CallManagerComplianceTest(
     def _submit_answers_requiring_review(self):
         """Helper method to submit answers that trigger review."""
         completion = self.fixture.proposal.checklist_completion
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.review_trigger_question,
             user=self.fixture.proposal_creator,
             answer_data=True,  # Triggers review
@@ -557,14 +581,14 @@ class ProposalSubmissionWithComplianceTest(
         completion = self.fixture.proposal.checklist_completion
 
         # Answer all required questions
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.required_question,
             user=self.fixture.proposal_creator,
             answer_data=True,
         )
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.review_trigger_question,
             user=self.fixture.proposal_creator,
             answer_data=False,  # Won't trigger review
@@ -656,10 +680,8 @@ class CallComplianceConfigurationTest(
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class ChecklistCompletionMixinTest(
-    ProposalComplianceTestMixin, test.APITransactionTestCase
-):
-    """Test the ChecklistCompletionMixin functionality."""
+class ChecklistCompletionTest(ProposalComplianceTestMixin, test.APITransactionTestCase):
+    """Test the ChecklistCompletion model functionality."""
 
     def test_completion_percentage_calculation(self):
         """Test completion percentage calculation."""
@@ -669,8 +691,8 @@ class ChecklistCompletionMixinTest(
         self.assertEqual(completion.get_completion_percentage(), 0.0)
 
         # Answer one question (out of 3)
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.required_question,
             user=self.fixture.proposal_creator,
             answer_data=True,
@@ -680,14 +702,14 @@ class ChecklistCompletionMixinTest(
         self.assertEqual(completion.get_completion_percentage(), 33.3)
 
         # Answer all questions
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.optional_question,
             user=self.fixture.proposal_creator,
             answer_data="Test",
         )
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.review_trigger_question,
             user=self.fixture.proposal_creator,
             answer_data=False,
@@ -705,8 +727,8 @@ class ChecklistCompletionMixinTest(
         self.assertFalse(completion.requires_review)
 
         # Answer only optional question - still incomplete
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.optional_question,
             user=self.fixture.proposal_creator,
             answer_data="Test",
@@ -715,14 +737,14 @@ class ChecklistCompletionMixinTest(
         self.assertFalse(completion.is_completed)
 
         # Answer all required questions - now complete
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.required_question,
             user=self.fixture.proposal_creator,
             answer_data=True,
         )
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.review_trigger_question,
             user=self.fixture.proposal_creator,
             answer_data=True,  # Triggers review
@@ -737,8 +759,8 @@ class ChecklistCompletionMixinTest(
         completion = self.fixture.proposal.checklist_completion
 
         # Answer question that triggers review
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.review_trigger_question,
             user=self.fixture.proposal_creator,
             answer_data=True,
@@ -765,8 +787,8 @@ class ChecklistCompletionMixinTest(
         )  # required_question and review_trigger_question
 
         # Answer one required question
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.required_question,
             user=self.fixture.proposal_creator,
             answer_data=True,
@@ -776,8 +798,8 @@ class ChecklistCompletionMixinTest(
         self.assertEqual(unanswered.count(), 1)  # Only review_trigger_question left
 
         # Answer remaining required question
-        proposal_models.ProposalChecklistAnswer.objects.create(
-            proposal_completion=completion,
+        self._create_checklist_answer(
+            completion=completion,
             question=self.review_trigger_question,
             user=self.fixture.proposal_creator,
             answer_data=False,
@@ -810,10 +832,7 @@ class ProposalComplianceSignalsTest(
         )
 
         # Verify no completion exists yet
-        with self.assertRaises(
-            proposal_models.ProposalChecklistCompletion.DoesNotExist
-        ):
-            proposal.checklist_completion
+        self.assertIsNone(proposal.checklist_completion)
 
         # Now add checklist back and trigger signal manually
         test_call.compliance_checklist = self.compliance_checklist
@@ -827,8 +846,8 @@ class ProposalComplianceSignalsTest(
         )
 
         # Verify completion was created
-        self.assertTrue(hasattr(proposal, "checklist_completion"))
         completion = proposal.checklist_completion
+        self.assertIsNotNone(completion)
         self.assertEqual(completion.checklist, self.compliance_checklist)
         self.assertFalse(completion.is_completed)
 
@@ -839,8 +858,8 @@ class ProposalComplianceSignalsTest(
         # Mock the update method to verify it's called
         with patch.object(completion, "update_completion_status") as mock_update:
             # Create answer
-            proposal_models.ProposalChecklistAnswer.objects.create(
-                proposal_completion=completion,
+            self._create_checklist_answer(
+                completion=completion,
                 question=self.required_question,
                 user=self.fixture.proposal_creator,
                 answer_data=True,
@@ -848,3 +867,32 @@ class ProposalComplianceSignalsTest(
 
             # Update should have been called
             mock_update.assert_called_once()
+
+    def test_checklist_completion_deleted_with_proposal(self):
+        """Test that ChecklistCompletion is deleted when Proposal is deleted."""
+        # Create a separate proposal for this test
+        test_call = proposal_factories.CallFactory(
+            manager=self.fixture.call.manager,
+            compliance_checklist=self.compliance_checklist,
+        )
+        test_round = proposal_factories.RoundFactory(call=test_call)
+        test_proposal = proposal_factories.ProposalFactory(
+            round=test_round, created_by=self.fixture.proposal_creator
+        )
+
+        # Verify completion was created
+        completion = test_proposal.checklist_completion
+        self.assertIsNotNone(completion)
+        completion_id = completion.id
+
+        # Delete the proposal
+        test_proposal.delete()
+
+        # Verify completion was also deleted
+        completion_exists = checklist_models.ChecklistCompletion.objects.filter(
+            id=completion_id
+        ).exists()
+        self.assertFalse(
+            completion_exists,
+            "ChecklistCompletion should be deleted when Proposal is deleted",
+        )

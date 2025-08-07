@@ -78,6 +78,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(hours=24),
         "args": (),
     },
+    "cleanup-orphaned-answers": {
+        "task": "waldur_core.checklist.cleanup_orphaned_answers",
+        "schedule": timedelta(hours=24),
+        "args": (),
+    },
 }
 
 for ext in WaldurExtension.get_extensions():

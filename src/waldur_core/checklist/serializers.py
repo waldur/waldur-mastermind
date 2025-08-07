@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
@@ -27,10 +28,6 @@ class ChecklistSerializer(
     questions_count = serializers.IntegerField(source="questions.count", read_only=True)
     category_name = serializers.ReadOnlyField(source="category.name")
     category_uuid = serializers.UUIDField(read_only=True, source="category.uuid")
-    roles = serializers.SerializerMethodField()
-
-    def get_roles(self, checklist) -> list[str]:
-        return checklist.roles.values_list("name", flat=True)
 
     class Meta:
         model = models.Checklist
@@ -43,7 +40,6 @@ class ChecklistSerializer(
             "questions_count",
             "category_name",
             "category_uuid",
-            "roles",
         ]
 
         extra_kwargs = {
@@ -65,27 +61,6 @@ class ChecklistAdminSerializer(ChecklistSerializer):
 
 class CreateChecklistSerializer(ChecklistAdminSerializer):
     checklist_type = serializers.ChoiceField(choices=enums.ChecklistTypes.CHOICES)
-    roles = serializers.HyperlinkedRelatedField(
-        queryset=models.Role.objects.all(),
-        many=True,
-        required=False,
-        view_name="role-detail",
-        lookup_field="uuid",
-    )
-
-    def create(self, validated_data):
-        roles = validated_data.pop("roles", [])
-        checklist = super().create(validated_data)
-        if roles:
-            checklist.roles.set(roles)
-        return checklist
-
-    def update(self, instance, validated_data):
-        roles = validated_data.pop("roles", None)
-        checklist = super().update(instance, validated_data)
-        if roles is not None:
-            checklist.roles.set(roles)
-        return checklist
 
 
 class QuestionOptionsSerializer(
@@ -203,6 +178,80 @@ class QuestionSerializer(
         ]
 
 
+class QuestionWithAnswerSerializer(serializers.ModelSerializer):
+    """Generic serializer for questions with existing answer context (basic view - no review logic)."""
+
+    existing_answer = serializers.SerializerMethodField()
+    question_options = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.Question
+        fields = (
+            "uuid",
+            "description",
+            "question_type",
+            "required",
+            "order",
+            "existing_answer",
+            "question_options",
+        )
+        read_only_fields = (
+            "uuid",
+            "description",
+            "question_type",
+            "required",
+            "order",
+            "existing_answer",
+            "question_options",
+        )
+
+    @extend_schema_field(serializers.DictField(allow_null=True))
+    def get_existing_answer(self, obj):
+        """Get existing answer for this question in the current completion context."""
+        request = self.context.get("request")
+        completion = self.context.get("completion")
+
+        if not request or not completion:
+            return None
+
+        try:
+            answer = completion.answers.get(question=obj, user=request.user)
+            # For basic view, hide review flag from answer
+            answer_data = AnswerSerializer(answer, context=self.context).data
+            if hasattr(self, "_hide_review_flags") or not isinstance(
+                self, QuestionWithAnswerReviewerSerializer
+            ):
+                answer_data.pop("requires_review", None)
+            return answer_data
+        except models.Answer.DoesNotExist:
+            return None
+
+    @extend_schema_field(serializers.ListField(allow_null=True))
+    def get_question_options(self, obj):
+        """Get question options for select-type questions."""
+        if obj.question_type in ["single_select", "multi_select"]:
+            return [
+                {
+                    "uuid": str(option.uuid),
+                    "label": option.label,
+                    "order": option.order,
+                }
+                for option in obj.question_options.all().order_by("order")
+            ]
+        return []
+
+
+class QuestionWithAnswerReviewerSerializer(QuestionWithAnswerSerializer):
+    """Extended serializer for questions with review logic (reviewer view)."""
+
+    class Meta(QuestionWithAnswerSerializer.Meta):
+        fields = QuestionWithAnswerSerializer.Meta.fields + (
+            "operator",
+            "review_answer_value",
+            "always_requires_review",
+        )
+
+
 class QuestionAdminSerializer(QuestionSerializer):
     question_options = QuestionOptionsAdminSerializer(many=True, read_only=True)
     checklist = serializers.HyperlinkedRelatedField(
@@ -269,21 +318,52 @@ class QuestionAdminSerializer(QuestionSerializer):
         }
 
 
-class ImportExportQuestionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = models.Question
-        fields = ("id", "description", "order")
+class AnswerSerializer(serializers.ModelSerializer):
+    """Comprehensive serializer for checklist answers with question details."""
 
-
-class AnswerListSerializer(serializers.ModelSerializer):
-    question_uuid = serializers.UUIDField(read_only=True, source="question.uuid")
+    question_uuid = serializers.UUIDField(write_only=True)
+    question_description = serializers.CharField(
+        source="question.description", read_only=True
+    )
+    question_type = serializers.CharField(
+        source="question.question_type", read_only=True
+    )
+    question_required = serializers.BooleanField(
+        source="question.required", read_only=True
+    )
+    user_name = serializers.CharField(source="user.full_name", read_only=True)
 
     class Meta:
         model = models.Answer
-        fields = ("question_uuid", "answer_data")
+        fields = (
+            "uuid",
+            "question_uuid",
+            "question_description",
+            "question_type",
+            "question_required",
+            "answer_data",
+            "requires_review",
+            "user",
+            "user_name",
+            "created",
+            "modified",
+        )
+        read_only_fields = (
+            "uuid",
+            "question_description",
+            "question_type",
+            "question_required",
+            "requires_review",
+            "user",
+            "user_name",
+            "created",
+            "modified",
+        )
 
 
 class AnswerSubmitSerializer(serializers.Serializer):
+    """Generic serializer for submitting checklist answers."""
+
     question_uuid = serializers.UUIDField()
     answer_data = serializers.JSONField(allow_null=True)
 
@@ -300,49 +380,142 @@ class AnswerSubmitSerializer(serializers.Serializer):
                 f"Question with UUID {question_uuid} does not exist"
             )
 
+        # Get completion from context
+        completion = self.context.get("completion")
+        if not completion:
+            raise serializers.ValidationError("Completion context is required")
+
+        # Validate question belongs to the completion's checklist
+        if question.checklist != completion.checklist:
+            raise serializers.ValidationError(
+                f"Question {question_uuid} does not belong to this checklist"
+            )
+
         # Validate answer data for question type
         if not question.is_valid_answer(answer_data):
             raise serializers.ValidationError(
                 f"Answer value '{answer_data}' is not valid for the question '{question}' (type: {question.question_type})."
             )
 
+        attrs["question"] = question
         return attrs
 
 
-class CustomerChecklistUpdateSerializer(serializers.ListSerializer):
-    child = serializers.SlugRelatedField(
-        slug_field="uuid",
-        write_only=True,
-        queryset=models.Checklist.objects.all(),
+class ChecklistCompletionSerializer(serializers.ModelSerializer):
+    """Generic serializer for checklist completion status (basic view - no review triggers)."""
+
+    completion_percentage = serializers.SerializerMethodField()
+    unanswered_required_questions = serializers.SerializerMethodField()
+    checklist_name = serializers.CharField(source="checklist.name", read_only=True)
+    checklist_description = serializers.CharField(
+        source="checklist.description", read_only=True
     )
 
+    class Meta:
+        model = models.ChecklistCompletion
+        fields = (
+            "uuid",
+            "is_completed",
+            "completion_percentage",
+            "unanswered_required_questions",
+            "checklist_name",
+            "checklist_description",
+            "created",
+            "modified",
+        )
+        read_only_fields = (
+            "uuid",
+            "is_completed",
+            "completion_percentage",
+            "unanswered_required_questions",
+            "checklist_name",
+            "checklist_description",
+            "created",
+            "modified",
+        )
 
-class CustomerChecklistStatSerializer(serializers.Serializer):
-    name = serializers.CharField(read_only=True)
-    uuid = serializers.CharField(read_only=True)
-    score = serializers.FloatField(read_only=True)
+    @extend_schema_field(serializers.FloatField())
+    def get_completion_percentage(self, obj):
+        return obj.get_completion_percentage()
+
+    @extend_schema_field(serializers.ListField())
+    def get_unanswered_required_questions(self, obj):
+        unanswered = obj.get_unanswered_required_questions()
+        return [
+            {
+                "uuid": str(q.uuid),
+                "description": q.description,
+                "question_type": q.question_type,
+            }
+            for q in unanswered
+        ]
 
 
-class UserStatsSerializer(serializers.Serializer):
-    score = serializers.FloatField(read_only=True)
+class ChecklistCompletionReviewerSerializer(ChecklistCompletionSerializer):
+    """Extended serializer for checklist completion with review information (reviewer view)."""
+
+    review_trigger_summary = serializers.SerializerMethodField()
+    reviewed_by_name = serializers.CharField(
+        source="reviewed_by.full_name", read_only=True
+    )
+
+    class Meta(ChecklistCompletionSerializer.Meta):
+        fields = ChecklistCompletionSerializer.Meta.fields + (
+            "requires_review",
+            "reviewed_by",
+            "reviewed_by_name",
+            "reviewed_at",
+            "review_notes",
+            "review_trigger_summary",
+        )
+        read_only_fields = ChecklistCompletionSerializer.Meta.read_only_fields + (
+            "requires_review",
+            "review_trigger_summary",
+        )
+
+    @extend_schema_field(serializers.ListField())
+    def get_review_trigger_summary(self, obj):
+        return obj.get_review_trigger_summary()
 
 
-class ProjectStatsItemSerializer(serializers.Serializer):
-    name = serializers.CharField(read_only=True)
-    uuid = serializers.UUIDField(read_only=True)
-    positive_count = serializers.IntegerField(read_only=True)
-    negative_count = serializers.IntegerField(read_only=True)
-    unknown_count = serializers.IntegerField(read_only=True)
-    score = serializers.FloatField(read_only=True)
+class AnswerSubmitResponseSerializer(serializers.Serializer):
+    """Generic response serializer for answer submission."""
+
+    detail = serializers.CharField()
+    completion = ChecklistCompletionSerializer()
 
 
-class ChecklistProjectStatsSerializer(serializers.ListSerializer):
-    child = ProjectStatsItemSerializer()
+class ChecklistResponseSerializer(serializers.Serializer):
+    """Generic response serializer for checklist with questions and completion (basic view)."""
+
+    checklist = serializers.SerializerMethodField()
+    completion = ChecklistCompletionSerializer()
+    questions = QuestionWithAnswerSerializer(many=True)
+
+    @extend_schema_field(serializers.DictField())
+    def get_checklist(self, obj):
+        """Get checklist basic information."""
+        return {
+            "uuid": str(obj["checklist"].uuid),
+            "name": obj["checklist"].name,
+            "description": obj["checklist"].description,
+            "checklist_type": obj["checklist"].checklist_type,
+        }
 
 
-class ChecklistCustomerStatsSerializer(serializers.Serializer):
-    name = serializers.CharField(read_only=True)
-    uuid = serializers.UUIDField(read_only=True)
-    latitude = serializers.FloatField(read_only=True)
-    longitude = serializers.FloatField(read_only=True)
-    score = serializers.FloatField(read_only=True)
+class ChecklistReviewerResponseSerializer(serializers.Serializer):
+    """Generic response serializer for checklist with full review information (reviewer view)."""
+
+    checklist = serializers.SerializerMethodField()
+    completion = ChecklistCompletionReviewerSerializer()
+    questions = QuestionWithAnswerReviewerSerializer(many=True)
+
+    @extend_schema_field(serializers.DictField())
+    def get_checklist(self, obj):
+        """Get checklist basic information."""
+        return {
+            "uuid": str(obj["checklist"].uuid),
+            "name": obj["checklist"].name,
+            "description": obj["checklist"].description,
+            "checklist_type": obj["checklist"].checklist_type,
+        }

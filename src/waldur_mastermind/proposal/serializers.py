@@ -13,6 +13,7 @@ from rest_framework.reverse import reverse
 
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
+from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
@@ -1366,240 +1367,20 @@ class ProposalProjectRoleMappingSerializer(serializers.HyperlinkedModelSerialize
 
 
 # Checklist Integration Serializers
-class ProposalChecklistCompletionSerializer(serializers.ModelSerializer):
-    """Serializer for proposal checklist completion status."""
+# Backward compatibility aliases - use generic serializers from checklist app
+ProposalChecklistCompletionSerializer = (
+    checklist_serializers.ChecklistCompletionSerializer
+)
+ProposalChecklistAnswerSubmitSerializer = checklist_serializers.AnswerSubmitSerializer
+ProposalChecklistAnswerSubmitResponseSerializer = (
+    checklist_serializers.AnswerSubmitResponseSerializer
+)
 
-    completion_percentage = serializers.SerializerMethodField()
-    review_trigger_summary = serializers.SerializerMethodField()
-    unanswered_required_questions = serializers.SerializerMethodField()
-    checklist_name = serializers.CharField(source="checklist.name", read_only=True)
-    checklist_description = serializers.CharField(
-        source="checklist.description", read_only=True
-    )
-    reviewed_by_name = serializers.CharField(
-        source="reviewed_by.full_name", read_only=True
-    )
-
-    class Meta:
-        model = models.ProposalChecklistCompletion
-        fields = (
-            "uuid",
-            "is_completed",
-            "requires_review",
-            "reviewed_by",
-            "reviewed_by_name",
-            "reviewed_at",
-            "review_notes",
-            "completion_percentage",
-            "review_trigger_summary",
-            "unanswered_required_questions",
-            "checklist_name",
-            "checklist_description",
-            "created",
-            "modified",
-        )
-        read_only_fields = (
-            "uuid",
-            "is_completed",
-            "requires_review",
-            "completion_percentage",
-            "review_trigger_summary",
-            "unanswered_required_questions",
-            "checklist_name",
-            "checklist_description",
-            "created",
-            "modified",
-        )
-
-    @extend_schema_field(serializers.FloatField())
-    def get_completion_percentage(self, obj):
-        return obj.get_completion_percentage()
-
-    @extend_schema_field(serializers.ListField())
-    def get_review_trigger_summary(self, obj):
-        return obj.get_review_trigger_summary()
-
-    @extend_schema_field(serializers.ListField())
-    def get_unanswered_required_questions(self, obj):
-        unanswered = obj.get_unanswered_required_questions()
-        return [
-            {
-                "uuid": str(q.uuid),
-                "description": q.description,
-                "question_type": q.question_type,
-            }
-            for q in unanswered
-        ]
-
-
-class ProposalChecklistAnswerSerializer(serializers.ModelSerializer):
-    """Serializer for proposal checklist answers."""
-
-    question_uuid = serializers.UUIDField(write_only=True)
-    question_description = serializers.CharField(
-        source="question.description", read_only=True
-    )
-    question_type = serializers.CharField(
-        source="question.question_type", read_only=True
-    )
-    question_required = serializers.BooleanField(
-        source="question.required", read_only=True
-    )
-    user_name = serializers.CharField(source="user.full_name", read_only=True)
-
-    class Meta:
-        model = models.ProposalChecklistAnswer
-        fields = (
-            "uuid",
-            "question_uuid",
-            "question_description",
-            "question_type",
-            "question_required",
-            "answer_data",
-            "requires_review",
-            "user",
-            "user_name",
-            "created",
-            "modified",
-        )
-        read_only_fields = (
-            "uuid",
-            "question_description",
-            "question_type",
-            "question_required",
-            "question_solution",
-            "requires_review",
-            "user",
-            "user_name",
-            "created",
-            "modified",
-        )
-
-
-class ProposalChecklistQuestionSerializer(serializers.ModelSerializer):
-    """Serializer for checklist questions in proposal context."""
-
-    existing_answer = serializers.SerializerMethodField()
-    question_options = serializers.SerializerMethodField()
-
-    class Meta:
-        model = checklist_models.Question
-        fields = (
-            "uuid",
-            "description",
-            "question_type",
-            "required",
-            "order",
-            "existing_answer",
-            "question_options",
-        )
-        read_only_fields = (
-            "uuid",
-            "description",
-            "question_type",
-            "required",
-            "order",
-            "existing_answer",
-            "question_options",
-        )
-
-    @extend_schema_field(serializers.DictField(allow_null=True))
-    def get_existing_answer(self, obj):
-        """Get existing answer for this question in the current proposal context."""
-        request = self.context.get("request")
-        proposal = self.context.get("proposal")
-
-        if not request or not proposal:
-            return None
-
-        try:
-            completion = proposal.checklist_completion
-            answer = completion.answers.get(question=obj, user=request.user)
-            return ProposalChecklistAnswerSerializer(answer, context=self.context).data
-        except (
-            models.ProposalChecklistCompletion.DoesNotExist,
-            models.ProposalChecklistAnswer.DoesNotExist,
-        ):
-            return None
-
-    @extend_schema_field(serializers.ListField(allow_null=True))
-    def get_question_options(self, obj):
-        """Get question options for select-type questions."""
-        if obj.question_type in ["single_select", "multi_select"]:
-            return [
-                {
-                    "uuid": str(option.uuid),
-                    "label": option.label,
-                    "order": option.order,
-                }
-                for option in obj.question_options.all().order_by("order")
-            ]
-        return []
-
-
-class ProposalChecklistAnswerSubmitSerializer(serializers.Serializer):
-    """Serializer for submitting checklist answers."""
-
-    question_uuid = serializers.UUIDField()
-    answer_data = serializers.JSONField()
-
-    def validate(self, attrs):
-        """Validate the answer submission."""
-        question_uuid = attrs["question_uuid"]
-        answer_data = attrs["answer_data"]
-
-        # Get the proposal from context
-        proposal = self.context.get("proposal")
-        if not proposal:
-            raise serializers.ValidationError("Proposal context is required")
-
-        # Check if proposal has checklist completion
-        if not hasattr(proposal, "checklist_completion"):
-            raise serializers.ValidationError("Proposal has no compliance checklist")
-
-        # Validate question belongs to the proposal's checklist
-        try:
-            question = proposal.checklist_completion.checklist.questions.get(
-                uuid=question_uuid
-            )
-        except checklist_models.Question.DoesNotExist:
-            raise serializers.ValidationError(
-                f"Question {question_uuid} not found in proposal's checklist"
-            )
-
-        # Validate answer format using the question's validation
-        if not question.is_valid_answer(answer_data):
-            raise serializers.ValidationError(
-                f"Invalid answer format for question type {question.question_type}"
-            )
-
-        attrs["question"] = question
-        return attrs
-
-
-class ProposalChecklistAnswerSubmitResponseSerializer(serializers.Serializer):
-    """Response serializer for compliance answer submission."""
-
-    detail = serializers.CharField()
-    completion = ProposalChecklistCompletionSerializer()
-
-
-class ProposalComplianceChecklistResponseSerializer(serializers.Serializer):
-    """Response serializer for compliance checklist endpoint."""
-
-    checklist = serializers.SerializerMethodField()
-    completion = ProposalChecklistCompletionSerializer()
-    questions = ProposalChecklistQuestionSerializer(many=True)
-
-    @extend_schema_field(serializers.DictField())
-    def get_checklist(self, obj):
-        """Get checklist basic information."""
-        return {
-            "uuid": str(obj["checklist"].uuid),
-            "name": obj["checklist"].name,
-            "description": obj["checklist"].description,
-            "checklist_type": obj["checklist"].checklist_type,
-        }
+# Response serializer is now handled generically by ChecklistResponseSerializer
+# Keep this for backward compatibility in call manager views
+ProposalComplianceChecklistResponseSerializer = (
+    checklist_serializers.ChecklistResponseSerializer
+)
 
 
 class CallComplianceOverviewSerializer(serializers.Serializer):
