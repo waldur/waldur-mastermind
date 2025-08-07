@@ -10,6 +10,7 @@ class MarketplaceVMwareConfig(AppConfig):
     def ready(self):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace.plugins import Component, manager
+        from waldur_vmware import executors as vmware_executors
         from waldur_vmware import models as vmware_models
         from waldur_vmware import signals as vmware_signals
         from waldur_vmware.apps import VMwareConfig
@@ -50,6 +51,7 @@ class MarketplaceVMwareConfig(AppConfig):
                     factor=1024,
                 ),
             ),
+            pull_resource_executor=vmware_executors.VirtualMachinePullExecutor,
         )
 
         vmware_signals.vm_updated.connect(

@@ -84,6 +84,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
+from waldur_core.structure import views as structure_views
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.executors import ServiceSettingsPullExecutor
 from waldur_core.structure.managers import (
@@ -3419,6 +3420,48 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
             ).data,
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        request=None,
+        responses=dict[str, str],
+        description="Starts process of pulling a resource",
+    )
+    @action(detail=True, methods=["post"])
+    def pull(self, request, uuid=None):
+        resource = self.get_object()
+        pull_executor = plugins.manager.get_pull_resource_executor(
+            resource.offering.type
+        )
+        if not pull_executor:
+            return Response(
+                {"detail": _("Pull operation is not implemented.")},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        match resource.scope:
+            case scope if (
+                scope is None or resource.offering.type == SITE_AGENT_PLUGIN_NAME
+            ):
+                # 1. Case when Waldur doesn't have direct access to the resource backend
+                # 2. Case when the resource scope used to be managed by Waldur
+                # and now is managed by the Site Agent plugin
+                pull_executor.execute(resource)
+            case scope if isinstance(scope, structure_models.BaseResource):
+                # Case when Waldur has direct access to the backend resource
+                pull_executor.execute(scope)
+            case scope if isinstance(scope, models.Resource):
+                # Managed Rancher case
+                pull_executor.execute(scope.scope)
+
+        return Response(
+            {"detail": _("Pull operation was successfully scheduled.")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    pull_validators = [
+        core_validators.StateValidator(ResourceStates.OK, ResourceStates.ERRED),
+        structure_views.check_resource_backend_id,
+    ]
 
 
 class ConsumerResourceViewSet(BaseResourceViewSet):

@@ -171,6 +171,9 @@ class PluginManager:
     def get_import_resource_executor(self, offering_type):
         return self.backends.get(offering_type, {}).get("import_resource_executor")
 
+    def get_pull_resource_executor(self, offering_type):
+        return self.backends.get(offering_type, {}).get("pull_resource_executor")
+
     def get_processor(self, offering_type, processor_type):
         """
         Return a processor class for given offering type and order type.

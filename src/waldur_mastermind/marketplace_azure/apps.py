@@ -7,6 +7,7 @@ class MarketplaceAzureConfig(AppConfig):
     verbose_name = "Marketplace Azure"
 
     def ready(self):
+        from waldur_azure import executors as azure_executors
         from waldur_azure import models as azure_models
         from waldur_azure.apps import AzureConfig
         from waldur_core.structure import signals as structure_signals
@@ -43,6 +44,7 @@ class MarketplaceAzureConfig(AppConfig):
             service_type=AzureConfig.service_name,
             get_importable_resources_backend_method="get_importable_virtual_machines",
             import_resource_backend_method="import_virtual_machine",
+            pull_resource_executor=azure_executors.VirtualMachinePullExecutor,
         )
 
         manager.register(
