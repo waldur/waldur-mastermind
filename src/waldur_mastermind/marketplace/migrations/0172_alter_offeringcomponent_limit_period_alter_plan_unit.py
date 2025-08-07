@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0170_offeringuser_state_and_service_provider_comment"),
+        ("marketplace", "0171_maintenanceannouncement_external_reference_url"),
     ]
 
     operations = [
