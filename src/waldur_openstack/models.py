@@ -93,7 +93,6 @@ class Tenant(
     )
     user_username = models.CharField(max_length=50, blank=True)
     user_password = models.CharField(max_length=50, blank=True)
-    update_triggered = models.DateTimeField(blank=True, null=True)
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
