@@ -247,7 +247,7 @@ def terminate_resources_if_project_end_date_has_been_reached():
                 scopes=[project, project.customer],
             )
             project.delete()
-            return
+            continue
 
         # We expect that resources with parents will be removed when parents are removed
         terminatable_resources = project_resources.filter(

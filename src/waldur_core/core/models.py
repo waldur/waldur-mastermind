@@ -690,7 +690,8 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
         field=state, source=CoreStates.UPDATE_SCHEDULED, target=CoreStates.UPDATING
     )
     def begin_updating(self):
-        pass
+        if hasattr(self, "update_triggered"):
+            self.update_triggered = django_timezone.now()
 
     @transition(
         field=state, source=CoreStates.DELETION_SCHEDULED, target=CoreStates.DELETING

@@ -747,3 +747,18 @@ class TenantTasksTest(test.APITransactionTestCase):
             tasks.mark_as_erred_old_tenants_in_deleting_state()
             self.tenant.refresh_from_db()
             self.assertEqual(self.tenant.state, CoreStates.ERRED)
+
+    def test_mark_stuck_updating_tenants_as_erred(self):
+        with freeze_time("2025-01-01"):
+            self.tenant.schedule_updating()
+            self.tenant.save()
+            self.tenant.begin_updating()
+            self.tenant.save()
+            tasks.mark_stuck_updating_tenants_as_erred()
+            self.tenant.refresh_from_db()
+            self.assertEqual(self.tenant.state, CoreStates.UPDATING)
+
+        with freeze_time("2025-01-02"):
+            tasks.mark_stuck_updating_tenants_as_erred()
+            self.tenant.refresh_from_db()
+            self.assertEqual(self.tenant.state, CoreStates.ERRED)
