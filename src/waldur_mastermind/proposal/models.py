@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import Literal, cast
 
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
@@ -16,7 +17,6 @@ from rest_framework.exceptions import ValidationError
 import waldur_core.media.mixins
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
-from waldur_core.checklist.mixins import ChecklistCompletionMixin
 from waldur_core.core import models as core_models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.mixins import PermissionMixin
@@ -491,6 +491,8 @@ class Proposal(
     resources = models.ManyToManyField(RequestedOffering, through="RequestedResource")
     allocation_comment = models.CharField(blank=True, max_length=150, null=True)
 
+    # Note: checklist_completions relationship is automatically available via ChecklistCompletion.scope
+
     tracker = cast(FieldInstanceTracker, FieldTracker())
     requestedresource_set: models.Manager["RequestedResource"]
     review_set: models.Manager["Review"]
@@ -510,24 +512,40 @@ class Proposal(
     class Meta:
         ordering = ["round__start_time"]
 
+    @property
+    def checklist_completion(self):
+        """Get the checklist completion for this proposal."""
+        if not self.round.call.compliance_checklist:
+            return None
+
+        try:
+            proposal_content_type = ContentType.objects.get_for_model(self)
+            return checklist_models.ChecklistCompletion.objects.get(
+                scope_content_type=proposal_content_type,
+                scope_object_id=self.id,
+                checklist=self.round.call.compliance_checklist,
+            )
+        except checklist_models.ChecklistCompletion.DoesNotExist:
+            return None
+
     def can_submit(self):
         """Check if proposal can be submitted."""
         # Check if call requires compliance checklist
         if self.round.call.compliance_checklist:
-            try:
-                completion = self.checklist_completion
-                if not completion.is_completed:
-                    completion_pct = completion.get_completion_percentage()
-                    unanswered = completion.get_unanswered_required_questions()
-                    unanswered_count = unanswered.count()
-                    return (
-                        False,
-                        f"Compliance checklist must be completed before submission ({completion_pct}% complete, {unanswered_count} required questions remaining)",
-                    )
-            except ProposalChecklistCompletion.DoesNotExist:
+            completion = self.checklist_completion
+            if not completion:
                 return (
                     False,
                     "Compliance checklist completion object missing - please contact support",
+                )
+
+            if not completion.is_completed:
+                completion_pct = completion.get_completion_percentage()
+                unanswered = completion.get_unanswered_required_questions()
+                unanswered_count = unanswered.count()
+                return (
+                    False,
+                    f"Compliance checklist must be completed before submission ({completion_pct}% complete, {unanswered_count} required questions remaining)",
                 )
 
         return True, None
@@ -668,53 +686,3 @@ class ResourceAllocator(
 
     call = models.ForeignKey(Call, on_delete=models.CASCADE)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
-
-
-class ProposalChecklistCompletion(
-    ChecklistCompletionMixin,
-    core_models.UuidMixin,
-    TimeStampedModel,
-):
-    """Tracks compliance checklist completion for individual proposals."""
-
-    proposal = models.OneToOneField(
-        Proposal, on_delete=models.CASCADE, related_name="checklist_completion"
-    )
-
-    checklist = models.ForeignKey(checklist_models.Checklist, on_delete=models.CASCADE)
-
-    class Meta:
-        unique_together = ["proposal", "checklist"]
-        verbose_name = "Proposal checklist completion"
-        verbose_name_plural = "Proposal checklist completions"
-
-    def __str__(self):
-        return f"{self.proposal.name} - {self.checklist.name}"
-
-    @classmethod
-    def get_url_name(cls):
-        return "proposal-checklist-completion"
-
-
-class ProposalChecklistAnswer(core_models.UuidMixin, checklist_models.AbstractAnswer):
-    """Proposal-specific answers to checklist questions, inheriting from AbstractAnswer."""
-
-    proposal_completion = models.ForeignKey(
-        ProposalChecklistCompletion, on_delete=models.CASCADE, related_name="answers"
-    )
-
-    class Meta:
-        unique_together = ["proposal_completion", "question", "user"]
-        verbose_name = "Proposal checklist answer"
-        verbose_name_plural = "Proposal checklist answers"
-
-    def save(self, *args, **kwargs):
-        """Override save to update completion status after saving."""
-        super().save(*args, **kwargs)
-
-        # Update completion status after saving
-        self.proposal_completion.update_completion_status()
-
-    @classmethod
-    def get_url_name(cls):
-        return "proposal-checklist-answer"

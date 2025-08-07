@@ -5,11 +5,13 @@ class ChecklistTypes:
     PROJECT_COMPLIANCE = "project_compliance"
     PROPOSAL_COMPLIANCE = "proposal_compliance"
     OFFERING_COMPLIANCE = "offering_compliance"
+    PROJECT_METADATA = "project_metadata"
 
     CHOICES = [
         (PROJECT_COMPLIANCE, _("Project compliance")),
         (PROPOSAL_COMPLIANCE, _("Proposal compliance")),
         (OFFERING_COMPLIANCE, _("Offering compliance")),
+        (PROJECT_METADATA, _("Project metadata")),
     ]
 
 

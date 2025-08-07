@@ -33,7 +33,7 @@ class CategoryAdmin(admin.ModelAdmin):
 class ChecklistAdmin(admin.ModelAdmin):
     list_display = ("name", "description", "category", "checklist_type", "uuid")
     list_filter = ("category", "checklist_type")
-    fields = ("name", "description", "category", "roles", "checklist_type")
+    fields = ("name", "description", "category", "checklist_type")
 
 
 class QuestionDependencyAdmin(admin.ModelAdmin):

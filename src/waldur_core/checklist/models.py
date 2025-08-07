@@ -1,5 +1,7 @@
 import datetime
 
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
@@ -7,8 +9,6 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core import models as core_models
 from waldur_core.media.mixins import ImageModelMixin
 from waldur_core.media.validators import ImageValidator
-from waldur_core.permissions.models import Role
-from waldur_core.structure.models import Customer
 
 from . import enums, utils
 
@@ -43,7 +43,7 @@ class Checklist(
     core_models.DescribableMixin,
     TimeStampedModel,
 ):
-    """Main container for compliance questions, associated with customers/roles and typed by compliance area."""
+    """Main container for metadata questions."""
 
     questions: models.Manager["Question"]
 
@@ -54,8 +54,6 @@ class Checklist(
         blank=True,
         related_name="checklists",
     )
-    customers = models.ManyToManyField(Customer)
-    roles = models.ManyToManyField(to=Role)
     checklist_type = models.CharField(
         max_length=20,
         choices=enums.ChecklistTypes.CHOICES,
@@ -243,14 +241,127 @@ class QuestionDependency(core_models.UuidMixin, TimeStampedModel):
         ordering = ("created",)
 
 
-class AbstractAnswer(TimeStampedModel):
-    """Base class for checklist answers with automatic review flagging and tracking."""
+class ChecklistCompletion(
+    core_models.UuidMixin,
+    TimeStampedModel,
+):
+    """Generic checklist completion tracking for any domain model."""
+
+    # Reference to the checklist being completed
+    checklist = models.ForeignKey(
+        Checklist, on_delete=models.CASCADE, help_text=_("Checklist being completed")
+    )
+
+    # Generic foreign key to the domain object (e.g., Proposal, Project, etc.)
+    scope_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        help_text=_("Type of object this completion belongs to"),
+    )
+    scope_object_id = models.PositiveIntegerField(
+        help_text=_("ID of the object this completion belongs to")
+    )
+    scope = GenericForeignKey("scope_content_type", "scope_object_id")
+
+    # Completion status fields
+    is_completed = models.BooleanField(
+        default=False, help_text=_("Whether all required questions have been answered")
+    )
+
+    requires_review = models.BooleanField(
+        default=False, help_text=_("Whether any answers triggered review requirements")
+    )
+
+    reviewed_by = models.ForeignKey(
+        core_models.User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text=_("User who reviewed the checklist completion"),
+    )
+
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    review_notes = models.TextField(blank=True, help_text=_("Notes from the reviewer"))
+
+    class Meta:
+        unique_together = ["scope_content_type", "scope_object_id", "checklist"]
+        verbose_name = "Checklist completion"
+        verbose_name_plural = "Checklist completions"
+
+    def __str__(self):
+        return f"{self.scope} - {self.checklist.name}"
+
+    def update_completion_status(self):
+        """Update completion and review status based on answers."""
+        # Check if all required questions are answered
+        required_questions = self.checklist.questions.filter(required=True)
+        answered_question_ids = self.answers.values_list("question_id", flat=True)
+        self.is_completed = all(
+            q.id in answered_question_ids for q in required_questions
+        )
+
+        # Check if any answers require review
+        self.requires_review = self.answers.filter(requires_review=True).exists()
+
+        self.save()
+
+    def get_completion_percentage(self):
+        """Calculate completion percentage."""
+        total_questions = self.checklist.questions.count()
+        if total_questions == 0:
+            return 100
+
+        answered_questions = self.answers.count()
+        return round((answered_questions / total_questions) * 100, 1)
+
+    def get_review_trigger_summary(self):
+        """Get summary of answers that triggered review."""
+        review_answers = self.answers.filter(requires_review=True).select_related(
+            "question"
+        )
+
+        return [
+            {
+                "question": answer.question.description,
+                "answer": answer.answer_data,
+                "trigger_value": answer.question.review_answer_value,
+                "operator": answer.question.operator,
+            }
+            for answer in review_answers
+        ]
+
+    def get_unanswered_required_questions(self):
+        """Get list of required questions that haven't been answered yet."""
+        answered_question_ids = self.answers.values_list("question_id", flat=True)
+
+        return self.checklist.questions.filter(required=True).exclude(
+            id__in=answered_question_ids
+        )
+
+    def get_questions_requiring_review(self):
+        """Get list of questions whose answers triggered review requirements."""
+        return self.answers.filter(requires_review=True).values_list(
+            "question", flat=True
+        )
+
+
+class Answer(core_models.UuidMixin, TimeStampedModel):
+    """Checklist answers linked to completion objects."""
 
     user = models.ForeignKey(to=core_models.User, on_delete=models.CASCADE)
     question = models.ForeignKey(to=Question, on_delete=models.CASCADE)
     answer_data = models.JSONField(
         default=list,
         help_text=_("Flexible answer storage for different question types"),
+    )
+
+    completion = models.ForeignKey(
+        ChecklistCompletion,
+        on_delete=models.CASCADE,
+        null=True,  # this should never happen, completion is expected to be created by specific app
+        related_name="answers",
+        help_text=_("Checklist completion this answer belongs to"),
     )
 
     # Review tracking
@@ -264,7 +375,7 @@ class AbstractAnswer(TimeStampedModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="reviewed_%(class)s_answers",  # Use %(class)s for unique related names
+        related_name="reviewed_answers",
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
     review_notes = models.TextField(
@@ -272,7 +383,7 @@ class AbstractAnswer(TimeStampedModel):
     )
 
     class Meta:
-        abstract = True
+        unique_together = ["completion", "question", "user"]
 
     def __str__(self):
         return f"{self.user.username} - {self.question.description[:30]}..."
@@ -281,11 +392,9 @@ class AbstractAnswer(TimeStampedModel):
         """Auto-check if review is required when saving"""
         if not self.pk:
             self.requires_review = self.question.should_trigger_review(self.answer_data)
+
         super().save(*args, **kwargs)
 
-
-class Answer(AbstractAnswer):
-    """User responses stored as JSON with automatic review flagging, reviewer tracking, and unique user-question constraints."""
-
-    class Meta:
-        unique_together = ["user", "question"]
+        # Update completion status (only if completion is set)
+        if self.completion:
+            self.completion.update_completion_status()
