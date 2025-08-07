@@ -5678,7 +5678,7 @@ class MaintenanceAnnouncementOfferingTemplateSerializer(
 
         extra_kwargs = {
             "url": {
-                "view_name": "marketplace-maintenance-announcement-offering-detail",
+                "view_name": "marketplace-maintenance-announcement-template-offering-detail",
                 "lookup_field": "uuid",
             },
             "maintenance_template": {
