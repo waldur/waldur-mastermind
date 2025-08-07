@@ -133,19 +133,19 @@ def process_role_changed(permission: permission_models.UserRole, granted: bool):
         logging_tasks.publish_messages.delay(all_messages)
 
 
-def send_role_revoked_message_to_mqtt(
+def send_role_revoked_message_to_queue(
     sender, instance: permission_models.UserRole, **kwargs
 ):
     process_role_changed(instance, False)
 
 
-def send_role_granted_message_to_mqtt(
+def send_role_granted_message_to_queue(
     sender, instance: permission_models.UserRole, **kwargs
 ):
     process_role_changed(instance, True)
 
 
-def send_resource_update_message_to_mqtt(
+def send_resource_update_message_to_queue(
     sender, instance: marketplace_models.Resource, created=False, **kwargs
 ):
     if created:
@@ -157,7 +157,7 @@ def send_resource_update_message_to_mqtt(
 
     if not any(
         instance.tracker.has_changed(field_name)
-        for field_name in ["downscaled", "restrict_member_access", "paused", "limits"]
+        for field_name in ["downscaled", "restrict_member_access", "paused"]
     ):
         return
 

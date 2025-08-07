@@ -50,17 +50,17 @@ class MarketplaceSlurmConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.send_resource_update_message_to_mqtt,
+            handlers.send_resource_update_message_to_queue,
             sender=marketplace_models.Resource,
-            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_resource_status_changed_message_to_mqtt",
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_resource_update_message_to_queue",
         )
 
         permission_signals.role_granted.connect(
-            handlers.send_role_granted_message_to_mqtt,
-            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_role_granted_message_to_mqtt",
+            handlers.send_role_granted_message_to_queue,
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_role_granted_message_to_queue",
         )
 
         permission_signals.role_revoked.connect(
-            handlers.send_role_revoked_message_to_mqtt,
-            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_role_revoked_message_to_mqtt",
+            handlers.send_role_revoked_message_to_queue,
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_role_revoked_message_to_queue",
         )

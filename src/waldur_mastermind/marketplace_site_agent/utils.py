@@ -45,7 +45,6 @@ def push_resource_update_message(resource: marketplace_models.Resource) -> None:
                 "downscaled",
                 "restrict_member_access",
                 "paused",
-                "limits",
             ]
         }
     )
