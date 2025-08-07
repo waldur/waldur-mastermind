@@ -58,6 +58,11 @@ class OpenStackExtension(WaldurExtension):
                 "schedule": timedelta(minutes=10),
                 "args": (),
             },
+            "openstack_mark_stuck_updating_tenants_as_erred": {
+                "task": "openstack.mark_stuck_updating_tenants_as_erred",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
         }
 
     @staticmethod

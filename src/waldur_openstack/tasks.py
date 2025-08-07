@@ -307,3 +307,14 @@ class TenantPropertiesListPullTask(structure_tasks.BackgroundListPullTask):
 def create_offerings_task(serialized_tenant):
     tenant = core_utils.deserialize_instance(serialized_tenant)
     create_offerings_for_volume_and_instance(tenant)
+
+
+@shared_task(name="openstack.mark_stuck_updating_tenants_as_erred")
+def mark_stuck_updating_tenants_as_erred():
+    tenants_stuck = models.Tenant.objects.exclude(update_triggered=None).filter(
+        update_triggered__lte=timezone.now() - timezone.timedelta(hours=2),
+        state=CoreStates.UPDATING,
+    )
+    for tenant in tenants_stuck:
+        tenant.set_erred()
+        tenant.save(update_fields=["state"])
