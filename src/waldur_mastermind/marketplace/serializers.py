@@ -5567,11 +5567,11 @@ class MaintenanceAnnouncementOfferingSerializer(serializers.HyperlinkedModelSeri
         ]
         extra_kwargs = {
             "url": {
-                "view_name": "marketplace-maintenance-announcement-offering-detail",
+                "view_name": "maintenance-announcement-offering-detail",
                 "lookup_field": "uuid",
             },
             "maintenance": {
-                "view_name": "marketplace-maintenance-announcement-detail",
+                "view_name": "maintenance-announcement-detail",
                 "lookup_field": "uuid",
             },
             "offering": {
@@ -5638,7 +5638,7 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
                 "view_name": "marketplace-service-provider-detail",
             },
             "url": {
-                "view_name": "marketplace-maintenance-announcement-detail",
+                "view_name": "maintenance-announcement-detail",
                 "lookup_field": "uuid",
             },
             "created_by": {
@@ -5665,6 +5665,9 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
 class MaintenanceAnnouncementOfferingTemplateSerializer(
     MaintenanceAnnouncementOfferingSerializer
 ):
+    offering_name = serializers.CharField(read_only=True, source="offering.name")
+    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
+
     class Meta(MaintenanceAnnouncementOfferingSerializer.Meta):
         model = models.MaintenanceAnnouncementOfferingTemplate
         fields = [
@@ -5672,17 +5675,19 @@ class MaintenanceAnnouncementOfferingTemplateSerializer(
             "uuid",
             "maintenance_template",
             "offering",
+            "offering_name",
+            "offering_uuid",
             "impact_level",
             "impact_description",
         ]
 
         extra_kwargs = {
             "url": {
-                "view_name": "marketplace-maintenance-announcement-template-offering-detail",
+                "view_name": "maintenance-announcement-template-offering-detail",
                 "lookup_field": "uuid",
             },
             "maintenance_template": {
-                "view_name": "marketplace-maintenance-announcement-template-detail",
+                "view_name": "maintenance-announcement-template-detail",
                 "lookup_field": "uuid",
             },
             "offering": {
@@ -5718,7 +5723,7 @@ class MaintenanceAnnouncementTemplateSerializer(MaintenanceAnnouncementSerialize
                 "view_name": "marketplace-service-provider-detail",
             },
             "url": {
-                "view_name": "marketplace-maintenance-announcement-template-detail",
+                "view_name": "maintenance-announcement-template-detail",
                 "lookup_field": "uuid",
             },
         }

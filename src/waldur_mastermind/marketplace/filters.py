@@ -1048,6 +1048,33 @@ class MaintenanceAnnouncementTemplateFilter(django_filters.FilterSet):
         fields = []
 
 
+class MaintenanceAnnouncementFilter(django_filters.FilterSet):
+    service_provider_uuid = django_filters.UUIDFilter(
+        field_name="service_provider__uuid"
+    )
+    maintenance_type = django_filters.NumberFilter(field_name="maintenance_type")
+    state = core_filters.MappedMultipleChoiceFilter(models.MaintenanceState.CHOICES)
+    scheduled_start_after = django_filters.DateTimeFilter(
+        field_name="scheduled_start", lookup_expr="gte"
+    )
+    scheduled_start_before = django_filters.DateTimeFilter(
+        field_name="scheduled_start", lookup_expr="lte"
+    )
+    scheduled_end_after = django_filters.DateTimeFilter(
+        field_name="scheduled_end", lookup_expr="gte"
+    )
+    scheduled_end_before = django_filters.DateTimeFilter(
+        field_name="scheduled_end", lookup_expr="lte"
+    )
+    o = django_filters.OrderingFilter(
+        fields=("created", "name", "scheduled_start", "scheduled_end")
+    )
+
+    class Meta:
+        model = models.MaintenanceAnnouncement
+        fields = []
+
+
 class MaintenanceAnnouncementOfferingTemplateFilter(django_filters.FilterSet):
     maintenance_template_uuid = django_filters.UUIDFilter(
         field_name="maintenance_template__uuid"

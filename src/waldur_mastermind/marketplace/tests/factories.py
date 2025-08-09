@@ -751,14 +751,14 @@ class MaintenanceAnnouncementFactory(factory.django.DjangoModelFactory):
         if announcement is None:
             announcement = MaintenanceAnnouncementFactory()
         url = "http://testserver" + reverse(
-            "marketplace-maintenance-announcement-detail",
+            "maintenance-announcement-detail",
             kwargs={"uuid": announcement.uuid.hex},
         )
         return url if action is None else url + action + "/"
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = "http://testserver" + reverse("marketplace-maintenance-announcement-list")
+        url = "http://testserver" + reverse("maintenance-announcement-list")
         return url if action is None else url + action + "/"
 
 
@@ -776,16 +776,14 @@ class MaintenanceAnnouncementOfferingFactory(factory.django.DjangoModelFactory):
         if obj is None:
             obj = MaintenanceAnnouncementOfferingFactory()
         url = "http://testserver" + reverse(
-            "marketplace-maintenance-announcement-offering-detail",
+            "maintenance-announcement-offering-detail",
             kwargs={"uuid": obj.uuid.hex},
         )
         return url if action is None else url + action + "/"
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = "http://testserver" + reverse(
-            "marketplace-maintenance-announcement-offering-list"
-        )
+        url = "http://testserver" + reverse("maintenance-announcement-offering-list")
         return url if action is None else url + action + "/"
 
 
@@ -802,16 +800,14 @@ class MaintenanceAnnouncementTemplateFactory(factory.django.DjangoModelFactory):
         if template is None:
             template = MaintenanceAnnouncementTemplateFactory()
         url = "http://testserver" + reverse(
-            "marketplace-maintenance-announcement-template-detail",
+            "maintenance-announcement-template-detail",
             kwargs={"uuid": template.uuid.hex},
         )
         return url if action is None else url + action + "/"
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = "http://testserver" + reverse(
-            "marketplace-maintenance-announcement-template-list"
-        )
+        url = "http://testserver" + reverse("maintenance-announcement-template-list")
         return url if action is None else url + action + "/"
 
 
@@ -829,7 +825,7 @@ class MaintenanceAnnouncementOfferingTemplateFactory(factory.django.DjangoModelF
         if obj is None:
             obj = MaintenanceAnnouncementOfferingTemplateFactory()
         url = "http://testserver" + reverse(
-            "marketplace-maintenance-announcement-template-offering-detail",
+            "maintenance-announcement-template-offering-detail",
             kwargs={"uuid": obj.uuid.hex},
         )
         return url if action is None else url + action + "/"
@@ -837,6 +833,6 @@ class MaintenanceAnnouncementOfferingTemplateFactory(factory.django.DjangoModelF
     @classmethod
     def get_list_url(cls, action=None):
         url = "http://testserver" + reverse(
-            "marketplace-maintenance-announcement-template-offering-list"
+            "maintenance-announcement-template-offering-list"
         )
         return url if action is None else url + action + "/"

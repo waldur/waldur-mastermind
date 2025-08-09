@@ -5820,6 +5820,7 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.MaintenanceAnnouncement.objects.all().order_by("-created")
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.MaintenanceAnnouncementFilter
     serializer_class = serializers.MaintenanceAnnouncementSerializer
 
 
