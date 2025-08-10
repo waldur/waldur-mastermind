@@ -16,7 +16,8 @@ OfferingUser has the following states:
 | `DELETION_REQUESTED` | Account deletion has been requested |
 | `DELETING` | Account is being deleted |
 | `DELETED` | Account has been successfully deleted |
-| `ERROR` | An error occurred during account management |
+| `ERROR_CREATING` | An error occurred during account creation |
+| `ERROR_DELETING` | An error occurred during account deletion |
 
 ## State Transitions
 
@@ -39,17 +40,33 @@ stateDiagram-v2
     DELETION_REQUESTED --> DELETING : set_deleting()
     DELETING --> DELETED : set_deleted()
 
-    CREATION_REQUESTED --> ERROR : set_error()
-    CREATING --> ERROR : set_error()
-    PENDING_ACCOUNT_LINKING --> ERROR : set_error()
-    PENDING_ADDITIONAL_VALIDATION --> ERROR : set_error()
-    OK --> ERROR : set_error()
-    DELETION_REQUESTED --> ERROR : set_error()
-    DELETING --> ERROR : set_error()
+    %% Error state transitions during creation flow
+    CREATION_REQUESTED --> ERROR_CREATING : set_error_creating()
+    CREATING --> ERROR_CREATING : set_error_creating()
+    PENDING_ACCOUNT_LINKING --> ERROR_CREATING : set_error_creating()
+    PENDING_ADDITIONAL_VALIDATION --> ERROR_CREATING : set_error_creating()
 
-    ERROR --> OK : set_ok()
-    ERROR --> PENDING_ACCOUNT_LINKING : set_pending_account_linking()
-    ERROR --> PENDING_ADDITIONAL_VALIDATION : set_pending_additional_validation()
+    %% Error state transitions during deletion flow
+    DELETION_REQUESTED --> ERROR_DELETING : set_error_deleting()
+    DELETING --> ERROR_DELETING : set_error_deleting()
+
+    %% Recovery from error states
+    ERROR_CREATING --> CREATING : begin_creating()
+    ERROR_CREATING --> OK : set_ok()
+    ERROR_CREATING --> PENDING_ACCOUNT_LINKING : set_pending_account_linking()
+    ERROR_CREATING --> PENDING_ADDITIONAL_VALIDATION : set_pending_additional_validation()
+
+    ERROR_DELETING --> DELETING : set_deleting()
+    ERROR_DELETING --> OK : set_ok()
+
+    %% Legacy error transitions (backward compatibility)
+    CREATION_REQUESTED --> ERROR_CREATING : set_error() [legacy]
+    CREATING --> ERROR_CREATING : set_error() [legacy]
+    PENDING_ACCOUNT_LINKING --> ERROR_CREATING : set_error() [legacy]
+    PENDING_ADDITIONAL_VALIDATION --> ERROR_CREATING : set_error() [legacy]
+    OK --> ERROR_CREATING : set_error() [legacy]
+    DELETION_REQUESTED --> ERROR_CREATING : set_error() [legacy]
+    DELETING --> ERROR_CREATING : set_error() [legacy]
 ```
 
 ## REST API Endpoints
@@ -67,11 +84,12 @@ POST /api/marketplace-offering-users/{uuid}/set_pending_additional_validation/
 Content-Type: application/json
 
 {
-  "comment": "Additional documents required for validation"
+  "comment": "Additional documents required for validation",
+  "comment_url": "https://docs.example.com/validation-requirements"
 }
 ```
 
-**Valid transitions from:** `CREATING`, `ERROR`
+**Valid transitions from:** `CREATING`, `ERROR_CREATING`
 
 #### Set Pending Account Linking
 
@@ -80,11 +98,12 @@ POST /api/marketplace-offering-users/{uuid}/set_pending_account_linking/
 Content-Type: application/json
 
 {
-  "comment": "Please link your existing service account"
+  "comment": "Please link your existing service account",
+  "comment_url": "https://service.example.com/account-linking"
 }
 ```
 
-**Valid transitions from:** `CREATING`, `ERROR`
+**Valid transitions from:** `CREATING`, `ERROR_CREATING`
 
 #### Set Validation Complete
 
@@ -94,7 +113,89 @@ POST /api/marketplace-offering-users/{uuid}/set_validation_complete/
 
 **Valid transitions from:** `PENDING_ADDITIONAL_VALIDATION`, `PENDING_ACCOUNT_LINKING`
 
-**Note:** This action clears the `service_provider_comment` field.
+**Note:** This action clears both the `service_provider_comment` and `service_provider_comment_url` fields.
+
+#### Set Error Creating
+
+```http
+POST /api/marketplace-offering-users/{uuid}/set_error_creating/
+```
+
+**Valid transitions from:** `CREATION_REQUESTED`, `CREATING`, `PENDING_ACCOUNT_LINKING`, `PENDING_ADDITIONAL_VALIDATION`
+
+Sets the user account to error state during the creation process. Used when creation operations fail.
+
+#### Set Error Deleting
+
+```http
+POST /api/marketplace-offering-users/{uuid}/set_error_deleting/
+```
+
+**Valid transitions from:** `DELETION_REQUESTED`, `DELETING`
+
+Sets the user account to error state during the deletion process. Used when deletion operations fail.
+
+#### Begin Creating
+
+```http
+POST /api/marketplace-offering-users/{uuid}/begin_creating/
+```
+
+**Valid transitions from:** `CREATION_REQUESTED`, `ERROR_CREATING`
+
+Initiates the account creation process. Can be used to retry creation after an error.
+
+#### Request Deletion
+
+```http
+POST /api/marketplace-offering-users/{uuid}/request_deletion/
+```
+
+**Valid transitions from:** `OK`
+
+Initiates the account deletion process. Moves the user from active status to deletion requested.
+
+#### Set Deleting
+
+```http
+POST /api/marketplace-offering-users/{uuid}/set_deleting/
+```
+
+**Valid transitions from:** `DELETION_REQUESTED`, `ERROR_DELETING`
+
+Begins the account deletion process. Can be used to retry deletion after an error.
+
+#### Set Deleted
+
+```http
+POST /api/marketplace-offering-users/{uuid}/set_deleted/
+```
+
+**Valid transitions from:** `DELETING`
+
+Marks the user account as successfully deleted. This is the final state for successful account deletion.
+
+### Service Provider Comment Management
+
+#### Update Comments
+
+Service providers can directly update comment fields without changing the user's state:
+
+```http
+PATCH /api/marketplace-offering-users/{uuid}/update_comments/
+Content-Type: application/json
+
+{
+  "service_provider_comment": "Updated instructions for account access",
+  "service_provider_comment_url": "https://help.example.com/account-setup"
+}
+```
+
+**Permissions:** Requires `UPDATE_OFFERING_USER` permission on the offering's customer.
+
+**Valid states:** All states except `DELETED`
+
+Both fields are optional - you can update just the comment, just the URL, or both.
 
 ### OfferingUser Fields
 
@@ -102,6 +203,7 @@ When retrieving or updating OfferingUser objects, the following state-related fi
 
 - `state` (string, read-only): Current state of the user account
 - `service_provider_comment` (string, read-only): Comment from service provider for pending states
+- `service_provider_comment_url` (string, read-only): Optional URL link for additional information or actions related to the service provider comment
 
 ## Backward Compatibility
 
@@ -116,15 +218,84 @@ The system maintains backward compatibility with existing integrations:
 
 - `POST /api/marketplace-service-providers/{uuid}/set_offerings_username/` - Bulk username assignment that automatically transitions users to `OK` state
 
+### Legacy Error State Support
+
+For backward compatibility with existing integrations:
+
+- **`set_error()` method**: The legacy `set_error()` method still exists and defaults to `ERROR_CREATING` state
+
+New integrations should use the specific error states (`ERROR_CREATING`, `ERROR_DELETING`) for better error context.
+
 ## Usage Examples
 
 ### Service Provider Workflow
 
+#### Standard Creation Flow
+
 1. **Initial Creation**: OfferingUser is created with state `CREATION_REQUESTED`
 2. **Begin Processing**: Transition to `CREATING` state
-3. **Require Validation**: If additional validation needed, transition to `PENDING_ADDITIONAL_VALIDATION` with explanatory comment
+3. **Require Validation**: If additional validation needed, transition to `PENDING_ADDITIONAL_VALIDATION` with explanatory comment and optional URL
 4. **Complete Validation**: Once validated, transition to `OK` state
 5. **Account Ready**: User can now access the service
+
+#### Enhanced Workflow with Comment URLs
+
+```http
+# Step 1: Start creating the account
+POST /api/marketplace-offering-users/abc123/begin_creating/
+
+# Step 2: If validation is needed, provide instructions and a helpful URL
+POST /api/marketplace-offering-users/abc123/set_pending_additional_validation/
+{
+  "comment": "Please upload your identity verification documents",
+  "comment_url": "https://portal.example.com/identity-verification"
+}
+
+# Step 3: Service provider can update instructions without changing state
+PATCH /api/marketplace-offering-users/abc123/update_comments/
+{
+  "service_provider_comment": "Documents received. Additional tax forms required.",
+  "service_provider_comment_url": "https://portal.example.com/tax-forms"
+}
+
+# Step 4: When validation is complete, transition to OK (clears comment fields)
+POST /api/marketplace-offering-users/abc123/set_validation_complete/
+```
+
+#### Error Handling and Recovery
+
+```http
+# If creation fails, set appropriate error state
+POST /api/marketplace-offering-users/abc123/set_error_creating/
+
+# To retry creation after fixing issues
+POST /api/marketplace-offering-users/abc123/begin_creating/
+
+# If deletion fails, set deletion error state
+POST /api/marketplace-offering-users/abc123/set_error_deleting/
+
+# To retry deletion after fixing issues
+POST /api/marketplace-offering-users/abc123/set_deleting/
+```
+
+#### Account Deletion Workflow
+
+```http
+# Step 1: Request account deletion (from OK state)
+POST /api/marketplace-offering-users/abc123/request_deletion/
+
+# Step 2: Begin deletion process (service provider starts deletion)
+POST /api/marketplace-offering-users/abc123/set_deleting/
+
+# Step 3: Mark as successfully deleted (final step)
+POST /api/marketplace-offering-users/abc123/set_deleted/
+
+# Alternative: If deletion encounters errors
+POST /api/marketplace-offering-users/abc123/set_error_deleting/
+
+# Then retry deletion process
+POST /api/marketplace-offering-users/abc123/set_deleting/
+```
 
 ## Permissions
 
@@ -160,7 +331,8 @@ GET /api/marketplace-offering-users/?state=Pending%20additional%20validation
 | `Requested deletion` | `DELETION_REQUESTED` | Users with deletion requested |
 | `Deleting` | `DELETING` | Users whose accounts are being deleted |
 | `Deleted` | `DELETED` | Users with successfully deleted accounts |
-| `Error` | `ERROR` | Users with errors during account management |
+| `Error creating` | `ERROR_CREATING` | Users with errors during account creation |
+| `Error deleting` | `ERROR_DELETING` | Users with errors during account deletion |
 
 #### Multiple State Filtering
 
@@ -218,8 +390,14 @@ Here are common filtering scenarios for managing OfferingUsers:
 # Get users needing validation or account linking
 GET /api/marketplace-offering-users/?state=Pending%20additional%20validation&state=Pending%20account%20linking
 
-# Get users in error state
-GET /api/marketplace-offering-users/?state=Error
+# Get users in creation error state
+GET /api/marketplace-offering-users/?state=Error%20creating
+
+# Get users in deletion error state
+GET /api/marketplace-offering-users/?state=Error%20deleting
+
+# Get all users with any error state
+GET /api/marketplace-offering-users/?state=Error%20creating&state=Error%20deleting
 ```
 
 #### Monitor Service Provider Operations

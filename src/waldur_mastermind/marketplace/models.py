@@ -1738,10 +1738,22 @@ class OfferingUser(
             "Additional comment for pending states like validation or account linking"
         ),
     )
+    service_provider_comment_url = models.URLField(
+        blank=True,
+        help_text=_(
+            "URL link for additional information or actions related to service provider comment"
+        ),
+    )
     tracker = cast(
         FieldInstanceTracker,
         FieldTracker(
-            fields=["username", "state", "is_restricted", "service_provider_comment"]
+            fields=[
+                "username",
+                "state",
+                "is_restricted",
+                "service_provider_comment",
+                "service_provider_comment_url",
+            ]
         ),
     )
 
@@ -1751,7 +1763,10 @@ class OfferingUser(
 
     @transition(
         field=state,
-        source=OfferingUserStates.CREATION_REQUESTED,
+        source=[
+            OfferingUserStates.CREATION_REQUESTED,
+            OfferingUserStates.ERROR_CREATING,
+        ],
         target=OfferingUserStates.CREATING,
     )
     def begin_creating(self):
@@ -1764,7 +1779,8 @@ class OfferingUser(
             OfferingUserStates.CREATING,
             OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
             OfferingUserStates.PENDING_ACCOUNT_LINKING,
-            OfferingUserStates.ERROR,
+            OfferingUserStates.ERROR_CREATING,
+            OfferingUserStates.ERROR_DELETING,
         ],
         target=OfferingUserStates.OK,
     )
@@ -1773,21 +1789,25 @@ class OfferingUser(
 
     @transition(
         field=state,
-        source=[OfferingUserStates.CREATING, OfferingUserStates.ERROR],
+        source=[OfferingUserStates.CREATING, OfferingUserStates.ERROR_CREATING],
         target=OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
     )
-    def set_pending_additional_validation(self, comment=None):
+    def set_pending_additional_validation(self, comment=None, comment_url=None):
         if comment:
             self.service_provider_comment = comment
+        if comment_url:
+            self.service_provider_comment_url = comment_url
 
     @transition(
         field=state,
-        source=[OfferingUserStates.CREATING, OfferingUserStates.ERROR],
+        source=[OfferingUserStates.CREATING, OfferingUserStates.ERROR_CREATING],
         target=OfferingUserStates.PENDING_ACCOUNT_LINKING,
     )
-    def set_pending_account_linking(self, comment=None):
+    def set_pending_account_linking(self, comment=None, comment_url=None):
         if comment:
             self.service_provider_comment = comment
+        if comment_url:
+            self.service_provider_comment_url = comment_url
 
     @transition(
         field=state,
@@ -1799,6 +1819,9 @@ class OfferingUser(
     )
     def set_validation_complete(self):
         self.service_provider_comment = ""  # Clear comment when validation is complete
+        self.service_provider_comment_url = (
+            ""  # Clear comment URL when validation is complete
+        )
 
     @transition(
         field=state,
@@ -1810,7 +1833,10 @@ class OfferingUser(
 
     @transition(
         field=state,
-        source=OfferingUserStates.DELETION_REQUESTED,
+        source=[
+            OfferingUserStates.DELETION_REQUESTED,
+            OfferingUserStates.ERROR_DELETING,
+        ],
         target=OfferingUserStates.DELETING,
     )
     def set_deleting(self):
@@ -1824,8 +1850,30 @@ class OfferingUser(
     def set_deleted(self):
         pass
 
-    @transition(field=state, source="*", target=OfferingUserStates.ERROR)
+    @transition(
+        field=state,
+        source=[
+            OfferingUserStates.CREATION_REQUESTED,
+            OfferingUserStates.CREATING,
+            OfferingUserStates.PENDING_ACCOUNT_LINKING,
+            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+        ],
+        target=OfferingUserStates.ERROR_CREATING,
+    )
+    def set_error_creating(self):
+        pass
+
+    @transition(
+        field=state,
+        source=[OfferingUserStates.DELETION_REQUESTED, OfferingUserStates.DELETING],
+        target=OfferingUserStates.ERROR_DELETING,
+    )
+    def set_error_deleting(self):
+        pass
+
+    @transition(field=state, source="*", target=OfferingUserStates.ERROR_CREATING)
     def set_error(self):
+        """Legacy method for backward compatibility - defaults to creation error."""
         pass
 
     def save(self, *args, **kwargs):
@@ -1846,6 +1894,7 @@ class OfferingUser(
             "is_restricted",
             "get_state_display",
             "service_provider_comment",
+            "service_provider_comment_url",
         )
 
     def __str__(self) -> str:

@@ -4178,7 +4178,9 @@ class OfferingUsersViewSet(
 
     begin_creating_validators = [
         core_validators.StateValidator(
-            OfferingUserStates.CREATION_REQUESTED, state_enum=OfferingUserStates
+            OfferingUserStates.CREATION_REQUESTED,
+            OfferingUserStates.ERROR_CREATING,
+            state_enum=OfferingUserStates,
         )
     ]
 
@@ -4194,8 +4196,17 @@ class OfferingUsersViewSet(
         )
         serializer.is_valid(raise_exception=True)
         comment = serializer.validated_data.get("comment", "")
-        offering_user.set_pending_additional_validation(comment=comment)
-        offering_user.save(update_fields=["state", "service_provider_comment"])
+        comment_url = serializer.validated_data.get("comment_url", "")
+        offering_user.set_pending_additional_validation(
+            comment=comment, comment_url=comment_url
+        )
+        offering_user.save(
+            update_fields=[
+                "state",
+                "service_provider_comment",
+                "service_provider_comment_url",
+            ]
+        )
         event_logger.emit(
             f"User {offering_user.user} in offering {offering_user.offering.name} set to pending additional validation.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
@@ -4206,7 +4217,7 @@ class OfferingUsersViewSet(
     set_pending_additional_validation_validators = [
         core_validators.StateValidator(
             OfferingUserStates.CREATING,
-            OfferingUserStates.ERROR,
+            OfferingUserStates.ERROR_CREATING,
             state_enum=OfferingUserStates,
         )
     ]
@@ -4223,8 +4234,17 @@ class OfferingUsersViewSet(
         )
         serializer.is_valid(raise_exception=True)
         comment = serializer.validated_data.get("comment", "")
-        offering_user.set_pending_account_linking(comment=comment)
-        offering_user.save(update_fields=["state", "service_provider_comment"])
+        comment_url = serializer.validated_data.get("comment_url", "")
+        offering_user.set_pending_account_linking(
+            comment=comment, comment_url=comment_url
+        )
+        offering_user.save(
+            update_fields=[
+                "state",
+                "service_provider_comment",
+                "service_provider_comment_url",
+            ]
+        )
         event_logger.emit(
             f"User {offering_user.user} in offering {offering_user.offering.name} set to pending account linking.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_RESTRICTION_UPDATED,
@@ -4235,7 +4255,7 @@ class OfferingUsersViewSet(
     set_pending_account_linking_validators = [
         core_validators.StateValidator(
             OfferingUserStates.CREATING,
-            OfferingUserStates.ERROR,
+            OfferingUserStates.ERROR_CREATING,
             state_enum=OfferingUserStates,
         )
     ]
@@ -4245,7 +4265,13 @@ class OfferingUsersViewSet(
     def set_validation_complete(self, request, uuid=None):
         offering_user: models.OfferingUser = self.get_object()
         offering_user.set_validation_complete()
-        offering_user.save(update_fields=["state", "service_provider_comment"])
+        offering_user.save(
+            update_fields=[
+                "state",
+                "service_provider_comment",
+                "service_provider_comment_url",
+            ]
+        )
         event_logger.emit(
             f"User {offering_user.user} in offering {offering_user.offering.name} validation completed.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
@@ -4289,7 +4315,195 @@ class OfferingUsersViewSet(
             OfferingUserStates.CREATING,
             OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
             OfferingUserStates.PENDING_ACCOUNT_LINKING,
-            OfferingUserStates.ERROR,
+            OfferingUserStates.ERROR_CREATING,
+            OfferingUserStates.ERROR_DELETING,
+            state_enum=OfferingUserStates,
+        )
+    ]
+
+    @extend_schema(request=None, responses=None)
+    @action(detail=True, methods=["post"])
+    def set_error_creating(self, request, uuid=None):
+        offering_user: models.OfferingUser = self.get_object()
+        offering_user.set_error_creating()
+        offering_user.save(update_fields=["state"])
+        event_logger.emit(
+            f"User {offering_user.user} in offering {offering_user.offering.name} set to error creating state.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+            event_context={"offering_user": offering_user},
+        )
+        logger.warning(
+            f"User {offering_user.user.username} in offering {offering_user.offering.name} set to ERROR_CREATING by {request.user.username}."
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    set_error_creating_validators = [
+        core_validators.StateValidator(
+            OfferingUserStates.CREATION_REQUESTED,
+            OfferingUserStates.CREATING,
+            OfferingUserStates.PENDING_ACCOUNT_LINKING,
+            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+            state_enum=OfferingUserStates,
+        )
+    ]
+
+    @extend_schema(request=None, responses=None)
+    @action(detail=True, methods=["post"])
+    def set_error_deleting(self, request, uuid=None):
+        offering_user: models.OfferingUser = self.get_object()
+        offering_user.set_error_deleting()
+        offering_user.save(update_fields=["state"])
+        event_logger.emit(
+            f"User {offering_user.user} in offering {offering_user.offering.name} set to error deleting state.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+            event_context={"offering_user": offering_user},
+        )
+        logger.warning(
+            f"User {offering_user.user.username} in offering {offering_user.offering.name} set to ERROR_DELETING by {request.user.username}."
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    set_error_deleting_validators = [
+        core_validators.StateValidator(
+            OfferingUserStates.DELETION_REQUESTED,
+            OfferingUserStates.DELETING,
+            state_enum=OfferingUserStates,
+        )
+    ]
+
+    @extend_schema(request=None, responses=None)
+    @action(detail=True, methods=["post"])
+    def set_deleted(self, request, uuid=None):
+        """Action to mark an offering user as successfully deleted."""
+        offering_user: models.OfferingUser = self.get_object()
+        offering_user.set_deleted()
+        offering_user.save(update_fields=["state"])
+
+        event_logger.emit(
+            f"User {offering_user.user} in offering {offering_user.offering.name} marked as deleted.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+            event_context={"offering_user": offering_user},
+        )
+        logger.info(
+            f"User {offering_user.user.username} in offering {offering_user.offering.name} set to DELETED by {request.user.username}."
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    set_deleted_validators = [
+        core_validators.StateValidator(
+            OfferingUserStates.DELETING,
+            state_enum=OfferingUserStates,
+        )
+    ]
+
+    set_deleted_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_USER,
+            ["offering.customer"],
+        )
+    ]
+
+    @extend_schema(request=None, responses=None)
+    @action(detail=True, methods=["post"])
+    def request_deletion(self, request, uuid=None):
+        """Action to request deletion of an offering user account."""
+        offering_user: models.OfferingUser = self.get_object()
+        offering_user.request_deletion()
+        offering_user.save(update_fields=["state"])
+
+        event_logger.emit(
+            f"Deletion requested for user {offering_user.user} in offering {offering_user.offering.name}.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+            event_context={"offering_user": offering_user},
+        )
+        logger.info(
+            f"Deletion requested for user {offering_user.user.username} in offering {offering_user.offering.name} by {request.user.username}."
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    request_deletion_validators = [
+        core_validators.StateValidator(
+            OfferingUserStates.OK,
+            state_enum=OfferingUserStates,
+        )
+    ]
+
+    request_deletion_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_USER,
+            ["offering.customer"],
+        )
+    ]
+
+    @extend_schema(request=None, responses=None)
+    @action(detail=True, methods=["post"])
+    def set_deleting(self, request, uuid=None):
+        """Action to begin the deletion process for an offering user."""
+        offering_user: models.OfferingUser = self.get_object()
+        offering_user.set_deleting()
+        offering_user.save(update_fields=["state"])
+
+        event_logger.emit(
+            f"User {offering_user.user} in offering {offering_user.offering.name} deletion process started.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+            event_context={"offering_user": offering_user},
+        )
+        logger.info(
+            f"User {offering_user.user.username} in offering {offering_user.offering.name} set to DELETING by {request.user.username}."
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    set_deleting_validators = [
+        core_validators.StateValidator(
+            OfferingUserStates.DELETION_REQUESTED,
+            OfferingUserStates.ERROR_DELETING,
+            state_enum=OfferingUserStates,
+        )
+    ]
+
+    set_deleting_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_USER,
+            ["offering.customer"],
+        )
+    ]
+
+    @extend_schema(
+        request=serializers.OfferingUserServiceProviderCommentSerializer,
+        responses=serializers.OfferingUserServiceProviderCommentSerializer,
+    )
+    @action(detail=True, methods=["patch"])
+    def update_comments(self, request, uuid=None):
+        """Action for service providers to update comment and comment URL fields."""
+        offering_user: models.OfferingUser = self.get_object()
+        serializer = serializers.OfferingUserServiceProviderCommentSerializer(
+            offering_user, data=request.data, context={"request": request}, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        event_logger.emit(
+            f"Service provider comments updated for user {offering_user.user} in offering {offering_user.offering.name}.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+            event_context={"offering_user": offering_user},
+        )
+        logger.info(
+            f"Service provider comments updated for user {offering_user.user.username} in offering {offering_user.offering.name} by {request.user.username}."
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    update_comments_permissions = [
+        core_validators.StateValidator(
+            # Allow updating comments for any non-deleted state
+            OfferingUserStates.CREATION_REQUESTED,
+            OfferingUserStates.CREATING,
+            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+            OfferingUserStates.PENDING_ACCOUNT_LINKING,
+            OfferingUserStates.OK,
+            OfferingUserStates.DELETION_REQUESTED,
+            OfferingUserStates.DELETING,
+            OfferingUserStates.ERROR_CREATING,
+            OfferingUserStates.ERROR_DELETING,
             state_enum=OfferingUserStates,
         )
     ]
