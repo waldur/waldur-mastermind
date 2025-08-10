@@ -535,6 +535,248 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         self.assertEqual(response.data["state"], "Pending additional validation")
         self.assertEqual(response.data["service_provider_comment"], "Test comment")
 
+    def test_set_error_creating_transition(self):
+        """Test transition to ERROR_CREATING state."""
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_error_creating")
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.ERROR_CREATING)
+
+    def test_set_error_deleting_transition(self):
+        """Test transition to ERROR_DELETING state."""
+        self.offering_user.state = OfferingUserStates.DELETING
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_error_deleting")
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.ERROR_DELETING)
+
+    def test_recovery_from_error_creating_to_creating(self):
+        """Test recovery from ERROR_CREATING to CREATING state."""
+        self.offering_user.state = OfferingUserStates.ERROR_CREATING
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "begin_creating")
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.CREATING)
+
+    def test_recovery_from_error_creating_to_ok(self):
+        """Test recovery from ERROR_CREATING directly to OK state."""
+        self.offering_user.state = OfferingUserStates.ERROR_CREATING
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_ok")
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
+
+    def test_recovery_from_error_deleting_to_ok(self):
+        """Test recovery from ERROR_DELETING to OK state when deletion fails but user should be restored."""
+        self.offering_user.state = OfferingUserStates.ERROR_DELETING
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_ok")
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
+
+    def test_legacy_set_error_defaults_to_error_creating(self):
+        """Test that the legacy set_error method defaults to ERROR_CREATING state."""
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save()
+
+        # Use the legacy method directly
+        self.offering_user.set_error()
+        self.offering_user.save()
+
+        self.assertEqual(self.offering_user.state, OfferingUserStates.ERROR_CREATING)
+
+    def test_error_state_transitions_from_pending_states(self):
+        """Test that error creating can be set from pending states."""
+        for state in [
+            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+            OfferingUserStates.PENDING_ACCOUNT_LINKING,
+        ]:
+            self.offering_user.state = state
+            self.offering_user.save()
+
+            # Should be able to transition to error creating
+            self.offering_user.set_error_creating()
+            self.offering_user.save()
+            self.assertEqual(
+                self.offering_user.state, OfferingUserStates.ERROR_CREATING
+            )
+
+            # Reset for next iteration
+            self.offering_user.state = OfferingUserStates.CREATING
+            self.offering_user.save()
+
+    def test_service_provider_comment_url_transitions(self):
+        """Test that comment URLs are properly handled in state transitions."""
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_pending_additional_validation")
+        payload = {
+            "comment": "Additional documents required",
+            "comment_url": "https://docs.example.com/validation",
+        }
+        response = self.client.post(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment, "Additional documents required"
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment_url,
+            "https://docs.example.com/validation",
+        )
+
+    def test_comment_url_cleared_on_validation_complete(self):
+        """Test that comment URL is cleared when validation is complete."""
+        self.offering_user.state = OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        self.offering_user.service_provider_comment = "Some validation comment"
+        self.offering_user.service_provider_comment_url = "https://example.com/info"
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_validation_complete")
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
+        self.assertEqual(self.offering_user.service_provider_comment, "")
+        self.assertEqual(self.offering_user.service_provider_comment_url, "")
+
+    def test_update_comments_action_by_service_provider(self):
+        """Test service provider can update comments via update_comments action."""
+        # Make the service provider user a manager
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+
+        service_provider = self.offering.customer
+        service_provider_user = UserFactory()
+        service_provider.add_user(service_provider_user, ServiceProviderRole.MANAGER)
+
+        self.client.force_authenticate(user=service_provider_user)
+        url = self.get_url(self.offering_user, "update_comments")
+        payload = {
+            "service_provider_comment": "Updated service comment",
+            "service_provider_comment_url": "https://service.example.com/help",
+        }
+        response = self.client.patch(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.service_provider_comment, "Updated service comment"
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment_url,
+            "https://service.example.com/help",
+        )
+
+    def test_update_comments_action_unauthorized(self):
+        """Test that unauthorized users cannot update service provider comments."""
+        unauthorized_user = UserFactory()
+        self.client.force_authenticate(user=unauthorized_user)
+        url = self.get_url(self.offering_user, "update_comments")
+        payload = {
+            "service_provider_comment": "Unauthorized update",
+            "service_provider_comment_url": "https://malicious.example.com",
+        }
+        response = self.client.patch(url, payload)
+
+        # Unauthorized users get 404 since they can't even see the offering user object
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_html_sanitization_in_comments(self):
+        """Test that HTML content in comments is properly sanitized."""
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        # Test with potentially malicious HTML content
+        malicious_html = '<p>Safe content</p><script>alert("XSS")</script><img src="x" onerror="alert(1)">'
+
+        # Set offering user to CREATING state first for valid transition
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save()
+
+        # Test state transition comment sanitization
+        url = self.get_url(self.offering_user, "set_pending_additional_validation")
+        payload = {"comment": malicious_html, "comment_url": "https://test.example.com"}
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.offering_user.refresh_from_db()
+        # Should keep safe HTML but remove dangerous tags
+        self.assertIn(
+            "<p>Safe content</p>", self.offering_user.service_provider_comment
+        )
+        self.assertNotIn("<script>", self.offering_user.service_provider_comment)
+        self.assertNotIn("onerror", self.offering_user.service_provider_comment)
+
+        # Test update comments sanitization
+        url = self.get_url(self.offering_user, "update_comments")
+        payload = {
+            "service_provider_comment": malicious_html,
+        }
+        response = self.client.patch(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.offering_user.refresh_from_db()
+        # Should keep safe HTML but remove dangerous tags
+        self.assertIn(
+            "<p>Safe content</p>", self.offering_user.service_provider_comment
+        )
+        self.assertNotIn("<script>", self.offering_user.service_provider_comment)
+        self.assertNotIn("onerror", self.offering_user.service_provider_comment)
+
+    def test_serializer_exposes_comment_url(self):
+        """Test that the serializer exposes the service_provider_comment_url field."""
+        self.offering_user.service_provider_comment = "Test comment"
+        self.offering_user.service_provider_comment_url = "https://test.example.com"
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("service_provider_comment", response.data)
+        self.assertIn("service_provider_comment_url", response.data)
+        self.assertEqual(response.data["service_provider_comment"], "Test comment")
+        self.assertEqual(
+            response.data["service_provider_comment_url"], "https://test.example.com"
+        )
+
 
 @ddt
 class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
@@ -884,3 +1126,156 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 3)
+
+
+@ddt
+class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
+    """Test the complete deletion workflow for OfferingUsers."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.fixture.user,
+            state=OfferingUserStates.OK,
+            username="test_user",
+        )
+
+    def test_request_deletion_transition(self):
+        """Test requesting deletion from OK state."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-request-deletion",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.DELETION_REQUESTED
+        )
+
+    def test_set_deleting_transition(self):
+        """Test starting deletion process from DELETION_REQUESTED state."""
+        self.offering_user.state = OfferingUserStates.DELETION_REQUESTED
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-set-deleting",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.DELETING)
+
+    def test_set_deleted_transition(self):
+        """Test marking user as successfully deleted from DELETING state."""
+        self.offering_user.state = OfferingUserStates.DELETING
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-set-deleted",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.DELETED)
+
+    def test_complete_deletion_workflow(self):
+        """Test the complete deletion workflow from OK to DELETED."""
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        # Step 1: Request deletion
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-request-deletion",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.DELETION_REQUESTED
+        )
+
+        # Step 2: Start deleting
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-set-deleting",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.DELETING)
+
+        # Step 3: Mark as deleted
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-set-deleted",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.DELETED)
+
+    def test_retry_deletion_after_error(self):
+        """Test retrying deletion after error state."""
+        # Set to error deleting state
+        self.offering_user.state = OfferingUserStates.ERROR_DELETING
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        # Should be able to retry deletion
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-set-deleting",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.DELETING)
+
+    def test_unauthorized_deletion_operations(self):
+        """Test that unauthorized users cannot perform deletion operations."""
+        unauthorized_user = UserFactory()
+        self.client.force_authenticate(user=unauthorized_user)
+
+        # Test request_deletion
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-request-deletion",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # Test set_deleting
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-set-deleting",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # Test set_deleted
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-set-deleted",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

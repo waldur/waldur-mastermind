@@ -3889,6 +3889,7 @@ class OfferingUserSerializer(
     is_restricted = serializers.ReadOnlyField()
     state = serializers.SerializerMethodField()
     service_provider_comment = serializers.ReadOnlyField()
+    service_provider_comment_url = serializers.ReadOnlyField()
 
     class Meta:
         model = models.OfferingUser
@@ -3911,6 +3912,7 @@ class OfferingUserSerializer(
             "is_restricted",
             "state",
             "service_provider_comment",
+            "service_provider_comment_url",
         )
         extra_kwargs = dict(
             url={
@@ -3930,7 +3932,8 @@ class OfferingUserSerializer(
         "Requested deletion",
         "Deleting",
         "Deleted",
-        "Error",
+        "Error creating",
+        "Error deleting",
     ]:
         return offering_user.get_state_display()
 
@@ -4050,7 +4053,32 @@ class OfferingUserUpdateRestrictionSerializer(serializers.Serializer):
 
 
 class OfferingUserStateTransitionSerializer(serializers.Serializer):
-    comment = serializers.CharField(required=False, allow_blank=True)
+    comment = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    comment_url = serializers.URLField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        offering_user = self.instance
+        offering = offering_user.offering
+
+        if not has_permission(
+            request, PermissionEnum.UPDATE_OFFERING_USER, offering.customer
+        ):
+            raise rf_exceptions.PermissionDenied()
+
+        return attrs
+
+
+class OfferingUserServiceProviderCommentSerializer(serializers.ModelSerializer):
+    """Serializer for service providers to update comment fields."""
+
+    service_provider_comment = core_serializers.HTMLCleanField(
+        required=False, allow_blank=True
+    )
+
+    class Meta:
+        model = models.OfferingUser
+        fields = ("service_provider_comment", "service_provider_comment_url")
 
     def validate(self, attrs):
         request = self.context["request"]

@@ -99,8 +99,9 @@ class OfferingUserStates:
     DELETION_REQUESTED = 6
     DELETING = 7
     DELETED = 8
-    # unexpected
-    ERROR = 9
+    # error states
+    ERROR_CREATING = 9
+    ERROR_DELETING = 10
 
     CHOICES = (
         (CREATION_REQUESTED, "Requested"),
@@ -111,7 +112,8 @@ class OfferingUserStates:
         (DELETION_REQUESTED, "Requested deletion"),
         (DELETING, "Deleting"),
         (DELETED, "Deleted"),
-        (ERROR, "Error"),
+        (ERROR_CREATING, "Error creating"),
+        (ERROR_DELETING, "Error deleting"),
     )
 
     VALUES = [val for (_, val) in CHOICES]
