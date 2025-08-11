@@ -7,7 +7,6 @@ from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
-from waldur_core.media.mixins import ImageModelMixin
 from waldur_core.media.validators import ImageValidator
 
 from . import enums, utils
@@ -78,8 +77,8 @@ class Checklist(
         ordering = ("checklist_type", "name")
 
 
-class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMixin):
-    """Individual questions with configurable types, optional images, ordering, and review trigger logic based on answer values."""
+class Question(core_models.UuidMixin, core_models.DescribableMixin):
+    """Individual questions with configurable types, ordering, and review trigger logic based on answer values."""
 
     checklist = models.ForeignKey(
         to=Checklist,
@@ -93,6 +92,34 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMi
         choices=enums.QuestionTypes.CHOICES,
         default=enums.QuestionTypes.BOOLEAN,
         help_text=_("Type of question and expected answer format"),
+    )
+    user_guidance = models.TextField(
+        blank=True,
+        help_text=_(
+            "Additional guidance text visible to users when answering and reviewing"
+        ),
+    )
+
+    # Conditional user guidance configuration
+    guidance_answer_value = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_("Answer value that triggers display of user guidance."),
+        null=True,
+    )
+    guidance_operator = models.CharField(
+        max_length=20,
+        choices=enums.OPERATORS,
+        default="equals",
+        blank=True,
+        help_text=_("Operator to use when comparing answer with guidance_answer_value"),
+    )
+
+    always_show_guidance = models.BooleanField(
+        default=True,
+        help_text=_(
+            "Show user guidance always, regardless of answer. If False, guidance is conditional on answer matching guidance_answer_value with guidance_operator"
+        ),
     )
 
     # Review trigger configuration
@@ -109,6 +136,22 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMi
     always_requires_review = models.BooleanField(
         default=False,
         help_text=_("This question always requires review regardless of answer"),
+    )
+
+    # Number validation fields
+    min_value = models.DecimalField(
+        max_digits=20,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text=_("Minimum value allowed for NUMBER type questions"),
+    )
+    max_value = models.DecimalField(
+        max_digits=20,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text=_("Maximum value allowed for NUMBER type questions"),
     )
 
     class Meta:
@@ -137,7 +180,26 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMi
         if self.required and answer_data is None:
             return False
 
-        return utils.is_valid_answer(answer_data, self.question_type)
+        # First check basic type validation
+        if not utils.is_valid_answer(answer_data, self.question_type):
+            return False
+
+        # Additional validation for NUMBER type with min/max constraints
+        if self.question_type == "number" and answer_data is not None:
+            # Only apply min/max validation to numeric types (int, float)
+            # String values should be handled by the basic type validation first
+            if isinstance(answer_data, int | float):
+                numeric_value = float(answer_data)
+
+                # Check minimum value
+                if self.min_value is not None and numeric_value < float(self.min_value):
+                    return False
+
+                # Check maximum value
+                if self.max_value is not None and numeric_value > float(self.max_value):
+                    return False
+
+        return True
 
     def should_trigger_review(self, answer_data: any) -> bool | None:
         """Check if this answer should trigger a review"""
@@ -147,6 +209,22 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMi
         if self.review_answer_value and self.operator:
             return utils.apply_operator(
                 answer_data, self.review_answer_value, self.operator
+            )
+
+        return False
+
+    def should_show_guidance(self, answer_data: any) -> bool:
+        """Check if user guidance should be shown for this answer"""
+        if self.always_show_guidance:
+            return bool(self.user_guidance.strip())
+
+        if (
+            self.guidance_answer_value is not None
+            and self.guidance_operator
+            and self.user_guidance.strip()
+        ):
+            return utils.apply_operator(
+                answer_data, self.guidance_answer_value, self.guidance_operator
             )
 
         return False

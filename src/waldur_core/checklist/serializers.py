@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 
-from . import enums, models, utils
+from . import models, utils
 
 
 class ChecklistCategorySerializer(serializers.HyperlinkedModelSerializer):
@@ -17,7 +17,7 @@ class ChecklistCategorySerializer(serializers.HyperlinkedModelSerializer):
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
-                "view_name": "marketplace-checklists-category-detail",
+                "view_name": "checklists-admin-categories-detail",
             },
         }
 
@@ -27,19 +27,28 @@ class ChecklistSerializer(
 ):
     questions_count = serializers.IntegerField(source="questions.count", read_only=True)
     category_name = serializers.ReadOnlyField(source="category.name")
-    category_uuid = serializers.UUIDField(read_only=True, source="category.uuid")
+    category_uuid = serializers.UUIDField(source="category.uuid", read_only=True)
+    category = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.Category.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="Category of the checklist",
+    )
 
     class Meta:
         model = models.Checklist
-        view_name = "marketplace-checklist-detail"
+        view_name = "checklists-admin-detail"
         fields = [
             "uuid",
             "url",
             "name",
             "description",
+            "checklist_type",
             "questions_count",
             "category_name",
             "category_uuid",
+            "category",
         ]
 
         extra_kwargs = {
@@ -47,20 +56,6 @@ class ChecklistSerializer(
                 "lookup_field": "uuid",
             },
         }
-
-
-class ChecklistAdminSerializer(ChecklistSerializer):
-    checklist_type = serializers.CharField(
-        source="get_checklist_type_display", read_only=True
-    )
-
-    class Meta(ChecklistSerializer.Meta):
-        fields = ChecklistSerializer.Meta.fields + ["checklist_type"]
-        view_name = "marketplace-checklists-admin-detail"
-
-
-class CreateChecklistSerializer(ChecklistAdminSerializer):
-    checklist_type = serializers.ChoiceField(choices=enums.ChecklistTypes.CHOICES)
 
 
 class QuestionOptionsSerializer(
@@ -75,13 +70,13 @@ class QuestionOptionsAdminSerializer(QuestionOptionsSerializer):
     question = serializers.HyperlinkedRelatedField(
         queryset=models.Question.objects.all(),
         required=True,
-        view_name="marketplace-checklists-admin-question-detail",
+        view_name="checklists-admin-questions-detail",
         lookup_field="uuid",
     )
     question_uuid = serializers.UUIDField(source="question.uuid", read_only=True)
 
     class Meta(QuestionOptionsSerializer.Meta):
-        view_name = "marketplace-checklists-admin-question-option-detail"
+        view_name = "checklists-admin-question-options-detail"
         fields = QuestionOptionsSerializer.Meta.fields + (
             "url",
             "question",
@@ -101,14 +96,14 @@ class QuestionDependencySerializer(
     question = serializers.HyperlinkedRelatedField(
         queryset=models.Question.objects.all(),
         required=True,
-        view_name="marketplace-checklists-admin-question-detail",
+        view_name="checklists-admin-questions-detail",
         lookup_field="uuid",
     )
     question_name = serializers.CharField(source="question.description", read_only=True)
     depends_on_question = serializers.HyperlinkedRelatedField(
         queryset=models.Question.objects.all(),
         required=True,
-        view_name="marketplace-checklists-admin-question-detail",
+        view_name="checklists-admin-questions-detail",
         lookup_field="uuid",
     )
     depends_on_question_name = serializers.CharField(
@@ -145,7 +140,7 @@ class QuestionDependencySerializer(
 
     class Meta:
         model = models.QuestionDependency
-        view_name = "marketplace-checklists-admin-question-dependency-detail"
+        view_name = "checklists-admin-question-dependencies-detail"
         fields = (
             "uuid",
             "url",
@@ -173,7 +168,7 @@ class QuestionSerializer(
         fields = [
             "uuid",
             "description",
-            "image",
+            "user_guidance",
             "question_options",
         ]
 
@@ -183,26 +178,33 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
 
     existing_answer = serializers.SerializerMethodField()
     question_options = serializers.SerializerMethodField()
+    user_guidance = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Question
         fields = (
             "uuid",
             "description",
+            "user_guidance",
             "question_type",
             "required",
             "order",
             "existing_answer",
             "question_options",
+            "min_value",
+            "max_value",
         )
         read_only_fields = (
             "uuid",
             "description",
+            "user_guidance",
             "question_type",
             "required",
             "order",
             "existing_answer",
             "question_options",
+            "min_value",
+            "max_value",
         )
 
     @extend_schema_field(serializers.DictField(allow_null=True))
@@ -240,6 +242,33 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
             ]
         return []
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_user_guidance(self, obj):
+        """Get conditional user guidance based on existing answer."""
+        request = self.context.get("request")
+        completion = self.context.get("completion")
+
+        if not request or not completion:
+            # No answer context, show guidance only if always_show_guidance is True
+            if obj.always_show_guidance:
+                return obj.user_guidance if obj.user_guidance.strip() else None
+            return None
+
+        try:
+            answer = completion.answers.get(question=obj, user=request.user)
+            answer_data = answer.answer_data
+
+            # Check if guidance should be shown for this answer
+            if obj.should_show_guidance(answer_data):
+                return obj.user_guidance if obj.user_guidance.strip() else None
+            return None
+
+        except models.Answer.DoesNotExist:
+            # No answer yet, show guidance only if always_show_guidance is True
+            if obj.always_show_guidance:
+                return obj.user_guidance if obj.user_guidance.strip() else None
+            return None
+
 
 class QuestionWithAnswerReviewerSerializer(QuestionWithAnswerSerializer):
     """Extended serializer for questions with review logic (reviewer view)."""
@@ -257,17 +286,23 @@ class QuestionAdminSerializer(QuestionSerializer):
     checklist = serializers.HyperlinkedRelatedField(
         queryset=models.Checklist.objects.all(),
         required=True,
-        view_name="marketplace-checklists-admin-detail",
+        view_name="checklists-admin-detail",
         lookup_field="uuid",
     )
-    checklist_name = serializers.UUIDField(read_only=True, source="checklist.name")
+    checklist_name = serializers.CharField(read_only=True, source="checklist.name")
     checklist_uuid = serializers.UUIDField(read_only=True, source="checklist.uuid")
 
     def validate(self, attrs):
         operator = attrs.get("operator")
         review_answer_value = attrs.get("review_answer_value")
+        guidance_operator = attrs.get("guidance_operator")
+        guidance_answer_value = attrs.get("guidance_answer_value")
+        always_show_guidance = attrs.get("always_show_guidance")
         question_type = attrs.get("question_type")
+        min_value = attrs.get("min_value")
+        max_value = attrs.get("max_value")
 
+        # Validate review trigger configuration
         # Check if both operator and review_answer_value are set together or both empty
         if bool(operator) != bool(review_answer_value):
             raise serializers.ValidationError(
@@ -294,10 +329,53 @@ class QuestionAdminSerializer(QuestionSerializer):
                 f"Review answer value '{review_answer_value}' is not valid for question type '{question_type}'."
             )
 
+        # Validate guidance configuration
+        # If always_show_guidance is False, then guidance_operator and guidance_answer_value must be set
+        if always_show_guidance is False:  # explicitly check for False, not just falsy
+            if not guidance_operator or guidance_answer_value is None:
+                raise serializers.ValidationError(
+                    "When 'always_show_guidance' is False, both 'guidance_operator' and 'guidance_answer_value' must be set."
+                )
+
+        # Validate guidance operator for question type
+        if (
+            guidance_operator
+            and question_type
+            and not utils.is_valid_operator_for_question_type(
+                question_type, guidance_operator
+            )
+        ):
+            raise serializers.ValidationError(
+                f"Guidance operator '{guidance_operator}' is not valid for question type '{question_type}'."
+            )
+
+        # Validate guidance answer value for question type
+        if (
+            guidance_answer_value
+            and question_type
+            and not utils.is_valid_condition_value(guidance_answer_value, question_type)
+        ):
+            raise serializers.ValidationError(
+                f"Guidance answer value '{guidance_answer_value}' is not valid for question type '{question_type}'."
+            )
+
+        # Validate min/max values for NUMBER questions only
+        if question_type and question_type != "number":
+            if min_value is not None or max_value is not None:
+                raise serializers.ValidationError(
+                    "Min and max values can only be set for NUMBER type questions."
+                )
+
+        # Validate that min_value is not greater than max_value
+        if min_value is not None and max_value is not None and min_value > max_value:
+            raise serializers.ValidationError(
+                "Minimum value cannot be greater than maximum value."
+            )
+
         return attrs
 
     class Meta(QuestionSerializer.Meta):
-        view_name = "marketplace-checklists-admin-question-detail"
+        view_name = "checklists-admin-questions-detail"
         fields = QuestionSerializer.Meta.fields + [
             "url",
             "checklist_name",
@@ -310,6 +388,11 @@ class QuestionAdminSerializer(QuestionSerializer):
             "operator",
             "review_answer_value",
             "always_requires_review",
+            "guidance_answer_value",
+            "guidance_operator",
+            "always_show_guidance",
+            "min_value",
+            "max_value",
         ]
         extra_kwargs = {
             "url": {
