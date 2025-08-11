@@ -18,7 +18,7 @@ from waldur_core.core.serializers import RestrictedSerializerMixin
 class WaldurOpenApiInspector(AutoSchema):
     method_mapping = {
         **AutoSchema.method_mapping,
-        "head": "head",
+        "head": "count",
     }
 
     def get_operation(
