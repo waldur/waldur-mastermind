@@ -1,3 +1,8 @@
+collection:
+  namespace: waldur
+  name: cloud
+  version: 1.0.0
+
 modules:
   project:
     type: crud
