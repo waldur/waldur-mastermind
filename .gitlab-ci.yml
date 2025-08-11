@@ -658,3 +658,40 @@ Upload TypeScript SDK:
     - git commit -m "Update Waldur TypeScript SDK" || exit 0
     - git push
   before_script: *build_before_script
+
+Generate Ansible modules:
+  stage: deploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image: registry.hpc.ut.ee/mirror/library/python:3.11-bullseye
+  needs:
+    - Generate OpenAPI schema
+  script: |
+      pip install git+https://github.com/waldur/ansible-waldur-generator.git
+      ansible-waldur-generator --config ansible-generator-config.yaml --api-spec waldur-openapi-schema.yaml --output-dir ansible_waldur_module
+  artifacts:
+    paths:
+      - ansible_waldur_module/
+    expire_in: 1 day
+
+Upload Ansible module:
+  stage: postdeploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image:
+    name: registry.hpc.ut.ee/mirror/alpine/git:latest
+    entrypoint: [""]
+  needs:
+    - Generate Ansible modules
+  script:
+    - cd /tmp/
+    - git clone --branch main git@github.com:waldur/ansible-waldur-module-next.git
+    - cd ansible-waldur-module-next
+    - git pull
+    - rm -rf ansible_waldur_module && cp -a "$CI_PROJECT_DIR/ansible-waldur-module-next/" ansible_waldur_module
+    - git add ansible_waldur_module
+    - git commit -m "Update Ansible Waldur modules" || exit 0
+    - git push
+  before_script: *build_before_script
