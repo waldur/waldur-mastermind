@@ -690,7 +690,7 @@ Upload Ansible module:
     - git clone --branch main git@github.com:waldur/ansible-waldur-module-next.git
     - cd ansible-waldur-module-next
     - git pull
-    - rm -rf ansible_waldur_module && cp -a "$CI_PROJECT_DIR/ansible-waldur-module-next/" ansible_waldur_module
+    - rm -rf ansible_waldur_module && cp -a "$CI_PROJECT_DIR/ansible_waldur_module/" ansible_waldur_module
     - git add ansible_waldur_module
     - git commit -m "Update Ansible Waldur modules" || exit 0
     - git push
