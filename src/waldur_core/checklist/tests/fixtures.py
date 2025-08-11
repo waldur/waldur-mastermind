@@ -1,7 +1,7 @@
 from django.utils.functional import cached_property
 
 from waldur_core.checklist.tests import (
-    factories as marketplace_checklist_factories,
+    factories as checklist_factories,
 )
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
@@ -13,25 +13,23 @@ class CheckListFixture(structure_fixtures.CustomerFixture):
 
     @cached_property
     def checklist(self):
-        return marketplace_checklist_factories.ChecklistFactory(name="my_checklist")
+        return checklist_factories.ChecklistFactory(name="my_checklist")
 
     @cached_property
     def question(self):
-        return marketplace_checklist_factories.QuestionFactory(checklist=self.checklist)
+        return checklist_factories.QuestionFactory(checklist=self.checklist)
 
     @cached_property
     def question_option(self):
-        return marketplace_checklist_factories.QuestionOptionFactory(
-            question=self.question
-        )
+        return checklist_factories.QuestionOptionFactory(question=self.question)
 
     @cached_property
     def question_dependency(self):
-        return marketplace_checklist_factories.QuestionDependencyFactory(
+        return checklist_factories.QuestionDependencyFactory(
             depends_on_question=self.question,
             question=self.dependent_question,
         )
 
     @cached_property
     def dependent_question(self):
-        return marketplace_checklist_factories.QuestionFactory(checklist=self.checklist)
+        return checklist_factories.QuestionFactory(checklist=self.checklist)

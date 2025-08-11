@@ -1,39 +1,32 @@
-from django.urls import re_path
-
-from . import views
+from waldur_core.checklist import views
 
 
 def register_in(router):
     router.register(
-        r"marketplace-checklists-admin",
+        r"checklists-admin",
         views.ChecklistAdminView,
-        basename="marketplace-checklists-admin",
+        basename="checklists-admin",
     )
     router.register(
-        r"marketplace-checklists-admin-questions",
+        r"checklists-admin-questions",
         views.QuestionsAdminView,
-        basename="marketplace-checklists-admin-question",
+        basename="checklists-admin-questions",
     )
     router.register(
-        r"marketplace-checklists-admin-question-options",
+        r"checklists-admin-question-options",
         views.QuestionOptionAdminViewSet,
-        basename="marketplace-checklists-admin-question-option",
+        basename="checklists-admin-question-options",
     )
     router.register(
-        r"marketplace-checklists-admin-question-dependencies",
+        r"checklists-admin-question-dependencies",
         views.QuestionDependencyViewSet,
-        basename="marketplace-checklists-admin-question-dependency",
+        basename="checklists-admin-question-dependencies",
+    )
+    router.register(
+        r"checklists-admin-categories",
+        views.CategoriesView,
+        basename="checklists-admin-categories",
     )
 
 
-urlpatterns = [
-    re_path(
-        r"^marketplace-checklists-categories/$",
-        views.CategoriesView.as_view({"get": "list"}),
-    ),
-    re_path(
-        r"^marketplace-checklists-categories/(?P<uuid>[a-f0-9]+)/$",
-        views.CategoriesView.as_view({"get": "retrieve"}),
-        name="marketplace-checklists-category-detail",
-    ),
-]
+urlpatterns = []

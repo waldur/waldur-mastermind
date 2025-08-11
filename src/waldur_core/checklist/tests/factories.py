@@ -30,7 +30,7 @@ class ChecklistFactory(
         if checklist is None:
             checklist = ChecklistFactory()
         return "http://testserver" + reverse(
-            "marketplace-checklist-detail", kwargs={"uuid": checklist.uuid.hex}
+            "checklists-admin-detail", kwargs={"uuid": checklist.uuid.hex}
         )
 
     @classmethod
@@ -38,12 +38,12 @@ class ChecklistFactory(
         if checklist is None:
             checklist = ChecklistFactory()
         return "http://testserver" + reverse(
-            "marketplace-checklists-admin-detail", kwargs={"uuid": checklist.uuid.hex}
+            "checklists-admin-detail", kwargs={"uuid": checklist.uuid.hex}
         )
 
     @classmethod
     def get_admin_list_url(cls):
-        return "http://testserver" + reverse("marketplace-checklists-admin-list")
+        return "http://testserver" + reverse("checklists-admin-list")
 
 
 class QuestionFactory(
@@ -63,16 +63,14 @@ class QuestionFactory(
         if question is None:
             question = QuestionFactory()
         url = "http://testserver" + reverse(
-            "marketplace-checklists-admin-question-detail",
+            "checklists-admin-questions-detail",
             kwargs={"uuid": question.uuid.hex},
         )
         return url if action is None else url + action + "/"
 
     @classmethod
     def get_admin_list_url(cls):
-        return "http://testserver" + reverse(
-            "marketplace-checklists-admin-question-list"
-        )
+        return "http://testserver" + reverse("checklists-admin-questions-list")
 
 
 class QuestionOptionFactory(factory.django.DjangoModelFactory):
@@ -88,16 +86,14 @@ class QuestionOptionFactory(factory.django.DjangoModelFactory):
         if option is None:
             option = QuestionOptionFactory()
         url = "http://testserver" + reverse(
-            "marketplace-checklists-admin-question-option-detail",
+            "checklists-admin-question-options-detail",
             kwargs={"uuid": option.uuid.hex},
         )
         return url if action is None else url + action + "/"
 
     @classmethod
     def get_admin_list_url(cls):
-        return "http://testserver" + reverse(
-            "marketplace-checklists-admin-question-option-list"
-        )
+        return "http://testserver" + reverse("checklists-admin-question-options-list")
 
 
 class QuestionDependencyFactory(factory.django.DjangoModelFactory):
@@ -114,7 +110,7 @@ class QuestionDependencyFactory(factory.django.DjangoModelFactory):
         if dependency is None:
             dependency = QuestionDependencyFactory()
         url = "http://testserver" + reverse(
-            "marketplace-checklists-admin-question-dependency-detail",
+            "checklists-admin-question-dependencies-detail",
             kwargs={"uuid": dependency.uuid.hex},
         )
         return url if action is None else url + action + "/"
@@ -122,7 +118,7 @@ class QuestionDependencyFactory(factory.django.DjangoModelFactory):
     @classmethod
     def get_admin_list_url(cls):
         return "http://testserver" + reverse(
-            "marketplace-checklists-admin-question-dependency-list"
+            "checklists-admin-question-dependencies-list"
         )
 
 

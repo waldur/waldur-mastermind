@@ -3,9 +3,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import permissions as rf_permissions
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
 from rest_framework.response import Response
-from rest_framework.viewsets import GenericViewSet
 
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
@@ -19,18 +17,20 @@ def get_score(num, den):
     return round(100 * num / max(1, den), 2)
 
 
-class CategoriesView(RetrieveModelMixin, ListModelMixin, GenericViewSet):
+class CategoriesView(core_views.ActionsViewSet):
     queryset = models.Category.objects.all()
     serializer_class = serializers.ChecklistCategorySerializer
     lookup_field = "uuid"
+    filter_backends = [
+        DjangoFilterBackend,
+        structure_filters.GenericRoleFilter,
+    ]
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
 
 
 class ChecklistAdminView(core_views.ActionsViewSet):
     queryset = models.Checklist.objects.all().order_by("-created")
-    serializer_class = serializers.ChecklistAdminSerializer
-    create_serializer_class = update_serializer_class = (
-        partial_update_serializer_class
-    ) = serializers.CreateChecklistSerializer
+    serializer_class = serializers.ChecklistSerializer
     filter_backends = [
         DjangoFilterBackend,
         structure_filters.GenericRoleFilter,
@@ -42,7 +42,7 @@ class ChecklistAdminView(core_views.ActionsViewSet):
         description="Return checklist questions.",
         request=None,
         responses=serializers.QuestionAdminSerializer(many=True),
-        operation_id="marketplace_checklists_admin_checklist_questions",
+        operation_id="checklists_admin_checklist_questions",
     )
     @action(detail=True, methods=["get"])
     def questions(self, request, uuid=None):
