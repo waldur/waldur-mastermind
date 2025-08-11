@@ -1,0 +1,166 @@
+modules:
+  project:
+    type: crud
+    resource_type: project
+    operations:
+       list: projects_list
+       create: projects_create
+       destroy: projects_destroy
+    resolvers:
+      customer:
+        list: customers_list
+        retrieve: customers_retrieve
+      type:
+        list: project_types_list
+        retrieve: project_types_retrieve
+  customer:
+    type: crud
+    resource_type: customer
+    operations:
+       list: customers_list
+       create: customers_create
+       destroy: customers_destroy
+    skip_resolver_check:
+      - homepage
+  openstack_instance_facts:
+    type: facts
+    resource_type: openstack_instance
+    list_operation: openstack_instances_list
+    retrieve_operation: openstack_instances_retrieve
+  openstack_security_group:
+    type: facts
+    resource_type: security_group
+    list_operation: openstack_security_groups_list
+    retrieve_operation: openstack_security_groups_retrieve
+    many: true
+    context_params:
+      - name: tenant
+        resolver:
+          list: openstack_tenants_list
+          retrieve: openstack_tenants_retrieve
+          filter_key: tenant_uuid
+  openstack_subnet:
+    type: facts
+    resource_type: subnet
+    list_operation: openstack_subnets_list
+    retrieve_operation: openstack_subnets_retrieve
+    many: true
+    context_params:
+      - name: tenant
+        resolver:
+          list: openstack_tenants_list
+          retrieve: openstack_tenants_retrieve
+          filter_key: tenant_uuid
+  os_volume:
+    type: order
+    description: Create, update, or delete an OpenStack Volume via the marketplace.
+    resource_type: OpenStack volume
+
+    existence_check_op: openstack_volumes_list
+    update_op: openstack_volumes_update
+    update_check_fields:
+      - description
+
+    attribute_params:
+      - name: size
+        type: int
+        required: true
+        description: The size of the volume in gigabytes (GB).
+
+      - name: type
+        type: str
+        required: false
+        description: The name or UUID of the volume type (e.g., 'lvm', 'ssd').
+        is_resolved: true
+
+    resolvers:
+      offering:
+        list: marketplace_public_offerings_list
+        retrieve: marketplace_public_offerings_retrieve
+        error_message: Offering '{value}' not found. Please check available offerings.
+
+      type:
+        list: openstack_volume_types_list
+        retrieve: openstack_volume_types_retrieve
+        error_message: Volume type '{value}' not found.
+  os_instance:
+    type: order
+
+    description: "Create or delete an OpenStack Instance."
+    resource_type: "OpenStack instance"
+
+    # The API call to check if the final instance exists.
+    # The runner will filter this by `name_exact` and `project_uuid`.
+    existence_check_op: "openstack_instances_list"
+
+    # These are the parameters that go into the 'attributes' dictionary of the order.
+    # We simplify and prune the list from the original module.
+    attribute_params:
+      # 'name' and 'description' are handled by the plugin.
+      - name: flavor
+        type: str
+        required: true
+        description: "The name or UUID of the instance flavor (e.g., 'm1.small')."
+        is_resolved: true
+      - name: image
+        type: str
+        required: true
+        description: "The name or UUID of the instance image."
+        is_resolved: true
+      - name: system_volume_size
+        type: int
+        required: true
+        description: "The size of the system volume in gigabytes (GB)."
+      - name: system_volume_type
+        type: str
+        description: "The name or UUID of the system volume type."
+        is_resolved: true
+      - name: data_volume_size
+        type: int
+        description: "The size of the data volume in megabytes (MB). Note: Must be in MB."
+      - name: data_volume_type
+        type: str
+        description: "The name or UUID of the data volume type."
+        is_resolved: true
+      - name: ssh_key
+        type: str
+        description: "The name or UUID of the SSH key to inject."
+        is_resolved: true
+      - name: security_groups
+        type: list
+        description: "A list of security group names or UUIDs to apply at creation time."
+        # This is a 'create-only' parameter now. No updates.
+      - name: networks
+        type: list
+        required: true
+        description: "A list of networks to attach, e.g., [{'subnet': 'subnet-name-or-uuid'}]."
+      - name: user_data
+        type: str
+        description: "Cloud-init user data script."
+
+    # Defines how to resolve string names/UUIDs into API URLs for the attributes.
+    resolvers:
+      # 'project' and 'offering' are standard and must be defined for the order plugin.
+      project:
+        list: "projects_list"
+        retrieve: "projects_retrieve"
+      offering:
+        list: "marketplace_public_offerings_list"
+        retrieve: "marketplace_public_offerings_retrieve"
+
+      # Resolvers for the various `attribute_params`.
+      flavor:
+        list: "openstack_flavors_list"
+        retrieve: "openstack_flavors_retrieve"
+      image:
+        list: "openstack_images_list"
+        retrieve: "openstack_images_retrieve"
+      system_volume_type:
+        list: "openstack_volume_types_list"
+        retrieve: "openstack_volume_types_retrieve"
+      data_volume_type:
+        list: "openstack_volume_types_list"
+        retrieve: "openstack_volume_types_retrieve"
+      ssh_key:
+        list: "keys_list"
+        retrieve: "keys_retrieve"
