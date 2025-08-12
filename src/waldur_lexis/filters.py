@@ -15,7 +15,9 @@ class LexisLinkFilter(django_filters.FilterSet):
     customer_uuid = django_filters.UUIDFilter(
         field_name="robot_account__resource__customer__uuid"
     )
-    query = django_filters.CharFilter(method="filter_query")
+    query = django_filters.CharFilter(
+        method="filter_query", label="Filter by robot account username or type"
+    )
 
     class Meta:
         model = models.LexisLink
