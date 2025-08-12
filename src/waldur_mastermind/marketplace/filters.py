@@ -327,7 +327,10 @@ class ScreenshotFilter(OfferingFilterMixin, django_filters.FilterSet):
 class OrderFilter(
     core_filters.CreatedModifiedFilter, OfferingFilterMixin, django_filters.FilterSet
 ):
-    query = django_filters.CharFilter(method="filter_query")
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="Search by order UUID, project name or resource name",
+    )
     project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
     offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
     offering_type = core_filters.LooseMultipleChoiceFilter(
@@ -406,7 +409,11 @@ class ResourceFilter(
     structure_filters.NameFilterSet,
     core_filters.CreatedModifiedFilter,
 ):
-    query = django_filters.CharFilter(method="filter_query", label="Query")
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="Search by resource UUID, name, backend ID, effective ID, IPs or hypervisor",
+    )
+
     offering_type = django_filters.CharFilter(field_name="offering__type")
     offering_billable = django_filters.UUIDFilter(field_name="offering__billable")
     project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
@@ -802,7 +809,9 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
     is_restricted = django_filters.BooleanFilter(field_name="is_restricted")
     state = core_filters.MappedMultipleChoiceFilter(OfferingUserStates.CHOICES)
     o = django_filters.OrderingFilter(fields=("created", "modified", "username"))
-    query = django_filters.CharFilter(method="filter_query")
+    query = django_filters.CharFilter(
+        method="filter_query", label="Search by offering name, username or user name"
+    )
 
     class Meta:
         model = models.OfferingUser

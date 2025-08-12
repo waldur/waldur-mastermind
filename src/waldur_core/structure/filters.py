@@ -63,7 +63,10 @@ class GenericUserFilter(BaseFilterBackend):
 
 
 class CustomerFilter(NameFilterSet):
-    query = django_filters.CharFilter(method="filter_query")
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="Filter by name, native name, abbreviation, domain, UUID, registration code or agreement number",
+    )
     native_name = django_filters.CharFilter(lookup_expr="icontains")
     abbreviation = django_filters.CharFilter(lookup_expr="icontains")
     contact_details = django_filters.CharFilter(lookup_expr="icontains")
@@ -192,7 +195,10 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
         label="Conceal finished projects",
     )
 
-    query = django_filters.CharFilter(method="filter_query")
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="Filter by name, UUID, backend ID or resource effective ID",
+    )
 
     can_manage = django_filters.BooleanFilter(
         widget=BooleanWidget,
@@ -374,7 +380,10 @@ class UserFilter(BaseUserFilter):
     project_roles = django_filters.CharFilter(
         method="filter_project_roles", label="Project roles"
     )
-    query = django_filters.CharFilter(method="filter_query")
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="Filter by first name, last name, civil number, username or email",
+    )
     customer_uuid = django_filters.UUIDFilter(method="filter_by_customer")
     project_uuid = django_filters.UUIDFilter(method="filter_by_project")
     username_list = django_filters.CharFilter(
@@ -750,7 +759,9 @@ class NotificationTemplateFilter(NameFilterSet):
 
 
 class NotificationFilter(NameFilterSet):
-    query = django_filters.CharFilter(method="filter_query")
+    query = django_filters.CharFilter(
+        method="filter_query", label="Filter by key or description"
+    )
     is_overridden = django_filters.BooleanFilter(method="filter_is_overridden")
 
     class Meta:
@@ -793,7 +804,9 @@ class AccessSubnetFilter(django_filters.FilterSet):
 
 
 class ExternalLinkFilter(django_filters.FilterSet):
-    query = django_filters.CharFilter(method="filter_query")
+    query = django_filters.CharFilter(
+        method="filter_query", label="Filter by name, link or description"
+    )
 
     class Meta:
         model = models.ExternalLink

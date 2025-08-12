@@ -32,7 +32,9 @@ class CampaignFilter(django_filters.FilterSet):
             "end_date",
         )
     )
-    query = django_filters.CharFilter(method="filter_query")
+    query = django_filters.CharFilter(
+        method="filter_query", label="Search by name or coupon code"
+    )
 
     def filter_query(self, queryset, name, value):
         return queryset.filter(Q(name__icontains=value) | Q(coupon__icontains=value))

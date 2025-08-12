@@ -17,7 +17,10 @@ class BaseHookFilter(django_filters.FilterSet):
     author_fullname = django_filters.CharFilter(
         method="filter_by_full_name", label="User full name contains"
     )
-    query = django_filters.CharFilter(method="filter_by_author_query")
+    query = django_filters.CharFilter(
+        method="filter_by_author_query",
+        label="Filter by author name, username and email",
+    )
     author_username = django_filters.CharFilter(field_name="user__username")
     author_email = django_filters.CharFilter(field_name="user__email")
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
