@@ -361,8 +361,12 @@ class BaseUserFilter(django_filters.FilterSet):
 
 
 class UserFilter(BaseUserFilter):
-    is_staff = django_filters.BooleanFilter(widget=BooleanWidget)
-    is_support = django_filters.BooleanFilter(widget=BooleanWidget)
+    is_staff = django_filters.BooleanFilter(
+        widget=BooleanWidget, method="filter_is_staff"
+    )
+    is_support = django_filters.BooleanFilter(
+        widget=BooleanWidget, method="filter_is_support"
+    )
     username = django_filters.CharFilter(field_name="username", lookup_expr="exact")
     organization_roles = django_filters.CharFilter(
         method="filter_organization_roles", label="Organization roles"
@@ -393,6 +397,16 @@ class UserFilter(BaseUserFilter):
             "is_support",
         )
     )
+
+    def filter_is_staff(self, queryset, name, value):
+        if self.request.user.is_staff or self.request.user.is_support:
+            return queryset.filter(is_staff=value)
+        return queryset.none()
+
+    def filter_is_support(self, queryset, name, value):
+        if self.request.user.is_staff or self.request.user.is_support:
+            return queryset.filter(is_support=value)
+        return queryset.none()
 
     def filter_by_customer(self, queryset, name, value):
         try:
