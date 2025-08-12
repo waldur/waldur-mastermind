@@ -12,7 +12,9 @@ from ipaddress import (
 
 from django.conf import settings
 from django.contrib.auth import password_validation
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.exceptions import (
+    ValidationError,
+)
 from django.core.validators import validate_ipv46_address
 from django.db import transaction
 from django.db.models import Q
@@ -3276,11 +3278,16 @@ class OpenStackBackupRestorationSerializer(serializers.HyperlinkedModelSerialize
     def validate(self, attrs):
         flavor = attrs["flavor"]
         backup: models.Backup = self.context["view"].get_object()
-        try:
-            backup.instance.volumes.get(bootable=True)
-        except ObjectDoesNotExist:
+        bootable_volumes_count = backup.instance.volumes.filter(bootable=True).count()
+        if bootable_volumes_count == 0:
             raise serializers.ValidationError(
                 _("OpenStack instance should have bootable volume.")
+            )
+        elif bootable_volumes_count > 1:
+            raise serializers.ValidationError(
+                _(
+                    "OpenStack instance should have exactly one bootable volume, found {}."
+                ).format(bootable_volumes_count)
             )
 
         tenant = backup.instance.tenant
