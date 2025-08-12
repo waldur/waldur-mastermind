@@ -891,3 +891,76 @@ class UserNotificationsEnabledTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertFalse(self.user.notifications_enabled)
+
+
+class UserFilterIsStaffIsSupportTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.staff = self.fixture.staff
+        self.regular_user = self.fixture.user
+        self.support_user = factories.UserFactory(is_support=True)
+
+        # Create some test users with different roles
+        self.staff_user = factories.UserFactory(is_staff=True)
+        self.regular_user2 = factories.UserFactory()
+        self.support_user2 = factories.UserFactory(is_support=True)
+
+        self.url = factories.UserFactory.get_list_url()
+
+    def test_staff_can_filter_staff_users(self):
+        """Staff user can filter staff users"""
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(self.url, {"is_staff": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        users = [user["uuid"] for user in response.data]
+        self.assertIn(self.staff.uuid.hex, users)
+        self.assertIn(self.staff_user.uuid.hex, users)
+        self.assertNotIn(self.regular_user.uuid.hex, users)
+
+    def test_staff_can_filter_support_users(self):
+        """Staff user can filter support users"""
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(self.url, {"is_support": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        users = [user["uuid"] for user in response.data]
+        self.assertIn(self.support_user.uuid.hex, users)
+        self.assertIn(self.support_user2.uuid.hex, users)
+        self.assertNotIn(self.regular_user.uuid.hex, users)
+
+    def test_support_can_filter_staff_users(self):
+        """Support user can filter staff users"""
+        self.client.force_authenticate(self.support_user)
+        response = self.client.get(self.url, {"is_staff": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        users = [user["uuid"] for user in response.data]
+        self.assertIn(self.staff.uuid.hex, users)
+        self.assertIn(self.staff_user.uuid.hex, users)
+        self.assertNotIn(self.regular_user.uuid.hex, users)
+
+    def test_support_can_filter_support_users(self):
+        """Support user can filter support users"""
+        self.client.force_authenticate(self.support_user)
+        response = self.client.get(self.url, {"is_support": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        users = [user["uuid"] for user in response.data]
+        self.assertIn(self.support_user.uuid.hex, users)
+        self.assertIn(self.support_user2.uuid.hex, users)
+        self.assertNotIn(self.regular_user.uuid.hex, users)
+
+    def test_regular_user_cannot_filter_staff_users(self):
+        """Regular user cannot filter staff users"""
+        self.client.force_authenticate(self.regular_user)
+        response = self.client.get(self.url, {"is_staff": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_regular_user_cannot_filter_support_users(self):
+        """Regular user cannot filter support users"""
+        self.client.force_authenticate(self.regular_user)
+        response = self.client.get(self.url, {"is_support": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
