@@ -200,6 +200,50 @@ class BackupRestorationTest(test.APITransactionTestCase):
         response = self.client.post(self.url, self._get_valid_payload())
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "OpenStack instance should have bootable volume", str(response.data)
+        )
+
+    def test_instance_should_have_exactly_one_bootable_volume(self):
+        # Add an extra bootable volume to create multiple bootable volumes scenario
+        factories.VolumeFactory(
+            instance=self.backup.instance,
+            bootable=True,
+            tenant=self.backup.instance.tenant,
+            service_settings=self.backup.instance.service_settings,
+            project=self.backup.instance.project,
+        )
+
+        # Verify we now have 2 bootable volumes
+        bootable_count = self.backup.instance.volumes.filter(bootable=True).count()
+        self.assertEqual(bootable_count, 2)
+
+        response = self.client.post(self.url, self._get_valid_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("exactly one bootable volume", str(response.data))
+        self.assertIn("found 2", str(response.data))
+
+    def test_instance_with_three_bootable_volumes_shows_correct_count(self):
+        # Add two extra bootable volumes to create multiple bootable volumes scenario
+        for i in range(2):
+            factories.VolumeFactory(
+                instance=self.backup.instance,
+                bootable=True,
+                tenant=self.backup.instance.tenant,
+                service_settings=self.backup.instance.service_settings,
+                project=self.backup.instance.project,
+            )
+
+        # Verify we now have 3 bootable volumes (1 original + 2 added)
+        bootable_count = self.backup.instance.volumes.filter(bootable=True).count()
+        self.assertEqual(bootable_count, 3)
+
+        response = self.client.post(self.url, self._get_valid_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("exactly one bootable volume", str(response.data))
+        self.assertIn("found 3", str(response.data))
 
     def test_flavor_disk_size_should_match_system_volume_size(self):
         response = self.client.post(self.url, self._get_valid_payload())
