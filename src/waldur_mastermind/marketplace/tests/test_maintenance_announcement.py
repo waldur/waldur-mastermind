@@ -1,7 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
-from waldur_mastermind.marketplace.enums import ImpactLevel
+from waldur_mastermind.marketplace.enums import ImpactLevel, MaintenanceState
 from waldur_mastermind.marketplace.tests import (
     factories as marketplace_factories,
 )
@@ -198,3 +198,354 @@ class MaintenanceAnnouncementUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         response = self.client.patch(self.url, {"message": "New message"})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+@ddt
+class MaintenanceAnnouncementScheduleTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.announcement = self.fixture.maintenance_announcement
+        self.url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(
+            self.announcement, action="schedule"
+        )
+
+    @data("staff", "service_owner")
+    def test_schedule_allowed_for_permitted_users(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        # Ensure the announcement is in DRAFT state
+        self.announcement.state = MaintenanceState.DRAFT
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify the announcement is now in SCHEDULED state
+        self.announcement.refresh_from_db()
+        self.assertEqual(self.announcement.state, MaintenanceState.SCHEDULED)
+
+    @data(
+        "admin",
+        "manager",
+        "offering_admin",
+        "offering_manager",
+        "owner",
+        "customer_support",
+    )
+    def test_schedule_forbidden_for_unauthorized_users(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        # Ensure the announcement is in DRAFT state
+        self.announcement.state = MaintenanceState.DRAFT
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_schedule_fails_when_not_in_draft_state(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Set announcement to SCHEDULED state (not DRAFT)
+        self.announcement.state = MaintenanceState.SCHEDULED
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_unauthenticated_user_cannot_schedule(self):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
+class MaintenanceAnnouncementUnscheduleTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.announcement = self.fixture.maintenance_announcement
+        self.url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(
+            self.announcement, action="unschedule"
+        )
+
+    @data("staff", "service_owner")
+    def test_unschedule_allowed_for_permitted_users(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        # Ensure the announcement is in SCHEDULED state
+        self.announcement.state = MaintenanceState.SCHEDULED
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify the announcement is now in DRAFT state
+        self.announcement.refresh_from_db()
+        self.assertEqual(self.announcement.state, MaintenanceState.DRAFT)
+
+    @data(
+        "admin",
+        "manager",
+        "offering_admin",
+        "offering_manager",
+        "owner",
+        "customer_support",
+    )
+    def test_unschedule_forbidden_for_unauthorized_users(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        # Ensure the announcement is in SCHEDULED state
+        self.announcement.state = MaintenanceState.SCHEDULED
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_unschedule_fails_when_not_in_scheduled_state(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Set announcement to DRAFT state (not SCHEDULED)
+        self.announcement.state = MaintenanceState.DRAFT
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_unschedule_fails_when_in_progress(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Set announcement to IN_PROGRESS state (cannot be unscheduled)
+        self.announcement.state = MaintenanceState.IN_PROGRESS
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_unschedule_fails_when_completed(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Set announcement to COMPLETED state (cannot be unscheduled)
+        self.announcement.state = MaintenanceState.COMPLETED
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_unschedule_fails_when_cancelled(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Set announcement to CANCELLED state (cannot be unscheduled)
+        self.announcement.state = MaintenanceState.CANCELLED
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_unauthenticated_user_cannot_unschedule(self):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
+class MaintenanceAnnouncementStartTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.announcement = self.fixture.maintenance_announcement
+        self.url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(
+            self.announcement, action="start_maintenance"
+        )
+
+    @data("staff", "service_owner")
+    def test_start_allowed_for_permitted_users(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        # Ensure the announcement is in SCHEDULED state
+        self.announcement.state = MaintenanceState.SCHEDULED
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify the announcement is now in IN_PROGRESS state
+        self.announcement.refresh_from_db()
+        self.assertEqual(self.announcement.state, MaintenanceState.IN_PROGRESS)
+
+    @data(
+        "admin",
+        "manager",
+        "offering_admin",
+        "offering_manager",
+        "owner",
+        "customer_support",
+    )
+    def test_start_forbidden_for_unauthorized_users(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        # Ensure the announcement is in SCHEDULED state
+        self.announcement.state = MaintenanceState.SCHEDULED
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_start_fails_when_not_in_scheduled_state(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Set announcement to DRAFT state (not SCHEDULED)
+        self.announcement.state = MaintenanceState.DRAFT
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_unauthenticated_user_cannot_start(self):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
+class MaintenanceAnnouncementCompleteTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.announcement = self.fixture.maintenance_announcement
+        self.url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(
+            self.announcement, action="complete_maintenance"
+        )
+
+    @data("staff", "service_owner")
+    def test_complete_allowed_for_permitted_users(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        # Ensure the announcement is in IN_PROGRESS state
+        self.announcement.state = MaintenanceState.IN_PROGRESS
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify the announcement is now in COMPLETED state
+        self.announcement.refresh_from_db()
+        self.assertEqual(self.announcement.state, MaintenanceState.COMPLETED)
+
+    @data(
+        "admin",
+        "manager",
+        "offering_admin",
+        "offering_manager",
+        "owner",
+        "customer_support",
+    )
+    def test_complete_forbidden_for_unauthorized_users(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        # Ensure the announcement is in IN_PROGRESS state
+        self.announcement.state = MaintenanceState.IN_PROGRESS
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_complete_fails_when_not_in_progress_state(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Set announcement to SCHEDULED state (not IN_PROGRESS)
+        self.announcement.state = MaintenanceState.SCHEDULED
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_unauthenticated_user_cannot_complete(self):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
+class MaintenanceAnnouncementCancelTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.announcement = self.fixture.maintenance_announcement
+        self.url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(
+            self.announcement, action="cancel_maintenance"
+        )
+
+    @data("staff", "service_owner")
+    def test_cancel_allowed_from_draft_state(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        # Ensure the announcement is in DRAFT state
+        self.announcement.state = MaintenanceState.DRAFT
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify the announcement is now in CANCELLED state
+        self.announcement.refresh_from_db()
+        self.assertEqual(self.announcement.state, MaintenanceState.CANCELLED)
+
+    @data("staff", "service_owner")
+    def test_cancel_allowed_from_scheduled_state(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        # Ensure the announcement is in SCHEDULED state
+        self.announcement.state = MaintenanceState.SCHEDULED
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify the announcement is now in CANCELLED state
+        self.announcement.refresh_from_db()
+        self.assertEqual(self.announcement.state, MaintenanceState.CANCELLED)
+
+    @data(
+        "admin",
+        "manager",
+        "offering_admin",
+        "offering_manager",
+        "owner",
+        "customer_support",
+    )
+    def test_cancel_forbidden_for_unauthorized_users(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        # Ensure the announcement is in DRAFT state
+        self.announcement.state = MaintenanceState.DRAFT
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_cancel_fails_when_in_progress(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Set announcement to IN_PROGRESS state (cannot be cancelled)
+        self.announcement.state = MaintenanceState.IN_PROGRESS
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_cancel_fails_when_completed(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Set announcement to COMPLETED state (cannot be cancelled)
+        self.announcement.state = MaintenanceState.COMPLETED
+        self.announcement.save()
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_unauthenticated_user_cannot_cancel(self):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

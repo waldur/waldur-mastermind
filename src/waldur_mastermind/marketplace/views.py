@@ -109,6 +109,7 @@ from waldur_mastermind.marketplace import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
+    MaintenanceState,
     OfferingStates,
     OfferingUserStates,
     OrderStates,
@@ -6036,6 +6037,118 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.MaintenanceAnnouncementFilter
     serializer_class = serializers.MaintenanceAnnouncementSerializer
+
+    schedule_validators = [
+        core_validators.StateValidator(
+            MaintenanceState.DRAFT, state_enum=MaintenanceState
+        )
+    ]
+
+    @extend_schema(
+        request=EmptySerializer,
+        responses={200: serializers.MaintenanceActionResponseSerializer},
+    )
+    @action(detail=True, methods=["POST"])
+    def schedule(self, request, uuid=None):
+        """Schedule/publish the maintenance announcement"""
+        maintenance = self.get_object()
+
+        maintenance.schedule()
+        maintenance.save()
+        return Response(
+            {"detail": "Maintenance announcement has been scheduled"},
+            status=status.HTTP_200_OK,
+        )
+
+    unschedule_validators = [
+        core_validators.StateValidator(
+            MaintenanceState.SCHEDULED, state_enum=MaintenanceState
+        )
+    ]
+
+    @extend_schema(
+        request=EmptySerializer,
+        responses={200: serializers.MaintenanceActionResponseSerializer},
+    )
+    @action(detail=True, methods=["POST"])
+    def unschedule(self, request, uuid=None):
+        """Unschedule/unpublish the maintenance announcement"""
+        maintenance = self.get_object()
+
+        maintenance.unschedule()
+        maintenance.save()
+        return Response(
+            {"detail": "Maintenance announcement has been unscheduled"},
+            status=status.HTTP_200_OK,
+        )
+
+    start_maintenance_validators = [
+        core_validators.StateValidator(
+            MaintenanceState.SCHEDULED, state_enum=MaintenanceState
+        )
+    ]
+
+    @extend_schema(
+        request=EmptySerializer,
+        responses={200: serializers.MaintenanceActionResponseSerializer},
+    )
+    @action(detail=True, methods=["POST"])
+    def start_maintenance(self, request, uuid=None):
+        """Start the maintenance announcement"""
+        maintenance = self.get_object()
+
+        maintenance.start_maintenance()
+        maintenance.save()
+        return Response(
+            {"detail": "Maintenance announcement has been started"},
+            status=status.HTTP_200_OK,
+        )
+
+    complete_maintenance_validators = [
+        core_validators.StateValidator(
+            MaintenanceState.IN_PROGRESS, state_enum=MaintenanceState
+        )
+    ]
+
+    @extend_schema(
+        request=EmptySerializer,
+        responses={200: serializers.MaintenanceActionResponseSerializer},
+    )
+    @action(detail=True, methods=["POST"])
+    def complete_maintenance(self, request, uuid=None):
+        """Complete the maintenance announcement"""
+        maintenance = self.get_object()
+
+        maintenance.complete_maintenance()
+        maintenance.save()
+        return Response(
+            {"detail": "Maintenance announcement has been completed"},
+            status=status.HTTP_200_OK,
+        )
+
+    cancel_maintenance_validators = [
+        core_validators.StateValidator(
+            MaintenanceState.DRAFT,
+            MaintenanceState.SCHEDULED,
+            state_enum=MaintenanceState,
+        )
+    ]
+
+    @extend_schema(
+        request=EmptySerializer,
+        responses={200: serializers.MaintenanceActionResponseSerializer},
+    )
+    @action(detail=True, methods=["POST"])
+    def cancel_maintenance(self, request, uuid=None):
+        """Cancel the maintenance announcement"""
+        maintenance = self.get_object()
+
+        maintenance.cancel_maintenance()
+        maintenance.save()
+        return Response(
+            {"detail": "Maintenance announcement has been cancelled"},
+            status=status.HTTP_200_OK,
+        )
 
 
 class MaintenanceAnnouncementOfferingViewSet(core_views.ActionsViewSet):

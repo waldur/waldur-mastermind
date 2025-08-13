@@ -2403,6 +2403,13 @@ class MaintenanceAnnouncement(
         pass
 
     @transition(
+        field=state, source=MaintenanceState.SCHEDULED, target=MaintenanceState.DRAFT
+    )
+    def unschedule(self):
+        """Unpublish the maintenance announcement"""
+        pass
+
+    @transition(
         field=state,
         source=MaintenanceState.SCHEDULED,
         target=MaintenanceState.IN_PROGRESS,
