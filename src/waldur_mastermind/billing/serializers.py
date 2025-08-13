@@ -89,6 +89,30 @@ def get_price_estimate(serializer, scope):
     # For cases when we want to get project estimates under project cost policies
     if isinstance(scope, policy_models.ProjectEstimatedCostPolicy):
         scope = _get_project(scope)
+
+    # Check if bulk optimization is available (set by eager_load)
+    request = serializer.context.get("request")
+    if (
+        request
+        and hasattr(request, "_price_estimates_cache")
+        and scope.id in request._price_estimates_cache
+    ):
+        # Use cached estimate from bulk loading
+        estimate = request._price_estimates_cache[scope.id]
+        if estimate:
+            serializer_instance = NestedPriceEstimateSerializer(
+                instance=estimate, context=serializer.context
+            )
+            return serializer_instance.data
+        else:
+            return {
+                "total": 0.0,
+                "current": 0.0,
+                "tax": 0.0,
+                "tax_current": 0.0,
+            }
+
+    # Fallback to original query behavior
     try:
         estimate = models.PriceEstimate.objects.get(scope=scope)
     except models.PriceEstimate.DoesNotExist:
@@ -99,16 +123,98 @@ def get_price_estimate(serializer, scope):
             "tax_current": 0.0,
         }
     else:
-        serializer = NestedPriceEstimateSerializer(
+        serializer_instance = NestedPriceEstimateSerializer(
             instance=estimate, context=serializer.context
         )
-        return serializer.data
+        return serializer_instance.data
+
+
+def _get_optimized_price_estimate_data(estimate, context, scope):
+    """Get price estimate data with optimized invoice calculations."""
+
+    # Get current period
+    current_year = utils.get_current_year()
+    current_month = utils.get_current_month()
+
+    # Parse period from request if available
+    request = context.get("request")
+    year = month = None
+
+    if request:
+        try:
+            year = int(request.query_params.get("year", ""))
+            month = int(request.query_params.get("month", ""))
+
+            if not utils.check_past_date(year, month):
+                raise ValueError()
+        except (ValueError, TypeError):
+            year = month = None
+
+    # Use prefetched invoice data if available for current period calculations
+    if (
+        hasattr(scope, "_prefetched_current_invoice_items")
+        and scope._prefetched_current_invoice_items is not None
+        and (not year or not month or (year == current_year and month == current_month))
+    ):
+        # Calculate from prefetched data to avoid DB queries
+        invoice_items = scope._prefetched_current_invoice_items
+
+        # Filter items for this customer (invoice items are already filtered by customer)
+        total_amount = sum(item.get_total() for item in invoice_items)
+        tax_amount = sum(item.get_tax() for item in invoice_items)
+
+        result = {
+            "total": float(estimate.total)
+            if (not year and not month)
+            else total_amount,
+            "current": total_amount,
+            "tax": tax_amount,
+            "tax_current": tax_amount,
+        }
+    else:
+        # Fall back to the regular NestedPriceEstimateSerializer for complex cases
+        serializer_instance = NestedPriceEstimateSerializer(
+            instance=estimate, context=context
+        )
+        result = serializer_instance.data
+
+    return result
 
 
 def add_price_estimate(sender, fields, **kwargs):
     """Add a billing price estimate field to the serializer."""
     fields["billing_price_estimate"] = serializers.SerializerMethodField()
     setattr(sender, "get_billing_price_estimate", get_price_estimate)
+
+    # Also optimize eager loading for CustomerSerializer
+    if sender.__name__ == "CustomerSerializer":
+        _optimize_customer_serializer_eager_load(sender)
+
+
+def _optimize_customer_serializer_eager_load(sender):
+    """Optimize eager loading for CustomerSerializer to prefetch price estimates and invoice data."""
+    # Store the original eager_load method
+    original_eager_load = sender.eager_load
+
+    @staticmethod
+    def optimized_eager_load(queryset, request=None):
+        # Call the original eager_load first
+        queryset = original_eager_load(queryset, request)
+
+        # Add optimizations for billing_price_estimate if requested
+        if request:
+            fields = request.query_params.getlist("field")
+
+            # Optimize billing_price_estimate field by bulk loading estimates
+            if "billing_price_estimate" in fields:
+                # Store a flag to indicate we should optimize price estimate queries
+                # We'll do the actual optimization by bulk-loading in the serializer method
+                queryset._billing_optimization_enabled = True
+
+        return queryset
+
+    # Replace the eager_load method
+    sender.eager_load = optimized_eager_load
 
 
 class FinancialReportSerializer(serializers.ModelSerializer):

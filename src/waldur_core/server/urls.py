@@ -41,6 +41,7 @@ urlpatterns = [
     re_path(r"^api/query/", core_views.QueryViewSet.as_view()),
 ]
 
+
 if settings.WALDUR_CORE.get("EXTENSIONS_AUTOREGISTER"):
     for ext in WaldurExtension.get_extensions():
         if ext.django_app() in settings.INSTALLED_APPS:
@@ -138,8 +139,10 @@ if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
     # enable login/logout for web UI in debug mode
+    # Using different path to avoid conflict with custom logout at /api-auth/logout/
     urlpatterns += (
         re_path(
-            r"^api-auth/", include("rest_framework.urls", namespace="rest_framework")
+            r"^api-auth-browsable/",
+            include("rest_framework.urls", namespace="rest_framework"),
         ),
     )

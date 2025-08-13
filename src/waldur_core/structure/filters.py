@@ -19,6 +19,7 @@ from waldur_core.core.filters import (
 )
 from waldur_core.core.utils import get_ordering, is_uuid_like, order_with_nulls
 from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models
 from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
@@ -41,8 +42,81 @@ class NameFilterSet(django_filters.FilterSet):
 
 class GenericRoleFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        queryset = filter_queryset_for_user(queryset, request.user)
+        # Use optimized customer filtering for customer queries when needed
+        if (
+            hasattr(queryset, "model")
+            and queryset.model.__name__ == "Customer"
+            and request.user.is_authenticated
+            and not request.user.is_staff
+            and not request.user.is_support
+        ):
+            queryset = self._filter_customers_optimized(queryset, request.user)
+        else:
+            queryset = filter_queryset_for_user(queryset, request.user)
         return filter_queryset_by_user_ip(queryset, request)
+
+    def _filter_customers_optimized(self, queryset, user):
+        """Optimized customer filtering to avoid complex permission queries."""
+        # Get all customer IDs this user has access to through various permission paths
+        accessible_customer_ids = set()
+
+        # 1. Direct customer permissions
+        customer_ct = ContentType.objects.get_for_model(queryset.model)
+        customer_roles = UserRole.objects.filter(
+            user=user, is_active=True, content_type=customer_ct
+        ).values_list("object_id", flat=True)
+        accessible_customer_ids.update(customer_roles)
+
+        # 2. Project-level permissions (customers via projects)
+        project_ct = ContentType.objects.get_for_model(models.Project)
+        project_roles = UserRole.objects.filter(
+            user=user, is_active=True, content_type=project_ct
+        ).values_list("object_id", flat=True)
+
+        if project_roles:
+            project_customer_ids = models.Project.objects.filter(
+                id__in=project_roles
+            ).values_list("customer_id", flat=True)
+            accessible_customer_ids.update(project_customer_ids)
+
+        # 3. Call management permissions (import locally to avoid module dependency)
+        try:
+            from waldur_mastermind.proposal.models import Call, CallManagingOrganisation
+
+            # Get customers through call manager roles
+            call_manager_ct = ContentType.objects.get_for_model(
+                CallManagingOrganisation
+            )
+            call_manager_roles = UserRole.objects.filter(
+                user=user, is_active=True, content_type=call_manager_ct
+            ).values_list("object_id", flat=True)
+
+            if call_manager_roles:
+                call_manager_customer_ids = CallManagingOrganisation.objects.filter(
+                    id__in=call_manager_roles
+                ).values_list("customer_id", flat=True)
+                accessible_customer_ids.update(call_manager_customer_ids)
+
+            # Get customers through call roles
+            call_ct = ContentType.objects.get_for_model(Call)
+            call_roles = UserRole.objects.filter(
+                user=user, is_active=True, content_type=call_ct
+            ).values_list("object_id", flat=True)
+
+            if call_roles:
+                call_customer_ids = Call.objects.filter(id__in=call_roles).values_list(
+                    "manager__customer_id", flat=True
+                )
+                accessible_customer_ids.update(call_customer_ids)
+
+        except ImportError:
+            # Proposal module not available in this deployment, skip
+            pass
+
+        if accessible_customer_ids:
+            return queryset.filter(id__in=accessible_customer_ids)
+        else:
+            return queryset.none()
 
 
 class GenericUserFilter(BaseFilterBackend):

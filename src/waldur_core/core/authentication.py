@@ -210,8 +210,8 @@ class SessionAuthentication(DRFSessionAuthentication):
         result = super().authenticate(request)
         if result is not None:
             user, _ = result
+            refresh_token(user)  # Ensure token exists before setting context
             set_user_context(user)
-            refresh_token(user)
         return result
 
 

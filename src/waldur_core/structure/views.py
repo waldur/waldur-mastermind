@@ -61,6 +61,7 @@ from waldur_core.structure.managers import (
     get_project_users,
 )
 from waldur_core.structure.utils import get_components_usage_data_from_resources
+from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.enums import ResourceStates
@@ -137,6 +138,7 @@ class CustomerViewSet(
         page = super().paginate_queryset(queryset)
         if page is not None:
             self._optimize_users_count(page)
+            self._optimize_billing_estimates(page)
         return page
 
     def _optimize_users_count(self, customers):
@@ -212,6 +214,42 @@ class CustomerViewSet(
         # Attach calculated counts to customer objects
         for customer in customers:
             customer._cached_users_count = users_counts.get(customer.id, 0)
+
+    def _optimize_billing_estimates(self, customers):
+        """Bulk load price estimates for customers to avoid N+1 queries."""
+        if not customers:
+            return
+
+        # Only optimize if billing_price_estimate field is requested
+        if hasattr(self.request, "query_params"):
+            fields = self.request.query_params.getlist("field")
+        else:
+            fields = self.request.GET.getlist("field")
+        if "billing_price_estimate" not in fields:
+            return
+
+        customer_ids = [c.id for c in customers]
+        customer_ct = ContentType.objects.get_for_model(models.Customer)
+
+        # Bulk load all price estimates for these customers
+        price_estimates = billing_models.PriceEstimate.objects.filter(
+            content_type=customer_ct, object_id__in=customer_ids
+        ).select_related("content_type")
+
+        # Create a mapping of customer_id -> price_estimate
+        estimates_by_customer = {}
+        for estimate in price_estimates:
+            estimates_by_customer[estimate.object_id] = estimate
+
+        # Cache the estimates on the request for use in serializers
+        if not hasattr(self.request, "_price_estimates_cache"):
+            self.request._price_estimates_cache = {}
+
+        # Add estimates to cache, including None for customers without estimates
+        for customer in customers:
+            self.request._price_estimates_cache[customer.id] = (
+                estimates_by_customer.get(customer.id)
+            )
 
     def list(self, request, *args, **kwargs):
         """
