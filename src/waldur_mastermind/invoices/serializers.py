@@ -1167,6 +1167,41 @@ def add_customer_credit(sender, fields, **kwargs):
     fields["customer_credit"] = serializers.SerializerMethodField()
     setattr(sender, "get_customer_credit", get_customer_credit)
 
+    # Also optimize eager loading for CustomerSerializer
+    if sender.__name__ == "CustomerSerializer":
+        _optimize_customer_serializer_eager_load_for_credit(sender)
+
+
+def _optimize_customer_serializer_eager_load_for_credit(sender):
+    """Optimize eager loading for CustomerSerializer to prefetch customer credits."""
+    # Check if we already have an optimized eager_load method
+    if hasattr(sender.eager_load, "_credit_optimized"):
+        return
+
+    # Store the original eager_load method
+    original_eager_load = sender.eager_load
+
+    @staticmethod
+    def optimized_eager_load(queryset, request=None):
+        # Call the original eager_load first
+        queryset = original_eager_load(queryset, request)
+
+        # Add optimizations for customer_credit if requested
+        if request:
+            fields = request.query_params.getlist("field")
+
+            # Prefetch customer credit if requested
+            if "customer_credit" in fields:
+                queryset = queryset.select_related("customercredit")
+
+        return queryset
+
+    # Mark as optimized to avoid double optimization
+    optimized_eager_load._credit_optimized = True
+
+    # Replace the eager_load method
+    sender.eager_load = optimized_eager_load
+
 
 def get_customer_unallocated_credit(serializer, customer) -> float | None:
     # Use prefetched data if available to avoid N+1 queries for customer credit
