@@ -110,6 +110,106 @@ class CustomerViewSet(
     )
     filterset_class = filters.CustomerFilter
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        # Annotate with projects_count to avoid N+1 queries
+        queryset = queryset.annotate(
+            projects_count=Count("projects", filter=Q(projects__isnull=False))
+        )
+
+        # Add users_count annotation - we'll calculate this differently due to complexity
+        # For now, we'll use a simpler approach that can be optimized later
+        # The serializer will try to use the annotated value if available
+        queryset = queryset.extra(
+            select={
+                "users_count": "0"
+            }  # Placeholder - will be calculated efficiently in serializer
+        )
+
+        return queryset
+
+    def paginate_queryset(self, queryset):
+        """Override to add bulk optimizations after pagination."""
+        page = super().paginate_queryset(queryset)
+        if page is not None:
+            self._optimize_users_count(page)
+        return page
+
+    def _optimize_users_count(self, customers):
+        """Bulk calculate users_count for a list of customers to avoid N+1 queries."""
+        if not customers:
+            return
+
+        # Calculate users count for all customers in a single efficient operation
+        customer_ids = [c.id for c in customers]
+
+        # Get all users with roles in these customers or their projects
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.permissions.models import UserRole
+
+        customer_ct = ContentType.objects.get_for_model(models.Customer)
+        project_ct = ContentType.objects.get_for_model(models.Project)
+
+        # Get project IDs for all these customers
+        project_ids = list(
+            models.Project.available_objects.filter(
+                customer_id__in=customer_ids
+            ).values_list("id", flat=True)
+        )
+
+        # Count users per customer efficiently
+        users_counts = {}
+
+        # Count direct customer roles
+        customer_user_counts = (
+            UserRole.objects.filter(
+                content_type=customer_ct, object_id__in=customer_ids, is_active=True
+            )
+            .values("object_id")
+            .annotate(user_count=Count("user_id", distinct=True))
+            .values_list("object_id", "user_count")
+        )
+
+        for customer_id, count in customer_user_counts:
+            users_counts[customer_id] = count
+
+        # Count project-based roles and add to customer counts
+        if project_ids:
+            project_users = (
+                UserRole.objects.filter(
+                    content_type=project_ct, object_id__in=project_ids, is_active=True
+                )
+                .select_related()
+                .values("object_id", "user_id")
+            )
+
+            # Group by customer and count unique users
+            project_to_customer = dict(
+                models.Project.available_objects.filter(id__in=project_ids).values_list(
+                    "id", "customer_id"
+                )
+            )
+
+            customer_project_users = {}
+            for project_id, user_id in project_users:
+                customer_id = project_to_customer.get(project_id)
+                if customer_id:
+                    if customer_id not in customer_project_users:
+                        customer_project_users[customer_id] = set()
+                    customer_project_users[customer_id].add(user_id)
+
+            # Add project user counts to customer counts
+            for customer_id, user_ids in customer_project_users.items():
+                users_counts[customer_id] = users_counts.get(customer_id, 0) + len(
+                    user_ids
+                )
+
+        # Attach calculated counts to customer objects
+        for customer in customers:
+            customer._cached_users_count = users_counts.get(customer.id, 0)
+
     def list(self, request, *args, **kwargs):
         """
         To get a list of customers, run GET against /api/customers/ as authenticated user. Note that a user can
@@ -159,13 +259,13 @@ class CustomerViewSet(
         return super().destroy(request, *args, **kwargs)
 
     def get_serializer_class(self):
-        if self.action == "users":
+        if hasattr(self, "action") and self.action == "users":
             return serializers.CustomerUserSerializer
         return super().get_serializer_class()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        if self.action == "users":
+        if hasattr(self, "action") and self.action == "users":
             context["customer"] = self.get_object()
         return context
 

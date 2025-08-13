@@ -503,7 +503,11 @@ class CustomerSerializer(
 
     @staticmethod
     def eager_load(queryset, request=None):
-        return queryset.prefetch_related("projects")
+        queryset = queryset.prefetch_related(
+            "projects",  # For projects field
+            "organization_groups",  # For organization_groups field
+        )
+        return queryset
 
     def validate(self, attrs):
         country = attrs.get("country")
@@ -549,25 +553,40 @@ class CustomerSerializer(
         return customer.get_display_name()
 
     def get_projects_count(self, customer) -> int:
+        # Use annotated value from queryset if available, otherwise fallback to query
+        if hasattr(customer, "projects_count"):
+            return customer.projects_count
         return models.Project.available_objects.filter(customer=customer).count()
 
     @extend_schema_field(PermissionProjectSerializer(many=True))
     def get_projects(self, customer):
-        projects = models.Project.available_objects.filter(customer=customer)
+        # Use prefetched projects if available to avoid N+1 queries
+        if hasattr(customer, "_prefetched_projects"):
+            projects = customer._prefetched_projects
+        else:
+            projects = models.Project.available_objects.filter(customer=customer)
+
         show_all_projects = self.context["request"].query_params.get(
             "show_all_projects"
         )
         if show_all_projects not in ["true", "True"]:
             query = self.context["request"].query_params.get("query")
-
             if query:
-                projects = projects.filter(name__icontains=query)
+                # If we have prefetched data, filter in Python; otherwise use DB filter
+                if hasattr(customer, "_prefetched_projects"):
+                    projects = [p for p in projects if query.lower() in p.name.lower()]
+                else:
+                    projects = projects.filter(name__icontains=query)
 
         return PermissionProjectSerializer(
             projects, many=True, context=self.context
         ).data
 
     def get_users_count(self, customer) -> int:
+        # Use cached/optimized calculation if available
+        if hasattr(customer, "_cached_users_count"):
+            return customer._cached_users_count
+        # Fallback to the original calculation
         return count_customer_users(customer)
 
 

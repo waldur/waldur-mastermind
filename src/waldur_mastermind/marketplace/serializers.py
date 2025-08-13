@@ -4215,7 +4215,16 @@ def validate_plan(plan: models.Plan):
 
 def get_is_service_provider(serializer, scope) -> bool:
     customer = structure_permissions._get_customer(scope)
-    return models.ServiceProvider.objects.filter(customer=customer).exists()
+
+    # Use prefetched data if available to avoid N+1 queries
+    if (
+        hasattr(customer, "_prefetched_objects_cache")
+        and "serviceprovider" in customer._prefetched_objects_cache
+    ):
+        return bool(customer._prefetched_objects_cache["serviceprovider"])
+    else:
+        # Fallback to original query behavior
+        return models.ServiceProvider.objects.filter(customer=customer).exists()
 
 
 def add_service_provider(sender, fields, **kwargs):
@@ -4247,12 +4256,24 @@ def add_service_provider_url(sender, fields, **kwargs):
 
 def get_call_managing_organization_uuid(serializer, scope) -> str | None:
     customer = structure_permissions._get_customer(scope)
-    call_managing_organisation = (
-        proposal_models.CallManagingOrganisation.objects.filter(customer=customer)
-    )
-    if call_managing_organisation.exists():
-        return call_managing_organisation.first().uuid
-    return None
+
+    # Use prefetched data if available to avoid N+1 queries
+    if (
+        hasattr(customer, "_prefetched_objects_cache")
+        and "callmanagingorganisation" in customer._prefetched_objects_cache
+    ):
+        organization = customer._prefetched_objects_cache["callmanagingorganisation"]
+        if organization:
+            return str(organization.uuid)
+        return None
+    else:
+        # Fallback to original query behavior
+        call_managing_organisation = (
+            proposal_models.CallManagingOrganisation.objects.filter(customer=customer)
+        )
+        if call_managing_organisation.exists():
+            return str(call_managing_organisation.first().uuid)
+        return None
 
 
 def add_call_managing_organization_uuid(sender, fields, **kwargs):
