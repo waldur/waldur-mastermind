@@ -132,7 +132,7 @@ The marketplace supports five distinct billing patterns:
 |------|----------|---------|----------------|
 | **FIXED** | Monthly subscriptions, SaaS plans | $50/month hosting | Service provider sets price |
 | **USAGE** | Pay-as-you-consume | $0.10/GB storage used | Usage reports submitted |
-| **LIMIT** | Resource quotas | $5/CPU core allocated | User specifies limits |
+| **LIMIT** | Resource quotas with different periods | $5/CPU core allocated monthly<br/>$150/500GB quarterly storage | User specifies limits |
 | **ONE_TIME** | Setup fees, licenses | $100 installation | Resource activation |
 | **ON_PLAN_SWITCH** | Plan change fees | $25 upgrade fee | Plan modifications |
 
@@ -167,11 +167,117 @@ graph LR
 
 ### Limit Periods
 
-For USAGE and LIMIT billing types, components can have consumption limits:
+For USAGE and LIMIT billing types, components can have consumption limits with different billing cycles:
 
 - **MONTHLY**: Reset limits every month (e.g., 100 GB storage/month)
+- **QUARTERLY**: Reset limits every quarter (e.g., 300 GB storage/quarter)
 - **ANNUAL**: Reset limits yearly (e.g., 1000 CPU hours/year)
 - **TOTAL**: Lifetime limits (e.g., 10 TB total storage)
+
+#### Quarterly Billing Implementation
+
+The QUARTERLY limit period provides specialized billing logic for resources that need to be billed on a quarterly cycle:
+
+**Billing Schedule**: Quarterly components are only processed during the first month of each quarter:
+
+- **Q1**: January (months 1-3)
+- **Q2**: April (months 4-6)
+- **Q3**: July (months 7-9)
+- **Q4**: October (months 10-12)
+
+**Billing Period Calculation**: When quarterly billing is triggered, the system:
+
+1. Calculates the full quarter period (e.g., Q2: April 1 - June 30)
+2. Creates invoice items with quarterly billing periods instead of monthly
+3. Uses `PER_QUARTER` unit for quantity calculations
+4. Applies prorated billing for partial quarters when limits change
+
+**Quarter Period Utilities**: The system provides utility functions for quarter calculations:
+
+- `get_current_quarter()`: Returns current quarter (1-4)
+- `get_current_quarter_start()`: Start of current quarter
+- `get_current_quarter_end()`: End of current quarter
+- `get_quarter_start(date)`: Start of quarter for given date
+- `get_quarter_end(date)`: End of quarter for given date
+- `get_full_quarters(start, end)`: Calculate quarters between dates
+
+**Usage Examples**:
+
+```python
+# Quarterly storage component
+{
+    "type": "storage",
+    "billing_type": "LIMIT",
+    "limit_period": "QUARTERLY",
+    "price": 150.00  # $150 per quarter for allocated storage
+}
+
+# User sets 500GB quarterly limit
+# Only billed in January, April, July, October
+# Invoice period: Q2 (April 1 - June 30)
+# Quantity calculated using PER_QUARTER unit
+```
+
+#### MarketplaceRegistrator QUARTERLY Logic
+
+The `MarketplaceRegistrator` class implements sophisticated quarterly billing logic in the following methods:
+
+**`should_process_quarterly_billing(date)`**: Determines when quarterly billing should be processed
+
+```python
+def should_process_quarterly_billing(cls, date):
+    """Only process quarterly billing in Q1 (Jan), Q2 (Apr), Q3 (Jul), Q4 (Oct)"""
+    return date.month in [1, 4, 7, 10]
+```
+
+**`get_quarterly_billing_period(date)`**: Calculates the complete quarterly period
+
+```python
+def get_quarterly_billing_period(cls, date):
+    """Returns (quarter_start, quarter_end) for the quarter containing date"""
+    quarter_start = core_utils.get_quarter_start(date)
+    quarter_end = core_utils.get_quarter_end(date)
+    return quarter_start, quarter_end
+```
+
+**`get_period_end_for_limit_period(limit_period)`**: Returns appropriate period end
+
+```python
+def get_period_end_for_limit_period(cls, limit_period):
+    if limit_period == LimitPeriods.QUARTERLY:
+        return core_utils.get_current_quarter_end()
+    else:
+        return get_current_month_end()  # Default for MONTH, ANNUAL, TOTAL
+```
+
+**Invoice Item Creation**: The registrator handles quarterly components differently:
+
+1. **During `_create_item()`**:
+   - Skips processing in non-quarterly months for QUARTERLY components
+   - Uses full quarterly periods instead of monthly periods
+   - Creates invoice items spanning entire quarters
+
+2. **During `create_or_update_component_item()`**:
+   - Uses quarterly billing periods for new QUARTERLY components
+   - Handles limit changes with appropriate quarter calculations
+
+3. **Quantity Calculation**:
+   - Uses `PER_QUARTER` unit from `common.enums.Units`
+   - Leverages `get_full_quarters(start, end)` for period calculations
+   - Supports prorated billing for partial quarterly periods
+
+**Limit Update Handling**: When resource limits change for quarterly components:
+
+- Updates existing invoice items with new quarterly periods
+- Creates compensation items for limit decreases (negative unit_price)
+- Maintains detailed `resource_limit_periods` in invoice item details
+
+This implementation ensures that quarterly billing:
+
+- Only occurs during appropriate months (January, April, July, October)
+- Covers full quarterly periods for accurate billing
+- Handles mid-quarter limit changes with proper prorating
+- Integrates seamlessly with the existing monthly billing infrastructure
 
 ## Processor Architecture
 
@@ -285,6 +391,33 @@ class CreateAllocationProcessor(CreateResourceProcessor):
 - GPU hours (limit-based, annual reset)
 - Storage quota (limit-based, total)
 - Priority queue access (one-time fee)
+
+### 4. Enterprise Software Licensing
+
+**Service Type**: Enterprise software with quarterly billing cycles
+**Billing Pattern**: Quarterly licensing with flexible user limits
+
+```python
+class EnterpriseLicenseProcessor(CreateResourceProcessor):
+    def validate_order(self, request):
+        # Validate license capacity and quarterly billing alignment
+        if not self.should_process_quarterly_billing(timezone.now()):
+            raise ValidationError("Enterprise licenses can only be ordered in quarterly periods")
+
+    def create_component_item(self, source, plan_component, invoice, start, end):
+        # Override to use quarterly periods for all license components
+        quarterly_start, quarterly_end = self.get_quarterly_billing_period(start)
+        super().create_component_item(source, plan_component, invoice,
+                                    quarterly_start, quarterly_end)
+```
+
+**Components**:
+
+- User licenses (limit-based, quarterly reset)
+- Admin seats (limit-based, quarterly reset)
+- Support hours (limit-based, quarterly reset)
+- Implementation services (one-time fee)
+- Training licenses (usage-based, quarterly reporting)
 
 ## Advanced Features
 
