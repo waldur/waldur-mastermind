@@ -99,11 +99,18 @@ class Task(CeleryTask, metaclass=TaskType):
         """Deserialize input data and start backend operation execution"""
         try:
             instance = utils.deserialize_instance(serialized_instance)
-        except ObjectDoesNotExist:
+        except ObjectDoesNotExist as e:
+            # Log the error for debugging while preserving original exception details
+            logger.warning(
+                "Task %s failed to deserialize instance %s: %s. Object was likely deleted between task queuing and execution.",
+                self.__class__.__name__,
+                serialized_instance,
+                str(e),
+            )
             raise ObjectDoesNotExist(
                 "Cannot restore instance from serialized object %s. Probably it was deleted."
                 % serialized_instance
-            )
+            ) from e
 
         self.args = args
         self.kwargs = kwargs
