@@ -580,7 +580,8 @@ def set_mtu_when_network_has_been_created(
 def update_floating_ip_external_addresses(
     sender, instance: FloatingIP, created=False, **kwargs
 ):
-    if not instance.tracker.has_changed("address"):
+    # Process if address changed OR if this is a newly created IP with an address
+    if not (instance.tracker.has_changed("address") or (created and instance.address)):
         return
 
     utils.update_external_addresses_of_floating_ip(instance)

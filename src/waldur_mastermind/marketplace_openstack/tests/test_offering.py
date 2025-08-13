@@ -600,6 +600,87 @@ class InstanceExternalIPTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
 
 
+class ImportedFloatingIPExternalMappingTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = openstack_fixtures.OpenStackFixture()
+        self.parent_offering = marketplace_factories.OfferingFactory(
+            type=TENANT_TYPE,
+            secret_options={
+                "ipv4_external_ip_mapping": [
+                    {
+                        "floating_ip": "100.100.100.0/24",
+                        "external_ip": "200.200.200.0/24",
+                    }
+                ]
+            },
+        )
+        self.offering = marketplace_factories.OfferingFactory(
+            type=INSTANCE_TYPE,
+            parent=self.parent_offering,
+        )
+        self.resource = marketplace_factories.ResourceFactory(offering=self.offering)
+
+    def test_imported_floating_ip_gets_external_address_on_creation(self):
+        # Simulate creating a floating IP via import (created=True signal)
+        floating_ip = openstack_factories.FloatingIPFactory(
+            port=self.fixture.port,
+            address="100.100.100.50",
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            tenant=self.fixture.tenant,
+            state=CoreStates.OK,
+        )
+
+        # Create marketplace resource for the instance
+        marketplace_factories.ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.instance,
+        )
+
+        # Trigger the signal manually as if the floating IP was just imported
+        from waldur_mastermind.marketplace_openstack.handlers import (
+            update_floating_ip_external_addresses,
+        )
+
+        update_floating_ip_external_addresses(
+            sender=floating_ip.__class__, instance=floating_ip, created=True
+        )
+
+        floating_ip.refresh_from_db()
+        self.assertEqual(floating_ip.external_address, "200.200.200.50")
+
+    def test_imported_floating_ip_without_matching_network_gets_no_external_address(
+        self,
+    ):
+        # Simulate creating a floating IP via import with non-matching IP
+        floating_ip = openstack_factories.FloatingIPFactory(
+            port=self.fixture.port,
+            address="192.168.1.50",  # Different network
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            tenant=self.fixture.tenant,
+            state=CoreStates.OK,
+        )
+
+        # Create marketplace resource for the instance
+        marketplace_factories.ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.instance,
+        )
+
+        # Trigger the signal manually as if the floating IP was just imported
+        from waldur_mastermind.marketplace_openstack.handlers import (
+            update_floating_ip_external_addresses,
+        )
+
+        update_floating_ip_external_addresses(
+            sender=floating_ip.__class__, instance=floating_ip, created=True
+        )
+
+        floating_ip.refresh_from_db()
+        self.assertEqual(floating_ip.external_address, None)
+
+
 class UpdateSecretOptionsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.UserFixture()
