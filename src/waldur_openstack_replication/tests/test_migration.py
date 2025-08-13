@@ -1,4 +1,5 @@
 from typing import cast
+from unittest.mock import patch
 
 from django.urls import reverse
 from rest_framework import status, test
@@ -16,6 +17,7 @@ from waldur_mastermind.marketplace_openstack import (
     RAM_TYPE,
     STORAGE_MODE_DYNAMIC,
 )
+from waldur_openstack import models as openstack_models
 from waldur_openstack.models import SubNet, Tenant
 from waldur_openstack.tests.factories import (
     NetworkFactory,
@@ -26,6 +28,7 @@ from waldur_openstack.tests.factories import (
 from waldur_openstack.tests.fixtures import OpenStackFixture
 from waldur_openstack.utils import volume_type_name_to_quota_name
 from waldur_openstack_replication.models import Migration
+from waldur_openstack_replication.tasks import CreateReplicatedPortTask
 
 
 class MigrationTest(test.APITransactionTestCase):
@@ -259,3 +262,126 @@ class MigrationTest(test.APITransactionTestCase):
         routes = [route["destination"] for route in dst_router.routes]
         self.assertIn("192.168.1.0/24", routes)
         self.assertIn("10.0.0.0/24", routes)
+
+
+class CreateReplicatedPortTaskTest(test.APITransactionTestCase):
+    """Tests for handling port creation with data-driven approach."""
+
+    def setUp(self):
+        self.fixture = OpenStackFixture()
+        self.task = CreateReplicatedPortTask()
+
+    def test_port_task_handles_missing_tenant_gracefully(self):
+        """Test that CreateReplicatedPortTask handles missing tenant objects gracefully."""
+        port_data = {
+            "name": "test-port",
+            "description": "Test port",
+            "dst_tenant_id": 99999,  # Non-existent tenant ID
+            "dst_network_id": 1,
+            "dst_subnet_id": 1,
+            "port_security_enabled": True,
+            "fixed_ips": [],
+            "mac_address": "aa:bb:cc:dd:ee:ff",
+            "security_group_names": [],
+        }
+
+        # Run the task - should not raise exception but log warning
+        with patch("waldur_openstack_replication.tasks.logger") as mock_logger:
+            result = self.task.run(port_data)
+
+            # Task should return None (early return) and log warning
+            self.assertIsNone(result)
+            mock_logger.warning.assert_called_once()
+            warning_args = mock_logger.warning.call_args[0]
+            self.assertIn(
+                "Required objects for port creation not found", warning_args[0]
+            )
+            self.assertEqual(port_data, warning_args[1])
+
+    def test_port_task_creates_port_successfully(self):
+        """Test that CreateReplicatedPortTask creates ports successfully with valid data."""
+        # Create required objects
+        network = NetworkFactory(tenant=self.fixture.tenant)
+        subnet = SubNetFactory(network=network, tenant=self.fixture.tenant)
+
+        port_data = {
+            "name": "test-port",
+            "description": "Test port",
+            "dst_tenant_id": self.fixture.tenant.id,
+            "dst_network_id": network.id,
+            "dst_subnet_id": subnet.id,
+            "port_security_enabled": True,
+            "fixed_ips": [],  # Empty to avoid complex backend interactions
+            "mac_address": "aa:bb:cc:dd:ee:ff",
+            "security_group_names": [],
+        }
+
+        # Run the task - should complete without errors
+        result = self.task.run(port_data)
+
+        # Task should complete execution
+        self.assertIsNone(result)  # execute() returns None
+
+        # Verify port was created
+        created_port = openstack_models.Port.objects.filter(
+            tenant=self.fixture.tenant, name="test-port"
+        ).first()
+        self.assertIsNotNone(created_port)
+        self.assertEqual(created_port.description, "Test port")
+
+    def test_port_task_handles_missing_network_gracefully(self):
+        """Test that the task handles missing network objects gracefully."""
+        port_data = {
+            "name": "test-port",
+            "description": "Test port",
+            "dst_tenant_id": self.fixture.tenant.id,
+            "dst_network_id": 99999,  # Non-existent network ID
+            "dst_subnet_id": 1,
+            "port_security_enabled": True,
+            "fixed_ips": [],
+            "mac_address": "aa:bb:cc:dd:ee:ff",
+            "security_group_names": [],
+        }
+
+        with patch("waldur_openstack_replication.tasks.logger") as mock_logger:
+            result = self.task.run(port_data)
+
+            # Should return None and log warning
+            self.assertIsNone(result)
+            mock_logger.warning.assert_called_once()
+            warning_args = mock_logger.warning.call_args[0]
+            self.assertIn(
+                "Required objects for port creation not found", warning_args[0]
+            )
+
+    def test_port_task_adds_security_groups_correctly(self):
+        """Test that the task correctly adds security groups to created ports."""
+        # Create required objects
+        network = NetworkFactory(tenant=self.fixture.tenant)
+        subnet = SubNetFactory(network=network, tenant=self.fixture.tenant)
+
+        port_data = {
+            "name": "test-port",
+            "description": "Test port",
+            "dst_tenant_id": self.fixture.tenant.id,
+            "dst_network_id": network.id,
+            "dst_subnet_id": subnet.id,
+            "port_security_enabled": True,
+            "fixed_ips": [],
+            "mac_address": "aa:bb:cc:dd:ee:ff",
+            "security_group_names": [self.fixture.security_group.name],
+        }
+
+        # Run the task
+        self.task.run(port_data)
+
+        # Verify port was created with security group
+        created_port = openstack_models.Port.objects.filter(
+            tenant=self.fixture.tenant, name="test-port"
+        ).first()
+        self.assertIsNotNone(created_port)
+        self.assertTrue(
+            created_port.security_groups.filter(
+                name=self.fixture.security_group.name
+            ).exists()
+        )

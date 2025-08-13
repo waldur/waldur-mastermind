@@ -1,6 +1,5 @@
 from celery import chain
 
-from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.executors import CreateExecutor
 from waldur_core.core.tasks import StateTransitionTask
@@ -54,37 +53,30 @@ def get_create_ports_tasks(
             src_ports = (instance_ports | free_ports).distinct()
 
             for src_port in src_ports:
-                dst_port = openstack_models.Port.objects.create(
-                    name=src_port.name,
-                    description=src_port.description,
-                    service_settings=dst_tenant.service_settings,
-                    project=dst_tenant.project,
-                    tenant=dst_tenant,
-                    network=dst_network,
-                    port_security_enabled=src_port.port_security_enabled,
-                    subnet=dst_subnet,
-                    fixed_ips=src_port.fixed_ips,
-                    mac_address=src_port.mac_address,
-                )
-
+                # Collect security group names for the port
+                security_group_names = []
                 if src_port.security_groups.exists():
                     for src_sg in src_port.security_groups.all():
-                        try:
-                            dst_sg = openstack_models.SecurityGroup.objects.filter(
-                                tenant=dst_tenant, name=src_sg.name
-                            ).first()
+                        dst_sg = openstack_models.SecurityGroup.objects.filter(
+                            tenant=dst_tenant, name=src_sg.name
+                        ).first()
+                        if dst_sg:
+                            security_group_names.append(src_sg.name)
 
-                            if dst_sg:
-                                dst_port.security_groups.add(dst_sg)
-                        except Exception:
-                            pass
+                # Prepare port creation data for the task
+                port_data = {
+                    "name": src_port.name,
+                    "description": src_port.description,
+                    "dst_tenant_id": dst_tenant.id,
+                    "dst_network_id": dst_network.id,
+                    "dst_subnet_id": dst_subnet.id,
+                    "port_security_enabled": src_port.port_security_enabled,
+                    "fixed_ips": src_port.fixed_ips,
+                    "mac_address": src_port.mac_address,
+                    "security_group_names": security_group_names,
+                }
 
-            for port in dst_tenant.ports.all():
-                creation_tasks.append(
-                    tasks.CreateReplicatedPortTask().si(
-                        core_utils.serialize_instance(port)
-                    )
-                )
+                creation_tasks.append(tasks.CreateReplicatedPortTask().si(port_data))
 
     return chain(*creation_tasks)
 
