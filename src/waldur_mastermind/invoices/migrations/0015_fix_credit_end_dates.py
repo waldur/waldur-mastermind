@@ -47,6 +47,7 @@ def fix_credit_end_dates(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("invoices", "0014_remove_VAT_from_compensations"),
+        ("structure", "0056_customer_project_metadata_checklist"),
     ]
 
     operations = [migrations.RunPython(fix_credit_end_dates)]
