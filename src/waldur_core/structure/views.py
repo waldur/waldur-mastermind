@@ -3,6 +3,7 @@ import logging
 from dbtemplates.models import Template
 from dbtemplates.utils.cache import remove_cached_template
 from django.conf import settings as django_settings
+from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.db.models import Count, Q
@@ -32,6 +33,8 @@ from rest_framework.response import Response
 
 from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.utils import pull_remote_eduteams_user
+from waldur_core.checklist import mixins as checklist_mixins
+from waldur_core.checklist.models import ChecklistCompletion
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
@@ -338,7 +341,10 @@ class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class ProjectViewSet(
-    UserRoleMixin, core_mixins.EagerLoadMixin, core_views.ActionsViewSet
+    checklist_mixins.UserChecklistMixin,
+    UserRoleMixin,
+    core_mixins.EagerLoadMixin,
+    core_views.ActionsViewSet,
 ):
     queryset = models.Project.available_objects.all().order_by("name")
     serializer_class = serializers.ProjectSerializer
@@ -364,6 +370,29 @@ class ProjectViewSet(
     update_permissions = partial_update_permissions = [
         permission_factory(PermissionEnum.UPDATE_PROJECT, ["*", "customer"])
     ]
+
+    # Checklist permissions (view access for all project members and customer roles)
+    checklist_permissions = [permissions.has_project_access]
+    completion_status_permissions = [permissions.has_project_access]
+    submit_answers_permissions = [permissions.is_manager]
+
+    def get_checklist_completion(self, obj):
+        """Get checklist completion for project metadata."""
+        try:
+            # Check if customer has project metadata checklist configured
+            if not obj.customer.project_metadata_checklist:
+                return None
+
+            # Get the ChecklistCompletion for this project
+            project_content_type = ContentType.objects.get_for_model(obj)
+            completion = ChecklistCompletion.objects.get(
+                checklist=obj.customer.project_metadata_checklist,
+                scope_content_type=project_content_type,
+                scope_object_id=obj.id,
+            )
+            return completion
+        except ChecklistCompletion.DoesNotExist:
+            return None
 
     @extend_schema(
         request=serializers.ProjectSerializer,

@@ -139,3 +139,22 @@ class StructureConfig(AppConfig):
             sender=AccessSubnet,
             dispatch_uid="waldur_core.structure.handlers.log_access_subnet_deletion_succeeded",
         )
+
+        # Project metadata signal handlers
+        signals.post_save.connect(
+            handlers.create_project_metadata_completion,
+            sender=Project,
+            dispatch_uid="waldur_core.structure.create_project_metadata_completion",
+        )
+
+        signals.post_save.connect(
+            handlers.create_existing_projects_completions,
+            sender=Customer,
+            dispatch_uid="waldur_core.structure.create_existing_projects_completions",
+        )
+
+        signals.post_save.connect(
+            handlers.delete_project_metadata_completions,
+            sender=Customer,
+            dispatch_uid="waldur_core.structure.delete_project_metadata_completions",
+        )

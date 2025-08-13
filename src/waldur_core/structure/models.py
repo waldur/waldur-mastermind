@@ -26,6 +26,8 @@ from model_utils.tracker import FieldInstanceTracker
 from netfields import CidrAddressField, NetManager
 from reversion import revisions as reversion
 
+from waldur_core.checklist import models as checklist_models
+from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import COUNTRIES_DICT, JSONField
@@ -440,7 +442,16 @@ class Customer(
     organization_groups = models.ManyToManyField(
         to=OrganizationGroup, related_name="customers", blank=True
     )
-    tracker = cast(FieldInstanceTracker, FieldTracker())
+    project_metadata_checklist = models.ForeignKey(
+        checklist_models.Checklist,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text=_("Checklist used for project metadata collection"),
+    )
+    tracker = cast(
+        FieldInstanceTracker, FieldTracker(fields=["project_metadata_checklist"])
+    )
     objects = NetManager()
 
     class Meta:
@@ -461,6 +472,22 @@ class Customer(
 
     def get_log_fields(self):
         return ("uuid", "name", "abbreviation", "contact_details")
+
+    def clean(self):
+        """Validate that the project metadata checklist is of PROJECT_METADATA type."""
+        super().clean()
+        if self.project_metadata_checklist:
+            if (
+                self.project_metadata_checklist.checklist_type
+                != ChecklistTypes.PROJECT_METADATA
+            ):
+                raise ValidationError(
+                    {
+                        "project_metadata_checklist": _(
+                            "Checklist must be of type PROJECT_METADATA"
+                        )
+                    }
+                )
 
     def get_owner_mails(self):
         return (
