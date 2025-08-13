@@ -5779,3 +5779,11 @@ class MaintenanceAnnouncementTemplateSerializer(MaintenanceAnnouncementSerialize
 
     def create(self, validated_data):
         return serializers.HyperlinkedModelSerializer.create(self, validated_data)
+
+
+class MaintenanceActionResponseSerializer(serializers.Serializer):
+    """Serializer for maintenance action responses."""
+
+    detail = serializers.CharField(
+        help_text="Response message describing the action result"
+    )
