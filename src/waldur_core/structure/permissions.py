@@ -106,6 +106,29 @@ def _has_admin_access(user, project: models.Project):
     )
 
 
+def is_manager(request, view, obj=None, **kwargs):
+    """Check if user has manager access to project (customer owner or project manager)."""
+    if not obj:
+        return
+    project = _get_project(obj, **kwargs)
+    if not _has_manager_access(request.user, project):
+        raise exceptions.PermissionDenied()
+
+
+def has_project_access(request, view, obj=None, **kwargs):
+    """Check if user has any access to project (any project role or customer role)."""
+    if not obj:
+        return
+    project = _get_project(obj, **kwargs)
+    if not (
+        _has_admin_access(
+            request.user, project
+        )  # Covers customer owner + project admin/manager
+        or project.has_user(request.user, ProjectRole.MEMBER)  # Project members
+    ):
+        raise exceptions.PermissionDenied()
+
+
 def _get_parent_by_permission_path(obj, permission_path):
     path = getattr(obj.Permissions, permission_path, None)
     if path is None:

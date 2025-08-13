@@ -1,8 +1,10 @@
 import logging
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.utils import timezone
 
+from waldur_core.checklist.models import ChecklistCompletion
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import ChangeEmailRequest, StateMixin
@@ -349,3 +351,61 @@ def permissions_request_approved(sender, permission, structure, **kwargs):
             permission_serialized, structure_serialized
         )
     )
+
+
+# Project metadata handlers
+def create_project_metadata_completion(sender, instance, created=False, **kwargs):
+    """Create ChecklistCompletion for project metadata when a project is created."""
+    if not created:
+        return
+
+    project = instance
+
+    # Check if customer has project metadata checklist configured
+    if project.customer.project_metadata_checklist:
+        # Create ChecklistCompletion using generic foreign key
+        ChecklistCompletion.objects.create(
+            checklist=project.customer.project_metadata_checklist,
+            scope=project,
+        )
+
+
+def create_existing_projects_completions(sender, instance, **kwargs):
+    """Create ChecklistCompletion for existing projects when customer checklist is updated."""
+    customer = instance
+
+    # Only create completions if a checklist is now set
+    if not customer.project_metadata_checklist:
+        return
+
+    # Create completions for all existing projects under this customer
+    project_content_type = ContentType.objects.get_for_model(Project)
+
+    for project in customer.projects.all():
+        # Only create if it doesn't exist yet - using traditional lookup for get_or_create
+        completion, created = ChecklistCompletion.objects.get_or_create(
+            checklist=customer.project_metadata_checklist,
+            scope_content_type=project_content_type,
+            scope_object_id=project.id,
+        )
+
+
+def delete_project_metadata_completions(sender, instance, **kwargs):
+    """Delete ChecklistCompletions when customer's project metadata checklist is removed."""
+    customer = instance
+
+    # Check if project_metadata_checklist field has changed
+    if customer.tracker.has_changed("project_metadata_checklist"):
+        old_checklist = customer.tracker.previous("project_metadata_checklist")
+        current_checklist = customer.project_metadata_checklist
+
+        # If checklist was removed or changed, delete old completions
+        if old_checklist and old_checklist != current_checklist:
+            project_content_type = ContentType.objects.get_for_model(Project)
+            project_ids = list(customer.projects.values_list("id", flat=True))
+
+            ChecklistCompletion.objects.filter(
+                checklist=old_checklist,
+                scope_content_type=project_content_type,
+                scope_object_id__in=project_ids,
+            ).delete()
