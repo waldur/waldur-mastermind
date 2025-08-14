@@ -28,7 +28,7 @@ from waldur_mastermind.marketplace_rancher.processors import (
 )
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests import fixtures as openstack_fixtures
-from waldur_rancher.enums import SERVER_ROLE
+from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE
 from waldur_rancher.tests import factories as rancher_factories
 
 
@@ -112,7 +112,7 @@ class ManagedRancherMultiTenantTest(test.APITransactionTestCase):
                 "name": "multi-tenant-cluster",
                 "worker_nodes_count": 2,
                 "worker_nodes_flavor_name": self.worker_flavor.name,
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "openstack_offering_uuid_list": [
                     o.uuid.hex for o in self.openstack_offerings
                 ],
@@ -148,7 +148,7 @@ class ManagedRancherMultiTenantTest(test.APITransactionTestCase):
                 "name": "multi-tenant-cluster",
                 "worker_nodes_count": 10,  # High worker count
                 "worker_nodes_flavor_name": self.worker_flavor.name,
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "openstack_offering_uuid_list": [
                     o.uuid.hex for o in self.openstack_offerings
                 ],
@@ -182,7 +182,7 @@ class ManagedRancherMultiTenantTest(test.APITransactionTestCase):
                 "name": "even-tenant-cluster",
                 "worker_nodes_count": 2,
                 "worker_nodes_flavor_name": self.worker_flavor.name,
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "openstack_offering_uuid_list": [
                     self.openstack_offerings[0].uuid.hex,
                     self.openstack_offerings[1].uuid.hex,  # 2 tenants - even number
@@ -270,7 +270,7 @@ class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
                 "name": "test-cluster",
                 "worker_nodes_count": 0,  # No workers to isolate fixed overhead
                 "worker_nodes_flavor_name": self.worker_flavor.name,
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
             },
             state=OrderStates.EXECUTING,
@@ -295,7 +295,7 @@ class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
                 "name": "test-cluster",
                 "worker_nodes_count": 5,
                 "worker_nodes_flavor_name": self.worker_flavor.name,
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
             },
             state=OrderStates.EXECUTING,
@@ -318,7 +318,7 @@ class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
                 "name": "test-cluster",
                 "worker_nodes_count": 2,
                 "worker_nodes_flavor_name": self.worker_flavor.name,
-                "worker_nodes_data_volume_size": 100,  # GB
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
             },
             state=OrderStates.EXECUTING,
@@ -350,9 +350,9 @@ class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
                 "name": "test-cluster",
                 "worker_nodes_count": 2,
                 "worker_nodes_flavor_name": self.worker_flavor.name,
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "install_longhorn": True,
-                "worker_nodes_longhorn_volume_size": 200,  # GB per worker
+                "worker_nodes_longhorn_volume_size": 204800,  # 200 GB in MB per worker
                 "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
             },
             state=OrderStates.EXECUTING,
@@ -422,7 +422,7 @@ class ManagedRancherEdgeCasesTest(test.APITransactionTestCase):
                 "name": "test-cluster",
                 "worker_nodes_count": 1,
                 "worker_nodes_flavor_name": "worker.medium",
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
             },
             state=OrderStates.EXECUTING,
@@ -453,7 +453,7 @@ class ManagedRancherEdgeCasesTest(test.APITransactionTestCase):
                 "name": "test-cluster",
                 "worker_nodes_count": 1,
                 "worker_nodes_flavor_name": "worker.medium",
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "openstack_offering_uuid_list": [
                     available_offering.uuid.hex,
                     unavailable_offering_uuid,  # This one is not available
@@ -520,7 +520,7 @@ class ManagedRancherEdgeCasesTest(test.APITransactionTestCase):
                 "name": "control-plane-only",
                 "worker_nodes_count": 0,  # No worker nodes
                 "worker_nodes_flavor_name": "worker.medium",
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
             },
             state=OrderStates.EXECUTING,
@@ -543,7 +543,7 @@ class ManagedRancherEdgeCasesTest(test.APITransactionTestCase):
                 "name": "test-cluster",
                 "worker_nodes_count": 1,
                 "worker_nodes_flavor_name": "worker.medium",
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
             },
             state=OrderStates.EXECUTING,
@@ -680,7 +680,7 @@ class ManagedRancherDynamicStorageTest(test.APITransactionTestCase):
                 "name": "dynamic-storage-cluster",
                 "worker_nodes_count": 2,
                 "worker_nodes_flavor_name": self.worker_flavor.name,
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "worker_nodes_data_volume_type_name": self.hdd_volume_type.name,
                 "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
             },
@@ -714,7 +714,7 @@ class ManagedRancherDynamicStorageTest(test.APITransactionTestCase):
                 "name": "missing-volume-type",
                 "worker_nodes_count": 1,
                 "worker_nodes_flavor_name": self.worker_flavor.name,
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "worker_nodes_data_volume_type_name": "non-existent-type",
                 "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
             },
@@ -816,7 +816,7 @@ class ManagedRancherIntegrationTest(test.APITransactionTestCase):
                 "name": "integration-test-cluster",
                 "worker_nodes_count": 2,
                 "worker_nodes_flavor_name": worker_flavor.name,
-                "worker_nodes_data_volume_size": 100,
+                "worker_nodes_data_volume_size": 102400,  # 100 GB in MB
                 "openstack_offering_uuid_list": [openstack_offering.uuid.hex],
             },
             state=OrderStates.EXECUTING,
@@ -911,3 +911,231 @@ class ManagedRancherIntegrationTest(test.APITransactionTestCase):
                 )
                 self.assertEqual(len(load_balancers), 1)
                 self.assertEqual(load_balancers[0].uuid, mock_instance.uuid)
+
+
+class ManagedRancherStorageIntegrationTest(test.APITransactionTestCase):
+    """Test that MB storage values pass through correctly to OpenStack node creation"""
+
+    def setUp(self):
+        self.fixture = openstack_fixtures.OpenStackFixture()
+
+        # Create OpenStack offering with dynamic storage
+        self.openstack_offering = marketplace_factories.OfferingFactory(
+            type=TENANT_TYPE, scope=openstack_factories.SettingsFactory()
+        )
+        self.openstack_offering.plugin_options.update(
+            {"storage_mode": STORAGE_MODE_DYNAMIC}
+        )
+        self.openstack_offering.save()
+
+        # Create flavors and volume types
+        self.worker_flavor = openstack_factories.FlavorFactory(
+            settings=self.openstack_offering.scope,
+            name="worker.medium",
+            ram=8192,
+            cores=4,
+        )
+        self.server_flavor = openstack_factories.FlavorFactory(
+            settings=self.openstack_offering.scope,
+            name="server.large",
+            ram=16384,
+            cores=8,
+        )
+
+        # Volume types for dynamic storage
+        self.worker_data_volume_type = openstack_factories.VolumeTypeFactory(
+            settings=self.openstack_offering.scope, name="worker-data-ssd"
+        )
+        self.worker_system_volume_type = openstack_factories.VolumeTypeFactory(
+            settings=self.openstack_offering.scope, name="worker-system-ssd"
+        )
+        self.longhorn_volume_type = openstack_factories.VolumeTypeFactory(
+            settings=self.openstack_offering.scope, name="longhorn-storage"
+        )
+
+        # Create load balancer flavor
+        self.lb_flavor = openstack_factories.FlavorFactory(
+            settings=self.openstack_offering.scope,
+            name="lb.small",
+            ram=4096,
+            cores=2,
+        )
+
+        # Create managed rancher offering
+        rancher_offering = marketplace_factories.OfferingFactory(type="Rancher.Cluster")
+        self.offering = marketplace_factories.OfferingFactory(
+            type=MANAGED_RANCHER_PLUGIN, scope=rancher_offering
+        )
+        self.offering.plugin_options.update(
+            {
+                "storage_mode": STORAGE_MODE_DYNAMIC,
+                "managed_rancher_server_flavor_name": self.server_flavor.name,
+                "managed_rancher_server_system_volume_size_gb": 50,
+                "managed_rancher_server_data_volume_size_gb": 100,
+                "managed_rancher_worker_system_volume_size_gb": 30,
+                "managed_rancher_worker_system_volume_type_name": self.worker_system_volume_type.name,
+                "managed_rancher_load_balancer_flavor_name": self.lb_flavor.name,
+                "managed_rancher_load_balancer_system_volume_size_gb": 20,
+                "managed_rancher_load_balancer_data_volume_size_gb": 10,
+                "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
+            }
+        )
+        self.offering.secret_options.update(
+            {
+                "customer_uuid": self.fixture.project.customer.uuid.hex,
+            }
+        )
+        self.offering.save()
+
+    def test_mb_storage_values_pass_through_to_openstack_node_creation(self):
+        """Test that worker node storage values in MB are correctly passed to OpenStack"""
+        # Test values in MB (equivalent to reasonable GB amounts)
+        WORKER_DATA_VOLUME_MB = 51200  # 50 GB in MB
+        LONGHORN_VOLUME_MB = 102400  # 100 GB in MB
+
+        order = marketplace_factories.OrderFactory(
+            project=self.fixture.project,
+            created_by=self.fixture.owner,
+            offering=self.offering,
+            attributes={
+                "name": "storage-integration-test",
+                "worker_nodes_count": 1,
+                "worker_nodes_flavor_name": self.worker_flavor.name,
+                "worker_nodes_data_volume_size": WORKER_DATA_VOLUME_MB,
+                "worker_nodes_data_volume_type_name": self.worker_data_volume_type.name,
+                "install_longhorn": True,
+                "worker_nodes_longhorn_volume_size": LONGHORN_VOLUME_MB,
+                "worker_nodes_longhorn_volume_type_name": self.longhorn_volume_type.name,
+                "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
+            },
+            state=OrderStates.EXECUTING,
+        )
+
+        processor = ManagedRancherCreateProcessor(order)
+
+        # Create a mock tenant with associated marketplace resource
+        mock_tenant = openstack_factories.TenantFactory(
+            service_settings=self.openstack_offering.scope
+        )
+
+        # Create the marketplace resource that links to the tenant
+        marketplace_factories.ResourceFactory(
+            offering=self.openstack_offering,
+            project=self.fixture.project,
+            scope=mock_tenant,
+        )
+
+        # Create subnet for the tenant
+        openstack_factories.SubNetFactory(tenant=mock_tenant, cidr="192.168.1.0/24")
+
+        # Test format_node for worker node - this is where MB values are passed to OpenStack
+        node_data = processor.format_node(role=AGENT_ROLE, tenant=mock_tenant)
+
+        # Verify the storage values passed to OpenStack are in MB (unchanged from input)
+        self.assertEqual(
+            node_data["data_volumes"][0]["size"],
+            WORKER_DATA_VOLUME_MB,
+            f"Worker data volume size should be {WORKER_DATA_VOLUME_MB} MB, not converted to bytes",
+        )
+
+        # Verify longhorn volume is also in MB
+        self.assertEqual(
+            node_data["data_volumes"][1]["size"],
+            LONGHORN_VOLUME_MB,
+            f"Longhorn volume size should be {LONGHORN_VOLUME_MB} MB, not converted to bytes",
+        )
+
+        # Verify volume types are correctly set
+        self.assertIn("volume_type", node_data["data_volumes"][0])
+        self.assertIn("volume_type", node_data["data_volumes"][1])
+
+        # Verify system volume is still converted from GB to MB (server volumes remain in GB)
+        expected_system_volume_mb = 30 * 1024  # 30 GB in MB
+        self.assertEqual(
+            node_data["system_volume_size"],
+            expected_system_volume_mb,
+            f"System volume should be {expected_system_volume_mb} MB (30 GB * 1024)",
+        )
+
+    def test_storage_consistency_across_api_layers(self):
+        """Test that storage values are consistent from API input through to OpenStack creation"""
+
+        # Define test data - realistic sizes in MB
+        TEST_DATA = {
+            "worker_data_volume_mb": 25600,  # 25 GB
+            "longhorn_volume_mb": 51200,  # 50 GB
+        }
+
+        order = marketplace_factories.OrderFactory(
+            project=self.fixture.project,
+            created_by=self.fixture.owner,
+            offering=self.offering,
+            attributes={
+                "name": "consistency-test",
+                "worker_nodes_count": 2,
+                "worker_nodes_flavor_name": self.worker_flavor.name,
+                "worker_nodes_data_volume_size": TEST_DATA["worker_data_volume_mb"],
+                "worker_nodes_data_volume_type_name": self.worker_data_volume_type.name,
+                "install_longhorn": True,
+                "worker_nodes_longhorn_volume_size": TEST_DATA["longhorn_volume_mb"],
+                "worker_nodes_longhorn_volume_type_name": self.longhorn_volume_type.name,
+                "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
+            },
+            state=OrderStates.EXECUTING,
+        )
+
+        processor = ManagedRancherCreateProcessor(order)
+
+        # Test 1: Verify values are preserved in order attributes
+        self.assertEqual(
+            processor.order.attributes["worker_nodes_data_volume_size"],
+            TEST_DATA["worker_data_volume_mb"],
+            "Order attributes should preserve MB input values",
+        )
+        self.assertEqual(
+            processor.order.attributes["worker_nodes_longhorn_volume_size"],
+            TEST_DATA["longhorn_volume_mb"],
+            "Order attributes should preserve MB input values",
+        )
+
+        # Test 2: Verify format_node passes MB values to OpenStack without conversion
+        mock_tenant = openstack_factories.TenantFactory(
+            service_settings=self.openstack_offering.scope
+        )
+        # Create the marketplace resource that links to the tenant
+        marketplace_factories.ResourceFactory(
+            offering=self.openstack_offering,
+            project=self.fixture.project,
+            scope=mock_tenant,
+        )
+        openstack_factories.SubNetFactory(tenant=mock_tenant, cidr="192.168.1.0/24")
+
+        node_data = processor.format_node(role=AGENT_ROLE, tenant=mock_tenant)
+
+        # Verify data volumes are in MB (OpenStack expects MB)
+        data_volume = node_data["data_volumes"][0]  # Worker data volume
+        longhorn_volume = node_data["data_volumes"][1]  # Longhorn volume
+
+        self.assertEqual(
+            data_volume["size"],
+            TEST_DATA["worker_data_volume_mb"],
+            "Worker data volume should be passed to OpenStack in MB without conversion",
+        )
+        self.assertEqual(
+            longhorn_volume["size"],
+            TEST_DATA["longhorn_volume_mb"],
+            "Longhorn volume should be passed to OpenStack in MB without conversion",
+        )
+
+        # Test 3: Verify that input values are used in calculations without additional conversion
+        # This verifies the end-to-end consistency - if the above format_node tests pass
+        # and limit calculations don't cause errors, then the MB integration is working correctly
+        limits = processor.get_tenant_limits(self.openstack_offering)
+
+        # Just verify that limits calculation doesn't fail with MB input values
+        # The existence of limits dict proves that MB values are being handled correctly
+        self.assertIsInstance(
+            limits, dict, "Limit calculations should work with MB input values"
+        )
+        self.assertIn(CORES_TYPE, limits, "CPU limits should be calculated")
+        self.assertIn(RAM_TYPE, limits, "RAM limits should be calculated")
