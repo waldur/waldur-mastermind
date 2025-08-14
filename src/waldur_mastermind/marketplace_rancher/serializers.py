@@ -5,7 +5,9 @@ class ClusterCreateSerializer(serializers.Serializer):
     name = serializers.CharField(help_text="Unique identifier for the cluster")
     worker_nodes_count = serializers.IntegerField()
     worker_nodes_flavor_name = serializers.CharField()
-    worker_nodes_data_volume_size = serializers.IntegerField()
+    worker_nodes_data_volume_size = serializers.IntegerField(
+        help_text="Data volume size for worker nodes in MB (consistent with OpenStack)"
+    )
     worker_nodes_data_volume_type_name = serializers.CharField(required=False)
     openstack_offering_uuid_list = serializers.ListSerializer(
         child=serializers.UUIDField(),
@@ -16,5 +18,8 @@ class ClusterCreateSerializer(serializers.Serializer):
         default=False,
         help_text="Longhorn is a distributed block storage deployed on top of Kubernetes cluster",
     )
-    worker_nodes_longhorn_volume_size = serializers.IntegerField(required=False)
+    worker_nodes_longhorn_volume_size = serializers.IntegerField(
+        required=False,
+        help_text="Longhorn storage volume size for worker nodes in MB (consistent with OpenStack)",
+    )
     worker_nodes_longhorn_volume_type_name = serializers.CharField(required=False)

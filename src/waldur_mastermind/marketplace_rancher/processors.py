@@ -319,7 +319,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             ),
         }
         data_volume_spec: dict[str, int | str] = {
-            "size": data_volume_size * 1024,
+            "size": data_volume_size,
             "mount_point": "/opt/rke2_storage",
             "filesystem": "btrfs",
         }
@@ -368,7 +368,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 "worker_nodes_longhorn_volume_size"
             ]
             longhorn_volume_spec: dict[str, int | str] = {
-                "size": longhorn_volume_size * 1024,
+                "size": longhorn_volume_size,
                 "mount_point": "/opt/longhorn_storage",
                 "filesystem": "btrfs",
             }
@@ -750,7 +750,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             "managed_rancher_worker_system_volume_type_name"
         )
 
-        worker_data_volume_size_gb: int = self.order.attributes[
+        worker_data_volume_size_mb: int = self.order.attributes[
             "worker_nodes_data_volume_size"
         ]
 
@@ -777,9 +777,9 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         )
 
         install_longhorn = self.order.attributes.get("install_longhorn", False)
-        worker_longhorn_volume_size_gb = 0
+        worker_longhorn_volume_size_mb = 0
         if install_longhorn:
-            worker_longhorn_volume_size_gb = self.order.attributes[
+            worker_longhorn_volume_size_mb = self.order.attributes[
                 "worker_nodes_longhorn_volume_size"
             ]
 
@@ -792,8 +792,8 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 * server_nodes_count
                 + (
                     worker_system_volume_size_gb
-                    + worker_data_volume_size_gb
-                    + worker_longhorn_volume_size_gb
+                    + (worker_data_volume_size_mb / 1024)
+                    + (worker_longhorn_volume_size_mb / 1024)
                 )
                 * worker_nodes_count
                 + load_balancer_system_volume_size_gb
@@ -816,7 +816,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 ),
                 (
                     worker_data_volume_type_name,
-                    worker_nodes_count * worker_data_volume_size_gb,
+                    worker_nodes_count * (worker_data_volume_size_mb / 1024),
                 ),
                 (
                     load_balancer_system_volume_type_name,
@@ -834,7 +834,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 volumes.append(
                     (
                         worker_longhorn_volume_type_name,
-                        worker_nodes_count * worker_longhorn_volume_size_gb,
+                        worker_nodes_count * (worker_longhorn_volume_size_mb / 1024),
                     )
                 )
             for volume_type_name, volume_size in volumes:

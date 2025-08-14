@@ -76,7 +76,7 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
                 "worker_nodes_count": 1,
                 "worker_nodes_flavor_name": self.flavor.name,
                 "openstack_offering_uuid_list": [self.openstack_offering.uuid.hex],
-                "worker_nodes_data_volume_size": 50,
+                "worker_nodes_data_volume_size": 51200,  # 50 GB in MB
                 "worker_nodes_data_volume_type_name": "prod3",
             },
             state=OrderStates.EXECUTING,
