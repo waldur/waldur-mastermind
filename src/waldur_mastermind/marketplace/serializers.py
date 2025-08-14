@@ -5187,7 +5187,9 @@ class RobotAccountErrorSerializer(serializers.Serializer):
     )
 
 
-class RobotAccountDetailsSerializer(RobotAccountSerializer):
+class RobotAccountDetailsSerializer(
+    core_serializers.RestrictedSerializerMixin, RobotAccountSerializer
+):
     users = structure_serializers.BasicUserSerializer(many=True, read_only=True)
     responsible_user = structure_serializers.BasicUserSerializer(
         read_only=True, allow_null=True
