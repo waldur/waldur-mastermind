@@ -7,8 +7,21 @@ echo "[+] Install dependencies in case of absence"
 pip3 install uv
 
 # Use system Python environment (no venv) since the test image has dependencies pre-installed
-echo "[+] Install package in editable mode"
-uv pip install --system -e .
+echo "[+] Install dependencies and package using lock file"
+echo "[+] Python prefix: $(python -c 'import sysconfig; print(sysconfig.get_config_var("prefix"))')"
+export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
+echo "[+] UV_PROJECT_ENVIRONMENT set to: $UV_PROJECT_ENVIRONMENT"
+
+# Install dev dependencies directly into system Python
+echo "[+] Installing dev dependencies into system Python"
+uv pip install --python $(which python) pytest pytest-cov pytest-django pytest-split-tests
+
+# Install the project in editable mode
+uv pip install --python $(which python) -e .
+
+# Verify pytest is available
+echo "[+] Verifying pytest installation"
+python -c "import pytest; print(f'pytest {pytest.__version__} is available')"
 
 echo "[+] Setup test settings"
 cat > src/waldur_mastermind/test_settings.py <<-EOF
@@ -33,7 +46,7 @@ EOF
 
 if [ "$TEST_MODE" = "UNIT" ]; then
   echo "[+] Running unit tests without migrations"
-  uv run pytest \
+  pytest \
       --test-group-count $CI_NODE_TOTAL \
       --test-group=$CI_NODE_INDEX \
       --test-group-random-seed=12345 \
@@ -46,10 +59,10 @@ if [ "$TEST_MODE" = "UNIT" ]; then
       src
 
   # Check default configuration
-  DJANGO_SETTINGS_MODULE=waldur_mastermind.test_settings uv run waldur print_settings > /dev/null
+  DJANGO_SETTINGS_MODULE=waldur_mastermind.test_settings waldur print_settings > /dev/null
 elif [ "$TEST_MODE" = "MANAGEMENT" ]; then
   echo "[+] Running tests for management commands"
-  uv run pytest \
+  pytest \
       --junitxml=report.xml \
       --cov=src/ \
       --create-db \

@@ -21,9 +21,8 @@ RUN apt-get update && \
         python3-dev
 
 COPY pyproject.toml /tmp/mnt/pyproject.toml
-COPY poetry.lock /tmp/mnt/poetry.lock
+COPY uv.lock /tmp/mnt/uv.lock
 
 RUN python3 -m pip install --upgrade pip && \
-    pip3 install poetry==2.1.2 && \
-    poetry config virtualenvs.create false && \
-    cd /tmp/mnt/ && poetry install -vvv --no-root
+    pip3 install uv && \
+    cd /tmp/mnt/ && uv sync --locked

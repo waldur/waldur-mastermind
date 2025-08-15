@@ -128,7 +128,12 @@ Run type checkings:
   script:
     - |
       pip3 install uv
-      uv pip install --system -e .
+      echo "[+] Installing pyright and project into system Python"
+      uv pip install --python $(which python) pyright
+      uv pip install --python $(which python) -e .
+      echo "[+] Verifying pyright installation"
+      python -c "import pyright; print(f'pyright is available')" || echo "pyright not found as Python module"
+      which pyright || echo "pyright not in PATH"
       pyright src/waldur_core/structure/models.py \
              src/waldur_mastermind/marketplace_remote/processors.py \
              src/waldur_mastermind/marketplace_rancher/ \
@@ -316,7 +321,8 @@ Upload configuration guide:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
     - pip install uv
-    - uv pip install --system -e .
+    - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
+    - uv sync
     - cd /tmp/
     - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
     - git config --global user.name "$GITLAB_USER_NAME"
@@ -351,7 +357,8 @@ Upload HomePort enums:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
     - pip install uv
-    - uv pip install --system -e .
+    - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
+    - uv sync
     - cd src/waldur_core/permissions
     - python print_permission_enums.py > /tmp/permission_enums.ts
     - cd /tmp/
@@ -382,7 +389,8 @@ Upload MCP metadata:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
     - pip install uv
-    - uv pip install --system -e .
+    - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
+    - uv sync
     - waldur export_model_metadata > /tmp/meta.yaml
     - cd /tmp/
     - git clone "https://mastermind:$MCP_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-mcp-server.git"
@@ -414,7 +422,8 @@ Generate OpenAPI schema:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
     - pip install uv
-    - uv pip install --system -e .
+    - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
+    - uv sync
     - waldur spectacular --file waldur-openapi-schema.yaml --fail-on-warn
   artifacts:
     paths:

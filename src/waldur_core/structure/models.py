@@ -31,7 +31,7 @@ from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import COUNTRIES_DICT, JSONField
-from waldur_core.core.models import AbstractFieldTracker, User
+from waldur_core.core.models import User
 from waldur_core.core.validators import (
     validate_cidr_list,
     validate_name,
@@ -1142,9 +1142,8 @@ class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, BaseReso
     for all VM implementations across different cloud providers.
     """
 
-    def __init__(self, *args, **kwargs):
-        AbstractFieldTracker().finalize_class(self.__class__, "tracker")
-        super().__init__(*args, **kwargs)
+    class Meta:
+        abstract = True
 
     cores = models.PositiveSmallIntegerField(
         default=0, help_text=_("Number of cores in a VM")
@@ -1168,9 +1167,6 @@ class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, BaseReso
         help_text=_("Additional data that will be added to instance on provisioning"),
     )
     start_time = models.DateTimeField(blank=True, null=True)
-
-    class Meta:
-        abstract = True
 
     def get_access_url(self):
         if self.external_ips:

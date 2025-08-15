@@ -107,11 +107,12 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                 self.order.attributes["name"],
             ]
         )
-        return Project.objects.create(
+        project = Project.objects.create(
             customer=provider_customer,
             name=project_name,
             description="Automatically created project for Rancher cluster",
         )
+        return cast(Project, project)
 
     def create_tenants(self, user, project: Project) -> list[os_models.Tenant]:
         tenants = []
@@ -868,6 +869,7 @@ class ManagedRancherDeleteProcessor(processors.AbstractDeleteResourceProcessor):
         if not tenant_resource:
             project = Project.objects.filter(name__icontains=resource.name).first()
             if project:
+                project = cast(Project, project)
                 tenant_resource = Resource.objects.filter(
                     project=project, name__istartswith=f"os-tenant-{project.slug}"
                 ).first()

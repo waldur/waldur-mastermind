@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 
 from django.db import transaction
 from django.db.models import OuterRef
@@ -67,6 +68,7 @@ def allocate_proposal(proposal: proposal_models.Proposal):
         name=project_name,
         start_date=start_date,
     )
+    project = cast(structure_models.Project, project)
 
     if start_date:
         logger.info(

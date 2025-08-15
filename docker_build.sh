@@ -5,9 +5,10 @@ python3 -m pip install --upgrade pip
 # Install uv and gunicorn
 python3 -m pip install uv gunicorn==22.0.0
 
-# Install Python dependencies for Waldur MasterMind from PyPI
-# Use --system to install in system Python environment (no venv)
-uv pip install --system -e .
+# Install Python dependencies for Waldur MasterMind using lock file
+# Use UV_PROJECT_ENVIRONMENT to target system Python (no venv)
+export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
+uv sync
 
 cp /etc/waldur/settings.py src/waldur_core/server/settings.py
 

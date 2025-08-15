@@ -910,6 +910,8 @@ class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
 class Instance(
     core_models.ActionMixin, TenantQuotaMixin, structure_models.VirtualMachine
 ):
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+
     id: int
     ports: "RelatedManager[Port]"
     volumes: models.Manager["Volume"]

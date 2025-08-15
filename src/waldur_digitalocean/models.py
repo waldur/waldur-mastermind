@@ -1,5 +1,9 @@
+from typing import cast
+
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from model_utils import FieldTracker
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.structure import models as structure_models
 
@@ -74,6 +78,8 @@ class Size(structure_models.GeneralServiceProperty):
 
 
 class Droplet(structure_models.VirtualMachine):
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+
     transfer = models.PositiveIntegerField(
         default=0, help_text=_("Amount of transfer bandwidth in MiB")
     )

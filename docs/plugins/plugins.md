@@ -19,7 +19,7 @@ should be implemented.
 Add an entry point of name `waldur_extensions` to `pyproject.toml`:
 
 > ``` toml
-> [tool.poetry.plugins.waldur_extensions]
+> [project.entry-points.waldur_extensions]
 > waldur_demo = "waldur_demo.extension:DemoExtension"
 > ```
 
