@@ -2,13 +2,19 @@ set -e
 
 # Installing Python package manager
 python3 -m pip install --upgrade pip
-# Install uv and gunicorn
-python3 -m pip install uv gunicorn==22.0.0
+# Install uv first
+python3 -m pip install uv
 
 # Install Python dependencies for Waldur MasterMind using lock file
 # Use UV_PROJECT_ENVIRONMENT to target system Python (no venv)
 export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
 uv sync
+
+# Install gunicorn separately after uv sync to ensure it's available
+python3 -m pip install gunicorn==22.0.0
+
+# Install the package in editable mode to ensure it's available
+uv pip install --python $(which python) -e .
 
 cp /etc/waldur/settings.py src/waldur_core/server/settings.py
 
