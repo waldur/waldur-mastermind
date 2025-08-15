@@ -17,7 +17,7 @@ VS Code will build the dev container and set up the environment automatically. T
 - Installing all system dependencies
 - Setting up Python with the correct version
 - Installing VS Code extensions
-- Installing Poetry and project dependencies
+- Installing uv and project dependencies
 - Installing PostgreSQL
 - Configuring pre-commit hooks
 
@@ -44,10 +44,10 @@ Once the container is built and running, you'll have a fully configured developm
 
 ### Installation steps
 
-#### Install poetry
+#### Install uv
 
 ```bash
-curl -sSL https://install.python-poetry.org | python3 -
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 #### Install pyenv
@@ -56,7 +56,6 @@ curl -sSL https://install.python-poetry.org | python3 -
 curl https://pyenv.run | bash
 pyenv install 3.11.9
 pyenv global 3.11.9
-poetry env use 3.11.9
 ```
 
 #### Get the code
@@ -69,8 +68,9 @@ cd waldur-mastermind
 #### Install Waldur in development mode
 
 ```bash
-poetry install
-poetry run pre-commit install
+uv sync --dev
+uv pip install -e .
+uv run pre-commit install
 ```
 
 **NB**: If you use a machine with Apple M1 CPU, run this before:
@@ -112,19 +112,19 @@ ALTER DATABASE waldur OWNER TO waldur;
 Run migrations:
 
 ```bash
-poetry run waldur migrate --noinput
+uv run waldur migrate --noinput
 ```
 
 Collect static files:
 
 ```bash
-poetry run waldur collectstatic --noinput
+uv run waldur collectstatic --noinput
 ```
 
 Start Waldur:
 
 ```bash
-poetry run waldur runserver
+uv run waldur runserver
 ```
 
 ### Additional configuration

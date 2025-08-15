@@ -1,5 +1,9 @@
+from typing import cast
+
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from model_utils import FieldTracker
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core.fields import JSONField
 from waldur_core.core.models import RuntimeStateMixin
@@ -61,6 +65,8 @@ class Size(structure_models.GeneralServiceProperty):
 
 
 class Instance(structure_models.VirtualMachine):
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+
     region = models.ForeignKey(on_delete=models.CASCADE, to=Region)
     public_ips = JSONField(
         default=list, help_text=_("List of public IP addresses"), blank=True

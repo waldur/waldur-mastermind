@@ -747,21 +747,6 @@ class DescendantMixin:
         return []
 
 
-class AbstractFieldTracker(FieldTracker):
-    """
-    Workaround for abstract models field tracking.
-
-    Extends FieldTracker to work properly with abstract models.
-    See: https://gist.github.com/sbnoemi/7618916
-    """
-
-    def finalize_class(self, sender, name, **kwargs):
-        self.name = name
-        self.attname = "_%s" % name
-        if not hasattr(sender, name):
-            super().finalize_class(sender, **kwargs)
-
-
 class BackendModelMixin:
     """
     Mixin for models connected to backend objects.

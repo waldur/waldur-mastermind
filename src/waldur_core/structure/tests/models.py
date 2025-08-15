@@ -1,4 +1,8 @@
+from typing import cast
+
 from django.db import models
+from model_utils import FieldTracker
+from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.quotas.fields import QuotaField
 from waldur_core.quotas.models import QuotaModelMixin
@@ -9,6 +13,7 @@ class TestNewInstance(QuotaModelMixin, structure_models.VirtualMachine):
     __test__ = False
 
     flavor_name = models.CharField(max_length=255, blank=True)
+    tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Quotas(QuotaModelMixin.Quotas):
         test_quota = QuotaField(default_limit=1)

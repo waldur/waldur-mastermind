@@ -144,6 +144,8 @@ class PublicIP(BaseResourceGroupModel):
 
 
 class VirtualMachine(structure_models.VirtualMachine):
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+
     resource_group = models.ForeignKey(on_delete=models.CASCADE, to=ResourceGroup)
     size = models.ForeignKey(on_delete=models.CASCADE, to=Size)
     image = models.ForeignKey(on_delete=models.CASCADE, to=Image)

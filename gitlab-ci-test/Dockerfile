@@ -15,14 +15,13 @@ RUN apt-get update    &&\
     python3-dev
 
 RUN python3 -m pip install --upgrade pip
-RUN pip3 install poetry==2.1.3
+RUN pip3 install uv
 
-# Copy poetry files
+# Copy project files
 COPY pyproject.toml /tmp/mnt/pyproject.toml
-COPY poetry.lock /tmp/mnt/poetry.lock
+COPY uv.lock /tmp/mnt/uv.lock
 
-# Install dependencies
-RUN poetry config virtualenvs.create false
-RUN cd /tmp/mnt && poetry install -vvv --no-root
+# Install dependencies using lock file for reproducible builds
+RUN cd /tmp/mnt && uv sync --locked
 
 CMD ["/bin/sh"]
