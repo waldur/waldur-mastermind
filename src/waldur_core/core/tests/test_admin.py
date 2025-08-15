@@ -17,6 +17,10 @@ class MockRequest:
 
 
 class MockSuperUser:
+    is_authenticated = True
+    is_staff = True
+    is_anonymous = False
+
     def has_perm(self, perm):
         return True
 
