@@ -63,6 +63,8 @@ class RancherDeleteProcessor(processors.DeleteScopedResourceProcessor):
 
 
 class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
+    create_serializer_class = serializers.ClusterCreateSerializer
+
     def send_request(self, user) -> Resource:
         serializer = serializers.ClusterCreateSerializer(data=self.order.attributes)
         serializer.is_valid(raise_exception=True)

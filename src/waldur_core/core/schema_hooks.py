@@ -1,3 +1,8 @@
+from unittest import mock
+
+from drf_spectacular.openapi import AutoSchema
+
+
 def postprocess_drop_description(result, generator, **kwargs):
     """
     Remove descriptions from OpenAPI schema components.
@@ -292,3 +297,80 @@ def adjust_request_body_content_types(result, generator, **kwargs):
                 request_body["content"].pop("application/x-www-form-urlencoded", None)
                 request_body["content"].pop("multipart/form-data", None)
     return result
+
+
+def add_polymorphic_attributes_schema(result, generator, **kwargs):
+    """
+    Preprocessing hook to add polymorphic schema for the 'attributes' field
+    in order creation endpoints based on offering types.
+    """
+    from waldur_mastermind.marketplace.plugins import manager
+
+    result_schemas = result.get("components", {}).get("schemas", {})
+    offering_schemas = []
+
+    for offering_type in manager.get_offering_types():
+        processor_class = manager.get_processor(
+            offering_type, "create_resource_processor"
+        )
+        if not processor_class:
+            continue
+        schema = create_offering_attributes_schema(processor_class, generator)
+        schema_name = f"{offering_type.replace('.', '')}CreateOrderAttributes"
+        result_schemas[schema_name] = schema
+        if schema:
+            offering_schemas.append({"$ref": f"#/components/schemas/{schema_name}"})
+
+    result_schemas["OrderCreateRequest"]["properties"]["attributes"] = {
+        "oneOf": offering_schemas,
+        "description": "Attributes structure depends on the offering type specified in the parent object",
+    }
+
+    return result
+
+
+def create_offering_attributes_schema(processor_class, generator):
+    """
+    Create schema for attributes field specific to an offering type.
+    This extracts the field definitions from the processor configuration.
+    """
+    from waldur_mastermind.marketplace.views import OrderViewSet
+
+    if getattr(processor_class, "create_serializer_class", None):
+        serializer_class = processor_class.create_serializer_class
+        auto = AutoSchema()
+        auto.view = OrderViewSet.as_view({"post": "create"})
+        auto.view.request = mock.Mock()
+        auto.view.request.query_params.getlist.return_value = []
+        auto.registry = generator.registry
+    else:
+        viewset_class = getattr(processor_class, "viewset", None)
+
+        if not viewset_class:
+            return None
+
+        # Get the serializer class (prefer create_serializer_class)
+        serializer_class = getattr(
+            viewset_class, "create_serializer_class", None
+        ) or getattr(viewset_class, "serializer_class", None)
+
+        if not serializer_class:
+            return None
+
+        auto = AutoSchema()
+        auto.view = viewset_class.as_view({"post": "create"})
+        auto.view.request = mock.Mock()
+        auto.view.request.query_params.getlist.return_value = []
+        auto.registry = generator.registry
+
+    schema = auto._map_serializer(
+        serializer_class, direction="request", bypass_extensions=True
+    )
+    fields = getattr(processor_class, "fields", ())
+    if fields:
+        schema["properties"] = {
+            field: schema["properties"][field]
+            for field in fields
+            if field in schema["properties"]
+        }
+    return schema
