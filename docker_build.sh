@@ -2,13 +2,12 @@ set -e
 
 # Installing Python package manager
 python3 -m pip install --upgrade pip
-# Upgrade setuptools to the latest
-python3 -m pip install --upgrade setuptools==80.9.0
-python3 -m pip install poetry==2.1.3 gunicorn==22.0.0
-poetry config virtualenvs.create false
+# Install uv and gunicorn
+python3 -m pip install uv gunicorn==22.0.0
 
 # Install Python dependencies for Waldur MasterMind from PyPI
-poetry install --without dev
+# Use --system to install in system Python environment (no venv)
+uv pip install --system -e .
 
 cp /etc/waldur/settings.py src/waldur_core/server/settings.py
 

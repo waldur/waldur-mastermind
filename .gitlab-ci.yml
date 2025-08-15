@@ -51,7 +51,7 @@ Run linters:
     # If event is related to a created merge request
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
-    - pip install pre-commit
+    - pip install uv pre-commit
     - pre-commit run --all
 
 .Unit test runner:
@@ -70,7 +70,7 @@ Run linters:
       changes:
         - src/**/*
         - pyproject.toml
-        - poetry.lock
+        - uv.lock
         - gitlab-ci-test/**/*
   services:
     - name: "registry.hpc.ut.ee/mirror/library/postgres:15-alpine"
@@ -127,9 +127,8 @@ Run type checkings:
   extends: .Unit test runner
   script:
     - |
-      pip3 install poetry==2.1.2
-      pip3 install --upgrade setuptools==80.9.0
-      poetry install -vvv
+      pip3 install uv
+      uv pip install --system -e .
       pyright src/waldur_core/structure/models.py \
              src/waldur_mastermind/marketplace_remote/processors.py \
              src/waldur_mastermind/marketplace_rancher/ \
@@ -316,7 +315,8 @@ Upload configuration guide:
     DEVELOPER_DOCS_PATH: docs/developer-guide
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
-    - poetry install
+    - pip install uv
+    - uv pip install --system -e .
     - cd /tmp/
     - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
     - git config --global user.name "$GITLAB_USER_NAME"
@@ -350,7 +350,8 @@ Upload HomePort enums:
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
-    - poetry install
+    - pip install uv
+    - uv pip install --system -e .
     - cd src/waldur_core/permissions
     - python print_permission_enums.py > /tmp/permission_enums.ts
     - cd /tmp/
@@ -380,7 +381,8 @@ Upload MCP metadata:
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
-    - poetry install
+    - pip install uv
+    - uv pip install --system -e .
     - waldur export_model_metadata > /tmp/meta.yaml
     - cd /tmp/
     - git clone "https://mastermind:$MCP_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-mcp-server.git"
@@ -411,7 +413,8 @@ Generate OpenAPI schema:
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
-    - poetry install
+    - pip install uv
+    - uv pip install --system -e .
     - waldur spectacular --file waldur-openapi-schema.yaml --fail-on-warn
   artifacts:
     paths:
