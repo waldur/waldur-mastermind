@@ -474,8 +474,12 @@ class CustomerSerializer(
         }
 
     def get_optional_fields(self):
-        # Make 'projects' field optional, only rendered if requested via ?field=projects
-        return super().get_optional_fields() + ["projects"]
+        # Make expensive fields optional, only rendered if requested via ?field=
+        return super().get_optional_fields() + [
+            "projects",
+            "users_count",
+            "organization_groups",
+        ]
 
     def get_fields(self):
         fields = super().get_fields()
@@ -503,10 +507,23 @@ class CustomerSerializer(
 
     @staticmethod
     def eager_load(queryset, request=None):
-        queryset = queryset.prefetch_related(
-            "projects",  # For projects field
-            "organization_groups",  # For organization_groups field
-        )
+        # Only prefetch fields that are actually requested
+        prefetch_relations = []
+
+        if request:
+            requested_fields = request.query_params.getlist("field")
+            # If no field parameter specified, prefetch all (default behavior)
+            # Otherwise only prefetch fields that are explicitly requested
+            if not requested_fields or "projects" in requested_fields:
+                prefetch_relations.append("projects")
+            if not requested_fields or "organization_groups" in requested_fields:
+                prefetch_relations.append("organization_groups")
+        else:
+            # No request context, prefetch all (fallback)
+            prefetch_relations = ["projects", "organization_groups"]
+
+        if prefetch_relations:
+            queryset = queryset.prefetch_related(*prefetch_relations)
         return queryset
 
     def validate(self, attrs):

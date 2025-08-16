@@ -137,8 +137,12 @@ class CustomerViewSet(
         """Override to add bulk optimizations after pagination."""
         page = super().paginate_queryset(queryset)
         if page is not None:
-            self._optimize_users_count(page)
-            self._optimize_billing_estimates(page)
+            # Only optimize expensive fields if they're actually requested
+            requested_fields = self.request.query_params.getlist("field")
+            if not requested_fields or "users_count" in requested_fields:
+                self._optimize_users_count(page)
+            if not requested_fields or "billing_price_estimate" in requested_fields:
+                self._optimize_billing_estimates(page)
         return page
 
     def _optimize_users_count(self, customers):

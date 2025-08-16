@@ -49,6 +49,7 @@ from waldur_mastermind.marketplace.enums import (
     RobotAccountStates,
 )
 from waldur_mastermind.marketplace.exceptions import PolicyException
+from waldur_mastermind.notifications import models as notifications_models
 from waldur_pid import mixins as pid_mixins
 
 from ..common import mixins as common_mixins
@@ -2379,6 +2380,14 @@ class MaintenanceAnnouncement(
 
     external_reference_url = models.URLField(
         blank=True, help_text="Optional reference to an external maintenance tracker"
+    )
+    admin_announcement = models.OneToOneField(
+        notifications_models.AdminAnnouncement,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="maintenance_announcement",
+        help_text="Associated admin announcement for this maintenance",
     )
     tracker = FieldTracker()
 

@@ -2,9 +2,10 @@
 
 ## Overview
 
-The MaintenanceAnnouncement system provides a solution for managing and communicating maintenance
+The MaintenanceAnnouncement system provides a comprehensive solution for managing and communicating maintenance
 activities across Waldur services. Service providers can create, schedule, execute, and track
-maintenance announcements through a complete REST API interface.
+maintenance announcements through a complete REST API interface. The system automatically integrates
+with the AdminAnnouncement system to provide user-facing notifications when maintenance is scheduled.
 
 ## Core Concepts
 
@@ -18,6 +19,7 @@ Maintenance announcements represent planned or emergency maintenance activities 
 - **State Management**: FSM-controlled lifecycle states
 - **Service Provider**: Associated service provider responsible for the maintenance
 - **Impact Tracking**: Affected offerings with specific impact levels
+- **AdminAnnouncement Integration**: Automatic creation of user-facing notifications when scheduled
 
 ### State Lifecycle
 
@@ -114,7 +116,7 @@ All state management actions use POST method and follow the same pattern:
 
 #### Schedule Maintenance
 
-Publishes a draft maintenance announcement, making it visible to customers.
+Publishes a draft maintenance announcement, making it visible to customers and automatically creates an associated AdminAnnouncement for user notifications.
 
 ```http
 POST /api/maintenance-announcements/{uuid}/schedule/
@@ -125,11 +127,17 @@ POST /api/maintenance-announcements/{uuid}/schedule/
 - Current state must be `DRAFT`
 - User must be staff or service provider owner
 
-**Result:** `DRAFT → SCHEDULED`
+**Result:**
+
+- State transition: `DRAFT → SCHEDULED`
+- **AdminAnnouncement creation**: Automatically creates a user-facing notification
+- **Content generation**: Uses maintenance type prefix + message
+- **Priority mapping**: Sets appropriate priority based on maintenance type
+- **Timing**: Active from `scheduled_start - notify_before_minutes` to `scheduled_end + 1 hour`
 
 #### Unschedule Maintenance
 
-Unpublishes a scheduled maintenance announcement, returning it to draft state.
+Unpublishes a scheduled maintenance announcement, returning it to draft state and removes the associated AdminAnnouncement.
 
 ```http
 POST /api/maintenance-announcements/{uuid}/unschedule/
@@ -140,7 +148,10 @@ POST /api/maintenance-announcements/{uuid}/unschedule/
 - Current state must be `SCHEDULED`
 - User must be staff or service provider owner
 
-**Result:** `SCHEDULED → DRAFT`
+**Result:**
+
+- State transition: `SCHEDULED → DRAFT`
+- **AdminAnnouncement cleanup**: Automatically deletes the associated user notification
 
 #### Start Maintenance
 
@@ -176,7 +187,7 @@ POST /api/maintenance-announcements/{uuid}/complete_maintenance/
 
 #### Cancel Maintenance
 
-Cancels maintenance before completion.
+Cancels maintenance before completion and removes any associated AdminAnnouncement.
 
 ```http
 POST /api/maintenance-announcements/{uuid}/cancel_maintenance/
@@ -187,7 +198,10 @@ POST /api/maintenance-announcements/{uuid}/cancel_maintenance/
 - Current state must be `DRAFT` or `SCHEDULED`
 - User must be staff or service provider owner
 
-**Result:** `DRAFT|SCHEDULED → CANCELLED`
+**Result:**
+
+- State transition: `DRAFT|SCHEDULED → CANCELLED`
+- **AdminAnnouncement cleanup**: Automatically deletes the associated user notification (if scheduled)
 
 ### Response Format
 
@@ -234,6 +248,143 @@ The system supports different types of maintenance activities:
 | 3 | Security | Security-related updates and patches |
 | 4 | Upgrade | System upgrades and feature deployments |
 | 5 | Patch | Minor patches and bug fixes |
+
+## AdminAnnouncement Integration
+
+### Automatic User Notifications
+
+When a MaintenanceAnnouncement transitions from `DRAFT` to `SCHEDULED` state, the system automatically creates an associated AdminAnnouncement to notify users. This integration provides:
+
+#### Content Generation
+
+The AdminAnnouncement content is automatically generated with:
+
+- **Type-specific prefix**: Each maintenance type gets a descriptive emoji prefix
+  - 🔧 Scheduled Maintenance
+  - 🚨 Emergency Maintenance
+  - 🔒 Security Maintenance
+  - ⬆️ System Upgrade
+  - 🩹 Patch Deployment
+- **Original message**: The maintenance message is used as-is
+- **Combined format**: `[Type Prefix]: [Original Message]`
+
+**Example:**
+
+```text
+MaintenanceAnnouncement message: "Database servers will be upgraded for improved performance"
+AdminAnnouncement content: "🔧 Scheduled Maintenance: Database servers will be upgraded for improved performance"
+```
+
+#### Priority Mapping
+
+AdminAnnouncement priority is automatically set based on maintenance type:
+
+- **Emergency maintenance** → `DANGER` priority (red alerts)
+- **Security maintenance** → `WARNING` priority (yellow alerts)
+- **All other types** → `INFORMATION` priority (blue alerts)
+
+#### Timing Configuration
+
+AdminAnnouncements are scheduled using the `MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES` setting:
+
+- **Active from**: `scheduled_start - notify_before_minutes`
+- **Active to**: `scheduled_end + 1 hour` (buffer for completion)
+
+Default notify_before_minutes is 60 minutes.
+
+#### Lifecycle Management
+
+The AdminAnnouncement automatically syncs with MaintenanceAnnouncement changes:
+
+- **Content updates**: When maintenance message or type changes
+- **Cleanup**: When maintenance is unscheduled or cancelled
+- **Deletion handling**: Uses SET_NULL to handle manual AdminAnnouncement deletions
+
+### Enhanced AdminAnnouncement API
+
+When a MaintenanceAnnouncement is scheduled, the associated AdminAnnouncement exposes additional maintenance-related fields through the API:
+
+#### Additional Serializer Fields
+
+```http
+GET /api/admin-announcements/{uuid}/
+```
+
+**Response includes maintenance fields:**
+
+```json
+{
+  "uuid": "admin-announcement-uuid",
+  "description": "🔧 Scheduled Maintenance: Database servers will be upgraded",
+  "type": 1,
+  "active_from": "2024-01-15T01:00:00Z",
+  "active_to": "2024-01-15T05:00:00Z",
+  "maintenance_uuid": "maintenance-announcement-uuid",
+  "maintenance_name": "Database Server Upgrade",
+  "maintenance_type": "upgrade",
+  "maintenance_state": "scheduled",
+  "maintenance_scheduled_start": "2024-01-15T02:00:00Z",
+  "maintenance_scheduled_end": "2024-01-15T04:00:00Z",
+  "maintenance_service_provider": "Example Cloud Services",
+  "maintenance_affected_offerings": [
+    {
+      "uuid": "offering-uuid-1",
+      "name": "Database Service",
+      "impact_level": "partial_outage",
+      "impact_level_display": "Partial outage",
+      "impact_description": "Database connections may be intermittent"
+    },
+    {
+      "uuid": "offering-uuid-2",
+      "name": "API Gateway",
+      "impact_level": "degraded_performance",
+      "impact_level_display": "Degraded performance",
+      "impact_description": "API responses may be slower than usual"
+    }
+  ]
+}
+```
+
+**Field Descriptions:**
+
+- **maintenance_uuid**: UUID of the associated MaintenanceAnnouncement
+- **maintenance_name**: Human-readable name of the maintenance
+- **maintenance_type**: Type of maintenance (upgrade, emergency, etc.)
+- **maintenance_state**: Current FSM state of the maintenance
+- **maintenance_scheduled_start/end**: Planned maintenance window
+- **maintenance_service_provider**: Name of the responsible service provider
+- **maintenance_affected_offerings**: Array of affected offerings with impact details
+
+#### API Integration Notes
+
+- **Conditional fields**: Maintenance fields are only present when AdminAnnouncement has an associated MaintenanceAnnouncement
+- **Real-time updates**: Fields automatically update when maintenance details change
+- **OpenAPI documentation**: All fields are properly documented with type hints for schema generation
+- **Null safety**: Fields return `null` or empty arrays when no maintenance is associated
+
+## Configuration
+
+### Settings
+
+#### MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES
+
+Controls how long before the scheduled maintenance start time that AdminAnnouncements become active.
+
+**Default:** `60` (minutes)
+
+**Usage:**
+
+```python
+# settings.py
+CONSTANCE_CONFIG = {
+    'MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES': (60, 'Minutes before maintenance to show admin announcements'),
+}
+```
+
+**Effect:**
+
+- AdminAnnouncement `active_from` = `maintenance.scheduled_start - notify_before_minutes`
+- Users see the notification from this time until maintenance completion + 1 hour buffer
 
 ## External Integration
 
@@ -412,3 +563,11 @@ MaintenanceAnnouncement uses Waldur's standard permission system:
 - Affected offerings inherit the same permission model as the parent maintenance announcement
 - Impact levels and descriptions are specific to each offering-maintenance relationship
 - Deleting a maintenance announcement will cascade delete all associated affected offerings
+
+### AdminAnnouncement Integration Notes
+
+- **Automatic lifecycle**: AdminAnnouncements are automatically created/updated/deleted based on maintenance state
+- **Manual deletion handling**: If an AdminAnnouncement is manually deleted, the maintenance relationship is gracefully cleared (SET_NULL)
+- **Content synchronization**: AdminAnnouncement content automatically updates when maintenance message or type changes
+- **Enhanced API**: AdminAnnouncement API dynamically includes maintenance fields when associated with maintenance
+- **No manual management needed**: The integration is fully automated - no manual AdminAnnouncement creation required
