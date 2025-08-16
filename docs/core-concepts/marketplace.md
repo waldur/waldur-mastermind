@@ -253,18 +253,18 @@ def get_period_end_for_limit_period(cls, limit_period):
 **Invoice Item Creation**: The registrator handles quarterly components differently:
 
 1. **During `_create_item()`**:
-   - Skips processing in non-quarterly months for QUARTERLY components
-   - Uses full quarterly periods instead of monthly periods
-   - Creates invoice items spanning entire quarters
+  - Skips processing in non-quarterly months for QUARTERLY components
+  - Uses full quarterly periods instead of monthly periods
+  - Creates invoice items spanning entire quarters
 
 2. **During `create_or_update_component_item()`**:
-   - Uses quarterly billing periods for new QUARTERLY components
-   - Handles limit changes with appropriate quarter calculations
+  - Uses quarterly billing periods for new QUARTERLY components
+  - Handles limit changes with appropriate quarter calculations
 
 3. **Quantity Calculation**:
-   - Uses `PER_QUARTER` unit from `common.enums.Units`
-   - Leverages `get_full_quarters(start, end)` for period calculations
-   - Supports prorated billing for partial quarterly periods
+  - Uses `PER_QUARTER` unit from `common.enums.Units`
+  - Leverages `get_full_quarters(start, end)` for period calculations
+  - Supports prorated billing for partial quarterly periods
 
 **Limit Update Handling**: When resource limits change for quarterly components:
 
