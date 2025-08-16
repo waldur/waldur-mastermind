@@ -1,7 +1,10 @@
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
-from waldur_core.core.serializers import RestrictedSerializerMixin
+from waldur_core.core.serializers import (
+    AugmentedSerializerMixin,
+    RestrictedSerializerMixin,
+)
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace.models import Offering
 
@@ -98,7 +101,7 @@ class MessageTemplateSerializer(
 
 
 class AdminAnnouncementSerializer(
-    RestrictedSerializerMixin, serializers.ModelSerializer
+    AugmentedSerializerMixin, RestrictedSerializerMixin, serializers.ModelSerializer
 ):
     class Meta:
         model = models.AdminAnnouncement

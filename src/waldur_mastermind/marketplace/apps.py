@@ -287,6 +287,31 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.create_offering_user_when_project_role_created",
         )
 
+        # MaintenanceAnnouncement -> AdminAnnouncement handlers
+        signals.post_save.connect(
+            handlers.manage_maintenance_admin_announcements,
+            sender=models.MaintenanceAnnouncement,
+            dispatch_uid="waldur_mastermind.marketplace.manage_maintenance_admin_announcements",
+        )
+
+        signals.post_save.connect(
+            handlers.update_maintenance_announcement_on_offering_change,
+            sender=models.MaintenanceAnnouncementOffering,
+            dispatch_uid="waldur_mastermind.marketplace.update_maintenance_announcement_on_offering_change",
+        )
+
+        signals.post_delete.connect(
+            handlers.update_maintenance_announcement_on_offering_change,
+            sender=models.MaintenanceAnnouncementOffering,
+            dispatch_uid="waldur_mastermind.marketplace.update_maintenance_announcement_on_offering_delete",
+        )
+
+        signals.pre_delete.connect(
+            handlers.cleanup_admin_announcement_on_maintenance_deletion,
+            sender=models.MaintenanceAnnouncement,
+            dispatch_uid="waldur_mastermind.marketplace.cleanup_admin_announcement_on_maintenance_deletion",
+        )
+
         marketplace_signals.resource_creation_succeeded.connect(
             handlers.create_offering_user_for_new_resource,
             sender=models.Resource,
@@ -333,4 +358,15 @@ class MarketplaceConfig(AppConfig):
             handlers.update_offering_user_username_after_user_change,
             sender=core_models.User,
             dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_user_change",
+        )
+
+        # Add maintenance fields to AdminAnnouncementSerializer
+        from waldur_mastermind.notifications.serializers import (
+            AdminAnnouncementSerializer,
+        )
+
+        core_signals.pre_serializer_fields.connect(
+            handlers.add_maintenance_fields_to_admin_announcement_serializer,
+            sender=AdminAnnouncementSerializer,
+            dispatch_uid="waldur_mastermind.marketplace.add_maintenance_fields_to_admin_announcement_serializer",
         )
