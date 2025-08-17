@@ -173,6 +173,9 @@ build-backend = "hatchling.build"
 [tool.hatch.metadata]
 allow-direct-references = true
 
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
 [tool.ruff]
 # Never enforce `E501` (line length violations).
 lint.ignore = ["E501", "UP031"]
