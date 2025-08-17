@@ -174,7 +174,30 @@ build-backend = "hatchling.build"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = [
+  "src/waldur_auth_saml2",
+  "src/waldur_auth_social",
+  "src/waldur_auth_valimo",
+  "src/waldur_autoprovisioning",
+  "src/waldur_aws",
+  "src/waldur_azure",
+  "src/waldur_core",
+  "src/waldur_digitalocean",
+  "src/waldur_firecrest",
+  "src/waldur_freeipa",
+  "src/waldur_hpc",
+  "src/waldur_kubernetes",
+  "src/waldur_lexis",
+  "src/waldur_mastermind",
+  "src/waldur_openstack",
+  "src/waldur_openstack_replication",
+  "src/waldur_openstack_tenant",
+  "src/waldur_pid",
+  "src/waldur_rancher",
+  "src/waldur_slurm",
+  "src/waldur_vmware",
+]
+sources = ["src"]
 
 [tool.ruff]
 # Never enforce `E501` (line length violations).
