@@ -4,7 +4,9 @@ Integration tests for health check endpoints.
 
 from unittest.mock import patch
 
+from django.conf import settings
 from django.test import TestCase
+from health_check.contrib.celery_ping.backends import CeleryPingHealthCheck
 
 
 class HealthCheckIntegrationTest(TestCase):
@@ -17,9 +19,6 @@ class HealthCheckIntegrationTest(TestCase):
         was expecting Queue objects but received dictionaries/strings, causing:
         AttributeError: 'str' object has no attribute 'name'
         """
-        from django.conf import settings
-        from health_check.contrib.celery_ping.backends import CeleryPingHealthCheck
-
         # Create the health check backend
         backend = CeleryPingHealthCheck()
 
@@ -50,8 +49,6 @@ class HealthCheckIntegrationTest(TestCase):
 
     def test_health_check_processes_queues_correctly(self):
         """Test that the health check can process our queue configuration."""
-        from django.conf import settings
-
         # This simulates what the health check does internally
         # It should not raise AttributeError: 'str' object has no attribute 'name'
         defined_queues = settings.CELERY_TASK_QUEUES
