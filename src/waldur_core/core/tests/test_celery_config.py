@@ -6,7 +6,10 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.test import TestCase
+from health_check.contrib.celery_ping.backends import CeleryPingHealthCheck
 from kombu import Queue
+
+from waldur_core.server.celeryconf import PriorityRouter
 
 
 class CeleryConfigurationTest(TestCase):
@@ -72,9 +75,6 @@ class CeleryConfigurationTest(TestCase):
     )
     def test_health_check_celery_ping_compatibility(self, mock_check_status):
         """Test that queue configuration is compatible with health check celery ping."""
-        # Import here to avoid issues if health_check is not installed
-        from health_check.contrib.celery_ping.backends import CeleryPingHealthCheck
-
         CeleryPingHealthCheck()
 
         # Simulate the health check's queue processing
@@ -123,8 +123,6 @@ class CeleryConfigurationTest(TestCase):
 
     def test_priority_router_queue_mapping(self):
         """Test that the PriorityRouter correctly maps tasks to queues."""
-        from waldur_core.server.celeryconf import PriorityRouter
-
         router = PriorityRouter()
 
         # Mock a heavy task
