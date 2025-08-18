@@ -316,10 +316,11 @@ def add_polymorphic_attributes_schema(result, generator, **kwargs):
         if not processor_class:
             continue
         schema = create_offering_attributes_schema(processor_class, generator)
+        if not schema:
+            continue
         schema_name = f"{offering_type.replace('.', '')}CreateOrderAttributes"
         result_schemas[schema_name] = schema
-        if schema:
-            offering_schemas.append({"$ref": f"#/components/schemas/{schema_name}"})
+        offering_schemas.append({"$ref": f"#/components/schemas/{schema_name}"})
 
     result_schemas["OrderCreateRequest"]["properties"]["attributes"] = {
         "oneOf": offering_schemas,
