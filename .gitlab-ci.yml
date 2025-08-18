@@ -322,7 +322,7 @@ Upload configuration guide:
   script:
     - pip install uv
     - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
-    - uv sync
+    - uv sync --extra dev
     - cd /tmp/
     - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
     - git config --global user.name "$GITLAB_USER_NAME"
@@ -358,7 +358,7 @@ Upload HomePort enums:
   script:
     - pip install uv
     - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
-    - uv sync
+    - uv sync --extra dev
     - cd src/waldur_core/permissions
     - python print_permission_enums.py > /tmp/permission_enums.ts
     - cd /tmp/
@@ -390,7 +390,7 @@ Upload MCP metadata:
   script:
     - pip install uv
     - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
-    - uv sync
+    - uv sync --extra dev
     - waldur export_model_metadata > /tmp/meta.yaml
     - cd /tmp/
     - git clone "https://mastermind:$MCP_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-mcp-server.git"
@@ -423,7 +423,7 @@ Generate OpenAPI schema:
   script:
     - pip install uv
     - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
-    - uv sync
+    - uv sync --extra dev
     - waldur spectacular --file waldur-openapi-schema.yaml --fail-on-warn
   artifacts:
     paths:

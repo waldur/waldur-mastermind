@@ -113,8 +113,6 @@ dev = [
   "djangorestframework-types @ git+https://github.com/waldur/djangorestframework-types.git",
   "celery-types>=0.23.0,<1.0.0",
   "django-stubs-ext>=5.2.2,<6.0.0",
-]
-docs = [
   "pyparsing>=3.1.1,<4.0.0",
   "pydot>=1.4.2,<2.0.0",
   "django-extensions>=3.2.3,<4.0.0",
