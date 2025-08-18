@@ -57,60 +57,85 @@ class GenericRoleFilter(BaseFilterBackend):
 
     def _filter_customers_optimized(self, queryset, user):
         """Optimized customer filtering to avoid complex permission queries."""
-        # Get all customer IDs this user has access to through various permission paths
+        # Use a single query to get all customer IDs this user has access to
+        from django.contrib.contenttypes.models import ContentType
+        from django.db.models import Q
+
         accessible_customer_ids = set()
 
-        # 1. Direct customer permissions
+        # Get all content types we need
         customer_ct = ContentType.objects.get_for_model(queryset.model)
-        customer_roles = UserRole.objects.filter(
-            user=user, is_active=True, content_type=customer_ct
-        ).values_list("object_id", flat=True)
-        accessible_customer_ids.update(customer_roles)
-
-        # 2. Project-level permissions (customers via projects)
         project_ct = ContentType.objects.get_for_model(models.Project)
-        project_roles = UserRole.objects.filter(
-            user=user, is_active=True, content_type=project_ct
-        ).values_list("object_id", flat=True)
 
-        if project_roles:
-            project_customer_ids = models.Project.objects.filter(
-                id__in=project_roles
-            ).values_list("customer_id", flat=True)
-            accessible_customer_ids.update(project_customer_ids)
+        # Single query to get all user roles for this user across all relevant content types
+        content_type_conditions = Q(content_type=customer_ct) | Q(
+            content_type=project_ct
+        )
 
-        # 3. Call management permissions (import locally to avoid module dependency)
+        # Check for call management content types (import locally to avoid module dependency)
         try:
             from waldur_mastermind.proposal.models import Call, CallManagingOrganisation
 
-            # Get customers through call manager roles
             call_manager_ct = ContentType.objects.get_for_model(
                 CallManagingOrganisation
             )
-            call_manager_roles = UserRole.objects.filter(
-                user=user, is_active=True, content_type=call_manager_ct
-            ).values_list("object_id", flat=True)
-
-            if call_manager_roles:
-                call_manager_customer_ids = CallManagingOrganisation.objects.filter(
-                    id__in=call_manager_roles
-                ).values_list("customer_id", flat=True)
-                accessible_customer_ids.update(call_manager_customer_ids)
-
-            # Get customers through call roles
             call_ct = ContentType.objects.get_for_model(Call)
-            call_roles = UserRole.objects.filter(
-                user=user, is_active=True, content_type=call_ct
-            ).values_list("object_id", flat=True)
-
-            if call_roles:
-                call_customer_ids = Call.objects.filter(id__in=call_roles).values_list(
-                    "manager__customer_id", flat=True
-                )
-                accessible_customer_ids.update(call_customer_ids)
-
+            content_type_conditions |= Q(content_type=call_manager_ct) | Q(
+                content_type=call_ct
+            )
         except ImportError:
-            # Proposal module not available in this deployment, skip
+            call_manager_ct = None
+            call_ct = None
+
+        # Single query to get all relevant user roles
+        user_roles = (
+            UserRole.objects.filter(user=user, is_active=True)
+            .filter(content_type_conditions)
+            .select_related("content_type")
+            .values("content_type__model", "object_id")
+        )
+
+        # Process results to get customer IDs
+        project_ids = []
+        call_manager_ids = []
+        call_ids = []
+
+        for role in user_roles:
+            model_name = role["content_type__model"]
+            object_id = role["object_id"]
+
+            if model_name == "customer":
+                accessible_customer_ids.add(object_id)
+            elif model_name == "project":
+                project_ids.append(object_id)
+            elif model_name == "callmanagingorganisation":
+                call_manager_ids.append(object_id)
+            elif model_name == "call":
+                call_ids.append(object_id)
+
+        # Handle project-level access (customers via projects)
+        if project_ids:
+            project_customer_ids = models.Project.objects.filter(
+                id__in=project_ids
+            ).values_list("customer_id", flat=True)
+            accessible_customer_ids.update(project_customer_ids)
+
+        # Handle call management permissions using the data we already collected
+        if call_manager_ids and call_manager_ct:
+            from waldur_mastermind.proposal.models import CallManagingOrganisation
+
+            call_manager_customer_ids = CallManagingOrganisation.objects.filter(
+                id__in=call_manager_ids
+            ).values_list("customer_id", flat=True)
+            accessible_customer_ids.update(call_manager_customer_ids)
+
+        if call_ids and call_ct:
+            from waldur_mastermind.proposal.models import Call
+
+            call_customer_ids = Call.objects.filter(id__in=call_ids).values_list(
+                "manager__customer_id", flat=True
+            )
+            accessible_customer_ids.update(call_customer_ids)
             pass
 
         if accessible_customer_ids:

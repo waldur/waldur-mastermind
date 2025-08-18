@@ -128,9 +128,9 @@ Run type checkings:
   script:
     - |
       pip3 install uv
-      echo "[+] Installing pyright and project into system Python"
+      echo "[+] Installing pyright and project with dev dependencies into system Python"
       uv pip install --python $(which python) pyright
-      uv pip install --python $(which python) -e .
+      uv pip install --python $(which python) -e ".[dev]"
       echo "[+] Verifying pyright installation"
       python -c "import pyright; print(f'pyright is available')" || echo "pyright not found as Python module"
       which pyright || echo "pyright not in PATH"

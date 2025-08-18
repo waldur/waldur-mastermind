@@ -12,12 +12,9 @@ echo "[+] Python prefix: $(python -c 'import sysconfig; print(sysconfig.get_conf
 export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
 echo "[+] UV_PROJECT_ENVIRONMENT set to: $UV_PROJECT_ENVIRONMENT"
 
-# Install dev dependencies directly into system Python
-echo "[+] Installing dev dependencies into system Python"
-uv pip install --python $(which python) pytest pytest-cov pytest-django pytest-split-tests
-
-# Install the project in editable mode
-uv pip install --python $(which python) -e .
+# Install the project in editable mode with dev dependencies
+echo "[+] Installing project with dev dependencies into system Python"
+uv pip install --python $(which python) -e ".[dev]"
 
 # Verify pytest is available
 echo "[+] Verifying pytest installation"

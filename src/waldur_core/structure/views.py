@@ -47,6 +47,7 @@ from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
     has_permission,
     permission_factory,
@@ -150,74 +151,54 @@ class CustomerViewSet(
         if not customers:
             return
 
+        # Skip user count optimization for basic requests to reduce query load
+        # Only calculate if users_count field is explicitly requested
+        if hasattr(self.request, "query_params"):
+            fields = self.request.query_params.getlist("field")
+        else:
+            fields = getattr(self.request, "GET", {}).getlist("field")
+
+        if "users_count" not in fields:
+            # Set default value and skip expensive calculation
+            for customer in customers:
+                customer._cached_users_count = 0
+            return
+
         # Calculate users count for all customers in a single efficient operation
-        customer_ids = [c.id for c in customers]
-
         # Get all users with roles in these customers or their projects
-        from django.contrib.contenttypes.models import ContentType
-
-        from waldur_core.permissions.models import UserRole
-
         customer_ct = ContentType.objects.get_for_model(models.Customer)
         project_ct = ContentType.objects.get_for_model(models.Project)
 
-        # Get project IDs for all these customers
-        project_ids = list(
-            models.Project.available_objects.filter(
-                customer_id__in=customer_ids
-            ).values_list("id", flat=True)
-        )
+        # Use exact user counting that handles overlap between customer and project roles
 
-        # Count users per customer efficiently
-        users_counts = {}
-
-        # Count direct customer roles
-        customer_user_counts = (
-            UserRole.objects.filter(
-                content_type=customer_ct, object_id__in=customer_ids, is_active=True
+        # For each customer, count unique users with roles at customer OR project level
+        for customer in customers:
+            # Get project IDs for this customer
+            project_ids = list(
+                models.Project.available_objects.filter(
+                    customer_id=customer.id
+                ).values_list("id", flat=True)
             )
-            .values("object_id")
-            .annotate(user_count=Count("user_id", distinct=True))
-            .values_list("object_id", "user_count")
-        )
 
-        for customer_id, count in customer_user_counts:
-            users_counts[customer_id] = count
+            # Count unique users with roles either at customer level or project level
+            user_roles_query = Q(
+                content_type=customer_ct, object_id=customer.id, is_active=True
+            )
 
-        # Count project-based roles and add to customer counts
-        if project_ids:
-            project_users = (
-                UserRole.objects.filter(
+            if project_ids:
+                user_roles_query |= Q(
                     content_type=project_ct, object_id__in=project_ids, is_active=True
                 )
-                .select_related()
-                .values("object_id", "user_id")
+
+            # Count distinct users - this ensures no double counting
+            unique_user_count = (
+                UserRole.objects.filter(user_roles_query)
+                .values("user_id")
+                .distinct()
+                .count()
             )
 
-            # Group by customer and count unique users
-            project_to_customer = dict(
-                models.Project.available_objects.filter(id__in=project_ids).values_list(
-                    "id", "customer_id"
-                )
-            )
-
-            customer_project_users = {}
-            for project_id, user_id in project_users:
-                customer_id = project_to_customer.get(project_id)
-                if customer_id:
-                    if customer_id not in customer_project_users:
-                        customer_project_users[customer_id] = set()
-                    customer_project_users[customer_id].add(user_id)
-
-            # Add project user counts to customer counts
-            for customer_id, user_ids in customer_project_users.items():
-                users_counts[customer_id] = users_counts.get(customer_id, 0) + len(
-                    user_ids
-                )
-
-        # Attach calculated counts to customer objects
-        for customer in customers:
-            customer._cached_users_count = users_counts.get(customer.id, 0)
+            customer._cached_users_count = unique_user_count
 
     def _optimize_billing_estimates(self, customers):
         """Bulk load price estimates for customers to avoid N+1 queries."""
