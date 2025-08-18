@@ -43,5 +43,4 @@ def get_waldur_client(api_url, token):
         base_url=api_url.rstrip("/api"),
         token=token,
         prefix="Token",
-        raise_on_unexpected_status=True,
     )

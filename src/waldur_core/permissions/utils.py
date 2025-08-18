@@ -13,8 +13,17 @@ def has_permission(request, permission, scope):
         user = request
     else:
         user = request.user
+
+    # Inactive users should not have any permissions
+    if not user.is_active:
+        return False
+
     if user.is_staff:
         return True
+
+    # Handle None scope
+    if scope is None:
+        return False
 
     roles = models.UserRole.objects.filter(
         user=user, is_active=True, scope=scope
@@ -35,13 +44,25 @@ def permission_factory(permission, sources=None):
             if has_permission(request, permission, scope):
                 return
         else:
+            attribute_errors = 0
             for path in sources:
-                source = scope
-                if path != "*":
-                    for part in path.split("."):
-                        source = getattr(source, part)
-                if has_permission(request, permission, source):
-                    return
+                try:
+                    source = scope
+                    if path != "*":
+                        for part in path.split("."):
+                            source = getattr(source, part)
+                    if has_permission(request, permission, source):
+                        return
+                except AttributeError:
+                    # Continue to next path if attribute doesn't exist
+                    attribute_errors += 1
+                    continue
+
+            # If all paths failed due to AttributeError, raise AttributeError
+            if attribute_errors == len(sources):
+                raise AttributeError(
+                    f"None of the attribute paths {sources} exist on the scope object"
+                )
 
         raise exceptions.PermissionDenied()
 
@@ -106,11 +127,11 @@ def count_users(scope):
     )
 
 
-def has_user(scope, user, role=None, expiration_time=None):
+def has_user(scope, user, role=None, expiration_time=False):
     """
     Checks whether user has role in entity.
     `expiration_time` can have the following values:
-        - False - check whether user has role in entity at the moment.
+        - False (default) - check whether user has role in entity regardless of expiration.
         - None - check whether user has permanent role in entity.
         - Datetime object - check whether user will have role in entity at specific timestamp.
     """
@@ -119,10 +140,12 @@ def has_user(scope, user, role=None, expiration_time=None):
         qs = qs.filter(role=role)
     if expiration_time is None:
         qs = qs.filter(expiration_time=None)
-    elif expiration_time:
+    elif expiration_time is not False:
+        # expiration_time is a datetime - check if role will be active at that time
         qs = qs.filter(
             Q(expiration_time=None) | Q(expiration_time__gte=expiration_time)
         )
+    # When expiration_time is False, don't filter by expiration at all
     return qs.exists()
 
 
