@@ -59,6 +59,13 @@ collections:
               list: openstack_tenants_list
               retrieve: openstack_tenants_retrieve
               filter_key: tenant_uuid
+      vpc:
+        type: order
+        offering_type: OpenStack.Tenant
+        description: Create, update, or delete an OpenStack Tenant via the marketplace.
+        resource_type: OpenStack tenant
+        has_limits: true
+        existence_check_op: openstack_tenants_list
       volume:
         type: order
         offering_type: OpenStack.Volume
@@ -71,9 +78,6 @@ collections:
           - description
 
         resolvers:
-          offering:
-            list: marketplace_public_offerings_list
-            retrieve: marketplace_public_offerings_retrieve
           type:
             list: openstack_volume_types_list
             retrieve: openstack_volume_types_retrieve
@@ -93,12 +97,6 @@ collections:
         existence_check_op: "openstack_instances_list"
 
         resolvers:
-          project:
-            list: "projects_list"
-            retrieve: "projects_retrieve"
-          offering:
-            list: "marketplace_public_offerings_list"
-            retrieve: "marketplace_public_offerings_retrieve"
           flavor:
             list: "openstack_flavors_list"
             retrieve: "openstack_flavors_retrieve"
