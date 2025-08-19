@@ -183,6 +183,11 @@ def register_in(router):
         basename="maintenance-announcement",
     )
     router.register(
+        r"public-maintenance-announcements",
+        views.PublicMaintenanceAnnouncementViewSet,
+        basename="public-maintenance-announcement",
+    )
+    router.register(
         r"maintenance-announcement-offerings",
         views.MaintenanceAnnouncementOfferingViewSet,
         basename="maintenance-announcement-offering",
