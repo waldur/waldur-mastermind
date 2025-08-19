@@ -1,6 +1,7 @@
 from drf_spectacular.authentication import SessionScheme, TokenScheme
 from drf_spectacular.extensions import (
     OpenApiAuthenticationExtension,
+    OpenApiSerializerExtension,
     OpenApiSerializerFieldExtension,
 )
 from drf_spectacular.plumbing import (
@@ -36,3 +37,13 @@ class GenericRelatedFieldExtension(OpenApiSerializerFieldExtension):
 
     def map_serializer_field(self, auto_schema, direction):
         return build_basic_type(OpenApiTypes.STR)
+
+
+class OpenStackNestedSecurityGroupSerializerExtension(OpenApiSerializerExtension):
+    target_class = "waldur_openstack.serializers.OpenStackNestedSecurityGroupSerializer"
+
+    def map_serializer(self, auto_schema, direction):
+        return {
+            "type": "array",
+            "items": {"type": "object", "properties": {"url": {"type": "string"}}},
+        }
