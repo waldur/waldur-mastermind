@@ -1,6 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import ImpactLevel, MaintenanceState
 from waldur_mastermind.marketplace.tests import (
     factories as marketplace_factories,
@@ -549,3 +550,124 @@ class MaintenanceAnnouncementCancelTest(test.APITransactionTestCase):
     def test_unauthenticated_user_cannot_cancel(self):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
+class PublicMaintenanceAnnouncementViewSetTest(test.APITransactionTestCase):
+    """Test the public maintenance announcement viewset that allows anonymous access."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.draft_announcement = self.fixture.maintenance_announcement
+        self.draft_announcement.state = MaintenanceState.DRAFT
+        self.draft_announcement.save()
+        # Create announcements in different states
+        self.scheduled_announcement = (
+            marketplace_factories.MaintenanceAnnouncementFactory(
+                service_provider=self.fixture.service_provider,
+                state=MaintenanceState.SCHEDULED,
+                name="Scheduled Maintenance",
+                scheduled_start="2030-01-01T10:00:00Z",
+                scheduled_end="2030-01-01T12:00:00Z",
+            )
+        )
+
+        self.in_progress_announcement = (
+            marketplace_factories.MaintenanceAnnouncementFactory(
+                service_provider=self.fixture.service_provider,
+                state=MaintenanceState.IN_PROGRESS,
+                name="In Progress Maintenance",
+                scheduled_start="2030-01-01T08:00:00Z",
+                scheduled_end="2030-01-01T14:00:00Z",
+            )
+        )
+
+        self.completed_announcement = (
+            marketplace_factories.MaintenanceAnnouncementFactory(
+                service_provider=self.fixture.service_provider,
+                state=MaintenanceState.COMPLETED,
+                name="Completed Maintenance",
+                scheduled_start="2020-01-01T10:00:00Z",
+                scheduled_end="2020-01-01T12:00:00Z",
+            )
+        )
+
+        self.url = "/api/public-maintenance-announcements/"
+        self.user = structure_factories.UserFactory()
+        self.client.force_authenticate(self.user)
+
+    def test_anonymous_users_can_list_public_announcements(self):
+        """Anonymous users should be able to list scheduled, in-progress, and completed announcements."""
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.json()
+        self.assertEqual(len(data), 3)
+        announcement_uuids = [a["uuid"] for a in data]
+        self.assertIn(str(self.scheduled_announcement.uuid), announcement_uuids)
+        self.assertIn(str(self.in_progress_announcement.uuid), announcement_uuids)
+        self.assertIn(str(self.completed_announcement.uuid), announcement_uuids)
+
+        self.assertNotIn(str(self.draft_announcement.uuid), announcement_uuids)
+
+    def test_anonymous_users_can_retrieve_public_announcement_details(self):
+        """Anonymous users should be able to retrieve details of public announcements."""
+        url = f"{self.url}{self.scheduled_announcement.uuid}/"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        self.assertEqual(data["name"], "Scheduled Maintenance")
+        self.assertIn("message", data)
+        self.assertIn("scheduled_start", data)
+        self.assertIn("scheduled_end", data)
+        self.assertIn("maintenance_type", data)
+        self.assertIn("maintenance_type_display", data)
+        self.assertIn("state", data)
+
+        self.assertNotIn("created_by", data)
+        self.assertNotIn("service_provider", data)
+
+    def test_public_endpoint_filters_by_state_correctly(self):
+        """The public endpoint should only show announcements in SCHEDULED, IN_PROGRESS, or COMPLETED states."""
+        # Create a cancelled announcement (should not be visible)
+        cancelled_announcement = marketplace_factories.MaintenanceAnnouncementFactory(
+            service_provider=self.fixture.service_provider,
+            state=MaintenanceState.CANCELLED,
+            name="Cancelled Maintenance",
+        )
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.json()
+        announcement_uuids = [a["uuid"] for a in data]
+
+        # Should still only see 3 announcements (not the cancelled one)
+        self.assertEqual(len(data), 3)
+        self.assertNotIn(str(cancelled_announcement.uuid), announcement_uuids)
+        self.assertNotIn(str(self.draft_announcement.uuid), announcement_uuids)
+
+    def test_anonymous_users_cannot_create_maintenance_announcements(self):
+        """Anonymous users should not be able to create maintenance announcements via the public endpoint."""
+        payload = {
+            "name": "Test Maintenance",
+            "message": "Test Message",
+            "scheduled_start": "2030-01-01T10:00:00Z",
+            "scheduled_end": "2030-01-01T12:00:00Z",
+        }
+
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        detail_url = f"{self.url}{self.scheduled_announcement.uuid}/"
+        response = self.client.put(detail_url, payload)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        response = self.client.patch(detail_url, {"message": "Unauthorized update"})
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        response = self.client.delete(detail_url)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)

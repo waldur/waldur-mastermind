@@ -5713,6 +5713,56 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
         return super().create(validated_data)
 
 
+class PublicMaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
+    affected_offerings = MaintenanceAnnouncementOfferingSerializer(
+        source="affected_offerings.all",
+        many=True,
+        read_only=True,
+    )
+    service_provider_name = serializers.CharField(
+        read_only=True, source="service_provider.customer.name"
+    )
+    state = serializers.SerializerMethodField()
+    maintenance_type_display = serializers.CharField(
+        read_only=True, source="get_maintenance_type_display"
+    )
+
+    def get_state(
+        self, obj: models.MaintenanceAnnouncement
+    ) -> Literal[
+        "Scheduled",
+        "In progress",
+        "Completed",
+    ]:
+        return obj.get_state_display()
+
+    class Meta:
+        model = models.MaintenanceAnnouncement
+        fields = [
+            "url",
+            "uuid",
+            "name",
+            "message",
+            "maintenance_type",
+            "maintenance_type_display",
+            "external_reference_url",
+            "state",
+            "scheduled_start",
+            "scheduled_end",
+            "actual_start",
+            "actual_end",
+            "affected_offerings",
+            "service_provider_name",
+        ]
+        read_only_fields = fields
+        extra_kwargs = {
+            "url": {
+                "view_name": "public-maintenance-announcement-detail",
+                "lookup_field": "uuid",
+            },
+        }
+
+
 class MaintenanceAnnouncementOfferingTemplateSerializer(
     MaintenanceAnnouncementOfferingSerializer
 ):

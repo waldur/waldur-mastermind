@@ -6174,3 +6174,23 @@ class MaintenanceAnnouncementOfferingTemplateViewSet(core_views.ActionsViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.MaintenanceAnnouncementOfferingTemplateFilter
     serializer_class = serializers.MaintenanceAnnouncementOfferingTemplateSerializer
+
+
+class PublicMaintenanceAnnouncementViewSet(
+    PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet
+):
+    lookup_field = "uuid"
+    serializer_class = serializers.PublicMaintenanceAnnouncementSerializer
+    permission_classes = (rf_permissions.AllowAny,)
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.MaintenanceAnnouncementFilter
+
+    def get_queryset(self):
+        """Filter to only show scheduled, in-progress, and completed maintenance announcements."""
+        return models.MaintenanceAnnouncement.objects.filter(
+            state__in=[
+                MaintenanceState.SCHEDULED,
+                MaintenanceState.IN_PROGRESS,
+                MaintenanceState.COMPLETED,
+            ]
+        ).order_by("-scheduled_start")
