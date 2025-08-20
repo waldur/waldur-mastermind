@@ -78,6 +78,9 @@ collections:
           - description
 
         resolvers:
+          offering:
+            list: marketplace_public_offerings_list
+            retrieve: marketplace_public_offerings_retrieve
           type:
             list: openstack_volume_types_list
             retrieve: openstack_volume_types_retrieve
@@ -112,3 +115,94 @@ collections:
           ssh_key:
             list: "keys_list"
             retrieve: "keys_retrieve"
+      security_group:
+        type: crud
+        resource_type: "OpenStack security group"
+        description: "Manage OpenStack Security Groups and their rules in Waldur."
+
+        operations:
+          create: "openstack_tenants_create_security_group"
+          list: "openstack_security_groups_list"
+          destroy: "openstack_security_groups_destroy"
+          update: "openstack_security_groups_partial_update"
+
+        update_config:
+          fields:
+            - "name"
+            - "description"
+          actions:
+            set_rules:
+              operation: "openstack_security_groups_set_rules"
+              param: "rules"
+
+        path_param_maps:
+          create:
+            uuid: "tenant"
+
+        resolvers:
+          tenant:
+            list: "openstack_tenants_list"
+            retrieve: "openstack_tenants_retrieve"
+            error_message: "Tenant '{value}' not found."
+      network:
+        type: crud
+        resource_type: "OpenStack network"
+        description: "Manage OpenStack Networks in Waldur."
+        operations:
+          create: "openstack_tenants_create_network"
+          list: "openstack_networks_list"
+          destroy: "openstack_networks_destroy"
+          update: "openstack_networks_partial_update"
+        update_config:
+          fields:
+            - "name"
+            - "description"
+        path_param_maps:
+          create:
+            uuid: "tenant"
+        resolvers:
+          tenant:
+            list: "openstack_tenants_list"
+            retrieve: "openstack_tenants_retrieve"
+            error_message: "Tenant '{value}' not found."
+      server_group:
+        type: crud
+        resource_type: "OpenStack server group"
+        description: "Manage OpenStack Server Groups (Affinity Groups) in Waldur."
+        operations:
+          create: "openstack_tenants_create_server_group"
+          list: "openstack_server_groups_list"
+          destroy: "openstack_server_groups_destroy"
+          update: "openstack_server_groups_partial_update"
+        update_config:
+          fields:
+            - "name"
+            - "description"
+        path_param_maps:
+          create:
+            uuid: "tenant"
+        resolvers:
+          tenant:
+            list: "openstack_tenants_list"
+            retrieve: "openstack_tenants_retrieve"
+            error_message: "Tenant '{value}' not found."
+      floating_ip:
+        type: crud
+        resource_type: "OpenStack floating IP"
+        description: "Manage OpenStack Floating IPs in Waldur."
+        operations:
+          create: "openstack_tenants_create_floating_ip"
+          list: "openstack_floating_ips_list"
+          destroy: "openstack_floating_ips_destroy"
+          update: "openstack_floating_ips_partial_update"
+        update_config:
+          fields:
+            - "description"
+        path_param_maps:
+          create:
+            uuid: "tenant"
+        resolvers:
+          tenant:
+            list: "openstack_tenants_list"
+            retrieve: "openstack_tenants_retrieve"
+            error_message: "Tenant '{value}' not found."
