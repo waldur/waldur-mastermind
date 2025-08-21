@@ -529,12 +529,8 @@ class OrderTermsOfServiceCreateTest(BaseOrderCreateTest):
     def test_user_can_create_order_if_terms_of_service_have_been_accepted(self):
         user = self.fixture.admin
         offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
-        models.OfferingTermsOfService.objects.create(
-            offering=offering,
-            terms_of_service="Terms of service",
-            version="1.0",
-            is_active=True,
-        )
+        offering.terms_of_service = "Terms of service"
+        offering.save()
         add_payload = {
             "offering": factories.OfferingFactory.get_public_url(offering),
             "attributes": {},
@@ -558,12 +554,8 @@ class OrderTermsOfServiceCreateTest(BaseOrderCreateTest):
     def test_user_cannot_create_order_if_terms_of_service_have_been_not_accepted(self):
         user = self.fixture.admin
         offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
-        models.OfferingTermsOfService.objects.create(
-            offering=offering,
-            terms_of_service="Terms of service",
-            version="1.0",
-            is_active=True,
-        )
+        offering.terms_of_service = "Terms of service"
+        offering.save()
         add_payload = {
             "offering": factories.OfferingFactory.get_public_url(offering),
             "attributes": {},

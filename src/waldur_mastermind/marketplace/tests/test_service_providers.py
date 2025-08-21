@@ -25,8 +25,6 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.service_provider = self.fixture.service_provider
-        # Create consent so users are visible to service providers
-        self.fixture.user_offering_consent
 
     @data("staff", "owner", "user", "customer_support", "admin", "manager")
     def test_service_provider_should_be_visible_to_all_authenticated_users(self, user):
@@ -401,8 +399,6 @@ class ConsumerUserListTest(test.APITransactionTestCase):
             self.mp_fixture.service_provider, action="users"
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_USERS)
-        # Create consent so users are visible to service providers
-        self.mp_fixture.user_offering_consent
 
     def test_service_provider_can_view_users_in_project_with_purchased_resource(self):
         self.client.force_login(self.mp_fixture.offering_owner)

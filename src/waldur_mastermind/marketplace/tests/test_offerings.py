@@ -2481,12 +2481,6 @@ class ListCustomerUsersTest(test.APITransactionTestCase):
         self.fixture.resource.state = ResourceStates.OK
         self.fixture.resource.save()
         self.fixture.admin
-        # Create consent so user is visible on request
-        models.UserOfferingConsent.objects.create(
-            user=self.fixture.admin,
-            offering=self.fixture.offering,
-            version="1.0",
-        )
 
     @data("staff", "offering_owner")
     def test_user_can_get_list_customer_users(self, user):
@@ -2515,12 +2509,6 @@ class ListCustomerUsersTest(test.APITransactionTestCase):
         for i in range(15):
             user_obj = UserFactory()
             project.add_user(user_obj, ProjectRole.ADMIN)
-            # Create consent so user is visible
-            models.UserOfferingConsent.objects.create(
-                user=user_obj,
-                offering=self.fixture.offering,
-                version="1.0",
-            )
         response = self.get_list_customer_users(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.data
@@ -2531,42 +2519,6 @@ class ListCustomerUsersTest(test.APITransactionTestCase):
         self.assertIn("X-Result-Count", headers)
         self.assertGreaterEqual(int(headers["X-Result-Count"]), 15)
         self.assertIn("Link", headers)
-
-    @data("staff", "offering_owner")
-    def test_users_with_requires_reconsent_are_still_visible_to_sp(self, user):
-        """Test that users are still visible to SPs when ToS is updated with requires_reconsent=True."""
-
-        initial_tos = models.OfferingTermsOfService.objects.create(
-            offering=self.fixture.offering,
-            terms_of_service="Initial Terms of Service",
-            version="1.0",
-            requires_reconsent=False,
-            is_active=True,
-        )
-
-        # Step 2: User consents to the  ToS
-        test_user = UserFactory()
-        self.fixture.project.add_user(test_user, ProjectRole.ADMIN)
-        models.UserOfferingConsent.objects.create(
-            user=test_user,
-            offering=self.fixture.offering,
-            version="1.0",
-        )
-
-        # Step 3: Admin updates ToS and sets requires_reconsent=True
-        initial_tos.terms_of_service = "Updated Terms requiring re-acceptance"
-        initial_tos.version = "2.0"
-        initial_tos.requires_reconsent = True
-        initial_tos.save()
-
-        # Step 4: User should still be visible to SP despite requires_reconsent=True
-        response = self.get_list_customer_users(user)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        user_uuids = [user_data["uuid"] for user_data in response.data]
-        self.assertIn(test_user.uuid.hex, user_uuids)
-
-        self.assertGreaterEqual(len(response.data), 2)
 
 
 class ResourceOfferingsViewSetTest(test.APITransactionTestCase):

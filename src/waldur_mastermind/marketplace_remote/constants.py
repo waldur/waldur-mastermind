@@ -2,6 +2,8 @@ OFFERING_FIELDS = (
     "name",
     "description",
     "full_description",
+    "terms_of_service",
+    "terms_of_service_link",
     "privacy_policy_link",
     "getting_started",
     "integration_guide",

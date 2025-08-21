@@ -11,7 +11,6 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
-from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import OfferingUserStates, ResourceStates
 from waldur_mastermind.marketplace.models import OfferingUser
 
@@ -32,11 +31,6 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
         user = UserFactory()
         self.fixture.project.add_user(user, ProjectRole.ADMIN)
         OfferingUser.objects.create(offering=self.offering, user=user, username="user")
-        models.UserOfferingConsent.objects.create(
-            user=user,
-            offering=self.offering,
-            version="1.0",
-        )
         user2 = UserFactory()
         offering2 = factories.OfferingFactory(shared=True)
         self.fixture.project.add_user(user, ProjectRole.MANAGER)
@@ -68,11 +62,6 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
         sample_user = UserFactory()
         OfferingUser.objects.create(
             offering=self.offering, user=sample_user, username="user3"
-        )
-        models.UserOfferingConsent.objects.create(
-            user=sample_user,
-            offering=self.offering,
-            version="1.0",
         )
 
         self.client.force_authenticate(sample_user)
@@ -242,11 +231,6 @@ class OfferingUsersUpdateTest(test.APITransactionTestCase):
         self.offering_user = OfferingUser.objects.create(
             offering=self.offering, user=user, username="user"
         )
-        models.UserOfferingConsent.objects.create(
-            user=user,
-            offering=self.offering,
-            version="1.0",
-        )
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
 
     def get_url(self, offering_user, action=None):
@@ -290,11 +274,6 @@ class OfferingUsersDeleteTest(test.APITransactionTestCase):
 
         self.offering_user = OfferingUser.objects.create(
             offering=self.offering, user=user, username="user"
-        )
-        models.UserOfferingConsent.objects.create(
-            user=user,
-            offering=self.offering,
-            version="1.0",
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_OFFERING_USER)
 
@@ -367,11 +346,6 @@ class OferingUserRestrictedUpdateTest(test.APITransactionTestCase):
         self.offering_user = OfferingUser.objects.create(
             offering=self.offering, user=user, username="user"
         )
-        models.UserOfferingConsent.objects.create(
-            user=user,
-            offering=self.offering,
-            version="1.0",
-        )
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
 
@@ -423,11 +397,6 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
 
         self.offering_user = OfferingUser.objects.create(
             offering=self.offering, user=user, username="user"
-        )
-        models.UserOfferingConsent.objects.create(
-            user=user,
-            offering=self.offering,
-            version="1.0",
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
 
@@ -822,12 +791,6 @@ class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
         self.offering.save()
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING_USER)
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
-        self.user = UserFactory()
-        models.UserOfferingConsent.objects.create(
-            user=self.user,
-            offering=self.offering,
-            version="1.0",
-        )
 
     def test_create_offering_user_with_username_sets_ok_state(self):
         """Test that creating OfferingUser with username automatically sets state to OK."""
@@ -859,9 +822,10 @@ class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
 
     def test_update_offering_user_with_username_sets_ok_state(self):
         """Test that updating OfferingUser with username automatically sets state to OK."""
+        user = UserFactory()
         offering_user = OfferingUser.objects.create(
             offering=self.offering,
-            user=self.user,
+            user=user,
             state=OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
         )
 
@@ -880,10 +844,10 @@ class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
 
     def test_update_offering_user_without_username_preserves_state(self):
         """Test that updating other fields doesn't change state."""
-        UserFactory()
+        user = UserFactory()
         offering_user = OfferingUser.objects.create(
             offering=self.offering,
-            user=self.user,
+            user=user,
             state=OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
         )
         # Set username manually after creation to avoid triggering FSM transition
@@ -1085,12 +1049,6 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
             username="user3",
             state=OfferingUserStates.OK,
         )
-        for user in [self.user1, self.user2, self.user3]:
-            models.UserOfferingConsent.objects.create(
-                user=user,
-                offering=self.offering,
-                version="1.0",
-            )
 
     def test_filter_by_single_state(self):
         """Test filtering by a single state value."""

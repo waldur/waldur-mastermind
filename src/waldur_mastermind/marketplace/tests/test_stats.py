@@ -563,47 +563,6 @@ class CountUsersOfServiceProviderTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_count_filters_by_tos_consent(self):
-        """Test that user count is filtered by ToS consent. Test no consent, consent, and revoke consent."""
-        models.OfferingTermsOfService.objects.create(
-            offering=self.fixture.offering,
-            terms_of_service="Test ToS",
-            version="1.0",
-        )
-
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        for record in response.data:
-            if record["service_provider_uuid"] == self.service_provider.uuid.hex:
-                self.assertEqual(record["count"], 0)
-
-        models.UserOfferingConsent.objects.create(
-            user=self.fixture.admin,
-            offering=self.fixture.offering,
-            version="1.0",
-        )
-
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        for record in response.data:
-            if record["service_provider_uuid"] == self.service_provider.uuid.hex:
-                self.assertEqual(record["count"], 1)
-
-        consent = models.UserOfferingConsent.objects.get(
-            user=self.fixture.admin, offering=self.fixture.offering
-        )
-        consent.revoke()
-
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        for record in response.data:
-            if record["service_provider_uuid"] == self.service_provider.uuid.hex:
-                self.assertEqual(record["count"], 0)
-
 
 @ddt
 class CountProjectsGroupedByOecdOfServiceProviderTest(test.APITransactionTestCase):

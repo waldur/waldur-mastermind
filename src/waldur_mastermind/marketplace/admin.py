@@ -353,6 +353,8 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         "description",
         "full_description",
         "country",
+        "terms_of_service",
+        "terms_of_service_link",
         "privacy_policy_link",
         "thumbnail",
         "attributes",

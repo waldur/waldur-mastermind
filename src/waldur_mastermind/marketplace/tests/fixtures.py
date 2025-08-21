@@ -189,12 +189,3 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
             maintenance_template=self.maintenance_announcement_template,
             offering=self.offering,
         )
-
-    @cached_property
-    def user_offering_consent(self):
-        """Create consent for admin user so they're visible to service providers"""
-        return marketplace_models.UserOfferingConsent.objects.create(
-            user=self.admin,
-            offering=self.offering,
-            version="1.0",
-        )
