@@ -707,3 +707,82 @@ Upload Ansible module:
     - git commit -m "Update Ansible Waldur modules" || exit 0
     - git push
   before_script: *build_before_script
+
+Publish Ansible Galaxy collection:
+  stage: postdeploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image:
+    name: registry.hpc.ut.ee/mirror/library/python:3.11-bullseye
+  needs:
+    - Generate Ansible modules
+  before_script:
+    - pip install "ansible-core>=2.14" yq
+
+  script:
+    - echo "--- Discovering and Publishing Ansible Collections ---"
+
+    # The root directory where collections are located, from the artifacts.
+    - COLLECTIONS_ROOT="ansible_waldur_module/ansible_collections"
+
+    # Verify that the root directory exists.
+    - |
+      if [ ! -d "$COLLECTIONS_ROOT" ]; then
+        echo "ERROR: Collections root '$COLLECTIONS_ROOT' not found in artifacts."
+        exit 1
+      fi
+
+    # 1. Discover all collections by finding all 'galaxy.yml' files.
+    #    The `find` command is perfect for this task. It will return a list of paths
+    #    like 'ansible_waldur_module/ansible_collections/waldur/openstack/galaxy.yml'.
+    - |
+      find "$COLLECTIONS_ROOT" -name "galaxy.yml" | while read GALAXY_FILE; do
+        # For each galaxy.yml found, get its parent directory, which is the collection path.
+        COLLECTION_PATH=$(dirname "${GALAXY_FILE}")
+
+        echo "=========================================================="
+        echo "Processing Collection at: ${COLLECTION_PATH}"
+        echo "=========================================================="
+
+        # 2. Dynamically determine the collection details from its galaxy.yml
+        NAMESPACE=$(yq e '.namespace' "${GALAXY_FILE}")
+        NAME=$(yq e '.name' "${GALAXY_FILE}")
+        VERSION=$(yq e '.version' "${GALAXY_FILE}")
+
+        echo "Found Collection: ${NAMESPACE}.${NAME} version ${VERSION}"
+
+        # Validate that the details were parsed correctly.
+        if [ -z "$NAMESPACE" ] || [ -z "$NAME" ] || [ -z "$VERSION" ]; then
+          echo "ERROR: Could not parse details from ${GALAXY_FILE}. Skipping."
+          continue # Skip to the next collection in the loop
+        fi
+
+        # 3. Build the collection by changing into its directory.
+        echo "--- Building collection: ${NAMESPACE}.${NAME} ---"
+        ( # Start a subshell to isolate the 'cd' command
+          cd "${COLLECTION_PATH}"
+          ansible-galaxy collection build --force
+        ) # The subshell exits, and we are back in the original directory.
+
+        # 4. Publish the dynamically named archive file.
+        #    The built archive will be located in the parent directory of the collection path.
+        ARCHIVE_FILE_NAME="${NAMESPACE}-${NAME}-${VERSION}.tar.gz"
+        ARCHIVE_FILE_PATH="$(dirname "${COLLECTION_PATH}")/${ARCHIVE_FILE_NAME}"
+
+        echo "--- Publishing archive: ${ARCHIVE_FILE_PATH} ---"
+
+        # Verify the archive file exists before trying to publish.
+        if [ ! -f "${ARCHIVE_FILE_PATH}" ]; then
+          echo "ERROR: Expected archive file not found at ${ARCHIVE_FILE_PATH}. Skipping."
+          ls -R . # List files for debugging
+          continue # Skip to the next collection
+        fi
+
+        ansible-galaxy collection publish --api-key "$ANSIBLE_GALAXY_TOKEN" "${ARCHIVE_FILE_PATH}"
+
+        echo "Successfully published ${ARCHIVE_FILE_NAME} to Ansible Galaxy."
+        echo "" # Add a blank line for readability
+      done
+
+    - echo "--- All collections processed ---"
