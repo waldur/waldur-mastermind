@@ -744,7 +744,6 @@ Publish Ansible Galaxy collection:
         echo "=========================================================="
 
         # 2. Dynamically determine the collection details from its galaxy.yml
-        # Fixed: Use proper yq v4 syntax with quotes and file specification
         NAMESPACE=$(yq '.namespace' "${GALAXY_FILE}")
         NAME=$(yq '.name' "${GALAXY_FILE}")
         VERSION=$(yq '.version' "${GALAXY_FILE}")
