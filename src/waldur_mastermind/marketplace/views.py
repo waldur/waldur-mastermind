@@ -921,6 +921,9 @@ class CategoryGroupViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     ) = [structure_permissions.is_staff]
 
 
+# State transition validators and permissions will be handled by individual methods
+
+
 def can_update_offering(request, view, obj: models.Offering | None = None):
     offering = obj
 
@@ -4121,14 +4124,24 @@ class OfferingFileViewSet(core_views.ActionsViewSet):
     destroy_permissions = [structure_permissions.is_owner]
 
 
-class OfferingUsersViewSet(
-    mixins.RetrieveModelMixin,
-    mixins.ListModelMixin,
-    mixins.CreateModelMixin,
-    mixins.UpdateModelMixin,
-    mixins.DestroyModelMixin,
-    rf_viewsets.GenericViewSet,
-):
+def validate_offering_user_state_transition(valid_states, target_state_name):
+    """Create a validator for offering user state transitions that returns HTTP 400."""
+
+    def validator(offering_user):
+        if offering_user.state not in valid_states:
+            states_names = dict(OfferingUserStates.CHOICES)
+            valid_states_names = [str(states_names[state]) for state in valid_states]
+            raise ValidationError(
+                {
+                    "detail": f"Cannot transition to {target_state_name} from current state: {offering_user.state}. "
+                    f"Valid states for operation: {', '.join(valid_states_names)}."
+                }
+            )
+
+    return validator
+
+
+class OfferingUsersViewSet(core_views.ActionsViewSet):
     queryset = models.OfferingUser.objects.all()
     serializer_class = serializers.OfferingUserSerializer
     lookup_field = "uuid"
@@ -4225,6 +4238,7 @@ class OfferingUsersViewSet(
         offering_user: models.OfferingUser = self.get_object()
         offering_user.begin_creating()
         offering_user.save(update_fields=["state"])
+
         event_logger.emit(
             f"User {offering_user.user} in offering {offering_user.offering.name} creation has begun.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
@@ -4233,10 +4247,9 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     begin_creating_validators = [
-        core_validators.StateValidator(
-            OfferingUserStates.CREATION_REQUESTED,
-            OfferingUserStates.ERROR_CREATING,
-            state_enum=OfferingUserStates,
+        validate_offering_user_state_transition(
+            [OfferingUserStates.CREATION_REQUESTED, OfferingUserStates.ERROR_CREATING],
+            "CREATING",
         )
     ]
 
@@ -4271,10 +4284,12 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     set_pending_additional_validation_validators = [
-        core_validators.StateValidator(
-            OfferingUserStates.CREATING,
-            OfferingUserStates.ERROR_CREATING,
-            state_enum=OfferingUserStates,
+        validate_offering_user_state_transition(
+            [
+                OfferingUserStates.CREATING,
+                OfferingUserStates.ERROR_CREATING,
+            ],
+            "PENDING_ADDITIONAL_VALIDATION",
         )
     ]
 
@@ -4309,10 +4324,12 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     set_pending_account_linking_validators = [
-        core_validators.StateValidator(
-            OfferingUserStates.CREATING,
-            OfferingUserStates.ERROR_CREATING,
-            state_enum=OfferingUserStates,
+        validate_offering_user_state_transition(
+            [
+                OfferingUserStates.CREATING,
+                OfferingUserStates.ERROR_CREATING,
+            ],
+            "PENDING_ACCOUNT_LINKING",
         )
     ]
 
@@ -4339,10 +4356,12 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     set_validation_complete_validators = [
-        core_validators.StateValidator(
-            OfferingUserStates.PENDING_ACCOUNT_LINKING,
-            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
-            state_enum=OfferingUserStates,
+        validate_offering_user_state_transition(
+            [
+                OfferingUserStates.PENDING_ACCOUNT_LINKING,
+                OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+            ],
+            "VALIDATION_COMPLETE",
         )
     ]
 
@@ -4355,6 +4374,7 @@ class OfferingUsersViewSet(
         offering_user: models.OfferingUser = self.get_object()
         offering_user.set_ok()
         offering_user.save(update_fields=["state"])
+
         event_logger.emit(
             f"User {offering_user.user} in offering {offering_user.offering.name} set to OK.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
@@ -4366,14 +4386,16 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     set_ok_validators = [
-        core_validators.StateValidator(
-            OfferingUserStates.CREATION_REQUESTED,
-            OfferingUserStates.CREATING,
-            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
-            OfferingUserStates.PENDING_ACCOUNT_LINKING,
-            OfferingUserStates.ERROR_CREATING,
-            OfferingUserStates.ERROR_DELETING,
-            state_enum=OfferingUserStates,
+        validate_offering_user_state_transition(
+            [
+                OfferingUserStates.CREATION_REQUESTED,
+                OfferingUserStates.CREATING,
+                OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+                OfferingUserStates.PENDING_ACCOUNT_LINKING,
+                OfferingUserStates.ERROR_CREATING,
+                OfferingUserStates.ERROR_DELETING,
+            ],
+            "OK",
         )
     ]
 
@@ -4383,6 +4405,7 @@ class OfferingUsersViewSet(
         offering_user: models.OfferingUser = self.get_object()
         offering_user.set_error_creating()
         offering_user.save(update_fields=["state"])
+
         event_logger.emit(
             f"User {offering_user.user} in offering {offering_user.offering.name} set to error creating state.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
@@ -4394,12 +4417,14 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     set_error_creating_validators = [
-        core_validators.StateValidator(
-            OfferingUserStates.CREATION_REQUESTED,
-            OfferingUserStates.CREATING,
-            OfferingUserStates.PENDING_ACCOUNT_LINKING,
-            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
-            state_enum=OfferingUserStates,
+        validate_offering_user_state_transition(
+            [
+                OfferingUserStates.CREATION_REQUESTED,
+                OfferingUserStates.CREATING,
+                OfferingUserStates.PENDING_ACCOUNT_LINKING,
+                OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+            ],
+            "ERROR_CREATING",
         )
     ]
 
@@ -4409,6 +4434,7 @@ class OfferingUsersViewSet(
         offering_user: models.OfferingUser = self.get_object()
         offering_user.set_error_deleting()
         offering_user.save(update_fields=["state"])
+
         event_logger.emit(
             f"User {offering_user.user} in offering {offering_user.offering.name} set to error deleting state.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
@@ -4420,10 +4446,9 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     set_error_deleting_validators = [
-        core_validators.StateValidator(
-            OfferingUserStates.DELETION_REQUESTED,
-            OfferingUserStates.DELETING,
-            state_enum=OfferingUserStates,
+        validate_offering_user_state_transition(
+            [OfferingUserStates.DELETION_REQUESTED, OfferingUserStates.DELETING],
+            "ERROR_DELETING",
         )
     ]
 
@@ -4446,9 +4471,8 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     set_deleted_validators = [
-        core_validators.StateValidator(
-            OfferingUserStates.DELETING,
-            state_enum=OfferingUserStates,
+        validate_offering_user_state_transition(
+            [OfferingUserStates.DELETING], "DELETED"
         )
     ]
 
@@ -4478,9 +4502,8 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     request_deletion_validators = [
-        core_validators.StateValidator(
-            OfferingUserStates.OK,
-            state_enum=OfferingUserStates,
+        validate_offering_user_state_transition(
+            [OfferingUserStates.OK], "DELETION_REQUESTED"
         )
     ]
 
@@ -4510,10 +4533,12 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     set_deleting_validators = [
-        core_validators.StateValidator(
-            OfferingUserStates.DELETION_REQUESTED,
-            OfferingUserStates.ERROR_DELETING,
-            state_enum=OfferingUserStates,
+        validate_offering_user_state_transition(
+            [
+                OfferingUserStates.DELETION_REQUESTED,
+                OfferingUserStates.ERROR_DELETING,
+            ],
+            "DELETING",
         )
     ]
 
@@ -4548,9 +4573,10 @@ class OfferingUsersViewSet(
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    update_comments_permissions = [
-        core_validators.StateValidator(
-            # Allow updating comments for any non-deleted state
+    def _check_update_comments_state(request, view, obj=None):
+        """Check if offering user is in valid state for updating comments."""
+        offering_user = obj or view.get_object()
+        allowed_states = [
             OfferingUserStates.CREATION_REQUESTED,
             OfferingUserStates.CREATING,
             OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
@@ -4560,9 +4586,13 @@ class OfferingUsersViewSet(
             OfferingUserStates.DELETING,
             OfferingUserStates.ERROR_CREATING,
             OfferingUserStates.ERROR_DELETING,
-            state_enum=OfferingUserStates,
-        )
-    ]
+        ]
+        if offering_user.state not in allowed_states:
+            raise PermissionDenied(
+                f"Cannot update comments for offering user in state: {offering_user.get_state_display()}"
+            )
+
+    update_comments_permissions = [_check_update_comments_state]
 
 
 class OfferingUserGroupViewSet(core_views.ActionsViewSet):

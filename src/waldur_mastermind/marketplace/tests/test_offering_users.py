@@ -1279,3 +1279,57 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         )
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_invalid_state_transitions_return_400_not_500(self):
+        """Test that invalid state transitions return HTTP 400 instead of HTTP 500."""
+        # Test the original bug scenario: PENDING_ADDITIONAL_VALIDATION -> ERROR_DELETING
+        self.offering_user.state = OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-set-error-deleting",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+
+        # Should return 400 Bad Request, not 500 Internal Server Error
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("detail", response.data)
+        self.assertIn(
+            "Cannot transition to ERROR_DELETING from current state",
+            response.data["detail"],
+        )
+
+        # Test another invalid transition: OK -> ERROR_CREATING
+        self.offering_user.state = OfferingUserStates.OK
+        self.offering_user.save()
+
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-set-error-creating",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("detail", response.data)
+        self.assertIn(
+            "Cannot transition to ERROR_CREATING from current state",
+            response.data["detail"],
+        )
+
+        # Test another invalid transition: CREATION_REQUESTED -> set_deleted
+        self.offering_user.state = OfferingUserStates.CREATION_REQUESTED
+        self.offering_user.save()
+
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-set-deleted",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("detail", response.data)
+        self.assertIn(
+            "Cannot transition to DELETED from current state", response.data["detail"]
+        )
