@@ -707,7 +707,6 @@ Upload Ansible module:
     - git commit -m "Update Ansible Waldur modules" || exit 0
     - git push
   before_script: *build_before_script
-
 Publish Ansible Galaxy collection:
   stage: postdeploy
   interruptible: true
@@ -734,8 +733,6 @@ Publish Ansible Galaxy collection:
       fi
 
     # 1. Discover all collections by finding all 'galaxy.yml' files.
-    #    The `find` command is perfect for this task. It will return a list of paths
-    #    like 'ansible_waldur_module/ansible_collections/waldur/openstack/galaxy.yml'.
     - |
       find "$COLLECTIONS_ROOT" -name "galaxy.yml" | while read GALAXY_FILE; do
         # For each galaxy.yml found, get its parent directory, which is the collection path.
@@ -746,9 +743,10 @@ Publish Ansible Galaxy collection:
         echo "=========================================================="
 
         # 2. Dynamically determine the collection details from its galaxy.yml
-        NAMESPACE=$(yq e '.namespace' "${GALAXY_FILE}")
-        NAME=$(yq e '.name' "${GALAXY_FILE}")
-        VERSION=$(yq e '.version' "${GALAXY_FILE}")
+        # Fixed: Use proper yq v4 syntax with quotes and file specification
+        NAMESPACE=$(yq '.namespace' "${GALAXY_FILE}")
+        NAME=$(yq '.name' "${GALAXY_FILE}")
+        VERSION=$(yq '.version' "${GALAXY_FILE}")
 
         echo "Found Collection: ${NAMESPACE}.${NAME} version ${VERSION}"
 
@@ -766,17 +764,29 @@ Publish Ansible Galaxy collection:
         ) # The subshell exits, and we are back in the original directory.
 
         # 4. Publish the dynamically named archive file.
-        #    The built archive will be located in the parent directory of the collection path.
+        #    The built archive will be located in the collection directory itself (not parent).
         ARCHIVE_FILE_NAME="${NAMESPACE}-${NAME}-${VERSION}.tar.gz"
-        ARCHIVE_FILE_PATH="$(dirname "${COLLECTION_PATH}")/${ARCHIVE_FILE_NAME}"
+        ARCHIVE_FILE_PATH="${COLLECTION_PATH}/${ARCHIVE_FILE_NAME}"
 
         echo "--- Publishing archive: ${ARCHIVE_FILE_PATH} ---"
 
         # Verify the archive file exists before trying to publish.
         if [ ! -f "${ARCHIVE_FILE_PATH}" ]; then
-          echo "ERROR: Expected archive file not found at ${ARCHIVE_FILE_PATH}. Skipping."
-          ls -R . # List files for debugging
-          continue # Skip to the next collection
+          echo "ERROR: Expected archive file not found at ${ARCHIVE_FILE_PATH}. Checking parent directory..."
+          # Try parent directory as fallback
+          ARCHIVE_FILE_PATH_PARENT="$(dirname "${COLLECTION_PATH}")/${ARCHIVE_FILE_NAME}"
+          if [ -f "${ARCHIVE_FILE_PATH_PARENT}" ]; then
+            ARCHIVE_FILE_PATH="${ARCHIVE_FILE_PATH_PARENT}"
+            echo "Found archive at: ${ARCHIVE_FILE_PATH}"
+          else
+            echo "ERROR: Archive file not found in collection or parent directory. Skipping."
+            echo "Looking for: ${ARCHIVE_FILE_NAME}"
+            echo "In collection dir:"
+            ls -la "${COLLECTION_PATH}/" || true
+            echo "In parent dir:"
+            ls -la "$(dirname "${COLLECTION_PATH}")/" || true
+            continue # Skip to the next collection
+          fi
         fi
 
         ansible-galaxy collection publish --api-key "$ANSIBLE_GALAXY_TOKEN" "${ARCHIVE_FILE_PATH}"
