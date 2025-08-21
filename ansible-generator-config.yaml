@@ -78,18 +78,27 @@ collections:
           - description
 
         resolvers:
-          offering:
-            list: marketplace_public_offerings_list
-            retrieve: marketplace_public_offerings_retrieve
           type:
             list: openstack_volume_types_list
             retrieve: openstack_volume_types_retrieve
+            filter_by:
+              - source_param: "offering"
+                source_key: "scope_uuid"
+                target_key: "tenant_uuid"
           image:
             list: openstack_images_list
             retrieve: openstack_images_retrieve
+            filter_by:
+              - source_param: "offering"
+                source_key: "scope_uuid"
+                target_key: "tenant_uuid"
           availability_zone:
             list: openstack_volume_availability_zones_list
             retrieve: openstack_volume_availability_zones_retrieve
+            filter_by:
+              - source_param: "offering"
+                source_key: "scope_uuid"
+                target_key: "tenant_uuid"
       instance:
         type: order
         offering_type: OpenStack.Instance
@@ -103,15 +112,31 @@ collections:
           flavor:
             list: "openstack_flavors_list"
             retrieve: "openstack_flavors_retrieve"
+            filter_by:
+              - source_param: "offering"
+                source_key: "scope_uuid"
+                target_key: "tenant_uuid"
           image:
             list: "openstack_images_list"
             retrieve: "openstack_images_retrieve"
+            filter_by:
+              - source_param: "offering"
+                source_key: "scope_uuid"
+                target_key: "tenant_uuid"
           system_volume_type:
             list: "openstack_volume_types_list"
             retrieve: "openstack_volume_types_retrieve"
+            filter_by:
+              - source_param: "offering"
+                source_key: "scope_uuid"
+                target_key: "tenant_uuid"
           data_volume_type:
             list: "openstack_volume_types_list"
             retrieve: "openstack_volume_types_retrieve"
+            filter_by:
+              - source_param: "offering"
+                source_key: "scope_uuid"
+                target_key: "tenant_uuid"
           ssh_key:
             list: "keys_list"
             retrieve: "keys_retrieve"
