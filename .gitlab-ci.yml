@@ -717,6 +717,7 @@ Publish Ansible Galaxy collection:
   needs:
     - Generate Ansible modules
   before_script:
+    - apt-get update && apt-get install -y jq
     - pip install "ansible-core>=2.14" yq
 
   script:
