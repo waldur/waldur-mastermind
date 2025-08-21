@@ -1979,13 +1979,6 @@ class ScopedServiceAccount(BaseServiceAccount):
     def __str__(self):
         return f"Service account {self.username} for {self.scope}"
 
-    tracker = cast(
-        FieldInstanceTracker,
-        FieldTracker(
-            fields=["username", "email", "description", "preferred_identifier"]
-        ),
-    )
-
 
 class ProjectServiceAccount(ScopedServiceAccount):
     """
@@ -2000,6 +1993,13 @@ class ProjectServiceAccount(ScopedServiceAccount):
         to=structure_models.Project,
         null=True,
         blank=True,
+    )
+
+    tracker = cast(
+        FieldInstanceTracker,
+        FieldTracker(
+            fields=["username", "email", "description", "preferred_identifier"]
+        ),
     )
 
     class Meta:

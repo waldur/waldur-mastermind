@@ -19,6 +19,7 @@ class ObservableObjectType(Enum):
     RESOURCE = "resource"
     OFFERING_USER = "offering_user"
     IMPORTABLE_RESOURCES = "importable_resources"
+    SERVICE_ACCOUNTS = "service_accounts"
 
 
 def get_loggable_models():

@@ -162,3 +162,45 @@ def send_resource_update_message_to_queue(
         return
 
     utils.push_resource_update_message(instance)
+
+
+def send_project_service_account_info(
+    sender, instance: marketplace_models.ProjectServiceAccount, **kwargs
+):
+    if not instance.tracker.has_changed("username") or not instance.username:
+        return
+
+    service_account = instance
+
+    logger.info("Sending info message for the %s", service_account)
+    project = service_account.project
+    offering_ids = set(
+        project.resource_set.filter(
+            offering__type=PLUGIN_NAME,
+        )
+        .exclude(state=ResourceStates.TERMINATED)
+        .values_list("offering", flat=True)
+    )
+    offerings = marketplace_models.Offering.objects.filter(id__in=offering_ids)
+    all_messages = []
+    for offering in offerings:
+        logger.debug(
+            "Processing event of project service account creation for project %s, offering %s, username %s",
+            project,
+            offering,
+            service_account.username,
+        )
+        payload = {
+            "service_account_uuid": service_account.uuid.hex,
+            "service_account_username": service_account.username,
+            "scope_type": "project",
+            "project_uuid": project.uuid.hex,
+            "project_name": project.name,
+        }
+        messages = marketplace_utils.prepare_messages(
+            offering, payload, logging_utils.ObservableObjectType.SERVICE_ACCOUNTS
+        )
+        all_messages.extend(messages)
+
+    if all_messages:
+        logging_tasks.publish_messages.delay(all_messages)

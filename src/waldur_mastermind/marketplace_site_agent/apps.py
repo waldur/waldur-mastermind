@@ -66,3 +66,9 @@ class MarketplaceSlurmConfig(AppConfig):
             handlers.send_role_revoked_message_to_queue,
             dispatch_uid="waldur_mastermind.marketplace_site_agent.send_role_revoked_message_to_queue",
         )
+
+        signals.post_save.connect(
+            handlers.send_project_service_account_info,
+            sender=marketplace_models.ProjectServiceAccount,
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_project_service_account_info",
+        )

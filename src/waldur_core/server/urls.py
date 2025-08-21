@@ -20,6 +20,7 @@ from waldur_mastermind.marketplace.views import (
     ServiceProviderKeysViewSet,
     ServiceProviderOfferingsViewSet,
     ServiceProviderProjectPermissionsViewSet,
+    ServiceProviderProjectServiceAccountsViewSet,
     ServiceProviderProjectsViewSet,
     ServiceProviderUserCustomersViewSet,
     ServiceProviderUsersViewSet,
@@ -83,6 +84,11 @@ service_provider_router.register(
     r"user_customers",
     ServiceProviderUserCustomersViewSet,
     basename="service-provider-user-customers",
+)
+service_provider_router.register(
+    r"project_service_accounts",
+    ServiceProviderProjectServiceAccountsViewSet,
+    basename="service-provider-project-service-accounts",
 )
 service_provider_router.register(
     r"offerings",
