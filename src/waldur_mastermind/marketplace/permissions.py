@@ -178,3 +178,36 @@ def can_see_secret_options(request, instance):
             )
         )
     )
+
+
+def check_tos_consent_permission(request, view, obj=None):
+    """
+    Check if user has consented to Terms of Service for the resource's offering.
+
+    This permission check ensures that users can only directly access resources
+    if they have consented to the offering's Terms of Service (if required).
+    """
+    if not obj:
+        return
+
+    user = request.user
+    offering = obj.offering
+    if user.is_staff or user.is_support:
+        return
+    if has_permission(request, PermissionEnum.UPDATE_OFFERING, offering.customer):
+        return
+
+    # Check if offering has ToS requirements
+    if not offering.has_terms_of_service():
+        return
+
+    consent_exists = models.UserOfferingConsent.objects.filter(
+        user=user,
+        offering=offering,
+        revocation_date__isnull=True,
+    ).exists()
+    if not consent_exists:
+        raise exceptions.PermissionDenied(
+            f"Terms of Service consent required for offering '{offering.name}'. "
+            f"Please accept the Terms of Service before accessing this resource."
+        )

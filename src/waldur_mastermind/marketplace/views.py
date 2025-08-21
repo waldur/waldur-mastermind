@@ -715,7 +715,15 @@ class ServiceProviderUsersViewSet(mixins.ListModelMixin, rf_viewsets.GenericView
         user_ids = utils.get_service_provider_user_ids(
             self.request.user, service_provider
         )
-        return self.queryset.filter(id__in=user_ids)
+
+        sp_offerings = models.Offering.objects.filter(
+            customer=service_provider.customer
+        )
+        return self.queryset.filter(
+            id__in=user_ids,
+            offering_consents__offering__in=sp_offerings,
+            offering_consents__revocation_date__isnull=True,
+        ).distinct()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -2165,7 +2173,11 @@ class ProviderOfferingViewSet(
         )
         ctype = ContentType.objects.get_for_model(structure_models.Project)
         user_ids = get_user_ids(ctype, project_ids)
-        users = core_models.User.objects.filter(id__in=user_ids)
+        users = core_models.User.objects.filter(
+            id__in=user_ids,
+            offering_consents__offering=offering,
+            offering_consents__revocation_date__isnull=True,
+        )
         page = self.paginate_queryset(users)
         serializer = structure_serializers.UserSerializer(
             instance=page,
@@ -3063,6 +3075,8 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     update_serializer_class = partial_update_serializer_class = (
         serializers.ResourceUpdateSerializer
     )
+
+    retrieve_permissions = [permissions.check_tos_consent_permission]
 
     def list(self, request, *args, **kwargs):
         utils.refresh_integration_agent_status(
@@ -4117,8 +4131,17 @@ class OfferingUsersViewSet(
                 | (
                     (
                         # service provider can see all records related to managed offerings
-                        Q(offering__customer__in=managed_customers)
-                        | Q(user__in=visible_users)
+                        # but only for users with active consent
+                        (
+                            Q(offering__customer__in=managed_customers)
+                            | Q(user__in=visible_users)
+                        )
+                        & Q(
+                            user__offering_consents__offering=F("offering"),
+                            user__offering_consents__revocation_date__isnull=True,
+                        )
+                        if self.action in ["list", "retrieve"]
+                        else Q()
                     )
                     & (
                         # only offerings managed by customer where the current user has a role
@@ -4811,10 +4834,23 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             "customer__organization_groups"
         ):
             for group in sp.customer.organization_groups.all():
+                # Get base user IDs from projects, we filter users by ToS consent for sp offerings
+                user_ids = utils.get_service_provider_user_ids(self.request.user, sp)
+
+                sp_offerings = models.Offering.objects.filter(customer=sp.customer)
+                consented_user_ids = (
+                    models.UserOfferingConsent.objects.filter(
+                        offering__in=sp_offerings,
+                        revocation_date__isnull=True,
+                    )
+                    .values_list("user_id", flat=True)
+                    .distinct()
+                )
+
+                consented_user_ids = set(user_ids) & set(consented_user_ids)
+
                 data = {
-                    "count": utils.get_service_provider_user_ids(
-                        self.request.user, sp
-                    ).count(),
+                    "count": len(consented_user_ids),
                     "customer_organization_group_uuid": group.uuid.hex,
                     "customer_organization_group_name": group.name,
                 }
@@ -6174,6 +6210,91 @@ class MaintenanceAnnouncementOfferingTemplateViewSet(core_views.ActionsViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.MaintenanceAnnouncementOfferingTemplateFilter
     serializer_class = serializers.MaintenanceAnnouncementOfferingTemplateSerializer
+
+
+class ProviderOfferingToSManagementViewset(core_views.ActionsViewSet):
+    """
+    ViewSet for managing Terms of Service configurations for offerings.
+
+    Service providers can create, update, and delete ToS configurations
+    for their offerings. Users can view ToS configurations.
+    """
+
+    queryset = models.OfferingTermsOfService.objects.all()
+    serializer_class = serializers.OfferingTermsOfServiceSerializer
+    create_serializer_class = serializers.OfferingTermsOfServiceCreateSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.OfferingTermsOfServiceFilter
+
+    def get_queryset(self):
+        """Filter queryset based on user permissions."""
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return self.queryset
+
+        customers = get_connected_customers(user)
+        if customers:
+            return self.queryset.filter(offering__customer__in=customers)
+        return self.queryset.filter(is_active=True, offering__shared=True)
+
+    create_permissions = update_permissions = partial_update_permissions = (
+        destroy_permissions
+    ) = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["offering.customer"],
+        )
+    ]
+
+
+class UserOfferingConsentViewSet(core_views.ActionsViewSet):
+    """
+    ViewSet for managing user consent to Terms of Service for offerings.
+
+    Provides endpoints for:
+    - Granting consent to an offering
+    - Revoking consent
+    - Listing consents for a user/offering with status information
+
+    Use standard filtering to find consents:
+    - ?user_uuid=<uuid> - Filter by user
+    - ?offering_uuid=<uuid> - Filter by offering
+    - ?is_active=true - Filter by active status
+    """
+
+    queryset = models.UserOfferingConsent.objects.all()
+    serializer_class = serializers.UserOfferingConsentSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.UserOfferingConsentFilter
+
+    def get_queryset(self):
+        """Filter queryset based on user permissions."""
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return self.queryset
+
+        return self.queryset.filter(user=user)
+
+    create_serializer_class = serializers.UserOfferingConsentCreateSerializer
+
+    @extend_schema(
+        request=None,
+        responses={status.HTTP_200_OK: serializers.UserOfferingConsentSerializer},
+        description="Revoke consent to Terms of Service for an offering.",
+    )
+    @action(detail=True, methods=["post"])
+    def revoke(self, request, uuid=None):
+        """Revoke consent to Terms of Service."""
+        consent = self.get_object()
+
+        if not request.user.is_staff and consent.user != request.user:
+            raise PermissionDenied("You don't have permission to revoke this consent.")
+
+        consent.revoke()
+        serializer = self.get_serializer(consent)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class PublicMaintenanceAnnouncementViewSet(
