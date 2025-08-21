@@ -830,6 +830,61 @@ class ServiceProviderUserCustomersViewSet(
         }
 
 
+@extend_schema_view(
+    list=extend_schema(
+        description="""Return project service accounts that have access to resources managed by the provider.
+
+        Checks for:
+        - Projects with active service provider's resources
+        - Service accounts with non-blank usernames
+
+        """,
+        parameters=[
+            SERVICE_PROVIDER_UUID,
+        ],
+    )
+)
+class ServiceProviderProjectServiceAccountsViewSet(
+    mixins.ListModelMixin, rf_viewsets.GenericViewSet
+):
+    serializer_class = serializers.ProjectServiceAccountSerializer
+    queryset = models.ProjectServiceAccount.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ProjectServiceAccountFilter
+
+    def get_service_provider(self):
+        service_provider = models.ServiceProvider.objects.get(
+            uuid=self.kwargs["service_provider_uuid"]
+        )
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_SERVICE_PROVIDER_SERVICE_ACCOUNTS,
+            service_provider.customer,
+        ):
+            raise PermissionDenied()
+        return service_provider
+
+    def get_queryset(self):
+        service_provider = self.get_service_provider()
+
+        resources = utils.get_service_provider_resources(service_provider)
+        project_ids = resources.values_list("project_id", flat=True)
+
+        return self.queryset.filter(
+            project_id__in=project_ids,
+        ).exclude(username=None)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        return {
+            **context,
+            "service_provider": self.get_service_provider(),
+        }
+
+    def filter_queryset(self, queryset):
+        return super().filter_queryset(queryset)
+
+
 class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet):
     queryset = models.Category.objects.all()
     serializer_class = serializers.MarketplaceCategorySerializer

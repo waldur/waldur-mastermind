@@ -526,3 +526,58 @@ class ServiceProviderUserCustomersTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url, {"user_uuid": self.fixture.user.uuid.hex})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class ServiceProviderProjectServiceAccountsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.service_provider = self.fixture.service_provider
+        self.url = factories.ServiceProviderFactory.get_url(
+            self.service_provider, "project_service_accounts"
+        )
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.LIST_SERVICE_PROVIDER_SERVICE_ACCOUNTS
+        )
+
+        self.resource = self.fixture.resource
+        self.service_account = factories.ProjectServiceAccountFactory(
+            project=self.resource.project,
+            username="test-svc-username",
+        )
+
+        self.service_account_hidden = factories.ProjectServiceAccountFactory(
+            project=structure_factories.ProjectFactory(),
+            username="test-svc-username-2",
+        )
+
+    def test_get_project_service_accounts(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+
+        service_account = response.json()[0]
+        self.assertEqual(service_account["username"], self.service_account.username)
+        self.assertEqual(
+            service_account["project_uuid"], self.resource.project.uuid.hex
+        )
+
+    def test_filter_project_service_accounts(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        new_resource = factories.ResourceFactory(
+            name="New resource", offering=self.fixture.offering, state=ResourceStates.OK
+        )
+        new_project = new_resource.project
+
+        new_service_account = factories.ProjectServiceAccountFactory(
+            project=new_project,
+            username="test-svc-new-username",
+        )
+        url = f"{self.url}?project_uuid={new_project.uuid.hex}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+
+        service_account = response.json()[0]
+        self.assertEqual(service_account["username"], new_service_account.username)
+        self.assertEqual(service_account["project_uuid"], new_project.uuid.hex)
