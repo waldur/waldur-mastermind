@@ -707,6 +707,7 @@ Upload Ansible module:
     - git commit -m "Update Ansible Waldur modules" || exit 0
     - git push
   before_script: *build_before_script
+
 Publish Ansible Galaxy collection:
   stage: postdeploy
   interruptible: true
@@ -744,9 +745,9 @@ Publish Ansible Galaxy collection:
         echo "=========================================================="
 
         # 2. Dynamically determine the collection details from its galaxy.yml
-        NAMESPACE=$(yq '.namespace' "${GALAXY_FILE}")
-        NAME=$(yq '.name' "${GALAXY_FILE}")
-        VERSION=$(yq '.version' "${GALAXY_FILE}")
+        NAMESPACE=$(yq '.namespace' "${GALAXY_FILE}" | tr -d '"')
+        NAME=$(yq '.name' "${GALAXY_FILE}" | tr -d '"')
+        VERSION=$(yq '.version' "${GALAXY_FILE}" | tr -d '"')
 
         echo "Found Collection: ${NAMESPACE}.${NAME} version ${VERSION}"
 
