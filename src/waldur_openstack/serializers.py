@@ -307,8 +307,12 @@ class OpenStackTenantQuotaSerializer(serializers.Serializer):
 
 
 class OpenStackFixedIpSerializer(serializers.Serializer):
-    ip_address = serializers.IPAddressField()
-    subnet_id = serializers.CharField()
+    ip_address = serializers.IPAddressField(
+        help_text=_("IP address to assign to the port")
+    )
+    subnet_id = serializers.CharField(
+        help_text=_("ID of the subnet in which to assign the IP address")
+    )
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -2612,6 +2616,7 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
         lookup_field="uuid",
         queryset=models.Flavor.objects.all().select_related("settings"),
         write_only=True,
+        help_text=_("The flavor to use for the instance"),
     )
 
     image = serializers.HyperlinkedRelatedField(
@@ -2619,34 +2624,52 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
         lookup_field="uuid",
         queryset=models.Image.objects.all().select_related("settings"),
         write_only=True,
+        help_text=_("The OS image to use for the instance"),
     )
 
     service_settings = serializers.HyperlinkedRelatedField(
         read_only=True,
         view_name="servicesettings-detail",
         lookup_field="uuid",
+        help_text=_("OpenStack provider settings"),
     )
 
     tenant = serializers.HyperlinkedRelatedField(
         view_name="openstack-tenant-detail",
         lookup_field="uuid",
         queryset=models.Tenant.objects.all(),
+        help_text=_("The OpenStack tenant to create the instance in"),
     )
 
     security_groups = OpenStackNestedSecurityGroupSerializer(
-        queryset=models.SecurityGroup.objects.all(), many=True, required=False
+        queryset=models.SecurityGroup.objects.all(),
+        many=True,
+        required=False,
+        help_text=_("List of security groups to apply to the instance"),
     )
     server_group = OpenStackNestedServerGroupSerializer(
-        queryset=models.ServerGroup.objects.all(), required=False, allow_null=True
+        queryset=models.ServerGroup.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text=_("Server group for instance scheduling policy"),
     )
-    ports = OpenStackNestedPortSerializer(many=True, required=True)
+    ports = OpenStackNestedPortSerializer(
+        many=True, required=True, help_text=_("Network ports to attach to the instance")
+    )
     floating_ips = OpenStackNestedFloatingIPSerializer(
         queryset=models.FloatingIP.objects.all().filter(port__isnull=True),
         many=True,
         required=False,
+        help_text=_("Floating IPs to assign to the instance"),
     )
 
-    system_volume_size = serializers.IntegerField(min_value=1024, write_only=True)
+    system_volume_size = serializers.IntegerField(
+        min_value=1024,
+        write_only=True,
+        help_text=_(
+            "Size of the system volume in MiB. Minimum size is 1024 MiB (1 GiB)"
+        ),
+    )
     system_volume_type = serializers.HyperlinkedRelatedField(
         view_name="openstack-volume-type-detail",
         queryset=models.VolumeType.objects.all(),
@@ -2654,9 +2677,13 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
         allow_null=True,
         required=False,
         write_only=True,
+        help_text=_("Volume type for the system volume"),
     )
     data_volume_size = serializers.IntegerField(
-        min_value=1024, required=False, write_only=True
+        min_value=1024,
+        required=False,
+        write_only=True,
+        help_text=_("Size of the data volume in MiB. Minimum size is 1024 MiB (1 GiB)"),
     )
     data_volume_type = serializers.HyperlinkedRelatedField(
         view_name="openstack-volume-type-detail",
@@ -2665,17 +2692,34 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
         allow_null=True,
         required=False,
         write_only=True,
+        help_text=_("Volume type for the data volume"),
     )
     data_volumes = OpenStackDataVolumeSerializer(
-        many=True, required=False, write_only=True
+        many=True,
+        required=False,
+        write_only=True,
+        help_text=_("Additional data volumes to attach to the instance"),
     )
-    volumes = OpenStackNestedVolumeSerializer(many=True, required=False, read_only=True)
-    action_details = serializers.JSONField(read_only=True)
+    volumes = OpenStackNestedVolumeSerializer(
+        many=True,
+        required=False,
+        read_only=True,
+        help_text=_("List of volumes attached to the instance"),
+    )
+    action_details = serializers.JSONField(
+        read_only=True, help_text=_("Details about ongoing or completed actions")
+    )
 
     availability_zone_name = serializers.CharField(
-        source="availability_zone.name", read_only=True
+        source="availability_zone.name",
+        read_only=True,
+        help_text=_("Name of the availability zone where instance is located"),
     )
-    tenant_uuid = serializers.UUIDField(read_only=True, source="tenant.uuid")
+    tenant_uuid = serializers.UUIDField(
+        read_only=True,
+        source="tenant.uuid",
+        help_text=_("UUID of the OpenStack tenant"),
+    )
 
     class Meta(structure_serializers.VirtualMachineSerializer.Meta):
         model = models.Instance
@@ -3034,6 +3078,9 @@ class InstanceFlavorChangeSerializer(serializers.Serializer):
         view_name="openstack-flavor-detail",
         lookup_field="uuid",
         queryset=models.Flavor.objects.all(),
+        help_text=_(
+            "The new flavor to use for the instance. Flavor change can only be done when instance is stopped."
+        ),
     )
 
     def validate_flavor(self, flavor: models.Flavor):
@@ -3101,6 +3148,7 @@ class OpenStackInstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
         view_name="openstack-sgp-detail",
         lookup_field="uuid",
         queryset=models.SecurityGroup.objects.all(),
+        help_text=_("List of security groups to be assigned to the instance."),
     )
 
     def validate_security_groups(self, security_groups):
@@ -3129,9 +3177,14 @@ class OpenStackInstanceAllowedAddressPairsUpdateSerializer(serializers.Serialize
         view_name="openstack-subnet-detail",
         lookup_field="uuid",
         write_only=True,
+        help_text=_("The subnet to update allowed address pairs for."),
     )
 
-    allowed_address_pairs = OpenStackAllowedAddressPairField()
+    allowed_address_pairs = OpenStackAllowedAddressPairField(
+        help_text=_(
+            "List of allowed address pairs to set on the port. Each pair should contain 'ip_address' and optional 'mac_address'."
+        )
+    )
 
     @transaction.atomic
     def update(self, instance, validated_data):
@@ -3240,13 +3293,21 @@ class OpenStackBackupRestorationSerializer(serializers.HyperlinkedModelSerialize
         help_text=_("New instance name. Leave blank to use source instance name."),
     )
     security_groups = OpenStackNestedSecurityGroupSerializer(
-        queryset=models.SecurityGroup.objects.all(), many=True, required=False
+        queryset=models.SecurityGroup.objects.all(),
+        many=True,
+        required=False,
+        help_text=_("Security groups that will be assigned to the restored instance"),
     )
-    ports = OpenStackNestedPortSerializer(many=True, required=False)
+    ports = OpenStackNestedPortSerializer(
+        many=True,
+        required=False,
+        help_text=_("Network ports that will be attached to the restored instance"),
+    )
     floating_ips = OpenStackNestedFloatingIPSerializer(
         queryset=models.FloatingIP.objects.all().filter(port__isnull=True),
         many=True,
         required=False,
+        help_text=_("Floating IPs that will be assigned to the restored instance"),
     )
 
     class Meta:
@@ -3460,7 +3521,7 @@ class OpenStackBackupSerializer(structure_serializers.BaseResourceActionSerializ
             backup.snapshots.add(snapshot)
 
 
-def get_instance(openstack_floating_ip) -> models.Instance:
+def get_instance(openstack_floating_ip) -> models.Instance | None:
     # cache openstack instance on openstack floating_ip instance
     if hasattr(openstack_floating_ip, "_instance"):
         return openstack_floating_ip._instance
@@ -3578,8 +3639,11 @@ class OpenStackPortIPUpdateSerializer(serializers.Serializer):
         view_name="openstack-subnet-detail",
         lookup_field="uuid",
         write_only=True,
+        help_text=_("The subnet where the new IP address will be allocated"),
     )
-    ip_address = serializers.IPAddressField()
+    ip_address = serializers.IPAddressField(
+        help_text=_("The IP address to assign within the subnet"),
+    )
 
     def validate(self, attrs):
         subnet = attrs.get("subnet")
@@ -3613,12 +3677,18 @@ class OpenStackRouterInterfaceSerializer(serializers.Serializer):
         view_name="openstack-subnet-detail",
         lookup_field="uuid",
         required=False,
+        help_text=_(
+            "The subnet to connect to the router. Either subnet or port must be specified, but not both."
+        ),
     )
     port = serializers.HyperlinkedRelatedField(
         queryset=models.Port.objects.all(),
         view_name="openstack-port-detail",
         lookup_field="uuid",
         required=False,
+        help_text=_(
+            "The port to connect to the router. Either subnet or port must be specified, but not both."
+        ),
     )
 
     def validate(self, attrs):
