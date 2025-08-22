@@ -28,7 +28,7 @@ class ServiceAccountMessageTest(test.APITransactionTestCase):
             user=self.fixture.offering_owner,
             observable_objects=[
                 {
-                    "object_type": logging_utils.ObservableObjectType.SERVICE_ACCOUNTS.value
+                    "object_type": logging_utils.ObservableObjectType.SERVICE_ACCOUNT.value
                 }
             ],
         )

@@ -198,7 +198,7 @@ def send_project_service_account_info(
             "project_name": project.name,
         }
         messages = marketplace_utils.prepare_messages(
-            offering, payload, logging_utils.ObservableObjectType.SERVICE_ACCOUNTS
+            offering, payload, logging_utils.ObservableObjectType.SERVICE_ACCOUNT
         )
         all_messages.extend(messages)
 
