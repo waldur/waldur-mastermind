@@ -44,6 +44,6 @@ class OpenStackNestedSecurityGroupSerializerExtension(OpenApiSerializerExtension
 
     def map_serializer(self, auto_schema, direction):
         return {
-            "type": "array",
-            "items": {"type": "object", "properties": {"url": {"type": "string"}}},
+            "type": "object",
+            "properties": {"url": {"type": "string"}},
         }
