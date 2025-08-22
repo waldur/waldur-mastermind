@@ -3,9 +3,8 @@ collections:
     name: structure
     version: 1.0.0
     modules:
-      project:
-        type: crud
-        resource_type: project
+      - name: project
+        plugin: crud
         operations:
           list: projects_list
           create: projects_create
@@ -17,9 +16,8 @@ collections:
           type:
             list: project_types_list
             retrieve: project_types_retrieve
-      customer:
-        type: crud
-        resource_type: customer
+      - name: customer
+        plugin: crud
         operations:
           list: customers_list
           create: customers_create
@@ -30,14 +28,12 @@ collections:
     name: openstack
     version: 1.0.0
     modules:
-      instance_facts:
-        type: facts
-        resource_type: openstack_instance
+      - name: instance_facts
+        plugin: facts
         list_operation: openstack_instances_list
         retrieve_operation: openstack_instances_retrieve
-      security_group_facts:
-        type: facts
-        resource_type: security_group
+      - name: security_group_facts
+        plugin: facts
         list_operation: openstack_security_groups_list
         retrieve_operation: openstack_security_groups_retrieve
         many: true
@@ -47,9 +43,8 @@ collections:
               list: openstack_tenants_list
               retrieve: openstack_tenants_retrieve
               filter_key: tenant_uuid
-      subnet_facts:
-        type: facts
-        resource_type: subnet
+      - name: subnet_facts
+        plugin: facts
         list_operation: openstack_subnets_list
         retrieve_operation: openstack_subnets_retrieve
         many: true
@@ -59,15 +54,15 @@ collections:
               list: openstack_tenants_list
               retrieve: openstack_tenants_retrieve
               filter_key: tenant_uuid
-      vpc:
-        type: order
+      - name: vpc
+        plugin: order
         offering_type: OpenStack.Tenant
         description: Create, update, or delete an OpenStack Tenant via the marketplace.
         resource_type: OpenStack tenant
         has_limits: true
         existence_check_op: openstack_tenants_list
-      volume:
-        type: order
+      - name: volume
+        plugin: order
         offering_type: OpenStack.Volume
         description: Create, update, or delete an OpenStack Volume via the marketplace.
         resource_type: OpenStack volume
@@ -99,8 +94,8 @@ collections:
               - source_param: "offering"
                 source_key: "scope_uuid"
                 target_key: "tenant_uuid"
-      instance:
-        type: order
+      - name: instance
+        plugin: order
         offering_type: OpenStack.Instance
 
         description: "Create or delete an OpenStack Instance."
@@ -140,8 +135,8 @@ collections:
           ssh_key:
             list: "keys_list"
             retrieve: "keys_retrieve"
-      security_group:
-        type: crud
+      - name: security_group
+        plugin: crud
         resource_type: "OpenStack security group"
         description: "Manage OpenStack Security Groups and their rules in Waldur."
 
@@ -169,8 +164,8 @@ collections:
             list: "openstack_tenants_list"
             retrieve: "openstack_tenants_retrieve"
             error_message: "Tenant '{value}' not found."
-      network:
-        type: crud
+      - name: network
+        plugin: crud
         resource_type: "OpenStack network"
         description: "Manage OpenStack Networks in Waldur."
         operations:
@@ -190,8 +185,8 @@ collections:
             list: "openstack_tenants_list"
             retrieve: "openstack_tenants_retrieve"
             error_message: "Tenant '{value}' not found."
-      server_group:
-        type: crud
+      - name: server_group
+        plugin: crud
         resource_type: "OpenStack server group"
         description: "Manage OpenStack Server Groups (Affinity Groups) in Waldur."
         operations:
@@ -211,8 +206,8 @@ collections:
             list: "openstack_tenants_list"
             retrieve: "openstack_tenants_retrieve"
             error_message: "Tenant '{value}' not found."
-      floating_ip:
-        type: crud
+      - name: floating_ip
+        plugin: crud
         resource_type: "OpenStack floating IP"
         description: "Manage OpenStack Floating IPs in Waldur."
         operations:
