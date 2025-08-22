@@ -75,10 +75,24 @@ class Tenant(
 
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
-    backend_id = models.CharField(max_length=255, blank=True, null=True)
+    backend_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=_("ID of tenant in the OpenStack backend"),
+    )
 
-    internal_network_id = models.CharField(max_length=64, blank=True)
-    external_network_id = models.CharField(max_length=64, blank=True)
+    internal_network_id = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text=_("ID of internal network in OpenStack tenant"),
+    )
+    external_network_id = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text=_("ID of external network connected to OpenStack tenant"),
+    )
+
     availability_zone = models.CharField(
         max_length=100,
         blank=True,
@@ -91,9 +105,17 @@ class Tenant(
         blank=True,
         help_text=_("Volume type name to use when creating volumes."),
     )
-    user_username = models.CharField(max_length=50, blank=True)
-    user_password = models.CharField(max_length=50, blank=True)
-    update_triggered = models.DateTimeField(blank=True, null=True)
+    user_username = models.CharField(
+        max_length=50, blank=True, help_text=_("Username of the tenant user")
+    )
+    user_password = models.CharField(
+        max_length=50, blank=True, help_text=_("Password of the tenant user")
+    )
+    update_triggered = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text=_("Timestamp of when tenant update was last triggered"),
+    )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
@@ -236,7 +258,14 @@ class ServerGroup(structure_models.BaseResource):
 
     POLICIES = ((AFFINITY, "Affinity"),)
 
-    policy = models.CharField(max_length=40, blank=True, choices=POLICIES)
+    policy = models.CharField(
+        max_length=40,
+        blank=True,
+        choices=POLICIES,
+        help_text=_(
+            "Server group policy determining the rules for scheduling servers in this group"
+        ),
+    )
 
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="server_groups"
@@ -331,19 +360,47 @@ class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
         (IPv6, "IPv6"),
     )
 
-    # Empty string represents any protocol
-    protocol = models.CharField(max_length=40, blank=True, choices=PROTOCOLS)
+    protocol = models.CharField(
+        max_length=40,
+        blank=True,
+        choices=PROTOCOLS,
+        help_text=_("The network protocol (TCP, UDP, ICMP, or empty for any protocol)"),
+    )
     from_port = models.IntegerField(
-        validators=[validators.MaxValueValidator(65535)], null=True
+        validators=[validators.MaxValueValidator(65535)],
+        null=True,
+        help_text=_("Starting port number in the range (1-65535)"),
     )
     to_port = models.IntegerField(
-        validators=[validators.MaxValueValidator(65535)], null=True
+        validators=[validators.MaxValueValidator(65535)],
+        null=True,
+        help_text=_("Ending port number in the range (1-65535)"),
     )
-    cidr = models.CharField(max_length=255, blank=True, null=True)
-    direction = models.CharField(max_length=8, default=INGRESS, choices=DIRECTIONS)
-    ethertype = models.CharField(max_length=40, default=IPv4, choices=ETHER_TYPES)
-
-    backend_id = models.CharField(max_length=36, blank=True)
+    cidr = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=_("CIDR notation for the source/destination network address range"),
+    )
+    direction = models.CharField(
+        max_length=8,
+        default=INGRESS,
+        choices=DIRECTIONS,
+        help_text=_(
+            "Traffic direction - either 'ingress' (incoming) or 'egress' (outgoing)"
+        ),
+    )
+    ethertype = models.CharField(
+        max_length=40,
+        default=IPv4,
+        choices=ETHER_TYPES,
+        help_text=_("IP protocol version - either 'IPv4' or 'IPv6'"),
+    )
+    backend_id = models.CharField(
+        max_length=36,
+        blank=True,
+        help_text=_("ID of the security group rule in the OpenStack backend"),
+    )
 
 
 class SecurityGroupRule(BaseSecurityGroupRule, LoggableMixin):
@@ -354,7 +411,10 @@ class SecurityGroupRule(BaseSecurityGroupRule, LoggableMixin):
         return f"{self.security_group} ({self.protocol}): {self.cidr} ({self.from_port} -> {self.to_port})"
 
     security_group = models.ForeignKey(
-        on_delete=models.CASCADE, to=SecurityGroup, related_name="rules"
+        on_delete=models.CASCADE,
+        to=SecurityGroup,
+        related_name="rules",
+        help_text=_("Security group this rule belongs to"),
     )
     remote_group = models.ForeignKey(
         on_delete=models.CASCADE,
@@ -362,7 +422,9 @@ class SecurityGroupRule(BaseSecurityGroupRule, LoggableMixin):
         related_name="+",
         null=True,
         blank=True,
+        help_text=_("Remote security group that this rule references, if any"),
     )
+
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     def get_log_fields(self):
@@ -380,24 +442,38 @@ class SecurityGroupRule(BaseSecurityGroupRule, LoggableMixin):
 
 class FloatingIP(core_models.RuntimeStateMixin, structure_models.BaseResource):
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name="floating_ips"
+        on_delete=models.CASCADE,
+        to=Tenant,
+        related_name="floating_ips",
+        help_text=_("OpenStack tenant this floating IP belongs to"),
     )
     address = models.GenericIPAddressField(
-        null=True, blank=True, protocol="IPv4", default=None
+        null=True,
+        blank=True,
+        protocol="IPv4",
+        default=None,
+        help_text=_("The public IPv4 address of the floating IP"),
     )
     external_address = models.GenericIPAddressField(
         editable=False,
         null=True,
-        help_text="An optional address that maps to floating IP's address",
+        help_text=_(
+            "Optional address that maps to floating IP's address in external networks"
+        ),
     )
 
-    backend_network_id = models.CharField(max_length=255, editable=False)
+    backend_network_id = models.CharField(
+        max_length=255,
+        editable=False,
+        help_text=_("ID of network in OpenStack where this floating IP is allocated"),
+    )
     port = models.ForeignKey["Port"](
         on_delete=models.SET_NULL,
         to="Port",
         related_name="floating_ips",
         blank=True,
         null=True,
+        help_text=_("OpenStack port this floating IP is associated with"),
     )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
@@ -440,12 +516,27 @@ class Router(structure_models.BaseResource):
         unique_together = [["tenant", "backend_id"]]
 
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name="routers"
+        on_delete=models.CASCADE,
+        to=Tenant,
+        related_name="routers",
+        help_text=_("OpenStack tenant this router belongs to"),
     )
-    backend_id = models.CharField(max_length=255, blank=True, null=True)
-    routes = JSONField(default=list)
-    fixed_ips = JSONField(default=list)
-    ports = models.ManyToManyField("Port", related_name="routers", blank=True)
+    backend_id = models.CharField(
+        max_length=255, blank=True, null=True, help_text=_("Router ID in OpenStack")
+    )
+    routes = JSONField(
+        default=list, help_text=_("List of routes configured on the router")
+    )
+    fixed_ips = JSONField(
+        default=list,
+        help_text=_("List of fixed IP addresses assigned to the router interfaces"),
+    )
+    ports = models.ManyToManyField(
+        "Port",
+        related_name="routers",
+        blank=True,
+        help_text=_("Network ports attached to this router"),
+    )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
@@ -463,11 +554,26 @@ class Network(core_models.RuntimeStateMixin, structure_models.BaseResource):
     rbac_policies: models.Manager["NetworkRBACPolicy"]
 
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name="networks"
+        on_delete=models.CASCADE,
+        to=Tenant,
+        related_name="networks",
+        help_text=_("OpenStack tenant this network belongs to"),
     )
-    is_external = models.BooleanField(default=False)
-    type = models.CharField(max_length=50, blank=True)
-    segmentation_id = models.IntegerField(null=True)
+    is_external = models.BooleanField(
+        default=False,
+        help_text=_(
+            "Defines whether this network is external (public) or internal (private)"
+        ),
+    )
+    type = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text=_("Network type, such as local, flat, vlan, vxlan, or gre"),
+    )
+    segmentation_id = models.IntegerField(
+        null=True,
+        help_text=_("VLAN ID for VLAN networks or tunnel ID for VXLAN/GRE networks"),
+    )
     mtu = models.IntegerField(
         null=True,
         help_text=_(
@@ -508,20 +614,49 @@ class Network(core_models.RuntimeStateMixin, structure_models.BaseResource):
 class SubNet(structure_models.BaseResource):
     ports: models.Manager["Port"]
 
-    tenant = models.ForeignKey(on_delete=models.CASCADE, to=Tenant, related_name="+")
-    network = models.ForeignKey(
-        on_delete=models.CASCADE, to=Network, related_name="subnets"
+    tenant = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=Tenant,
+        related_name="+",
+        help_text=_("OpenStack tenant this subnet belongs to"),
     )
-    disable_gateway = models.BooleanField(default=False)
+    network = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=Network,
+        related_name="subnets",
+        help_text=_("Network to which this subnet belongs"),
+    )
+    disable_gateway = models.BooleanField(
+        default=False, help_text=_("If True, no gateway IP address will be allocated")
+    )
     host_routes = JSONField(
         default=list,
         help_text=_("List of additional routes for the subnet."),
     )
-    cidr = models.CharField(max_length=32, blank=True)
-    gateway_ip = models.GenericIPAddressField(protocol="IPv4", null=True)
-    allocation_pools = cast(list[dict[str, str]], JSONField(default=dict))
-    ip_version = models.SmallIntegerField(default=4)
-    enable_dhcp = models.BooleanField(default=True)
+    cidr = models.CharField(
+        max_length=32,
+        blank=True,
+        help_text=_("IPv4 network address in CIDR format (e.g. 192.168.0.0/24)"),
+    )
+    gateway_ip = models.GenericIPAddressField(
+        protocol="IPv4",
+        null=True,
+        help_text=_("IP address of the gateway for this subnet"),
+    )
+    allocation_pools = cast(
+        list[dict[str, str]],
+        JSONField(
+            default=dict,
+            help_text=_("List of IP ranges available for allocation in this subnet"),
+        ),
+    )
+    ip_version = models.SmallIntegerField(
+        default=4, help_text=_("IP protocol version (4 or 6)")
+    )
+    enable_dhcp = models.BooleanField(
+        default=True,
+        help_text=_("If True, DHCP service will be enabled on this subnet"),
+    )
     dns_nameservers = JSONField(
         default=list,
         help_text=_("List of DNS name servers associated with the subnet."),
@@ -573,7 +708,10 @@ class Port(structure_models.BaseResource):
     floating_ips: models.Manager["FloatingIP"]
 
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name="ports"
+        on_delete=models.CASCADE,
+        to=Tenant,
+        related_name="ports",
+        help_text=_("OpenStack tenant this port belongs to"),
     )
     network = models.ForeignKey(
         on_delete=models.CASCADE,
@@ -581,15 +719,24 @@ class Port(structure_models.BaseResource):
         related_name="ports",
         null=True,
         blank=True,
+        help_text=_("Network to which this port belongs"),
     )
-    port_security_enabled = models.BooleanField(default=True)
-    security_groups = models.ManyToManyField(SecurityGroup, related_name="ports")
+    port_security_enabled = models.BooleanField(
+        default=True,
+        help_text=_("If True, security groups and rules will be applied to this port"),
+    )
+    security_groups = models.ManyToManyField(
+        SecurityGroup,
+        related_name="ports",
+        help_text=_("Security groups associated with this port"),
+    )
     instance = models.ForeignKey["Instance"](
         on_delete=models.CASCADE,
         to="Instance",
         related_name="ports",
         null=True,
         blank=True,
+        help_text=_("Instance to which this port is attached"),
     )
     subnet = models.ForeignKey(
         on_delete=models.CASCADE,
@@ -597,10 +744,13 @@ class Port(structure_models.BaseResource):
         related_name="ports",
         null=True,
         blank=True,
+        help_text=_("Subnet to which this port belongs"),
     )
     tracker = cast(FieldInstanceTracker, FieldTracker())
     # TODO: Use dedicated field: https://github.com/django-macaddress/django-macaddress
-    mac_address = models.CharField(max_length=32, blank=True)
+    mac_address = models.CharField(
+        max_length=32, blank=True, help_text=_("MAC address of the port")
+    )
     fixed_ips = JSONField(
         default=list,
         help_text=_(
@@ -608,7 +758,9 @@ class Port(structure_models.BaseResource):
             "and subnet_id is a backend id of the subnet"
         ),
     )
-    backend_id = models.CharField(max_length=255, blank=True, null=True)
+    backend_id = models.CharField(
+        max_length=255, blank=True, null=True, help_text=_("Port ID in OpenStack")
+    )
     allowed_address_pairs = JSONField(
         default=list,
         help_text=_(
@@ -620,20 +772,28 @@ class Port(structure_models.BaseResource):
         max_length=255,
         null=True,
         blank=True,
+        help_text=_(
+            "ID of device (instance, router etc) to which this port is connected"
+        ),
     )
     device_owner = models.CharField(
         max_length=100,
         null=True,
         blank=True,
+        help_text=_("Entity that uses this port (e.g. network:router_interface)"),
     )
     admin_state_up = models.BooleanField(
         blank=True,
         null=True,
+        help_text=_(
+            "Administrative state of the port. If down, port does not forward packets"
+        ),
     )
     status = models.CharField(
         max_length=30,
         blank=True,
         null=True,
+        help_text=_("Port status in OpenStack (e.g. ACTIVE, DOWN)"),
     )
 
     @classmethod
@@ -731,11 +891,19 @@ class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage
     restoration: models.Manager["SnapshotRestoration"]
 
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name="volumes"
+        on_delete=models.CASCADE,
+        to=Tenant,
+        related_name="volumes",
+        help_text=_("OpenStack tenant this volume belongs to"),
     )
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
-    backend_id = models.CharField(max_length=255, blank=True, null=True)
+    backend_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=_("Volume ID in the OpenStack backend"),
+    )
 
     instance = models.ForeignKey["Instance"](
         on_delete=models.CASCADE,
@@ -743,6 +911,7 @@ class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage
         related_name="volumes",
         blank=True,
         null=True,
+        help_text=_("Instance that this volume is attached to, if any"),
     )
     device = models.CharField(
         max_length=50,
@@ -755,16 +924,41 @@ class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage
         ],
         help_text=_("Name of volume as instance device e.g. /dev/vdb."),
     )
-    bootable = models.BooleanField(default=False)
-    metadata = JSONField(blank=True)
-    image = models.ForeignKey(Image, blank=True, null=True, on_delete=models.SET_NULL)
-    image_name = models.CharField(max_length=150, blank=True)
-    image_metadata = JSONField(blank=True)
+    bootable = models.BooleanField(
+        default=False,
+        help_text=_("Indicates if this volume can be used to boot an instance"),
+    )
+    metadata = JSONField(
+        blank=True, help_text=_("Arbitrary key-value pairs associated with the volume")
+    )
+    image = models.ForeignKey(
+        Image,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        help_text=_("Image that this volume was created from, if any"),
+    )
+    image_name = models.CharField(
+        max_length=150,
+        blank=True,
+        help_text=_("Name of the image this volume was created from"),
+    )
+    image_metadata = JSONField(
+        blank=True, help_text=_("Metadata of the image this volume was created from")
+    )
     type = models.ForeignKey(
-        VolumeType, blank=True, null=True, on_delete=models.SET_NULL
+        VolumeType,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        help_text=_("Type of the volume (e.g. SSD, HDD)"),
     )
     availability_zone = models.ForeignKey(
-        VolumeAvailabilityZone, blank=True, null=True, on_delete=models.SET_NULL
+        VolumeAvailabilityZone,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        help_text=_("Availability zone where this volume is located"),
     )
     source_snapshot = models.ForeignKey(
         "Snapshot",
@@ -772,7 +966,9 @@ class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
+        help_text=_("Snapshot that this volume was created from, if any"),
     )
+
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:
@@ -829,16 +1025,33 @@ class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Stora
     backups: models.Manager["Backup"]
 
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name="snapshots"
+        on_delete=models.CASCADE,
+        to=Tenant,
+        related_name="snapshots",
+        help_text=_("OpenStack tenant this snapshot belongs to"),
     )
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
-    backend_id = models.CharField(max_length=255, blank=True, null=True)
+    backend_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=_("Snapshot ID in the OpenStack backend"),
+    )
 
     source_volume = models.ForeignKey(
-        Volume, related_name="snapshots", null=True, on_delete=models.CASCADE
+        Volume,
+        related_name="snapshots",
+        null=True,
+        on_delete=models.CASCADE,
+        help_text=_("Volume from which this snapshot was created"),
     )
-    metadata = JSONField(blank=True)
+    metadata = JSONField(
+        blank=True,
+        help_text=_(
+            "Additional information about the snapshot stored as key-value pairs"
+        ),
+    )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
@@ -876,10 +1089,16 @@ class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Stora
 
 class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
     snapshot = models.ForeignKey(
-        on_delete=models.CASCADE, to=Snapshot, related_name="restorations"
+        on_delete=models.CASCADE,
+        to=Snapshot,
+        related_name="restorations",
+        help_text=_("Snapshot from which the volume is being restored"),
     )
     volume = models.OneToOneField(
-        Volume, related_name="restoration", on_delete=models.CASCADE
+        Volume,
+        related_name="restoration",
+        on_delete=models.CASCADE,
+        help_text=_("Volume that is being restored from the snapshot"),
     )
 
     class Permissions:
@@ -889,12 +1108,23 @@ class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
 
 class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name="instance_availability_zones"
+        on_delete=models.CASCADE,
+        to=Tenant,
+        related_name="instance_availability_zones",
+        help_text=_("OpenStack tenant this availability zone belongs to"),
     )
     settings = models.ForeignKey(
-        on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name="+"
+        on_delete=models.CASCADE,
+        to=structure_models.ServiceSettings,
+        related_name="+",
+        help_text=_("Service settings for this availability zone"),
     )
-    available = models.BooleanField(default=True)
+    available = models.BooleanField(
+        default=True,
+        help_text=_(
+            "Indicates whether this availability zone is available for instance provisioning"
+        ),
+    )
 
     class Meta:
         unique_together = ("settings", "name")
@@ -940,32 +1170,68 @@ class Instance(
         VERIFY_RESIZE = "VERIFY_RESIZE"
 
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name="instances"
+        on_delete=models.CASCADE,
+        to=Tenant,
+        related_name="instances",
+        help_text=_("OpenStack tenant this instance belongs to"),
     )
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
-    backend_id = models.CharField(max_length=255, blank=True, null=True)
+    backend_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=_("Instance ID in the OpenStack backend"),
+    )
 
     availability_zone = models.ForeignKey(
-        InstanceAvailabilityZone, blank=True, null=True, on_delete=models.SET_NULL
+        InstanceAvailabilityZone,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        help_text=_("Availability zone where this instance is located"),
     )
-    flavor_name = models.CharField(max_length=255, blank=True)
+    flavor_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_("Name of the flavor used by this instance"),
+    )
     flavor_disk = models.PositiveIntegerField(
         default=0, help_text=_("Flavor disk size in MiB")
     )
     security_groups = models.ManyToManyField(
-        SecurityGroup, related_name="instances", blank=True
+        SecurityGroup,
+        related_name="instances",
+        blank=True,
+        help_text=_("Security groups attached to this instance"),
     )
     server_group = models.ForeignKey(
-        ServerGroup, blank=True, null=True, on_delete=models.SET_NULL
+        ServerGroup,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        help_text=_("Server group this instance belongs to"),
     )
-    subnets = models.ManyToManyField(SubNet, through=Port)
-    hypervisor_hostname = models.CharField(max_length=255, blank=True)
+    subnets = models.ManyToManyField(
+        SubNet,
+        through=Port,
+        help_text=_("Subnets connected to this instance through ports"),
+    )
+    hypervisor_hostname = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_("Name of the hypervisor hosting this instance"),
+    )
 
-    connect_directly_to_external_network = models.BooleanField(default=False)
+    connect_directly_to_external_network = models.BooleanField(
+        default=False,
+        help_text=_("If True, instance will be connected directly to external network"),
+    )
     directly_connected_ips = models.CharField(
-        max_length=255, blank=True
-    )  # string representation of coma separated IPs
+        max_length=255,
+        blank=True,
+        help_text=_("Comma-separated list of directly connected IP addresses"),
+    )
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:
@@ -1054,10 +1320,16 @@ class Backup(structure_models.BaseResource):
     restorations: models.Manager["BackupRestoration"]
 
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name="backups"
+        on_delete=models.CASCADE,
+        to=Tenant,
+        related_name="backups",
+        help_text=_("OpenStack tenant this backup belongs to"),
     )
     instance = models.ForeignKey(
-        Instance, related_name="backups", on_delete=models.CASCADE
+        Instance,
+        related_name="backups",
+        on_delete=models.CASCADE,
+        help_text=_("Instance that this backup is created from"),
     )
     kept_until = models.DateTimeField(
         null=True,
@@ -1070,7 +1342,11 @@ class Backup(structure_models.BaseResource):
             "Additional information about backup, can be used for backup restoration or deletion"
         ),
     )
-    snapshots = models.ManyToManyField("Snapshot", related_name="backups")
+    snapshots = models.ManyToManyField(
+        "Snapshot",
+        related_name="backups",
+        help_text=_("Snapshots that comprise this backup"),
+    )
 
     @classmethod
     def get_url_name(cls):
@@ -1078,16 +1354,29 @@ class Backup(structure_models.BaseResource):
 
 
 class BackupRestoration(core_models.UuidMixin, TimeStampedModel):
-    """This model corresponds to instance restoration from backup."""
+    """This model represents an instance restoration from a backup."""
 
     backup = models.ForeignKey(
-        on_delete=models.CASCADE, to=Backup, related_name="restorations"
+        on_delete=models.CASCADE,
+        to=Backup,
+        related_name="restorations",
+        help_text=_("Backup from which the instance is being restored"),
     )
     instance = models.OneToOneField(
-        Instance, related_name="+", on_delete=models.CASCADE
+        Instance,
+        related_name="+",
+        on_delete=models.CASCADE,
+        help_text=_("Instance that is being restored from the backup"),
     )
     flavor = models.ForeignKey(
-        Flavor, related_name="+", null=True, blank=True, on_delete=models.SET_NULL
+        Flavor,
+        related_name="+",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text=_(
+            "Flavor to be used for the restored instance. If not specified, original instance flavor will be used"
+        ),
     )
 
     class Permissions:
@@ -1115,18 +1404,23 @@ class NetworkRBACPolicy(
         Network,
         on_delete=models.CASCADE,
         related_name="rbac_policies",
+        help_text=_("Network that this RBAC policy applies to"),
     )
 
     target_tenant = models.ForeignKey["Tenant"](
         "openstack.Tenant",
         on_delete=models.CASCADE,
         related_name="network_rbac_policies",
+        help_text=_("Tenant that is granted access to the network through this policy"),
     )
 
     policy_type = models.CharField(
         max_length=255,
         default=NetworkShareType.SHARED,
         choices=NetworkShareType.CHOICES,
+        help_text=_(
+            "Type of access granted - either shared access or external network access"
+        ),
     )
 
     class Meta:

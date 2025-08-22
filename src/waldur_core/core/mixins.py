@@ -159,11 +159,21 @@ class ReviewMixin(ReviewStateMixin, TimeStampedModel):
         null=True,
         blank=True,
         related_name="+",
+        help_text="User who performed the review",
     )
 
-    reviewed_at = django_models.DateTimeField(editable=False, null=True, blank=True)
+    reviewed_at = django_models.DateTimeField(
+        editable=False,
+        null=True,
+        blank=True,
+        help_text="Timestamp when the review was completed",
+    )
 
-    review_comment = django_models.TextField(null=True, blank=True)
+    review_comment = django_models.TextField(
+        null=True,
+        blank=True,
+        help_text="Optional comment provided during review",
+    )
 
     @transaction.atomic
     def approve(self, user, comment=None):
