@@ -102,6 +102,10 @@ collections:
         resource_type: "OpenStack instance"
 
         existence_check_op: "openstack_instances_list"
+        update_op: "openstack_instances_partial_update"
+        update_check_fields:
+          - name
+          - description
 
         resolvers:
           flavor:
@@ -132,7 +136,30 @@ collections:
               - source_param: "offering"
                 source_key: "scope_uuid"
                 target_key: "tenant_uuid"
-          ssh_key:
+          security_groups:
+            list: "openstack_security_groups_list"
+            retrieve: "openstack_security_groups_retrieve"
+            filter_by:
+              - source_param: "offering"
+                source_key: "scope_uuid"
+                target_key: "tenant_uuid"
+          availability_zone:
+            list: "openstack_instance_availability_zones_list"
+            retrieve: "openstack_instance_availability_zones_retrieve"
+            filter_by:
+              - source_param: "offering"
+                source_key: "scope_uuid"
+                target_key: "tenant_uuid"
+          # This resolver is for the 'subnet' field inside the 'ports' and 'floating_ips' lists.
+          # The generator will automatically apply it where needed based on the parameter name.
+          subnet:
+            list: "openstack_subnets_list"
+            retrieve: "openstack_subnets_retrieve"
+            filter_by:
+              - source_param: "offering"
+                source_key: "scope_uuid"
+                target_key: "tenant_uuid"
+          ssh_public_key:
             list: "keys_list"
             retrieve: "keys_retrieve"
       - name: security_group
