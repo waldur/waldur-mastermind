@@ -15,6 +15,7 @@ from waldur_core.permissions import urls as permissions_urls
 from waldur_core.structure import urls as structure_urls
 from waldur_core.users import urls as users_urls
 from waldur_mastermind.marketplace.views import (
+    ServiceProviderComplianceViewSet,
     ServiceProviderCustomerProjectsViewSet,
     ServiceProviderCustomersViewSet,
     ServiceProviderKeysViewSet,
@@ -94,6 +95,11 @@ service_provider_router.register(
     r"offerings",
     ServiceProviderOfferingsViewSet,
     basename="service-provider-offerings",
+)
+service_provider_router.register(
+    r"compliance",
+    ServiceProviderComplianceViewSet,
+    basename="service-provider-compliance",
 )
 
 urlpatterns += [

@@ -535,6 +535,15 @@ class Offering(
     category = models.ForeignKey(
         on_delete=models.CASCADE, to=Category, related_name="offerings"
     )
+    compliance_checklist = models.ForeignKey(
+        to="checklist.Checklist",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="offerings",
+        limit_choices_to={"checklist_type": "offering_compliance"},
+        help_text=_("Checklist that offering users must complete for compliance"),
+    )
     customer = models.ForeignKey(
         on_delete=models.CASCADE,
         to=structure_models.Customer,

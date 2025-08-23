@@ -76,6 +76,14 @@ class ServiceProviderFactory(
         url = "http://testserver" + reverse("marketplace-service-provider-list")
         return url if action is None else url + action + "/"
 
+    @classmethod
+    def get_compliance_url(cls, service_provider, action):
+        """Get service provider compliance URL."""
+        url_name = f"service-provider-compliance-{action}"
+        return reverse(
+            url_name, kwargs={"service_provider_uuid": service_provider.uuid.hex}
+        )
+
 
 class CategoryFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Category]
@@ -628,19 +636,26 @@ class OfferingUserFactory(
         model = models.OfferingUser
 
     @classmethod
-    def get_url(cls, offering_user=None, action=None):
-        if offering_user is None:
-            offering_user = OfferingUserFactory()
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-detail",
-            kwargs={"uuid": offering_user.uuid.hex},
-        )
-        return url if action is None else url + action + "/"
+    def get_list_url(cls):
+        """Get the offering user list URL."""
+        return reverse("marketplace-offering-user-list")
 
     @classmethod
-    def get_list_url(cls, action=None):
-        url = "http://testserver" + reverse("marketplace-offering-user-list")
-        return url if action is None else url + action + "/"
+    def get_url(cls, offering_user=None, action=None):
+        """Get offering user detail or action URL."""
+        if offering_user is None:
+            offering_user = OfferingUserFactory()
+
+        base_name = "marketplace-offering-user"
+        if action:
+            # For specific actions, use the action-specific URL name
+            url_name = f"{base_name}-{action}"
+        else:
+            url_name = f"{base_name}-detail"
+
+        return "http://testserver" + reverse(
+            url_name, kwargs={"uuid": offering_user.uuid.hex}
+        )
 
 
 class ComponentUserUsageLimitFactory(

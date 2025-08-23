@@ -18,6 +18,7 @@ from django.db.models import (
     F,
     OuterRef,
     PositiveSmallIntegerField,
+    Prefetch,
     Q,
 )
 from django.db.models.aggregates import Sum
@@ -46,6 +47,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import Serializer
 
+from waldur_core.checklist import models as checklist_models
+from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMixin
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
@@ -828,6 +831,244 @@ class ServiceProviderUserCustomersViewSet(
             **context,
             "service_provider": self.get_service_provider(),
         }
+
+
+@extend_schema_view(
+    compliance_overview=extend_schema(
+        operation_id="service_provider_compliance_overview",
+        description="Get compliance overview statistics for all offerings managed by this service provider.",
+        responses={
+            status.HTTP_200_OK: serializers.ServiceProviderComplianceOverviewSerializer(
+                many=True
+            )
+        },
+        parameters=[SERVICE_PROVIDER_UUID],
+        methods=["GET"],
+    ),
+    offering_users=extend_schema(
+        operation_id="service_provider_offering_users_compliance",
+        description="List offering users with their compliance status for this service provider.",
+        responses={
+            status.HTTP_200_OK: serializers.ServiceProviderOfferingUserComplianceSerializer(
+                many=True
+            )
+        },
+        parameters=[
+            SERVICE_PROVIDER_UUID,
+            OpenApiParameter(
+                name="offering_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by offering UUID",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="compliance_status",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter by compliance status: completed, pending, no_checklist",
+                required=False,
+            ),
+        ],
+        methods=["GET"],
+    ),
+)
+class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
+    """
+    ViewSet for service providers to manage and view compliance data.
+
+    Provides endpoints for service providers to:
+    - View compliance statistics across all their offerings
+    - List offering users with compliance status
+    - Monitor completion rates and identify users needing attention
+    """
+
+    # Required for OpenAPI schema generation
+    queryset = models.ServiceProvider.objects.none()
+
+    def get_service_provider(self):
+        """Get service provider and check permissions."""
+        service_provider = models.ServiceProvider.objects.get(
+            uuid=self.kwargs["service_provider_uuid"]
+        )
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS,
+            service_provider.customer,
+        ):
+            raise PermissionDenied()
+        return service_provider
+
+    @action(detail=False, methods=["get"])
+    def compliance_overview(self, request, service_provider_uuid=None):
+        """Get compliance overview statistics for all offerings."""
+        service_provider = self.get_service_provider()
+
+        # Get ContentType for OfferingUser (cached after first call)
+        content_type = ContentType.objects.get_for_model(models.OfferingUser)
+
+        # Optimized approach: prefetch related data to reduce query count
+        offerings = (
+            models.Offering.objects.filter(customer=service_provider.customer)
+            .select_related("compliance_checklist")  # Avoid N+1 for checklist names
+            .prefetch_related(
+                # Prefetch offering users
+                Prefetch("offeringuser_set", queryset=models.OfferingUser.objects.all())
+            )
+            .annotate(total_users=Count("offeringuser", distinct=True))
+            .order_by("name")  # Ensure consistent ordering
+        )
+
+        # Get all completion data in bulk
+        all_completion_data = {}
+        offering_ids = list(offerings.values_list("id", flat=True))
+
+        if offering_ids:
+            # Bulk query for all completions related to offerings
+            completions_qs = (
+                checklist_models.ChecklistCompletion.objects.filter(
+                    scope_content_type=content_type,
+                    scope_object_id__in=models.OfferingUser.objects.filter(
+                        offering_id__in=offering_ids
+                    ).values("id"),
+                )
+                .select_related("checklist")
+                .values("checklist_id", "scope_object_id", "is_completed")
+            )
+
+            # Group completion data by offering
+            offering_user_to_offering = {}
+            for offering in offerings:
+                for user in offering.offeringuser_set.all():
+                    offering_user_to_offering[user.id] = offering.id
+
+            for completion in completions_qs:
+                offering_id = offering_user_to_offering.get(
+                    completion["scope_object_id"]
+                )
+                if offering_id:
+                    if offering_id not in all_completion_data:
+                        all_completion_data[offering_id] = {
+                            "users_with_completions": set(),
+                            "completed_users": set(),
+                        }
+
+                    all_completion_data[offering_id]["users_with_completions"].add(
+                        completion["scope_object_id"]
+                    )
+
+                    if completion["is_completed"]:
+                        all_completion_data[offering_id]["completed_users"].add(
+                            completion["scope_object_id"]
+                        )
+
+        # Build response data from prefetched and bulk data
+        overview_data = []
+        for offering in offerings:
+            # Handle offerings without checklist
+            if not offering.compliance_checklist:
+                overview_data.append(
+                    {
+                        "offering_uuid": offering.uuid,
+                        "offering_name": offering.name,
+                        "checklist_name": None,
+                        "total_users": offering.total_users,
+                        "users_with_completions": 0,
+                        "completed_users": 0,
+                        "pending_users": 0,
+                        "compliance_rate": 0.0 if offering.total_users > 0 else None,
+                    }
+                )
+                continue
+
+            # Handle offerings with checklist
+            completion_data = all_completion_data.get(
+                offering.id, {"users_with_completions": set(), "completed_users": set()}
+            )
+
+            users_with_completions = len(completion_data["users_with_completions"])
+            completed_users = len(completion_data["completed_users"])
+            pending_users = users_with_completions - completed_users
+            compliance_rate = (
+                (completed_users / offering.total_users) * 100
+                if offering.total_users > 0
+                else 0.0
+            )
+
+            overview_data.append(
+                {
+                    "offering_uuid": offering.uuid,
+                    "offering_name": offering.name,
+                    "checklist_name": offering.compliance_checklist.name,
+                    "total_users": offering.total_users,
+                    "users_with_completions": users_with_completions,
+                    "completed_users": completed_users,
+                    "pending_users": pending_users,
+                    "compliance_rate": compliance_rate,
+                }
+            )
+
+        serializer = serializers.ServiceProviderComplianceOverviewSerializer(
+            overview_data, many=True
+        )
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["get"])
+    def offering_users(self, request, service_provider_uuid=None):
+        """List offering users with their compliance status."""
+        service_provider = self.get_service_provider()
+
+        # Get all offering users for this service provider
+        queryset = (
+            models.OfferingUser.objects.filter(
+                offering__customer=service_provider.customer
+            )
+            .select_related("user", "offering", "offering__compliance_checklist")
+            .order_by("offering__name", "user__last_name", "user__first_name")
+        )
+
+        # Apply filters
+        offering_uuid = request.query_params.get("offering_uuid")
+        if offering_uuid:
+            queryset = queryset.filter(offering__uuid=offering_uuid)
+
+        compliance_status = request.query_params.get("compliance_status")
+        if compliance_status:
+            if compliance_status == "no_checklist":
+                queryset = queryset.filter(offering__compliance_checklist__isnull=True)
+            elif compliance_status == "completed":
+                # Users with completed checklists
+                content_type = ContentType.objects.get_for_model(models.OfferingUser)
+                completed_ids = checklist_models.ChecklistCompletion.objects.filter(
+                    is_completed=True,
+                    scope_content_type=content_type,
+                    checklist__offerings__customer=service_provider.customer,
+                ).values_list("scope_object_id", flat=True)
+                queryset = queryset.filter(id__in=completed_ids)
+            elif compliance_status == "pending":
+                # Users with incomplete or missing completions
+                content_type = ContentType.objects.get_for_model(models.OfferingUser)
+                completed_ids = checklist_models.ChecklistCompletion.objects.filter(
+                    is_completed=True,
+                    scope_content_type=content_type,
+                    checklist__offerings__customer=service_provider.customer,
+                ).values_list("scope_object_id", flat=True)
+                queryset = queryset.exclude(id__in=completed_ids).exclude(
+                    offering__compliance_checklist__isnull=True
+                )
+
+        # Paginate results
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = serializers.ServiceProviderOfferingUserComplianceSerializer(
+                page, many=True, context={"request": request}
+            )
+            return self.get_paginated_response(serializer.data)
+
+        serializer = serializers.ServiceProviderOfferingUserComplianceSerializer(
+            queryset, many=True, context={"request": request}
+        )
+        return Response(serializer.data)
 
 
 @extend_schema_view(
@@ -4141,12 +4382,58 @@ def validate_offering_user_state_transition(valid_states, target_state_name):
     return validator
 
 
-class OfferingUsersViewSet(core_views.ActionsViewSet):
+class OfferingUsersViewSet(
+    UserChecklistMixin,
+    ReviewerChecklistMixin,
+    core_views.ActionsViewSet,
+):
     queryset = models.OfferingUser.objects.all()
     serializer_class = serializers.OfferingUserSerializer
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.OfferingUserFilter
+
+    # User checklist permissions (for offering users filling in checklists)
+    checklist_permissions = [
+        permission_factory(PermissionEnum.UPDATE_OFFERING_USER, ["offering.customer"])
+    ]
+    completion_status_permissions = [
+        permission_factory(PermissionEnum.UPDATE_OFFERING_USER, ["offering.customer"])
+    ]
+    submit_answers_permissions = [
+        permission_factory(PermissionEnum.UPDATE_OFFERING_USER, ["offering.customer"])
+    ]
+
+    # Reviewer checklist permissions (for service providers reviewing compliance)
+    checklist_review_permissions = [
+        permission_factory(PermissionEnum.UPDATE_OFFERING_USER, ["offering.customer"])
+    ]
+    completion_review_status_permissions = [
+        permission_factory(PermissionEnum.UPDATE_OFFERING_USER, ["offering.customer"])
+    ]
+
+    def get_checklist_completion(self, obj):
+        """Get checklist completion for the given OfferingUser.
+
+        Returns:
+            ChecklistCompletion instance or None
+        """
+        # Get the compliance checklist for this offering
+        checklist = obj.offering.compliance_checklist
+        if not checklist:
+            return None
+
+        try:
+            # Get the completion for the checklist
+            content_type = ContentType.objects.get_for_model(obj)
+            completion = checklist_models.ChecklistCompletion.objects.get(
+                scope_content_type=content_type,
+                scope_object_id=obj.id,
+                checklist=checklist,
+            )
+            return completion
+        except checklist_models.ChecklistCompletion.DoesNotExist:
+            return None
 
     def perform_destroy(self, instance):
         request = self.request
