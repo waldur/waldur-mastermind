@@ -15,6 +15,7 @@ from drf_spectacular.openapi import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from waldur_core.checklist import models as checklist_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import User
 from waldur_core.logging import event_logger
@@ -1146,6 +1147,71 @@ def log_offering_user_deleted(sender, instance: OfferingUser, **kwargs):
         event_context={"offering_user": instance},
         scopes=get_offering_role_scopes(instance),
     )
+
+
+def create_offering_user_checklist_completions(
+    sender, instance: OfferingUser, created=False, **kwargs
+):
+    """Create checklist completions for OfferingUser when created."""
+    if not created:
+        return
+
+    offering_user = instance
+    offering = offering_user.offering
+
+    # Get compliance checklist associated with the offering
+    checklist = offering.compliance_checklist
+
+    if not checklist:
+        logger.debug(
+            "No compliance checklist configured for offering %s",
+            offering.name,
+        )
+        return
+
+    # Get content type for OfferingUser
+    offering_user_content_type = ContentType.objects.get_for_model(OfferingUser)
+
+    # Create a ChecklistCompletion for the checklist
+    try:
+        checklist_models.ChecklistCompletion.objects.create(
+            scope_content_type=offering_user_content_type,
+            scope_object_id=offering_user.id,
+            checklist=checklist,
+        )
+        logger.info(
+            "Created checklist completion for %s, checklist: %s",
+            offering_user,
+            checklist.name,
+        )
+    except Exception as e:
+        logger.error(
+            "Failed to create checklist completion for %s, checklist: %s. Error: %s",
+            offering_user,
+            checklist.name,
+            e,
+        )
+
+
+def delete_offering_user_checklist_completions(
+    sender, instance: OfferingUser, **kwargs
+):
+    """Delete related checklist completions when OfferingUser is deleted."""
+    offering_user = instance
+    offering_user_content_type = ContentType.objects.get_for_model(OfferingUser)
+
+    # Delete all related checklist completions
+    deleted_count = checklist_models.ChecklistCompletion.objects.filter(
+        scope_content_type=offering_user_content_type,
+        scope_object_id=offering_user.id,
+    ).delete()[0]
+
+    if deleted_count > 0:
+        logger.info(
+            "Deleted %d checklist completion(s) for %s",
+            deleted_count,
+            offering_user,
+        )
 
 
 def generate_changes_string(changed_dict, instance, account_type):

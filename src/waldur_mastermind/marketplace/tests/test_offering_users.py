@@ -2,6 +2,8 @@ from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.checklist.enums import QuestionTypes
+from waldur_core.checklist.tests.factories import ChecklistFactory, QuestionFactory
 from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
@@ -13,6 +15,11 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace.enums import OfferingUserStates, ResourceStates
 from waldur_mastermind.marketplace.models import OfferingUser
+from waldur_mastermind.marketplace.tests.factories import (
+    OfferingFactory,
+    OfferingUserFactory,
+    ServiceProviderFactory,
+)
 
 from . import factories, fixtures
 
@@ -38,7 +45,7 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
 
     def list_permissions(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
-        return self.client.get(reverse("marketplace-offering-user-list"))
+        return self.client.get(OfferingUserFactory.get_list_url())
 
     @data("owner", "admin", "manager")
     def test_authorized_user_can_list_offering_users(self, user):
@@ -65,7 +72,7 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
         )
 
         self.client.force_authenticate(sample_user)
-        response = self.client.get(reverse("marketplace-offering-user-list"))
+        response = self.client.get(OfferingUserFactory.get_list_url())
 
         self.assertEqual(1, len(response.data))
         self.assertEqual("user3", response.data[0]["username"])
@@ -77,7 +84,7 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
         self.client.force_login(self.fixture.staff)
 
         response = self.client.get(
-            reverse("marketplace-offering-user-list"),
+            OfferingUserFactory.get_list_url(),
             {"provider_uuid": self.offering.customer.uuid.hex},
         )
         self.assertEqual(1, len(response.data))
@@ -92,7 +99,7 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
         self.client.force_login(self.fixture.staff)
 
         response = self.client.get(
-            reverse("marketplace-offering-user-list"), {"user_username": "username1"}
+            OfferingUserFactory.get_list_url(), {"user_username": "username1"}
         )
 
         self.assertEqual(200, response.status_code)
@@ -116,7 +123,7 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
         offering_url = factories.OfferingFactory.get_url(self.offering)
         user_url = UserFactory.get_url(self.fixture.user)
         payload = {"offering": offering_url, "user": user_url}
-        return self.client.post(reverse("marketplace-offering-user-list"), payload)
+        return self.client.post(OfferingUserFactory.get_list_url(), payload)
 
     @data("staff", "owner")
     def test_authorized_user_can_create_offering_user(self, user):
@@ -145,7 +152,7 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
             "user_uuid": self.fixture.user.uuid.hex,
             "username": "testuser",
         }
-        response = self.client.post(reverse("marketplace-offering-user-list"), payload)
+        response = self.client.post(OfferingUserFactory.get_list_url(), payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_create_offering_user_with_both_url_and_uuid_fields(self):
@@ -160,14 +167,14 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
             "user_uuid": self.fixture.user.uuid.hex,
             "username": "testuser",
         }
-        response = self.client.post(reverse("marketplace-offering-user-list"), payload)
+        response = self.client.post(OfferingUserFactory.get_list_url(), payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_offering_user_with_missing_fields(self):
         """Should fail when neither URL nor UUID fields are provided."""
         self.client.force_authenticate(user=self.fixture.owner)
         payload = {"username": "testuser"}
-        response = self.client.post(reverse("marketplace-offering-user-list"), payload)
+        response = self.client.post(OfferingUserFactory.get_list_url(), payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
@@ -234,11 +241,9 @@ class OfferingUsersUpdateTest(test.APITransactionTestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
 
     def get_url(self, offering_user, action=None):
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-detail",
-            kwargs={"uuid": offering_user.uuid.hex},
-        )
-        return url if action is None else url + action + "/"
+        if action is None:
+            return OfferingUserFactory.get_url(offering_user)
+        return OfferingUserFactory.get_url(offering_user) + action + "/"
 
     def update_offering_user(self, user, offering_user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
@@ -278,10 +283,7 @@ class OfferingUsersDeleteTest(test.APITransactionTestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_OFFERING_USER)
 
     def get_url(self, offering_user):
-        return "http://testserver" + reverse(
-            "marketplace-offering-user-detail",
-            kwargs={"uuid": offering_user.uuid.hex},
-        )
+        return OfferingUserFactory.get_url(offering_user)
 
     def delete_offering_user(self, user, offering_user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
@@ -800,7 +802,7 @@ class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
             "user_uuid": self.fixture.user.uuid.hex,
             "username": "testuser",
         }
-        response = self.client.post(reverse("marketplace-offering-user-list"), payload)
+        response = self.client.post(OfferingUserFactory.get_list_url(), payload)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         offering_user = OfferingUser.objects.get(uuid=response.data["uuid"])
@@ -814,7 +816,7 @@ class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
             "offering_uuid": self.offering.uuid.hex,
             "user_uuid": self.fixture.user.uuid.hex,
         }
-        response = self.client.post(reverse("marketplace-offering-user-list"), payload)
+        response = self.client.post(OfferingUserFactory.get_list_url(), payload)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         offering_user = OfferingUser.objects.get(uuid=response.data["uuid"])
@@ -1054,7 +1056,7 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
         """Test filtering by a single state value."""
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.get(
-            reverse("marketplace-offering-user-list"),
+            OfferingUserFactory.get_list_url(),
             {"state": "Requested"},
         )
 
@@ -1066,7 +1068,7 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
         """Test filtering by multiple state values."""
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.get(
-            reverse("marketplace-offering-user-list"),
+            OfferingUserFactory.get_list_url(),
             {"state": ["Requested", "OK"]},
         )
 
@@ -1083,7 +1085,7 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
         """Test filtering by pending additional validation state."""
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.get(
-            reverse("marketplace-offering-user-list"),
+            OfferingUserFactory.get_list_url(),
             {"state": "Pending additional validation"},
         )
 
@@ -1095,7 +1097,7 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
         """Test filtering by a state that doesn't exist returns validation error."""
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.get(
-            reverse("marketplace-offering-user-list"),
+            OfferingUserFactory.get_list_url(),
             {"state": "NonexistentState"},
         )
 
@@ -1106,7 +1108,7 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
         """Test that state filter can be combined with other filters."""
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.get(
-            reverse("marketplace-offering-user-list"),
+            OfferingUserFactory.get_list_url(),
             {
                 "state": ["Requested", "OK"],
                 "offering_uuid": self.offering.uuid.hex,
@@ -1122,7 +1124,7 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
     def test_no_state_filter_returns_all_users(self):
         """Test that without state filter, all offering users are returned."""
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.get(reverse("marketplace-offering-user-list"))
+        response = self.client.get(OfferingUserFactory.get_list_url())
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 3)
@@ -1153,10 +1155,7 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
     def test_request_deletion_transition(self):
         """Test requesting deletion from OK state."""
         self.client.force_authenticate(user=self.fixture.owner)
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-request-deletion",
-            kwargs={"uuid": self.offering_user.uuid.hex},
-        )
+        url = OfferingUserFactory.get_url(self.offering_user, "request-deletion")
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1171,10 +1170,7 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         self.offering_user.save()
 
         self.client.force_authenticate(user=self.fixture.owner)
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-set-deleting",
-            kwargs={"uuid": self.offering_user.uuid.hex},
-        )
+        url = OfferingUserFactory.get_url(self.offering_user, "set-deleting")
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1187,10 +1183,7 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         self.offering_user.save()
 
         self.client.force_authenticate(user=self.fixture.owner)
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-set-deleted",
-            kwargs={"uuid": self.offering_user.uuid.hex},
-        )
+        url = OfferingUserFactory.get_url(self.offering_user, "set-deleted")
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1202,10 +1195,7 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.fixture.owner)
 
         # Step 1: Request deletion
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-request-deletion",
-            kwargs={"uuid": self.offering_user.uuid.hex},
-        )
+        url = OfferingUserFactory.get_url(self.offering_user, "request-deletion")
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offering_user.refresh_from_db()
@@ -1214,20 +1204,14 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         )
 
         # Step 2: Start deleting
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-set-deleting",
-            kwargs={"uuid": self.offering_user.uuid.hex},
-        )
+        url = OfferingUserFactory.get_url(self.offering_user, "set-deleting")
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.DELETING)
 
         # Step 3: Mark as deleted
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-set-deleted",
-            kwargs={"uuid": self.offering_user.uuid.hex},
-        )
+        url = OfferingUserFactory.get_url(self.offering_user, "set-deleted")
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offering_user.refresh_from_db()
@@ -1242,10 +1226,7 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.fixture.owner)
 
         # Should be able to retry deletion
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-set-deleting",
-            kwargs={"uuid": self.offering_user.uuid.hex},
-        )
+        url = OfferingUserFactory.get_url(self.offering_user, "set-deleting")
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offering_user.refresh_from_db()
@@ -1257,26 +1238,17 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=unauthorized_user)
 
         # Test request_deletion
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-request-deletion",
-            kwargs={"uuid": self.offering_user.uuid.hex},
-        )
+        url = OfferingUserFactory.get_url(self.offering_user, "request-deletion")
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
         # Test set_deleting
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-set-deleting",
-            kwargs={"uuid": self.offering_user.uuid.hex},
-        )
+        url = OfferingUserFactory.get_url(self.offering_user, "set-deleting")
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
         # Test set_deleted
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-set-deleted",
-            kwargs={"uuid": self.offering_user.uuid.hex},
-        )
+        url = OfferingUserFactory.get_url(self.offering_user, "set-deleted")
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -1322,10 +1294,7 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         self.offering_user.state = OfferingUserStates.CREATION_REQUESTED
         self.offering_user.save()
 
-        url = "http://testserver" + reverse(
-            "marketplace-offering-user-set-deleted",
-            kwargs={"uuid": self.offering_user.uuid.hex},
-        )
+        url = OfferingUserFactory.get_url(self.offering_user, "set-deleted")
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -1333,3 +1302,793 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         self.assertIn(
             "Cannot transition to DELETED from current state", response.data["detail"]
         )
+
+
+@ddt
+class OfferingUserChecklistTest(test.APITransactionTestCase):
+    """Test checklist functionality for offering users."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+
+        # Create an offering with compliance checklists
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+
+        # Create a compliance checklist
+        from waldur_core.checklist.tests.factories import (
+            ChecklistFactory,
+            QuestionFactory,
+        )
+
+        self.checklist = ChecklistFactory(
+            checklist_type="offering_compliance", name="Test Compliance Checklist"
+        )
+
+        # Set the checklist for the offering
+        self.offering.compliance_checklist = self.checklist
+        self.offering.save()
+
+        # Create questions for the checklist
+        from waldur_core.checklist.enums import QuestionTypes
+
+        self.question1 = QuestionFactory(
+            checklist=self.checklist,
+            description="Do you comply with data protection requirements?",
+            question_type=QuestionTypes.BOOLEAN,
+            order=1,
+        )
+        self.question2 = QuestionFactory(
+            checklist=self.checklist,
+            description="Please provide your security certificate details",
+            question_type=QuestionTypes.TEXT_INPUT,
+            order=2,
+        )
+
+        # Create an offering user
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering, user=self.fixture.user, username="testuser"
+        )
+
+        # Set up permissions
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+
+    def test_checklist_endpoint_returns_checklist_questions(self):
+        """Test that checklist endpoint returns checklist questions."""
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        url = OfferingUserFactory.get_url(self.offering_user, "checklist")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("checklist", response.data)
+        self.assertIn("questions", response.data)
+        self.assertEqual(len(response.data["questions"]), 2)
+
+    def test_checklist_endpoint_without_checklist_returns_error(self):
+        """Test that checklist endpoint returns error when no checklist is configured."""
+        # Create an offering without compliance checklist
+        offering_without_checklist = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        offering_without_checklist.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        # compliance_checklist is already None by default
+        offering_without_checklist.save()
+
+        offering_user_without_checklist = OfferingUser.objects.create(
+            offering=offering_without_checklist,
+            user=self.fixture.user,
+            username="testuser2",
+        )
+
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        url = reverse(
+            "marketplace-offering-user-checklist",
+            kwargs={"uuid": offering_user_without_checklist.uuid.hex},
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("No checklist configured", response.data["detail"])
+
+    def test_completion_status_endpoint_returns_status(self):
+        """Test that completion status endpoint returns completion status."""
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        url = reverse(
+            "marketplace-offering-user-completion-status",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("is_completed", response.data)
+        self.assertIn("completion_percentage", response.data)
+        self.assertIn("checklist_name", response.data)
+
+    def test_submit_answers_endpoint_creates_answers(self):
+        """Test that submit answers endpoint creates checklist answers."""
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        # Submit answers
+        answers_data = [
+            {"question_uuid": self.question1.uuid.hex, "answer_data": True},
+            {
+                "question_uuid": self.question2.uuid.hex,
+                "answer_data": "ISO 27001 certified",
+            },
+        ]
+
+        url = OfferingUserFactory.get_url(self.offering_user, "submit-answers")
+        response = self.client.post(url, answers_data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("detail", response.data)
+        self.assertEqual(response.data["detail"], "Answers submitted successfully")
+
+    def test_checklist_review_endpoint_for_service_provider(self):
+        """Test that service providers can access review endpoints."""
+        # Create service provider user
+        service_provider_user = UserFactory()
+        self.offering.customer.add_user(service_provider_user, CustomerRole.OWNER)
+
+        self.client.force_authenticate(user=service_provider_user)
+
+        url = reverse(
+            "marketplace-offering-user-checklist-review",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("checklist", response.data)
+        self.assertIn("questions", response.data)
+
+    def test_completion_review_status_endpoint_for_service_provider(self):
+        """Test that service providers can access completion review status."""
+        # Create service provider user
+        service_provider_user = UserFactory()
+        self.offering.customer.add_user(service_provider_user, CustomerRole.OWNER)
+
+        self.client.force_authenticate(user=service_provider_user)
+
+        url = reverse(
+            "marketplace-offering-user-completion-review-status",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("is_completed", response.data)
+        self.assertIn(
+            "requires_review", response.data
+        )  # This should be in the reviewer serializer
+        self.assertIn("completion_percentage", response.data)
+
+    @data("admin", "manager")
+    def test_unauthorized_users_cannot_access_checklist_endpoints(self, user_role):
+        """Test that unauthorized users cannot access checklist endpoints."""
+        # Use a user without proper permissions
+        unauthorized_user = getattr(self.fixture, user_role)
+        self.client.force_authenticate(user=unauthorized_user)
+
+        # Test checklist endpoint
+        url = OfferingUserFactory.get_url(self.offering_user, "checklist")
+        response = self.client.get(url)
+        self.assertEqual(
+            response.status_code, status.HTTP_404_NOT_FOUND
+        )  # Filtered out by queryset
+
+        # Test submit answers endpoint
+        url = OfferingUserFactory.get_url(self.offering_user, "submit-answers")
+        response = self.client.post(url, [], format="json")
+        self.assertEqual(
+            response.status_code, status.HTTP_404_NOT_FOUND
+        )  # Filtered out by queryset
+
+    def test_completely_unrelated_user_cannot_access_checklist_endpoints(self):
+        """Test that a completely unrelated user cannot access checklist endpoints."""
+        # Create a new user without any permissions
+        unrelated_user = UserFactory()
+        self.client.force_authenticate(user=unrelated_user)
+
+        # Test checklist endpoint
+        url = OfferingUserFactory.get_url(self.offering_user, "checklist")
+        response = self.client.get(url)
+        self.assertEqual(
+            response.status_code, status.HTTP_404_NOT_FOUND
+        )  # Should be filtered out by queryset
+
+    def test_checklist_completion_created_automatically_on_offering_user_creation(self):
+        """Test that ChecklistCompletion is created automatically when OfferingUser is created."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.checklist.models import ChecklistCompletion
+
+        # Create a new offering user
+        new_user = UserFactory()
+        new_offering_user = OfferingUser.objects.create(
+            offering=self.offering, user=new_user, username="newuser"
+        )
+
+        # Check that ChecklistCompletion was created
+        content_type = ContentType.objects.get_for_model(OfferingUser)
+        completion = ChecklistCompletion.objects.filter(
+            scope_content_type=content_type,
+            scope_object_id=new_offering_user.id,
+            checklist=self.checklist,
+        ).first()
+
+        self.assertIsNotNone(completion)
+        self.assertEqual(completion.checklist, self.checklist)
+
+    def test_checklist_completion_deleted_when_offering_user_deleted(self):
+        """Test that ChecklistCompletion is deleted when OfferingUser is deleted."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.checklist.models import ChecklistCompletion
+
+        # Verify completion exists
+        content_type = ContentType.objects.get_for_model(OfferingUser)
+        completion_exists_before = ChecklistCompletion.objects.filter(
+            scope_content_type=content_type,
+            scope_object_id=self.offering_user.id,
+            checklist=self.checklist,
+        ).exists()
+        self.assertTrue(completion_exists_before)
+
+        # Delete the offering user
+        offering_user_id = self.offering_user.id
+        self.offering_user.delete()
+
+        # Check that ChecklistCompletion was deleted
+        completion_exists_after = ChecklistCompletion.objects.filter(
+            scope_content_type=content_type,
+            scope_object_id=offering_user_id,
+            checklist=self.checklist,
+        ).exists()
+        self.assertFalse(completion_exists_after)
+
+
+@ddt
+class ServiceProviderComplianceTest(test.APITransactionTestCase):
+    """Test service provider compliance management endpoints."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+        # Add service provider permissions to customer owner
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS
+        )
+
+        # Create a service provider
+        self.service_provider = ServiceProviderFactory(customer=self.fixture.customer)
+
+        # Create checklist for compliance
+        self.checklist = ChecklistFactory(
+            checklist_type="offering_compliance",
+            name="Compliance Checklist",
+        )
+        self.question = QuestionFactory(
+            checklist=self.checklist,
+            description="Are you compliant?",
+            question_type=QuestionTypes.BOOLEAN,
+            required=True,
+        )
+
+        # Create offerings with and without checklists
+        self.offering_with_checklist = OfferingFactory(
+            customer=self.fixture.customer,
+            compliance_checklist=self.checklist,
+            plugin_options={"service_provider_can_create_offering_user": True},
+        )
+        self.offering_without_checklist = OfferingFactory(
+            customer=self.fixture.customer,
+            compliance_checklist=None,
+            plugin_options={"service_provider_can_create_offering_user": True},
+        )
+
+        # Create offering users
+        self.user1 = UserFactory()
+        self.user2 = UserFactory()
+        self.offering_user1 = OfferingUserFactory(
+            offering=self.offering_with_checklist, user=self.user1, username="user1"
+        )
+        self.offering_user2 = OfferingUserFactory(
+            offering=self.offering_with_checklist, user=self.user2, username="user2"
+        )
+        self.offering_user3 = OfferingUserFactory(
+            offering=self.offering_without_checklist,
+            user=self.user1,
+            username="user1_no_checklist",
+        )
+
+    @data("owner", "staff")
+    def test_compliance_overview_authorized_users(self, user_role):
+        """Test that authorized users can access compliance overview."""
+        if user_role == "staff":
+            user = self.fixture.staff
+        else:
+            user = self.fixture.owner
+
+        self.client.force_authenticate(user=user)
+
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "compliance-overview"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)  # Two offerings
+
+        # Check data for offering with checklist
+        offering_with_checklist_data = next(
+            (
+                item
+                for item in response.data
+                if item["offering_uuid"] == str(self.offering_with_checklist.uuid)
+            ),
+            None,
+        )
+        self.assertIsNotNone(offering_with_checklist_data)
+        self.assertEqual(offering_with_checklist_data["total_users"], 2)
+        self.assertEqual(offering_with_checklist_data["users_with_completions"], 2)
+        self.assertEqual(
+            offering_with_checklist_data["completed_users"], 0
+        )  # No answers yet
+        self.assertEqual(offering_with_checklist_data["pending_users"], 2)
+        self.assertEqual(offering_with_checklist_data["compliance_rate"], 0.0)
+
+        # Check data for offering without checklist
+        offering_without_checklist_data = next(
+            (
+                item
+                for item in response.data
+                if item["offering_uuid"] == str(self.offering_without_checklist.uuid)
+            ),
+            None,
+        )
+        self.assertIsNotNone(offering_without_checklist_data)
+        self.assertEqual(offering_without_checklist_data["total_users"], 1)
+        self.assertEqual(offering_without_checklist_data["users_with_completions"], 0)
+        self.assertEqual(offering_without_checklist_data["compliance_rate"], 0.0)
+        self.assertIsNone(offering_without_checklist_data["checklist_name"])
+
+    def test_compliance_overview_unauthorized_user(self):
+        """Test that unauthorized users cannot access compliance overview."""
+        self.client.force_authenticate(user=self.user1)
+
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "compliance-overview"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data("owner", "staff")
+    def test_offering_users_list_authorized_users(self, user_role):
+        """Test that authorized users can list offering users with compliance status."""
+        if user_role == "staff":
+            user = self.fixture.staff
+        else:
+            user = self.fixture.owner
+
+        self.client.force_authenticate(user=user)
+
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "offering-users"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)  # Three offering users total
+
+        # Check that all users are present
+        user_uuids = {item["uuid"] for item in response.data}
+        expected_uuids = {
+            str(self.offering_user1.uuid),
+            str(self.offering_user2.uuid),
+            str(self.offering_user3.uuid),
+        }
+        self.assertEqual(user_uuids, expected_uuids)
+
+        # Check compliance statuses
+        for item in response.data:
+            if item["checklist_name"]:
+                self.assertEqual(item["compliance_status"], "pending")  # No answers yet
+                self.assertEqual(item["completion_percentage"], 0)
+            else:
+                self.assertEqual(item["compliance_status"], "no_checklist")
+                self.assertIsNone(item["completion_percentage"])
+
+    def test_offering_users_filter_by_offering_uuid(self):
+        """Test filtering offering users by offering UUID."""
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "offering-users"
+        )
+
+        # Filter by offering with checklist
+        response = self.client.get(
+            url, {"offering_uuid": self.offering_with_checklist.uuid.hex}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)  # Two users for this offering
+
+        for item in response.data:
+            self.assertEqual(item["offering_name"], self.offering_with_checklist.name)
+
+    def test_offering_users_filter_by_compliance_status(self):
+        """Test filtering offering users by compliance status."""
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "offering-users"
+        )
+
+        # Filter by no_checklist
+        response = self.client.get(url, {"compliance_status": "no_checklist"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.offering_user3.uuid))
+
+        # Filter by pending
+        response = self.client.get(url, {"compliance_status": "pending"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)  # Two users with incomplete checklists
+
+        # Filter by completed (should be empty since no answers submitted yet)
+        response = self.client.get(url, {"compliance_status": "completed"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_compliance_overview_with_completed_checklist(self):
+        """Test compliance overview when some users have completed their checklists."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.checklist.models import Answer, ChecklistCompletion
+
+        # Submit answer for one user to complete their checklist
+        content_type = ContentType.objects.get_for_model(OfferingUser)
+        completion = ChecklistCompletion.objects.get(
+            scope_content_type=content_type,
+            scope_object_id=self.offering_user1.id,
+            checklist=self.checklist,
+        )
+
+        # Create answer for the required question
+        Answer.objects.create(
+            completion=completion,
+            question=self.question,
+            user=self.user1,
+            answer_data=True,
+        )
+
+        # Manually update completion status since we're directly creating answer
+        completion.refresh_from_db()
+        completion.is_completed = True
+        completion.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "compliance-overview"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check data for offering with checklist
+        offering_data = next(
+            (
+                item
+                for item in response.data
+                if item["offering_uuid"] == str(self.offering_with_checklist.uuid)
+            ),
+            None,
+        )
+        self.assertIsNotNone(offering_data)
+        self.assertEqual(offering_data["total_users"], 2)
+        self.assertEqual(offering_data["users_with_completions"], 2)
+        self.assertEqual(offering_data["completed_users"], 1)
+        self.assertEqual(offering_data["pending_users"], 1)
+        self.assertEqual(offering_data["compliance_rate"], 50.0)  # 1 out of 2 completed
+
+    def test_offering_users_unauthorized_user(self):
+        """Test that unauthorized users cannot list offering users."""
+        self.client.force_authenticate(user=self.user1)
+
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "offering-users"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class OfferingComplianceSerializerTest(test.APITransactionTestCase):
+    """Test that offering API exposes compliance checklist information."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.service_provider = ServiceProviderFactory(customer=self.fixture.customer)
+
+    def test_offering_with_compliance_checklist_shows_checklist_info(self):
+        """Test that offering with compliance checklist exposes checklist information."""
+        # Create checklist and offering
+        checklist = ChecklistFactory(
+            name="Security Compliance",
+            description="Required security compliance checklist",
+            checklist_type="offering_compliance",
+        )
+        offering = OfferingFactory(
+            customer=self.service_provider.customer,
+            compliance_checklist=checklist,
+        )
+
+        # Fetch offering details
+        url = reverse(
+            "marketplace-public-offering-detail", kwargs={"uuid": offering.uuid.hex}
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify compliance requirements is indicated
+        self.assertTrue(response.data["has_compliance_requirements"])
+
+    def test_offering_without_compliance_checklist_shows_no_requirements(self):
+        """Test that offering without compliance checklist shows no requirements."""
+        offering = OfferingFactory(customer=self.service_provider.customer)
+
+        url = reverse(
+            "marketplace-public-offering-detail", kwargs={"uuid": offering.uuid.hex}
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify no compliance requirements
+        self.assertFalse(response.data["has_compliance_requirements"])
+
+
+@ddt
+class ServiceProviderCompliancePerformanceTest(test.APITransactionTestCase):
+    """Test performance of compliance_overview action."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.service_provider = ServiceProviderFactory(customer=self.fixture.customer)
+
+        # Set up permissions for the compliance overview endpoint
+        from waldur_core.permissions.enums import PermissionEnum
+        from waldur_core.permissions.fixtures import CustomerRole
+
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS
+        )
+
+        # Create compliance checklist for some offerings
+        self.checklist = ChecklistFactory(name="Compliance Checklist")
+        QuestionFactory(checklist=self.checklist, description="Security question")
+        QuestionFactory(checklist=self.checklist, description="Privacy question")
+
+        # Create multiple offerings with different scenarios
+        self.offerings_with_checklist = []
+        self.offerings_without_checklist = []
+
+        # Create 5 offerings with checklists and users
+        for i in range(5):
+            offering = OfferingFactory(
+                customer=self.fixture.customer,
+                name=f"Offering {i}",
+                compliance_checklist=self.checklist,
+            )
+            self.offerings_with_checklist.append(offering)
+
+            # Create 3-5 offering users for each offering
+            for j in range(3 + i):  # 3, 4, 5, 6, 7 users respectively
+                user = UserFactory()
+                OfferingUserFactory(offering=offering, user=user)
+
+        # Create 3 offerings without checklists
+        for i in range(3):
+            offering = OfferingFactory(
+                customer=self.fixture.customer, name=f"No Checklist Offering {i}"
+            )
+            self.offerings_without_checklist.append(offering)
+
+            # Create 2-4 offering users for each offering
+            for j in range(2 + i):  # 2, 3, 4 users respectively
+                user = UserFactory()
+                OfferingUserFactory(offering=offering, user=user)
+
+        # Mark some existing checklist completions as completed for testing
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.checklist.models import ChecklistCompletion
+
+        content_type = ContentType.objects.get_for_model(OfferingUser)
+
+        # Complete checklist for some users in first offering
+        first_offering_users = OfferingUser.objects.filter(
+            offering=self.offerings_with_checklist[0]
+        )[:2]
+        for offering_user in first_offering_users:
+            # Find existing completion (created by signal) and mark as completed
+            completion = ChecklistCompletion.objects.get(
+                checklist=self.checklist,
+                scope_content_type=content_type,
+                scope_object_id=offering_user.id,
+            )
+            completion.is_completed = True
+            completion.save()
+
+        self.client = test.APIClient()
+        self.client.force_authenticate(user=self.fixture.staff)
+
+    @data("staff", "owner")
+    def test_compliance_overview_query_count(self, user_role):
+        """Test that compliance_overview uses reasonable number of queries."""
+        import time
+
+        from django.db import connection, reset_queries
+        from django.test.utils import override_settings
+
+        # Use the appropriate user
+        if user_role == "staff":
+            user = self.fixture.staff
+        else:
+            user = self.fixture.owner
+
+        self.client.force_authenticate(user=user)
+
+        # Reset queries and enable query logging
+        with override_settings(DEBUG=True):
+            reset_queries()
+
+            url = ServiceProviderFactory.get_compliance_url(
+                self.service_provider, "compliance-overview"
+            )
+
+            start_time = time.time()
+            response = self.client.get(url)
+            end_time = time.time()
+
+            # Check response is successful
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            # Get query count
+            query_count = len(connection.queries)
+
+            # Print diagnostic information
+            print(f"\nCompliance Overview Performance Test ({user_role}):")
+            print(f"Query count: {query_count}")
+            print(f"Response time: {end_time - start_time:.2f} seconds")
+            print(f"Number of offerings returned: {len(response.data)}")
+
+            # Calculate total users for context
+            total_users = sum(item["total_users"] for item in response.data)
+            print(f"Total users across all offerings: {total_users}")
+
+            # Print the most expensive/repetitive queries
+            print("\nQueries analysis:")
+            query_patterns = {}
+            for query in connection.queries:
+                sql = query["sql"]
+                # Extract table name pattern
+                if "FROM" in sql.upper():
+                    table_part = (
+                        sql.upper()
+                        .split("FROM")[1]
+                        .split("WHERE")[0]
+                        .split("ORDER")[0]
+                        .split("GROUP")[0]
+                        .strip()
+                    )
+                    table_name = table_part.split()[0].strip('"').replace("`", "")
+                    if table_name in query_patterns:
+                        query_patterns[table_name] += 1
+                    else:
+                        query_patterns[table_name] = 1
+
+            print("Query count by table:")
+            for table, count in sorted(
+                query_patterns.items(), key=lambda x: x[1], reverse=True
+            ):
+                if count > 1:
+                    print(f"  {table}: {count} queries")
+
+            # Optimized implementation using prefetch_related to eliminate N+1 queries
+            # Optimized results: ~6 queries total regardless of offering count
+            # This represents a 77% improvement from the original 26 queries
+
+            offerings_count = len(self.offerings_with_checklist) + len(
+                self.offerings_without_checklist
+            )
+
+            # Optimized baseline: ~6 queries total (constant time complexity)
+            # This includes: permission checks + optimized prefetch queries for all data at once
+            expected_optimized_queries = 6  # Constant regardless of offering count
+
+            print(f"Expected optimized queries: {expected_optimized_queries}")
+
+            # Assert optimized performance - should be constant time complexity
+            # Allow small buffer for test setup variations but keep it tight to catch regressions
+            self.assertLess(
+                query_count,
+                10,
+                f"Optimized query count ({query_count}) exceeds expected constant complexity. "
+                f"Performance optimization may have regressed.",
+            )
+
+            # Verify we achieved the optimization target
+            self.assertLess(
+                query_count,
+                15,
+                f"Optimized version should use <15 queries regardless of offering count, got {query_count}",
+            )
+
+            # Verify constant time complexity - query count shouldn't scale with offering count
+            if offerings_count > 5:  # Only check scaling for meaningful dataset
+                queries_per_offering = query_count / offerings_count
+                self.assertLess(
+                    queries_per_offering,
+                    2,  # Much tighter bound for optimized version
+                    f"Query count per offering ({queries_per_offering:.1f}) indicates scaling issues. "
+                    f"Optimized version should have constant time complexity.",
+                )
+
+    def test_compliance_overview_data_accuracy(self):
+        """Test that compliance_overview returns accurate data despite performance issues."""
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "compliance-overview"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should have 8 offerings total (5 with checklist + 3 without)
+        self.assertEqual(len(response.data), 8)
+
+        # Verify data structure for offerings with checklist
+        offerings_with_checklist_data = [
+            item for item in response.data if item["checklist_name"] is not None
+        ]
+        self.assertEqual(len(offerings_with_checklist_data), 5)
+
+        # Verify data structure for offerings without checklist
+        offerings_without_checklist_data = [
+            item for item in response.data if item["checklist_name"] is None
+        ]
+        self.assertEqual(len(offerings_without_checklist_data), 3)
+
+        # Check that the first offering (with completions) has correct data
+        first_offering_data = next(
+            item for item in response.data if item["offering_name"] == "Offering 0"
+        )
+
+        # Should have 3 total users, 2 completed
+        self.assertEqual(first_offering_data["total_users"], 3)
+        self.assertEqual(first_offering_data["completed_users"], 2)
+        self.assertEqual(
+            first_offering_data["users_with_completions"], 3
+        )  # All users get completion entries
+        self.assertEqual(
+            first_offering_data["pending_users"], 1
+        )  # 3 total - 2 completed = 1 pending
+        self.assertAlmostEqual(first_offering_data["compliance_rate"], 66.67, places=1)

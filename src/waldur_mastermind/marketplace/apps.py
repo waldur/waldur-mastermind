@@ -259,6 +259,18 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.create_offering_user_checklist_completions,
+            sender=models.OfferingUser,
+            dispatch_uid="waldur_mastermind.marketplace.create_offering_user_checklist_completions",
+        )
+
+        signals.pre_delete.connect(
+            handlers.delete_offering_user_checklist_completions,
+            sender=models.OfferingUser,
+            dispatch_uid="waldur_mastermind.marketplace.delete_offering_user_checklist_completions",
+        )
+
+        signals.post_save.connect(
             handlers.log_resource_robot_account_created_or_updated,
             sender=models.RobotAccount,
             dispatch_uid="waldur_core.marketplace.handlers.log_resource_robot_account_created_or_updated",

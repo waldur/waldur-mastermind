@@ -19,6 +19,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.permissions import SAFE_METHODS
 
+from waldur_core.checklist import models as checklist_models
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
@@ -607,6 +608,108 @@ class ServiceProviderSerializer(
 
 class ServiceProviderApiSecretCodeSerializer(serializers.Serializer):
     api_secret_code = serializers.CharField(read_only=True)
+
+
+class ServiceProviderComplianceOverviewSerializer(serializers.Serializer):
+    """Serializer for service provider compliance statistics overview."""
+
+    offering_uuid = serializers.UUIDField(read_only=True)
+    offering_name = serializers.CharField(read_only=True)
+    checklist_name = serializers.CharField(read_only=True, allow_null=True)
+    total_users = serializers.IntegerField(read_only=True)
+    users_with_completions = serializers.IntegerField(read_only=True)
+    completed_users = serializers.IntegerField(read_only=True)
+    pending_users = serializers.IntegerField(read_only=True)
+    compliance_rate = serializers.FloatField(read_only=True)
+
+
+class ServiceProviderOfferingUserComplianceSerializer(serializers.ModelSerializer):
+    """Serializer for offering users with compliance status for service providers."""
+
+    user_full_name = serializers.CharField(source="user.get_full_name", read_only=True)
+    user_email = serializers.CharField(source="user.email", read_only=True)
+    offering_name = serializers.CharField(source="offering.name", read_only=True)
+    checklist_name = serializers.CharField(
+        source="offering.compliance_checklist.name", read_only=True, allow_null=True
+    )
+    completion_percentage = serializers.SerializerMethodField()
+    compliance_status = serializers.SerializerMethodField()
+    last_updated = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.OfferingUser
+        fields = (
+            "uuid",
+            "user_full_name",
+            "user_email",
+            "offering_name",
+            "checklist_name",
+            "username",
+            "state",
+            "completion_percentage",
+            "compliance_status",
+            "last_updated",
+            "created",
+        )
+        read_only_fields = fields
+
+    def _get_checklist_completion(self, obj):
+        """
+        Helper method to retrieve ChecklistCompletion for an OfferingUser.
+
+        Returns:
+            tuple: (checklist, completion) where:
+                - checklist: The compliance checklist or None if not available
+                - completion: ChecklistCompletion instance or None if not found
+        """
+        checklist = obj.offering.compliance_checklist
+        if not checklist:
+            return checklist, None
+
+        try:
+            content_type = ContentType.objects.get_for_model(obj)
+            completion = checklist_models.ChecklistCompletion.objects.get(
+                scope_content_type=content_type,
+                scope_object_id=obj.id,
+                checklist=checklist,
+            )
+            return checklist, completion
+        except checklist_models.ChecklistCompletion.DoesNotExist:
+            return checklist, None
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_completion_percentage(self, obj):
+        """Get completion percentage for the offering user's checklist."""
+        checklist, completion = self._get_checklist_completion(obj)
+
+        if not checklist:
+            return None
+        if not completion:
+            return 0
+
+        return completion.get_completion_percentage()
+
+    @extend_schema_field(serializers.CharField())
+    def get_compliance_status(self, obj):
+        """Get compliance status: completed, pending, or no_checklist."""
+        checklist, completion = self._get_checklist_completion(obj)
+
+        if not checklist:
+            return "no_checklist"
+        if not completion:
+            return "pending"
+
+        return "completed" if completion.is_completed else "pending"
+
+    @extend_schema_field(serializers.DateTimeField(allow_null=True))
+    def get_last_updated(self, obj):
+        """Get the last time the completion was updated."""
+        checklist, completion = self._get_checklist_completion(obj)
+
+        if not checklist or not completion:
+            return None
+
+        return completion.modified
 
 
 class SetOfferingsUsernameSerializer(serializers.Serializer):
@@ -1571,6 +1674,7 @@ class ProviderOfferingDetailsSerializer(
     total_cost_estimated = serializers.SerializerMethodField()
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
     roles = NestedRoleSerializer(many=True, read_only=True)
+    has_compliance_requirements = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Offering
@@ -1638,6 +1742,7 @@ class ProviderOfferingDetailsSerializer(
             "parent_uuid",
             "parent_name",
             "backend_metadata",
+            "has_compliance_requirements",
         )
         related_paths = {
             "customer": ("uuid", "name"),
@@ -1817,6 +1922,11 @@ class ProviderOfferingDetailsSerializer(
             "token": service.token,
             **service.options,
         }
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_has_compliance_requirements(self, offering: models.Offering) -> bool:
+        """Quick check if this offering requires compliance."""
+        return offering.compliance_checklist is not None
 
 
 class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
