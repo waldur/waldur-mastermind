@@ -5,251 +5,209 @@ collections:
     modules:
       - name: project
         plugin: crud
-        operations:
-          list: projects_list
-          create: projects_create
-          destroy: projects_destroy
+        base_operation_id: "projects"
         resolvers:
-          customer:
-            list: customers_list
-            retrieve: customers_retrieve
-          type:
-            list: project_types_list
-            retrieve: project_types_retrieve
+          customer: "customers"
+          type: "project_types"
+
       - name: customer
         plugin: crud
-        operations:
-          list: customers_list
-          create: customers_create
-          destroy: customers_destroy
+        base_operation_id: "customers"
         skip_resolver_check:
           - homepage
+
   - namespace: waldur
     name: openstack
     version: 1.0.0
     modules:
       - name: instance_facts
         plugin: facts
-        list_operation: openstack_instances_list
-        retrieve_operation: openstack_instances_retrieve
+        base_operation_id: "openstack_instances"
+
       - name: security_group_facts
         plugin: facts
-        list_operation: openstack_security_groups_list
-        retrieve_operation: openstack_security_groups_retrieve
+        base_operation_id: "openstack_security_groups"
         many: true
         context_params:
           - name: tenant
-            resolver:
-              list: openstack_tenants_list
-              retrieve: openstack_tenants_retrieve
-              filter_key: tenant_uuid
+            resolver: "openstack_tenants"
+            filter_key: "tenant_uuid"
+
       - name: subnet_facts
         plugin: facts
-        list_operation: openstack_subnets_list
-        retrieve_operation: openstack_subnets_retrieve
+        base_operation_id: "openstack_subnets"
         many: true
         context_params:
           - name: tenant
-            resolver:
-              list: openstack_tenants_list
-              retrieve: openstack_tenants_retrieve
-              filter_key: tenant_uuid
+            resolver: "openstack_tenants"
+            filter_key: "tenant_uuid"
+
       - name: vpc
         plugin: order
         offering_type: OpenStack.Tenant
-        description: Create, update, or delete an OpenStack Tenant via the marketplace.
-        resource_type: OpenStack tenant
+        base_operation_id: "openstack_tenants"
         has_limits: true
-        existence_check_op: openstack_tenants_list
+
       - name: volume
         plugin: order
         offering_type: OpenStack.Volume
-        description: Create, update, or delete an OpenStack Volume via the marketplace.
-        resource_type: OpenStack volume
-
-        existence_check_op: openstack_volumes_list
-        update_op: openstack_volumes_update
-        update_check_fields:
-          - description
-
+        base_operation_id: "openstack_volumes"
+        operations:
+          update:
+            fields: ["description"]
         resolvers:
           type:
-            list: openstack_volume_types_list
-            retrieve: openstack_volume_types_retrieve
+            base: "openstack_volume_types"
             filter_by:
               - source_param: "offering"
                 source_key: "scope_uuid"
                 target_key: "tenant_uuid"
+
           image:
-            list: openstack_images_list
-            retrieve: openstack_images_retrieve
+            base: "openstack_images"
             filter_by:
               - source_param: "offering"
                 source_key: "scope_uuid"
                 target_key: "tenant_uuid"
+
           availability_zone:
-            list: openstack_volume_availability_zones_list
-            retrieve: openstack_volume_availability_zones_retrieve
+            base: "openstack_volume_availability_zones"
             filter_by:
               - source_param: "offering"
                 source_key: "scope_uuid"
                 target_key: "tenant_uuid"
+
       - name: instance
         plugin: order
         offering_type: OpenStack.Instance
-
-        description: "Create or delete an OpenStack Instance."
-        resource_type: "OpenStack instance"
-
-        existence_check_op: "openstack_instances_list"
-        update_op: "openstack_instances_partial_update"
-        update_check_fields:
-          - name
-          - description
-
+        base_operation_id: "openstack_instances"
+        operations:
+          update:
+            fields: ["name", "description"]
+            actions:
+              update_ports:
+                operation: "openstack_instances_update_ports"
+                param: "ports"
+                compare_key: "ports"
+              update_security_groups:
+                operation: "openstack_instances_update_security_groups"
+                param: "security_groups"
+                compare_key: "security_groups"
+              update_floating_ips:
+                operation: "openstack_instances_update_floating_ips"
+                param: "floating_ips"
+                compare_key: "floating_ips"
         resolvers:
           flavor:
-            list: "openstack_flavors_list"
-            retrieve: "openstack_flavors_retrieve"
+            base: "openstack_flavors"
             filter_by:
               - source_param: "offering"
                 source_key: "scope_uuid"
                 target_key: "tenant_uuid"
+
           image:
-            list: "openstack_images_list"
-            retrieve: "openstack_images_retrieve"
+            base: "openstack_images"
             filter_by:
               - source_param: "offering"
                 source_key: "scope_uuid"
                 target_key: "tenant_uuid"
+
           system_volume_type:
-            list: "openstack_volume_types_list"
-            retrieve: "openstack_volume_types_retrieve"
+            base: "openstack_volume_types"
             filter_by:
               - source_param: "offering"
                 source_key: "scope_uuid"
                 target_key: "tenant_uuid"
+
           data_volume_type:
-            list: "openstack_volume_types_list"
-            retrieve: "openstack_volume_types_retrieve"
+            base: "openstack_volume_types"
             filter_by:
               - source_param: "offering"
                 source_key: "scope_uuid"
                 target_key: "tenant_uuid"
+
           security_groups:
-            list: "openstack_security_groups_list"
-            retrieve: "openstack_security_groups_retrieve"
+            base: "openstack_security_groups"
             filter_by:
               - source_param: "offering"
                 source_key: "scope_uuid"
                 target_key: "tenant_uuid"
+
           availability_zone:
-            list: "openstack_instance_availability_zones_list"
-            retrieve: "openstack_instance_availability_zones_retrieve"
+            base: "openstack_instance_availability_zones"
             filter_by:
               - source_param: "offering"
                 source_key: "scope_uuid"
                 target_key: "tenant_uuid"
-          # This resolver is for the 'subnet' field inside the 'ports' and 'floating_ips' lists.
-          # The generator will automatically apply it where needed based on the parameter name.
           subnet:
-            list: "openstack_subnets_list"
-            retrieve: "openstack_subnets_retrieve"
+            base: "openstack_subnets"
             filter_by:
               - source_param: "offering"
                 source_key: "scope_uuid"
                 target_key: "tenant_uuid"
-          ssh_public_key:
-            list: "keys_list"
-            retrieve: "keys_retrieve"
+
+          ssh_public_key: "keys"
+
       - name: security_group
         plugin: crud
         resource_type: "OpenStack security group"
         description: "Manage OpenStack Security Groups and their rules in Waldur."
-
+        base_operation_id: "openstack_security_groups"
         operations:
-          create: "openstack_tenants_create_security_group"
-          list: "openstack_security_groups_list"
-          destroy: "openstack_security_groups_destroy"
-          update: "openstack_security_groups_partial_update"
-
-        update_config:
-          fields:
-            - "name"
-            - "description"
-          actions:
-            set_rules:
-              operation: "openstack_security_groups_set_rules"
-              param: "rules"
-
-        path_param_maps:
+          update:
+            fields: ["name", "description"]
+            actions:
+              set_rules:
+                operation: "openstack_security_groups_set_rules"
+                param: "rules"
           create:
-            uuid: "tenant"
-
+            id: "openstack_tenants_create_security_group"
+            path_params: { uuid: "tenant" }
         resolvers:
-          tenant:
-            list: "openstack_tenants_list"
-            retrieve: "openstack_tenants_retrieve"
-            error_message: "Tenant '{value}' not found."
+          tenant: "openstack_tenants"
+
       - name: network
         plugin: crud
         resource_type: "OpenStack network"
         description: "Manage OpenStack Networks in Waldur."
+        base_operation_id: "openstack_networks"
         operations:
-          create: "openstack_tenants_create_network"
-          list: "openstack_networks_list"
-          destroy: "openstack_networks_destroy"
-          update: "openstack_networks_partial_update"
-        update_config:
-          fields:
-            - "name"
-            - "description"
-        path_param_maps:
+          update:
+            fields: ["name", "description"]
+            actions:
+              set_mtu:
+                operation: "openstack_networks_set_mtu"
+                param: "mtu"
           create:
-            uuid: "tenant"
+            id: "openstack_tenants_create_network"
+            path_params: { uuid: "tenant" }
         resolvers:
-          tenant:
-            list: "openstack_tenants_list"
-            retrieve: "openstack_tenants_retrieve"
-            error_message: "Tenant '{value}' not found."
+          tenant: "openstack_tenants"
+
       - name: server_group
         plugin: crud
         resource_type: "OpenStack server group"
         description: "Manage OpenStack Server Groups (Affinity Groups) in Waldur."
+        base_operation_id: "openstack_server_groups"
         operations:
-          create: "openstack_tenants_create_server_group"
-          list: "openstack_server_groups_list"
-          destroy: "openstack_server_groups_destroy"
-          update: "openstack_server_groups_partial_update"
-        update_config:
-          fields:
-            - "name"
-            - "description"
-        path_param_maps:
+          update:
+            fields: ["name", "description"]
           create:
-            uuid: "tenant"
+            id: "openstack_tenants_create_server_group"
+            path_params: { uuid: "tenant" }
         resolvers:
-          tenant:
-            list: "openstack_tenants_list"
-            retrieve: "openstack_tenants_retrieve"
-            error_message: "Tenant '{value}' not found."
+          tenant: "openstack_tenants"
+
       - name: floating_ip
         plugin: crud
         resource_type: "OpenStack floating IP"
         description: "Manage OpenStack Floating IPs in Waldur."
+        base_operation_id: "openstack_floating_ips"
         operations:
-          create: "openstack_tenants_create_floating_ip"
-          list: "openstack_floating_ips_list"
-          destroy: "openstack_floating_ips_destroy"
-          update: "openstack_floating_ips_partial_update"
-        update_config:
-          fields:
-            - "description"
-        path_param_maps:
+          update:
+            fields: ["description"]
           create:
-            uuid: "tenant"
+            id: "openstack_tenants_create_floating_ip"
+            path_params: { uuid: "tenant" }
         resolvers:
-          tenant:
-            list: "openstack_tenants_list"
-            retrieve: "openstack_tenants_retrieve"
-            error_message: "Tenant '{value}' not found."
+          tenant: "openstack_tenants"
