@@ -202,6 +202,16 @@ def register_in(router):
         views.MaintenanceAnnouncementOfferingTemplateViewSet,
         basename="maintenance-announcement-template-offering",
     )
+    router.register(
+        r"marketplace-user-offering-consents",
+        views.UserOfferingConsentViewSet,
+        basename="marketplace-user-offering-consent",
+    )
+    router.register(
+        r"marketplace-offering-terms-of-service",
+        views.ProviderOfferingToSManagementViewset,
+        basename="marketplace-offering-terms-of-service",
+    )
 
 
 urlpatterns = [

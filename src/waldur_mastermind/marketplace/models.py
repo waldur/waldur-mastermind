@@ -516,6 +516,8 @@ class Offering(
     files: models.Manager["OfferingFile"]
     endpoints: models.Manager["OfferingAccessEndpoint"]
     roles: models.Manager["OfferingUserRole"]
+    user_consents: models.Manager["UserOfferingConsent"]
+    terms_of_service_configs: models.Manager["OfferingTermsOfService"]
     get_state_display: Callable[[], Literal["Draft", "Active", "Paused", "Archived"]]
 
     class States(OfferingStates):
@@ -593,11 +595,8 @@ class Offering(
         ),
     )
 
-    terms_of_service = models.TextField(blank=True)
-    terms_of_service_link = models.URLField(blank=True)
     privacy_policy_link = models.URLField(blank=True)
     country = models.CharField(max_length=2, blank=True)
-
     type = models.CharField(max_length=100)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
     paused_reason = models.TextField(blank=True)
@@ -728,6 +727,94 @@ class Offering(
     @classmethod
     def get_permitted_objects(cls, user):
         return cls.objects.all().filter_for_user(user)
+
+    def update_terms_of_service(
+        self, new_terms, new_version=None, requires_reconsent=False
+    ):
+        """Update terms of service for the offering."""
+        tos_config, created = self.terms_of_service_configs.update_or_create(
+            is_active=True,
+            defaults={
+                "terms_of_service": new_terms,
+                "version": new_version or "",
+                "requires_reconsent": requires_reconsent,
+            },
+        )
+
+    def has_terms_of_service(self):
+        """Check if the offering has terms of service."""
+        return self.terms_of_service_configs.filter(is_active=True).exists()
+
+    def get_active_consents(self):
+        """Get all active consents for this offering."""
+        return self.user_consents.filter(revocation_date__isnull=True)
+
+    def check_user_consent(self, user):
+        """Check if a user has active consent for this offering."""
+        try:
+            consent = self.user_consents.get(user=user, revocation_date__isnull=True)
+            return consent
+        except UserOfferingConsent.DoesNotExist:
+            return None
+
+
+class UserOfferingConsent(TimeStampedModel, core_models.UuidMixin):
+    """
+    User consent to Terms of Service for specific offerings
+
+    Tracks user consent to offering terms of service. Provides
+    comprehensive consent tracking for legal compliance and user transparency.
+    """
+
+    user = models.ForeignKey(
+        core_models.User, on_delete=models.CASCADE, related_name="offering_consents"
+    )
+    offering = models.ForeignKey(
+        Offering, on_delete=models.CASCADE, related_name="user_consents"
+    )
+    agreement_date = models.DateTimeField(auto_now_add=True)
+    version = models.CharField(max_length=50, blank=True)
+    revocation_date = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = (
+            "user",
+            "offering",
+        )
+        verbose_name = _("User offering consent")
+
+    def __str__(self):
+        return f"{self.user.username} - {self.offering.name}"
+
+    @classmethod
+    def get_url_name(cls):
+        return "marketplace-user-offering-consent"
+
+    def revoke(self):
+        self.revocation_date = timezone.now()
+        self.save()
+
+    @property
+    def is_revoked(self):
+        """Check if the consent has been revoked."""
+        return self.revocation_date is not None
+
+
+class OfferingTermsOfService(TimeStampedModel, core_models.UuidMixin):
+    offering = models.ForeignKey(
+        Offering, on_delete=models.CASCADE, related_name="terms_of_service_configs"
+    )
+    terms_of_service = models.TextField(blank=True)
+    terms_of_service_link = models.URLField(blank=True)
+    version = models.CharField(max_length=50, blank=True)
+    is_active = models.BooleanField(default=True)
+    requires_reconsent = models.BooleanField(
+        default=False,
+        help_text="If True, user will be asked to re-consent to the terms of service when the terms of service are updated.",
+    )
+
+    class Meta:
+        ordering = ["-created"]
 
 
 class OfferingComponent(

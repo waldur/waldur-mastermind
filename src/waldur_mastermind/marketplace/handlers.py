@@ -1314,7 +1314,6 @@ def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
     )
     offering_ids = set(resources.values_list("offering_id", flat=True))
     offerings = models.Offering.objects.filter(id__in=offering_ids)
-
     for offering in offerings:
         if not offering.plugin_options.get("service_provider_can_create_offering_user"):
             logger.info(
@@ -1328,7 +1327,6 @@ def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
         ).exists():
             logger.info("An offering user for %s in %s already exists", user, offering)
             continue
-
         username = utils.generate_username(user, offering)
 
         offering_user = models.OfferingUser.objects.create(
@@ -1344,7 +1342,6 @@ def create_offering_user_for_new_resource(sender, instance: Resource, **kwargs):
     """Create an offering user for a new resource."""
     resource = instance
     project = resource.project
-    users = project.get_users()
     offering = resource.offering
     if offering.type not in OFFERING_USER_ALLOWED_OFFERING_TYPES:
         logger.info(
@@ -1357,6 +1354,8 @@ def create_offering_user_for_new_resource(sender, instance: Resource, **kwargs):
             "It is not allowed to create users for current offering %s.", offering
         )
         return
+
+    users = project.get_users()
 
     for user in users:
         if models.OfferingUser.objects.filter(
@@ -1375,6 +1374,7 @@ def create_offering_user_for_new_resource(sender, instance: Resource, **kwargs):
         )
 
         utils.setup_linux_related_data(offering_user, offering)
+
         offering_user.save(update_fields=["backend_metadata"])
 
         logger.info("The offering user %s has been created", offering_user)

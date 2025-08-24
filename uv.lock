@@ -3175,6 +3175,8 @@ dev = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "ddt" },
+    { name = "factory-boy" },
     { name = "pytest" },
     { name = "pytest-django" },
 ]
@@ -3280,6 +3282,8 @@ provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "ddt", specifier = ">=1.7.2" },
+    { name = "factory-boy", specifier = ">=3.3.0" },
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest-django", specifier = ">=4.11.1" },
 ]
