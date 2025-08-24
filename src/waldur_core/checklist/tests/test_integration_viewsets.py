@@ -24,8 +24,8 @@ def require_staff(request, view, obj=None):
         raise PermissionDenied("Staff only")
 
 
-class TestUserChecklistViewSet(mixins.UserChecklistMixin, core_views.ActionsViewSet):
-    """Test ViewSet implementing UserChecklistMixin for testing."""
+class MockUserChecklistViewSet(mixins.UserChecklistMixin, core_views.ActionsViewSet):
+    """Mock ViewSet implementing UserChecklistMixin for testing."""
 
     # Use default staff permissions for testing
     checklist_permissions = [require_staff]
@@ -47,10 +47,10 @@ class TestUserChecklistViewSet(mixins.UserChecklistMixin, core_views.ActionsView
         return self._checklist_completions.get(obj.uuid)
 
 
-class TestReviewerChecklistViewSet(
+class MockReviewerChecklistViewSet(
     mixins.ReviewerChecklistMixin, core_views.ActionsViewSet
 ):
-    """Test ViewSet implementing ReviewerChecklistMixin for testing."""
+    """Mock ViewSet implementing ReviewerChecklistMixin for testing."""
 
     # Use default staff permissions for testing
     checklist_review_permissions = [require_staff]
@@ -113,7 +113,7 @@ class UserChecklistMixinIntegrationTest(test.APITransactionTestCase):
         )
 
         # Set up test viewset
-        self.viewset = TestUserChecklistViewSet()
+        self.viewset = MockUserChecklistViewSet()
         self.viewset._test_objects[self.project_uuid] = self.mock_project
         self.viewset._checklist_completions[self.mock_project.uuid] = (
             self.mock_completion
@@ -275,17 +275,17 @@ class UserChecklistMixinIntegrationTest(test.APITransactionTestCase):
         self.request.user = self.user
 
         # All endpoints should deny access when dispatched through DRF
-        checklist_view = TestUserChecklistViewSet.as_view({"get": "checklist"})
+        checklist_view = MockUserChecklistViewSet.as_view({"get": "checklist"})
         checklist_resp = checklist_view(self.request, uuid=self.project_uuid)
         self.assertEqual(checklist_resp.status_code, status.HTTP_403_FORBIDDEN)
 
-        status_view = TestUserChecklistViewSet.as_view({"get": "completion_status"})
+        status_view = MockUserChecklistViewSet.as_view({"get": "completion_status"})
         status_resp = status_view(self.request, uuid=self.project_uuid)
         self.assertEqual(status_resp.status_code, status.HTTP_403_FORBIDDEN)
 
         post_req = test.APIRequestFactory().post("/", data=[], format="json")
         post_req.user = self.user
-        submit_view = TestUserChecklistViewSet.as_view({"post": "submit_answers"})
+        submit_view = MockUserChecklistViewSet.as_view({"post": "submit_answers"})
         submit_resp = submit_view(post_req, uuid=self.project_uuid)
         self.assertEqual(submit_resp.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -325,7 +325,7 @@ class ReviewerChecklistMixinIntegrationTest(test.APITransactionTestCase):
         )
 
         # Set up test viewset
-        self.viewset = TestReviewerChecklistViewSet()
+        self.viewset = MockReviewerChecklistViewSet()
         self.viewset._test_objects[self.project_uuid] = self.mock_project
         self.viewset._checklist_completions[self.mock_project.uuid] = (
             self.mock_completion
@@ -430,12 +430,12 @@ class ReviewerChecklistMixinIntegrationTest(test.APITransactionTestCase):
 class CombinedUserReviewerMixinIntegrationTest(test.APITransactionTestCase):
     """Integration tests for ViewSets that use both User and Reviewer mixins."""
 
-    class TestCombinedViewSet(
+    class MockCombinedViewSet(
         mixins.UserChecklistMixin,
         mixins.ReviewerChecklistMixin,
         core_views.ActionsViewSet,
     ):
-        """Test ViewSet combining both mixins like ProposalViewSet."""
+        """Mock ViewSet combining both mixins like ProposalViewSet."""
 
         # User permissions
         checklist_permissions = [core_permissions.IsStaff]
@@ -475,7 +475,7 @@ class CombinedUserReviewerMixinIntegrationTest(test.APITransactionTestCase):
             checklist=self.checklist, scope=self.mock_project
         )
 
-        self.viewset = self.TestCombinedViewSet()
+        self.viewset = self.MockCombinedViewSet()
         self.viewset._test_objects[self.project_uuid] = self.mock_project
         self.viewset._checklist_completions[self.mock_project.uuid] = (
             self.mock_completion
@@ -585,7 +585,7 @@ class MixinSecurityBoundariesTest(test.APITransactionTestCase):
         # what answers trigger reviews to prevent gaming the system
 
         # Create user viewset
-        viewset = TestUserChecklistViewSet()
+        viewset = MockUserChecklistViewSet()
         project_uuid = self.fixture.project.uuid.hex
         mock_project = self.fixture.project
         mock_completion = models.ChecklistCompletion.objects.create(
@@ -621,7 +621,7 @@ class MixinSecurityBoundariesTest(test.APITransactionTestCase):
     def test_reviewer_endpoints_expose_review_logic(self):
         """Test that reviewer endpoints expose full review trigger information."""
         # Create reviewer viewset
-        viewset = TestReviewerChecklistViewSet()
+        viewset = MockReviewerChecklistViewSet()
         project_uuid = self.fixture.project.uuid.hex
         mock_project = self.fixture.project
         mock_completion = models.ChecklistCompletion.objects.create(
@@ -661,7 +661,7 @@ class MixinSecurityBoundariesTest(test.APITransactionTestCase):
         )
 
         # Create viewset
-        viewset = TestUserChecklistViewSet()
+        viewset = MockUserChecklistViewSet()
         project_uuid = self.fixture.project.uuid.hex
         mock_project = self.fixture.project
 
@@ -752,7 +752,7 @@ class MixinQuestionVisibilityIntegrationTest(test.APITransactionTestCase):
         )
 
         # Create viewset
-        viewset = TestUserChecklistViewSet()
+        viewset = MockUserChecklistViewSet()
         project_uuid = self.fixture.project.uuid.hex
         mock_project = self.fixture.project
 
@@ -790,7 +790,7 @@ class MixinQuestionVisibilityIntegrationTest(test.APITransactionTestCase):
         )
 
         # Create viewset
-        viewset = TestUserChecklistViewSet()
+        viewset = MockUserChecklistViewSet()
         project_uuid = self.fixture.project.uuid.hex
         mock_project = self.fixture.project
 
@@ -820,7 +820,7 @@ class MixinQuestionVisibilityIntegrationTest(test.APITransactionTestCase):
         )
 
         # Create reviewer viewset
-        viewset = TestReviewerChecklistViewSet()
+        viewset = MockReviewerChecklistViewSet()
         project_uuid = self.fixture.project.uuid.hex
         mock_project = self.fixture.project
 

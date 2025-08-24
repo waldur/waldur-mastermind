@@ -152,9 +152,9 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
             "name": self.offering.name,
             "description": self.offering.description,
             "full_description": self.offering.full_description,
-            "terms_of_service": self.offering.terms_of_service,
-            "terms_of_service_link": self.offering.terms_of_service_link,
             "privacy_policy_link": self.offering.privacy_policy_link,
+            "terms_of_service": "Remote Terms of Service",
+            "terms_of_service_link": "https://example.com/tos",
             "country": self.offering.country,
             "getting_started": self.offering.getting_started,
             "integration_guide": self.offering.integration_guide,
@@ -353,6 +353,48 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
 
         self.assertIsNone(endpoints.filter(name="Stale Endpoint").first())
 
+    @override_settings(task_always_eager=True)
+    def test_sync_terms_of_service_from_remote_offering(self):
+        """Test that old-style ToS fields from remote offerings create OfferingTermsOfService records"""
+        self.assertEqual(
+            marketplace_models.OfferingTermsOfService.objects.filter(
+                offering=self.offering
+            ).count(),
+            0,
+        )
+
+        self.mock_offering_details(self.remote_offering)
+
+        self.task.pull(self.offering)
+
+        tos_objects = marketplace_models.OfferingTermsOfService.objects.filter(
+            offering=self.offering
+        )
+        self.assertEqual(tos_objects.count(), 1)
+
+        tos = tos_objects.first()
+        self.assertEqual(tos.terms_of_service, "Remote Terms of Service")
+        self.assertEqual(tos.terms_of_service_link, "https://example.com/tos")
+        self.assertEqual(tos.version, "1.0")
+        self.assertTrue(tos.is_active)
+
+    @override_settings(task_always_eager=True)
+    def test_sync_terms_of_service_with_empty_fields(self):
+        """Test that no OfferingTermsOfService records are created if ToS fields are empty"""
+        self.remote_offering["terms_of_service"] = ""
+        self.remote_offering["terms_of_service_link"] = ""
+
+        self.mock_offering_details(self.remote_offering)
+
+        self.task.pull(self.offering)
+
+        self.assertEqual(
+            marketplace_models.OfferingTermsOfService.objects.filter(
+                offering=self.offering
+            ).count(),
+            0,
+        )
+
 
 class OfferingUpdateTest(test.APITransactionTestCase):
     def setUp(self) -> None:
@@ -406,6 +448,8 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
         )
 
         serialized_order = serialize_data(OrderCreateSerializer, order)
+        # Temproray field until the client is updated
+        serialized_order["offering_terms_of_service"] = ""
 
         respx.get(f"{self.api_url}/api/projects/").respond(200, json=[])
         respx.post(f"{self.api_url}/api/projects/").respond(
@@ -474,9 +518,9 @@ class OfferingCreateTest(test.APITransactionTestCase):
                 "name": "Offering",
                 "description": "Description",
                 "full_description": "",
+                "privacy_policy_link": "",
                 "terms_of_service": "",
                 "terms_of_service_link": "",
-                "privacy_policy_link": "",
                 "getting_started": "",
                 "integration_guide": "",
                 "country": "",

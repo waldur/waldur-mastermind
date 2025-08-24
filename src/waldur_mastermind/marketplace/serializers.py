@@ -1511,7 +1511,6 @@ class ExportImportOfferingSerializer(serializers.ModelSerializer):
             "name",
             "description",
             "full_description",
-            "terms_of_service",
             "access_url",
             "attributes",
             "options",
@@ -1686,8 +1685,6 @@ class ProviderOfferingDetailsSerializer(
             "slug",
             "description",
             "full_description",
-            "terms_of_service",
-            "terms_of_service_link",
             "privacy_policy_link",
             "access_url",
             "endpoints",
@@ -1984,7 +1981,6 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
     resource_options = OfferingOptionsSerializer(required=False)
     description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
     full_description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
-    terms_of_service = core_serializers.HTMLCleanField(required=False, allow_blank=True)
     vendor_details = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 
     def validate(self, attrs):
@@ -2188,7 +2184,6 @@ class OfferingOverviewUpdateSerializer(
 ):
     description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
     full_description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
-    terms_of_service = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 
     class Meta:
         model = models.Offering
@@ -2196,8 +2191,6 @@ class OfferingOverviewUpdateSerializer(
             "name",
             "description",
             "full_description",
-            "terms_of_service",
-            "terms_of_service_link",
             "privacy_policy_link",
             "access_url",
             "getting_started",
@@ -2421,7 +2414,6 @@ class BaseItemSerializer(
             "offering_image",
             "offering_thumbnail",
             "offering_type",
-            "offering_terms_of_service",
             "offering_shared",
             "offering_billable",
             "offering_plugin_options",
@@ -2449,7 +2441,6 @@ class BaseItemSerializer(
                 "image",
                 "thumbnail",
                 "type",
-                "terms_of_service",
                 "shared",
                 "billable",
                 "plugin_options",
@@ -2776,6 +2767,31 @@ def check_pending_order_exists(resource):
     ).exists()
 
 
+def confirm_order_request_user_has_offering_consent(
+    order: models.Order, request
+) -> None:
+    """Check that the user has accepted the offering's Terms of Service for an order request."""
+    if not order.offering.has_terms_of_service():
+        return
+
+    if order.offering.check_user_consent(request.user):
+        return
+
+    accepting_terms = request.data.get("accepting_terms_of_service", False)
+    if not accepting_terms:
+        raise serializers.ValidationError(
+            _("You must accept Terms of Service before creating orders.")
+        )
+
+    active_tos = order.offering.terms_of_service_configs.filter(is_active=True).first()
+    version = active_tos.version if active_tos else ""
+    models.UserOfferingConsent.objects.get_or_create(
+        user=request.user,
+        offering=order.offering,
+        defaults={"version": version},
+    )
+
+
 def validate_order(order: models.Order, request):
     structure_utils.check_customer_blocked_or_archived(order.project.customer)
 
@@ -2797,6 +2813,8 @@ def validate_order(order: models.Order, request):
         raise serializers.ValidationError(
             _("Pending order for resource already exists.")
         )
+
+    confirm_order_request_user_has_offering_consent(order, request)
 
     utils.validate_order(order, request)
 
@@ -2952,18 +2970,18 @@ class OrderCreateSerializer(
             )
 
         offering = cast(models.Offering, attrs["offering"])
-
-        if (
-            offering.shared
-            and offering.terms_of_service
-            and not attrs.get("accepting_terms_of_service")
-        ):
-            raise ValidationError(
-                _("Terms of service for offering '%s' have not been accepted.")
-                % offering
-            )
-
+        user: User = self.context["request"].user
         project = cast(structure_models.Project, attrs["project"])
+
+        # Check if offering has ToS and if user needs to consent
+        if offering.has_terms_of_service():
+            if not attrs.get("accepting_terms_of_service"):
+                if not offering.check_user_consent(user):
+                    raise ValidationError(
+                        _("Terms of service for offering '%s' have not been accepted.")
+                        % offering
+                    )
+
         minimal_team_count_for_provisioning = offering.plugin_options.get(
             "minimal_team_count_for_provisioning"
         )
@@ -3110,6 +3128,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "service_settings_uuid",
             "project_slug",
             "customer_slug",
+            "user_requires_reconsent",
         )
         read_only_fields = (
             "backend_metadata",
@@ -3192,6 +3211,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     order_in_progress = serializers.SerializerMethodField(allow_null=True)
     creation_order = serializers.SerializerMethodField(allow_null=True)
     backend_metadata = serializers.SerializerMethodField()
+    user_requires_reconsent = serializers.SerializerMethodField()
 
     def get_can_terminate(self, resource) -> bool:
         view = self.context["view"]
@@ -3267,6 +3287,35 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     @extend_schema_field(BackendMetadataSerializer)
     def get_backend_metadata(self, resource: models.Resource):
         return resource.backend_metadata
+
+    def get_user_requires_reconsent(self, resource: models.Resource) -> bool:
+        """Check if the current user needs to re-consent for this resource's offering."""
+        request = self.context.get("request")
+        if not request or not request.user or request.user.is_anonymous:
+            return False
+
+        user = request.user
+        offering = resource.offering
+
+        if user.is_staff or user.is_support or not offering.has_terms_of_service():
+            return False
+
+        consent = models.UserOfferingConsent.objects.filter(
+            user=user,
+            offering=offering,
+            revocation_date__isnull=True,
+        ).first()
+
+        if not consent:
+            return True
+
+        # Check if active ToS requires reconsent AND user's version is outdated
+        active_tos = offering.terms_of_service_configs.filter(is_active=True).first()
+
+        if not active_tos or not active_tos.requires_reconsent:
+            return False
+
+        return consent.version != active_tos.version
 
     @extend_schema_field(OrderDetailsSerializer)
     def get_order_in_progress(self, resource: models.Resource):
@@ -3870,7 +3919,6 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             recurring = usage["recurring"]
             if component.billing_type == BillingTypes.USAGE:
                 component.validate_amount(resource, amount, now)
-
             models.ComponentUsage.objects.filter(
                 resource=resource,
                 component=component,
@@ -4936,7 +4984,16 @@ class MarketplaceProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
         service_provider = self.context["service_provider"]
         user = self.context["view"].request.user
         ids = get_service_provider_user_ids(user, service_provider, customer)
-        return User.objects.filter(id__in=ids)
+
+        # Filter to only show users who have active consent to any offering from this service provider
+        sp_offerings = models.Offering.objects.filter(
+            customer=service_provider.customer
+        )
+        return User.objects.filter(
+            id__in=ids,
+            offering_consents__offering__in=sp_offerings,
+            offering_consents__revocation_date__isnull=True,
+        ).distinct()
 
     @extend_schema_field(NestedPriceEstimateSerializer)
     def get_billing_price_estimate(self, customer):
@@ -5949,3 +6006,201 @@ class MaintenanceActionResponseSerializer(serializers.Serializer):
     detail = serializers.CharField(
         help_text="Response message describing the action result"
     )
+
+
+class UserOfferingConsentSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.ModelSerializer,
+):
+    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
+    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
+    offering_name = serializers.ReadOnlyField(source="offering.name")
+    offering_slug = serializers.ReadOnlyField(source="offering.slug")
+    offering_url = serializers.HyperlinkedRelatedField(
+        source="offering",
+        lookup_field="uuid",
+        view_name="marketplace-provider-offering-detail",
+        read_only=True,
+    )
+    user_username = serializers.ReadOnlyField(source="user.username")
+    user_full_name = serializers.ReadOnlyField(source="user.full_name")
+    user_email = serializers.ReadOnlyField(source="user.email")
+
+    has_consent = serializers.SerializerMethodField()
+    requires_reconsent = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.UserOfferingConsent
+        fields = (
+            "uuid",
+            "user_uuid",
+            "offering_uuid",
+            "agreement_date",
+            "version",
+            "revocation_date",
+            "created",
+            "user_username",
+            "user_full_name",
+            "user_email",
+            "offering_name",
+            "offering_slug",
+            "offering_url",
+            "modified",
+            "has_consent",
+            "requires_reconsent",
+        )
+        read_only_fields = ("agreement_date", "revocation_date", "created", "modified")
+
+    def get_has_consent(self, obj) -> bool:
+        return obj.revocation_date is None
+
+    def get_requires_reconsent(self, obj) -> bool:
+        if obj.revocation_date is not None:
+            return False
+
+        active_tos = obj.offering.terms_of_service_configs.filter(
+            is_active=True
+        ).first()
+        if not active_tos or not active_tos.requires_reconsent:
+            return False
+        return active_tos.version != obj.version
+
+
+class UserOfferingConsentCreateSerializer(serializers.Serializer):
+    offering = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.Offering.objects.all(),
+        required=True,
+    )
+
+    def validate(self, attrs):
+        offering = attrs["offering"]
+        request = self.context.get("request")
+        user = request.user if request else None
+
+        if not offering.has_terms_of_service():
+            raise serializers.ValidationError(
+                "This offering does not have Terms of Service."
+            )
+
+        active_tos = offering.terms_of_service_configs.filter(is_active=True).first()
+        if not active_tos:
+            raise serializers.ValidationError(
+                "This offering does not have active Terms of Service."
+            )
+
+        if user:
+            existing_consent = models.UserOfferingConsent.objects.filter(
+                user=user,
+                offering=offering,
+                revocation_date__isnull=True,
+            ).first()
+
+            if existing_consent:
+                raise serializers.ValidationError(
+                    "You have already consented to the Terms of Service for this offering."
+                )
+
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        user = request.user
+        offering = validated_data["offering"]
+
+        active_tos = offering.terms_of_service_configs.filter(is_active=True).first()
+
+        consent = models.UserOfferingConsent.objects.create(
+            user=user,
+            offering=offering,
+            version=active_tos.version or "",
+        )
+
+        return consent
+
+
+class OfferingTermsOfServiceSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.ModelSerializer,
+):
+    """Serializer for Terms of Service configurations."""
+
+    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
+    offering_name = serializers.CharField(read_only=True, source="offering.name")
+
+    class Meta:
+        model = models.OfferingTermsOfService
+        fields = (
+            "uuid",
+            "offering_uuid",
+            "offering_name",
+            "terms_of_service",
+            "terms_of_service_link",
+            "version",
+            "is_active",
+            "requires_reconsent",
+            "created",
+            "modified",
+        )
+        read_only_fields = ("created", "modified")
+
+
+class OfferingTermsOfServiceCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating Terms of Service configurations."""
+
+    offering = serializers.HyperlinkedRelatedField(
+        queryset=models.Offering.objects.all(),
+        view_name="marketplace-provider-offering-detail",
+        lookup_field="uuid",
+        required=True,
+    )
+
+    class Meta:
+        model = models.OfferingTermsOfService
+        fields = (
+            "offering",
+            "terms_of_service",
+            "terms_of_service_link",
+            "version",
+            "is_active",
+            "requires_reconsent",
+        )
+
+    def validate(self, attrs):
+        offering = attrs["offering"]
+        request = self.context.get("request")
+
+        if request:
+            has_offering_permission = has_permission(
+                request, PermissionEnum.UPDATE_OFFERING, offering
+            )
+            has_customer_permission = has_permission(
+                request, PermissionEnum.UPDATE_OFFERING, offering.customer
+            )
+            has_service_provider_permission = has_permission(
+                request,
+                PermissionEnum.UPDATE_OFFERING,
+                offering.customer.serviceprovider,
+            )
+
+            if not any(
+                [
+                    has_offering_permission,
+                    has_customer_permission,
+                    has_service_provider_permission,
+                ]
+            ):
+                raise PermissionDenied(
+                    "You don't have permission to manage Terms of Service for this offering."
+                )
+
+        return attrs
+
+
+class OfferingTermsOfServiceUpdateSerializer(serializers.Serializer):
+    """Serializer for updating Terms of Service for an offering."""
+
+    terms_of_service = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    terms_of_service_link = serializers.URLField(required=False, allow_blank=True)
+    version = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    requires_reconsent = serializers.BooleanField(required=False, default=False)

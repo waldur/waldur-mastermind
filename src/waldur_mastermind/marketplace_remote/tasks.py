@@ -127,6 +127,7 @@ class OfferingPullTask(BackgroundPullTask):
             self.sync_offering_components(local_offering, remote_offering.components)
             self.sync_plans(local_offering, remote_offering.plans)
             self.sync_access_endpoints(local_offering, remote_offering)
+            self.sync_terms_of_service(local_offering, remote_offering)
         except UnexpectedStatus as exc:
             if exc.status_code == status.HTTP_404_NOT_FOUND:
                 if local_offering.state == OfferingStates.ACTIVE:
@@ -137,6 +138,28 @@ class OfferingPullTask(BackgroundPullTask):
                     logger.debug("Offering %s is archived: ", local_offering)
             else:
                 logger.exception(exc)
+
+    def sync_terms_of_service(
+        self,
+        local_offering: models.Offering,
+        remote_offering_data: PublicOfferingDetails,
+    ):
+        """Backwards compatibility for old-style ToS of remote offerings."""
+        terms_of_service = getattr(remote_offering_data, "terms_of_service", "") or ""
+        terms_of_service_link = (
+            getattr(remote_offering_data, "terms_of_service_link", "") or ""
+        )
+
+        if terms_of_service or terms_of_service_link:
+            models.OfferingTermsOfService.objects.update_or_create(
+                offering=local_offering,
+                version="1.0",
+                defaults={
+                    "terms_of_service": terms_of_service,
+                    "terms_of_service_link": terms_of_service_link,
+                    "is_active": True,
+                },
+            )
 
     def sync_access_endpoints(
         self, local_offering: models.Offering, remote_offering: PublicOfferingDetails
