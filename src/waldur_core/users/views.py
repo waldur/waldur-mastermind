@@ -251,6 +251,12 @@ class GroupInvitationViewSet(ProtectedViewSet):
     filterset_class = filters.GroupInvitationFilter
     lookup_field = "uuid"
 
+    def get_permissions(self):
+        """Allow unauthenticated access for list and retrieve of public invitations."""
+        if self.action in ("list", "retrieve"):
+            return []
+        return super().get_permissions()
+
     @extend_schema(
         request=None,
         responses=structure_serializers.NestedProjectSerializer(
@@ -303,6 +309,8 @@ class GroupInvitationViewSet(ProtectedViewSet):
 
         if not invitation.is_active:
             raise ValidationError(_("Only pending invitation can be requested."))
+
+        # Authentication is required for submitting requests (handled by permission classes)
 
         if (
             models.PermissionRequest.objects.filter(

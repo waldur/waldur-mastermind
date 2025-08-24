@@ -1,6 +1,7 @@
 from typing import cast
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models.query_utils import Q
 from django.utils.translation import gettext_lazy as _
@@ -45,6 +46,10 @@ class GroupInvitation(
     BaseInvitation, ProjectNameTemplateMixin, core_models.UserDetailsMatchMixin
 ):
     is_active = models.BooleanField(default=True)
+    is_public = models.BooleanField(
+        default=False,
+        help_text="Allow non-authenticated users to see and accept this invitation. Only staff can create public invitations.",
+    )
 
     # New fields for project creation alternative
     auto_create_project = models.BooleanField(
@@ -62,6 +67,28 @@ class GroupInvitation(
 
     class Permissions:
         customer_path = "customer"
+
+    def clean(self):
+        super().clean()
+        # Public invitations must use auto_create_project logic
+        if self.is_public and not self.auto_create_project:
+            raise ValidationError(
+                {
+                    "auto_create_project": "Public invitations must have auto_create_project enabled."
+                }
+            )
+
+        # Public invitations should only use project-level roles (since they auto-create projects)
+        if (
+            self.is_public
+            and self.role_id
+            and not self.role.name.startswith("PROJECT.")
+        ):
+            raise ValidationError(
+                {
+                    "role": "Public invitations can only use project-level roles, not customer-level roles."
+                }
+            )
 
     def get_expiration_time(self):
         return self.created + settings.WALDUR_CORE["GROUP_INVITATION_LIFETIME"]
