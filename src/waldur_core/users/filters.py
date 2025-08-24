@@ -76,17 +76,29 @@ class GroupInvitationFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         user: User = request.user
 
-        if user.is_staff or user.is_support:
+        # Staff/support users can see everything
+        if user.is_authenticated and (user.is_staff or user.is_support):
             return queryset
 
+        # Unauthenticated users can only see public active invitations
+        if not user.is_authenticated:
+            return queryset.filter(is_public=True, is_active=True)
+
+        # For authenticated non-staff users
         if view.detail:
+            # For detail views, let users access invitations they have permission to see
+            # or public invitations - don't filter too restrictively here
             return queryset
 
-        return queryset.filter(
+        # For list views, show user's accessible invitations + public ones
+        user_invitations = queryset.filter(
             customer_id__in=get_connected_customers_by_permission(
                 user, PermissionEnum.LIST_INVITATIONS
             )
         )
+        public_invitations = queryset.filter(is_public=True, is_active=True)
+
+        return (user_invitations | public_invitations).distinct()
 
 
 class GroupInvitationFilter(BaseInvitationFilter):

@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core.serializers import GenericRelatedField
@@ -97,20 +98,34 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
         required=False,
         allow_null=True,
     )
+    scope_image = serializers.SerializerMethodField()
 
     def validate_user_email_patterns(self, value):
         models.GroupInvitation.validate_user_email_patterns(value)
         return value
 
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_scope_image(self, obj):
+        """Return the image URL of the scope (Customer or Project) if available."""
+        if hasattr(obj.scope, "image") and obj.scope.image:
+            # Return the image URL if it exists
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(obj.scope.image.url)
+            return obj.scope.image.url
+        return None
+
     class Meta:
         model = models.GroupInvitation
         fields = BaseInvitationSerializer.Meta.fields + (
             "is_active",
+            "is_public",
             "auto_create_project",
             "project_name_template",
             "project_role",
             "user_affiliations",
             "user_email_patterns",
+            "scope_image",
         )
         read_only_fields = BaseInvitationSerializer.Meta.read_only_fields + (
             "is_active",
@@ -123,7 +138,56 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
         }
 
     def validate(self, attrs):
-        attrs = super().validate(attrs)
+        # Check public invitation constraints first
+        # Only staff can create public invitations
+        if attrs.get("is_public", False):
+            request = self.context.get("request")
+            if not (request and request.user.is_staff):
+                raise serializers.ValidationError(
+                    {"is_public": "Only staff users can create public invitations."}
+                )
+
+        # Public invitations must use auto_create_project logic
+        if attrs.get("is_public", False) and not attrs.get(
+            "auto_create_project", False
+        ):
+            raise serializers.ValidationError(
+                {
+                    "auto_create_project": "Public invitations must have auto_create_project enabled."
+                }
+            )
+
+        # Public invitations should only use project-level roles
+        if attrs.get("is_public", False) and attrs.get("role"):
+            role = attrs["role"]
+            if not role.name.startswith("PROJECT."):
+                raise serializers.ValidationError(
+                    {
+                        "role": "Public invitations can only use project-level roles, not customer-level roles."
+                    }
+                )
+
+        # Override base validation to allow PROJECT roles with Customer scopes
+        # when auto_create_project is enabled
+        role: Role = attrs["role"]
+        scope = attrs["scope"]
+        model_class = role.content_type.model_class()
+
+        if model_class and not isinstance(scope, model_class):
+            # Allow PROJECT roles with Customer scopes when auto_create_project is True
+            from waldur_core.structure.models import Customer, Project
+
+            if not (
+                attrs.get("auto_create_project", False)
+                and model_class == Project
+                and isinstance(scope, Customer)
+            ):
+                raise serializers.ValidationError(
+                    "Role and scope should belong to the same content type."
+                )
+
+        # Continue with GroupInvitation-specific validation
+        attrs = super(BaseInvitationSerializer, self).validate(attrs)
 
         # Validate project role is actually a project-level role
         if attrs.get("auto_create_project") and attrs.get("project_role"):
