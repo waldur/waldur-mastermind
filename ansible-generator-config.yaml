@@ -97,6 +97,25 @@ collections:
                 operation: "openstack_instances_update_floating_ips"
                 param: "floating_ips"
                 compare_key: "floating_ips"
+          delete:
+            attributes:
+              - name: termination_action
+                maps_to: action
+                type: str
+                description: Termination action
+                choices:
+                  - destroy
+                  - force_destroy
+              - name: delete_volumes
+                type: bool
+                description: "If true, delete attached volumes on termination."
+              - name: release_floating_ips
+                type: bool
+                description: "If true, release associated floating IPs on termination."
+        wait_config:
+          ok_states: ["OK"]
+          erred_states: ["ERRED"]
+          state_field: "state"
         resolvers:
           flavor:
             base: "openstack_flavors"
@@ -163,6 +182,10 @@ collections:
           create:
             id: "openstack_tenants_create_security_group"
             path_params: { uuid: "tenant" }
+        wait_config:
+          ok_states: ["OK"]
+          erred_states: ["ERRED"]
+          state_field: "state"
         resolvers:
           tenant: "openstack_tenants"
 
@@ -181,6 +204,10 @@ collections:
           create:
             id: "openstack_tenants_create_network"
             path_params: { uuid: "tenant" }
+        wait_config:
+          ok_states: ["OK"]
+          erred_states: ["ERRED"]
+          state_field: "state"
         resolvers:
           tenant: "openstack_tenants"
 
