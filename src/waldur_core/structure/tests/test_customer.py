@@ -398,30 +398,67 @@ class CustomerUpdateTest(BaseCustomerMutationTest):
         self.fixture.customer.refresh_from_db()
         self.assertEqual(self.fixture.customer.domain, "")
 
-    @mock.patch("waldur_core.structure.serializers.pyvat")
-    def test_update_vat_code(self, mock_pyvat):
+    def test_update_vat_code_with_valid_format(self):
         self.client.force_authenticate(user=self.fixture.staff)
 
-        class CheckResult:
-            def __init__(self):
-                self.business_name = ""
-                self.business_address = ""
-                self.is_valid = True
-                self.log_lines = []
-
-        check_result = CheckResult()
-        mock_pyvat.check_vat_number.return_value = check_result
-
+        # Test with valid Austrian VAT number format
         response = self.client.patch(
-            self._get_customer_url(self.fixture.customer), {"vat_code": "ATU99999999"}
+            self._get_customer_url(self.fixture.customer),
+            {"vat_code": "ATU99999999", "country": "AT"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.fixture.customer.refresh_from_db()
         self.assertEqual(self.fixture.customer.vat_code, "ATU99999999")
-        mock_pyvat.is_vat_number_format_valid.assert_called_once_with(
-            "ATU99999999", None
+
+    def test_update_vat_code_with_invalid_format(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        # Test with invalid VAT number format
+        response = self.client.patch(
+            self._get_customer_url(self.fixture.customer),
+            {"vat_code": "INVALID123", "country": "AT"},
         )
-        mock_pyvat.check_vat_number.assert_called_once_with("ATU99999999", None)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("vat_code", response.data)
+
+    def test_update_vat_code_comprehensive_validation(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        # Test various European VAT formats
+        test_cases = [
+            # Valid cases
+            ("BE0123456789", "BE", True),
+            ("DE123456789", "DE", True),
+            ("FR1A123456789", "FR", True),
+            ("NO123456789MVA", "NO", True),
+            ("CHE123456789MWST", "CH", True),
+            # Invalid cases should fail
+            ("BE2123456789", "BE", False),  # Invalid first digit for Belgium
+            ("DE12345678", "DE", False),  # Too short for Germany
+            ("NO123456789", "NO", False),  # Missing MVA suffix for Norway
+        ]
+
+        for vat_code, country, should_succeed in test_cases:
+            response = self.client.patch(
+                self._get_customer_url(self.fixture.customer),
+                {"vat_code": vat_code, "country": country},
+            )
+
+            if should_succeed:
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_200_OK,
+                    f"VAT {vat_code} for {country} should be valid",
+                )
+                self.fixture.customer.refresh_from_db()
+                self.assertEqual(self.fixture.customer.vat_code, vat_code)
+            else:
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_400_BAD_REQUEST,
+                    f"VAT {vat_code} for {country} should be invalid",
+                )
+                self.assertIn("vat_code", response.data)
 
 
 class CustomerQuotasTest(test.APITransactionTestCase):

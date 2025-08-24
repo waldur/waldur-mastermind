@@ -2,7 +2,6 @@ import logging
 from datetime import datetime
 from functools import lru_cache
 
-import pyvat
 from constance import config
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -531,39 +530,23 @@ class CustomerSerializer(
         vat_code = attrs.get("vat_code")
 
         if vat_code:
-            # Check VAT format
-            if not pyvat.is_vat_number_format_valid(vat_code, country):
+            # Check VAT format using the validate_vat_format method from VATMixin
+            from waldur_core.structure.models import VATMixin
+
+            if not VATMixin.validate_vat_format(vat_code, country):
                 raise serializers.ValidationError(
                     {"vat_code": _("VAT number has invalid format.")}
                 )
 
-            # Check VAT number in EU VAT Information Exchange System
-            # if customer is new or either VAT number or country of the customer has changed
-            if (
-                not self.instance
-                or self.instance.vat_code != vat_code
-                or self.instance.country != country
-            ):
-                check_result = pyvat.check_vat_number(vat_code, country)
-                if check_result.is_valid:
-                    attrs["vat_name"] = check_result.business_name
-                    attrs["vat_address"] = check_result.business_address
-                    if not attrs.get("contact_details"):
-                        attrs["contact_details"] = attrs["vat_address"]
-                elif check_result.is_valid is False:
-                    raise serializers.ValidationError(
-                        {"vat_code": _("VAT number is invalid.")}
-                    )
-                else:
-                    logger.debug(
-                        "Unable to check VAT number %s for country %s. Error message: %s",
-                        vat_code,
-                        country,
-                        check_result.log_lines,
-                    )
-                    raise serializers.ValidationError(
-                        {"vat_code": _("Unable to check VAT number.")}
-                    )
+            # Note: VIES validation (EU VAT Information Exchange System) has been removed.
+            # If needed, it can be implemented separately using external services.
+            # The vat_name and vat_address fields can now be manually entered if required.
+            logger.debug(
+                "VAT number %s format validated for country %s. "
+                "VIES validation not performed - manual verification may be required.",
+                vat_code,
+                country,
+            )
         return attrs
 
     def get_display_name(self, customer) -> str:

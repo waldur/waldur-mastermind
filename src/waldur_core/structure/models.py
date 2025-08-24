@@ -1,9 +1,8 @@
-import datetime
+import re
 from decimal import Decimal
 from functools import lru_cache
 from typing import cast
 
-import pyvat
 from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -102,8 +101,8 @@ class VATException(Exception):
 
 class VATMixin(models.Model):
     """
-    Add country, VAT number fields and check results from EU VAT Information Exchange System.
-    Allows to compute VAT charge rate.
+    Add country and VAT number fields for tax compliance and record keeping.
+    VAT validation is optional and can be done manually or through external services.
     """
 
     class Meta:
@@ -113,12 +112,12 @@ class VATMixin(models.Model):
     vat_name = models.CharField(
         max_length=255,
         blank=True,
-        help_text=_("Optional business name retrieved for the VAT number."),
+        help_text=_("Optional business name for the VAT number."),
     )
     vat_address = models.CharField(
         max_length=255,
         blank=True,
-        help_text=_("Optional business address retrieved for the VAT number."),
+        help_text=_("Optional business address for the VAT number."),
     )
 
     country = models.CharField(max_length=2, blank=True)
@@ -126,35 +125,80 @@ class VATMixin(models.Model):
     def get_country_display(self) -> str | None:
         return COUNTRIES_DICT.get(self.country)
 
-    def get_vat_rate(self) -> Decimal | None:
-        charge = self.get_vat_charge()
-        if charge.action == pyvat.VatChargeAction.charge:
-            return charge.rate
+    @staticmethod
+    def validate_vat_format(vat_code: str, country: str | None = None) -> bool:
+        """
+        Basic VAT number format validation using regex patterns.
+        Returns True if format appears valid, False otherwise.
+        Note: This only checks format, not validity with tax authorities.
+        """
+        if not vat_code:
+            return False
 
-        # Return None, if reverse_charge or no_charge action is applied
+        # Remove spaces and convert to uppercase
+        vat_code = vat_code.replace(" ", "").upper()
 
-    def get_vat_charge(self) -> pyvat.VatCharge:
-        if not self.country:
-            raise VATException(
-                _(
-                    "Unable to get VAT charge because buyer country code is not specified."
-                )
-            )
+        # European VAT number patterns extracted from regex documentation
+        vat_patterns = {
+            # EU Countries
+            "AT": r"^ATU\d{8}$",  # Austria
+            "BE": r"^BE[01]\d{9}$",  # Belgium - updated format
+            "BG": r"^BG\d{9,10}$",  # Bulgaria
+            "HR": r"^HR\d{11}$",  # Croatia
+            "CY": r"^CY\d{8}L$",  # Cyprus
+            "CZ": r"^CZ\d{8,10}$",  # Czech Republic
+            "DK": r"^DK\d{8}$",  # Denmark
+            "EE": r"^EE\d{9}$",  # Estonia
+            "FI": r"^FI\d{8}$",  # Finland
+            "FR": r"^FR[A-HJ-NP-Z0-9]{2}\d{9}$",  # France - updated format
+            "DE": r"^DE\d{9}$",  # Germany
+            "EL": r"^EL\d{9}$",  # Greece
+            "HU": r"^HU\d{8}$",  # Hungary
+            "IE": r"^IE\d{7}[A-WY][A-I]?$|^IE[0-9+][A-Z+][0-9]{5}[A-WY]$",  # Ireland
+            "IT": r"^IT\d{11}$",  # Italy
+            "LV": r"^LV\d{11}$",  # Latvia
+            "LT": r"^LT\d{9,12}$",  # Lithuania
+            "LU": r"^LU\d{8}$",  # Luxembourg
+            "MT": r"^MT\d{8}$",  # Malta
+            "NL": r"^NL\d{9}B\d{2}$",  # Netherlands
+            "PL": r"^PL\d{10}$",  # Poland
+            "PT": r"^PT\d{9}$",  # Portugal
+            "RO": r"^RO\d{2,10}$",  # Romania
+            "SK": r"^SK\d{10}$",  # Slovakia
+            "SI": r"^SI\d{8}$",  # Slovenia
+            "ES": r"^ES[A-Z]\d{7}[A-Z]$|^ES[A-Z][0-9]{7}[0-9A-Z]$|^ES[0-9]{8}[A-Z]$",  # Spain
+            "SE": r"^SE\d{12}$",  # Sweden
+            # Post-Brexit UK
+            "GB": r"^GB\d{9}$|^GB\d{12}$|^GBGD\d{3}$|^GBHA\d{3}$",  # United Kingdom
+            # Non-EU European Countries
+            "AL": r"^ALJ\d{8}[A-Z]$",  # Albania
+            "BY": r"^BY\d{9}$",  # Belarus
+            "CH": r"^CHE\d{9}(?:MWST|TVA|IVA)$",  # Switzerland
+            "FO": r"^FO\d{6}$",  # Faroe Islands
+            "IS": r"^IS\d{5,6}$",  # Iceland
+            "LI": r"^LI\d{5}$",  # Liechtenstein
+            "MD": r"^MD\d{8}$",  # Moldova
+            "ME": r"^ME\d{8}$",  # Montenegro
+            "MK": r"^MK\d{13}$",  # North Macedonia
+            "NO": r"^NO\d{9}MVA$",  # Norway
+            "RS": r"^RS\d{9}$",  # Serbia
+            "SM": r"^SM\d{5}$",  # San Marino
+            "UA": r"^UA\d{12}$",  # Ukraine
+            "XK": r"^XK\d{8}[A-Z]$",  # Kosovo
+        }
 
-        seller_country = settings.WALDUR_CORE.get("SELLER_COUNTRY_CODE")
-        if not seller_country:
-            raise VATException(
-                _(
-                    "Unable to get VAT charge because seller country code is not specified."
-                )
-            )
+        # If country is provided, check specific pattern
+        if country and country in vat_patterns:
+            pattern = vat_patterns[country]
+            return bool(re.match(pattern, vat_code))
 
-        return pyvat.get_sale_vat_charge(
-            datetime.date.today(),
-            pyvat.ItemType.generic_electronic_service,
-            pyvat.Party(self.country, bool(self.vat_code)),
-            pyvat.Party(seller_country, True),
-        )
+        # If no country or country not in list, check if it starts with any known prefix
+        for country_code, pattern in vat_patterns.items():
+            if vat_code.startswith(country_code) and re.match(pattern, vat_code):
+                return True
+
+        # Generic fallback - at least 2 letter country code and some digits
+        return bool(re.match(r"^[A-Z]{2}[A-Z0-9]{6,}$", vat_code))
 
 
 class BasePermission(models.Model):

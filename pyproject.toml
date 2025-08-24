@@ -40,7 +40,7 @@ dependencies = [
   "lxml>=4.6.5,<5.0.0",
   "pbr==4.0.4",
   "Pillow>=11.0.0,<12.0.0",
-  "pycountry==22.3.5",
+  "pycountry @ git+https://github.com/pycountry/pycountry.git@main",
   "PyJWT>=2.3.0,<3.0.0",
   "pysaml2==7.3.0",
   "python-cinderclient==4.3.0",
@@ -50,7 +50,6 @@ dependencies = [
   "python-keystoneclient==3.16.0",
   "python-neutronclient==6.12.0",
   "python-novaclient==10.3.0",
-  "pyvat==1.3.18",
   "pyvmomi==8.0.3.0.1",
   "PyYAML==6.0.2",
   "requests>=2.32.4,<3.0.0",
@@ -229,3 +228,9 @@ include = ["src"]
 typeCheckingMode = "standard"
 reportIncompatibleMethodOverride = "none"
 reportIncompatibleVariableOverride = "none"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-django>=4.11.1",
+]
