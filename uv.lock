@@ -836,7 +836,7 @@ wheels = [
 
 [[package]]
 name = "django-model-utils"
-version = "0.0.post1122+g50cc7a1"
+version = "0.0.post1122+g50cc7a1f1"
 source = { git = "https://github.com/waldur/django-model-utils?rev=handle-instance-model-field-name#50cc7a1f1ed209ea7328d4672ad894a1bb9e74c6" }
 dependencies = [
     { name = "django" },
@@ -3056,16 +3056,16 @@ wheels = [
 
 [[package]]
 name = "waldur-api-client"
-version = "0.2.0"
+version = "7.7.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
     { name = "httpx" },
     { name = "python-dateutil" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d6/14/a4748d8d9ea153c5d00a5e5eadccd6760d5fe7e7713d3aded72513f4813c/waldur_api_client-0.2.0.tar.gz", hash = "sha256:2fb093feb3dbe179ca58dc71f96a8f3b2afd61968ae2e5969c83e1a42e463008", size = 722904, upload-time = "2025-06-26T19:30:40.333Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/32/6c/86ca6272b6484a95ebc89691f46eb6eee7c52cbe1c6b408cc0de315b2ee2/waldur_api_client-7.7.6.tar.gz", hash = "sha256:309186cb40d14cf25b5b46e455cf84d51acf20af53fbfdae8e7fa8c5c49d32be", size = 870170, upload-time = "2025-08-24T19:57:27.252Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/55/db/d05cc9ed7323160cede5329d47dfc5b1db0e3fcb2ff6211f0000ae2bdec4/waldur_api_client-0.2.0-py3-none-any.whl", hash = "sha256:b977fcc948d4f9fdfcd312d5c2c5994b1037bf5ac2a6d1e14c1996b472958f53", size = 2689667, upload-time = "2025-06-26T19:30:38.488Z" },
+    { url = "https://files.pythonhosted.org/packages/3a/49/c901c5a08a8847e69fbb7e4574ab91b216374d2de97288420fa4d4d3dcd5/waldur_api_client-7.7.6-py3-none-any.whl", hash = "sha256:be8b71288742d466d2d0f7f224009de12dc368030ad153633942007e4b81a78f", size = 3345033, upload-time = "2025-08-24T19:57:25.198Z" },
 ]
 
 [[package]]
@@ -3274,7 +3274,7 @@ requires-dist = [
     { name = "stomp-py", specifier = ">=8.2.0,<9.0.0" },
     { name = "textile", specifier = ">=4.0.2,<5.0.0" },
     { name = "ua-parser", specifier = ">=0.18.0,<1.0.0" },
-    { name = "waldur-api-client", specifier = ">=0.1.0,<1.0.0" },
+    { name = "waldur-api-client", specifier = ">=7.7.5" },
     { name = "whitenoise", specifier = ">=6.9.0,<7.0.0" },
     { name = "zammad-py", specifier = "==1.1.0" },
 ]
