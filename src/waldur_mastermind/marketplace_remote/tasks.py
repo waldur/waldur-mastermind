@@ -13,6 +13,9 @@ from httpx import TimeoutException
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import status
 from waldur_api_client.api.invoice_items import invoice_items_list
+from waldur_api_client.api.maintenance_announcements import (
+    maintenance_announcements_list,
+)
 from waldur_api_client.api.marketplace_component_usages import (
     marketplace_component_usages_list,
 )
@@ -46,6 +49,12 @@ from waldur_api_client.api.remote_eduteams import (
 from waldur_api_client.errors import UnexpectedStatus
 from waldur_api_client.models import ComponentUserUsage
 from waldur_api_client.models.base_public_plan import BasePublicPlan
+from waldur_api_client.models.maintenance_announcement import (
+    MaintenanceAnnouncement as RemoteMaintenanceAnnouncement,
+)
+from waldur_api_client.models.maintenance_announcements_list_state_item import (
+    MaintenanceAnnouncementsListStateItem,
+)
 from waldur_api_client.models.offering_component import OfferingComponent
 from waldur_api_client.models.project import Project
 from waldur_api_client.models.public_offering_details import PublicOfferingDetails
@@ -74,6 +83,7 @@ from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_state
 from waldur_mastermind.marketplace.enums import (
+    MaintenanceState,
     OfferingStates,
     OrderStates,
     ResourceStates,
@@ -1541,3 +1551,190 @@ def remote_offerings_sync() -> None:
         is_active=True,
     ).exclude(state=remote_models.RemoteSynchronisation.States.PROCESSING):
         utils_sync_remote_offerings.RemoteSynchronisationRunner(sync).run()
+
+
+class MaintenanceAnnouncementPullTask(BackgroundPullTask):
+    """Pull and synchronize remote maintenance announcements for a service provider.
+
+    This task synchronizes maintenance announcements from remote Waldur instances,
+    updating local maintenance data including affected offerings and impact levels.
+    """
+
+    def pull(self, service_provider: models.ServiceProvider):
+        try:
+            offering = models.Offering.objects.filter(
+                customer=service_provider.customer,
+                type=PLUGIN_NAME,
+                secret_options__has_keys=["api_url", "token"],
+            ).first()
+            if not offering:
+                logger.info(
+                    "No remote offerings found for service provider %s",
+                    service_provider.customer.name,
+                )
+                return
+
+            client = get_client_for_offering(offering)
+
+            remote_maintenance_list: list[RemoteMaintenanceAnnouncement] = (
+                maintenance_announcements_list.sync(
+                    client=client,
+                    state=[
+                        MaintenanceAnnouncementsListStateItem.SCHEDULED,
+                        MaintenanceAnnouncementsListStateItem.IN_PROGRESS,
+                    ],
+                )
+            )
+
+            local_maintenance_list = models.MaintenanceAnnouncement.objects.filter(
+                service_provider=service_provider
+            )
+
+            local_maintenance_map = {
+                item.backend_id: item
+                for item in local_maintenance_list
+                if item.backend_id
+            }
+
+            remote_maintenance_map = {
+                item.uuid.hex: item for item in remote_maintenance_list
+            }
+
+            local_maintenance_keys = set(local_maintenance_map.keys())
+            remote_maintenance_keys = set(remote_maintenance_map.keys())
+
+            new_maintenance_keys = remote_maintenance_keys - local_maintenance_keys
+            stale_maintenance_keys = local_maintenance_keys - remote_maintenance_keys
+            existing_maintenance_keys = local_maintenance_keys & remote_maintenance_keys
+            announcements_to_update_or_create = (
+                new_maintenance_keys | existing_maintenance_keys
+            )
+            if stale_maintenance_keys:
+                stale_maintenances = [
+                    local_maintenance_map[key] for key in stale_maintenance_keys
+                ]
+                ids = [m.id for m in stale_maintenances]
+                models.MaintenanceAnnouncement.objects.filter(id__in=ids).delete()
+                logger.info(
+                    "Deleted stale maintenance announcements %s for service provider %s",
+                    len(stale_maintenances),
+                    service_provider.customer.name,
+                )
+
+            for maintenance_key in announcements_to_update_or_create:
+                remote_maintenance = remote_maintenance_map[maintenance_key]
+                self.update_or_create_local_maintenance(
+                    service_provider, remote_maintenance
+                )
+
+        except UnexpectedStatus as exc:
+            logger.exception(
+                "Failed to sync maintenance announcements for service provider %s: %s",
+                service_provider.customer.name,
+                exc,
+            )
+            raise
+
+    def update_or_create_local_maintenance(
+        self, service_provider, remote_maintenance: RemoteMaintenanceAnnouncement
+    ):
+        """Create or update local maintenance announcement from remote data."""
+        maintenance_state_map = {
+            label: value for value, label in MaintenanceState.CHOICES
+        }
+        defaults = {
+            "name": remote_maintenance.name,
+            "message": remote_maintenance.message,
+            "maintenance_type": remote_maintenance.maintenance_type.value
+            if remote_maintenance.maintenance_type
+            else None,
+            "scheduled_start": remote_maintenance.scheduled_start,
+            "scheduled_end": remote_maintenance.scheduled_end,
+            "actual_start": remote_maintenance.actual_start,
+            "actual_end": remote_maintenance.actual_end,
+            "external_reference_url": remote_maintenance.external_reference_url,
+            "state": maintenance_state_map.get(remote_maintenance.state.value),
+        }
+
+        local_maintenance, created = (
+            models.MaintenanceAnnouncement.objects.update_or_create(
+                service_provider=service_provider,
+                backend_id=remote_maintenance.uuid.hex,
+                defaults=defaults,
+            )
+        )
+
+        self.sync_affected_maintenance_offerings(
+            local_maintenance, remote_maintenance.affected_offerings
+        )
+        action = "Created" if created else "Updated"
+        logger.info(
+            "%s maintenance announcement '%s' for service provider %s",
+            action,
+            local_maintenance.name,
+            service_provider.customer.name,
+        )
+        return local_maintenance
+
+    def sync_affected_maintenance_offerings(
+        self, local_maintenance, remote_affected_offerings
+    ):
+        """Sync affected offerings for a maintenance announcement."""
+        if not remote_affected_offerings:
+            return
+        local_maintenance.affected_offerings.all().delete()
+
+        for remote_affected in remote_affected_offerings:
+            try:
+                if (
+                    hasattr(remote_affected, "offering_name")
+                    and remote_affected.offering_name
+                ):
+                    local_offering = models.Offering.objects.get(
+                        customer=local_maintenance.service_provider.customer,
+                        name=remote_affected.offering_name,
+                    )
+                else:
+                    logger.warning(
+                        "Cannot identify remote offering for maintenance '%s': no offering_name",
+                        local_maintenance.name,
+                    )
+                    continue
+
+                models.MaintenanceAnnouncementOffering.objects.create(
+                    maintenance=local_maintenance,
+                    offering=local_offering,
+                    impact_level=getattr(remote_affected, "impact_level", 2),
+                    impact_description=getattr(
+                        remote_affected, "impact_description", ""
+                    ),
+                )
+
+            except ObjectDoesNotExist:
+                logger.warning(
+                    "Cannot sync affected offering for maintenance '%s': offering not found locally",
+                    local_maintenance.name,
+                )
+
+
+class MaintenanceAnnouncementListPullTask(BackgroundListPullTask):
+    pull_task = MaintenanceAnnouncementPullTask
+
+    def get_pulled_objects(self):
+        """Get service providers that have remote offerings to sync maintenance from."""
+        remote_offering_customers = models.Offering.objects.filter(
+            type=PLUGIN_NAME, secret_options__has_keys=["api_url", "token"]
+        ).values_list("customer_id", flat=True)
+        return models.ServiceProvider.objects.filter(
+            customer_id__in=remote_offering_customers
+        ).distinct()
+
+
+@shared_task(name="waldur_mastermind.marketplace_remote.pull_maintenance_announcements")
+def pull_maintenance_announcements():
+    """Pull and synchronize remote maintenance announcements.
+
+    This task synchronizes maintenance announcements from remote Waldur instances,
+    Runs every 60 minutes via celery beat.
+    """
+    MaintenanceAnnouncementListPullTask().run()
