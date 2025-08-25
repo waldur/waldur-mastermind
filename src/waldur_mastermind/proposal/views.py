@@ -885,7 +885,7 @@ class ReviewViewSet(ActionsViewSet):
         # Base queries for authorized users (call managers, reviewers)
         authorized_query = (
             Q(
-                proposal__round__call__manager__customer__in=get_connected_call_organizers(
+                proposal__round__call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
                     user
                 )
             )

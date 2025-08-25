@@ -18,7 +18,7 @@ class ProposalReviewVisibilityTestCase(APITestCase):
 
         self.proposal_submitter = self.proposal.created_by
         self.reviewer = self.review.reviewer
-        self.call_manager = self.call.created_by
+        self.call_manager = self.fixture.call_manager
 
     def test_reviewer_identity_hidden_from_submitters(self):
         """Test that when reviewer_identity_visible_to_submitters=False, submitters see anonymous names"""

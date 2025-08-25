@@ -17,6 +17,7 @@ from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
+from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.models import Role
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
@@ -315,6 +316,9 @@ class ProposalReviewSerializer(
             user.is_staff
             or review.reviewer == user
             or review.proposal.round.call.manager.customer.has_user(user)
+            or review.proposal.round.call.manager.customer.callmanagingorganisation.has_user(
+                user, CallRole.MANAGER
+            )
         ):
             fields.pop("anonymous_reviewer_name", None)
             return fields
