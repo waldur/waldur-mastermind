@@ -726,7 +726,7 @@ Generate Ansible modules:
 
     # Update the version for EVERY collection in the generator config file
     echo "Updating ansible-generator-config.yaml to version $RELEASE_VERSION"
-    yq -i '.collections[].version = "'$RELEASE_VERSION'"' ansible-generator-config.yaml
+    yq -iy '.collections[].version = "'$RELEASE_VERSION'"' ansible-generator-config.yaml
 
     echo "--- Updated ansible-generator-config.yaml ---"
     cat ansible-generator-config.yaml
