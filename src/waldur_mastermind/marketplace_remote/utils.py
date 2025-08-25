@@ -924,3 +924,11 @@ def update_offering_related_data(
         local_components_map=local_components_map,
     )
     return local_offering
+
+
+class GenericOrderAttribute:
+    def __init__(self, attrs):
+        self.attrs = attrs
+
+    def to_dict(self):
+        return self.attrs

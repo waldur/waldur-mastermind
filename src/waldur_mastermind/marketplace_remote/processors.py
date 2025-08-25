@@ -51,6 +51,8 @@ class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
             self.order.offering, self.order.project, client
         )
         remote_project_uuid = cast(UUID, remote_project.uuid).hex
+        # To bypass the api check we convert the attributes to a generic object with to_dict method
+        converted_attributes = utils.GenericOrderAttribute(self.order.attributes)
         response = marketplace_orders_create.sync(
             client=client,
             body=OrderCreateRequest(
@@ -59,7 +61,7 @@ class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
                 plan=self.order.plan
                 and f"{client._base_url}/api/marketplace-public-offerings/{self.order.offering.backend_id}/plans/{self.order.plan.backend_id}/"
                 or UNSET,
-                attributes=self.order.attributes,
+                attributes=converted_attributes,  # type: ignore
                 limits=OrderCreateRequestLimits.from_dict(self.order.limits),
                 callback_url=build_callback_url(self.order),
                 accepting_terms_of_service=True,

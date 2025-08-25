@@ -87,4 +87,9 @@ class MarketplaceRemoteExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
+            "waldur-remote-pull-maintenance-announcements": {
+                "task": "waldur_mastermind.marketplace_remote.pull_maintenance_announcements",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
         }
