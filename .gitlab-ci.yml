@@ -420,16 +420,37 @@ Generate OpenAPI schema:
   image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
+  before_script:
+    # Ensure the CI runner has all tags from the remote repository
+    - git fetch --tags
   script:
     - pip install uv
     - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
     - uv sync --extra dev
-    - waldur spectacular --file waldur-openapi-schema.yaml --fail-on-warn
+
+    # Determine the release version based on the trigger
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        # This is a stable, tagged release. The version is the tag itself.
+        RELEASE_VERSION="$CI_COMMIT_TAG"
+        echo "Building OpenAPI schema for stable release version: $RELEASE_VERSION"
+      else
+        # This is a dev release from a schedule.
+        # Find the latest tag to use as a base for the pre-release version.
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+        TIMESTAMP=$(date +%Y%m%d%H%M%S)
+        RELEASE_VERSION="${LATEST_TAG}-dev.${TIMESTAMP}"
+        echo "Latest stable tag found: $LATEST_TAG"
+        echo "Building OpenAPI schema for development release version: $RELEASE_VERSION"
+      fi
+
+    # Generate the schema, injecting the dynamic version
+    - waldur spectacular --api-version "$RELEASE_VERSION" --file waldur-openapi-schema.yaml --fail-on-warn
+    - echo "Successfully generated OpenAPI schema with version $RELEASE_VERSION"
   artifacts:
     paths:
       - waldur-openapi-schema.yaml
     expire_in: 1 day
-  before_script: []
 
 Generate TypeScript SDK:
   stage: deploy
