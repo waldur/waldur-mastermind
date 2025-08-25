@@ -1,3 +1,36 @@
+definitions:
+
+  wait_config: &default_wait_config
+    ok_states: ["OK"]
+    erred_states: ["ERRED"]
+    state_field: "state"
+
+  base_openstack_context_params: &base_openstack_context_params
+    - name: "project"
+      description: "The name or UUID of the project to filter resources by."
+      resolver: "projects"
+      filter_key: "project_uuid"
+    - name: "customer"
+      description: "The name or UUID of the customer to filter resources by."
+      resolver: "customers"
+      filter_key: "customer_uuid"
+    - name: tenant
+      resolver: "openstack_tenants"
+      filter_key: "tenant_uuid"
+
+  filter_by_tenant: &filter_by_tenant
+    - source_param: "offering"
+      source_key: "scope_uuid"
+      target_key: "tenant_uuid"
+
+  image_resolver: &image_resolver
+    base: "openstack_images"
+    filter_by: *filter_by_tenant
+
+  volume_type_resolver: &volume_type_resolver
+    base: "openstack_volume_types"
+    filter_by: *filter_by_tenant
+
 collections:
   - namespace: waldur
     name: structure
@@ -20,28 +53,25 @@ collections:
     name: openstack
     version: 1.0.0
     modules:
+      # --- Facts Modules (Read-Only) ---
       - name: instance_facts
         plugin: facts
         base_operation_id: "openstack_instances"
+        context_params: *base_openstack_context_params
 
       - name: security_group_facts
         plugin: facts
         base_operation_id: "openstack_security_groups"
         many: true
-        context_params:
-          - name: tenant
-            resolver: "openstack_tenants"
-            filter_key: "tenant_uuid"
+        context_params: *base_openstack_context_params
 
       - name: subnet_facts
         plugin: facts
         base_operation_id: "openstack_subnets"
         many: true
-        context_params:
-          - name: tenant
-            resolver: "openstack_tenants"
-            filter_key: "tenant_uuid"
+        context_params: *base_openstack_context_params
 
+      # --- Order Modules (Marketplace Resources) ---
       - name: vpc
         plugin: order
         offering_type: OpenStack.Tenant
@@ -52,30 +82,18 @@ collections:
         plugin: order
         offering_type: OpenStack.Volume
         base_operation_id: "openstack_volumes"
+        transformations:
+          size: 'gb_to_mb'
         operations:
           update:
-            fields: ["description"]
+            fields:
+              - "description"
         resolvers:
-          type:
-            base: "openstack_volume_types"
-            filter_by:
-              - source_param: "offering"
-                source_key: "scope_uuid"
-                target_key: "tenant_uuid"
-
-          image:
-            base: "openstack_images"
-            filter_by:
-              - source_param: "offering"
-                source_key: "scope_uuid"
-                target_key: "tenant_uuid"
-
+          type: *volume_type_resolver
+          image: *image_resolver
           availability_zone:
             base: "openstack_volume_availability_zones"
-            filter_by:
-              - source_param: "offering"
-                source_key: "scope_uuid"
-                target_key: "tenant_uuid"
+            filter_by: *filter_by_tenant
 
       - name: instance
         plugin: order
@@ -84,10 +102,11 @@ collections:
         transformations:
           data_volume_size: 'gb_to_mb'
           system_volume_size: 'gb_to_mb'
-          size: 'gb_to_mb'
         operations:
           update:
-            fields: ["name", "description"]
+            fields:
+              - "name"
+              - "description"
             actions:
               update_ports:
                 operation: "openstack_instances_update_ports"
@@ -106,7 +125,7 @@ collections:
               - name: termination_action
                 maps_to: action
                 type: str
-                description: Termination action
+                description: Force destroy avoids to bypass standard validations and directly deletes the instance.
                 choices:
                   - destroy
                   - force_destroy
@@ -116,130 +135,102 @@ collections:
               - name: release_floating_ips
                 type: bool
                 description: "If true, release associated floating IPs on termination."
-        wait_config:
-          ok_states: ["OK"]
-          erred_states: ["ERRED"]
-          state_field: "state"
+        wait_config: *default_wait_config
         resolvers:
           flavor:
             base: "openstack_flavors"
-            filter_by:
-              - source_param: "offering"
-                source_key: "scope_uuid"
-                target_key: "tenant_uuid"
-
-          image:
-            base: "openstack_images"
-            filter_by:
-              - source_param: "offering"
-                source_key: "scope_uuid"
-                target_key: "tenant_uuid"
-
-          system_volume_type:
-            base: "openstack_volume_types"
-            filter_by:
-              - source_param: "offering"
-                source_key: "scope_uuid"
-                target_key: "tenant_uuid"
-
-          data_volume_type:
-            base: "openstack_volume_types"
-            filter_by:
-              - source_param: "offering"
-                source_key: "scope_uuid"
-                target_key: "tenant_uuid"
-
+            filter_by: *filter_by_tenant
+          image: *image_resolver
+          system_volume_type: *volume_type_resolver
+          data_volume_type: *volume_type_resolver
           security_groups:
             base: "openstack_security_groups"
-            filter_by:
-              - source_param: "offering"
-                source_key: "scope_uuid"
-                target_key: "tenant_uuid"
-
+            filter_by: *filter_by_tenant
           availability_zone:
             base: "openstack_instance_availability_zones"
-            filter_by:
-              - source_param: "offering"
-                source_key: "scope_uuid"
-                target_key: "tenant_uuid"
+            filter_by: *filter_by_tenant
           subnet:
             base: "openstack_subnets"
-            filter_by:
-              - source_param: "offering"
-                source_key: "scope_uuid"
-                target_key: "tenant_uuid"
-
+            filter_by: *filter_by_tenant
           ssh_public_key: "keys"
 
+      # --- CRUD Modules (Directly Managed Resources) ---
       - name: security_group
         plugin: crud
+        wait_config: *default_wait_config
         resource_type: "OpenStack security group"
         description: "Manage OpenStack Security Groups and their rules in Waldur."
         base_operation_id: "openstack_security_groups"
         operations:
           update:
-            fields: ["name", "description"]
+            fields:
+              - "name"
+              - "description"
             actions:
               set_rules:
                 operation: "openstack_security_groups_set_rules"
                 param: "rules"
           create:
             id: "openstack_tenants_create_security_group"
-            path_params: { uuid: "tenant" }
-        wait_config:
-          ok_states: ["OK"]
-          erred_states: ["ERRED"]
-          state_field: "state"
+            path_params:
+              uuid: "tenant"
         resolvers:
           tenant: "openstack_tenants"
           remote_group: "openstack_security_groups"
 
       - name: network
         plugin: crud
+        wait_config: *default_wait_config
+        resolvers:
+          tenant: "openstack_tenants"
         resource_type: "OpenStack network"
         description: "Manage OpenStack Networks in Waldur."
         base_operation_id: "openstack_networks"
         operations:
           update:
-            fields: ["name", "description"]
+            fields:
+              - "name"
+              - "description"
             actions:
               set_mtu:
                 operation: "openstack_networks_set_mtu"
                 param: "mtu"
           create:
             id: "openstack_tenants_create_network"
-            path_params: { uuid: "tenant" }
-        wait_config:
-          ok_states: ["OK"]
-          erred_states: ["ERRED"]
-          state_field: "state"
-        resolvers:
-          tenant: "openstack_tenants"
+            path_params:
+              uuid: "tenant"
 
       - name: server_group
         plugin: crud
+        wait_config: *default_wait_config
+        resolvers:
+          tenant: "openstack_tenants"
         resource_type: "OpenStack server group"
         description: "Manage OpenStack Server Groups (Affinity Groups) in Waldur."
         base_operation_id: "openstack_server_groups"
         operations:
           update:
-            fields: ["name", "description"]
+            fields:
+              - "name"
+              - "description"
           create:
             id: "openstack_tenants_create_server_group"
-            path_params: { uuid: "tenant" }
-        resolvers:
-          tenant: "openstack_tenants"
+            path_params:
+              uuid: "tenant"
 
       - name: floating_ip
         plugin: crud
+        wait_config: *default_wait_config
+        resolvers:
+          tenant: "openstack_tenants"
         resource_type: "OpenStack floating IP"
         description: "Manage OpenStack Floating IPs in Waldur."
         base_operation_id: "openstack_floating_ips"
         operations:
           update:
-            fields: ["description"]
+            fields:
+              - "description"
           create:
             id: "openstack_tenants_create_floating_ip"
-            path_params: { uuid: "tenant" }
-        resolvers:
-          tenant: "openstack_tenants"
+            path_params:
+              uuid: "tenant"
