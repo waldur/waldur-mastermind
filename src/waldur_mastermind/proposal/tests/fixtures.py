@@ -57,7 +57,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         return proposal_factories.CallFactory(
             manager=self.manager,
             state=CallStates.ACTIVE,
-            created_by=self.owner,
+            created_by=self.call_organizer_user,
         )
 
     @property
