@@ -165,7 +165,7 @@ The core checklist module provides ViewSet mixins for integration into other app
 
 - `GET /{app}/{uuid}/checklist/` - Get checklist questions with user's answers
 - `GET /{app}/{uuid}/completion_status/` - Get completion status
-- `POST /{app}/{uuid}/submit_answers/` - Submit answers
+- `POST /{app}/{uuid}/submit_answers/` - Submit answers (including answer removal)
 
 **ReviewerChecklistMixin** - For reviewers (with sensitive review logic):
 
@@ -188,6 +188,55 @@ The system supports sophisticated conditional logic through question dependencie
 4. **Dynamic Visibility**: Real-time question showing/hiding based on current answers
 
 Example: A security questionnaire might only show cloud-specific questions if the user indicates they use cloud services.
+
+## Answer Management
+
+### Answer Submission and Updates
+
+Users can submit, update, and remove answers through the `submit_answers` endpoint:
+
+```http
+POST /api/{app}/{uuid}/submit_answers/
+Content-Type: application/json
+
+[
+  {
+    "question_uuid": "123e4567-e89b-12d3-a456-426614174000",
+    "answer_data": "New answer value"
+  },
+  {
+    "question_uuid": "456e7890-e12b-34c5-d678-901234567890",
+    "answer_data": null  // Remove existing answer
+  }
+]
+```
+
+### Answer Removal
+
+Users can remove their answers by submitting `null` as the `answer_data` value. This performs a hard deletion of the answer record and automatically:
+
+- **Recalculates completion percentage** - Removed answers no longer count toward completion
+- **Updates completion status** - Required questions with removed answers mark checklist as incomplete
+- **Updates review requirements** - Removing answers that triggered reviews clears the review flag
+- **Maintains audit trail** - Through Answer model timestamps before deletion
+
+**Key Features:**
+
+- **Safe operations**: Attempting to remove non-existent answers succeeds without errors
+- **Mixed operations**: Single request can create, update, and remove answers simultaneously
+- **Validation bypass**: Null values skip validation since they indicate removal intent
+- **Status synchronization**: Completion and review status automatically updated after changes
+
+**Example - Mixed Operations:**
+
+```http
+POST /api/proposals/{uuid}/submit_answers/
+[
+  {"question_uuid": "q1-uuid", "answer_data": true},        // Create/update
+  {"question_uuid": "q2-uuid", "answer_data": null},        // Remove
+  {"question_uuid": "q3-uuid", "answer_data": "New text"}   // Create/update
+]
+```
 
 ## Review Workflow
 
