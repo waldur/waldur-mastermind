@@ -5848,8 +5848,15 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
             "affected_offerings",
             "service_provider_name",
             "state",
+            "backend_id",
         ]
-        read_only_fields = ("state", "actual_start", "actual_end", "created_by")
+        read_only_fields = (
+            "state",
+            "actual_start",
+            "actual_end",
+            "created_by",
+            "backend_id",
+        )
         extra_kwargs = {
             "service_provider": {
                 "lookup_field": "uuid",
