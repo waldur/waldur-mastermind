@@ -703,12 +703,12 @@ Generate Ansible modules:
   needs:
     - Generate OpenAPI schema
   before_script:
-    - apt-get update && apt-get install -y yq
+    - apt-get update && apt-get install -y jq
     # Ensure the CI runner has all tags from the remote repository
     - git fetch --tags
   script: |
     # Install necessary tools
-    pip install git+https://github.com/waldur/ansible-waldur-generator.git
+    pip install yq git+https://github.com/waldur/ansible-waldur-generator.git
     # Determine the release version based on the trigger
     if [ -n "$CI_COMMIT_TAG" ]; then
       # This is a stable, tagged release. The version is the tag itself.
@@ -785,8 +785,8 @@ Publish Ansible Galaxy collection:
   needs:
     - Generate Ansible modules
   before_script:
-    - apt-get update && apt-get install -y yq ansible-core
-
+    - apt-get update && apt-get install -y jq
+    - pip install yq ansible
   script:
     - echo "--- Discovering and Publishing Ansible Collections ---"
 
