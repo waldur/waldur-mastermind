@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0174_maintenanceannouncement_admin_announcement"),
+        ("marketplace", "0176_remove_offering_terms_of_service_and_more"),
     ]
 
     operations = [
