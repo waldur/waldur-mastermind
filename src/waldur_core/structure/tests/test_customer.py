@@ -12,6 +12,8 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.checklist.enums import ChecklistTypes
+from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.core.pagination import RESULT_COUNT_HEADER
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
@@ -459,6 +461,91 @@ class CustomerUpdateTest(BaseCustomerMutationTest):
                     f"VAT {vat_code} for {country} should be invalid",
                 )
                 self.assertIn("vat_code", response.data)
+
+    def test_staff_can_assign_project_metadata_checklist(self):
+        """Test that staff users can assign a project metadata checklist to a customer."""
+        # Create a PROJECT_METADATA checklist
+        checklist = checklist_factories.ChecklistFactory(
+            name="Project Metadata Checklist",
+            checklist_type=ChecklistTypes.PROJECT_METADATA,
+        )
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.patch(
+            self._get_customer_url(self.fixture.customer),
+            {"project_metadata_checklist": str(checklist.uuid)},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.fixture.customer.refresh_from_db()
+        self.assertEqual(self.fixture.customer.project_metadata_checklist, checklist)
+
+    def test_staff_can_unset_project_metadata_checklist(self):
+        """Test that staff users can unset a project metadata checklist."""
+        # Set up customer with a checklist
+        checklist = checklist_factories.ChecklistFactory(
+            checklist_type=ChecklistTypes.PROJECT_METADATA
+        )
+        self.fixture.customer.project_metadata_checklist = checklist
+        self.fixture.customer.save()
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.patch(
+            self._get_customer_url(self.fixture.customer),
+            {"project_metadata_checklist": None},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.fixture.customer.refresh_from_db()
+        self.assertIsNone(self.fixture.customer.project_metadata_checklist)
+
+    def test_non_staff_cannot_assign_project_metadata_checklist(self):
+        """Test that non-staff users cannot assign project metadata checklists."""
+        checklist = checklist_factories.ChecklistFactory(
+            checklist_type=ChecklistTypes.PROJECT_METADATA
+        )
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.patch(
+            self._get_customer_url(self.fixture.customer),
+            {"project_metadata_checklist": str(checklist.uuid)},
+        )
+
+        # Should succeed but field should be read-only (ignored)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.fixture.customer.refresh_from_db()
+        self.assertIsNone(self.fixture.customer.project_metadata_checklist)
+
+    def test_invalid_checklist_type_rejected(self):
+        """Test that non-PROJECT_METADATA checklists are rejected."""
+        # Create a different type of checklist
+        wrong_checklist = checklist_factories.ChecklistFactory(
+            checklist_type=ChecklistTypes.PROPOSAL_COMPLIANCE
+        )
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.patch(
+            self._get_customer_url(self.fixture.customer),
+            {"project_metadata_checklist": str(wrong_checklist.uuid)},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("project_metadata_checklist", response.data)
+
+    def test_nonexistent_checklist_rejected(self):
+        """Test that invalid checklist UUIDs are rejected."""
+        import uuid
+
+        fake_uuid = str(uuid.uuid4())
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.patch(
+            self._get_customer_url(self.fixture.customer),
+            {"project_metadata_checklist": fake_uuid},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("project_metadata_checklist", response.data)
 
 
 class CustomerQuotasTest(test.APITransactionTestCase):

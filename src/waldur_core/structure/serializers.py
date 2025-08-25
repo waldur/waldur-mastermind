@@ -16,6 +16,8 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions, serializers
 from rest_framework.authtoken import models as authtoken_models
 
+from waldur_core.checklist.enums import ChecklistTypes
+from waldur_core.checklist.models import Checklist
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
@@ -434,6 +436,14 @@ class CustomerSerializer(
     organization_groups = OrganizationGroupSerializer(many=True, read_only=True)
     projects_count = serializers.SerializerMethodField()
     users_count = serializers.SerializerMethodField()
+    project_metadata_checklist = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=Checklist.objects.filter(
+            checklist_type=ChecklistTypes.PROJECT_METADATA
+        ),
+        required=False,
+        allow_null=True,
+    )
 
     class Meta:
         model = models.Customer
@@ -455,6 +465,7 @@ class CustomerSerializer(
             "sponsor_number",
             "country_name",
             "max_service_accounts",
+            "project_metadata_checklist",
         ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
             "access_subnets",
@@ -467,6 +478,7 @@ class CustomerSerializer(
             "archived",
             "sponsor_number",
             "max_service_accounts",
+            "project_metadata_checklist",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -548,6 +560,14 @@ class CustomerSerializer(
                 country,
             )
         return attrs
+
+    def validate_project_metadata_checklist(self, checklist):
+        """Validate that the checklist is of PROJECT_METADATA type."""
+        if checklist and checklist.checklist_type != ChecklistTypes.PROJECT_METADATA:
+            raise serializers.ValidationError(
+                _("Checklist must be of type PROJECT_METADATA")
+            )
+        return checklist
 
     def get_display_name(self, customer) -> str:
         return customer.get_display_name()
