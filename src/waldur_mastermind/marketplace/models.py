@@ -2434,7 +2434,11 @@ reversion.register(Offering, follow=("components", "plans", "screenshots"))
 
 
 class MaintenanceAnnouncement(
-    core_models.UuidMixin, core_models.NameMixin, TimeStampedModel, LoggableMixin
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    TimeStampedModel,
+    LoggableMixin,
+    core_models.BackendMixin,
 ):
     message = models.CharField(_("message"), max_length=2000, blank=True)
     maintenance_type = models.PositiveSmallIntegerField(
