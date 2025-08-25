@@ -474,8 +474,8 @@ class AnswerSubmitSerializer(serializers.Serializer):
                 f"Question {question_uuid} does not belong to this checklist"
             )
 
-        # Validate answer data for question type
-        if not question.is_valid_answer(answer_data):
+        # Validate answer data for question type (skip validation for null values - they indicate removal)
+        if answer_data is not None and not question.is_valid_answer(answer_data):
             raise serializers.ValidationError(
                 f"Answer value '{answer_data}' is not valid for the question '{question}' (type: {question.question_type})."
             )

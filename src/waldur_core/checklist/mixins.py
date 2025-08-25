@@ -181,13 +181,24 @@ class UserChecklistMixin(BaseChecklistMixin):
             question = answer_data["question"]
             answer_value = answer_data["answer_data"]
 
-            # Create or update answer using direct foreign key
-            checklist_models.Answer.objects.update_or_create(
-                completion=completion,
-                question=question,
-                user=request.user,
-                defaults={"answer_data": answer_value},
-            )
+            if answer_value is None:
+                # Remove answer (hard delete)
+                checklist_models.Answer.objects.filter(
+                    completion=completion,
+                    question=question,
+                    user=request.user,
+                ).delete()
+            else:
+                # Create or update answer using direct foreign key
+                checklist_models.Answer.objects.update_or_create(
+                    completion=completion,
+                    question=question,
+                    user=request.user,
+                    defaults={"answer_data": answer_value},
+                )
+
+        # Update completion status to reflect any changes from additions/removals
+        completion.update_completion_status()
 
         # Return updated completion status
         completion.refresh_from_db()

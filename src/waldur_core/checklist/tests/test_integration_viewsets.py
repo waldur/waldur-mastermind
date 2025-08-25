@@ -841,3 +841,334 @@ class MixinQuestionVisibilityIntegrationTest(test.APITransactionTestCase):
         # Only parent question should be visible (no answer to trigger dependency)
         self.assertIn("Do you handle user data?", question_descriptions)
         self.assertNotIn("What type of user data?", question_descriptions)
+
+
+@ddt
+class AnswerRemovalIntegrationTest(test.APITransactionTestCase):
+    """Integration tests for answer removal functionality via submit_answers with null values."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.staff = self.fixture.staff
+        self.admin = self.fixture.admin
+
+        # Create test checklist with questions
+        self.checklist = factories.ChecklistFactory()
+        self.boolean_question = factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Is this project approved?",
+            question_type=enums.QuestionTypes.BOOLEAN,
+            required=True,
+            order=1,
+        )
+        self.text_question = factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Describe project scope:",
+            question_type=enums.QuestionTypes.TEXT_AREA,
+            required=False,
+            order=2,
+        )
+
+        # Create objects and completion
+        self.mock_project = self.fixture.project
+        self.project_uuid = self.mock_project.uuid.hex
+        self.mock_completion = models.ChecklistCompletion.objects.create(
+            checklist=self.checklist, scope=self.mock_project
+        )
+
+        # Set up test viewset
+        self.viewset = MockUserChecklistViewSet()
+        self.viewset._test_objects[self.project_uuid] = self.mock_project
+        self.viewset._checklist_completions[self.mock_project.uuid] = (
+            self.mock_completion
+        )
+        self.viewset.kwargs = {"uuid": self.project_uuid}
+
+    @data("staff", "admin")
+    def test_submit_null_answer_removes_existing_answer(self, user_type):
+        """Test that submitting null answer_data removes existing answer."""
+        user_obj = getattr(self.fixture, user_type)
+
+        # First, create an answer
+        models.Answer.objects.create(
+            completion=self.mock_completion,
+            question=self.boolean_question,
+            user=user_obj,
+            answer_data=True,
+        )
+
+        # Verify answer exists
+        self.assertEqual(
+            models.Answer.objects.filter(
+                completion=self.mock_completion,
+                question=self.boolean_question,
+                user=user_obj,
+            ).count(),
+            1,
+        )
+
+        # Submit null value to remove the answer
+        request_data = [
+            {
+                "question_uuid": str(self.boolean_question.uuid),
+                "answer_data": None,  # null indicates removal
+            }
+        ]
+
+        request = test.APIRequestFactory().post("/", data=request_data, format="json")
+        request.user = user_obj
+        request.data = request_data
+
+        response = self.viewset.submit_answers(request, uuid=self.project_uuid)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify answer was removed
+        self.assertEqual(
+            models.Answer.objects.filter(
+                completion=self.mock_completion,
+                question=self.boolean_question,
+                user=user_obj,
+            ).count(),
+            0,
+        )
+
+    def test_remove_nonexistent_answer_is_safe_operation(self):
+        """Test that attempting to remove non-existent answer doesn't cause errors."""
+        # Submit null value for non-existent answer
+        request_data = [
+            {
+                "question_uuid": str(self.text_question.uuid),
+                "answer_data": None,
+            }
+        ]
+
+        request = test.APIRequestFactory().post("/", data=request_data, format="json")
+        request.user = self.staff
+        request.data = request_data
+
+        response = self.viewset.submit_answers(request, uuid=self.project_uuid)
+
+        # Should succeed without errors
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify no answer exists (as expected)
+        self.assertEqual(
+            models.Answer.objects.filter(
+                completion=self.mock_completion,
+                question=self.text_question,
+                user=self.staff,
+            ).count(),
+            0,
+        )
+
+    def test_mixed_submission_create_update_and_remove(self):
+        """Test submitting a mix of create, update, and remove operations."""
+        # Create initial answers
+        existing_answer = models.Answer.objects.create(
+            completion=self.mock_completion,
+            question=self.boolean_question,
+            user=self.staff,
+            answer_data=False,  # Will be updated
+        )
+        models.Answer.objects.create(
+            completion=self.mock_completion,
+            question=self.text_question,
+            user=self.staff,
+            answer_data="Old text content",  # Will be removed
+        )
+
+        # Create another question for new answer
+        number_question = factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Budget amount:",
+            question_type=enums.QuestionTypes.NUMBER,
+            order=3,
+        )
+
+        # Mixed operations: update, remove, create
+        request_data = [
+            {
+                "question_uuid": str(self.boolean_question.uuid),
+                "answer_data": True,  # Update existing
+            },
+            {
+                "question_uuid": str(self.text_question.uuid),
+                "answer_data": None,  # Remove existing
+            },
+            {
+                "question_uuid": str(number_question.uuid),
+                "answer_data": 50000,  # Create new
+            },
+        ]
+
+        request = test.APIRequestFactory().post("/", data=request_data, format="json")
+        request.user = self.staff
+        request.data = request_data
+
+        response = self.viewset.submit_answers(request, uuid=self.project_uuid)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify update operation
+        existing_answer.refresh_from_db()
+        self.assertEqual(existing_answer.answer_data, True)
+
+        # Verify removal operation
+        self.assertEqual(
+            models.Answer.objects.filter(
+                completion=self.mock_completion,
+                question=self.text_question,
+                user=self.staff,
+            ).count(),
+            0,
+        )
+
+        # Verify creation operation
+        new_answer = models.Answer.objects.get(
+            completion=self.mock_completion,
+            question=number_question,
+            user=self.staff,
+        )
+        self.assertEqual(new_answer.answer_data, 50000)
+
+    def test_completion_percentage_recalculated_after_removal(self):
+        """Test that completion percentage is recalculated when answers are removed."""
+        # Create answers for both required and optional questions
+        models.Answer.objects.create(
+            completion=self.mock_completion,
+            question=self.boolean_question,  # required=True
+            user=self.staff,
+            answer_data=True,
+        )
+        models.Answer.objects.create(
+            completion=self.mock_completion,
+            question=self.text_question,  # required=False
+            user=self.staff,
+            answer_data="Some text",
+        )
+
+        # Initially completion should reflect both answers
+        self.mock_completion.update_completion_status()
+        initial_completion = self.mock_completion.is_completed
+        initial_percentage = self.mock_completion.get_completion_percentage()
+
+        # Remove the required question answer
+        request_data = [
+            {
+                "question_uuid": str(self.boolean_question.uuid),
+                "answer_data": None,
+            }
+        ]
+
+        request = test.APIRequestFactory().post("/", data=request_data, format="json")
+        request.user = self.staff
+        request.data = request_data
+
+        response = self.viewset.submit_answers(request, uuid=self.project_uuid)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check completion status was updated
+        self.mock_completion.refresh_from_db()
+        final_completion = self.mock_completion.is_completed
+        final_percentage = self.mock_completion.get_completion_percentage()
+
+        # Should no longer be completed since required question was removed
+        self.assertTrue(initial_completion)  # Was completed initially
+        self.assertFalse(final_completion)  # No longer completed
+        self.assertLess(final_percentage, initial_percentage)  # Lower percentage
+
+    def test_answer_removal_affects_review_requirements(self):
+        """Test that removing answers affects review requirement calculations."""
+        # Create question that triggers review for specific answers
+        review_question = factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Risk level assessment:",
+            question_type=enums.QuestionTypes.SINGLE_SELECT,
+            always_requires_review=False,
+            review_answer_value=["high", "critical"],
+            operator="in",
+        )
+
+        # Create an answer that triggers review
+        answer_requiring_review = models.Answer.objects.create(
+            completion=self.mock_completion,
+            question=review_question,
+            user=self.staff,
+            answer_data="high",  # Should trigger review
+        )
+        # Manually set review flag to simulate auto-detection
+        answer_requiring_review.requires_review = True
+        answer_requiring_review.save()
+
+        # Update completion status to reflect review requirement
+        self.mock_completion.update_completion_status()
+        self.assertTrue(self.mock_completion.requires_review)
+
+        # Remove the answer that was triggering review
+        request_data = [
+            {
+                "question_uuid": str(review_question.uuid),
+                "answer_data": None,
+            }
+        ]
+
+        request = test.APIRequestFactory().post("/", data=request_data, format="json")
+        request.user = self.staff
+        request.data = request_data
+
+        response = self.viewset.submit_answers(request, uuid=self.project_uuid)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that review requirement was updated
+        self.mock_completion.refresh_from_db()
+        self.assertFalse(
+            self.mock_completion.requires_review,
+            "Completion should no longer require review after removing triggering answer",
+        )
+
+    def test_null_validation_skipped_for_removal(self):
+        """Test that null values skip validation since they indicate removal."""
+        # Create question with strict validation
+        number_question = factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Budget (must be positive):",
+            question_type=enums.QuestionTypes.NUMBER,
+            min_value=1,
+            max_value=1000000,
+        )
+
+        # Create answer first
+        models.Answer.objects.create(
+            completion=self.mock_completion,
+            question=number_question,
+            user=self.staff,
+            answer_data=50000,
+        )
+
+        # Submit null value - should not trigger validation
+        request_data = [
+            {
+                "question_uuid": str(number_question.uuid),
+                "answer_data": None,  # null should skip validation
+            }
+        ]
+
+        request = test.APIRequestFactory().post("/", data=request_data, format="json")
+        request.user = self.staff
+        request.data = request_data
+
+        response = self.viewset.submit_answers(request, uuid=self.project_uuid)
+
+        # Should succeed despite null not meeting min_value constraint
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify answer was removed
+        self.assertEqual(
+            models.Answer.objects.filter(
+                completion=self.mock_completion,
+                question=number_question,
+                user=self.staff,
+            ).count(),
+            0,
+        )
