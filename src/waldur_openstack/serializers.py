@@ -588,6 +588,12 @@ class OpenStackSecurityGroupRuleCreateSerializer(OpenStackSecurityGroupRuleSeria
 
 
 class OpenStackSecurityGroupRuleUpdateSerializer(OpenStackSecurityGroupRuleSerializer):
+    class Meta(OpenStackSecurityGroupRuleSerializer.Meta):
+        extra_kwargs = {
+            "direction": {"default": models.BaseSecurityGroupRule.INGRESS},
+            "ethertype": {"default": models.BaseSecurityGroupRule.IPv4},
+        }
+
     def to_internal_value(self, data):
         """Create new rule if id is not specified, update exist rule if id is specified"""
         security_group = self.context["view"].get_object()
