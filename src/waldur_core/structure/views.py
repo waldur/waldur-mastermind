@@ -34,9 +34,11 @@ from rest_framework.response import Response
 from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.checklist import mixins as checklist_mixins
+from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.models import ChecklistCompletion
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
+from waldur_core.core import pagination
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
@@ -1174,3 +1176,502 @@ class ExternalLinkViewSet(viewsets.ModelViewSet):
     filterset_class = filters.ExternalLinkFilter
     permission_classes = (core_permissions.IsAdminOrReadOnly,)
     ordering_fields = ("name", "url")
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="customer_uuid",
+            type=OpenApiTypes.UUID,
+            location=OpenApiParameter.PATH,
+            description="UUID of the customer",
+        )
+    ]
+)
+class CustomerProjectMetadataComplianceOverviewViewSet(
+    mixins.ListModelMixin, viewsets.GenericViewSet
+):
+    """
+    ViewSet for customer project metadata compliance overview statistics.
+
+    Provides aggregated compliance statistics across all projects in the customer.
+    """
+
+    serializer_class = serializers.ComplianceOverviewSerializer
+    queryset = models.Customer.objects.none()
+
+    def get_customer(self):
+        """Get customer and check permissions."""
+        customer = models.Customer.objects.get(uuid=self.kwargs["customer_uuid"])
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_PROJECTS,
+            customer,
+        ):
+            raise PermissionDenied()
+        return customer
+
+    def list(self, request, customer_uuid=None):
+        """Get compliance overview statistics for all projects."""
+        customer = self.get_customer()
+
+        # Check if customer has project metadata checklist configured
+        if not customer.project_metadata_checklist:
+            return Response(
+                {
+                    "detail": "No project metadata checklist configured for this customer."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        checklist = customer.project_metadata_checklist
+
+        # Get ContentType for Project (cached after first call)
+        content_type = ContentType.objects.get_for_model(models.Project)
+
+        # Get all projects for this customer
+        projects = models.Project.objects.filter(customer=customer).order_by("name")
+
+        # Get all completion data in bulk
+        project_ids = list(projects.values_list("id", flat=True))
+        completion_data = {}
+
+        if project_ids:
+            # Bulk query for all completions related to projects
+            completions = checklist_models.ChecklistCompletion.objects.filter(
+                checklist=checklist,
+                scope_content_type=content_type,
+                scope_object_id__in=project_ids,
+            )
+
+            for completion in completions:
+                completion_data[completion.scope_object_id] = {
+                    "is_completed": completion.is_completed,
+                    "requires_review": completion.requires_review,
+                    "completion_percentage": completion.get_completion_percentage(),
+                }
+
+        # Calculate statistics
+        total_projects = len(project_ids)
+        projects_with_completions = len(completion_data)
+        fully_completed_projects = sum(
+            1 for data in completion_data.values() if data["is_completed"]
+        )
+        projects_requiring_review = sum(
+            1 for data in completion_data.values() if data["requires_review"]
+        )
+
+        # Calculate average completion percentage
+        if completion_data:
+            total_percentage = sum(
+                data["completion_percentage"] for data in completion_data.values()
+            )
+            average_completion_percentage = round(total_percentage / total_projects, 1)
+        else:
+            average_completion_percentage = 0.0
+
+        # Create response data
+        response_data = {
+            "total_projects": total_projects,
+            "projects_with_completions": projects_with_completions,
+            "fully_completed_projects": fully_completed_projects,
+            "projects_requiring_review": projects_requiring_review,
+            "average_completion_percentage": average_completion_percentage,
+        }
+
+        # Use serializer for response
+        serializer = self.get_serializer(response_data)
+        return Response(serializer.data)
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="customer_uuid",
+            type=OpenApiTypes.UUID,
+            location=OpenApiParameter.PATH,
+            description="UUID of the customer",
+        )
+    ]
+)
+class CustomerProjectMetadataComplianceDetailsViewSet(
+    mixins.ListModelMixin, viewsets.GenericViewSet
+):
+    """
+    ViewSet for detailed customer project metadata compliance information.
+
+    Provides detailed compliance status for all projects with individual completion data.
+    """
+
+    serializer_class = serializers.ProjectDetailsResponseSerializer
+    queryset = models.Customer.objects.none()
+
+    def get_customer(self):
+        """Get customer and check permissions."""
+        customer = models.Customer.objects.get(uuid=self.kwargs["customer_uuid"])
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_PROJECTS,
+            customer,
+        ):
+            raise PermissionDenied()
+        return customer
+
+    def list(self, request, customer_uuid=None):
+        """Get detailed project compliance information with checklist and individual project data."""
+        customer = self.get_customer()
+
+        # Check if customer has project metadata checklist configured
+        if not customer.project_metadata_checklist:
+            return Response(
+                {
+                    "detail": "No project metadata checklist configured for this customer."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        checklist = customer.project_metadata_checklist
+
+        # Get ContentType for Project (cached after first call)
+        content_type = ContentType.objects.get_for_model(models.Project)
+
+        # Get all projects for this customer
+        projects = models.Project.objects.filter(customer=customer).order_by("name")
+
+        # Get all completion data in bulk
+        project_ids = list(projects.values_list("id", flat=True))
+        completion_map = {}
+
+        if project_ids:
+            # Bulk query for all completions related to projects
+            completions = checklist_models.ChecklistCompletion.objects.filter(
+                checklist=checklist,
+                scope_content_type=content_type,
+                scope_object_id__in=project_ids,
+            )
+
+            for completion in completions:
+                completion_map[completion.scope_object_id] = completion
+
+        # Calculate statistics
+        total_projects = len(project_ids)
+        projects_with_completions = len(completion_map)
+        fully_completed_projects = sum(
+            1 for completion in completion_map.values() if completion.is_completed
+        )
+        projects_requiring_review = sum(
+            1 for completion in completion_map.values() if completion.requires_review
+        )
+
+        # Build project details (sorted by completion percentage, incomplete first)
+        project_details = []
+        for project in projects:
+            completion = completion_map.get(project.id)
+
+            if completion:
+                completion_percentage = completion.get_completion_percentage()
+                is_completed = completion.is_completed
+                requires_review = completion.requires_review
+                completion_uuid = completion.uuid.hex
+            else:
+                completion_percentage = 0.0
+                is_completed = False
+                requires_review = False
+                completion_uuid = None
+
+            project_details.append(
+                {
+                    "project_uuid": project.uuid.hex,
+                    "project_name": project.name,
+                    "completion_uuid": completion_uuid,
+                    "completion_percentage": completion_percentage,
+                    "is_completed": is_completed,
+                    "requires_review": requires_review,
+                }
+            )
+
+        # Sort by completion percentage (ascending - incomplete projects first)
+        project_details.sort(key=lambda x: x["completion_percentage"])
+
+        # Create response data
+        response_data = {
+            "checklist": {
+                "uuid": checklist.uuid.hex,
+                "name": checklist.name,
+                "checklist_type": checklist.checklist_type,
+            },
+            "total_projects": total_projects,
+            "projects_with_completions": projects_with_completions,
+            "fully_completed_projects": fully_completed_projects,
+            "projects_requiring_review": projects_requiring_review,
+            "project_details": project_details,
+        }
+
+        # Use serializer for response
+        serializer = self.get_serializer(response_data)
+        return Response(serializer.data)
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="customer_uuid",
+            type=OpenApiTypes.UUID,
+            location=OpenApiParameter.PATH,
+            description="UUID of the customer",
+        )
+    ]
+)
+class CustomerProjectMetadataComplianceProjectsViewSet(
+    mixins.ListModelMixin, viewsets.GenericViewSet
+):
+    """
+    ViewSet for listing customer projects with checklist compliance data.
+
+    Provides paginated list of projects with their checklist completion and answer details.
+    """
+
+    serializer_class = serializers.ProjectAnswerSerializer
+    queryset = models.Project.objects.none()
+    pagination_class = pagination.LinkHeaderPagination
+
+    def get_customer(self):
+        """Get customer and check permissions."""
+        customer = models.Customer.objects.get(uuid=self.kwargs["customer_uuid"])
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_PROJECTS,
+            customer,
+        ):
+            raise PermissionDenied()
+        return customer
+
+    def get_queryset(self):
+        """Get projects for the customer with checklist data."""
+        customer = self.get_customer()
+
+        # Check if customer has project metadata checklist configured
+        if not customer.project_metadata_checklist:
+            return models.Project.objects.none()
+
+        return models.Project.objects.filter(customer=customer).order_by("name")
+
+    def get_serializer_context(self):
+        """Add checklist to serializer context for efficient data loading."""
+        context = super().get_serializer_context()
+
+        try:
+            customer = self.get_customer()
+            context["checklist"] = customer.project_metadata_checklist
+        except (AttributeError, models.Customer.DoesNotExist):
+            context["checklist"] = None
+
+        return context
+
+    def list(self, request, customer_uuid=None):
+        """List project checklist answer data with database-level pagination."""
+        customer = self.get_customer()
+
+        # Check if customer has project metadata checklist configured
+        if not customer.project_metadata_checklist:
+            return Response(
+                {
+                    "detail": "No project metadata checklist configured for this customer."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        checklist = customer.project_metadata_checklist
+
+        # Use database-level pagination by paginating the queryset first
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            # Now bulk-load completion data only for projects on this page
+            self._bulk_load_completion_data(page, checklist)
+
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        # No pagination - load completion data for all projects
+        projects = list(queryset)
+        self._bulk_load_completion_data(projects, checklist)
+
+        serializer = self.get_serializer(projects, many=True)
+        return Response(serializer.data)
+
+    def _bulk_load_completion_data(self, projects, checklist):
+        """Bulk load completion data for the given projects."""
+        if not projects:
+            return
+
+        # Get ContentType for Project (cached after first call)
+        content_type = ContentType.objects.get_for_model(models.Project)
+
+        # Get project IDs for the current page only
+        project_ids = [project.id for project in projects]
+
+        # Bulk query for completions related to projects on this page
+        completions = (
+            checklist_models.ChecklistCompletion.objects.filter(
+                checklist=checklist,
+                scope_content_type=content_type,
+                scope_object_id__in=project_ids,
+            ).prefetch_related("answers")  # Prefetch answers for counting
+        )
+
+        # Create completion mapping for the serializer
+        completion_map = {}
+        for completion in completions:
+            completion_map[completion.scope_object_id] = completion
+
+        # Attach bulk completion data to serializer class for efficient access
+        serializer_class = self.get_serializer_class()
+        serializer_class._bulk_completion_data = completion_map
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="customer_uuid",
+            type=OpenApiTypes.UUID,
+            location=OpenApiParameter.PATH,
+            description="UUID of the customer",
+        )
+    ]
+)
+class CustomerProjectMetadataQuestionAnswersViewSet(
+    mixins.ListModelMixin, viewsets.GenericViewSet
+):
+    """
+    ViewSet for listing questions with their answers from all projects.
+
+    Provides paginated list of questions with answers from all customer projects.
+    Each question shows answers from all projects in the customer.
+    """
+
+    serializer_class = serializers.QuestionAnswerSerializer
+    pagination_class = pagination.LinkHeaderPagination
+
+    def get_customer(self):
+        """Get customer and check permissions."""
+        customer = models.Customer.objects.get(uuid=self.kwargs["customer_uuid"])
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_PROJECTS,
+            customer,
+        ):
+            raise PermissionDenied()
+        return customer
+
+    def get_queryset(self):
+        """Get questions for the customer's checklist."""
+        # Handle OpenAPI schema generation
+        if getattr(self, "swagger_fake_view", False):
+            from waldur_core.checklist.models import Question
+
+            return Question.objects.none()
+
+        customer = self.get_customer()
+        # Check if customer has project metadata checklist configured
+        if not customer.project_metadata_checklist:
+            return []
+
+        # Import here to avoid circular imports
+        from waldur_core.checklist.models import Question
+
+        return Question.objects.filter(
+            checklist=customer.project_metadata_checklist
+        ).order_by("order")
+
+    def get_serializer_context(self):
+        """Add customer to serializer context for efficient data loading."""
+        context = super().get_serializer_context()
+
+        try:
+            customer = self.get_customer()
+            context["customer"] = customer
+        except (AttributeError, models.Customer.DoesNotExist):
+            context["customer"] = None
+
+        return context
+
+    def list(self, request, customer_uuid=None):
+        """List questions with project answers, paginated by question at database level."""
+        customer = self.get_customer()
+
+        # Check if customer has project metadata checklist configured
+        if not customer.project_metadata_checklist:
+            return Response(
+                {
+                    "detail": "No project metadata checklist configured for this customer."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Use database-level pagination by paginating the questions queryset first
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            # Now bulk-load project and answer data only for questions on this page
+            self._bulk_load_question_data(page, customer)
+
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        # No pagination - load data for all questions
+        questions = list(queryset)
+        self._bulk_load_question_data(questions, customer)
+
+        serializer = self.get_serializer(questions, many=True)
+        return Response(serializer.data)
+
+    def _bulk_load_question_data(self, questions, customer):
+        """Bulk load project and answer data for the given questions."""
+        if not questions:
+            return
+
+        # Import here to avoid circular imports
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.checklist.models import Answer
+
+        # Get all projects for the customer (this is the same for all questions)
+        projects = list(
+            models.Project.objects.filter(customer=customer).order_by("name")
+        )
+        project_ct = ContentType.objects.get_for_model(models.Project)
+        project_ids = [p.id for p in projects]
+
+        # Bulk query for all answers for questions on this page
+        question_ids = [q.id for q in questions]
+        answers = Answer.objects.filter(
+            question_id__in=question_ids,
+            completion__scope_content_type=project_ct,
+            completion__scope_object_id__in=project_ids,
+        ).select_related("user", "completion")
+
+        # Group answers by question_id
+        answers_by_question = {}
+        for answer in answers:
+            question_id = answer.question_id
+            if question_id not in answers_by_question:
+                answers_by_question[question_id] = {}
+            answers_by_question[question_id][answer.completion.scope_object_id] = answer
+
+        # Create bulk data mapping for the serializer
+        question_data_map = {}
+        for question in questions:
+            answers_by_project = answers_by_question.get(question.id, {})
+            question_data_map[question.id] = {
+                "projects": projects,
+                "answers_by_project": answers_by_project,
+                "total_projects": len(projects),
+                "answered_projects_count": len(answers_by_project),
+            }
+
+        # Attach bulk data to serializer class for efficient access
+        serializer_class = self.get_serializer_class()
+        serializer_class._bulk_question_data = question_data_map
