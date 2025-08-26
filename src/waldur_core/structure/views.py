@@ -35,10 +35,9 @@ from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.checklist import mixins as checklist_mixins
 from waldur_core.checklist import models as checklist_models
-from waldur_core.checklist.models import ChecklistCompletion
+from waldur_core.checklist.models import Answer, ChecklistCompletion, Question
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
-from waldur_core.core import pagination
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
@@ -1303,8 +1302,8 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
     Provides detailed compliance status for all projects with individual completion data.
     """
 
+    queryset = models.Project.objects.none()  # Required for schema generation
     serializer_class = serializers.ProjectDetailsResponseSerializer
-    queryset = models.Customer.objects.none()
 
     def get_customer(self):
         """Get customer and check permissions."""
@@ -1317,8 +1316,16 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
             raise PermissionDenied()
         return customer
 
+    def get_queryset(self):
+        """Get projects for the customer."""
+        customer = self.get_customer()
+        # Check if customer has project metadata checklist configured
+        if not customer.project_metadata_checklist:
+            return models.Project.objects.none()
+        return models.Project.objects.filter(customer=customer).order_by("name")
+
     def list(self, request, customer_uuid=None):
-        """Get detailed project compliance information with checklist and individual project data."""
+        """Get detailed project compliance information with database-level pagination."""
         customer = self.get_customer()
 
         # Check if customer has project metadata checklist configured
@@ -1332,41 +1339,90 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
 
         checklist = customer.project_metadata_checklist
 
-        # Get ContentType for Project (cached after first call)
+        # Use database-level pagination by paginating the queryset first
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            # Now bulk-load completion data only for projects on this page
+            self._bulk_load_completion_data(page, checklist)
+            project_details = self._build_project_details(page)
+
+            # For statistics, use efficient count queries instead of loading all data
+            content_type = ContentType.objects.get_for_model(models.Project)
+            all_projects_count = models.Project.objects.filter(
+                customer=customer
+            ).count()
+            completions_count = checklist_models.ChecklistCompletion.objects.filter(
+                checklist=checklist,
+                scope_content_type=content_type,
+                scope_object_id__in=models.Project.objects.filter(
+                    customer=customer
+                ).values("id"),
+            ).count()
+            fully_completed_count = checklist_models.ChecklistCompletion.objects.filter(
+                checklist=checklist,
+                scope_content_type=content_type,
+                scope_object_id__in=models.Project.objects.filter(
+                    customer=customer
+                ).values("id"),
+                is_completed=True,
+            ).count()
+            projects_requiring_review_count = (
+                checklist_models.ChecklistCompletion.objects.filter(
+                    checklist=checklist,
+                    scope_content_type=content_type,
+                    scope_object_id__in=models.Project.objects.filter(
+                        customer=customer
+                    ).values("id"),
+                    requires_review=True,
+                ).count()
+            )
+
+            response_data = {
+                "checklist": {
+                    "uuid": checklist.uuid.hex,
+                    "name": checklist.name,
+                    "checklist_type": checklist.checklist_type,
+                },
+                "total_projects": all_projects_count,
+                "projects_with_completions": completions_count,
+                "fully_completed_projects": fully_completed_count,
+                "projects_requiring_review": projects_requiring_review_count,
+                "project_details": project_details,
+            }
+
+            serializer = self.get_serializer(response_data)
+            return self.get_paginated_response(serializer.data)
+
+        # Fallback (shouldn't happen with pagination class)
+        return Response({"project_details": []})
+
+    def _bulk_load_completion_data(self, projects, checklist):
+        """Bulk load completion data for the given projects."""
         content_type = ContentType.objects.get_for_model(models.Project)
-
-        # Get all projects for this customer
-        projects = models.Project.objects.filter(customer=customer).order_by("name")
-
-        # Get all completion data in bulk
-        project_ids = list(projects.values_list("id", flat=True))
-        completion_map = {}
+        project_ids = [project.id for project in projects]
 
         if project_ids:
-            # Bulk query for all completions related to projects
             completions = checklist_models.ChecklistCompletion.objects.filter(
                 checklist=checklist,
                 scope_content_type=content_type,
                 scope_object_id__in=project_ids,
             )
 
-            for completion in completions:
-                completion_map[completion.scope_object_id] = completion
+            # Attach completion data to projects
+            completion_map = {
+                completion.scope_object_id: completion for completion in completions
+            }
+            for project in projects:
+                project._completion_cache = completion_map.get(project.id)
 
-        # Calculate statistics
-        total_projects = len(project_ids)
-        projects_with_completions = len(completion_map)
-        fully_completed_projects = sum(
-            1 for completion in completion_map.values() if completion.is_completed
-        )
-        projects_requiring_review = sum(
-            1 for completion in completion_map.values() if completion.requires_review
-        )
-
-        # Build project details (sorted by completion percentage, incomplete first)
+    def _build_project_details(self, projects):
+        """Build project details for the given projects."""
         project_details = []
+
         for project in projects:
-            completion = completion_map.get(project.id)
+            completion = getattr(project, "_completion_cache", None)
 
             if completion:
                 completion_percentage = completion.get_completion_percentage()
@@ -1390,26 +1446,7 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
                 }
             )
 
-        # Sort by completion percentage (ascending - incomplete projects first)
-        project_details.sort(key=lambda x: x["completion_percentage"])
-
-        # Create response data
-        response_data = {
-            "checklist": {
-                "uuid": checklist.uuid.hex,
-                "name": checklist.name,
-                "checklist_type": checklist.checklist_type,
-            },
-            "total_projects": total_projects,
-            "projects_with_completions": projects_with_completions,
-            "fully_completed_projects": fully_completed_projects,
-            "projects_requiring_review": projects_requiring_review,
-            "project_details": project_details,
-        }
-
-        # Use serializer for response
-        serializer = self.get_serializer(response_data)
-        return Response(serializer.data)
+        return project_details
 
 
 @extend_schema(
@@ -1431,9 +1468,8 @@ class CustomerProjectMetadataComplianceProjectsViewSet(
     Provides paginated list of projects with their checklist completion and answer details.
     """
 
+    queryset = models.Project.objects.none()  # Required for schema generation
     serializer_class = serializers.ProjectAnswerSerializer
-    queryset = models.Project.objects.none()
-    pagination_class = pagination.LinkHeaderPagination
 
     def get_customer(self):
         """Get customer and check permissions."""
@@ -1551,8 +1587,8 @@ class CustomerProjectMetadataQuestionAnswersViewSet(
     Each question shows answers from all projects in the customer.
     """
 
+    queryset = Question.objects.none()  # Required for schema generation
     serializer_class = serializers.QuestionAnswerSerializer
-    pagination_class = pagination.LinkHeaderPagination
 
     def get_customer(self):
         """Get customer and check permissions."""
@@ -1567,19 +1603,10 @@ class CustomerProjectMetadataQuestionAnswersViewSet(
 
     def get_queryset(self):
         """Get questions for the customer's checklist."""
-        # Handle OpenAPI schema generation
-        if getattr(self, "swagger_fake_view", False):
-            from waldur_core.checklist.models import Question
-
-            return Question.objects.none()
-
         customer = self.get_customer()
         # Check if customer has project metadata checklist configured
         if not customer.project_metadata_checklist:
             return []
-
-        # Import here to avoid circular imports
-        from waldur_core.checklist.models import Question
 
         return Question.objects.filter(
             checklist=customer.project_metadata_checklist
@@ -1632,11 +1659,6 @@ class CustomerProjectMetadataQuestionAnswersViewSet(
         """Bulk load project and answer data for the given questions."""
         if not questions:
             return
-
-        # Import here to avoid circular imports
-        from django.contrib.contenttypes.models import ContentType
-
-        from waldur_core.checklist.models import Answer
 
         # Get all projects for the customer (this is the same for all questions)
         projects = list(

@@ -65,13 +65,228 @@ Project metadata uses the checklist system to enable organizations to:
 
 ## API Endpoints
 
-All project metadata endpoints are available under the project resource:
+Project metadata endpoints are available at both project and customer levels:
 
-### Base URL Pattern
+### Project-Level Endpoints
+
+Base URL: `/api/projects/<project-uuid>/`
+
+### Customer-Level Compliance Endpoints
+
+Base URL: `/api/customers/<customer-uuid>/`
+
+These endpoints provide aggregated compliance information across all projects in a customer organization. All endpoints support efficient database-level pagination to handle large numbers of projects.
+
+#### Customer-Level Compliance Overview
+
+Get an overview of project metadata compliance across all customer projects.
 
 ```http
-/api/projects/<project-uuid>/
+GET /api/customers/<customer-uuid>/project-metadata-compliance-overview/
+Authorization: Token <token>
 ```
+
+**Permissions Required:**
+
+- Customer owner
+- Customer support
+- Staff user
+
+**Response:**
+
+```json
+{
+  "checklist_configured": true,
+  "checklist": {
+    "uuid": "checklist-uuid",
+    "name": "Project Metadata Collection",
+    "description": "Standard metadata required for all projects"
+  },
+  "total_projects": 25,
+  "projects_with_completion": 20,
+  "projects_without_completion": 5,
+  "average_completion_percentage": 75.5,
+  "fully_completed_projects": 15,
+  "partially_completed_projects": 5,
+  "not_started_projects": 5
+}
+```
+
+#### Customer-Level Compliance Projects List
+
+Get paginated list of projects with their completion status.
+
+```http
+GET /api/customers/<customer-uuid>/project-metadata-compliance-projects/
+Authorization: Token <token>
+```
+
+**Query Parameters:**
+
+- `page` - Page number (default: 1)
+- `page_size` - Number of projects per page (default: 10, max: 300)
+
+**Permissions Required:**
+
+- Customer owner
+- Customer support
+- Staff user
+
+**Response:**
+
+```json
+[
+  {
+    "uuid": "project-uuid-1",
+    "name": "AI Research Project",
+    "completion_uuid": "completion-uuid-1",
+    "completion_percentage": 100.0,
+    "is_completed": true,
+    "unanswered_required_questions": 0
+  },
+  {
+    "uuid": "project-uuid-2",
+    "name": "Development Project",
+    "completion_uuid": "completion-uuid-2",
+    "completion_percentage": 66.7,
+    "is_completed": false,
+    "unanswered_required_questions": 1
+  }
+]
+```
+
+**Response Headers:**
+
+- `X-Result-Count` - Total number of projects
+- `Link` - Pagination links (first, prev, next, last)
+
+#### Customer-Level Question Answers
+
+Get paginated list of questions with answers across all projects.
+
+```http
+GET /api/customers/<customer-uuid>/project-metadata-question-answers/
+Authorization: Token <token>
+```
+
+**Query Parameters:**
+
+- `page` - Page number (default: 1)
+- `page_size` - Number of questions per page (default: 10, max: 300)
+
+**Permissions Required:**
+
+- Customer owner
+- Customer support
+- Staff user
+
+**Response:**
+
+```json
+[
+  {
+    "uuid": "question-uuid-1",
+    "description": "Project purpose",
+    "question_type": "text_area",
+    "required": true,
+    "order": 1,
+    "projects_with_answers": [
+      {
+        "project_uuid": "project-uuid-1",
+        "project_name": "AI Research Project",
+        "answer_data": "Research project for AI development",
+        "user_name": "John Doe",
+        "created": "2024-01-15T14:20:00Z",
+        "modified": "2024-01-15T14:20:00Z"
+      },
+      {
+        "project_uuid": "project-uuid-2",
+        "project_name": "Development Project",
+        "answer_data": "Software development project",
+        "user_name": "Jane Smith",
+        "created": "2024-01-16T10:30:00Z",
+        "modified": "2024-01-16T10:30:00Z"
+      }
+    ]
+  }
+]
+```
+
+**Response Headers:**
+
+- `X-Result-Count` - Total number of questions
+- `Link` - Pagination links (first, prev, next, last)
+
+#### Customer-Level Compliance Details
+
+Get paginated detailed compliance information for each project.
+
+```http
+GET /api/customers/<customer-uuid>/project-metadata-compliance-details/
+Authorization: Token <token>
+```
+
+**Query Parameters:**
+
+- `page` - Page number (default: 1)
+- `page_size` - Number of projects per page (default: 10, max: 300)
+
+**Permissions Required:**
+
+- Customer owner
+- Customer support
+- Staff user
+
+**Response:**
+
+```json
+[
+  {
+    "project": {
+      "uuid": "project-uuid-1",
+      "name": "AI Research Project"
+    },
+    "completion": {
+      "uuid": "completion-uuid-1",
+      "is_completed": true,
+      "completion_percentage": 100.0,
+      "created": "2024-01-15T10:30:00Z",
+      "modified": "2024-01-15T15:45:00Z"
+    },
+    "answers": [
+      {
+        "question_uuid": "question-uuid-1",
+        "question_description": "Project purpose",
+        "answer_data": "Research project for AI development",
+        "user_name": "John Doe",
+        "created": "2024-01-15T14:20:00Z"
+      },
+      {
+        "question_uuid": "question-uuid-2",
+        "question_description": "Project category",
+        "answer_data": ["option-uuid-1"],
+        "user_name": "John Doe",
+        "created": "2024-01-15T14:25:00Z"
+      }
+    ],
+    "unanswered_required_questions": []
+  }
+]
+```
+
+**Response Headers:**
+
+- `X-Result-Count` - Total number of projects
+- `Link` - Pagination links (first, prev, next, last)
+
+### Performance Notes
+
+All customer-level compliance endpoints use database-level pagination for optimal performance:
+
+- **Efficient Data Loading**: Only retrieves data for the current page, not all records
+- **Bulk Operations**: Uses optimized database queries with `select_related()` and `prefetch_related()`
+- **Memory Efficient**: Handles large numbers of projects without memory issues
+- **Pagination Headers**: Returns `X-Result-Count` header with total count and `Link` header with navigation links
 
 ### Available Actions
 
@@ -345,6 +560,8 @@ When a customer has a project metadata checklist configured:
 3. **Validate Before Submit**: Validate answer formats client-side to reduce API errors
 4. **Show Progress**: Use completion_percentage to show users their progress
 5. **Cache Appropriately**: Checklist structure changes infrequently, status changes often
+6. **Use Customer-Level Endpoints**: For organizational dashboards, use customer-level compliance endpoints for efficient aggregated views
+7. **Leverage Pagination**: Take advantage of database-level pagination for large datasets with appropriate page sizes
 
 ### For Administrators
 
