@@ -758,15 +758,18 @@ class CustomerProjectMetadataComplianceDataAccuracyTest(test.APITransactionTestC
         project_details = data["project_details"]
         self.assertEqual(len(project_details), 5)
 
-        # Should be sorted by completion percentage (ascending - incomplete first)
+        # Should be sorted by project name (alphabetical order)
+        project_names = [detail["project_name"] for detail in project_details]
+        self.assertEqual(project_names, sorted(project_names))
+
+        # Verify completion percentages are included correctly
         completion_percentages = [
             detail["completion_percentage"] for detail in project_details
         ]
-        self.assertEqual(completion_percentages, sorted(completion_percentages))
-
-        # First two should have 0% (no completions)
-        self.assertEqual(completion_percentages[0], 0.0)
-        self.assertEqual(completion_percentages[1], 0.0)
-
-        # Last should be 100% (fully complete)
-        self.assertEqual(completion_percentages[-1], 100.0)
+        # Check that we have the expected percentages (not necessarily in order)
+        self.assertIn(100.0, completion_percentages)  # projects[0] - 3/3 answers
+        self.assertIn(66.7, completion_percentages)  # projects[1] - 2/3 answers
+        self.assertIn(33.3, completion_percentages)  # projects[2] - 1/3 answers
+        self.assertEqual(
+            completion_percentages.count(0.0), 2
+        )  # projects[3,4] - no answers
