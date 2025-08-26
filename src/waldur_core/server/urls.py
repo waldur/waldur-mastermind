@@ -13,6 +13,12 @@ from waldur_core.core.routers import SortedDefaultRouter as DefaultRouter
 from waldur_core.logging import urls as logging_urls
 from waldur_core.permissions import urls as permissions_urls
 from waldur_core.structure import urls as structure_urls
+from waldur_core.structure.views import (
+    CustomerProjectMetadataComplianceDetailsViewSet,
+    CustomerProjectMetadataComplianceOverviewViewSet,
+    CustomerProjectMetadataComplianceProjectsViewSet,
+    CustomerProjectMetadataQuestionAnswersViewSet,
+)
 from waldur_core.users import urls as users_urls
 from waldur_mastermind.marketplace.views import (
     ServiceProviderComplianceViewSet,
@@ -102,9 +108,32 @@ service_provider_router.register(
     basename="service-provider-compliance",
 )
 
+customer_router = NestedSimpleRouter(router, r"customers", lookup="customer")
+customer_router.register(
+    r"project-metadata-compliance-overview",
+    CustomerProjectMetadataComplianceOverviewViewSet,
+    basename="customer-project-metadata-compliance-overview",
+)
+customer_router.register(
+    r"project-metadata-compliance-details",
+    CustomerProjectMetadataComplianceDetailsViewSet,
+    basename="customer-project-metadata-compliance-details",
+)
+customer_router.register(
+    r"project-metadata-compliance-projects",
+    CustomerProjectMetadataComplianceProjectsViewSet,
+    basename="customer-project-metadata-compliance-projects",
+)
+customer_router.register(
+    r"project-metadata-question-answers",
+    CustomerProjectMetadataQuestionAnswersViewSet,
+    basename="customer-project-metadata-question-answers",
+)
+
 urlpatterns += [
     re_path(r"^api/", include(router.urls)),
     re_path(r"^api/", include(service_provider_router.urls)),
+    re_path(r"^api/", include(customer_router.urls)),
     re_path(r"^api/", include("waldur_core.logging.urls")),
     re_path(r"^api/", include("waldur_core.media.urls")),
     re_path(r"^api/", include("waldur_core.structure.urls")),

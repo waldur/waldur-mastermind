@@ -1658,3 +1658,291 @@ class ExternalLinkSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "url": {"lookup_field": "uuid", "view_name": "external-links-detail"},
         }
+
+
+class ChecklistInfoSerializer(serializers.Serializer):
+    """Serializer for checklist basic information."""
+
+    uuid = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    checklist_type = serializers.CharField(read_only=True)
+
+
+class ComplianceOverviewSerializer(serializers.Serializer):
+    """Serializer for project metadata compliance overview response."""
+
+    total_projects = serializers.IntegerField(read_only=True)
+    projects_with_completions = serializers.IntegerField(read_only=True)
+    fully_completed_projects = serializers.IntegerField(read_only=True)
+    projects_requiring_review = serializers.IntegerField(read_only=True)
+    average_completion_percentage = serializers.FloatField(read_only=True)
+
+
+class ProjectDetailSerializer(serializers.Serializer):
+    """Serializer for individual project compliance details."""
+
+    project_uuid = serializers.UUIDField(read_only=True)
+    project_name = serializers.CharField(read_only=True)
+    completion_percentage = serializers.FloatField(read_only=True)
+    is_completed = serializers.BooleanField(read_only=True)
+    requires_review = serializers.BooleanField(read_only=True)
+
+
+class ProjectDetailsResponseSerializer(serializers.Serializer):
+    """Serializer for project details response."""
+
+    checklist = ChecklistInfoSerializer(read_only=True)
+    total_projects = serializers.IntegerField(read_only=True)
+    projects_with_completions = serializers.IntegerField(read_only=True)
+    fully_completed_projects = serializers.IntegerField(read_only=True)
+    projects_requiring_review = serializers.IntegerField(read_only=True)
+    project_details = ProjectDetailSerializer(many=True, read_only=True)
+
+
+class ProjectAnswerSerializer(serializers.ModelSerializer):
+    """Serializer for project checklist answer details."""
+
+    project_uuid = serializers.UUIDField(source="uuid", read_only=True)
+    project_name = serializers.CharField(source="name", read_only=True)
+    completion_uuid = serializers.SerializerMethodField()
+    completion_percentage = serializers.SerializerMethodField()
+    is_completed = serializers.SerializerMethodField()
+    requires_review = serializers.SerializerMethodField()
+    answers_count = serializers.SerializerMethodField()
+    unanswered_required_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.Project
+        fields = [
+            "project_uuid",
+            "project_name",
+            "completion_uuid",
+            "completion_percentage",
+            "is_completed",
+            "requires_review",
+            "answers_count",
+            "unanswered_required_count",
+        ]
+
+    def _get_completion_data(self, project):
+        """Get or calculate completion data for project."""
+        # Use bulk-loaded completion data if available (most efficient)
+        serializer_class = self.__class__
+        if hasattr(serializer_class, "_bulk_completion_data"):
+            return serializer_class._bulk_completion_data.get(project.id)
+
+        # Fallback to individual queries (less efficient)
+        if not hasattr(self, "_completion_cache"):
+            self._completion_cache = {}
+
+        if project.id not in self._completion_cache:
+            checklist = self.context.get("checklist")
+            if not checklist:
+                self._completion_cache[project.id] = None
+                return None
+
+            # Import here to avoid circular imports
+            from django.contrib.contenttypes.models import ContentType
+
+            from waldur_core.checklist import models as checklist_models
+
+            content_type = ContentType.objects.get_for_model(models.Project)
+            try:
+                completion = checklist_models.ChecklistCompletion.objects.get(
+                    checklist=checklist,
+                    scope_content_type=content_type,
+                    scope_object_id=project.id,
+                )
+                self._completion_cache[project.id] = completion
+            except checklist_models.ChecklistCompletion.DoesNotExist:
+                self._completion_cache[project.id] = None
+
+        return self._completion_cache[project.id]
+
+    def get_completion_uuid(self, project) -> str | None:
+        """Get completion UUID."""
+        completion = self._get_completion_data(project)
+        return completion.uuid.hex if completion else None
+
+    def get_completion_percentage(self, project) -> float:
+        """Get completion percentage."""
+        completion = self._get_completion_data(project)
+        return completion.get_completion_percentage() if completion else 0.0
+
+    def get_is_completed(self, project) -> bool:
+        """Get completion status."""
+        completion = self._get_completion_data(project)
+        return completion.is_completed if completion else False
+
+    def get_requires_review(self, project) -> bool:
+        """Get review requirement status."""
+        completion = self._get_completion_data(project)
+        return completion.requires_review if completion else False
+
+    def get_answers_count(self, project) -> int:
+        """Get count of answers."""
+        completion = self._get_completion_data(project)
+        if completion:
+            return completion.answers.count()
+        return 0
+
+    def get_unanswered_required_count(self, project) -> int:
+        """Get count of unanswered required questions."""
+        checklist = self.context.get("checklist")
+        if not checklist:
+            return 0
+
+        completion = self._get_completion_data(project)
+        total_required = checklist.questions.filter(required=True).count()
+
+        if completion:
+            answered_required = completion.answers.filter(
+                question__required=True
+            ).count()
+            return max(0, total_required - answered_required)
+        else:
+            return total_required
+
+
+class ProjectAnswerDetailSerializer(serializers.Serializer):
+    """Serializer for individual project answers within a question."""
+
+    project_uuid = serializers.UUIDField(read_only=True)
+    project_name = serializers.CharField(read_only=True)
+    answer_uuid = serializers.UUIDField(read_only=True, allow_null=True)
+    answer_data = serializers.JSONField(read_only=True, allow_null=True)
+    answered_by = serializers.CharField(read_only=True, allow_null=True)
+    answered_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    requires_review = serializers.BooleanField(read_only=True)
+
+
+class QuestionAnswerSerializer(serializers.ModelSerializer):
+    """Serializer for question with all project answers."""
+
+    question_uuid = serializers.UUIDField(source="uuid", read_only=True)
+    question_description = serializers.CharField(source="description", read_only=True)
+    question_type = serializers.CharField(read_only=True)
+    required = serializers.BooleanField(read_only=True)
+    order = serializers.IntegerField(read_only=True)
+    total_projects = serializers.SerializerMethodField()
+    answered_projects_count = serializers.SerializerMethodField()
+    project_answers = serializers.SerializerMethodField()
+
+    class Meta:
+        # Import here to avoid circular imports
+        from waldur_core.checklist.models import Question
+
+        model = Question
+        fields = [
+            "question_uuid",
+            "question_description",
+            "question_type",
+            "required",
+            "order",
+            "total_projects",
+            "answered_projects_count",
+            "project_answers",
+        ]
+
+    def _get_projects_and_answers_data(self, question):
+        """Get or calculate project and answer data for this question."""
+        # Use bulk-loaded data if available (most efficient)
+        serializer_class = self.__class__
+        if hasattr(serializer_class, "_bulk_question_data"):
+            return serializer_class._bulk_question_data.get(
+                question.id,
+                {
+                    "projects": [],
+                    "answers_by_project": {},
+                    "total_projects": 0,
+                    "answered_projects_count": 0,
+                },
+            )
+
+        # Fallback to individual queries (less efficient)
+        customer = self.context.get("customer")
+        if not customer:
+            return {
+                "projects": [],
+                "answers_by_project": {},
+                "total_projects": 0,
+                "answered_projects_count": 0,
+            }
+
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.checklist.models import Answer
+        from waldur_core.structure import models
+
+        # Get all projects for the customer
+        projects = list(
+            models.Project.objects.filter(customer=customer).order_by("name")
+        )
+        project_ct = ContentType.objects.get_for_model(models.Project)
+
+        # Get answers for this question across all projects
+        answers = Answer.objects.filter(
+            question=question,
+            completion__scope_content_type=project_ct,
+            completion__scope_object_id__in=[p.id for p in projects],
+        ).select_related("user", "completion")
+
+        # Create mapping of project_id -> answer
+        answers_by_project = {
+            answer.completion.scope_object_id: answer for answer in answers
+        }
+
+        return {
+            "projects": projects,
+            "answers_by_project": answers_by_project,
+            "total_projects": len(projects),
+            "answered_projects_count": len(answers_by_project),
+        }
+
+    def get_total_projects(self, question) -> int:
+        """Get total projects count."""
+        data = self._get_projects_and_answers_data(question)
+        return data["total_projects"]
+
+    def get_answered_projects_count(self, question) -> int:
+        """Get count of projects that answered this question."""
+        data = self._get_projects_and_answers_data(question)
+        return data["answered_projects_count"]
+
+    def get_project_answers(self, question) -> list[dict]:
+        """Get all project answers for this question."""
+        data = self._get_projects_and_answers_data(question)
+        projects = data["projects"]
+        answers_by_project = data["answers_by_project"]
+
+        project_answers = []
+
+        for project in projects:
+            answer = answers_by_project.get(project.id)
+            if answer:
+                project_answers.append(
+                    {
+                        "project_uuid": project.uuid.hex,
+                        "project_name": project.name,
+                        "answer_uuid": answer.uuid.hex,
+                        "answer_data": answer.answer_data,
+                        "answered_by": answer.user.full_name if answer.user else None,
+                        "answered_at": answer.created,
+                        "requires_review": answer.requires_review,
+                    }
+                )
+            else:
+                # No answer for this project
+                project_answers.append(
+                    {
+                        "project_uuid": project.uuid.hex,
+                        "project_name": project.name,
+                        "answer_uuid": None,
+                        "answer_data": None,
+                        "answered_by": None,
+                        "answered_at": None,
+                        "requires_review": False,
+                    }
+                )
+
+        return project_answers
