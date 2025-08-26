@@ -53,7 +53,10 @@ DATABASES = {
         "USER": env.get("POSTGRESQL_USER", "waldur"),
         "PASSWORD": env.get("POSTGRESQL_PASSWORD", "waldur"),
     },
-    "readonly": {
+}
+
+if env.get("POSTGRESQL_READONLY_USER"):
+    DATABASES["readonly"] = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": env.get("POSTGRESQL_NAME", "waldur"),
         "HOST": env.get("POSTGRESQL_HOST", "localhost"),
@@ -63,8 +66,7 @@ DATABASES = {
         "OPTIONS": {
             "target_session_attrs": "read-only",
         },
-    },
-}
+    }
 
 CELERY_RESULT_BACKEND = f"db+postgresql+psycopg://{DATABASES['default']['USER']}:{DATABASES['default']['PASSWORD']}@{DATABASES['default']['HOST']}:{DATABASES['default']['PORT']}/{DATABASES['default']['NAME']}"
 
