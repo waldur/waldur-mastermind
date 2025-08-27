@@ -773,3 +773,527 @@ class CustomerProjectMetadataComplianceDataAccuracyTest(test.APITransactionTestC
         self.assertEqual(
             completion_percentages.count(0.0), 2
         )  # projects[3,4] - no answers
+
+    def test_question_options_and_answer_labels_for_select_questions(self):
+        """Test that question_options and answer_labels are included for select-type questions."""
+        # Create a single_select question with options
+        select_question = checklist_factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Select project category",
+            question_type="single_select",
+            required=True,
+            order=3,
+        )
+
+        # Create options for the select question
+        option1 = checklist_factories.QuestionOptionFactory(
+            question=select_question,
+            label="Research Project",
+            order=1,
+        )
+        checklist_factories.QuestionOptionFactory(
+            question=select_question,
+            label="Development Project",
+            order=2,
+        )
+
+        # Create completion with select answer
+        project_ct = ContentType.objects.get_for_model(self.projects[0])
+        completion, _ = ChecklistCompletion.objects.get_or_create(
+            checklist=self.checklist,
+            scope_content_type=project_ct,
+            scope_object_id=self.projects[0].id,
+        )
+
+        # Answer the select question
+        checklist_factories.AnswerFactory(
+            completion=completion,
+            question=select_question,
+            user=self.fixture.owner,
+            answer_data=[
+                str(option1.uuid)
+            ],  # Single select answers are lists with one UUID
+        )
+
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.get(
+            f"/api/customers/{self.customer.uuid.hex}/project-metadata-question-answers/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+
+        # Find the select question in response
+        select_question_data = None
+        for question_data in data:
+            if question_data["question_description"] == "Select project category":
+                select_question_data = question_data
+                break
+
+        self.assertIsNotNone(select_question_data)
+
+        # Test question_options field
+        self.assertIn("question_options", select_question_data)
+        question_options = select_question_data["question_options"]
+        self.assertEqual(len(question_options), 2)
+
+        # Verify options are correctly formatted
+        option_labels = [opt["label"] for opt in question_options]
+        self.assertIn("Research Project", option_labels)
+        self.assertIn("Development Project", option_labels)
+
+        # Test answer_labels field in project_answers
+        project_answers = select_question_data["project_answers"]
+        answered_project = None
+        for proj_answer in project_answers:
+            if proj_answer["answer_data"] is not None:
+                answered_project = proj_answer
+                break
+
+        self.assertIsNotNone(answered_project)
+        self.assertIn("answer_labels", answered_project)
+
+        # Verify answer_labels contains the human-readable label instead of UUID
+        self.assertEqual(answered_project["answer_labels"], "Research Project")
+        # Verify answer_data still contains the original UUID data
+        self.assertEqual(answered_project["answer_data"], [str(option1.uuid)])
+
+    def test_multi_select_question_options_and_answer_labels(self):
+        """Test question_options and answer_labels work correctly for multi_select questions."""
+        # Create a multi_select question with options
+        multi_question = checklist_factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Select applicable technologies",
+            question_type="multi_select",
+            required=False,
+            order=4,
+        )
+
+        # Create options
+        option1 = checklist_factories.QuestionOptionFactory(
+            question=multi_question,
+            label="Python",
+            order=1,
+        )
+        checklist_factories.QuestionOptionFactory(
+            question=multi_question,
+            label="Django",
+            order=2,
+        )
+        option3 = checklist_factories.QuestionOptionFactory(
+            question=multi_question,
+            label="PostgreSQL",
+            order=3,
+        )
+
+        # Create completion with multi-select answer
+        project_ct = ContentType.objects.get_for_model(self.projects[0])
+        completion, _ = ChecklistCompletion.objects.get_or_create(
+            checklist=self.checklist,
+            scope_content_type=project_ct,
+            scope_object_id=self.projects[0].id,
+        )
+
+        # Answer with multiple selections
+        checklist_factories.AnswerFactory(
+            completion=completion,
+            question=multi_question,
+            user=self.fixture.owner,
+            answer_data=[str(option1.uuid), str(option3.uuid)],  # Multiple selections
+        )
+
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.get(
+            f"/api/customers/{self.customer.uuid.hex}/project-metadata-question-answers/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+
+        # Find the multi-select question in response
+        multi_question_data = None
+        for question_data in data:
+            if (
+                question_data["question_description"]
+                == "Select applicable technologies"
+            ):
+                multi_question_data = question_data
+                break
+
+        self.assertIsNotNone(multi_question_data)
+
+        # Test question_options field
+        self.assertIn("question_options", multi_question_data)
+        question_options = multi_question_data["question_options"]
+        self.assertEqual(len(question_options), 3)
+
+        # Verify options include all 3 options
+        option_labels = [opt["label"] for opt in question_options]
+        self.assertEqual(set(option_labels), {"Python", "Django", "PostgreSQL"})
+
+        # Test answer_labels field in project_answers
+        project_answers = multi_question_data["project_answers"]
+        answered_project = None
+        for proj_answer in project_answers:
+            if proj_answer["answer_data"] is not None:
+                answered_project = proj_answer
+                break
+
+        self.assertIsNotNone(answered_project)
+        self.assertIn("answer_labels", answered_project)
+
+        # Verify answer_labels contains the human-readable labels
+        expected_labels = ["Python", "PostgreSQL"]  # Labels for option1 and option3
+        self.assertEqual(set(answered_project["answer_labels"]), set(expected_labels))
+        # Verify answer_data still contains the original UUID data
+        expected_uuids = [str(option1.uuid), str(option3.uuid)]
+        self.assertEqual(set(answered_project["answer_data"]), set(expected_uuids))
+
+
+class CustomerProjectMetadataComplianceDetailsEnhancementTest(
+    test.APITransactionTestCase
+):
+    """Test enhanced compliance details with question_options and answer_labels."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.staff = self.fixture.staff
+
+        # Create compliance checklist with select questions
+        self.checklist = checklist_factories.ChecklistFactory(
+            name="Test Compliance Checklist",
+            checklist_type=ChecklistTypes.PROJECT_METADATA,
+        )
+
+        # Create single_select question with options
+        self.single_select_question = checklist_factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Project category",
+            question_type="single_select",
+            required=True,
+            order=1,
+        )
+
+        self.ss_option1 = checklist_factories.QuestionOptionFactory(
+            question=self.single_select_question, label="Research", order=1
+        )
+        self.ss_option2 = checklist_factories.QuestionOptionFactory(
+            question=self.single_select_question, label="Development", order=2
+        )
+
+        # Create multi_select question with options
+        self.multi_select_question = checklist_factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Project technologies",
+            question_type="multi_select",
+            required=False,
+            order=2,
+        )
+
+        self.ms_option1 = checklist_factories.QuestionOptionFactory(
+            question=self.multi_select_question, label="Python", order=1
+        )
+        self.ms_option2 = checklist_factories.QuestionOptionFactory(
+            question=self.multi_select_question, label="Django", order=2
+        )
+        self.ms_option3 = checklist_factories.QuestionOptionFactory(
+            question=self.multi_select_question, label="PostgreSQL", order=3
+        )
+
+        # Assign checklist to customer
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+
+        # Create additional project
+        self.project2 = structure_factories.ProjectFactory(customer=self.customer)
+
+        # Create completion for first project
+        content_type = ContentType.objects.get_for_model(self.fixture.project.__class__)
+        self.completion1, created = ChecklistCompletion.objects.get_or_create(
+            checklist=self.checklist,
+            scope_content_type=content_type,
+            scope_object_id=self.fixture.project.id,
+        )
+
+        # Create answers for first project
+        self.answer1 = checklist_factories.AnswerFactory(
+            completion=self.completion1,
+            question=self.single_select_question,
+            user=self.fixture.owner,
+            answer_data=[str(self.ss_option1.uuid)],
+        )
+
+        self.answer2 = checklist_factories.AnswerFactory(
+            completion=self.completion1,
+            question=self.multi_select_question,
+            user=self.fixture.owner,
+            answer_data=[str(self.ms_option1.uuid), str(self.ms_option2.uuid)],
+        )
+
+        # Create completion for second project with different answers
+        self.completion2, created = ChecklistCompletion.objects.get_or_create(
+            checklist=self.checklist,
+            scope_content_type=content_type,
+            scope_object_id=self.project2.id,
+        )
+
+        self.answer3 = checklist_factories.AnswerFactory(
+            completion=self.completion2,
+            question=self.single_select_question,
+            user=self.fixture.owner,
+            answer_data=[str(self.ss_option2.uuid)],
+        )
+
+    def test_compliance_details_includes_question_options_and_answer_labels(self):
+        """Test that compliance details endpoint includes question_options and answer_labels."""
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.get(
+            f"/api/customers/{self.customer.uuid.hex}/project-metadata-compliance-details/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check structure
+        data = response.data
+        self.assertIn("project_details", data)
+
+        project_details = data["project_details"]
+        self.assertEqual(len(project_details), 2)  # Two projects
+
+        # Check first project with answers
+        project1_detail = next(
+            p
+            for p in project_details
+            if p["project_uuid"] == str(self.fixture.project.uuid)
+        )
+        self.assertIn("answers", project1_detail)
+        self.assertEqual(len(project1_detail["answers"]), 2)  # Two answers
+
+        # Check single_select answer
+        ss_answer = next(
+            a
+            for a in project1_detail["answers"]
+            if a["question_uuid"] == str(self.single_select_question.uuid)
+        )
+
+        # Verify question_options are present
+        self.assertIn("question_options", ss_answer)
+        self.assertEqual(len(ss_answer["question_options"]), 2)
+        self.assertEqual(ss_answer["question_options"][0]["label"], "Research")
+        self.assertEqual(ss_answer["question_options"][1]["label"], "Development")
+
+        # Verify answer_labels for single_select
+        self.assertIn("answer_labels", ss_answer)
+        self.assertEqual(ss_answer["answer_labels"], "Research")
+
+        # Check multi_select answer
+        ms_answer = next(
+            a
+            for a in project1_detail["answers"]
+            if a["question_uuid"] == str(self.multi_select_question.uuid)
+        )
+
+        # Verify question_options are present
+        self.assertIn("question_options", ms_answer)
+        self.assertEqual(len(ms_answer["question_options"]), 3)
+
+        # Verify answer_labels for multi_select
+        self.assertIn("answer_labels", ms_answer)
+        self.assertEqual(ms_answer["answer_labels"], ["Python", "Django"])
+
+        # Check second project
+        project2_detail = next(
+            p for p in project_details if p["project_uuid"] == str(self.project2.uuid)
+        )
+        self.assertEqual(len(project2_detail["answers"]), 1)  # One answer
+
+        ss_answer2 = project2_detail["answers"][0]
+        self.assertEqual(ss_answer2["answer_labels"], "Development")
+
+    def test_compliance_details_query_optimization(self):
+        """Test that compliance details endpoint is optimized for queries."""
+        from django.db import connection
+        from django.test import override_settings
+
+        self.client.force_authenticate(user=self.staff)
+
+        with override_settings(DEBUG=True):
+            connection.queries_log.clear()
+
+            response = self.client.get(
+                f"/api/customers/{self.customer.uuid.hex}/project-metadata-compliance-details/"
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            # Filter out framework queries
+            business_queries = []
+            for query in connection.queries:
+                sql = query["sql"]
+                if any(
+                    skip_pattern in sql.lower()
+                    for skip_pattern in [
+                        "constance_config",
+                        "django_migrations",
+                        "django_session",
+                    ]
+                ):
+                    continue
+                business_queries.append(query)
+
+            query_count = len(business_queries)
+
+            # Should be reasonable with prefetch_related optimizations
+            # (this endpoint is more complex than question-answers as it includes statistics)
+            self.assertLess(
+                query_count,
+                30,
+                f"Business logic query count {query_count} is too high. Expected < 30 queries.",
+            )
+
+
+class CustomerProjectMetadataComplianceQueryOptimizationTest(
+    test.APITransactionTestCase
+):
+    """Test query optimization for CustomerProjectMetadataQuestionAnswersViewSet."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.staff = self.fixture.staff
+
+        # Create multiple projects for testing N+1 queries
+        self.projects = [self.fixture.project]
+        for i in range(9):  # Total 10 projects
+            self.projects.append(
+                structure_factories.ProjectFactory(customer=self.customer)
+            )
+
+        # Create checklist with multiple select-type questions
+        self.checklist = checklist_factories.ChecklistFactory(
+            name="Query Optimization Test Checklist",
+            checklist_type=ChecklistTypes.PROJECT_METADATA,
+        )
+
+        # Create multiple questions with options to stress test
+        self.questions = []
+        for q_num in range(5):  # 5 questions
+            question = checklist_factories.QuestionFactory(
+                checklist=self.checklist,
+                description=f"Select question {q_num + 1}",
+                question_type="single_select" if q_num % 2 == 0 else "multi_select",
+                required=True,
+                order=q_num + 1,
+            )
+            self.questions.append(question)
+
+            # Create 3 options per question
+            for opt_num in range(3):
+                checklist_factories.QuestionOptionFactory(
+                    question=question,
+                    label=f"Option {opt_num + 1} for Q{q_num + 1}",
+                    order=opt_num + 1,
+                )
+
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+
+        # Create answers for testing
+        project_ct = ContentType.objects.get_for_model(self.fixture.project)
+        for i, project in enumerate(
+            self.projects[:5]
+        ):  # Only some projects have answers
+            completion, _ = ChecklistCompletion.objects.get_or_create(
+                checklist=self.checklist,
+                scope_content_type=project_ct,
+                scope_object_id=project.id,
+            )
+
+            for j, question in enumerate(self.questions):
+                if (i + j) % 2 == 0:  # Some answers for testing
+                    option = question.question_options.first()
+                    if option:
+                        checklist_factories.AnswerFactory(
+                            completion=completion,
+                            question=question,
+                            user=self.fixture.owner,
+                            answer_data=[str(option.uuid)],
+                        )
+
+    def test_query_count_is_optimized(self):
+        """Test that query count is optimized and doesn't have N+1 issues."""
+        from django.db import connection
+        from django.test import override_settings
+
+        self.client.force_authenticate(user=self.staff)
+
+        with override_settings(DEBUG=True):
+            connection.queries_log.clear()
+
+            response = self.client.get(
+                f"/api/customers/{self.customer.uuid.hex}/project-metadata-question-answers/"
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            # Filter out setup and framework queries to focus on business logic
+            business_queries = []
+            for query in connection.queries:
+                sql = query["sql"]
+                # Skip constance config, migrations, and other framework queries
+                if any(
+                    skip_pattern in sql.lower()
+                    for skip_pattern in [
+                        "constance_config",
+                        "django_migrations",
+                        "django_content_type",
+                        "django_session",
+                    ]
+                ):
+                    continue
+                business_queries.append(query)
+
+            query_count = len(business_queries)
+
+            # Expected business logic queries:
+            # 1. Get customer (structure_customer)
+            # 2. Get questions with prefetched question_options (checklist_question + checklist_questionoption)
+            # 3. Get projects (structure_project)
+            # 4. Get ContentType for ChecklistCompletion
+            # 5. Get answers in bulk (checklist_answer + checklist_checklistcompletion + core_user)
+            # Total: ~6-8 core business queries (instead of 60+ without optimization)
+
+            self.assertLess(
+                query_count,
+                15,
+                f"Business logic query count {query_count} is too high. Expected < 15 queries. "
+                f"Business queries: {[q['sql'] for q in business_queries]}",
+            )
+
+            # Verify we get the expected data
+            data = response.data
+            self.assertEqual(len(data), 5)  # 5 questions
+
+            # Verify question_options are present
+            for question_data in data:
+                self.assertIn("question_options", question_data)
+                self.assertEqual(
+                    len(question_data["question_options"]), 3
+                )  # 3 options per question
+
+            # Verify answer_labels are present for answers
+            answered_questions = [
+                q
+                for q in data
+                if any(pa["answer_data"] is not None for pa in q["project_answers"])
+            ]
+            self.assertGreater(len(answered_questions), 0)
+
+            for question_data in answered_questions:
+                for project_answer in question_data["project_answers"]:
+                    if project_answer["answer_data"] is not None:
+                        self.assertIn("answer_labels", project_answer)
+                        self.assertIsNotNone(project_answer["answer_labels"])

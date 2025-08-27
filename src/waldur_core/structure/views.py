@@ -1408,7 +1408,7 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
                 checklist=checklist,
                 scope_content_type=content_type,
                 scope_object_id__in=project_ids,
-            )
+            ).prefetch_related("answers__question__question_options", "answers__user")
 
             # Attach completion data to projects
             completion_map = {
@@ -1419,6 +1419,52 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
 
     def _build_project_details(self, projects):
         """Build project details for the given projects."""
+        customer = self.get_customer()
+        checklist = customer.project_metadata_checklist
+
+        # Get all questions with prefetched options for efficiency
+        questions = list(
+            checklist.questions.prefetch_related("question_options").order_by("order")
+        )
+
+        # Build question options map for all questions upfront
+        question_options_map = {}
+        question_data_map = {}
+
+        for question in questions:
+            # Store question data for quick access
+            question_options = []
+            options_map = {}
+
+            if question.question_type in ["single_select", "multi_select"]:
+                options = list(question.question_options.all())
+                sorted_options = sorted(options, key=lambda opt: opt.order)
+
+                # Build options list for API response
+                question_options = [
+                    {
+                        "uuid": str(option.uuid),
+                        "label": option.label,
+                        "order": option.order,
+                    }
+                    for option in sorted_options
+                ]
+
+                # Build options mapping for label conversion
+                options_map = {
+                    str(option.uuid): option.label for option in sorted_options
+                }
+
+            question_data_map[question.id] = {
+                "uuid": str(question.uuid),
+                "description": question.description,
+                "question_type": question.question_type,
+                "required": question.required,
+                "question_options": question_options,
+                "options_map": options_map,
+            }
+            question_options_map[question.id] = options_map
+
         project_details = []
 
         for project in projects:
@@ -1429,11 +1475,72 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
                 is_completed = completion.is_completed
                 requires_review = completion.requires_review
                 completion_uuid = completion.uuid.hex
+
+                # Build answers with pre-computed data
+                answers = []
+                answered_question_ids = set()
+
+                for answer in completion.answers.all():
+                    question_id = answer.question_id
+                    answered_question_ids.add(question_id)
+
+                    # Get pre-computed question data
+                    question_data = question_data_map[question_id]
+
+                    # Get answer labels for select-type questions
+                    answer_labels = None
+                    if question_data["question_type"] in [
+                        "single_select",
+                        "multi_select",
+                    ]:
+                        options_map = question_data["options_map"]
+                        answer_labels = self._get_answer_labels_for_compliance(
+                            question_data["question_type"],
+                            answer.answer_data,
+                            options_map,
+                        )
+
+                    answers.append(
+                        {
+                            "question_uuid": question_data["uuid"],
+                            "question_description": question_data["description"],
+                            "question_type": question_data["question_type"],
+                            "question_options": question_data["question_options"],
+                            "answer_data": answer.answer_data,
+                            "answer_labels": answer_labels,
+                            "user_name": answer.user.full_name or answer.user.username,
+                            "created": answer.created.isoformat(),
+                            "modified": answer.modified.isoformat(),
+                        }
+                    )
+
+                # Get unanswered required questions
+                unanswered_required = [
+                    {
+                        "uuid": question_data["uuid"],
+                        "description": question_data["description"],
+                        "question_type": question_data["question_type"],
+                    }
+                    for question_id, question_data in question_data_map.items()
+                    if question_data["required"]
+                    and question_id not in answered_question_ids
+                ]
             else:
                 completion_percentage = 0.0
                 is_completed = False
                 requires_review = False
                 completion_uuid = None
+                answers = []
+                # All required questions are unanswered if no completion
+                unanswered_required = [
+                    {
+                        "uuid": question_data["uuid"],
+                        "description": question_data["description"],
+                        "question_type": question_data["question_type"],
+                    }
+                    for question_data in question_data_map.values()
+                    if question_data["required"]
+                ]
 
             project_details.append(
                 {
@@ -1443,10 +1550,30 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
                     "completion_percentage": completion_percentage,
                     "is_completed": is_completed,
                     "requires_review": requires_review,
+                    "answers": answers,
+                    "unanswered_required_questions": unanswered_required,
                 }
             )
 
         return project_details
+
+    def _get_answer_labels_for_compliance(
+        self, question_type, answer_data, options_map
+    ):
+        """Convert answer data UUIDs to human-readable labels for compliance details."""
+        if not answer_data or not options_map:
+            return None
+
+        if (
+            question_type == "single_select"
+            and isinstance(answer_data, list)
+            and len(answer_data) > 0
+        ):
+            return options_map.get(answer_data[0], answer_data[0])
+        elif question_type == "multi_select" and isinstance(answer_data, list):
+            return [options_map.get(uuid, uuid) for uuid in answer_data]
+
+        return None
 
 
 @extend_schema(
@@ -1608,9 +1735,11 @@ class CustomerProjectMetadataQuestionAnswersViewSet(
         if not customer.project_metadata_checklist:
             return []
 
-        return Question.objects.filter(
-            checklist=customer.project_metadata_checklist
-        ).order_by("order")
+        return (
+            Question.objects.filter(checklist=customer.project_metadata_checklist)
+            .prefetch_related("question_options")
+            .order_by("order")
+        )
 
     def get_serializer_context(self):
         """Add customer to serializer context for efficient data loading."""
@@ -1687,11 +1816,22 @@ class CustomerProjectMetadataQuestionAnswersViewSet(
         question_data_map = {}
         for question in questions:
             answers_by_project = answers_by_question.get(question.id, {})
+
+            # Pre-build option UUID to label mapping for this question
+            options_map = {}
+            if question.question_type in ["single_select", "multi_select"]:
+                # question_options is already prefetched
+                options_map = {
+                    str(option.uuid): option.label
+                    for option in question.question_options.all()
+                }
+
             question_data_map[question.id] = {
                 "projects": projects,
                 "answers_by_project": answers_by_project,
                 "total_projects": len(projects),
                 "answered_projects_count": len(answers_by_project),
+                "options_map": options_map,  # Pre-computed for efficiency
             }
 
         # Attach bulk data to serializer class for efficient access

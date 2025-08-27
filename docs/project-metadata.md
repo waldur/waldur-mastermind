@@ -190,11 +190,13 @@ Authorization: Token <token>
     "question_type": "text_area",
     "required": true,
     "order": 1,
+    "question_options": [],
     "projects_with_answers": [
       {
         "project_uuid": "project-uuid-1",
         "project_name": "AI Research Project",
         "answer_data": "Research project for AI development",
+        "answer_labels": null,
         "user_name": "John Doe",
         "created": "2024-01-15T14:20:00Z",
         "modified": "2024-01-15T14:20:00Z"
@@ -203,9 +205,40 @@ Authorization: Token <token>
         "project_uuid": "project-uuid-2",
         "project_name": "Development Project",
         "answer_data": "Software development project",
+        "answer_labels": null,
         "user_name": "Jane Smith",
         "created": "2024-01-16T10:30:00Z",
         "modified": "2024-01-16T10:30:00Z"
+      }
+    ]
+  },
+  {
+    "uuid": "question-uuid-2",
+    "description": "Project category",
+    "question_type": "single_select",
+    "required": false,
+    "order": 2,
+    "question_options": [
+      {
+        "uuid": "option-uuid-1",
+        "label": "Research",
+        "order": 1
+      },
+      {
+        "uuid": "option-uuid-2",
+        "label": "Development",
+        "order": 2
+      }
+    ],
+    "projects_with_answers": [
+      {
+        "project_uuid": "project-uuid-1",
+        "project_name": "AI Research Project",
+        "answer_data": ["option-uuid-1"],
+        "answer_labels": "Research",
+        "user_name": "John Doe",
+        "created": "2024-01-15T14:25:00Z",
+        "modified": "2024-01-15T14:25:00Z"
       }
     ]
   }
@@ -216,6 +249,16 @@ Authorization: Token <token>
 
 - `X-Result-Count` - Total number of questions
 - `Link` - Pagination links (first, prev, next, last)
+
+**Enhanced Fields:**
+
+Each question and its answers now include additional metadata for better usability:
+
+- `question_options` - Available options for select-type questions (single_select, multi_select), empty array for other types
+- `answer_labels` - Human-readable labels for select-type answers:
+  - For `single_select`: String with the selected option label
+  - For `multi_select`: Array of strings with selected option labels
+  - For other question types: `null`
 
 #### Customer-Level Compliance Details
 
@@ -257,16 +300,35 @@ Authorization: Token <token>
       {
         "question_uuid": "question-uuid-1",
         "question_description": "Project purpose",
+        "question_type": "text_area",
+        "question_options": [],
         "answer_data": "Research project for AI development",
+        "answer_labels": null,
         "user_name": "John Doe",
-        "created": "2024-01-15T14:20:00Z"
+        "created": "2024-01-15T14:20:00Z",
+        "modified": "2024-01-15T14:20:00Z"
       },
       {
         "question_uuid": "question-uuid-2",
         "question_description": "Project category",
+        "question_type": "single_select",
+        "question_options": [
+          {
+            "uuid": "option-uuid-1",
+            "label": "Research",
+            "order": 1
+          },
+          {
+            "uuid": "option-uuid-2",
+            "label": "Development",
+            "order": 2
+          }
+        ],
         "answer_data": ["option-uuid-1"],
+        "answer_labels": "Research",
         "user_name": "John Doe",
-        "created": "2024-01-15T14:25:00Z"
+        "created": "2024-01-15T14:25:00Z",
+        "modified": "2024-01-15T14:25:00Z"
       }
     ],
     "unanswered_required_questions": []
@@ -278,6 +340,18 @@ Authorization: Token <token>
 
 - `X-Result-Count` - Total number of projects
 - `Link` - Pagination links (first, prev, next, last)
+
+**Answer Fields Description:**
+
+Each answer in the response includes both machine-readable and human-readable data:
+
+- `question_type` - The type of question (text_input, text_area, boolean, number, single_select, multi_select)
+- `question_options` - Available options for select-type questions, empty array for other types
+- `answer_data` - The raw answer data (UUIDs for select questions, direct values for others)
+- `answer_labels` - Human-readable labels converted from UUIDs:
+  - For `single_select`: String with the selected option label
+  - For `multi_select`: Array of strings with selected option labels
+  - For other question types: `null`
 
 ### Performance Notes
 
@@ -562,6 +636,10 @@ When a customer has a project metadata checklist configured:
 5. **Cache Appropriately**: Checklist structure changes infrequently, status changes often
 6. **Use Customer-Level Endpoints**: For organizational dashboards, use customer-level compliance endpoints for efficient aggregated views
 7. **Leverage Pagination**: Take advantage of database-level pagination for large datasets with appropriate page sizes
+8. **Use Enhanced Fields**: Take advantage of `question_options` and `answer_labels` for better user experience:
+  - Display `question_options` to show available choices for select questions
+  - Use `answer_labels` for human-readable display while keeping `answer_data` for form submissions
+  - Both fields are optimized to avoid N+1 query issues
 
 ### For Administrators
 
