@@ -320,6 +320,8 @@ class ActionTest(test.APITransactionTestCase):
         self.assertIn(f"Previous state: {ProposalStates.IN_REVIEW}", body)
         self.assertIn(f"New state: {ProposalStates.ACCEPTED}", body)
         self.assertIn(f"View Project: {project_url}", body)
+        for requested_resource in self.proposal.requestedresource_set.all():
+            self.assertIn(requested_resource.resource.name, body)
 
     def test_set_project_start_date_if_proposal_has_been_approved(self):
         self.client.force_authenticate(self.fixture.staff)

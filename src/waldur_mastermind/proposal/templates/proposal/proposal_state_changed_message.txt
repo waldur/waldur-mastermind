@@ -11,6 +11,13 @@ State change:
 Project created: {{ project_name }}
 Allocation start date: {{ allocation_date }}
 Duration: {{ duration }} days
+
+Allocated resources:
+{% for resource in allocated_resources %}
+{{ forloop.counter }}. {{ resource.name }} - {{ resource.provider_name }} - {{ resource.plan_name }} - Provisioned
+{% empty %}
+No resources allocated yet.
+{% endfor %}
 {% endif %}
 
 {% if new_state == 'rejected' %}

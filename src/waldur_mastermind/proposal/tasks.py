@@ -8,6 +8,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.permissions import _get_customer
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal import utils
 from waldur_mastermind.proposal.enums import CallStates, ProposalStates
@@ -119,12 +120,27 @@ def notify_user_about_proposal_state_update(proposal_uuid, previous_state, new_s
         proposal_uuid=proposal.uuid,
     )
     project_link = None
+    allocated_resources = None
     if new_state == ProposalStates.ACCEPTED:
         try:
             project_link = core_utils.format_homeport_link(
                 "projects/{project_uuid}/",
                 project_uuid=proposal.project.uuid,  # type: ignore
             )
+            resources = marketplace_models.Resource.objects.filter(
+                project=proposal.project
+            ).select_related("offering", "plan")
+
+            allocated_resources = [
+                {
+                    "name": resource.name,
+                    "provider_name": resource.offering.customer.name
+                    if resource.offering.customer
+                    else "N/A",
+                    "plan_name": resource.plan.name if resource.plan else "Default",
+                }
+                for resource in resources
+            ]
         except AttributeError:
             pass
 
@@ -144,6 +160,9 @@ def notify_user_about_proposal_state_update(proposal_uuid, previous_state, new_s
         "duration": proposal.duration_in_days,
         "rejection_feedback": proposal.allocation_comment,
         "review_period": proposal.round.review_duration_in_days,
+        "allocated_resources": allocated_resources
+        if new_state == ProposalStates.ACCEPTED
+        else None,
     }
 
     core_utils.broadcast_mail(
