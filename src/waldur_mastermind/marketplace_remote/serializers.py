@@ -5,6 +5,13 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
+from waldur_mastermind.marketplace.enums import (
+    OrderStates,
+    OrderStatesType,
+    RemoteResourceSyncStatus,
+    ResourceStates,
+    ResourceStatesType,
+)
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, constants, models
 
 
@@ -262,3 +269,61 @@ class RemoteOfferingSerializer(serializers.Serializer):
     type = serializers.CharField(read_only=True)
     state = serializers.CharField(read_only=True)
     category_title = serializers.CharField(read_only=True)
+
+
+class RemoteResourceSyncStatusSerializer(serializers.Serializer):
+    """Serializer for remote resource sync status"""
+
+    local_state = serializers.SerializerMethodField(
+        read_only=True, help_text="Local resource state"
+    )
+    remote_state = serializers.ChoiceField(
+        read_only=True,
+        choices=ResourceStates.CHOICES,
+        allow_null=True,
+        help_text="Remote resource state",
+    )
+    sync_status = serializers.ChoiceField(
+        read_only=True,
+        choices=RemoteResourceSyncStatus.CHOICES,
+        help_text="Sync status: in_sync, out_of_sync, sync_failed",
+    )
+    last_sync = serializers.DateTimeField(
+        read_only=True, allow_null=True, help_text="Last sync timestamp"
+    )
+
+    def get_local_state(self, obj) -> ResourceStatesType:
+        return obj.get("local_state")
+
+
+class RemoteResourceOrderSerializer(serializers.Serializer):
+    """Serializer for remote resource orders"""
+
+    order_uuid = serializers.UUIDField(read_only=True, help_text="Order UUID")
+    remote_state = serializers.ChoiceField(
+        read_only=True, choices=OrderStates.CHOICES, help_text="Remote order state"
+    )
+    local_state = serializers.SerializerMethodField(
+        read_only=True, help_text="Local order state"
+    )
+    sync_status = serializers.ChoiceField(
+        read_only=True,
+        choices=RemoteResourceSyncStatus.CHOICES,
+        help_text="Sync status: in_sync, out_of_sync, sync_failed",
+    )
+
+    def get_local_state(self, obj) -> OrderStatesType:
+        return obj.get("local_state")
+
+
+class RemoteResourceTeamMemberSerializer(serializers.Serializer):
+    """Serializer for remote resource team members"""
+
+    full_name = serializers.CharField(read_only=True, help_text="Full name")
+    local_role = serializers.CharField(read_only=True, help_text="Local role")
+    remote_role = serializers.CharField(read_only=True, help_text="Remote role")
+    sync_status = serializers.ChoiceField(
+        read_only=True,
+        choices=RemoteResourceSyncStatus.CHOICES,
+        help_text="Sync status: in_sync, out_of_sync, sync_failed",
+    )

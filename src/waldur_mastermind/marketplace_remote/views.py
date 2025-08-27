@@ -3,11 +3,12 @@ from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from httpx import TimeoutException
+from rest_framework import exceptions, status
 from rest_framework import permissions as rf_permissions
-from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.generics import GenericAPIView
+from rest_framework.request import Request
 from rest_framework.response import Response
 from waldur_api_client.api.customers import customers_list
 from waldur_api_client.api.marketplace_categories import marketplace_categories_list
@@ -36,6 +37,10 @@ from waldur_core.permissions.fixtures import ServiceProviderRole
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure.filters import GenericRoleFilter
+from waldur_core.structure.managers import (
+    get_connected_customers_by_permission,
+    get_connected_projects_by_permission,
+)
 from waldur_core.structure.models import Customer
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_mastermind.marketplace import callbacks, models
@@ -57,6 +62,30 @@ from waldur_mastermind.marketplace_remote.models import (
     ProjectUpdateRequest,
     RemoteSynchronisation,
 )
+from waldur_mastermind.marketplace_remote.utils import (
+    get_resource_order_sync_status,
+    get_resource_sync_status,
+    get_resource_team,
+)
+
+
+def check_remote_resource_access(request: Request, resource: models.Resource):
+    """Check if user has access to remote resource"""
+    if request.user.is_staff or request.user.is_support:
+        return
+
+    connected_projects = get_connected_projects_by_permission(
+        request.user, PermissionEnum.LIST_RESOURCES
+    )
+    connected_customers = get_connected_customers_by_permission(
+        request.user, PermissionEnum.LIST_RESOURCES
+    )
+
+    if not (
+        resource.project.id in connected_projects
+        or resource.project.customer.id in connected_customers
+    ):
+        raise NotFound()
 
 
 class RemoteView(GenericAPIView):
@@ -439,3 +468,84 @@ class SyncResourceView(GenericAPIView):
         resource = self.get_resource()
         tasks.ResourcePullTask.apply_async(args=[serialize_instance(resource)])
         return Response(status=status.HTTP_200_OK)
+
+
+class RemoteResourceStatusView(GenericAPIView):
+    """View for getting remote resource sync status"""
+
+    permission_classes = [rf_permissions.IsAuthenticated]
+    serializer_class = serializers.RemoteResourceSyncStatusSerializer
+
+    @extend_schema(
+        responses=serializers.RemoteResourceSyncStatusSerializer,
+        description="Get remote resource sync status",
+    )
+    def get(self, request, **kwargs):
+        """Get sync status for a remote resource"""
+        local_resource_uuid = kwargs["resource_uuid"]
+        if not is_uuid_like(local_resource_uuid):
+            raise exceptions.ParseError(detail="UUID is invalid.")
+        resource = get_object_or_404(models.Resource, uuid=local_resource_uuid)
+        check_remote_resource_access(request, resource)
+
+        sync_data = get_resource_sync_status(resource)
+        serializer = self.get_serializer(sync_data, many=False)
+        return Response(serializer.data)
+
+
+class RemoteResourceOrderViewSet(GenericAPIView):
+    """ViewSet for remote resource order operations"""
+
+    permission_classes = [rf_permissions.IsAuthenticated]
+    serializer_class = serializers.RemoteResourceOrderSerializer
+
+    @extend_schema(
+        responses=serializers.RemoteResourceOrderSerializer,
+        description="Get remote order details",
+    )
+    def get(self, request, **kwargs):
+        """Get detailed information about a remote order"""
+        local_resource_uuid = kwargs["resource_uuid"]
+        if not is_uuid_like(local_resource_uuid):
+            raise exceptions.ParseError(detail="UUID is invalid.")
+        resource = get_object_or_404(models.Resource, uuid=local_resource_uuid)
+        check_remote_resource_access(request, resource)
+
+        sync_data = get_resource_order_sync_status(resource)
+        serializer = self.get_serializer(sync_data, many=True)
+        return Response(serializer.data)
+
+
+class RemoteResourceTeamViewSet(GenericAPIView):
+    """ViewSet for remote resource team operations"""
+
+    permission_classes = [rf_permissions.IsAuthenticated]
+    serializer_class = serializers.RemoteResourceTeamMemberSerializer
+    filter_backends = []
+    ordering_fields = ["full_name", "remote_role", "sync_status", "local_role"]
+
+    @extend_schema(
+        responses=serializers.RemoteResourceTeamMemberSerializer(many=True),
+        description="Get remote resource team members",
+    )
+    def get(self, request, **kwargs):
+        """Get team members for a remote resource"""
+        local_resource_uuid = kwargs["resource_uuid"]
+        if not is_uuid_like(local_resource_uuid):
+            raise ValidationError("UUID is invalid.")
+        resource = get_object_or_404(models.Resource, uuid=local_resource_uuid)
+        check_remote_resource_access(request, resource)
+        team_data = get_resource_team(resource)
+        ordering = request.query_params.get("o", "full_name")
+        if ordering.startswith("-"):
+            reverse = True
+            field = ordering[1:]
+        else:
+            reverse = False
+            field = ordering
+
+        if field in self.ordering_fields:
+            team_data.sort(key=lambda x: x.get(field, ""), reverse=reverse)
+
+        serializer = self.get_serializer(team_data, many=True)
+        return Response(serializer.data)
