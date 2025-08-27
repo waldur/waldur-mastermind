@@ -1,5 +1,4 @@
 definitions:
-
   wait_config: &default_wait_config
     ok_states: ["OK"]
     erred_states: ["ERRED"]
@@ -83,11 +82,7 @@ collections:
         offering_type: OpenStack.Volume
         base_operation_id: "openstack_volumes"
         transformations:
-          size: 'gb_to_mb'
-        operations:
-          update:
-            fields:
-              - "description"
+          size: "gb_to_mb"
         resolvers:
           type: *volume_type_resolver
           image: *image_resolver
@@ -100,13 +95,10 @@ collections:
         offering_type: OpenStack.Instance
         base_operation_id: "openstack_instances"
         transformations:
-          data_volume_size: 'gb_to_mb'
-          system_volume_size: 'gb_to_mb'
+          data_volume_size: "gb_to_mb"
+          system_volume_size: "gb_to_mb"
         operations:
           update:
-            fields:
-              - "name"
-              - "description"
             actions:
               update_ports:
                 operation: "openstack_instances_update_ports"
@@ -161,11 +153,9 @@ collections:
         resource_type: "OpenStack security group"
         description: "Manage OpenStack Security Groups and their rules in Waldur."
         base_operation_id: "openstack_security_groups"
+        context_params: *base_openstack_context_params
         operations:
           update:
-            fields:
-              - "name"
-              - "description"
             actions:
               set_rules:
                 operation: "openstack_security_groups_set_rules"
@@ -186,11 +176,9 @@ collections:
         resource_type: "OpenStack network"
         description: "Manage OpenStack Networks in Waldur."
         base_operation_id: "openstack_networks"
+        context_params: *base_openstack_context_params
         operations:
           update:
-            fields:
-              - "name"
-              - "description"
             actions:
               set_mtu:
                 operation: "openstack_networks_set_mtu"
@@ -203,16 +191,13 @@ collections:
       - name: server_group
         plugin: crud
         wait_config: *default_wait_config
+        context_params: *base_openstack_context_params
         resolvers:
           tenant: "openstack_tenants"
         resource_type: "OpenStack server group"
         description: "Manage OpenStack Server Groups (Affinity Groups) in Waldur."
         base_operation_id: "openstack_server_groups"
         operations:
-          update:
-            fields:
-              - "name"
-              - "description"
           create:
             id: "openstack_tenants_create_server_group"
             path_params:
@@ -221,6 +206,7 @@ collections:
       - name: floating_ip
         plugin: crud
         wait_config: *default_wait_config
+        context_params: *base_openstack_context_params
         resolvers:
           tenant: "openstack_tenants"
         resource_type: "OpenStack floating IP"
@@ -228,8 +214,10 @@ collections:
         base_operation_id: "openstack_floating_ips"
         operations:
           update:
-            fields:
-              - "description"
+            actions:
+              update_description:
+                operation: "openstack_floating_ips_update_description"
+                param: "description"
           create:
             id: "openstack_tenants_create_floating_ip"
             path_params:
