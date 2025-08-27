@@ -251,3 +251,15 @@ class ImpactLevel:
         (PARTIAL_OUTAGE, "Partial outage"),
         (FULL_OUTAGE, "Full outage"),
     )
+
+
+class RemoteResourceSyncStatus:
+    IN_SYNC = "in_sync"
+    OUT_OF_SYNC = "out_of_sync"
+    SYNC_FAILED = "sync_failed"
+
+    CHOICES = (
+        (IN_SYNC, "In sync"),
+        (OUT_OF_SYNC, "Out of sync"),
+        (SYNC_FAILED, "Sync failed"),
+    )

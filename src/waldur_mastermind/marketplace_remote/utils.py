@@ -8,6 +8,7 @@ from decimal import Decimal
 import httpx
 from django.core.files.base import ContentFile
 from django.db.models import Q
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from httpx import TimeoutException
 from rest_framework.exceptions import ValidationError
@@ -77,6 +78,7 @@ from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OrderStates,
+    RemoteResourceSyncStatus,
     ResourceStates,
 )
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, models
@@ -85,6 +87,7 @@ from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_FIELDS,
     PLAN_FIELDS,
 )
+from waldur_mastermind.marketplace_remote.exceptions import RemoteStatusSyncFailed
 
 logger = logging.getLogger(__name__)
 
@@ -924,6 +927,157 @@ def update_offering_related_data(
         local_components_map=local_components_map,
     )
     return local_offering
+
+
+def get_resource_sync_status(resource):
+    """
+    Get resource sync status. To show the resource state in local and remote instances.
+    """
+
+    try:
+        client = get_client_for_offering(resource.offering)
+        remote_resource = marketplace_resources_retrieve.sync(
+            client=client, uuid=resource.backend_id
+        )
+        if not remote_resource.state:
+            return {
+                "local_state": resource.get_state_display(),
+                "remote_state": None,
+                "sync_status": RemoteResourceSyncStatus.SYNC_FAILED,
+                "error": "Remote resource state is not available",
+                "last_sync": None,
+            }
+
+        status_data = {
+            "local_state": resource.get_state_display(),
+            "remote_state": remote_resource.state.value,
+            "sync_status": RemoteResourceSyncStatus.IN_SYNC
+            if resource.state == parse_resource_state(remote_resource.state.value)
+            else RemoteResourceSyncStatus.OUT_OF_SYNC,
+            "last_sync": timezone.now(),
+        }
+        return status_data
+    except UnexpectedStatus as exc:
+        message = f"Unable to fetch remote resource state for resource {resource.uuid}"
+        logger.exception(message)
+        raise RemoteStatusSyncFailed(error_message=message, error_description=str(exc))
+
+
+def get_resource_team(resource: marketplace_models.Resource):
+    """
+    Get remote resource team. To show the resource team in local and remote instances.
+    """
+
+    try:
+        client = get_client_for_offering(resource.offering)
+        remote_team = marketplace_provider_resources_team_list.sync(
+            client=client, uuid=resource.uuid
+        )
+
+        local_roles = UserRole.objects.filter(scope=resource.project, is_active=True)
+
+        team_data = []
+        local_roles_lookup = {
+            record.user.username: record.role.name for record in local_roles
+        }
+        # Extract all local usernames for efficient set operations
+        local_usernames = set(local_roles_lookup.keys())
+        processed_local_users = set()
+        for remote_record in remote_team:
+            full_name = remote_record.full_name
+            remote_role = remote_record.role
+            username = remote_record.username
+            local_role = local_roles_lookup.get(username)
+
+            if local_role:
+                sync_status = (
+                    RemoteResourceSyncStatus.IN_SYNC
+                    if local_role == remote_role
+                    else RemoteResourceSyncStatus.OUT_OF_SYNC
+                )
+                processed_local_users.add(username)
+            else:
+                local_role = "unknown"
+                sync_status = RemoteResourceSyncStatus.SYNC_FAILED
+
+            team_data.append(
+                {
+                    "full_name": full_name,
+                    "local_role": local_role,
+                    "remote_role": remote_role,
+                    "sync_status": sync_status,
+                }
+            )
+
+        # Find local users that weren't processed (don't exist in remote team)
+        unprocessed_local_users = local_usernames - processed_local_users
+
+        for username in unprocessed_local_users:
+            local_role_record = next(
+                record for record in local_roles if record.user.username == username
+            )
+            team_data.append(
+                {
+                    "full_name": local_role_record.user.full_name,
+                    "local_role": local_role_record.role.name,
+                    "remote_role": "Missing from remote",
+                    "sync_status": RemoteResourceSyncStatus.SYNC_FAILED,
+                }
+            )
+        return team_data
+    except UnexpectedStatus as exc:
+        message = f"Unable to fetch remote team data for resource {resource.uuid}"
+        logger.exception(message)
+        raise RemoteStatusSyncFailed(error_message=message, error_description=str(exc))
+
+
+def get_resource_order_sync_status(resource: marketplace_models.Resource):
+    """
+    Get remote resource order sync status. To show the resource order state in local and remote instances.
+    """
+
+    try:
+        client = get_client_for_offering(resource.offering)
+        remote_orders = marketplace_orders_list.sync(
+            client=client,
+            resource_uuid=resource.backend_id,
+        )
+        local_orders = marketplace_models.Order.objects.filter(
+            resource__backend_id=resource.backend_id
+        )
+        local_order_ids = {
+            local_order.backend_id: local_order for local_order in local_orders
+        }
+
+        order_data = []
+        for remote_order in remote_orders:
+            local_order = local_order_ids.get(remote_order.uuid.hex)
+            if not local_order:
+                order_data.append(
+                    {
+                        "order_uuid": remote_order.uuid.hex,
+                        "remote_state": remote_order.state.value,
+                        "local_state": None,
+                        "sync_status": RemoteResourceSyncStatus.SYNC_FAILED,
+                    }
+                )
+            else:
+                order_data.append(
+                    {
+                        "order_uuid": remote_order.uuid,
+                        "remote_state": remote_order.state.value,
+                        "local_state": local_order.get_state_display(),
+                        "sync_status": RemoteResourceSyncStatus.IN_SYNC
+                        if local_order.state == parse_order_state(remote_order.state)
+                        else RemoteResourceSyncStatus.OUT_OF_SYNC,
+                    }
+                )
+        return order_data
+
+    except UnexpectedStatus as exc:
+        message = f"Unable to fetch remote order data for resource {resource.uuid}"
+        logger.exception(message)
+        raise RemoteStatusSyncFailed(error_message=message, error_description=str(exc))
 
 
 class GenericOrderAttribute:

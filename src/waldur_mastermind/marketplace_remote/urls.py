@@ -68,6 +68,21 @@ urlpatterns = [
         r"^api/remote-waldur-api/sync_resource/(?P<uuid>[a-f0-9]+)/$",
         views.SyncResourceView.as_view(),
     ),
+    re_path(
+        r"^api/remote-waldur-api/remote_resource_status/(?P<resource_uuid>[a-f0-9]+)/$",
+        views.RemoteResourceStatusView.as_view(),
+        name="remote-resource-status",
+    ),
+    re_path(
+        r"^api/remote-waldur-api/remote_resource_team_status/(?P<resource_uuid>[a-f0-9]+)/$",
+        views.RemoteResourceTeamViewSet.as_view(),
+        name="remote-resource-team",
+    ),
+    re_path(
+        r"^api/remote-waldur-api/remote_resource_order_status/(?P<resource_uuid>[a-f0-9]+)/$",
+        views.RemoteResourceOrderViewSet.as_view(),
+        name="remote-resource-order",
+    ),
 ]
 
 
