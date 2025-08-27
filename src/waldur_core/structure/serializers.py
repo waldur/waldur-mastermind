@@ -1683,9 +1683,16 @@ class ProjectDetailSerializer(serializers.Serializer):
 
     project_uuid = serializers.UUIDField(read_only=True)
     project_name = serializers.CharField(read_only=True)
+    completion_uuid = serializers.UUIDField(
+        read_only=True, required=False, allow_null=True
+    )
     completion_percentage = serializers.FloatField(read_only=True)
     is_completed = serializers.BooleanField(read_only=True)
     requires_review = serializers.BooleanField(read_only=True)
+    answers = serializers.ListField(read_only=True, required=False)
+    unanswered_required_questions = serializers.ListField(
+        read_only=True, required=False
+    )
 
 
 class ProjectDetailsResponseSerializer(serializers.Serializer):
@@ -1827,6 +1834,7 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
     total_projects = serializers.SerializerMethodField()
     answered_projects_count = serializers.SerializerMethodField()
     project_answers = serializers.SerializerMethodField()
+    question_options = serializers.SerializerMethodField()
 
     class Meta:
         # Import here to avoid circular imports
@@ -1842,6 +1850,7 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
             "total_projects",
             "answered_projects_count",
             "project_answers",
+            "question_options",
         ]
 
     def _get_projects_and_answers_data(self, question):
@@ -1926,6 +1935,9 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
                         "project_name": project.name,
                         "answer_uuid": answer.uuid.hex,
                         "answer_data": answer.answer_data,
+                        "answer_labels": self._get_answer_labels(
+                            question, answer.answer_data
+                        ),
                         "answered_by": answer.user.full_name if answer.user else None,
                         "answered_at": answer.created,
                         "requires_review": answer.requires_review,
@@ -1939,6 +1951,7 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
                         "project_name": project.name,
                         "answer_uuid": None,
                         "answer_data": None,
+                        "answer_labels": None,
                         "answered_by": None,
                         "answered_at": None,
                         "requires_review": False,
@@ -1946,3 +1959,60 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
                 )
 
         return project_answers
+
+    def get_question_options(self, question) -> list[dict]:
+        """Get question options for select-type questions."""
+        if question.question_type in ["single_select", "multi_select"]:
+            # Use prefetched data if available, otherwise fall back to querying
+            options = question.question_options.all()
+            # Sort in Python to avoid overriding prefetch_related
+            sorted_options = sorted(options, key=lambda opt: opt.order)
+            return [
+                {
+                    "uuid": str(option.uuid),
+                    "label": option.label,
+                    "order": option.order,
+                }
+                for option in sorted_options
+            ]
+        return []
+
+    def _get_answer_labels(self, question, answer_data) -> list[str] | str | None:
+        """Convert answer data UUIDs to human-readable labels for select-type questions."""
+        if not answer_data or question.question_type not in [
+            "single_select",
+            "multi_select",
+        ]:
+            return answer_data
+
+        # Use pre-computed options map if available (most efficient)
+        serializer_class = self.__class__
+        if hasattr(serializer_class, "_bulk_question_data"):
+            question_data = serializer_class._bulk_question_data.get(question.id, {})
+            options_map = question_data.get("options_map", {})
+        else:
+            # Fallback to querying (less efficient)
+            options_map = {
+                str(option.uuid): option.label
+                for option in question.question_options.all()
+            }
+
+        if question.question_type == "single_select":
+            # answer_data is a single UUID string (for single_select questions stored as list of one item)
+            if isinstance(answer_data, list) and len(answer_data) == 1:
+                uuid_str = str(answer_data[0])
+                return options_map.get(uuid_str, answer_data)
+            elif isinstance(answer_data, str):
+                return options_map.get(answer_data, answer_data)
+            return answer_data
+
+        elif question.question_type == "multi_select":
+            # answer_data is a list of UUID strings
+            if isinstance(answer_data, list):
+                return [
+                    options_map.get(str(uuid_val), str(uuid_val))
+                    for uuid_val in answer_data
+                ]
+            return answer_data
+
+        return answer_data
