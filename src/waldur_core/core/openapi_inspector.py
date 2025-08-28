@@ -21,6 +21,18 @@ class WaldurOpenApiInspector(AutoSchema):
         "head": "count",
     }
 
+    def resolve_serializer(self, method, serializer):
+        """Override to set flag on request when resolving serializers."""
+        # When creating serializer instances during schema generation,
+        # we want to include all optional fields
+        result = super().resolve_serializer(method, serializer)
+
+        # Try to set the flag on the mock request used by the serializer
+        if hasattr(result, "context") and "request" in result.context:
+            result.context["request"]._is_generating_schema = True
+
+        return result
+
     def get_operation(
         self,
         path: str,
@@ -93,6 +105,11 @@ class WaldurOpenApiInspector(AutoSchema):
             return []
         if isinstance(serializer, ListSerializer):
             serializer = serializer.child
+
+        # Set flag to include all optional fields when getting fields for schema
+        if hasattr(serializer, "context") and "request" in serializer.context:
+            serializer.context["request"]._is_generating_schema = True
+
         try:
             fields = serializer.fields.keys()
         except (KeyError, AttributeError):
