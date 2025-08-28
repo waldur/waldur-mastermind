@@ -402,3 +402,12 @@ class ProposalSection(NotificationSection):
             NotificationTemplate("review_rejected_subject.txt", "review_rejected"),
         ],
     )
+    review_assigned = Notification(
+        "review_assigned",
+        "A notification to a reviewer about a new review assignment.",
+        templates=[
+            NotificationTemplate("review_assigned_message.txt", "review_assigned"),
+            NotificationTemplate("review_assigned_message.html", "review_assigned"),
+            NotificationTemplate("review_assigned_subject.txt", "review_assigned"),
+        ],
+    )

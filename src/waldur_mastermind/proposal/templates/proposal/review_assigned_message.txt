@@ -1,0 +1,17 @@
+Dear {{ reviewer_name }},
+
+You have been assigned to review a proposal in call "{{ call_name }}".
+
+Proposal details:
+- Proposal name: {{ proposal_name }}
+- Submitted by: {{ proposal_creator_name }}
+- Date submitted: {{ submission_date }}
+- Review deadline: {{ review_deadline }}
+
+Please log in to the platform to review the proposal. You can accept or reject this review assignment by visiting:
+
+{{ link_to_reviews_list }}
+
+If you accept this assignment, you'll be able to access the full proposal content and submit your review.
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

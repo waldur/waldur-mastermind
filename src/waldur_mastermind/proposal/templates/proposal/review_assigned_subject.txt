@@ -1,0 +1,1 @@
+New review assignment: {{ proposal_name }}
