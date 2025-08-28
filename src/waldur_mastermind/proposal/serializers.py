@@ -316,9 +316,7 @@ class ProposalReviewSerializer(
             user.is_staff
             or review.reviewer == user
             or review.proposal.round.call.manager.customer.has_user(user)
-            or review.proposal.round.call.manager.customer.callmanagingorganisation.has_user(
-                user, CallRole.MANAGER
-            )
+            or review.proposal.round.call.has_user(user, CallRole.MANAGER)
         ):
             fields.pop("anonymous_reviewer_name", None)
             return fields

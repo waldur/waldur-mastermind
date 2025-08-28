@@ -28,7 +28,7 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import ProposalRole
+from waldur_core.permissions.fixtures import CallRole, ProposalRole
 from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
@@ -53,7 +53,7 @@ from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
 )
 
-from .managers import get_connected_call_organizers
+from .managers import get_connected_call_organizers, get_connected_calls
 from .models import Proposal
 from .serializers import ReviewSubmitSerializer
 
@@ -882,7 +882,7 @@ class ReviewViewSet(ActionsViewSet):
         if user.is_staff:
             return models.Review.objects.all().order_by("created")
 
-        # Base queries for authorized users (call managers, reviewers)
+        # Base queries for authorized users (call organizers, call managers, reviewers)
         authorized_query = (
             Q(
                 proposal__round__call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
@@ -894,6 +894,7 @@ class ReviewViewSet(ActionsViewSet):
                     user
                 )
             )
+            | Q(proposal__round__call__in=get_connected_calls(user, CallRole.MANAGER))
             | Q(reviewer=user)
         )
 
@@ -1176,8 +1177,3 @@ class ProposalProjectRoleMappingViewSet(ActionsViewSet):
     filterset_class = filters.ProposalProjectRoleMappingFilter
     filter_backends = (DjangoFilterBackend,)
     permission_classes = [proposal_permissions.CanUpdateCallPermission]
-
-    def get_queryset(self):
-        return filter_queryset_for_user(
-            super().get_queryset(), self.request.user
-        ).order_by("call")

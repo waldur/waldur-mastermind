@@ -197,5 +197,4 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         user = structure_factories.UserFactory()
         role = CallRole.MANAGER
         self.call.add_user(user, role)
-        self.manager.add_user(user, role)
         return user
