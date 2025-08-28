@@ -53,6 +53,24 @@ collections:
     version: 1.0.0
     modules:
       # --- Facts Modules (Read-Only) ---
+      - name: vpc_facts
+        plugin: facts
+        base_operation_id: "openstack_tenants"
+        context_params:
+          - name: "project"
+            description: "The name or UUID of the project to filter resources by."
+            resolver: "projects"
+            filter_key: "project_uuid"
+          - name: "customer"
+            description: "The name or UUID of the customer to filter resources by."
+            resolver: "customers"
+            filter_key: "customer_uuid"
+
+      - name: volume_facts
+        plugin: facts
+        base_operation_id: "openstack_volumes"
+        context_params: *base_openstack_context_params
+
       - name: instance_facts
         plugin: facts
         base_operation_id: "openstack_instances"
