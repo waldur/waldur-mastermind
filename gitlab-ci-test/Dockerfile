@@ -11,7 +11,6 @@ RUN apt-get update    &&\
     xmlsec1             \
     git                 \
     lcov                \
-    graphviz            \
     python3-dev
 
 RUN python3 -m pip install --upgrade pip
