@@ -106,6 +106,18 @@ class LooseMultipleChoiceFilter(MultipleChoiceFilter):
     field_class = LooseMultipleChoiceField
 
 
+class UUIDInFilter(django_filters.BaseInFilter, django_filters.UUIDFilter):
+    """A UUIDFilter that accepts multiple values (comma-separated)."""
+
+    pass
+
+
+class CharInFilter(django_filters.BaseInFilter, django_filters.CharFilter):
+    """A CharFilter that accepts multiple values (comma-separated)."""
+
+    pass
+
+
 class URLFilter(django_filters.CharFilter):
     """Filter by hyperlinks. ViewSet name must be supplied in order to validate URL."""
 

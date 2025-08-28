@@ -11,7 +11,9 @@ from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core.filters import (
+    CharInFilter,
     LooseMultipleChoiceFilter,
+    UUIDInFilter,
     get_generic_field_filter,
 )
 from waldur_core.core.models import User
@@ -272,7 +274,8 @@ class OfferingFilterMixin(django_filters.FilterSet):
         view_name="marketplace-provider-offering-detail",
         field_name="offering__uuid",
     )
-    offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+    offering_uuid = UUIDInFilter(field_name="offering__uuid")
+    offering_slug = CharInFilter(field_name="offering__slug")
     parent_offering_uuid = django_filters.UUIDFilter(
         field_name="offering__parent__uuid"
     )
