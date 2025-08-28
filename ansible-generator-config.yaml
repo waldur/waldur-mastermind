@@ -66,6 +66,23 @@ collections:
         plugin: facts
         base_operation_id: "marketplace_resources"
 
+      - name: order
+        plugin: crud
+        base_operation_id: "marketplace_orders"
+        resolvers:
+          customer: customers
+          project: projects
+          offering: marketplace_public_offerings
+
+      - name: offering
+        plugin: crud
+        base_operation_id: "marketplace_provider_offerings"
+        resolvers:
+          category: marketplace_categories
+          customer: customers
+          project: projects
+          offering: marketplace_public_offerings
+
   - namespace: waldur
     name: openstack
     version: 1.0.0
