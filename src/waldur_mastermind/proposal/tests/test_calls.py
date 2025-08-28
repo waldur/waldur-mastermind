@@ -59,7 +59,8 @@ class CallGetTest(test.APITransactionTestCase):
         url = factories.CallFactory.get_protected_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.json()), 2)
+        # In the fixture, call_manager added only to self.call
+        self.assertEqual(len(response.json()), 1)
 
     @data(
         "user",
@@ -103,6 +104,10 @@ class CallCreateTest(test.APITransactionTestCase):
         "call_manager",
     )
     def test_call_manager_can_not_create_call(self, user):
+        response = self.create_call(user)
+        # fails with 400 because call_manager has no access to call managing organization
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.manager.add_user(self.fixture.call_manager, CallRole.MANAGER)
         response = self.create_call(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 

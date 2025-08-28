@@ -30,6 +30,6 @@ def get_connected_call_organizers(user):
     return get_scope_ids(user, ctype)
 
 
-def get_connected_calls(user):
+def get_connected_calls(user, role=None):
     ctype = ContentType.objects.get_for_model(models.Call)
-    return get_scope_ids(user, ctype)
+    return get_scope_ids(user, ctype, role)
