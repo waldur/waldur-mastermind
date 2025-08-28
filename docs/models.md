@@ -3,25 +3,29 @@
 ## Structure application models
 
 ```mermaid
-{{#include ./core_structure.mmd}}
+{% include-markdown "./core_structure.mmd" %}
 ```
 
 ## Permissions application models
 
 ```mermaid
-{{#include ./core_permissions.mmd}}
+{% include-markdown "./core_permissions.mmd" %}
 ```
 
-## Marketplace application models
+## Marketplace category models
 
 ```mermaid
-{{#include ./marketplace_category.mmd}}
+{% include-markdown "./marketplace_category.mmd" %}
 ```
 
-```mermaid
-{{#include ./marketplace_catalog.mmd}}
-```
+## Marketplace catalog models
 
 ```mermaid
-{{#include ./marketplace_provision.mmd}}
+{% include-markdown "./marketplace_catalog.mmd" %}
+```
+
+## Marketplace provisioning models
+
+```mermaid
+{% include-markdown "./marketplace_provision.mmd" %}
 ```
