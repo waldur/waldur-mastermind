@@ -322,9 +322,31 @@ def add_polymorphic_attributes_schema(result, generator, **kwargs):
         result_schemas[schema_name] = schema
         offering_schemas.append({"$ref": f"#/components/schemas/{schema_name}"})
 
+    result_schemas["GenericOrderAttributes"] = {
+        "type": "object",
+        "description": "A generic JSON object for offerings without a predefined schema. Allows any key-value pairs.",
+        "additionalProperties": True,
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "The name of the resource to be created. Will be displayed in the portal.",
+                "maxLength": 150,
+            },
+            "description": {
+                "type": "string",
+                "description": "A free-form description for the resource.",
+            },
+        },
+    }
+
+    offering_schemas.append({"$ref": "#/components/schemas/GenericOrderAttributes"})
+
     result_schemas["OrderCreateRequest"]["properties"]["attributes"] = {
         "oneOf": offering_schemas,
-        "description": "Attributes structure depends on the offering type specified in the parent object",
+        "description": (
+            "Attributes structure depends on the offering type specified in the parent object. "
+            "Can also be a generic object for offerings without a specific attributes schema."
+        ),
     }
 
     return result
