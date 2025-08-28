@@ -1835,6 +1835,12 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
     answered_projects_count = serializers.SerializerMethodField()
     project_answers = serializers.SerializerMethodField()
     question_options = serializers.SerializerMethodField()
+    min_value = serializers.DecimalField(
+        max_digits=20, decimal_places=4, read_only=True, allow_null=True
+    )
+    max_value = serializers.DecimalField(
+        max_digits=20, decimal_places=4, read_only=True, allow_null=True
+    )
 
     class Meta:
         # Import here to avoid circular imports
@@ -1847,6 +1853,8 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
             "question_type",
             "required",
             "order",
+            "min_value",
+            "max_value",
             "total_projects",
             "answered_projects_count",
             "project_answers",

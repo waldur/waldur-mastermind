@@ -1460,6 +1460,8 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
                 "description": question.description,
                 "question_type": question.question_type,
                 "required": question.required,
+                "min_value": question.min_value,
+                "max_value": question.max_value,
                 "question_options": question_options,
                 "options_map": options_map,
             }
@@ -1505,6 +1507,8 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
                             "question_uuid": question_data["uuid"],
                             "question_description": question_data["description"],
                             "question_type": question_data["question_type"],
+                            "min_value": question_data["min_value"],
+                            "max_value": question_data["max_value"],
                             "question_options": question_data["question_options"],
                             "answer_data": answer.answer_data,
                             "answer_labels": answer_labels,
@@ -1520,6 +1524,8 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
                         "uuid": question_data["uuid"],
                         "description": question_data["description"],
                         "question_type": question_data["question_type"],
+                        "min_value": question_data["min_value"],
+                        "max_value": question_data["max_value"],
                     }
                     for question_id, question_data in question_data_map.items()
                     if question_data["required"]
@@ -1537,6 +1543,8 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
                         "uuid": question_data["uuid"],
                         "description": question_data["description"],
                         "question_type": question_data["question_type"],
+                        "min_value": question_data["min_value"],
+                        "max_value": question_data["max_value"],
                     }
                     for question_data in question_data_map.values()
                     if question_data["required"]
