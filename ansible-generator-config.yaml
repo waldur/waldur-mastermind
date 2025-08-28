@@ -49,6 +49,24 @@ collections:
           - homepage
 
   - namespace: waldur
+    name: marketplace
+    version: 1.0.0
+    modules:
+      - name: offering_facts
+        plugin: facts
+        base_operation_id: "marketplace_public_offerings"
+        resolvers:
+          customer: "customers"
+
+      - name: order_facts
+        plugin: facts
+        base_operation_id: "marketplace_orders"
+
+      - name: resource_facts
+        plugin: facts
+        base_operation_id: "marketplace_resources"
+
+  - namespace: waldur
     name: openstack
     version: 1.0.0
     modules:
