@@ -97,6 +97,27 @@ class ReviewCreateTest(test.APITransactionTestCase):
             "Review already exists for this proposal and reviewer", response.data[0]
         )
 
+    @override_settings(task_always_eager=True)
+    @data("staff", "call_manager")
+    def test_reviewer_notification_sent_on_create(self, user):
+        structure_factories.NotificationFactory(
+            key="proposal.review_assigned",
+        )
+
+        response = self.create(user)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.fixture.reviewer_2.email])
+
+        subject = mail.outbox[0].subject
+        self.assertIn("New review assignment", subject)
+
+        body = mail.outbox[0].body
+        self.assertIn(self.fixture.reviewer_2.full_name, body)
+        self.assertIn(self.fixture.proposal_submitted.name, body)
+        self.assertIn(self.fixture.call.name, body)
+
     def create(self, user, **kwargs):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)

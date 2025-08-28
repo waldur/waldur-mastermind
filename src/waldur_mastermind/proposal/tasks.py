@@ -307,3 +307,38 @@ def notify_proposal_creator_about_cancelled_proposal(proposal_uuid, cancellation
         if proposal.created_by and proposal.created_by.email
         else [],
     )
+
+
+@shared_task(name="waldur_mastermind.proposal.notify_reviewer_about_assignment")
+def notify_reviewer_about_assignment(review_uuid):
+    review = proposal_models.Review.objects.get(uuid=review_uuid)
+
+    if not review.reviewer or not review.reviewer.email:
+        logger.warning(
+            f"Cannot send review assignment notification. Review {review.uuid} reviewer has no valid email."
+        )
+        return
+
+    link_to_reviews_list = core_utils.format_homeport_link(
+        "reviews/",
+    )
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "reviewer_name": review.reviewer.full_name,
+        "call_name": review.proposal.round.call.name,
+        "proposal_name": review.proposal.name,
+        "proposal_creator_name": review.proposal.created_by.full_name
+        if review.proposal.created_by
+        else "N/A",
+        "submission_date": review.proposal.created,
+        "review_deadline": review.review_end_date,
+        "link_to_reviews_list": link_to_reviews_list,
+    }
+
+    core_utils.broadcast_mail(
+        "proposal",
+        "review_assigned",
+        context,
+        [review.reviewer.email],
+    )

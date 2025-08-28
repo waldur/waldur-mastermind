@@ -918,6 +918,10 @@ class ReviewViewSet(ActionsViewSet):
             authorized_query | submitter_query
         ).order_by("created")
 
+    def perform_create(self, serializer):
+        review: models.Review = serializer.save()
+        tasks.notify_reviewer_about_assignment.delay(review.uuid)
+
     def check_create_permissions(request, view, obj=None):
         """Check permissions for creating reviews."""
         serializer = view.get_serializer(data=request.data)
