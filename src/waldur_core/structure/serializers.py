@@ -973,6 +973,11 @@ class UserSerializer(
         if user.is_anonymous:
             return fields
 
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        if getattr(request, "_is_generating_schema", False):
+            return fields
+
         if not user.is_staff:
             protected_fields = (
                 "is_active",

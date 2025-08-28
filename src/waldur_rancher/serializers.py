@@ -308,6 +308,15 @@ class RancherBaseNodeSerializer(
 
     def get_fields(self):
         fields = super().get_fields()
+
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        try:
+            if getattr(self.context["request"], "_is_generating_schema", False):
+                return fields
+        except (AttributeError, KeyError):
+            pass
+
         if (
             settings.WALDUR_RANCHER["DISABLE_DATA_VOLUME_CREATION"]
             and "data_volumes" in fields
@@ -456,6 +465,14 @@ class RancherClusterSerializer(
 
     def get_fields(self):
         fields = super().get_fields()
+
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        try:
+            if getattr(self.context["request"], "_is_generating_schema", False):
+                return fields
+        except (AttributeError, KeyError):
+            pass
 
         if (
             settings.WALDUR_RANCHER["DISABLE_SSH_KEY_INJECTION"]

@@ -158,6 +158,15 @@ class InvoiceItemUpdateSerializer(serializers.HyperlinkedModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
+
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        try:
+            if getattr(self.context["request"], "_is_generating_schema", False):
+                return fields
+        except (AttributeError, KeyError):
+            pass
+
         if self.instance:
             plan_component = self.instance.get_plan_component()
             if plan_component:
