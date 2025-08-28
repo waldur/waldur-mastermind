@@ -4,6 +4,7 @@ from unittest import mock
 import respx
 from django.test import override_settings
 from rest_framework import test
+from waldur_api_client.errors import UnexpectedStatus
 
 from waldur_core.core.utils import serialize_instance
 from waldur_core.permissions.enums import PermissionEnum
@@ -28,6 +29,9 @@ from waldur_mastermind.marketplace.tests.factories import (
 )
 from waldur_mastermind.marketplace.utils import order_should_not_be_reviewed_by_provider
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
+from waldur_mastermind.marketplace_remote.processors import (
+    RemoteUpdateResourceProcessor,
+)
 from waldur_mastermind.marketplace_remote.tasks import OrderPullTask
 from waldur_mastermind.marketplace_remote.tests.dns_utils import (
     create_selective_dns_mock,
@@ -224,3 +228,144 @@ class OrderPullTest(test.APITransactionTestCase):
         self.order.refresh_from_db()
         self.assertIsNotNone(self.order.resource)
         self.assertEqual(ResourceStates.OK, self.order.resource.state)
+
+
+class RemoteUpdateResourceProcessorTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.dns_patcher = create_selective_dns_mock()
+        self.dns_patcher.start()
+        super().setUp()
+        respx.start()
+
+        fixture = ProjectFixture()
+        self.api_url = "https://remote-waldur.com"
+        offering = OfferingFactory(
+            type=PLUGIN_NAME,
+            secret_options={
+                "api_url": self.api_url,
+                "token": "valid_token",
+            },
+        )
+        self.resource = ResourceFactory(project=fixture.project, offering=offering)
+        self.resource.backend_id = uuid.uuid4().hex
+        self.resource.save()
+
+        self.user = fixture.owner
+
+        self.order = OrderFactory(
+            project=fixture.project,
+            offering=offering,
+            resource=self.resource,
+            state=OrderStates.EXECUTING,
+            type=marketplace_models.Order.Types.UPDATE,
+            limits={"cpu": 10, "ram": 20},
+            attributes={"old_limits": {"cpu": 5, "ram": 10}},
+        )
+
+    def tearDown(self):
+        self.dns_patcher.stop()
+        super().tearDown()
+        respx.stop()
+        mock.patch.stopall()
+
+    def _mock_resource_endpoints(self, get_response, post_response):
+        """Helper method to mock both GET and POST endpoints for a resource."""
+        resource_uuid = str(uuid.UUID(self.resource.backend_id))
+        self.get_mock = respx.get(
+            f"{self.api_url}/api/marketplace-resources/{resource_uuid}/"
+        ).respond(**get_response)
+        self.post_mock = respx.post(
+            f"{self.api_url}/api/marketplace-resources/{resource_uuid}/update_limits/"
+        ).respond(**post_response)
+
+    def test_update_limits_when_remote_already_has_same_limits(self):
+        """Test that order completes successfully when remote limits already match."""
+        self._mock_resource_endpoints(
+            get_response={
+                "status_code": 200,
+                "json": {
+                    "uuid": str(uuid.UUID(self.resource.backend_id)),
+                    "limits": {"cpu": 10, "ram": 20},
+                },
+            },
+            post_response={
+                "status_code": 200,
+                "json": {"order_uuid": uuid.uuid4().hex},
+            },
+        )
+
+        processor = RemoteUpdateResourceProcessor(self.order)
+        processor.process_order(user=self.user)
+
+        self.assertEqual(self.order.state, OrderStates.DONE)
+        self.assertIn(
+            "Remote limits already match requested limits. No update needed.",
+            self.order.output,
+        )
+        self.assertEqual(self.get_mock.call_count, 1)
+        self.assertEqual(self.post_mock.call_count, 0)
+
+    def test_update_limits_when_remote_has_different_limits(self):
+        """Test that order proceeds with update when remote limits are different."""
+        self._mock_resource_endpoints(
+            get_response={
+                "status_code": 200,
+                "json": {
+                    "uuid": str(uuid.UUID(self.resource.backend_id)),
+                    "limits": {"cpu": 5, "ram": 10},
+                },
+            },
+            post_response={
+                "status_code": 200,
+                "json": {"order_uuid": uuid.uuid4().hex},
+            },
+        )
+
+        processor = RemoteUpdateResourceProcessor(self.order)
+        result = processor.update_limits_process(user=self.user)
+
+        self.assertFalse(result)
+        self.assertIsNotNone(self.order.backend_id)
+        self.assertEqual(self.get_mock.call_count, 1)
+        self.assertEqual(self.post_mock.call_count, 1)
+
+    def test_update_limits_when_remote_api_returns_400_same_limits(self):
+        """Test that order completes successfully when remote API returns 400 for same limits."""
+        self._mock_resource_endpoints(
+            get_response={
+                "status_code": 500,
+                "json": {"error": "Internal server error"},
+            },
+            post_response={
+                "status_code": 400,
+                "json": [
+                    "Impossible to create update orders with limits set to exactly the same."
+                ],
+            },
+        )
+
+        processor = RemoteUpdateResourceProcessor(self.order)
+        processor.process_order(user=self.user)
+
+        self.assertEqual(self.order.state, OrderStates.DONE)
+        self.assertIn(
+            "Remote limits already match requested limits. No update needed.",
+            self.order.output,
+        )
+        self.assertEqual(self.get_mock.call_count, 1)
+        self.assertEqual(self.post_mock.call_count, 1)
+
+    def test_update_limits_when_remote_api_returns_400_different_error(self):
+        """Test that order fails when remote API returns 400 for different reason."""
+        self._mock_resource_endpoints(
+            get_response={
+                "status_code": 500,
+                "json": {"error": "Internal server error"},
+            },
+            post_response={"status_code": 400, "json": ["Invalid limits provided"]},
+        )
+
+        processor = RemoteUpdateResourceProcessor(self.order)
+
+        with self.assertRaises(UnexpectedStatus):
+            processor.update_limits_process(user=self.user)
