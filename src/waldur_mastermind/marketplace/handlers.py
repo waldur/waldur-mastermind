@@ -1104,7 +1104,16 @@ def delete_expired_project_if_every_resource_has_been_terminated(
     if instance.state != ResourceStates.TERMINATED:
         return
 
+    # Ensure customer relationship is loaded to avoid KeyError during quota cleanup
     project = instance.project
+    try:
+        # Test if customer relationship is accessible
+        _ = project.customer
+    except (AttributeError, KeyError):
+        # Reload project with customer relationship if not accessible
+        project = project.__class__.objects.select_related("customer").get(
+            pk=project.pk
+        )
 
     if project.is_expired:
         resources = (
