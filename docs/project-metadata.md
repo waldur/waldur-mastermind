@@ -259,6 +259,8 @@ Each question and its answers now include additional metadata for better usabili
   - For `single_select`: String with the selected option label
   - For `multi_select`: Array of strings with selected option labels
   - For other question types: `null`
+- `min_value` - Minimum allowed value for number-type questions, `null` for other question types
+- `max_value` - Maximum allowed value for number-type questions, `null` for other question types
 
 #### Customer-Level Compliance Details
 
@@ -301,6 +303,8 @@ Authorization: Token <token>
         "question_uuid": "question-uuid-1",
         "question_description": "Project purpose",
         "question_type": "text_area",
+        "min_value": null,
+        "max_value": null,
         "question_options": [],
         "answer_data": "Research project for AI development",
         "answer_labels": null,
@@ -312,6 +316,8 @@ Authorization: Token <token>
         "question_uuid": "question-uuid-2",
         "question_description": "Project category",
         "question_type": "single_select",
+        "min_value": null,
+        "max_value": null,
         "question_options": [
           {
             "uuid": "option-uuid-1",
@@ -329,6 +335,19 @@ Authorization: Token <token>
         "user_name": "John Doe",
         "created": "2024-01-15T14:25:00Z",
         "modified": "2024-01-15T14:25:00Z"
+      },
+      {
+        "question_uuid": "question-uuid-3",
+        "question_description": "Project budget (in millions)",
+        "question_type": "number",
+        "min_value": "0.1000",
+        "max_value": "100.0000",
+        "question_options": [],
+        "answer_data": 5.0,
+        "answer_labels": null,
+        "user_name": "John Doe",
+        "created": "2024-01-15T14:30:00Z",
+        "modified": "2024-01-15T14:30:00Z"
       }
     ],
     "unanswered_required_questions": []
@@ -347,6 +366,8 @@ Each answer in the response includes both machine-readable and human-readable da
 
 - `question_type` - The type of question (text_input, text_area, boolean, number, single_select, multi_select)
 - `question_options` - Available options for select-type questions, empty array for other types
+- `min_value` - Minimum allowed value for number-type questions, `null` for other question types
+- `max_value` - Maximum allowed value for number-type questions, `null` for other question types
 - `answer_data` - The raw answer data (UUIDs for select questions, direct values for others)
 - `answer_labels` - Human-readable labels converted from UUIDs:
   - For `single_select`: String with the selected option label
@@ -636,10 +657,11 @@ When a customer has a project metadata checklist configured:
 5. **Cache Appropriately**: Checklist structure changes infrequently, status changes often
 6. **Use Customer-Level Endpoints**: For organizational dashboards, use customer-level compliance endpoints for efficient aggregated views
 7. **Leverage Pagination**: Take advantage of database-level pagination for large datasets with appropriate page sizes
-8. **Use Enhanced Fields**: Take advantage of `question_options` and `answer_labels` for better user experience:
+8. **Use Enhanced Fields**: Take advantage of enhanced question metadata for better user experience:
   - Display `question_options` to show available choices for select questions
   - Use `answer_labels` for human-readable display while keeping `answer_data` for form submissions
-  - Both fields are optimized to avoid N+1 query issues
+  - Use `min_value` and `max_value` for client-side validation of number inputs
+  - All enhanced fields are optimized to avoid N+1 query issues
 
 ### For Administrators
 

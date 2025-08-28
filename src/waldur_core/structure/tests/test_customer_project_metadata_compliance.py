@@ -1297,3 +1297,164 @@ class CustomerProjectMetadataComplianceQueryOptimizationTest(
                     if project_answer["answer_data"] is not None:
                         self.assertIn("answer_labels", project_answer)
                         self.assertIsNotNone(project_answer["answer_labels"])
+
+
+class NumberValidationFieldsTest(test.APITransactionTestCase):
+    """Test that min_value and max_value fields are exposed in API responses."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.project = self.fixture.project
+
+        # Create checklist with NUMBER question having validation constraints
+        from waldur_core.checklist.enums import ChecklistTypes, QuestionTypes
+        from waldur_core.checklist.models import Checklist, Question
+
+        self.checklist = Checklist.objects.create(
+            name="Number Validation Checklist",
+            checklist_type=ChecklistTypes.PROJECT_METADATA,
+        )
+
+        # Create NUMBER question with min/max validation
+        self.number_question = Question.objects.create(
+            checklist=self.checklist,
+            description="Project budget (in millions)",
+            question_type=QuestionTypes.NUMBER,
+            required=True,
+            order=1,
+            min_value=0.1,  # Minimum 100k
+            max_value=100.0,  # Maximum 100M
+        )
+
+        # Create TEXT question without validation (should have null min/max)
+        self.text_question = Question.objects.create(
+            checklist=self.checklist,
+            description="Project description",
+            question_type=QuestionTypes.TEXT_INPUT,
+            required=False,
+            order=2,
+        )
+
+        # Assign checklist to customer
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+
+    def test_question_answers_endpoint_includes_min_max_values(self):
+        """Test that question answers endpoint exposes min_value and max_value fields."""
+        self.client.force_authenticate(self.fixture.owner)
+
+        url = f"/api/customers/{self.customer.uuid.hex}/project-metadata-question-answers/"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        # Should have 2 questions
+        self.assertEqual(len(data), 2)
+
+        # Find the NUMBER question
+        number_question_data = next(q for q in data if q["question_type"] == "number")
+
+        # Verify min_value and max_value are exposed
+        self.assertIn("min_value", number_question_data)
+        self.assertIn("max_value", number_question_data)
+        self.assertEqual(float(number_question_data["min_value"]), 0.1)
+        self.assertEqual(float(number_question_data["max_value"]), 100.0)
+
+        # Find the TEXT question
+        text_question_data = next(q for q in data if q["question_type"] == "text_input")
+
+        # Verify min_value and max_value are null for non-number questions
+        self.assertIn("min_value", text_question_data)
+        self.assertIn("max_value", text_question_data)
+        self.assertIsNone(text_question_data["min_value"])
+        self.assertIsNone(text_question_data["max_value"])
+
+    def test_compliance_details_endpoint_includes_min_max_values(self):
+        """Test that compliance details endpoint exposes min_value and max_value fields."""
+        self.client.force_authenticate(self.fixture.owner)
+
+        url = f"/api/customers/{self.customer.uuid.hex}/project-metadata-compliance-details/"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        # Response should be a dictionary with project_details key
+        self.assertIsInstance(data, dict)
+        self.assertIn("project_details", data)
+
+        project_details = data["project_details"]
+        # Should have at least 1 project
+        self.assertGreaterEqual(len(project_details), 1)
+        # Get the first project for testing
+        project_data = project_details[0]
+
+        # Check unanswered required questions (both questions should be listed as unanswered)
+        unanswered = project_data["unanswered_required_questions"]
+        self.assertEqual(len(unanswered), 1)  # Only NUMBER question is required
+
+        number_question_unanswered = next(
+            q for q in unanswered if q["question_type"] == "number"
+        )
+
+        # Verify min_value and max_value are exposed in unanswered questions
+        self.assertIn("min_value", number_question_unanswered)
+        self.assertIn("max_value", number_question_unanswered)
+        self.assertEqual(float(number_question_unanswered["min_value"]), 0.1)
+        self.assertEqual(float(number_question_unanswered["max_value"]), 100.0)
+
+    def test_compliance_details_with_answers_includes_min_max_values(self):
+        """Test that compliance details with answers exposes min_value and max_value."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.checklist.models import Answer, ChecklistCompletion
+
+        # Create completion and answer
+        content_type = ContentType.objects.get_for_model(self.project.__class__)
+        completion, created = ChecklistCompletion.objects.get_or_create(
+            checklist=self.checklist,
+            scope_content_type=content_type,
+            scope_object_id=self.project.id,
+        )
+
+        Answer.objects.create(
+            user=self.fixture.owner,
+            question=self.number_question,
+            answer_data=5.0,  # Valid answer within constraints
+            completion=completion,
+        )
+
+        self.client.force_authenticate(self.fixture.owner)
+
+        url = f"/api/customers/{self.customer.uuid.hex}/project-metadata-compliance-details/"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        # Response should be a dictionary with project_details key
+        self.assertIsInstance(data, dict)
+        self.assertIn("project_details", data)
+
+        project_details = data["project_details"]
+        # Should have at least 1 project, find the one with answers
+        self.assertGreaterEqual(len(project_details), 1)
+        project_data = next(
+            p for p in project_details if p["project_uuid"] == self.project.uuid.hex
+        )
+
+        # Should have 1 answer
+        self.assertEqual(len(project_data["answers"]), 1)
+        answer_data = project_data["answers"][0]
+
+        # Verify min_value and max_value are exposed in answer data
+        self.assertIn("min_value", answer_data)
+        self.assertIn("max_value", answer_data)
+        self.assertEqual(float(answer_data["min_value"]), 0.1)
+        self.assertEqual(float(answer_data["max_value"]), 100.0)
+
+        # Verify other question metadata
+        self.assertEqual(answer_data["question_type"], "number")
+        self.assertEqual(answer_data["answer_data"], 5.0)
