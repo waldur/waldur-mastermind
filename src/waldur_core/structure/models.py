@@ -817,7 +817,14 @@ class Project(
         return ("uuid", "customer", "name", "end_date")
 
     def get_parents(self):
-        return [self.customer]
+        try:
+            # Check if customer relationship exists and return it
+            if hasattr(self, "customer") and self.customer:
+                return [self.customer]
+            return []
+        except (AttributeError, KeyError):
+            # Handle case where customer relationship is missing during deletion
+            return []
 
     class Meta:
         base_manager_name = "objects"

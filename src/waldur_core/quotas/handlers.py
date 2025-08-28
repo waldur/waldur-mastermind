@@ -24,13 +24,22 @@ def count_quota_handler_factory(count_quota_field):
 
 def get_ancestors(scope):
     """Get all unique instance ancestors"""
-    ancestors = list(scope.get_parents())
+    try:
+        ancestors = list(scope.get_parents())
+    except (AttributeError, KeyError):
+        # Handle case where relationships are missing during deletion
+        return []
+
     ancestor_unique_attributes = set([(a.__class__, a.id) for a in ancestors])
     ancestors_with_parents = [a for a in ancestors if isinstance(a, DescendantMixin)]
     for ancestor in ancestors_with_parents:
-        for parent in get_ancestors(ancestor):
-            if (parent.__class__, parent.id) not in ancestor_unique_attributes:
-                ancestors.append(parent)
+        try:
+            for parent in get_ancestors(ancestor):
+                if (parent.__class__, parent.id) not in ancestor_unique_attributes:
+                    ancestors.append(parent)
+        except (AttributeError, KeyError):
+            # Skip ancestors that can't be traversed due to missing relationships
+            continue
     return ancestors
 
 
@@ -57,9 +66,13 @@ def handle_aggregated_quotas(sender, instance: QuotaUsage, **kwargs):
         # Consider, for example, two ways of traversing from resource to customer:
         # resource -> project -> customer
         # resource -> service -> customer
-        ancestors = {
-            a for a in get_ancestors(quota.scope) if isinstance(a, QuotaModelMixin)
-        }
+        try:
+            ancestors = {
+                a for a in get_ancestors(quota.scope) if isinstance(a, QuotaModelMixin)
+            }
+        except (AttributeError, KeyError):
+            # Handle case where relationships are missing during deletion
+            ancestors = set()
     aggregator_quotas = []
     for ancestor in ancestors:
         for ancestor_quota_field in ancestor.get_quotas_fields(
