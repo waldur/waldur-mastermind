@@ -21,6 +21,7 @@ from modeltranslation.manager import get_translatable_fields_for_model
 from rest_framework import serializers
 from rest_framework import serializers as rf_serializers
 from rest_framework.fields import Field, ReadOnlyField
+from rest_framework.serializers import ListSerializer
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.clean_html import clean_html
@@ -409,14 +410,21 @@ class RestrictedSerializerMixin:
     """
     This mixin allows to specify list of fields to be rendered by serializer.
     It expects that request is available in serializer's context.
+
+    It is disabled for nested serializers (where parent is another serializer)
+    but remains active for list views (where parent is a ListSerializer).
     """
 
     FIELDS_PARAM_NAME = "field"
 
     def get_fields(self):
+        if self.parent is not None and not isinstance(self.parent, ListSerializer):
+            return super().get_fields()
+
         fields = super().get_fields()
         if "request" not in self.context:
             return fields
+
         query_params = self.context["request"].query_params
         keys = query_params.getlist(self.FIELDS_PARAM_NAME)
         keys = set(key for key in keys if key in fields.keys())
