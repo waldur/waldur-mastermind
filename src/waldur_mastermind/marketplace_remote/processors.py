@@ -7,9 +7,11 @@ from django.db import transaction
 from django.urls import reverse
 from waldur_api_client.api.marketplace_orders import marketplace_orders_create
 from waldur_api_client.api.marketplace_resources import (
+    marketplace_resources_retrieve,
     marketplace_resources_terminate,
     marketplace_resources_update_limits,
 )
+from waldur_api_client.errors import UnexpectedStatus
 from waldur_api_client.models.order_create_request import OrderCreateRequest
 from waldur_api_client.models.order_create_request_limits import (
     OrderCreateRequestLimits,
@@ -91,16 +93,52 @@ class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
 class RemoteUpdateResourceProcessor(processors.BasicUpdateResourceProcessor):
     def update_limits_process(self, user: User):
         client = utils.get_client_for_offering(self.order.offering)
-        response = marketplace_resources_update_limits.sync(
-            client=client,
-            uuid=UUID(self.order.resource.backend_id),
-            body=ResourceUpdateLimitsRequest(
-                limits=ResourceUpdateLimitsRequestLimits.from_dict(self.order.limits),
-            ),
-        )
-        if response:
-            self.order.backend_id = response.order_uuid.hex
-            self.order.save(update_fields=["backend_id"])
+        # Check if limits are already set on the remote side
+        try:
+            remote_resource = marketplace_resources_retrieve.sync(
+                client=client, uuid=UUID(self.order.resource.backend_id)
+            )
+            remote_limits = (
+                remote_resource.limits.to_dict() if remote_resource.limits else {}
+            )
+
+            if remote_limits == self.order.limits:
+                message = f"Remote limits already match requested limits for order {self.order.uuid}. Remote: {remote_limits}, Requested: {self.order.limits}"
+                logger.info(message)
+                self.order.output = (
+                    "Remote limits already match requested limits. No update needed."
+                )
+                self.order.save(update_fields=["output"])
+                return True
+        except Exception as e:
+            logger.warning(
+                f"Could not check remote limits, proceeding with update: {e}"
+            )
+
+        try:
+            response = marketplace_resources_update_limits.sync(
+                client=client,
+                uuid=UUID(self.order.resource.backend_id),
+                body=ResourceUpdateLimitsRequest(
+                    limits=ResourceUpdateLimitsRequestLimits.from_dict(
+                        self.order.limits
+                    ),
+                ),
+            )
+            if response:
+                self.order.backend_id = response.order_uuid.hex
+                self.order.save(update_fields=["backend_id"])
+        except UnexpectedStatus as e:
+            # Check if the error is because the limits are the same and return True if it is
+            if e.status_code == 400 and "Impossible to create update orders" in str(e):
+                message = f"Remote API rejected update as no change needed for order {self.order.uuid}. Requested limits: {self.order.limits}"
+                logger.info(message)
+                self.order.output = (
+                    "Remote limits already match requested limits. No update needed."
+                )
+                self.order.save(update_fields=["output"])
+                return True
+            raise
 
         transaction.on_commit(
             lambda: OrderStatePullTask().apply_async(
