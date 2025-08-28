@@ -147,24 +147,154 @@ def eager_load(queryset, request=None):
     )
 ```
 
-### Optional Fields
+## `RestrictedSerializerMixin` Documentation
 
-Mark expensive computation fields as optional:
+The `RestrictedSerializerMixin` provides a powerful and flexible way to dynamically control which fields are rendered by a Django REST Framework serializer based on query parameters in the request URL. This is especially useful for optimizing API responses, reducing payload size, and allowing API clients to fetch only the data they need.
+
+The mixin supports two primary modes of operation:
+
+- **Restricted Field Rendering (Whitelisting):** The client specifies exactly which fields they want, and all others are excluded.
+- **Optional Fields (Blacklisting by Default):** The serializer defines certain "expensive" or non-essential fields that are excluded by default but can be explicitly requested by the client.
+
+### Basic Usage
+
+To use the mixin, simply add it to your serializer's inheritance list. The mixin requires the `request` object to be in the serializer's context, which DRF views typically provide automatically.
 
 ```python
-def get_optional_fields(self):
-    return super().get_optional_fields() + ["projects", "billing_price_estimate"]
+from .mixins import RestrictedSerializerMixin
+from rest_framework import serializers
+
+class CustomerSerializer(RestrictedSerializerMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Customer
+        fields = ('uuid', 'name', 'email', 'created', 'projects_count')
 ```
 
-Users can request these fields via `?field=projects` query parameter.
+---
 
-### Restricted Field Rendering
+### Feature 1: Restricted Field Rendering (Whitelisting)
 
-Use `RestrictedSerializerMixin` to allow field selection:
+This is the primary feature. By adding the `?field=` query parameter to the URL, an API client can request a specific subset of fields. The serializer will only render the fields present in the `field` parameters.
+
+**Example:**
+Imagine a `CustomerSerializer` with the fields `uuid`, `name`, `email`, and `created`.
+
+To request only the `name` and `uuid` of a customer:
+**URL:** `/api/customers/123/?field=name&field=uuid`
+
+**Expected JSON Response:**
+
+```json
+{
+  "name": "Acme Corp",
+  "uuid": "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+}
+```
+
+---
+
+### Feature 2: Optional Fields (Blacklisting by Default)
+
+Some fields can be expensive to compute (e.g., involving extra database queries, aggregations, or external API calls). You can mark these fields as "optional" by overriding the `get_optional_fields` method. These fields will **not be included** in the response unless they are explicitly requested via the `?field=` parameter.
+
+**Example:**
+Let's add `projects` (a related field) and `billing_price_estimate` (a computed field) to our serializer and mark them as optional.
 
 ```python
-# URL: /api/projects/?field=name&field=uuid
-# Only renders 'name' and 'uuid' fields
+class CustomerSerializer(RestrictedSerializerMixin, serializers.ModelSerializer):
+    projects = ProjectSerializer(many=True, read_only=True)
+    billing_price_estimate = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Customer
+        fields = ('uuid', 'name', 'email', 'created', 'projects', 'billing_price_estimate')
+
+    def get_optional_fields(self):
+        # These fields will be excluded unless explicitly requested.
+        return ['projects', 'billing_price_estimate']
+
+    def get_billing_price_estimate(self, obj):
+        # ... some expensive calculation ...
+        return calculate_price(obj)
+```
+
+**Behavior:**
+
+1. **Standard Request (No `field` parameter):**
+
+    - **URL:** `/api/customers/123/`
+    - **Result:** The optional fields (`projects`, `billing_price_estimate`) are excluded. The expensive `get_billing_price_estimate` method is never called.
+
+    ```json
+    {
+      "uuid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      "name": "Acme Corp",
+      "email": "contact@acme.corp",
+      "created": "2023-10-27T10:00:00Z"
+    }
+    ```
+
+2. **Requesting an Optional Field:**
+
+    - **URL:** `/api/customers/123/?field=name&field=projects`
+    - **Result:** The response is restricted to `name`, and the optional field `projects` is included because it was requested.
+
+    ```json
+    {
+      "name": "Acme Corp",
+      "projects": [
+        { "name": "Project X" },
+        { "name": "Project Y" }
+      ]
+    }
+    ```
+
+---
+
+### Advanced Behavior
+
+#### Nested Serializers
+
+The `RestrictedSerializerMixin` is designed to be "nesting-aware." It will **only apply its filtering logic to the top-level serializer** in a request. Any nested serializers will be rendered completely, ignoring the `?field=` parameters from the URL. This prevents unintentional and undesirable filtering of nested data structures.
+
+**Example:** A `ProjectSerializer` that includes a nested `CustomerSerializer`.
+
+**URL:** `/api/projects/abc/?field=name&field=customer`
+
+**Expected JSON Response:** The `ProjectSerializer` is filtered to `name` and `customer`. The nested `CustomerSerializer`, however, renders **all** of its fields (excluding its own optional fields, of course), because it is not the top-level serializer.
+
+```json
+{
+  "name": "Project X",
+  "customer": {
+    "uuid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+    "name": "Acme Corp",
+    "email": "contact@acme.corp",
+    "created": "2023-10-27T10:00:00Z"
+  }
+}
+```
+
+#### List Views (`many=True`)
+
+The mixin works seamlessly with list views. The field filtering is applied individually to **each object** in the list.
+
+**Example:**
+**URL:** `/api/customers/?field=uuid&field=name`
+
+**Expected JSON Response:**
+
+```json
+[
+  {
+    "uuid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+    "name": "Acme Corp"
+  },
+  {
+    "uuid": "f0e9d8c7-b6a5-4321-fedc-ba9876543210",
+    "name": "Stark Industries"
+  }
+]
 ```
 
 ## Complex Validation Patterns

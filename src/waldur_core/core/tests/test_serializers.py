@@ -3,6 +3,7 @@ import unittest
 from collections import namedtuple
 
 from rest_framework import serializers
+from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.test import (
     APIRequestFactory,
@@ -20,6 +21,7 @@ from waldur_core.core.serializers import (
     RestrictedSerializerMixin,
 )
 from waldur_core.logging.utils import get_loggable_models
+from waldur_core.structure.tests.factories import UserFactory
 
 
 class Base64Serializer(serializers.Serializer):
@@ -198,30 +200,127 @@ class TimestampFieldTest(unittest.TestCase):
         )
 
 
-class RestrictedSerializer(RestrictedSerializerMixin, serializers.Serializer):
+Child = namedtuple("User", ("name", "url", "id"))
+
+Parent = namedtuple("Parent", ("id", "parent_name", "child"))
+
+
+class ChildRestrictedSerializer(RestrictedSerializerMixin, serializers.Serializer):
     name = serializers.ReadOnlyField()
     url = serializers.ReadOnlyField()
     id = serializers.ReadOnlyField()
 
 
+class ParentSerializer(RestrictedSerializerMixin, serializers.Serializer):
+    id = serializers.ReadOnlyField()
+    parent_name = serializers.ReadOnlyField()
+    child = ChildRestrictedSerializer()
+
+
 class RestrictedSerializerView(APIView):
     def get(self, request):
-        User = namedtuple("User", ("name", "url", "id"))
-        user = User(name="Walter", url="http://example.com/Walter", id=1)
-        serializer = RestrictedSerializer(user, context={"request": request})
+        user = Child(name="Walter", url="http://example.com/Walter", id=1)
+        serializer = ChildRestrictedSerializer(user, context={"request": request})
         return Response(serializer.data)
 
 
+class NestedRestrictedSerializerView(APIView):
+    def get(self, request):
+        # Define data structures for our test objects
+        child_obj = Child(
+            name="Collision Jr.", url="http://example.com/CollisionJr", id=2
+        )
+        parent_obj = Parent(id=1, parent_name="Collision Sr.", child=child_obj)
+        # Serialize the parent object
+        serializer = ParentSerializer(parent_obj, context={"request": request})
+        return Response(serializer.data)
+
+
+class UserListView(ListAPIView):
+    """
+    A view that uses the mixin via its serializer_class in a `many=True` context.
+    """
+
+    # Use our serializer that has the mixin
+    serializer_class = ChildRestrictedSerializer
+
+    # Create a fake queryset to avoid database setup
+    queryset = [
+        Child(id=1, name="Walter", url="http://example.com/Walter"),
+        Child(id=2, name="Jesse", url="http://example.com/Jesse"),
+    ]
+
+
 class RestrictedSerializerTest(APITransactionTestCase):
-    def test_serializer_returns_fields_required_in_request(self):
-        fields = ["name", "url"]
-        response = self.make_request(fields)
-        self.assertEqual(fields, list(response.data.keys()))
+    def setUp(self):
+        """
+        Set up common objects for all tests in this class.
+        """
+        self.factory = APIRequestFactory()
+        self.user = UserFactory()
 
-    def make_request(self, fields):
-        from waldur_core.structure.tests.factories import UserFactory
+    def make_request(self, view, fields=None):
+        """
+        Generalized helper to make an authenticated GET request to a given view.
 
-        request = APIRequestFactory().get("/", {"field": fields})
-        force_authenticate(request, UserFactory())
-        response = RestrictedSerializerView.as_view()(request)
+        :param view: The view class to be tested.
+        :param fields: An optional list of strings for the 'field' query parameter.
+        :return: The response object from the view.
+        """
+        query_params = {}
+        if fields:
+            query_params[RestrictedSerializerMixin.FIELDS_PARAM_NAME] = fields
+
+        request = self.factory.get("/", query_params)
+        force_authenticate(request, self.user)
+        response = view.as_view()(request)
         return response
+
+    def test_serializer_returns_fields_required_in_request(self):
+        """Tests the mixin on a simple, non-nested serializer."""
+        fields_to_request = ["name", "url"]
+
+        # Use the helper for the simple view
+        response = self.make_request(RestrictedSerializerView, fields=fields_to_request)
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(fields_to_request, list(response.data.keys()))
+
+    def test_mixin_is_not_applied_on_nested_serializer_with_field_name_collision(self):
+        fields_to_request = ["id", "child"]
+        response = self.make_request(
+            NestedRestrictedSerializerView, fields=fields_to_request
+        )
+
+        self.assertEqual(200, response.status_code)
+
+        # 1. Assert the parent was filtered correctly
+        self.assertEqual(
+            set(fields_to_request),
+            set(response.data.keys()),
+            "Parent serializer did not return the correct fields.",
+        )
+
+        # 2. Assert the nested serializer was NOT filtered and returned ALL its fields
+        expected_child_fields = {"id", "name", "url"}
+        actual_child_fields = set(response.data["child"].keys())
+
+        self.assertEqual(
+            expected_child_fields,
+            actual_child_fields,
+            "Nested serializer was incorrectly filtered due to a name collision.",
+        )
+
+    def test_mixin_works_with_many_true(self):
+        """
+        Verify that field filtering is applied correctly for list views (`many=True`).
+        """
+        response = self.make_request(UserListView, fields=["id", "name"])
+
+        # Assert that EACH item in the list has been correctly filtered
+        for row in response.data:
+            self.assertEqual(
+                {"id", "name"},
+                set(row.keys()),
+                "Fields were not filtered correctly on items in a list response.",
+            )
