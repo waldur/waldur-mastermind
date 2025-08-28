@@ -2,12 +2,26 @@
 
 ## Structure application models
 
-![Structure application models](./core_structure.png)
+```mermaid
+{{#include ./core_structure.mmd}}
+```
 
 ## Permissions application models
 
-![Permissions application models](./core_permissions.png)
+```mermaid
+{{#include ./core_permissions.mmd}}
+```
 
 ## Marketplace application models
 
-![Marketplace application models](./marketplace.png)
+```mermaid
+{{#include ./marketplace_category.mmd}}
+```
+
+```mermaid
+{{#include ./marketplace_catalog.mmd}}
+```
+
+```mermaid
+{{#include ./marketplace_provision.mmd}}
+```

@@ -319,6 +319,14 @@ Upload configuration guide:
     HANDLERS_LIST_PATH: docs/developer-guide/handlers.md
     DEVELOPER_DOCS_PATH: docs/developer-guide
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
+
+    # Define paths for the Mermaid diagrams ---
+    STRUCTURE_MERMAID_PATH: docs/developer-guide/core_structure.mmd
+    PERMISSIONS_MERMAID_PATH: docs/developer-guide/core_permissions.mmd
+    MARKETPLACE_CATEGORY_MERMAID_PATH: docs/developer-guide/marketplace_category.mmd
+    MARKETPLACE_CATALOG_MERMAID_PATH: docs/developer-guide/marketplace_catalog.mmd
+    MARKETPLACE_PROVISION_MERMAID_PATH: docs/developer-guide/marketplace_provision.mmd
+
   script:
     - pip install uv
     - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
@@ -337,11 +345,60 @@ Upload configuration guide:
     - waldur print_scheduled_jobs > $SCHEDULED_JOB_LIST_PATH
     - waldur print_mixins > $MIXINS_LIST_PATH
     - waldur print_registered_handlers > $HANDLERS_LIST_PATH
-    - waldur graph_models structure -I Customer,Project,OrganizationGroup,ProjectType,User -o $DEVELOPER_DOCS_PATH/core_structure.png
-    - waldur graph_models permissions -I User,Role,UserRole,RolePermission -o $DEVELOPER_DOCS_PATH/core_permissions.png
-    - waldur graph_models marketplace -I CategoryGroup,Category,CategoryColumn,Section,Attribute,AttributeOption,CategoryComponent,CategoryComponentUsage,Offering,OfferingComponent,Plan,PlanComponent,Resource,Order -o $DEVELOPER_DOCS_PATH/marketplace.png
+
+    # Generate the Structure diagram
+    - >
+      waldur generate_mermaid structure
+      -i "Customer,Project,OrganizationGroup,ProjectType,User"
+      --exclude-field-types="TranslationCharField,TranslationTextField"
+      -o $STRUCTURE_MERMAID_PATH
+
+    # Generate the Permissions diagram
+    - >
+      waldur generate_mermaid permissions
+      -i "User,Role,UserRole,RolePermission"
+      --exclude-field-types="TranslationCharField,TranslationTextField"
+      -o $PERMISSIONS_MERMAID_PATH
+
+    # Generate the Marketplace category diagram
+    - >
+      waldur generate_mermaid marketplace
+      -i "CategoryGroup,Category,CategoryColumn,CategoryComponent,CategoryComponentUsage"
+      --exclude-field-types="TranslationCharField,TranslationTextField"
+      -o $MARKETPLACE_CATEGORY_MERMAID_PATH
+
+    # Generate the Marketplace catalog diagram
+    - >
+      waldur generate_mermaid marketplace
+      -i "Section,Attribute,AttributeOption,Offering,OfferingComponent"
+      --exclude-field-types="TranslationCharField,TranslationTextField"
+      -o $MARKETPLACE_CATALOG_MERMAID_PATH
+
+    # Generate the Marketplace diagram
+    - >
+      waldur generate_mermaid marketplace
+      -i "Plan,PlanComponent,Resource,Order"
+      --exclude-field-types="TranslationCharField,TranslationTextField"
+      -o $MARKETPLACE_PROVISION_MERMAID_PATH
+
     - cp -rv $CI_PROJECT_DIR/docs/* $DEVELOPER_DOCS_PATH
-    - git add $CONF_GUIDE_PATH $FEATURES_GUIDE_PATH $CLI_GUIDE_PATH $DEVELOPER_DOCS_PATH $TEMPLATES_LIST_PATH $NOTIFICATIONS_GUIDE_PATH $SCHEDULED_JOB_LIST_PATH $MIXINS_LIST_PATH $HANDLERS_LIST_PATH
+    - >
+      git add
+      $CONF_GUIDE_PATH
+      $FEATURES_GUIDE_PATH
+      $CLI_GUIDE_PATH
+      $DEVELOPER_DOCS_PATH
+      $TEMPLATES_LIST_PATH
+      $NOTIFICATIONS_GUIDE_PATH
+      $SCHEDULED_JOB_LIST_PATH
+      $MIXINS_LIST_PATH
+      $HANDLERS_LIST_PATH
+      $STRUCTURE_MERMAID_PATH
+      $PERMISSIONS_MERMAID_PATH
+      $MARKETPLACE_CATEGORY_MERMAID_PATH
+      $MARKETPLACE_CATALOG_MERMAID_PATH
+      $MARKETPLACE_PROVISION_MERMAID_PATH
+
     - git commit -m "Update configuration, CLI and developer guide" || exit 0
     - git branch new-configuration-guide
     - git push --set-upstream origin new-configuration-guide:master
