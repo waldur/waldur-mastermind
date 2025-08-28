@@ -208,12 +208,15 @@ class IssueSerializer(
     def get_fields(self):
         fields = super().get_fields()
 
-        if (
-            "view" not in self.context
-        ):  # On docs generation context does not contain "view".
-            return fields
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        try:
+            if getattr(self.context["request"], "_is_generating_schema", False):
+                return fields
+        except (AttributeError, KeyError):
+            pass
 
-        user = self.context["view"].request.user
+        user = self.context["request"].user
         if user.is_authenticated and not user.is_staff and not user.is_support:
             del fields["link"]
 

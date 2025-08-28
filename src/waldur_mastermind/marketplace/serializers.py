@@ -594,7 +594,14 @@ class ServiceProviderSerializer(
 
     def get_fields(self):
         fields = super().get_fields()
-        if self.context["request"].user.is_anonymous:
+
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        request = self.context["request"]
+        if getattr(request, "_is_generating_schema", False):
+            return fields
+
+        if request.user.is_anonymous:
             del fields["enable_notifications"]
         return fields
 
@@ -2574,7 +2581,14 @@ class BaseOrderSerializer(BaseRequestSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        user = self.context["view"].request.user
+
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        request = self.context["view"].request
+        if getattr(request, "_is_generating_schema", False):
+            return fields
+
+        user = request.user
         # conceal detailed error message from non-system users
         if (
             not user.is_authenticated or (not user.is_staff and not user.is_support)
@@ -3338,8 +3352,14 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         fields = super().get_fields()
         if "attributes" in fields:
             fields["attributes"] = serializers.SerializerMethodField()
-        query_params = self.context["request"].query_params
-        keys = query_params.getlist(self.FIELDS_PARAM_NAME)
+
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        request = self.context["request"]
+        if getattr(request, "_is_generating_schema", False):
+            return fields
+
+        keys = request.query_params.getlist(self.FIELDS_PARAM_NAME)
         for key in ("order_in_progress", "creation_order"):
             if keys and key not in keys and key in fields:
                 del fields[key]
@@ -4928,6 +4948,11 @@ class MarketplaceServiceProviderUserSerializer(
         except (KeyError, AttributeError):
             return fields
 
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        if getattr(request, "_is_generating_schema", False):
+            return fields
+
         if user.is_authenticated and not user.is_staff and not user.is_support:
             del fields["is_active"]
 
@@ -5084,6 +5109,15 @@ class ProviderOfferingSerializer(
 
     def get_fields(self):
         fields = super().get_fields()
+
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        try:
+            if getattr(self.context["request"], "_is_generating_schema", False):
+                return fields
+        except (AttributeError, KeyError):
+            pass
+
         if (
             self.instance
             and not self.can_see_secret_options()

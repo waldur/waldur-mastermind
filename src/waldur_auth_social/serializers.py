@@ -84,6 +84,11 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
         except (KeyError, AttributeError):
             return fields
 
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        if getattr(request, "_is_generating_schema", False):
+            return fields
+
         if self.instance:
             fields["provider"].read_only = True
 

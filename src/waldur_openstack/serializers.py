@@ -896,6 +896,15 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
+
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        try:
+            if getattr(self.context["request"], "_is_generating_schema", False):
+                return fields
+        except (AttributeError, KeyError):
+            pass
+
         if not settings.WALDUR_OPENSTACK["TENANT_CREDENTIALS_VISIBLE"]:
             for field in ("user_username", "user_password", "access_url"):
                 if field in fields:
@@ -2792,6 +2801,15 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
 
     def get_fields(self):
         fields = super().get_fields()
+
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        try:
+            if getattr(self.context["request"], "_is_generating_schema", False):
+                return fields
+        except (AttributeError, KeyError):
+            pass
+
         user = self.context["request"].user
 
         if user.is_authenticated and not user.is_staff and not user.is_support:
