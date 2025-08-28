@@ -118,6 +118,10 @@ class FieldFilteringMixin:
         except (KeyError, AttributeError):
             return fields
 
+        # Skip field filtering during schema generation
+        if getattr(request, "_is_generating_schema", False):
+            return fields
+
         for field_name, check_access in self.get_filtered_field():
             if field_name not in fields:
                 continue
