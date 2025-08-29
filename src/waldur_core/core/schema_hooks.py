@@ -322,6 +322,19 @@ def add_polymorphic_attributes_schema(result, generator, **kwargs):
         result_schemas[schema_name] = schema
         offering_schemas.append({"$ref": f"#/components/schemas/{schema_name}"})
 
+    result_schemas["OpenStackInstanceCreateOrderAttributes"]["properties"][
+        "security_groups"
+    ] = {
+        "type": "array",
+        "items": {"$ref": "#/components/schemas/OpenStackNestedSecurityGroupRequest"},
+        "description": "Security groups to attach to the instance",
+    }
+
+    result_schemas["OpenStackNestedSecurityGroupRequest"] = {
+        "type": "object",
+        "properties": {"url": {"type": "string", "format": "uri"}},
+    }
+
     result_schemas["GenericOrderAttributes"] = {
         "type": "object",
         "description": "A generic JSON object for offerings without a predefined schema. Allows any key-value pairs.",
