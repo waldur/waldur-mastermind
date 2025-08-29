@@ -1,8 +1,11 @@
 from ddt import data, ddt
+from django.core import mail
+from django.test.utils import override_settings
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CallRole, CustomerRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal.enums import RequestedOfferingStates
 from waldur_mastermind.proposal.tests import fixtures
 
@@ -62,6 +65,32 @@ class RequestedOfferingAcceptTest(test.APITransactionTestCase):
             self.requested_offering.state, RequestedOfferingStates.ACCEPTED
         )
 
+    @override_settings(task_always_eager=True)
+    @data(
+        "staff",
+        "offering_owner",
+    )
+    def test_notification_sent_on_accept(self, user):
+        structure_factories.NotificationFactory(
+            key="proposal.requested_offering_decision",
+        )
+        self.requested_offering.call.add_user(
+            self.fixture.call_manager, CallRole.MANAGER
+        )
+
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(len(mail.outbox), 1)
+
+        email = mail.outbox[0]
+        self.assertIn("Offering request accepted", email.subject)
+        self.assertIn(self.requested_offering.offering.name, email.body)
+        self.assertIn(self.fixture.call.name, email.body)
+        self.assertIn(self.requested_offering.offering.customer.name, email.body)
+
     @data(
         "user",
         "owner",
@@ -97,6 +126,32 @@ class RequestedOfferingCancelTest(test.APITransactionTestCase):
         self.assertEqual(
             self.requested_offering.state, RequestedOfferingStates.CANCELED
         )
+
+    @override_settings(task_always_eager=True)
+    @data(
+        "staff",
+        "offering_owner",
+    )
+    def test_notification_sent_on_cancel(self, user):
+        structure_factories.NotificationFactory(
+            key="proposal.requested_offering_decision",
+        )
+        self.requested_offering.call.add_user(
+            self.fixture.call_manager, CallRole.MANAGER
+        )
+
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(len(mail.outbox), 1)
+
+        email = mail.outbox[0]
+        self.assertIn("Offering request canceled", email.subject)
+        self.assertIn(self.requested_offering.offering.name, email.body)
+        self.assertIn(self.fixture.call.name, email.body)
+        self.assertIn(self.requested_offering.offering.customer.name, email.body)
 
     @data(
         "user",

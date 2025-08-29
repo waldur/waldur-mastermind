@@ -342,3 +342,42 @@ def notify_reviewer_about_assignment(review_uuid):
         context,
         [review.reviewer.email],
     )
+
+
+@shared_task(name="waldur_mastermind.proposal.notify_offering_request_decision")
+def notify_offering_request_decision(requested_offering_uuid):
+    requested_offering = proposal_models.RequestedOffering.objects.get(
+        uuid=requested_offering_uuid
+    )
+    call = requested_offering.call
+
+    recipients = list(call.call_managers.values_list("email", flat=True))
+
+    if not recipients:
+        logger.warning(
+            f"Cannot send offering request decision notification. Call {call.uuid} has no managers with valid emails."
+        )
+        return
+
+    call_url = core_utils.format_homeport_link(
+        f"calls/{call.uuid}/",
+    )
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "offering_name": requested_offering.offering.name,
+        "call_name": call.name,
+        "provider_name": requested_offering.offering.customer.name
+        if requested_offering.offering.customer
+        else "N/A",
+        "decision": requested_offering.state,
+        "decision_date": requested_offering.modified.strftime("%B %d, %Y"),
+        "call_url": call_url,
+    }
+
+    core_utils.broadcast_mail(
+        "proposal",
+        "requested_offering_decision",
+        context,
+        recipients,
+    )

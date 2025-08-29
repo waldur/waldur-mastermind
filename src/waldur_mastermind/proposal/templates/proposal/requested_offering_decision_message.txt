@@ -1,0 +1,18 @@
+Dear call manager,
+
+The provider has {{ decision }} the request to include offering "{{ offering_name }}" in call "{{ call_name }}".
+
+Offering details:
+- Offering: {{ offering_name }}
+- Provider: {{ provider_name }}
+- Decision Date: {{ decision_date }}
+- State: {{ decision }}
+
+{% if decision == "accepted" %}This offering is now available for selection in proposals submitted to this call.{% endif %}
+
+{% if decision == "canceled" %}You may need to look for alternative offerings or contact the provider directly for more information about their decision.{% endif %}
+
+You can view the call details and manage offerings by visiting:
+{{ call_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

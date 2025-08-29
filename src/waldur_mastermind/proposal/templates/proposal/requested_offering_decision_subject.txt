@@ -1,0 +1,1 @@
+Offering request {{ decision }}: {{ offering_name }}
