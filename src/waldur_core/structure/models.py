@@ -796,6 +796,9 @@ class Project(
     @transaction.atomic()
     def _soft_delete(self, using=None):
         """Method for project soft delete. It doesn't delete a project, only mark as 'removed', but it sends signals"""
+        # Set flag to indicate this object is being deleted to skip quota aggregation
+        self._deleting = True
+
         signals.pre_delete.send(sender=self.__class__, instance=self, using=using)
 
         self.is_removed = True
@@ -808,6 +811,8 @@ class Project(
         if soft:
             self._soft_delete(using)
         else:
+            # Set flag for hard delete as well
+            self._deleting = True
             return super(SoftDeletableModel, self).delete(using=using, *args, **kwargs)
 
     def __str__(self):
