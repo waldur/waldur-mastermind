@@ -313,6 +313,7 @@ class UserRoleMixin:
             target_user,
             role,
             request.user,
+            reason="Manual user removal via delete_user API endpoint",
         )
         return Response(status=status.HTTP_200_OK)
 

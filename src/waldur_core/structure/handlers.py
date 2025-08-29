@@ -46,7 +46,7 @@ def revoke_roles_on_project_deletion(sender, instance: Project | None = None, **
     So in order to invalidate nc_user_count quota we need to emit it manually.
     """
     for permission in get_permissions(instance):
-        permission.revoke()
+        permission.revoke(reason="Project deletion cascade")
 
 
 def log_customer_save(sender, instance: Customer, created=False, **kwargs):

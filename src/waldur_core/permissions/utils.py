@@ -190,7 +190,7 @@ def update_user(scope, user, role, expiration_time=None, current_user=None):
     return permission
 
 
-def delete_user(scope, user, role, current_user=None):
+def delete_user(scope, user, role, current_user=None, reason=None):
     try:
         permission = models.UserRole.objects.get(
             user=user,
@@ -200,7 +200,14 @@ def delete_user(scope, user, role, current_user=None):
         )
     except models.UserRole.DoesNotExist:
         return False
-    permission.revoke(current_user)
+
+    if not reason:
+        if current_user:
+            reason = "Manual user removal via API"
+        else:
+            reason = "System-initiated user removal"
+
+    permission.revoke(current_user, reason=reason)
     return True
 
 

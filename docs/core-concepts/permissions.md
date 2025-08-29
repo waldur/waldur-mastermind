@@ -422,12 +422,40 @@ class MyViewSet(viewsets.ModelViewSet):
 
 ### 5. Audit Role Changes
 
-Role changes are automatically logged via signals (`role_granted`, `role_updated`, `role_revoked`), but always pass `current_user` for proper audit trails:
+Role changes are automatically logged via signals (`role_granted`, `role_updated`, `role_revoked`) with enhanced context including initiator and reason. Always pass `current_user` and optional `reason` for clear audit trails:
 
 ```python
+# Basic usage - uses default reasons
 add_user(scope, user, role, created_by=request.user)
 delete_user(scope, user, role, current_user=request.user)
+
+# Enhanced usage with specific reasons
+delete_user(scope, user, role, current_user=request.user, reason="User left organization")
+user_role.revoke(current_user=request.user, reason="Security policy violation")
 ```
+
+#### Enhanced Logging Context
+
+All role change logs now include:
+
+- **`initiated_by`**: Shows either "System" (for automatic operations) or "User Name (username)" (for manual operations)
+- **`reason`**: Specific reason for the change, with automatic defaults:
+  - Manual API operations: `"Manual role assignment/removal/update via API"`
+  - Automatic expiration: `"Automatic expiration"` or `"Automatic expiration cleanup task"`
+  - Project deletion: `"Project deletion cascade"`
+  - Scope changes: `"Project moved to different customer"`, `"Offering moved to different provider"`
+
+#### Common Automatic Reasons
+
+The system automatically assigns these reasons when not explicitly provided:
+
+| Scenario | Default Reason |
+|----------|---------------|
+| API user operations with `current_user` | `"Manual [operation] via API"` |
+| Expiration task | `"Automatic expiration cleanup task"` |
+| Project deletion | `"Project deletion cascade"` |
+| Role expiration detection | `"Automatic expiration"` |
+| System operations without `current_user` | `"System-initiated [operation]"` |
 
 ### 6. Performance and Accuracy Guidelines
 
