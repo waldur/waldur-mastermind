@@ -45,5 +45,32 @@ class OpenStackNestedSecurityGroupSerializerExtension(OpenApiSerializerExtension
     def map_serializer(self, auto_schema, direction):
         return {
             "type": "object",
-            "properties": {"url": {"type": "string"}},
+            "properties": {
+                "url": {"type": "string", "format": "uri"},
+                "name": {"type": "string", "readOnly": True},
+                "description": {"type": "string", "readOnly": True},
+                "state": {"type": "string", "readOnly": True},
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "integer"},
+                            "protocol": {"type": "string", "nullable": True},
+                            "from_port": {"type": "integer", "nullable": True},
+                            "to_port": {"type": "integer", "nullable": True},
+                            "cidr": {"type": "string", "nullable": True},
+                            "remote_group": {
+                                "type": "string",
+                                "format": "uri",
+                                "nullable": True,
+                            },
+                            "direction": {"type": "string"},
+                            "ethertype": {"type": "string"},
+                            "description": {"type": "string", "nullable": True},
+                        },
+                    },
+                    "readOnly": True,
+                },
+            },
         }
