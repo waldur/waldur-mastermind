@@ -37,6 +37,7 @@ from waldur_core.structure import views as structure_views
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.serializers import ConsoleUrlSerializer
 from waldur_core.structure.signals import resource_imported
+from waldur_mastermind.marketplace_openstack.utils import delete_instance
 from waldur_openstack.apps import OpenStackConfig
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.exceptions import OpenStackBackendError
@@ -1483,25 +1484,6 @@ class InstanceViewSet(structure_views.ResourceViewSet):
                     _("Cannot delete instance that has snapshots.")
                 )
 
-    def _can_destroy_instance(instance):
-        if instance.state == CoreStates.ERRED:
-            return
-        if (
-            instance.state == CoreStates.OK
-            and instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF
-        ):
-            return
-        if (
-            instance.state == CoreStates.OK
-            and instance.runtime_state == models.Instance.RuntimeStates.ACTIVE
-        ):
-            raise core_exceptions.IncorrectStateException(
-                _("Please stop the instance before its removal.")
-            )
-        raise core_exceptions.IncorrectStateException(
-            _("Instance should be shutoff and OK or erred. Please contact support.")
-        )
-
     @extend_schema(
         description="Change flavor of the instance",
         request=serializers.InstanceFlavorChangeSerializer,
@@ -1851,68 +1833,15 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
         structure_filters.StartTimeFilter,
     )
 
-    def destroy(self, request, uuid=None):
-        """
-        Deletion of an instance is done through sending a DELETE request to the instance URI.
-        Valid request example (token is user specific):
-
-        .. code-block:: http
-
-            DELETE /api/openstack-instances/abceed63b8e844afacd63daeac855474/ HTTP/1.1
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-        Only stopped instances or instances in ERRED state can be deleted.
-
-        By default when instance is destroyed, all data volumes
-        attached to it are destroyed too. In order to preserve data
-        volumes use query parameter ?delete_volumes=false
-        In this case data volumes are detached from the instance and
-        then instance is destroyed. Note that system volume is deleted anyway.
-        For example:
-
-        .. code-block:: http
-
-            DELETE /api/openstack-instances/abceed63b8e844afacd63daeac855474/?delete_volumes=false HTTP/1.1
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-        """
-        serializer = self.get_serializer(
-            data=request.query_params, instance=self.get_object()
-        )
-        serializer.is_valid(raise_exception=True)
-        delete_volumes = serializer.validated_data["delete_volumes"]
-        release_floating_ips = serializer.validated_data["release_floating_ips"]
-
-        resource: models.Instance = self.get_object()
-        force = resource.state == CoreStates.ERRED
-        executors.InstanceDeleteExecutor.execute(
-            resource,
-            force=force,
-            delete_volumes=delete_volumes,
-            release_floating_ips=release_floating_ips,
-            is_async=self.async_executor,
-        )
-
-        return response.Response(
-            {"status": _("destroy was scheduled")}, status=status.HTTP_202_ACCEPTED
-        )
-
-    destroy_validators = [
-        InstanceViewSet._can_destroy_instance,
-        InstanceViewSet._has_backups,
-        InstanceViewSet._has_snapshots,
-    ]
-    destroy_serializer_class = serializers.OpenStackInstanceDeleteSerializer
-
     @decorators.action(detail=True, methods=["delete"])
     def force_destroy(self, request, uuid=None):
         """This action completely repeats 'destroy', with the exclusion of validators.
         Destroy's validators require stopped VM. This requirement has expired.
         But for compatibility with old documentation, it must be left.
         """
-        return self.destroy(request, uuid)
+        instance = self.get_object()
+        delete_instance(instance, request.query_params)
+        return response.Response(status=status.HTTP_202_ACCEPTED)
 
     force_destroy_validators = [
         InstanceViewSet._has_backups,
@@ -1922,7 +1851,6 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
             CoreStates.ERRED,
         ),
     ]
-    force_destroy_serializer_class = destroy_serializer_class
 
     def perform_create(self, serializer):
         instance: models.Instance = serializer.save()

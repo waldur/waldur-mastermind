@@ -4,12 +4,15 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
+from waldur_core.core.enums import CoreStates
+from waldur_core.core.exceptions import IncorrectStateException
 from waldur_mastermind.marketplace import models, processors, signals
 from waldur_mastermind.marketplace.processors import (
     copy_attributes,
     get_order_post_data,
 )
 from waldur_mastermind.marketplace_openstack import views
+from waldur_mastermind.marketplace_openstack.utils import delete_instance
 from waldur_openstack import models as openstack_models
 from waldur_openstack import views as openstack_views
 
@@ -122,8 +125,41 @@ class InstanceCreateProcessor(TenantMixin, processors.BaseCreateResourceProcesso
     )
 
 
-class InstanceDeleteProcessor(processors.DeleteScopedResourceProcessor):
-    viewset = openstack_views.MarketplaceInstanceViewSet
+class InstanceDeleteProcessor(processors.AbstractDeleteResourceProcessor):
+    def validate_order(self, request):
+        instance = self.order.resource.scope
+        if not instance:
+            return
+        for validator in [
+            self._can_destroy_instance,
+            openstack_views.InstanceViewSet._has_backups,
+            openstack_views.InstanceViewSet._has_snapshots,
+        ]:
+            validator(instance)
+
+    def _can_destroy_instance(self, instance: openstack_models.Instance):
+        if instance.state == CoreStates.ERRED:
+            return
+        if (
+            instance.state == CoreStates.OK
+            and instance.runtime_state
+            == openstack_models.Instance.RuntimeStates.SHUTOFF
+        ):
+            return
+        if (
+            instance.state == CoreStates.OK
+            and instance.runtime_state == openstack_models.Instance.RuntimeStates.ACTIVE
+        ):
+            raise IncorrectStateException(
+                _("Please stop the instance before its removal.")
+            )
+        raise IncorrectStateException(
+            _("Instance should be shutoff and OK or erred. Please contact support.")
+        )
+
+    def send_request(self, user, resource: models.Resource):
+        delete_instance(resource.scope, self.order.attributes)
+        return False
 
 
 class VolumeCreateProcessor(TenantMixin, processors.BaseCreateResourceProcessor):

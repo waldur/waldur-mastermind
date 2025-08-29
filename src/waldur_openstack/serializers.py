@@ -3147,25 +3147,6 @@ class InstanceFlavorChangeSerializer(serializers.Serializer):
         return instance
 
 
-class OpenStackInstanceDeleteSerializer(serializers.Serializer):
-    delete_volumes = serializers.BooleanField(default=True)
-    release_floating_ips = serializers.BooleanField(
-        label=_("Release floating IPs"), default=True
-    )
-
-    def validate(self, attrs):
-        if (
-            attrs["delete_volumes"]
-            and models.Snapshot.objects.filter(
-                source_volume__instance=self.instance
-            ).exists()
-        ):
-            raise serializers.ValidationError(
-                _("Cannot delete instance. One of its volumes has attached snapshot.")
-            )
-        return attrs
-
-
 class OpenStackInstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
     security_groups = serializers.HyperlinkedRelatedField(
         many=True,
