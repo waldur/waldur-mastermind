@@ -1144,8 +1144,8 @@ class Instance(
 
     id: int
     ports: "RelatedManager[Port]"
-    volumes: models.Manager["Volume"]
-    backups: models.Manager["Backup"]
+    volumes: "RelatedManager[Volume]"
+    backups: "RelatedManager[Backup]"
 
     class RuntimeStates:
         # All possible OpenStack Instance states on backend.

@@ -67,6 +67,7 @@ def expand_added_nodes(
     tenant: Tenant | None,
     ssh_public_key: SshPublicKey | None,
     security_groups=None,
+    autoexpand_tenant=False,  # Skips validation for further expanding tenant
 ):
     for node in nodes:
         node_tenant = node.pop("tenant", None)
@@ -145,6 +146,9 @@ def expand_added_nodes(
 
         if ssh_public_key:
             node["initial_data"]["ssh_public_key"] = ssh_public_key.uuid.hex
+
+    if autoexpand_tenant:
+        return
 
     if tenant:
         validate_quotas(nodes, tenant, project)
@@ -226,7 +230,7 @@ def validate_quotas(nodes, tenant: Tenant, project: Project):
                 pass
 
 
-def get_node_quota(quota_name, node):
+def get_node_quota(quota_name: str, node: dict):
     conf = node["initial_data"]
     if quota_name == "storage":
         data_volumes = conf.get("data_volumes", [])

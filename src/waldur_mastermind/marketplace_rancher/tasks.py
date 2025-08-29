@@ -1,7 +1,11 @@
+from typing import cast
+
 from celery import shared_task
 
+from waldur_core.core.utils import deserialize_instance
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.utils import get_current_month, get_current_year
+from waldur_mastermind.marketplace.models import Resource
 
 from . import MANAGED_RANCHER_PLUGIN, utils
 
@@ -29,3 +33,9 @@ def sync_managed_rancher_invoice_items():
         utils.sync_aggregated_invoice_item(
             upstream_invoice_item, downstream_invoice_item
         )
+
+
+@shared_task(name="waldur_mastermind.marketplace_rancher.update_tenant_limits")
+def update_tenant_limits(serialized_tenant_resource: str, new_limits: dict):
+    tenant_resource = cast(Resource, deserialize_instance(serialized_tenant_resource))
+    utils.submit_update_order(tenant_resource, new_limits)
