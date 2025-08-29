@@ -2122,7 +2122,9 @@ def move_offering(
 
     if not preserve_permissions:
         for permission in get_permissions(offering):
-            permission.revoke(current_user)
+            permission.revoke(
+                current_user, reason="Offering moved to different provider"
+            )
             logger.info(f"Permission {permission} has been revoked")
 
     logger.info("Offering %s has been moved to provider %s", offering, target_customer)

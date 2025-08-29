@@ -226,7 +226,9 @@ def move_project(project, customer, current_user=None, preserve_permissions=Fals
 
     if not preserve_permissions:
         for permission in get_permissions(project):
-            permission.revoke(current_user)
+            permission.revoke(
+                current_user, reason="Project moved to different customer"
+            )
             logger.info(f"Permission {permission} has been revoked")
 
     project_moved.send(

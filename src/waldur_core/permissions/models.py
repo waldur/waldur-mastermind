@@ -95,7 +95,7 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
             current_user=current_user,
         )
 
-    def revoke(self, current_user=None):
+    def revoke(self, current_user=None, reason=None):
         if not self.is_active:
             # user role is already revoked
             return
@@ -106,6 +106,7 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
             sender=self.__class__,
             instance=self,
             current_user=current_user,
+            reason=reason,
         )
 
     class Meta:

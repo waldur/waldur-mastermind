@@ -41,10 +41,10 @@ class PermissionMixin:
     def remove_user(self, user, role=None, removed_by=None):
         role = self.get_or_create_role(role)
         if role:
-            delete_user(self, user, role, removed_by)
+            delete_user(self, user, role, removed_by, reason="User removed from scope")
         else:
             for perm in get_permissions(self, user):
-                perm.revoke(removed_by)
+                perm.revoke(removed_by, reason="All roles removed from scope")
 
     def get_users(self, role=None):
         """Return all connected to scope users"""

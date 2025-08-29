@@ -9,4 +9,4 @@ def check_expired_permissions():
     for permission in models.UserRole.objects.filter(
         expiration_time__lt=timezone.now(), is_active=True
     ):
-        permission.revoke()
+        permission.revoke(reason="Automatic expiration cleanup task")
