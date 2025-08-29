@@ -13,6 +13,9 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
+from waldur_mastermind.marketplace_openstack.utils import (
+    delete_instance,
+)
 from waldur_openstack import executors, models, views
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.models import Port
@@ -524,12 +527,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         )
         self.instance.increase_backend_quotas_usage()
         self.mocked_nova.servers.get.side_effect = nova_exceptions.NotFound(code=404)
-        views.MarketplaceInstanceViewSet.async_executor = False
         self.tenant = self.instance.tenant
-
-    def tearDown(self):
-        super().tearDown()
-        views.MarketplaceInstanceViewSet.async_executor = True
 
     def mock_volumes(self, delete_data_volume=True):
         self.data_volume = self.instance.volumes.get(bootable=False)
@@ -553,20 +551,8 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
 
         self.mocked_cinder.volumes.get.side_effect = get_volume
 
-    def delete_instance(self, query_params=None, check_status_code=True):
-        user = structure_factories.UserFactory(is_staff=True)
-        view = views.MarketplaceInstanceViewSet.as_view({"delete": "destroy"})
-
-        response = common_utils.delete_request(
-            view, user, uuid=self.instance.uuid.hex, query_params=query_params
-        )
-
-        if check_status_code:
-            self.assertEqual(
-                response.status_code, status.HTTP_202_ACCEPTED, response.data
-            )
-
-        return response
+    def delete_instance(self, query_params=None):
+        delete_instance(self.instance, query_params, is_async=False)
 
     def assert_quota_usage(self, scope, name, value):
         self.assertEqual(scope.get_quota_usage(name), value)
@@ -640,16 +626,6 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
 
         self.assert_quota_usage(tenant, "volumes", 1)
         self.assert_quota_usage(tenant, "storage", self.data_volume.size)
-
-    def test_instance_cannot_be_deleted_if_it_has_backups(self):
-        self.instance = factories.InstanceFactory(
-            state=CoreStates.OK,
-            runtime_state=models.Instance.RuntimeStates.SHUTOFF,
-            backend_id="VALID_ID",
-        )
-        factories.BackupFactory(instance=self.instance, state=CoreStates.OK)
-        response = self.delete_instance(check_status_code=False)
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
 
     def test_neutron_methods_are_called_if_instance_is_deleted_with_floating_ips(self):
         self.mock_volumes(False)

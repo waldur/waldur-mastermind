@@ -19,6 +19,7 @@ from waldur_mastermind.marketplace.utils import (
     create_offering_components,
     validate_order,
 )
+from waldur_mastermind.marketplace_openstack.processors import InstanceDeleteProcessor
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
 from waldur_openstack import models as openstack_models
 from waldur_openstack.tests import factories as openstack_factories
@@ -535,25 +536,19 @@ class InstanceDeleteTest(test.APITransactionTestCase):
             CoreStates.DELETION_SCHEDULED,
         )
 
-    @mock.patch("waldur_openstack.views.executors")
-    def test_cancel_of_volume_deleting(self, mock_executors):
+    @mock.patch("waldur_openstack.executors.InstanceDeleteExecutor.execute")
+    def test_cancel_of_volume_deleting(self, execute):
         self.order.attributes = {"delete_volumes": False}
         self.order.save()
         self.trigger_deletion()
-        self.assertFalse(
-            mock_executors.InstanceDeleteExecutor.execute.call_args[1]["delete_volumes"]
-        )
+        self.assertFalse(execute.call_args[1]["delete_volumes"])
 
-    @mock.patch("waldur_openstack.views.executors")
-    def test_cancel_of_floating_ips_deleting(self, mock_executors):
+    @mock.patch("waldur_openstack.executors.InstanceDeleteExecutor.execute")
+    def test_cancel_of_floating_ips_deleting(self, execute):
         self.order.attributes = {"release_floating_ips": False}
         self.order.save()
         self.trigger_deletion()
-        self.assertFalse(
-            mock_executors.InstanceDeleteExecutor.execute.call_args[1][
-                "release_floating_ips"
-            ]
-        )
+        self.assertFalse(execute.call_args[1]["release_floating_ips"])
 
     def test_deletion_is_completed(self):
         self.trigger_deletion()
@@ -665,7 +660,7 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         )
 
     def trigger_deletion(self):
-        marketplace_utils.process_order(self.order, self.fixture.staff)
+        InstanceDeleteProcessor(self.order).process_order(self.fixture.staff)
 
         self.order.refresh_from_db()
         self.resource.refresh_from_db()

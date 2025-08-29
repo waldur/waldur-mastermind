@@ -6,8 +6,10 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import transaction
-from rest_framework import exceptions
+from django.utils.translation import gettext_lazy as _
+from rest_framework import exceptions, serializers
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.backend import ServiceBackend
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
@@ -26,7 +28,12 @@ from waldur_mastermind.marketplace_openstack import (
     TENANT_TYPE,
     VOLUME_TYPE,
 )
-from waldur_openstack import models as openstack_models
+from waldur_openstack import (
+    executors as openstack_executors,
+)
+from waldur_openstack import (
+    models as openstack_models,
+)
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.utils import (
     is_valid_volume_type_name,
@@ -570,3 +577,32 @@ def set_ports_status_for_order(order, status):
             if port:
                 port.status = status
                 port.save()
+
+
+def delete_instance(instance, attributes=None, is_async=True):
+    if not attributes:
+        attributes = {}
+
+    delete_volumes = attributes.get("delete_volumes", True)
+    release_floating_ips = attributes.get("release_floating_ips", True)
+
+    if (
+        delete_volumes
+        and openstack_models.Snapshot.objects.filter(
+            source_volume__instance=instance
+        ).exists()
+    ):
+        raise serializers.ValidationError(
+            _("Cannot delete instance. One of its volumes has attached snapshot.")
+        )
+
+    force = instance.state == CoreStates.ERRED
+    transaction.on_commit(
+        lambda: openstack_executors.InstanceDeleteExecutor.execute(
+            instance,
+            force=force,
+            delete_volumes=delete_volumes,
+            release_floating_ips=release_floating_ips,
+            is_async=is_async,
+        )
+    )
