@@ -16,14 +16,12 @@ from waldur_api_client.api.marketplace_orders import (
     marketplace_orders_list,
     marketplace_orders_retrieve,
 )
-from waldur_api_client.api.marketplace_provider_resources import (
-    marketplace_provider_resources_team_list,
-)
 from waldur_api_client.api.marketplace_public_offerings import (
     marketplace_public_offerings_list,
 )
 from waldur_api_client.api.marketplace_resources import (
     marketplace_resources_retrieve,
+    marketplace_resources_team_list,
     marketplace_resources_update_options,
 )
 from waldur_api_client.api.marketplace_screenshots import marketplace_screenshots_list
@@ -293,8 +291,8 @@ def sync_resource_team(resource: marketplace_models.Resource):
     project: structure_models.Project = resource.project
     remote_project, _ = get_or_create_remote_project(offering, project, client)
 
-    remote_team = marketplace_provider_resources_team_list.sync(
-        client=client, uuid=resource.uuid.hex
+    remote_team = marketplace_resources_team_list.sync(
+        client=client, uuid=resource.backend_id
     )
     remote_permissions = {
         (record.username, record.role): record.uuid.hex for record in remote_team
@@ -970,8 +968,8 @@ def get_resource_team(resource: marketplace_models.Resource):
 
     try:
         client = get_client_for_offering(resource.offering)
-        remote_team = marketplace_provider_resources_team_list.sync(
-            client=client, uuid=resource.uuid
+        remote_team = marketplace_resources_team_list.sync(
+            client=client, uuid=resource.backend_id
         )
 
         local_roles = UserRole.objects.filter(scope=resource.project, is_active=True)

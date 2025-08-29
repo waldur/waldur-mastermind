@@ -297,7 +297,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
         if team_data is None:
             team_data = self.get_default_team_data()
         return respx.get(
-            f"{self.api_url}/api/marketplace-provider-resources/{resource_uuid}/team/"
+            f"{self.api_url}/api/marketplace-resources/{resource_uuid}/team/"
         ).respond(200, json=team_data)
 
     def get_default_team_data(self):
@@ -327,7 +327,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
 
     def test_staff_user_can_access_remote_team(self):
         """Test that staff users can access remote resource team"""
-        self.mock_marketplace_team(self.resource.uuid)
+        self.mock_marketplace_team(self.resource.backend_id)
 
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.get(self.resource_team_url)
@@ -344,13 +344,13 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
         # Verify API call was made
         self.assertTrue(
             respx.get(
-                f"{self.api_url}/api/marketplace-provider-resources/{self.resource.uuid}/team/"
+                f"{self.api_url}/api/marketplace-resources/{self.resource.backend_id}/team/"
             ).called
         )
 
     def test_project_admin_can_access_remote_team(self):
         """Test that project admin users can access remote resource team"""
-        self.mock_marketplace_team(self.resource.uuid)
+        self.mock_marketplace_team(self.resource.backend_id)
 
         self.client.force_authenticate(user=self.fixture.admin)
         response = self.client.get(self.resource_team_url)
@@ -361,7 +361,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
 
     def test_project_manager_can_access_remote_team(self):
         """Test that project manager users can access remote resource team"""
-        self.mock_marketplace_team(self.resource.uuid)
+        self.mock_marketplace_team(self.resource.backend_id)
 
         self.client.force_authenticate(user=self.fixture.manager)
         response = self.client.get(self.resource_team_url)
@@ -370,7 +370,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
 
     def test_project_member_can_access_remote_team(self):
         """Test that project member users can access remote resource team"""
-        self.mock_marketplace_team(self.resource.uuid)
+        self.mock_marketplace_team(self.resource.backend_id)
 
         self.client.force_authenticate(user=self.fixture.member)
         response = self.client.get(self.resource_team_url)
@@ -379,7 +379,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
 
     def test_customer_owner_can_access_remote_team(self):
         """Test that customer owner users can access remote resource team"""
-        self.mock_marketplace_team(self.resource.uuid)
+        self.mock_marketplace_team(self.resource.backend_id)
 
         self.client.force_authenticate(user=self.fixture.owner)
         response = self.client.get(self.resource_team_url)
@@ -423,7 +423,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
                 "email": "alice.johnson@example.com",
             },
         ]
-        self.mock_marketplace_team(self.resource.uuid, remote_team_data)
+        self.mock_marketplace_team(self.resource.backend_id, remote_team_data)
 
         self.client.force_authenticate(user=self.fixture.staff)
 
@@ -450,7 +450,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
     def test_remote_api_error_handling(self):
         """Test that remote API errors are handled gracefully"""
         respx.get(
-            f"{self.api_url}/api/marketplace-provider-resources/{self.resource.uuid}/team/"
+            f"{self.api_url}/api/marketplace-resources/{self.resource.backend_id}/team/"
         ).respond(500, json={"error": "Internal server error"})
 
         self.client.force_authenticate(user=self.fixture.staff)
@@ -465,7 +465,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
     def test_empty_team_returns_empty_list(self):
         """Test that empty team returns empty list"""
         remote_team_data = []
-        self.mock_marketplace_team(self.resource.uuid, remote_team_data)
+        self.mock_marketplace_team(self.resource.backend_id, remote_team_data)
 
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.get(self.resource_team_url)
@@ -494,7 +494,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
                 "email": "john.doe@example.com",
             }
         ]
-        self.mock_marketplace_team(self.resource.uuid, remote_team_data)
+        self.mock_marketplace_team(self.resource.backend_id, remote_team_data)
 
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.get(self.resource_team_url)
@@ -516,7 +516,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
                 "email": "john.doe@example.com",
             }
         ]
-        self.mock_marketplace_team(self.resource.uuid, remote_team_data)
+        self.mock_marketplace_team(self.resource.backend_id, remote_team_data)
 
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.get(self.resource_team_url)
