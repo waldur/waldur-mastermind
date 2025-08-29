@@ -1056,6 +1056,7 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
         requested_offering.state = RequestedOfferingStates.ACCEPTED
         requested_offering.approved_by = self.request.user
         requested_offering.save()
+        tasks.notify_offering_request_decision.delay(requested_offering.uuid)
         return response.Response(
             "The request on offering has been accepted.",
             status=status.HTTP_200_OK,
@@ -1076,6 +1077,7 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
         requested_offering.state = RequestedOfferingStates.CANCELED
         requested_offering.approved_by = self.request.user
         requested_offering.save()
+        tasks.notify_offering_request_decision.delay(requested_offering.uuid)
         return response.Response(
             "The request on offering has been canceled.",
             status=status.HTTP_200_OK,

@@ -411,3 +411,19 @@ class ProposalSection(NotificationSection):
             NotificationTemplate("review_assigned_subject.txt", "review_assigned"),
         ],
     )
+    requested_offering_decision = Notification(
+        "requested_offering_decision",
+        "A notification to call manager about the decision on requested offering (accepted/rejected).",
+        templates=[
+            NotificationTemplate(
+                "requested_offering_decision_message.txt", "requested_offering_decision"
+            ),
+            NotificationTemplate(
+                "requested_offering_decision_message.html",
+                "requested_offering_decision",
+            ),
+            NotificationTemplate(
+                "requested_offering_decision_subject.txt", "requested_offering_decision"
+            ),
+        ],
+    )
