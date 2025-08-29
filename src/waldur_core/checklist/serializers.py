@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 
-from . import models, utils
+from . import enums, models, utils
 
 
 class ChecklistCategorySerializer(serializers.HyperlinkedModelSerializer):
@@ -301,6 +301,7 @@ class QuestionAdminSerializer(QuestionSerializer):
         question_type = attrs.get("question_type")
         min_value = attrs.get("min_value")
         max_value = attrs.get("max_value")
+        dependency_logic_operator = attrs.get("dependency_logic_operator")
 
         # Validate review trigger configuration
         # Check if both operator and review_answer_value are set together or both empty
@@ -372,6 +373,15 @@ class QuestionAdminSerializer(QuestionSerializer):
                 "Minimum value cannot be greater than maximum value."
             )
 
+        # Validate dependency_logic_operator
+        if dependency_logic_operator and dependency_logic_operator not in [
+            choice[0] for choice in enums.DependencyLogicOperators.CHOICES
+        ]:
+            raise serializers.ValidationError(
+                f"Invalid dependency logic operator: {dependency_logic_operator}. "
+                f"Must be one of: {[choice[0] for choice in enums.DependencyLogicOperators.CHOICES]}"
+            )
+
         return attrs
 
     class Meta(QuestionSerializer.Meta):
@@ -393,6 +403,7 @@ class QuestionAdminSerializer(QuestionSerializer):
             "always_show_guidance",
             "min_value",
             "max_value",
+            "dependency_logic_operator",
         ]
         extra_kwargs = {
             "url": {

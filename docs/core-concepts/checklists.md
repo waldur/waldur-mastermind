@@ -104,6 +104,15 @@ Conditional visibility logic - questions can depend on other questions' answers 
 - `in`: Value exists in list
 - `not_in`: Value does not exist in list
 
+**Dependency Logic Operators:**
+
+Questions with multiple dependencies can use different logic operators to determine visibility:
+
+- `and` (default): **All conditions must be true** - Question is visible only when ALL dependencies are satisfied
+- `or`: **Any condition must be true** - Question is visible when AT LEAST ONE dependency is satisfied
+
+**Example**: A security question might be shown if the project handles personal data OR processes payments OR stores sensitive information.
+
 ### ChecklistCompletion
 
 Generic completion tracking model that links checklists to any domain object (proposals, projects, etc.) using Django's generic foreign key system.
@@ -183,11 +192,77 @@ Examples:
 The system supports sophisticated conditional logic through question dependencies:
 
 1. **Simple Dependencies**: Show Question B only if Question A equals specific value
-2. **Complex Dependencies**: Multiple conditions with different operators
+2. **Complex Dependencies**: Multiple conditions with different operators and logic
 3. **Circular Prevention**: Automatic detection and prevention of circular dependencies
 4. **Dynamic Visibility**: Real-time question showing/hiding based on current answers
 
-Example: A security questionnaire might only show cloud-specific questions if the user indicates they use cloud services.
+### Multiple Dependency Logic
+
+Questions can have multiple dependencies evaluated using different logic operators:
+
+#### AND Logic (Default)
+
+Question visible only when **ALL** dependencies are satisfied:
+
+```http
+# Create question with AND logic (default)
+POST /api/checklists-admin-questions/
+{
+  "description": "Cloud security configuration details",
+  "question_type": "text_area",
+  "dependency_logic_operator": "and"
+}
+
+# Question visible only when user selects "cloud" AND "production"
+POST /api/checklists-admin-question-dependencies/
+{
+  "question": "http://localhost:8000/api/checklists-admin-questions/{security_question_uuid}/",
+  "depends_on_question": "http://localhost:8000/api/checklists-admin-questions/{environment_question_uuid}/",
+  "required_answer_value": "production",
+  "operator": "equals"
+}
+
+POST /api/checklists-admin-question-dependencies/
+{
+  "question": "http://localhost:8000/api/checklists-admin-questions/{security_question_uuid}/",
+  "depends_on_question": "http://localhost:8000/api/checklists-admin-questions/{deployment_question_uuid}/",
+  "required_answer_value": "cloud",
+  "operator": "equals"
+}
+```
+
+#### OR Logic
+
+Question visible when **ANY** dependency is satisfied:
+
+```http
+# Create question with OR logic
+POST /api/checklists-admin-questions/
+{
+  "description": "Data protection measures",
+  "question_type": "multi_select",
+  "dependency_logic_operator": "or"
+}
+
+# Question visible when user handles personal data OR financial data OR health data
+POST /api/checklists-admin-question-dependencies/
+{
+  "question": "http://localhost:8000/api/checklists-admin-questions/{protection_question_uuid}/",
+  "depends_on_question": "http://localhost:8000/api/checklists-admin-questions/{data_type_question_uuid}/",
+  "required_answer_value": ["personal", "financial", "health"],
+  "operator": "in"
+}
+
+POST /api/checklists-admin-question-dependencies/
+{
+  "question": "http://localhost:8000/api/checklists-admin-questions/{protection_question_uuid}/",
+  "depends_on_question": "http://localhost:8000/api/checklists-admin-questions/{compliance_question_uuid}/",
+  "required_answer_value": true,
+  "operator": "equals"
+}
+```
+
+Example: A security questionnaire might show cloud-specific questions if the user indicates they use cloud services, and data protection questions if they handle sensitive data OR require compliance.
 
 ## Answer Management
 

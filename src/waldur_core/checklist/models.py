@@ -154,6 +154,18 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         help_text=_("Maximum value allowed for NUMBER type questions"),
     )
 
+    # Dependency logic operator
+    dependency_logic_operator = models.CharField(
+        max_length=10,
+        choices=enums.DependencyLogicOperators.CHOICES,
+        default=enums.DependencyLogicOperators.AND,
+        help_text=_(
+            "Defines how multiple dependencies are evaluated. "
+            "AND: All dependencies must be satisfied. "
+            "OR: At least one dependency must be satisfied."
+        ),
+    )
+
     class Meta:
         ordering = (
             "checklist",
@@ -167,12 +179,15 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         if not self.is_dependant():
             return True
 
-        return all(
-            [
-                dependency.question_is_visible(user)
-                for dependency in self.dependencies.all()
-            ]
-        )
+        dependencies_results = [
+            dependency.question_is_visible(user)
+            for dependency in self.dependencies.all()
+        ]
+
+        if self.dependency_logic_operator == enums.DependencyLogicOperators.OR:
+            return any(dependencies_results)
+        else:  # Default to AND logic
+            return all(dependencies_results)
 
     def is_valid_answer(
         self, answer_data: list[str] | str | int | float | bool | datetime.date | None

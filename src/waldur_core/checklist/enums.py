@@ -44,3 +44,13 @@ OPERATORS = [
     ("in", _("In list")),
     ("not_in", _("Not in list")),
 ]
+
+
+class DependencyLogicOperators:
+    AND = "and"
+    OR = "or"
+
+    CHOICES = [
+        (AND, _("All conditions must be true (AND)")),
+        (OR, _("At least one condition must be true (OR)")),
+    ]
