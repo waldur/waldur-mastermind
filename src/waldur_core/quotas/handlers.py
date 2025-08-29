@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import signals
 
 from waldur_core.core.models import DescendantMixin
@@ -22,11 +23,18 @@ def count_quota_handler_factory(count_quota_field):
     return recalculate_count_quota
 
 
-def get_ancestors(scope):
-    """Get all unique instance ancestors"""
+def get_ancestors(scope, max_depth=10, current_depth=0):
+    """Get all unique instance ancestors with recursion depth limit"""
+    # Prevent infinite recursion
+    if current_depth >= max_depth:
+        return []
+
     try:
+        # Check if the scope is being deleted or is invalid
+        if not scope or not hasattr(scope, "get_parents"):
+            return []
         ancestors = list(scope.get_parents())
-    except (AttributeError, KeyError):
+    except (AttributeError, KeyError, ObjectDoesNotExist):
         # Handle case where relationships are missing during deletion
         return []
 
@@ -34,10 +42,11 @@ def get_ancestors(scope):
     ancestors_with_parents = [a for a in ancestors if isinstance(a, DescendantMixin)]
     for ancestor in ancestors_with_parents:
         try:
-            for parent in get_ancestors(ancestor):
+            for parent in get_ancestors(ancestor, max_depth, current_depth + 1):
                 if (parent.__class__, parent.id) not in ancestor_unique_attributes:
                     ancestors.append(parent)
-        except (AttributeError, KeyError):
+                    ancestor_unique_attributes.add((parent.__class__, parent.id))
+        except (AttributeError, KeyError, ObjectDoesNotExist):
             # Skip ancestors that can't be traversed due to missing relationships
             continue
     return ancestors
@@ -55,11 +64,25 @@ def get_field(quota):
 def handle_aggregated_quotas(sender, instance: QuotaUsage, **kwargs):
     """Call aggregated quotas fields update methods"""
     quota = instance
+
+    # Skip processing if the scope is being deleted or doesn't exist
+    try:
+        if not quota.scope or not hasattr(quota, "scope"):
+            return
+    except (AttributeError, ObjectDoesNotExist):
+        return
+
     quota_field = get_field(quota)
     # usage aggregation should not count another usage aggregator field to avoid calls duplication.
     if isinstance(quota_field, fields.UsageAggregatorQuotaField) or quota_field is None:
         return
     signal = kwargs["signal"]
+
+    # During bulk deletion (like project deletion), skip aggregation to avoid timeout
+    # The parent quotas will be deleted anyway
+    if signal == signals.pre_delete and getattr(quota.scope, "_deleting", False):
+        return
+
     ancestors = {}
     if isinstance(quota.scope, DescendantMixin):
         # We need to use set in order to eliminate duplicates.
@@ -70,23 +93,31 @@ def handle_aggregated_quotas(sender, instance: QuotaUsage, **kwargs):
             ancestors = {
                 a for a in get_ancestors(quota.scope) if isinstance(a, QuotaModelMixin)
             }
-        except (AttributeError, KeyError):
+        except (AttributeError, KeyError, ObjectDoesNotExist):
             # Handle case where relationships are missing during deletion
             ancestors = set()
     aggregator_quotas = []
     for ancestor in ancestors:
-        for ancestor_quota_field in ancestor.get_quotas_fields(
-            field_class=fields.UsageAggregatorQuotaField
-        ):
-            if ancestor_quota_field.get_child_quota_name() == quota.name:
-                aggregator_quotas.append((ancestor, ancestor_quota_field))
+        try:
+            for ancestor_quota_field in ancestor.get_quotas_fields(
+                field_class=fields.UsageAggregatorQuotaField
+            ):
+                if ancestor_quota_field.get_child_quota_name() == quota.name:
+                    aggregator_quotas.append((ancestor, ancestor_quota_field))
+        except (AttributeError, ObjectDoesNotExist):
+            # Skip ancestors that are being deleted
+            continue
 
     for ancestor, field in aggregator_quotas:
-        if signal == signals.post_save:
-            delta = quota.delta
-        elif signal == signals.pre_delete:
-            delta = -quota.delta
-        ancestor.add_quota_usage(field.name, delta)
+        try:
+            if signal == signals.post_save:
+                delta = quota.delta
+            elif signal == signals.pre_delete:
+                delta = -quota.delta
+            ancestor.add_quota_usage(field.name, delta)
+        except (AttributeError, ObjectDoesNotExist):
+            # Skip if ancestor is being deleted
+            continue
 
 
 def delete_quotas_when_model_is_deleted(sender, instance, **kwargs):
