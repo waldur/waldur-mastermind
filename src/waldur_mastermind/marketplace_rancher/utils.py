@@ -16,7 +16,11 @@ from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
-from waldur_mastermind.marketplace.views import BaseResourceViewSet, OrderViewSet
+from waldur_mastermind.marketplace.views import (
+    BaseResourceViewSet,
+    ConsumerResourceViewSet,
+    OrderViewSet,
+)
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_openstack.models import Tenant
 from waldur_rancher.exceptions import RancherException
@@ -107,6 +111,20 @@ def submit_termination_order(resource: Resource):
     view = BaseResourceViewSet.as_view({"post": "terminate"})
     response = create_request(
         view, get_system_robot(), uuid=resource.uuid.hex, post_data={}
+    )
+    data = cast(dict, response.data)
+    if response.status_code != status.HTTP_200_OK:
+        raise ValidationError(data)
+    order_uuid = data["order_uuid"]
+    wait_for_order(order_uuid)
+    return order_uuid
+
+
+def submit_update_order(resource: Resource, new_limits: dict):
+    post_data = {"limits": new_limits}
+    view = ConsumerResourceViewSet.as_view({"post": "update_limits"})
+    response = create_request(
+        view, get_system_robot(), uuid=resource.uuid.hex, post_data=post_data
     )
     data = cast(dict, response.data)
     if response.status_code != status.HTTP_200_OK:

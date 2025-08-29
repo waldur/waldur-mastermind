@@ -693,6 +693,9 @@ class RancherCreateNodeSerializer(
         }
 
     def validate(self, attrs):
+        # autoexpand_tenant is available for the Managed Rancher only
+        # because the feature is not implemented for the regular Rancher
+        autoexpand_tenant = attrs.pop("autoexpand_tenant", False)
         attrs = super().validate(attrs)
         cluster: models.Cluster = attrs["cluster"]
         ssh_public_key = attrs.pop("ssh_public_key", None)
@@ -712,8 +715,9 @@ class RancherCreateNodeSerializer(
             [node],
             cluster.vm_project,
             cluster.service_settings,
-            cluster.tenant,
+            node_tenant or cluster.tenant,
             ssh_public_key,
+            autoexpand_tenant=autoexpand_tenant,
         )
         return attrs
 

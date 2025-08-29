@@ -256,6 +256,8 @@ class User(
     logging capabilities, slug generation, and user detail fields.
     """
 
+    id: int
+
     username = models.CharField(
         _("username"),
         max_length=128,
