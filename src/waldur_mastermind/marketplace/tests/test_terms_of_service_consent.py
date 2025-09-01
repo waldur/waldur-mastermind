@@ -898,7 +898,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
 
         self.client.force_authenticate(user=self.user)
 
-        # Ccreate order should work since at least one user has agreed to ToS
+        # Create order should work since at least one user has agreed to ToS
         order_data = {
             "offering": OfferingFactory.get_public_url(self.offering),
             "project": ProjectFactory.get_url(self.project),

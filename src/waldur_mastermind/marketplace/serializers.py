@@ -2828,7 +2828,7 @@ def validate_order(order: models.Order, request):
             _("Pending order for resource already exists.")
         )
 
-    confirm_order_request_user_has_offering_consent(order, request)
+    # confirm_order_request_user_has_offering_consent(order, request)
 
     utils.validate_order(order, request)
 
