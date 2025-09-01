@@ -70,6 +70,7 @@ class MaintenanceAnnouncementSyncTest(testcases.TransactionTestCase):
             "message": "Scheduled database maintenance",
             "maintenance_type": 1,
             "external_reference_url": "",
+            "backend_id": self.remote_maintenance_uuid.hex,
         }
         base_data.update(overrides)
         return base_data
