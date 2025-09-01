@@ -1,0 +1,16 @@
+Dear {{ reviewer_name }},
+
+A decision has been made on the proposal "{{ proposal_name }}" in call "{{ call_name }}" that you reviewed.
+
+Decision details:
+- Proposal: {{ proposal_name }}
+- Decision: {{ proposal_state }}
+- Decision date: {{ decision_date }}
+
+{% if proposal_state == "rejected" and rejection_reason %}Reason: {{ rejection_reason }}{% endif %}
+
+Thank you for your valuable contribution to the review process. Your expert assessment helped inform this decision.
+
+View proposal: {{ proposal_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.
