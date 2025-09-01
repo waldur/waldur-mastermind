@@ -347,6 +347,7 @@ class ProposalSection(NotificationSection):
             ),
         ],
     )
+
     proposal_cancelled = Notification(
         "proposal_cancelled",
         "A notification to proposal creator about the proposal cancellation.",
@@ -378,6 +379,7 @@ class ProposalSection(NotificationSection):
             ),
         ],
     )
+
     new_review_submitted = Notification(
         "new_review_submitted",
         "A notification to the call manager about a new review submission.",
@@ -393,6 +395,7 @@ class ProposalSection(NotificationSection):
             ),
         ],
     )
+
     review_rejected = Notification(
         "review_rejected",
         "A notification to the call managers about a rejected review.",
@@ -402,6 +405,7 @@ class ProposalSection(NotificationSection):
             NotificationTemplate("review_rejected_subject.txt", "review_rejected"),
         ],
     )
+
     review_assigned = Notification(
         "review_assigned",
         "A notification to a reviewer about a new review assignment.",
@@ -411,6 +415,7 @@ class ProposalSection(NotificationSection):
             NotificationTemplate("review_assigned_subject.txt", "review_assigned"),
         ],
     )
+
     requested_offering_decision = Notification(
         "requested_offering_decision",
         "A notification to call manager about the decision on requested offering (accepted/rejected).",
@@ -424,6 +429,25 @@ class ProposalSection(NotificationSection):
             ),
             NotificationTemplate(
                 "requested_offering_decision_subject.txt", "requested_offering_decision"
+            ),
+        ],
+    )
+
+    proposal_decision_for_reviewer = Notification(
+        "proposal_decision_for_reviewer",
+        "A notification to the reviewer about the proposal decision (approved/rejected) which they reviewed.",
+        templates=[
+            NotificationTemplate(
+                "proposal_decision_for_reviewer_message.txt",
+                "proposal_decision_for_reviewer",
+            ),
+            NotificationTemplate(
+                "proposal_decision_for_reviewer_message.html",
+                "proposal_decision_for_reviewer",
+            ),
+            NotificationTemplate(
+                "proposal_decision_for_reviewer_subject.txt",
+                "proposal_decision_for_reviewer",
             ),
         ],
     )

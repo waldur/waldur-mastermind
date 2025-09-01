@@ -1,0 +1,28 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Proposal {{ proposal_state }}</title>
+</head>
+<body>
+    <p>Dear {{ reviewer_name }},</p>
+
+    <p>A decision has been made on the proposal "<strong>{{ proposal_name }}</strong>" in call "<strong>{{ call_name }}</strong>" that you reviewed.</p>
+
+    <p><strong>Decision details:</strong></p>
+    <ul>
+        <li><strong>Proposal:</strong> {{ proposal_name }}</li>
+        <li><strong>Decision:</strong> {{ proposal_state }}</li>
+        <li><strong>Decision date:</strong> {{ decision_date }}</li>
+    </ul>
+
+    {% if proposal_state == "rejected" and rejection_reason %}
+    <p><strong>Reason:</strong> {{ rejection_reason }}</p>
+    {% endif %}
+
+    <p>Thank you for your valuable contribution to the review process. Your expert assessment helped inform this decision.</p>
+
+    <p>View proposal: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>

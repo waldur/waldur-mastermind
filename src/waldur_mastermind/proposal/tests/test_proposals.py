@@ -227,6 +227,9 @@ class ActionTest(test.APITransactionTestCase):
         structure_factories.NotificationFactory(
             key="proposal.new_proposal_submitted",
         )
+        structure_factories.NotificationFactory(
+            key="proposal.proposal_decision_for_reviewer",
+        )
 
     @mock.patch(
         "waldur_mastermind.proposal.views.tasks.notify_user_about_proposal_state_update.delay"
@@ -339,6 +342,42 @@ class ActionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         new_proposal.refresh_from_db()
         self.assertEqual(new_proposal.project.start_date, allocation_date.date())
+
+    @override_settings(task_always_eager=True)
+    def test_reviewer_notification_triggered_on_reject(self):
+        factories.ReviewFactory(
+            proposal=self.proposal,
+            reviewer=self.fixture.reviewer_1,
+            state=models.Review.States.SUBMITTED,
+        )
+
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        url_reject = factories.ProposalFactory.get_url(self.proposal, "reject")
+        response = self.client.post(url_reject, {"allocation_comment": "Not suitable"})
+
+        self.proposal.refresh_from_db()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should have 2 emails: 1 for proposal creator + 1 for reviewer
+        self.assertEqual(len(mail.outbox), 2)
+
+        reviewer_email = next(
+            email
+            for email in mail.outbox
+            if email.to[0] == self.fixture.reviewer_1.email
+        )
+
+        body = reviewer_email.body
+        self.assertIn("A decision has been made on the proposal", body)
+        self.assertIn(self.proposal.name, body)
+        self.assertIn(self.proposal.round.call.name, body)
+        self.assertIn(self.proposal.state, body)
+        self.assertIn("Not suitable", body)
+        self.assertIn(self.fixture.reviewer_1.full_name, body)
 
 
 @ddt

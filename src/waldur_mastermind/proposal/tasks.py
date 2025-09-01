@@ -344,6 +344,47 @@ def notify_reviewer_about_assignment(review_uuid):
     )
 
 
+@shared_task(name="waldur_mastermind.proposal.notify_reviewer_on_proposal_decision")
+def notify_reviewer_on_proposal_decision(proposal_uuid):
+    proposal = proposal_models.Proposal.objects.get(uuid=proposal_uuid)
+    reviews = proposal.review_set.filter(state=proposal_models.Review.States.SUBMITTED)
+
+    proposal_link = core_utils.format_homeport_link(
+        "proposals/{proposal_uuid}/",
+        proposal_uuid=proposal.uuid,
+    )
+
+    base_context = {
+        "site_name": config.SITE_NAME,
+        "proposal_state": proposal.state,
+        "proposal_url": proposal_link,
+        "proposal_name": proposal.name,
+        "call_name": proposal.round.call.name,
+        "decision_date": proposal.modified.strftime("%B %d, %Y"),
+        "rejection_reason": getattr(proposal, "allocation_comment", None)
+        if proposal.state == ProposalStates.REJECTED
+        else None,
+    }
+
+    for review in reviews:
+        if review.reviewer and review.reviewer.email:
+            context = {
+                **base_context,
+                "reviewer_name": review.reviewer.full_name,
+            }
+
+            core_utils.broadcast_mail(
+                "proposal",
+                "proposal_decision_for_reviewer",
+                context,
+                [review.reviewer.email],
+            )
+        else:
+            logger.warning(
+                f"Cannot send proposal decision notification to reviewer for review {review.uuid}. Reviewer has no valid email."
+            )
+
+
 @shared_task(name="waldur_mastermind.proposal.notify_offering_request_decision")
 def notify_offering_request_decision(requested_offering_uuid):
     requested_offering = proposal_models.RequestedOffering.objects.get(

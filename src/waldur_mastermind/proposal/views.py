@@ -806,6 +806,7 @@ class ProposalViewSet(
         tasks.notify_user_about_proposal_state_update.delay(
             proposal.uuid, previous_state, proposal.state
         )
+        tasks.notify_reviewer_on_proposal_decision.delay(proposal.uuid)
         return response.Response(
             "Proposal has been approved.",
             status=status.HTTP_200_OK,
@@ -839,6 +840,7 @@ class ProposalViewSet(
         tasks.notify_user_about_proposal_state_update.delay(
             proposal.uuid, previous_state, proposal.state
         )
+        tasks.notify_reviewer_on_proposal_decision.delay(proposal.uuid)
         return response.Response(
             "Proposal has been rejected.",
             status=status.HTTP_200_OK,
