@@ -1526,16 +1526,18 @@ class OfferingUserChecklistTest(test.APITransactionTestCase):
         # Test checklist endpoint
         url = OfferingUserFactory.get_url(self.offering_user, "checklist")
         response = self.client.get(url)
+        # Users who can't see the offering_user get 404
         self.assertEqual(
-            response.status_code, status.HTTP_403_FORBIDDEN
-        )  # Permission denied for checklist access
+            response.status_code, status.HTTP_404_NOT_FOUND
+        )  # Object not found - user can't see the offering_user
 
         # Test submit answers endpoint
         url = OfferingUserFactory.get_url(self.offering_user, "submit-answers")
         response = self.client.post(url, [], format="json")
+        # Users who can't see the offering_user get 404
         self.assertEqual(
-            response.status_code, status.HTTP_403_FORBIDDEN
-        )  # Permission denied for checklist access
+            response.status_code, status.HTTP_404_NOT_FOUND
+        )  # Object not found - user can't see the offering_user
 
     def test_completely_unrelated_user_cannot_access_checklist_endpoints(self):
         """Test that a completely unrelated user cannot access checklist endpoints."""
