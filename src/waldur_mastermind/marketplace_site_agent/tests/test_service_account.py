@@ -39,3 +39,14 @@ class ServiceAccountMessageTest(test.APITransactionTestCase):
         self.service_account.save()
 
         mock_publish_messages.assert_called_once()
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_service_account_deletion_message_sent(self, mock_publish_messages):
+        self.service_account.username = "test-username"
+        self.service_account.save()
+
+        mock_publish_messages.reset_mock()
+
+        self.service_account.delete()
+
+        mock_publish_messages.assert_called_once()
