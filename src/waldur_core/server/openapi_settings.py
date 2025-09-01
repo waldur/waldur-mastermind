@@ -61,4 +61,5 @@ SPECTACULAR_SETTINGS = {
         "RobotAccountStates": RobotAccountStates.CHOICES,
         "ChecklistOperators": checklist_enums.OPERATORS,
     },
+    "VERSION": None,
 }
