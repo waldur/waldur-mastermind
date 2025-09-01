@@ -3375,7 +3375,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         serializers.ResourceUpdateSerializer
     )
 
-    retrieve_permissions = [permissions.check_tos_consent_permission]
+    # retrieve_permissions = [permissions.check_tos_consent_permission]
 
     def list(self, request, *args, **kwargs):
         utils.refresh_integration_agent_status(
