@@ -164,15 +164,11 @@ def send_resource_update_message_to_queue(
     utils.push_resource_update_message(instance)
 
 
-def send_project_service_account_info(
-    sender, instance: marketplace_models.ProjectServiceAccount, **kwargs
+def send_project_service_account_message(
+    service_account: marketplace_models.ProjectServiceAccount, created=True
 ):
-    if not instance.tracker.has_changed("username") or not instance.username:
-        return
-
-    service_account = instance
-
-    logger.info("Sending info message for the %s", service_account)
+    action = "create" if created else "delete"
+    logger.info("Sending %s message for the %s", action, service_account)
     project = service_account.project
     offering_ids = set(
         project.resource_set.filter(
@@ -185,7 +181,8 @@ def send_project_service_account_info(
     all_messages = []
     for offering in offerings:
         logger.debug(
-            "Processing event of project service account creation for project %s, offering %s, username %s",
+            "Processing (%s) event of project service account for project %s, offering %s, username %s",
+            action,
             project,
             offering,
             service_account.username,
@@ -196,6 +193,7 @@ def send_project_service_account_info(
             "scope_type": "project",
             "project_uuid": project.uuid.hex,
             "project_name": project.name,
+            "action": action,
         }
         messages = marketplace_utils.prepare_messages(
             offering, payload, logging_utils.ObservableObjectType.SERVICE_ACCOUNT
@@ -204,3 +202,18 @@ def send_project_service_account_info(
 
     if all_messages:
         logging_tasks.publish_messages.delay(all_messages)
+
+
+def send_project_service_account_info(
+    sender, instance: marketplace_models.ProjectServiceAccount, **kwargs
+):
+    if not instance.tracker.has_changed("username") or not instance.username:
+        return
+
+    send_project_service_account_message(instance, created=True)
+
+
+def send_project_service_account_deletion_info(
+    sender, instance: marketplace_models.ProjectServiceAccount, **kwargs
+):
+    send_project_service_account_message(instance, created=False)
