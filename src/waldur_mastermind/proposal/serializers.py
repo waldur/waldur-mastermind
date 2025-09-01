@@ -210,6 +210,9 @@ class ProposalReviewSerializer(
     round_name = serializers.ReadOnlyField(source="proposal.round.name")
     call_uuid = serializers.UUIDField(source="proposal.round.call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="proposal.round.call.name")
+    call_managing_organisation_uuid = serializers.ReadOnlyField(
+        source="proposal.round.call.manager.uuid"
+    )
     reviewer_full_name = serializers.ReadOnlyField(source="reviewer.full_name")
     reviewer_uuid = serializers.UUIDField(read_only=True, source="reviewer.uuid")
     anonymous_reviewer_name = serializers.SerializerMethodField()
@@ -240,6 +243,7 @@ class ProposalReviewSerializer(
             "round_start_time",
             "call_name",
             "call_uuid",
+            "call_managing_organisation_uuid",
             "comment_project_title",
             "comment_project_summary",
             "comment_project_is_confidential",
@@ -1081,6 +1085,9 @@ class ProposalSerializer(
     round_uuid = serializers.UUIDField(write_only=True, required=True)
     call_uuid = serializers.UUIDField(source="round.call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="round.call.name", read_only=True)
+    call_managing_organisation_uuid = serializers.ReadOnlyField(
+        source="round.call.manager.uuid"
+    )
     supporting_documentation = ProposalDocumentationSerializer(
         many=True, read_only=True, source="proposaldocumentation_set"
     )
@@ -1119,6 +1126,7 @@ class ProposalSerializer(
             "round_uuid",
             "call_uuid",
             "call_name",
+            "call_managing_organisation_uuid",
             "oecd_fos_2007_code",
             "oecd_fos_2007_label",
             "allocation_comment",
