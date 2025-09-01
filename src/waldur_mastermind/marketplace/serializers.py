@@ -5011,13 +5011,13 @@ class MarketplaceProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
         ids = get_service_provider_user_ids(user, service_provider, customer)
 
         # Filter to only show users who have active consent to any offering from this service provider
-        sp_offerings = models.Offering.objects.filter(
-            customer=service_provider.customer
-        )
+        # sp_offerings = models.Offering.objects.filter(
+        #     customer=service_provider.customer
+        # )
         return User.objects.filter(
             id__in=ids,
-            offering_consents__offering__in=sp_offerings,
-            offering_consents__revocation_date__isnull=True,
+            # offering_consents__offering__in=sp_offerings,
+            # offering_consents__revocation_date__isnull=True,
         ).distinct()
 
     @extend_schema_field(NestedPriceEstimateSerializer)

@@ -719,13 +719,13 @@ class ServiceProviderUsersViewSet(mixins.ListModelMixin, rf_viewsets.GenericView
             self.request.user, service_provider
         )
 
-        sp_offerings = models.Offering.objects.filter(
-            customer=service_provider.customer
-        )
+        # sp_offerings = models.Offering.objects.filter(
+        #     customer=service_provider.customer
+        # )
         return self.queryset.filter(
             id__in=user_ids,
-            offering_consents__offering__in=sp_offerings,
-            offering_consents__revocation_date__isnull=True,
+            # offering_consents__offering__in=sp_offerings,
+            # offering_consents__revocation_date__isnull=True,
         ).distinct()
 
     def get_serializer_context(self):
@@ -2474,8 +2474,8 @@ class ProviderOfferingViewSet(
         user_ids = get_user_ids(ctype, project_ids)
         users = core_models.User.objects.filter(
             id__in=user_ids,
-            offering_consents__offering=offering,
-            offering_consents__revocation_date__isnull=True,
+            # offering_consents__offering=offering,
+            # offering_consents__revocation_date__isnull=True,
         )
         page = self.paginate_queryset(users)
         serializer = structure_serializers.UserSerializer(
@@ -4484,20 +4484,18 @@ class OfferingUsersViewSet(
             (
                 Q(user=current_user)
                 | (
+                    # service provider can see all records related to managed offerings
+                    # but only for users with active consent
                     (
-                        # service provider can see all records related to managed offerings
-                        # but only for users with active consent
-                        (
-                            Q(offering__customer__in=managed_customers)
-                            | Q(user__in=visible_users)
-                        )
-                        & Q(
-                            user__offering_consents__offering=F("offering"),
-                            user__offering_consents__revocation_date__isnull=True,
-                        )
-                        if self.action in ["list", "retrieve"]
-                        else Q()
+                        Q(offering__customer__in=managed_customers)
+                        | Q(user__in=visible_users)
                     )
+                    # & Q(
+                    #     user__offering_consents__offering=F("offering"),
+                    #     user__offering_consents__revocation_date__isnull=True,
+                    # )
+                    # if self.action in ["list", "retrieve"]
+                    # else Q()
                     & (
                         # only offerings managed by customer where the current user has a role
                         Q(offering__customer__id__in=visible_customers)
