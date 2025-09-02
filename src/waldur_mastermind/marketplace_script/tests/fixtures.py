@@ -4,14 +4,14 @@ from rest_framework.reverse import reverse
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
-from .. import PLUGIN_NAME
+from ...marketplace.enums import SCRIPT_OFFERING
 
 
 class ScriptFixture(marketplace_fixtures.MarketplaceFixture):
     @cached_property
     def offering(self):
         return marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME,
+            type=SCRIPT_OFFERING,
             secret_options={
                 "pull": "print('Resource got regular update')",
                 "create": "print('Hello world!')",

@@ -13,7 +13,11 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    SCRIPT_OFFERING,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.managers import ResourceQuerySet
 from waldur_mastermind.marketplace_script import (
     executors as marketplace_script_executors,
@@ -23,13 +27,13 @@ from waldur_mastermind.marketplace_script import (
     serializers as marketplace_script_serializers,
 )
 
-from . import PLUGIN_NAME, tasks
+from . import tasks
 from .serializers import DryRunSerializer, DryRunTypes
 from .utils import ContainerExecutorMixin
 
 
 class DryRunView(ActionsViewSet):
-    queryset = marketplace_models.Offering.objects.filter(type=PLUGIN_NAME)
+    queryset = marketplace_models.Offering.objects.filter(type=SCRIPT_OFFERING)
     lookup_field = "uuid"
     serializer_class = marketplace_serializers.PublicOfferingDetailsSerializer
     disabled_actions = [

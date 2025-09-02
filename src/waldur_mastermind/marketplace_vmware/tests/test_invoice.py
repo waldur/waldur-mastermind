@@ -5,8 +5,8 @@ from rest_framework import test
 
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.marketplace.enums import VMWARE_VM_OFFERING
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_vmware import VIRTUAL_MACHINE_TYPE
 from waldur_vmware import signals
 from waldur_vmware.tests.fixtures import VMwareFixture
 
@@ -15,7 +15,7 @@ from waldur_vmware.tests.fixtures import VMwareFixture
 @unittest.skip("Disabled till invoicing is updated to component-based model")
 class InvoiceTest(test.APITransactionTestCase):
     def setUp(self):
-        self.offering = marketplace_factories.OfferingFactory(type=VIRTUAL_MACHINE_TYPE)
+        self.offering = marketplace_factories.OfferingFactory(type=VMWARE_VM_OFFERING)
         self.plan = marketplace_factories.PlanFactory(
             offering=self.offering,
             unit=UnitPriceMixin.Units.PER_DAY,

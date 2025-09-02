@@ -13,16 +13,19 @@ from rest_framework import test
 from rest_framework.serializers import ValidationError
 
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OrderStates
+from waldur_mastermind.marketplace.enums import (
+    MANAGED_RANCHER_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    RANCHER_OFFERING,
+    OrderStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
     RAM_TYPE,
     STORAGE_MODE_DYNAMIC,
     STORAGE_TYPE,
-    TENANT_TYPE,
 )
-from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN, PLUGIN_NAME
 from waldur_mastermind.marketplace_rancher.processors import (
     ManagedRancherCreateProcessor,
 )
@@ -48,12 +51,13 @@ class ManagedRancherMultiTenantTest(test.APITransactionTestCase):
         self.openstack_offerings = []
         for i in range(3):
             offering = marketplace_factories.OfferingFactory(
-                type=TENANT_TYPE, scope=openstack_factories.SettingsFactory()
+                type=OPENSTACK_TENANT_OFFERING,
+                scope=openstack_factories.SettingsFactory(),
             )
             self.openstack_offerings.append(offering)
 
         self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, scope=service_settings
+            type=RANCHER_OFFERING, scope=service_settings
         )
 
         # Create flavors with known specifications
@@ -75,7 +79,7 @@ class ManagedRancherMultiTenantTest(test.APITransactionTestCase):
 
         # Create managed rancher offering
         self.offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_PLUGIN, scope=self.rancher_offering
+            type=MANAGED_RANCHER_OFFERING, scope=self.rancher_offering
         )
         self.offering.plugin_options.update(
             {
@@ -209,16 +213,16 @@ class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
         service_settings = rancher_factories.RancherServiceSettingsFactory()
 
         self.openstack_offering = marketplace_factories.OfferingFactory(
-            type=TENANT_TYPE, scope=openstack_factories.SettingsFactory()
+            type=OPENSTACK_TENANT_OFFERING, scope=openstack_factories.SettingsFactory()
         )
 
         self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, scope=service_settings
+            type=RANCHER_OFFERING, scope=service_settings
         )
 
         # Create managed rancher offering with known configurations
         self.offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_PLUGIN, scope=self.rancher_offering
+            type=MANAGED_RANCHER_OFFERING, scope=self.rancher_offering
         )
 
         # Define standard flavors
@@ -387,15 +391,15 @@ class ManagedRancherEdgeCasesTest(test.APITransactionTestCase):
         service_settings = rancher_factories.RancherServiceSettingsFactory()
 
         self.openstack_offering = marketplace_factories.OfferingFactory(
-            type=TENANT_TYPE, scope=openstack_factories.SettingsFactory()
+            type=OPENSTACK_TENANT_OFFERING, scope=openstack_factories.SettingsFactory()
         )
 
         self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, scope=service_settings
+            type=RANCHER_OFFERING, scope=service_settings
         )
 
         self.offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_PLUGIN, scope=self.rancher_offering
+            type=MANAGED_RANCHER_OFFERING, scope=self.rancher_offering
         )
 
     def test_missing_flavor_validation(self):
@@ -601,7 +605,7 @@ class ManagedRancherDynamicStorageTest(test.APITransactionTestCase):
         service_settings = rancher_factories.RancherServiceSettingsFactory()
 
         self.openstack_offering = marketplace_factories.OfferingFactory(
-            type=TENANT_TYPE, scope=openstack_factories.SettingsFactory()
+            type=OPENSTACK_TENANT_OFFERING, scope=openstack_factories.SettingsFactory()
         )
         # Note: The processor checks storage_mode on the OpenStack offering when getting tenant limits
         self.openstack_offering.plugin_options["storage_mode"] = STORAGE_MODE_DYNAMIC
@@ -616,7 +620,7 @@ class ManagedRancherDynamicStorageTest(test.APITransactionTestCase):
         )
 
         self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, scope=service_settings
+            type=RANCHER_OFFERING, scope=service_settings
         )
 
         # Create flavors
@@ -640,7 +644,7 @@ class ManagedRancherDynamicStorageTest(test.APITransactionTestCase):
         )
 
         self.offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_PLUGIN, scope=self.rancher_offering
+            type=MANAGED_RANCHER_OFFERING, scope=self.rancher_offering
         )
         self.offering.plugin_options.update(
             {
@@ -740,10 +744,10 @@ class ManagedRancherIntegrationTest(test.APITransactionTestCase):
         # Setup complete offering configuration
         service_settings = rancher_factories.RancherServiceSettingsFactory()
         openstack_offering = marketplace_factories.OfferingFactory(
-            type=TENANT_TYPE, scope=openstack_factories.SettingsFactory()
+            type=OPENSTACK_TENANT_OFFERING, scope=openstack_factories.SettingsFactory()
         )
         rancher_offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, scope=service_settings
+            type=RANCHER_OFFERING, scope=service_settings
         )
 
         # Create flavors
@@ -780,7 +784,7 @@ class ManagedRancherIntegrationTest(test.APITransactionTestCase):
         )
 
         offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_PLUGIN, scope=rancher_offering
+            type=MANAGED_RANCHER_OFFERING, scope=rancher_offering
         )
         offering.plugin_options.update(
             {
@@ -921,7 +925,7 @@ class ManagedRancherStorageIntegrationTest(test.APITransactionTestCase):
 
         # Create OpenStack offering with dynamic storage
         self.openstack_offering = marketplace_factories.OfferingFactory(
-            type=TENANT_TYPE, scope=openstack_factories.SettingsFactory()
+            type=OPENSTACK_TENANT_OFFERING, scope=openstack_factories.SettingsFactory()
         )
         self.openstack_offering.plugin_options.update(
             {"storage_mode": STORAGE_MODE_DYNAMIC}
@@ -964,7 +968,7 @@ class ManagedRancherStorageIntegrationTest(test.APITransactionTestCase):
         # Create managed rancher offering
         rancher_offering = marketplace_factories.OfferingFactory(type="Rancher.Cluster")
         self.offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_PLUGIN, scope=rancher_offering
+            type=MANAGED_RANCHER_OFFERING, scope=rancher_offering
         )
         self.offering.plugin_options.update(
             {

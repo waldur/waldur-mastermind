@@ -1,7 +1,7 @@
 from waldur_mastermind.marketplace import registrators as marketplace_registrators
 
-from . import PLUGIN_NAME
+from ..marketplace.enums import BOOKING_OFFERING
 
 
 class BookingRegistrator(marketplace_registrators.MarketplaceRegistrator):
-    plugin_name = PLUGIN_NAME
+    plugin_name = BOOKING_OFFERING

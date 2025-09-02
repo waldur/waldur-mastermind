@@ -23,6 +23,7 @@ from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, models, plugins
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
+    SUPPORT_OFFERING,
     BillingTypes,
     LimitPeriods,
     OfferingStates,
@@ -32,7 +33,6 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_openstack.tests import factories as openstack_factories
 
 
@@ -587,7 +587,7 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
     def test_when_order_is_processed_cost_estimate_is_initialized(self):
         # Arrange
         fixture = fixtures.ProjectFixture()
-        offering = factories.OfferingFactory(type=PLUGIN_NAME)
+        offering = factories.OfferingFactory(type=SUPPORT_OFFERING)
         plan = factories.PlanFactory(unit_price=10)
 
         order = factories.OrderFactory(
@@ -606,7 +606,7 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
 
     def test_initialization_cost_is_added_to_cost_estimate_for_creation_request(self):
         # Arrange
-        offering = factories.OfferingFactory(type=PLUGIN_NAME)
+        offering = factories.OfferingFactory(type=SUPPORT_OFFERING)
         one_time_offering_component = factories.OfferingComponentFactory(
             offering=offering,
             billing_type=BillingTypes.ONE_TIME,
@@ -655,7 +655,7 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
 
     def test_plan_switch_cost_is_added_to_cost_estimate_for_order(self):
         # Arrange
-        offering = factories.OfferingFactory(type=PLUGIN_NAME)
+        offering = factories.OfferingFactory(type=SUPPORT_OFFERING)
         switch_offering_component = factories.OfferingComponentFactory(
             offering=offering,
             billing_type=BillingTypes.ON_PLAN_SWITCH,

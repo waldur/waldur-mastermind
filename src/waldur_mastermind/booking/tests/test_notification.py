@@ -5,16 +5,20 @@ from rest_framework import test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BOOKING_OFFERING,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
-from .. import PLUGIN_NAME, tasks
+from .. import tasks
 
 
 class NotificationsTest(test.APITransactionTestCase):
     def setUp(self):
         fixture = structure_fixtures.ProjectFixture()
-        offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
+        offering = marketplace_factories.OfferingFactory(type=BOOKING_OFFERING)
 
         self.order = marketplace_factories.OrderFactory(
             offering=offering,

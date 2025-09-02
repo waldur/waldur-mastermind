@@ -26,7 +26,7 @@ from waldur_core.structure.models import (
 from waldur_mastermind.google.models import GoogleCalendar, GoogleCredentials
 from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
 from waldur_mastermind.marketplace_openstack import (
-    executors as marketplace_openstack_executors,
+    executors as marketplace_openstack_executors,  # test-dependency-ignore
 )
 from waldur_pid import tasks as pid_tasks
 from waldur_pid import utils as pid_utils
@@ -702,7 +702,7 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
 
     def create_resources_for_lost_instances_and_volumes(self, request):
         from waldur_mastermind.marketplace_openstack import (
-            tasks as marketplace_openstack_tasks,
+            tasks as marketplace_openstack_tasks,  # test-dependency-ignore
         )
 
         marketplace_openstack_tasks.create_resources_for_lost_instances_and_volumes.delay()

@@ -10,8 +10,8 @@ from waldur_auth_social.const import ProviderChoices
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests.factories import UserFactory
+from waldur_mastermind.marketplace.enums import REMOTE_OFFERING
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.tests.dns_utils import (
     create_selective_dns_mock,
 )
@@ -53,7 +53,7 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             "token": "AAABBBCCC",
             "customer_uuid": REMOTE_CUSTOMER_UUID,
         }
-        offering.type = PLUGIN_NAME
+        offering.type = REMOTE_OFFERING
         offering.save()
         self.offering = offering
 

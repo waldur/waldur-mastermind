@@ -26,13 +26,15 @@ from waldur_openstack.tests.fixtures import (
     OpenStackFixture,
 )
 
-from .. import TENANT_TYPE
+from ...marketplace.enums import OPENSTACK_TENANT_OFFERING
 
 
 @freeze_time("2019-09-10")
 class BaseTenantInvoiceTest(test.APITransactionTestCase):
     def setUp(self):
-        self.offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
+        self.offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_TENANT_OFFERING
+        )
         self.limits = {
             RAM_TYPE: 1 * 1024,
             CORES_TYPE: 2,

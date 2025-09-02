@@ -8,12 +8,13 @@ from rest_framework import status
 
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import (
+    REMOTE_OFFERING,
     ImpactLevel,
     MaintenanceState,
     MaintenanceType,
 )
 from waldur_mastermind.marketplace.tests import fixtures
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME, tasks
+from waldur_mastermind.marketplace_remote import tasks
 
 
 class MaintenanceAnnouncementSyncTest(testcases.TransactionTestCase):
@@ -27,7 +28,7 @@ class MaintenanceAnnouncementSyncTest(testcases.TransactionTestCase):
         self.service_provider = self.fixture.service_provider
 
         self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = REMOTE_OFFERING
         self.api_url = "https://example.com"
         self.offering.secret_options = {
             "api_url": self.api_url,

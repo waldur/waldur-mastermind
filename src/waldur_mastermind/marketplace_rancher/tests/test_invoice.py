@@ -13,11 +13,15 @@ from waldur_mastermind.invoices.utils import (
 )
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
-from waldur_mastermind.marketplace.enums import BillingTypes
+from waldur_mastermind.marketplace.enums import (
+    MANAGED_RANCHER_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    RANCHER_OFFERING,
+    BillingTypes,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.utils import serialize_resource_limit_period
-from waldur_mastermind.marketplace_openstack import CORES_TYPE, TENANT_TYPE
-from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN, PLUGIN_NAME
+from waldur_mastermind.marketplace_openstack import CORES_TYPE
 from waldur_openstack.tests.factories import InstanceFactory, TenantFactory
 from waldur_rancher.tests.factories import ClusterFactory, NodeFactory
 
@@ -40,7 +44,9 @@ class RancherInvoiceTest(test.APITransactionTestCase):
         for i in (1, 2):
             vpc = TenantFactory(project=vm_project)
             vm = InstanceFactory(project=vm_project, tenant=vpc)
-            vpc_offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
+            vpc_offering = marketplace_factories.OfferingFactory(
+                type=OPENSTACK_TENANT_OFFERING
+            )
             vpc_resource = marketplace_factories.ResourceFactory(
                 scope=vpc,
                 project=vm_project,
@@ -69,9 +75,9 @@ class RancherInvoiceTest(test.APITransactionTestCase):
             NodeFactory(cluster=cluster, instance=vm)
 
         managed_rancher_offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_PLUGIN
+            type=MANAGED_RANCHER_OFFERING
         )
-        rancher_offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
+        rancher_offering = marketplace_factories.OfferingFactory(type=RANCHER_OFFERING)
         rancher_plan = marketplace_factories.PlanFactory(
             offering=managed_rancher_offering
         )

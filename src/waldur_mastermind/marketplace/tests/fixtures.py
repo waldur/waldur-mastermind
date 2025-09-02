@@ -7,9 +7,9 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import PLUGIN_NAME
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
     BillingTypes,
     OfferingStates,
     OrderStates,
@@ -26,7 +26,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def offering(self):
         return marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME,
+            type=BASIC_OFFERING,
             state=OfferingStates.ACTIVE,
             project=self.offering_project,
             customer=self.offering_customer,

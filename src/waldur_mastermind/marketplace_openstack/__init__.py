@@ -1,7 +1,3 @@
-TENANT_TYPE = "OpenStack.Tenant"
-INSTANCE_TYPE = "OpenStack.Instance"
-VOLUME_TYPE = "OpenStack.Volume"
-
 RAM_TYPE = "ram"
 CORES_TYPE = "cores"
 STORAGE_TYPE = "storage"

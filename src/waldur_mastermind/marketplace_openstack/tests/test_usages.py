@@ -3,9 +3,9 @@ from rest_framework import test
 
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.callbacks import create_resource_plan_period
+from waldur_mastermind.marketplace.enums import OPENSTACK_TENANT_OFFERING
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.utils import create_offering_components
-from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_openstack import models as openstack_models
 from waldur_openstack.tests import fixtures as openstack_fixtures
 
@@ -21,7 +21,7 @@ class UsagesSynchronizationTest(test.APITransactionTestCase):
         self.resource = marketplace_factories.ResourceFactory(
             scope=self.tenant, plan=marketplace_factories.PlanFactory()
         )
-        self.resource.offering.type = TENANT_TYPE
+        self.resource.offering.type = OPENSTACK_TENANT_OFFERING
         self.resource.offering.save()
         create_offering_components(self.resource.offering)
         create_resource_plan_period(self.resource)

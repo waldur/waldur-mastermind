@@ -2,6 +2,17 @@
 set -e
 
 TEST_MODE="${1:-UNIT}"
+# The second argument is a space-separated list of test paths. Default to 'src' for backward compatibility.
+TEST_TARGETS="${2:-src}"
+
+# If TEST_TARGETS is empty, there's nothing to test.
+if [ -z "$TEST_TARGETS" ]; then
+  echo "[+] No test targets selected. Exiting successfully."
+  exit 0
+fi
+
+echo "[+] Test mode: $TEST_MODE"
+echo "[+] Test targets: $TEST_TARGETS"
 
 echo "[+] Install dependencies in case of absence"
 pip3 install uv
@@ -53,7 +64,7 @@ if [ "$TEST_MODE" = "UNIT" ]; then
       --no-migrations \
       -ra \
       --ds=waldur_mastermind.test_settings \
-      src
+      $TEST_TARGETS
 
   # Check default configuration
   DJANGO_SETTINGS_MODULE=waldur_mastermind.test_settings waldur print_settings > /dev/null

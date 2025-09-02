@@ -6,13 +6,13 @@ from rest_framework import status, test
 
 from waldur_core.structure import signals as structure_signals
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_INSTANCE_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    OPENSTACK_VOLUME_OFFERING,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
-from waldur_mastermind.marketplace_openstack import (
-    INSTANCE_TYPE,
-    TENANT_TYPE,
-    VOLUME_TYPE,
-)
 from waldur_mastermind.marketplace_openstack.tests.mocks import (
     MOCK_FLAVOR,
     MOCK_IMAGE,
@@ -61,7 +61,7 @@ class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
     def test_import_volume_as_marketplace_resource(self):
         volume = self.fixture.volume
         marketplace_factories.OfferingFactory(
-            scope=self.fixture.tenant, type=VOLUME_TYPE
+            scope=self.fixture.tenant, type=OPENSTACK_VOLUME_OFFERING
         )
 
         structure_signals.resource_imported.send(
@@ -76,7 +76,7 @@ class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
     def test_import_instance_as_marketplace_resource(self):
         instance = self.fixture.instance
         marketplace_factories.OfferingFactory(
-            scope=self.fixture.tenant, type=INSTANCE_TYPE
+            scope=self.fixture.tenant, type=OPENSTACK_INSTANCE_OFFERING
         )
 
         structure_signals.resource_imported.send(
@@ -106,15 +106,19 @@ class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
         tenant = self.fixture.tenant
         self.import_tenant(tenant)
         self.assertTrue(
-            marketplace_models.Offering.objects.filter(type=INSTANCE_TYPE).exists()
+            marketplace_models.Offering.objects.filter(
+                type=OPENSTACK_INSTANCE_OFFERING
+            ).exists()
         )
         self.assertTrue(
-            marketplace_models.Offering.objects.filter(type=VOLUME_TYPE).exists()
+            marketplace_models.Offering.objects.filter(
+                type=OPENSTACK_VOLUME_OFFERING
+            ).exists()
         )
 
     def import_tenant(self, tenant):
         marketplace_factories.OfferingFactory(
-            scope=tenant.service_settings, type=TENANT_TYPE
+            scope=tenant.service_settings, type=OPENSTACK_TENANT_OFFERING
         )
 
         structure_signals.resource_imported.send(
@@ -129,7 +133,7 @@ class BaseInstanceImportTest(BaseBackendTestCase, BaseOpenStackTest):
         self.fixture = OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
             scope=self.fixture.tenant,
-            type=INSTANCE_TYPE,
+            type=OPENSTACK_INSTANCE_OFFERING,
             shared=False,
             customer=self.fixture.customer,
         )
@@ -220,7 +224,7 @@ class BaseVolumeImportTest(BaseBackendTestCase, test.APITransactionTestCase):
         self.fixture = OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
             scope=self.fixture.tenant,
-            type=VOLUME_TYPE,
+            type=OPENSTACK_VOLUME_OFFERING,
             shared=False,
             customer=self.fixture.customer,
         )
@@ -292,7 +296,7 @@ class TenantImportableResourcesTest(BaseBackendTestCase, BaseTenantActionsTest):
         super().setUp()
         self.offering = marketplace_factories.OfferingFactory(
             scope=self.fixture.settings,
-            type=TENANT_TYPE,
+            type=OPENSTACK_TENANT_OFFERING,
             project=self.fixture.project,
             customer=self.fixture.customer,
         )
@@ -345,7 +349,7 @@ class TenantImportTest(BaseBackendTestCase):
         )
         self.offering = marketplace_factories.OfferingFactory(
             scope=self.fixture.settings,
-            type=TENANT_TYPE,
+            type=OPENSTACK_TENANT_OFFERING,
             project=self.fixture.project,
             customer=self.fixture.customer,
         )

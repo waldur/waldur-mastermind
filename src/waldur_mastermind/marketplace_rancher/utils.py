@@ -14,14 +14,13 @@ from waldur_core.structure.models import Project
 from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OrderStates
+from waldur_mastermind.marketplace.enums import OPENSTACK_TENANT_OFFERING, OrderStates
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace.views import (
     BaseResourceViewSet,
     ConsumerResourceViewSet,
     OrderViewSet,
 )
-from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_openstack.models import Tenant
 from waldur_rancher.exceptions import RancherException
 from waldur_rancher.models import Cluster
@@ -213,7 +212,7 @@ def sync_aggregated_invoice_item(
     # for the same component type and billing period
     component_items_from_all_tenants = InvoiceItem.objects.filter(
         resource__object_id__in=rancher_cluster.linked_tenant_ids,
-        resource__offering__type=TENANT_TYPE,
+        resource__offering__type=OPENSTACK_TENANT_OFFERING,
         invoice=upstream_invoice_item.invoice,
         details__offering_component_type=offering_component_type,
     )

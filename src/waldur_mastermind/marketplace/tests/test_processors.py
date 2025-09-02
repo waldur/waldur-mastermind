@@ -3,8 +3,12 @@ from unittest import mock
 from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import PLUGIN_NAME, utils
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace import utils
+from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories
 
@@ -52,7 +56,7 @@ class ProcessorsTest(test.APITransactionTestCase):
         process_order_mock.side_effect = Exception("Error!")
 
         user = structure_factories.UserFactory(is_staff=True)
-        offering = factories.OfferingFactory(type=PLUGIN_NAME)
+        offering = factories.OfferingFactory(type=BASIC_OFFERING)
 
         order = factories.OrderFactory(offering=offering, state=OrderStates.EXECUTING)
         resource = order.resource

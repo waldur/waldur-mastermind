@@ -6,12 +6,12 @@ from rest_framework import test
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import (
+    REMOTE_OFFERING,
     OrderStates,
     RequestTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.exceptions import RemoteStatusSyncFailed
 from waldur_mastermind.marketplace_remote.tests import fixtures
 from waldur_mastermind.marketplace_remote.utils import get_resource_sync_status
@@ -26,7 +26,7 @@ class GetResourceSyncStatusTest(test.APITransactionTestCase):
         self.resource = marketplace_factories.ResourceFactory(
             project=self.fixture.project, offering=self.fixture.offering
         )
-        self.resource.offering.type = PLUGIN_NAME
+        self.resource.offering.type = REMOTE_OFFERING
         self.resource.backend_id = uuid.uuid4().hex
         self.resource.state = ResourceStates.OK
         self.resource.save()
@@ -113,7 +113,7 @@ class RemoteResourceStatusEndpointTest(test.APITransactionTestCase):
         self.resource = marketplace_factories.ResourceFactory(
             project=self.fixture.project, offering=self.fixture.offering
         )
-        self.resource.offering.type = PLUGIN_NAME
+        self.resource.offering.type = REMOTE_OFFERING
         self.resource.backend_id = uuid.uuid4().hex
         self.resource.state = ResourceStates.OK
         self.resource.save()
@@ -259,7 +259,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
         self.resource = marketplace_factories.ResourceFactory(
             project=self.fixture.project, offering=self.fixture.offering
         )
-        self.resource.offering.type = PLUGIN_NAME
+        self.resource.offering.type = REMOTE_OFFERING
         self.resource.backend_id = uuid.uuid4().hex
         self.resource.state = ResourceStates.OK
         self.resource.save()
@@ -536,7 +536,7 @@ class GetResourceOrderSyncStatusTest(test.APITransactionTestCase):
         self.resource = marketplace_factories.ResourceFactory(
             project=self.fixture.project, offering=self.fixture.offering
         )
-        self.resource.offering.type = PLUGIN_NAME
+        self.resource.offering.type = REMOTE_OFFERING
         self.resource.backend_id = uuid.uuid4().hex
         self.resource.state = ResourceStates.OK
         self.resource.save()

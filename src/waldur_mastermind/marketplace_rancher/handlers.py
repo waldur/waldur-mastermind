@@ -11,14 +11,16 @@ from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.invoices.utils import get_current_month_end
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    MANAGED_RANCHER_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.registrators import MarketplaceRegistrator
 from waldur_mastermind.marketplace.utils import (
     get_resource_state,
     serialize_resource_limit_period,
 )
-from waldur_mastermind.marketplace_openstack import TENANT_TYPE
-from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN
 from waldur_mastermind.marketplace_rancher.const import OS_LB_PREFIX
 from waldur_mastermind.marketplace_rancher.utils import (
     sync_aggregated_invoice_item,
@@ -45,7 +47,7 @@ def create_marketplace_resource_for_imported_cluster(
         "scope": instance,
     }
 
-    if offering.type == MANAGED_RANCHER_PLUGIN:
+    if offering.type == MANAGED_RANCHER_OFFERING:
         # Create a new resource for cluster
         cluster_offering = offering.scope
         # Get a plan for the cluster resource
@@ -131,7 +133,7 @@ def update_argocd_secret_when_resource_options_changed(
     if not tracker.has_changed("options"):
         return
 
-    if resource.offering.type != MANAGED_RANCHER_PLUGIN:
+    if resource.offering.type != MANAGED_RANCHER_OFFERING:
         return
 
     if resource.state != ResourceStates.OK:
@@ -169,7 +171,7 @@ def copy_invoice_items_when_cluster_is_provisioned(
     if not tracker.has_changed("state"):
         return
 
-    if resource.offering.type != MANAGED_RANCHER_PLUGIN:
+    if resource.offering.type != MANAGED_RANCHER_OFFERING:
         return
 
     if resource.state != ResourceStates.OK:
@@ -185,7 +187,7 @@ def copy_invoice_items_when_cluster_is_provisioned(
 
     source_items = InvoiceItem.objects.filter(
         resource__object_id__in=cluster.linked_tenant_ids,
-        resource__offering__type=TENANT_TYPE,
+        resource__offering__type=OPENSTACK_TENANT_OFFERING,
         invoice__year=now.year,
         invoice__month=now.month,
     )
@@ -292,7 +294,7 @@ def copy_invoice_item_from_openstack(
     upstream_invoice_item = instance
     if not upstream_invoice_item.resource:
         return
-    if not upstream_invoice_item.resource.offering.type == TENANT_TYPE:
+    if not upstream_invoice_item.resource.offering.type == OPENSTACK_TENANT_OFFERING:
         return
     try:
         downstream_invoice_item = InvoiceItem.objects.get(

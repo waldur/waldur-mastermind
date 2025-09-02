@@ -58,6 +58,7 @@ from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
 from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_TENANT_OFFERING,
     BillingTypes,
     LimitPeriods,
     OfferingStates,
@@ -73,13 +74,13 @@ from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.marketplace.utils import (
     UsernameGenerationPolicy,
+    convert_slurm_usage,
     get_service_provider_resources,
     get_service_provider_user_ids,
     parse_date,
     validate_attributes,
     validate_end_date,
 )
-from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
 
@@ -1353,7 +1354,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             attrs["max_value"] = 1
             attrs["limit_period"] = LimitPeriods.MONTH
             attrs["limit_amount"] = None
-        if self.instance and self.instance.offering.type == TENANT_TYPE:
+        if self.instance and self.instance.offering.type == OPENSTACK_TENANT_OFFERING:
             protected_fields = set(attrs.keys()) & {
                 "type",
                 "name",
@@ -3625,9 +3626,8 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
 
     def get_usage(self, instance) -> int:
         # TODO: temporary functionality, remove after full migration to the new SLURM plugin
-        from waldur_mastermind.marketplace_slurm import PLUGIN_NAME as SLURM_PLUGIN_NAME
-        from waldur_mastermind.marketplace_slurm import (
-            registrators as slurm_registrators,
+        from waldur_mastermind.marketplace.enums import (
+            SLURM_OFFERING as SLURM_PLUGIN_NAME,
         )
 
         if (
@@ -3636,9 +3636,7 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
         ):
             return instance.usage
 
-        converted_usage = slurm_registrators.SlurmRegistrator.convert_quantity(
-            instance.usage, instance.component.type
-        )
+        converted_usage = convert_slurm_usage(instance.usage, instance.component.type)
         return converted_usage
 
     def get_fields(self):
@@ -3734,9 +3732,8 @@ class ComponentUserUsageSerializer(
 
     def get_usage(self, instance) -> int:
         # TODO: temporary functionality, remove after full migration to the new SLURM plugin
-        from waldur_mastermind.marketplace_slurm import PLUGIN_NAME as SLURM_PLUGIN_NAME
-        from waldur_mastermind.marketplace_slurm import (
-            registrators as slurm_registrators,
+        from waldur_mastermind.marketplace.enums import (
+            SLURM_OFFERING as SLURM_PLUGIN_NAME,
         )
 
         # The first check ensures that the second one doesn't fail is the plan period is None
@@ -3747,7 +3744,7 @@ class ComponentUserUsageSerializer(
         ):
             return instance.usage
 
-        converted_usage = slurm_registrators.SlurmRegistrator.convert_quantity(
+        converted_usage = convert_slurm_usage(
             instance.usage, instance.component_usage.component.type
         )
         return converted_usage

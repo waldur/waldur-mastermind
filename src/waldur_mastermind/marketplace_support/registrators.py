@@ -1,7 +1,7 @@
 from waldur_mastermind.marketplace.registrators import MarketplaceRegistrator
 
-from . import PLUGIN_NAME
+from ..marketplace.enums import SUPPORT_OFFERING
 
 
 class SupportRegistrator(MarketplaceRegistrator):
-    plugin_name = PLUGIN_NAME
+    plugin_name = SUPPORT_OFFERING

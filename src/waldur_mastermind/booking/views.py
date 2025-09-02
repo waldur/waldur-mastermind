@@ -21,13 +21,13 @@ from waldur_mastermind.marketplace.callbacks import (
     resource_creation_canceled,
     resource_creation_succeeded,
 )
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import BOOKING_OFFERING, ResourceStates
 
-from . import PLUGIN_NAME, executors, filters, permissions, serializers
+from . import executors, filters, permissions, serializers
 
 
 class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
-    queryset = models.Resource.objects.filter(offering__type=PLUGIN_NAME).order_by(
+    queryset = models.Resource.objects.filter(offering__type=BOOKING_OFFERING).order_by(
         "name"
     )
     filter_backends = (
@@ -72,7 +72,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
 
 class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
-    queryset = models.Offering.objects.filter(type=PLUGIN_NAME).order_by("name")
+    queryset = models.Offering.objects.filter(type=BOOKING_OFFERING).order_by("name")
     filter_backends = (
         DjangoFilterBackend,
         filters.CustomersFilterBackend,

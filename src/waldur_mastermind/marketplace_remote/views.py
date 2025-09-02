@@ -45,13 +45,13 @@ from waldur_core.structure.models import Customer
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.enums import (
+    REMOTE_OFFERING,
     OfferingStates,
     OrderStates,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.serializers import MarketplaceCategorySerializer
 from waldur_mastermind.marketplace_remote import (
-    PLUGIN_NAME,
     filters,
     serializers,
     tasks,
@@ -178,7 +178,7 @@ class OfferingsListView(RemoteView):
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
         local_offerings = list(
-            models.Offering.objects.filter(type=PLUGIN_NAME)
+            models.Offering.objects.filter(type=REMOTE_OFFERING)
             .exclude(state=OfferingStates.ARCHIVED)
             .values_list("backend_id", flat=True)
         )
@@ -307,7 +307,7 @@ class PullOrderView(GenericAPIView):
         item_uuid = self.kwargs["uuid"]
         if not is_uuid_like(item_uuid):
             return Response(status=status.HTTP_400_BAD_REQUEST, data="UUID is invalid.")
-        qs = models.Order.objects.filter(offering__type=PLUGIN_NAME).exclude(
+        qs = models.Order.objects.filter(offering__type=REMOTE_OFFERING).exclude(
             state__in=OrderStates.TERMINAL_STATES
         )
         return get_object_or_404(qs, uuid=item_uuid)
@@ -328,7 +328,7 @@ class CancelTerminationOrderView(GenericAPIView):
         if not is_uuid_like(item_uuid):
             raise ValidationError("UUID is invalid.")
         qs = models.Order.objects.filter(
-            offering__type=PLUGIN_NAME,
+            offering__type=REMOTE_OFFERING,
             state=OrderStates.EXECUTING,
             type=models.Order.Types.TERMINATE,
         )
@@ -360,7 +360,7 @@ class OfferingActionView(GenericAPIView):
     filter_backends = []
 
     def post(self, request, uuid):
-        qs = models.Offering.objects.filter(type=PLUGIN_NAME)
+        qs = models.Offering.objects.filter(type=REMOTE_OFFERING)
         offering = get_object_or_404(qs, uuid=uuid)
         if not has_permission(
             request, PermissionEnum.UPDATE_OFFERING, offering
@@ -410,7 +410,7 @@ class SyncResourceProjectPermissions(GenericAPIView):
     serializer_class = EmptySerializer
 
     def post(self, request, uuid):
-        qs = models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+        qs = models.Resource.objects.filter(offering__type=REMOTE_OFFERING)
         resource = get_object_or_404(qs, uuid=uuid)
         utils.sync_resource_team(resource)
         return Response(status=status.HTTP_200_OK)

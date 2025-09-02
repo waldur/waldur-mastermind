@@ -263,3 +263,18 @@ class RemoteResourceSyncStatus:
         (OUT_OF_SYNC, "Out of sync"),
         (SYNC_FAILED, "Sync failed"),
     )
+
+
+SUPPORT_OFFERING = "Support.OfferingTemplate"
+BOOKING_OFFERING = "Marketplace.Booking"
+BASIC_OFFERING = "Marketplace.Basic"
+OPENSTACK_TENANT_OFFERING = "OpenStack.Tenant"
+OPENSTACK_INSTANCE_OFFERING = "OpenStack.Instance"
+OPENSTACK_VOLUME_OFFERING = "OpenStack.Volume"
+RANCHER_OFFERING = "Marketplace.Rancher"
+MANAGED_RANCHER_OFFERING = "Marketplace.ManagedRancher"
+VMWARE_VM_OFFERING = "VMware.VirtualMachine"
+REMOTE_OFFERING = "Waldur.RemoteOffering"
+SCRIPT_OFFERING = "Marketplace.Script"
+SLURM_OFFERING = "SlurmInvoices.SlurmPackage"
+SITE_AGENT_OFFERING = "Marketplace.Slurm"

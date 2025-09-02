@@ -6,9 +6,13 @@ from waldur_core.permissions import models as permission_models
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    SITE_AGENT_OFFERING,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.models import OfferingUser, Order
-from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME, utils
+from waldur_mastermind.marketplace_site_agent import utils
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +23,7 @@ def send_done_order_to_message_queue(sender, instance: Order, created=False, **k
     if created:
         return
     offering = order.offering
-    if offering.type != PLUGIN_NAME:
+    if offering.type != SITE_AGENT_OFFERING:
         return
 
     if not order.tracker.has_changed("state") or order.state != OrderStates.DONE:
@@ -42,7 +46,7 @@ def send_pending_order_to_message_queue(
         return
 
     offering = order.offering
-    if offering.type != PLUGIN_NAME:
+    if offering.type != SITE_AGENT_OFFERING:
         return
 
     if (
@@ -66,7 +70,7 @@ def send_offering_user_username_message(
         return
     offering_user = instance
     offering = offering_user.offering
-    if offering.type != PLUGIN_NAME:
+    if offering.type != SITE_AGENT_OFFERING:
         return
 
     if not offering_user.tracker.has_changed("username"):
@@ -97,7 +101,7 @@ def process_role_changed(permission: permission_models.UserRole, granted: bool):
     offering_ids = set(
         project.resource_set.filter(
             state=ResourceStates.OK,
-            offering__type=PLUGIN_NAME,
+            offering__type=SITE_AGENT_OFFERING,
         ).values_list("offering", flat=True)
     )
 
@@ -152,7 +156,7 @@ def send_resource_update_message_to_queue(
         return
 
     offering = instance.offering
-    if offering.type != PLUGIN_NAME:
+    if offering.type != SITE_AGENT_OFFERING:
         return
 
     if not any(
@@ -172,7 +176,7 @@ def send_project_service_account_message(
     project = service_account.project
     offering_ids = set(
         project.resource_set.filter(
-            offering__type=PLUGIN_NAME,
+            offering__type=SITE_AGENT_OFFERING,
         )
         .exclude(state=ResourceStates.TERMINATED)
         .values_list("offering", flat=True)

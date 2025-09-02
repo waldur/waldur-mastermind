@@ -9,10 +9,12 @@ from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_INSTANCE_OFFERING,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_mastermind.policy import tasks
 from waldur_mastermind.policy.tests import factories
 
@@ -154,7 +156,7 @@ class ActionsTest(test.APITransactionTestCase):
         resource.state = ResourceStates.OK
         resource.save()
 
-        resource.offering.type = INSTANCE_TYPE
+        resource.offering.type = OPENSTACK_INSTANCE_OFFERING
         resource.offering.save()
 
         self.create_invoice_item(self.project_policy.limit_cost + 1)

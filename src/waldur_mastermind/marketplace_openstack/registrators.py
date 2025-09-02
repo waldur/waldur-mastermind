@@ -1,15 +1,15 @@
+from waldur_mastermind.marketplace.enums import OPENSTACK_TENANT_OFFERING
 from waldur_mastermind.marketplace.registrators import MarketplaceRegistrator
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
     RAM_TYPE,
     STORAGE_TYPE,
-    TENANT_TYPE,
 )
 from waldur_openstack.utils import is_valid_volume_type_name
 
 
 class OpenStackTenantRegistrator(MarketplaceRegistrator):
-    plugin_name = TENANT_TYPE
+    plugin_name = OPENSTACK_TENANT_OFFERING
 
     @classmethod
     def convert_quantity(cls, usage, component_type: str):

@@ -12,6 +12,9 @@ from waldur_core.quotas.models import QuotaUsage
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_INSTANCE_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    OPENSTACK_VOLUME_OFFERING,
     BillingTypes,
     LimitPeriods,
     OfferingStates,
@@ -32,10 +35,7 @@ from waldur_openstack.models import (
 from waldur_openstack.utils import volume_type_name_to_quota_name
 
 from . import (
-    INSTANCE_TYPE,
     STORAGE_MODE_FIXED,
-    TENANT_TYPE,
-    VOLUME_TYPE,
     tasks,
     utils,
 )
@@ -289,13 +289,13 @@ def create_resource_of_volume_if_instance_created(
     if not resource.scope or not getattr(resource.offering, "scope", None):
         return
 
-    if resource.offering.type != INSTANCE_TYPE:
+    if resource.offering.type != OPENSTACK_INSTANCE_OFFERING:
         return
 
     vm = cast(Instance, resource.scope)
 
     volume_offering = utils.get_offering(
-        VOLUME_TYPE, getattr(resource.offering, "scope", None)
+        OPENSTACK_VOLUME_OFFERING, getattr(resource.offering, "scope", None)
     )
     if not volume_offering:
         return
@@ -425,7 +425,7 @@ def synchronize_limits_when_storage_mode_is_switched(
     if created:
         return
 
-    if offering.type != TENANT_TYPE:
+    if offering.type != OPENSTACK_TENANT_OFFERING:
         return
 
     if not offering.tracker.has_changed("plugin_options"):
@@ -501,11 +501,11 @@ def synchronize_tenant_name(
         object_id=tenant.id, content_type=ContentType.objects.get_for_model(tenant)
     )
 
-    for offering in offerings.filter(type=INSTANCE_TYPE):
+    for offering in offerings.filter(type=OPENSTACK_INSTANCE_OFFERING):
         offering.name = utils.get_offering_name_for_instance(tenant)
         offering.save(update_fields=["name"])
 
-    for offering in offerings.filter(type=VOLUME_TYPE):
+    for offering in offerings.filter(type=OPENSTACK_VOLUME_OFFERING):
         offering.name = utils.get_offering_name_for_volume(tenant)
         offering.save(update_fields=["name"])
 
@@ -592,7 +592,7 @@ def update_instances_ip_external_addresses(
 ):
     offering = instance
 
-    if offering.type != TENANT_TYPE:
+    if offering.type != OPENSTACK_TENANT_OFFERING:
         return
 
     if not created and not offering.tracker.has_changed("secret_options"):
@@ -622,7 +622,7 @@ def handle_openstack_tenant_order_creation(
     if (
         created
         and order.type == marketplace_models.Order.Types.CREATE
-        and order.offering.type == INSTANCE_TYPE
+        and order.offering.type == OPENSTACK_INSTANCE_OFFERING
     ):
         utils.set_ports_status_for_order(order, "BOOKED")
 
@@ -636,7 +636,7 @@ def handle_openstack_tenant_order_termination(
         return
 
     if (
-        order.offering.type == INSTANCE_TYPE
+        order.offering.type == OPENSTACK_INSTANCE_OFFERING
         and order.tracker.has_changed("state")
         and order.state
         in (

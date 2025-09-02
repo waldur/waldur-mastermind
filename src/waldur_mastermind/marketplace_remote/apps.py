@@ -1,6 +1,8 @@
 from django.apps import AppConfig
 from django.db.models import signals
 
+from waldur_mastermind.marketplace.enums import REMOTE_OFFERING
+
 
 class MarketplaceRemoteConfig(AppConfig):
     name = "waldur_mastermind.marketplace_remote"
@@ -11,7 +13,6 @@ class MarketplaceRemoteConfig(AppConfig):
         from waldur_core.structure.models import Project
         from waldur_mastermind.marketplace import models, plugins
         from waldur_mastermind.marketplace_remote import (
-            PLUGIN_NAME,
             constants,
             handlers,
             processors,
@@ -20,7 +21,7 @@ class MarketplaceRemoteConfig(AppConfig):
         ProjectUpdateRequest = self.get_model("ProjectUpdateRequest")
 
         plugins.manager.register(
-            offering_type=PLUGIN_NAME,
+            offering_type=REMOTE_OFFERING,
             create_resource_processor=processors.RemoteCreateResourceProcessor,
             update_resource_processor=processors.RemoteUpdateResourceProcessor,
             delete_resource_processor=processors.RemoteDeleteResourceProcessor,

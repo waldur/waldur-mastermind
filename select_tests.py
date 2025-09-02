@@ -1,0 +1,263 @@
+"""
+Selects a subset of tests to run based on changed files in a Git commit.
+
+Purpose:
+This script is intended to be used in a CI/CD pipeline (specifically GitLab CI)
+to optimize test execution time. It determines which tests are relevant to the
+changes in a given merge request, preventing the need to run the entire test suite.
+
+How it works:
+1.  It reads the `dependency_graph.yaml` file, which maps each Django application
+    to a list of other applications it depends on.
+2.  It builds a reverse dependency map in memory. This allows it to quickly answer
+    the question: "If App B changes, which apps depend on it?"
+3.  It uses GitLab's predefined CI variable `CI_MERGE_REQUEST_DIFF_BASE_SHA` to get a
+    list of all files changed in the current merge request.
+4.  It maps each changed file to its corresponding Django application.
+5.  It performs a graph traversal on the reverse dependency map to find the
+    complete set of affected applications. This includes both the directly
+    changed applications and any applications that transitively depend on them.
+6.  Finally, it prints a space-separated string of the paths to the selected
+    application directories. This string can be directly consumed by pytest.
+
+Output:
+- To stdout: A space-separated list of paths (e.g., "src/waldur_core src/waldur_mastermind/marketplace").
+- To stderr: Informational logs about the selection process.
+"""
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict, List, Set, Optional
+
+# --- Third-party Library Imports and Checks ---
+
+try:
+    import yaml
+except ImportError:
+    print("Error: 'PyYAML' library not found.", file=sys.stderr)
+    print("Please install it: pip install PyYAML", file=sys.stderr)
+    sys.exit(1)
+
+# --- Configuration Constants ---
+
+# Define the project root as the directory containing this script.
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+# The path to the source code directory.
+SRC_ROOT = PROJECT_ROOT / "src"
+
+# The path to the pre-computed dependency graph file.
+DEPENDENCY_GRAPH_FILE = PROJECT_ROOT / "dependency_graph.yaml"
+
+# A list of files and directories that, if changed, are considered "core"
+# changes. Any change to these will trigger a full test run as a safety measure.
+FULL_RUN_TRIGGERS = [
+    "pyproject.toml",
+    "uv.lock",
+    ".gitlab-ci.yml",
+    "gitlab-ci-test/",
+    "dependency_graph.yaml",  # If the graph itself changes, run all tests.
+    str(Path(__file__).relative_to(PROJECT_ROOT)),  # If this script changes.
+]
+
+
+def log(message: str):
+    """Helper function to print messages to stderr."""
+    print(f"[select-tests] {message}", file=sys.stderr)
+
+
+def get_changed_files() -> List[str]:
+    """
+    Gets the list of changed files from Git for the current merge request.
+
+    It relies on the `CI_MERGE_REQUEST_DIFF_BASE_SHA` GitLab variable.
+    If the variable is not set, it returns a trigger for a full test run.
+
+    Returns:
+        A list of file paths relative to the project root.
+    """
+    base_sha = os.environ.get("CI_MERGE_REQUEST_DIFF_BASE_SHA")
+    if not base_sha:
+        log(
+            "WARNING: CI_MERGE_REQUEST_DIFF_BASE_SHA not found. Defaulting to full test run."
+        )
+        # Return a known trigger file to force a full run in the main logic.
+        return ["pyproject.toml"]
+
+    log(f"Finding changes between HEAD and base commit {base_sha[:8]}...")
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{base_sha}...HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        changed = result.stdout.strip().split("\n")
+        log(f"Found {len(changed)} changed file(s).")
+        return changed
+    except subprocess.CalledProcessError as e:
+        log(f"ERROR: Git diff command failed: {e.stderr}")
+        log("Defaulting to full test run as a safety precaution.")
+        return ["pyproject.toml"]
+
+
+def load_dependency_graph(path: Path) -> Dict[str, List[str]]:
+    """
+    Loads the dependency graph from the YAML file.
+
+    Args:
+        path: The path to the 'dependency_graph.yaml' file.
+
+    Returns:
+        A dictionary representing the dependency graph.
+    """
+    if not path.exists():
+        log(f"ERROR: Dependency graph not found at {path}")
+        return {}  # Return empty dict, which will trigger a full run later.
+
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def build_reverse_dependency_map(
+    dependency_map: Dict[str, List[str]],
+) -> Dict[str, List[str]]:
+    """
+    Inverts the dependency graph.
+
+    The input map shows `app -> [dependencies]`.
+    The output map shows `dependency -> [apps that depend on it]`.
+
+    Args:
+        dependency_map: The original dependency graph.
+
+    Returns:
+        A new dictionary representing the reverse graph.
+    """
+    reverse_map = {}
+    for app, dependencies in dependency_map.items():
+        for dep in dependencies:
+            reverse_map.setdefault(dep, []).append(app)
+    return reverse_map
+
+
+def map_file_to_app(file_path: str, all_apps: Set[str]) -> Optional[str]:
+    """
+    Maps a file path to its corresponding canonical Django app name.
+
+    It finds the longest matching app name that is a prefix of the file's path.
+    e.g., 'src/waldur_mastermind/marketplace/models.py' -> 'waldur_mastermind.marketplace'
+
+    Args:
+        file_path: The path of the changed file.
+        all_apps: A set of all known canonical app names.
+
+    Returns:
+        The canonical app name if a match is found, otherwise None.
+    """
+    if not file_path.startswith("src/"):
+        return None
+
+    # Convert file path to a module-like path for comparison
+    module_like_path = file_path.replace("src/", "").replace("/", ".")
+
+    best_match = None
+    for app_name in all_apps:
+        if module_like_path.startswith(app_name):
+            if best_match is None or len(app_name) > len(best_match):
+                best_match = app_name
+    return best_match
+
+
+def main():
+    """Main execution logic."""
+    # 1. Load the dependency graph from the YAML file.
+    dependency_map = load_dependency_graph(DEPENDENCY_GRAPH_FILE)
+    if not dependency_map:
+        log("Dependency graph is empty or missing. Triggering a full test run.")
+        print("src")
+        return
+
+    # 2. Get the list of files that have changed in this MR.
+    changed_files = get_changed_files()
+    if not changed_files or (len(changed_files) == 1 and not changed_files[0]):
+        log("No changed files detected. No tests to run.")
+        print("")  # Print empty string for the CI variable
+        return
+
+    # 3. Check for any "full run" triggers.
+    if any(
+        any(f.startswith(trigger) for trigger in FULL_RUN_TRIGGERS)
+        for f in changed_files
+    ):
+        log(f"Core file changed, triggering a full test run.")
+        print("src")
+        return
+
+    # 4. Map the changed files to their respective applications.
+    all_apps = set(dependency_map.keys()) | {
+        dep for deps in dependency_map.values() for dep in deps
+    }
+    directly_changed_apps = {
+        app for f in changed_files if (app := map_file_to_app(f, all_apps))
+    }
+
+    if not directly_changed_apps:
+        log(
+            "Changes detected outside of any known Django app source. No tests selected."
+        )
+        print("")
+        return
+
+    # 5. Build the reverse map and find all affected apps via traversal.
+    reverse_map = build_reverse_dependency_map(dependency_map)
+
+    apps_to_test = set(directly_changed_apps)
+    queue = list(directly_changed_apps)  # Seed the queue for traversal
+
+    log("Starting dependency traversal...")
+    log(f"Directly changed apps: {', '.join(sorted(queue))}")
+
+    while queue:
+        # Get the next app from the queue to find its dependents
+        current_app = queue.pop(0)
+        dependents = reverse_map.get(current_app, [])
+
+        for dependent_app in dependents:
+            if dependent_app not in apps_to_test:
+                apps_to_test.add(dependent_app)
+                queue.append(dependent_app)
+                log(
+                    f"  -> Adding '{dependent_app}' because it depends on '{current_app}'"
+                )
+
+    # 6. Convert app names back to file paths for pytest.
+    test_paths = []
+    for app_name in sorted(list(apps_to_test)):
+        # e.g., 'waldur_mastermind.marketplace' -> 'src/waldur_mastermind/marketplace'
+        app_path = SRC_ROOT / Path(*app_name.split("."))
+        if app_path.exists():
+            # Use relative path for the final output
+            test_paths.append(str(app_path.relative_to(PROJECT_ROOT)))
+        else:
+            log(
+                f"WARNING: Could not find directory for app '{app_name}' at expected path '{app_path}'"
+            )
+
+    if not test_paths:
+        log("No testable application paths were found after analysis.")
+        print("")
+        return
+
+    log("---")
+    log(f"Final set of apps to test: {', '.join(sorted(list(apps_to_test)))}")
+
+    # 7. Print the final space-separated string to stdout.
+    final_output = " ".join(test_paths)
+    print(final_output)
+
+
+if __name__ == "__main__":
+    main()

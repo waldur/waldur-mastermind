@@ -108,9 +108,11 @@ from waldur_core.structure.serializers import (
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
-from waldur_mastermind.marketplace import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
+    SITE_AGENT_OFFERING,
+    SUPPORT_OFFERING,
     BillingTypes,
     MaintenanceState,
     OfferingStates,
@@ -126,10 +128,6 @@ from waldur_mastermind.marketplace.managers import (
 from waldur_mastermind.marketplace.utils import (
     validate_attributes,
 )
-from waldur_mastermind.marketplace_site_agent import (
-    PLUGIN_NAME as SITE_AGENT_PLUGIN_NAME,
-)
-from waldur_mastermind.marketplace_support import PLUGIN_NAME as SUPPORT_PLUGIN_NAME
 from waldur_mastermind.promotions import models as promotions_models
 from waldur_mastermind.support import models as support_models
 from waldur_pid import models as pid_models
@@ -3217,7 +3215,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             OrderStates.EXECUTING,
             state_enum=OrderStates,
         ),
-        OfferingTypeValidator(BASIC_PLUGIN_NAME, SUPPORT_PLUGIN_NAME),
+        OfferingTypeValidator(BASIC_OFFERING, SUPPORT_OFFERING),
     ]
 
     @extend_schema(
@@ -3238,7 +3236,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             OrderStates.ERRED,
             state_enum=OrderStates,
         ),
-        OfferingTypeValidator(SITE_AGENT_PLUGIN_NAME),
+        OfferingTypeValidator(SITE_AGENT_OFFERING),
     ]
 
     set_state_executing_permissions = [
@@ -3264,9 +3262,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             OrderStates.EXECUTING,
             state_enum=OrderStates,
         ),
-        OfferingTypeValidator(
-            SITE_AGENT_PLUGIN_NAME, BASIC_PLUGIN_NAME, SUPPORT_PLUGIN_NAME
-        ),
+        OfferingTypeValidator(SITE_AGENT_OFFERING, BASIC_OFFERING, SUPPORT_OFFERING),
     ]
 
     set_state_done_permissions = [
@@ -3287,7 +3283,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         return Response(status=status.HTTP_200_OK)
 
     set_state_erred_validators = [
-        OfferingTypeValidator(SITE_AGENT_PLUGIN_NAME),
+        OfferingTypeValidator(SITE_AGENT_OFFERING),
     ]
 
     set_state_erred_permissions = [
@@ -3754,7 +3750,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
         match resource.scope:
             case scope if (
-                scope is None or resource.offering.type == SITE_AGENT_PLUGIN_NAME
+                scope is None or resource.offering.type == SITE_AGENT_OFFERING
             ):
                 # 1. Case when Waldur doesn't have direct access to the resource backend
                 # 2. Case when the resource scope used to be managed by Waldur

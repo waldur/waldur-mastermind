@@ -2,7 +2,8 @@ import logging
 
 from waldur_mastermind.marketplace.models import Resource
 
-from . import PLUGIN_NAME, tasks
+from ..marketplace.enums import SCRIPT_OFFERING
+from . import tasks
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ def resource_options_have_been_changed(
     if not resource.tracker.has_changed("options"):
         return
 
-    if resource.offering.type != PLUGIN_NAME:
+    if resource.offering.type != SCRIPT_OFFERING:
         return
 
     options_old = resource.tracker.previous("options")

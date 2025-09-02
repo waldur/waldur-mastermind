@@ -4,13 +4,13 @@ from rest_framework import test
 
 from waldur_core.logging import utils as logging_utils
 from waldur_core.logging.tests import factories as logging_factories
+from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
 from waldur_mastermind.marketplace.tests import (
     factories as marketplace_factories,
 )
 from waldur_mastermind.marketplace.tests import (
     fixtures as marketplace_fixtures,
 )
-from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME
 
 
 class ServiceAccountMessageTest(test.APITransactionTestCase):
@@ -22,7 +22,7 @@ class ServiceAccountMessageTest(test.APITransactionTestCase):
         )
         self.resource = self.fixture.resource
         self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = SITE_AGENT_OFFERING
         self.offering.save()
         self.event_subscription = logging_factories.EventSubscriptionFactory(
             user=self.fixture.offering_owner,

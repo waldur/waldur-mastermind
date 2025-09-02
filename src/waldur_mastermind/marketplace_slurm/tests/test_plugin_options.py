@@ -1,7 +1,7 @@
 from rest_framework import test
 
+from waldur_mastermind.marketplace.enums import SLURM_OFFERING
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 from waldur_slurm.tests import fixtures as slurm_fixtures
 
 
@@ -9,7 +9,7 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = slurm_fixtures.SlurmFixture()
         self.offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME,
+            type=SLURM_OFFERING,
         )
 
     def set_option(self, option_name, option_value):

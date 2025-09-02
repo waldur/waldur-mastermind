@@ -413,8 +413,8 @@ def get_keycloak_group_scope_and_settings(group: models.KeycloakGroup):
 
 
 def check_managed_cluster(cluster: models.Cluster, user: User):
+    from waldur_mastermind.marketplace.enums import MANAGED_RANCHER_OFFERING
     from waldur_mastermind.marketplace.models import Resource
-    from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN
 
     if user.is_staff:
         return
@@ -423,7 +423,7 @@ def check_managed_cluster(cluster: models.Cluster, user: User):
             content_type=ContentType.objects.get_for_model(cluster),
             object_id=cluster.id,
         )
-        if resource.offering.type == MANAGED_RANCHER_PLUGIN:
+        if resource.offering.type == MANAGED_RANCHER_OFFERING:
             raise serializers.ValidationError(
                 _(
                     "Only staff is allowed to manage cluster resources provided by managed Rancher plugin."

@@ -11,7 +11,7 @@ from waldur_mastermind.booking import models as models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 
-from . import PLUGIN_NAME
+from ..marketplace.enums import BOOKING_OFFERING
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +154,7 @@ def get_other_offering_booking_requests(order):
 def get_info_about_upcoming_bookings():
     tomorrow = datetime.date.today() + datetime.timedelta(days=1)
     upcoming_bookings = marketplace_models.Resource.objects.filter(
-        offering__type=PLUGIN_NAME,
+        offering__type=BOOKING_OFFERING,
         state=ResourceStates.OK,
         attributes__schedules__0__start__icontains="%s-%02d-%02dT"
         % (tomorrow.year, tomorrow.month, tomorrow.day),

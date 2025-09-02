@@ -10,12 +10,12 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, utils
 from waldur_mastermind.marketplace.enums import (
+    SUPPORT_OFFERING,
     BillingTypes,
     OfferingStates,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import fixtures
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
 from . import factories
 
@@ -293,7 +293,7 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
         )
         offering = factories.OfferingFactory(
             customer=self.fixture.customer,
-            type=PLUGIN_NAME,
+            type=SUPPORT_OFFERING,
             name="First",
         )
         self.component = factories.OfferingComponentFactory(
@@ -519,7 +519,7 @@ class ServiceProviderUserCustomersTest(test.APITransactionTestCase):
     def test_user_uuid(self):
         offering = factories.OfferingFactory(
             customer=self.fixture.customer,
-            type=PLUGIN_NAME,
+            type=SUPPORT_OFFERING,
             name="First",
         )
 

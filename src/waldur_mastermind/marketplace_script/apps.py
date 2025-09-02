@@ -1,6 +1,8 @@
 from django.apps import AppConfig
 from django.db.models import signals
 
+from ..marketplace.enums import SCRIPT_OFFERING
+
 
 class MarketplaceScriptConfig(AppConfig):
     name = "waldur_mastermind.marketplace_script"
@@ -10,11 +12,11 @@ class MarketplaceScriptConfig(AppConfig):
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
 
-        from . import PLUGIN_NAME, handlers, processors
+        from . import handlers, processors
         from . import registrators as script_registrators
 
         manager.register(
-            offering_type=PLUGIN_NAME,
+            offering_type=SCRIPT_OFFERING,
             create_resource_processor=processors.CreateProcessor,
             update_resource_processor=processors.UpdateProcessor,
             delete_resource_processor=processors.DeleteProcessor,

@@ -16,6 +16,7 @@ from waldur_core.permissions.fixtures import (
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
+    REMOTE_OFFERING,
     BillingTypes,
     OrderStates,
     ResourceStates,
@@ -28,7 +29,6 @@ from waldur_mastermind.marketplace.tests.factories import (
     ResourceFactory,
 )
 from waldur_mastermind.marketplace.utils import order_should_not_be_reviewed_by_provider
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.processors import (
     RemoteUpdateResourceProcessor,
 )
@@ -42,7 +42,7 @@ class OrderReviewByProviderTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = REMOTE_OFFERING
         self.offering.save()
         self.order = self.fixture.order
         self.order.state = OrderStates.PENDING_PROVIDER
@@ -70,7 +70,7 @@ class LimitsUpdateTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = REMOTE_OFFERING
         self.offering.save()
 
         self.resource = self.fixture.resource
@@ -154,7 +154,7 @@ class OrderPullTest(test.APITransactionTestCase):
         fixture = ProjectFixture()
         self.api_url = "https://remote-waldur.com"
         offering = OfferingFactory(
-            type=PLUGIN_NAME,
+            type=REMOTE_OFFERING,
             secret_options={
                 "api_url": self.api_url,
                 "token": "valid_token",
@@ -240,7 +240,7 @@ class RemoteUpdateResourceProcessorTest(test.APITransactionTestCase):
         fixture = ProjectFixture()
         self.api_url = "https://remote-waldur.com"
         offering = OfferingFactory(
-            type=PLUGIN_NAME,
+            type=REMOTE_OFFERING,
             secret_options={
                 "api_url": self.api_url,
                 "token": "valid_token",

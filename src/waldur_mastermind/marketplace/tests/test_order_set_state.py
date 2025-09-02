@@ -7,9 +7,8 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.fixtures import ProjectRole
-from waldur_mastermind.marketplace.enums import OrderStates
+from waldur_mastermind.marketplace.enums import SUPPORT_OFFERING, OrderStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
 
 class BaseOrderSetStateTest(test.APITransactionTestCase):
@@ -120,7 +119,7 @@ class OrderCancelTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
-        self.offering = factories.OfferingFactory(type=PLUGIN_NAME)
+        self.offering = factories.OfferingFactory(type=SUPPORT_OFFERING)
         self.order = factories.OrderFactory(
             offering=self.offering, project=self.project, created_by=self.manager
         )

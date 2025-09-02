@@ -1,6 +1,8 @@
 from django.apps import AppConfig
 from django.db.models import signals
 
+from .enums import BASIC_OFFERING
+
 
 class MarketplaceConfig(AppConfig):
     name = "waldur_mastermind.marketplace"
@@ -16,7 +18,7 @@ class MarketplaceConfig(AppConfig):
         from waldur_core.structure.serializers import BaseResourceSerializer
         from waldur_freeipa import models as freeipa_models
 
-        from . import PLUGIN_NAME, handlers, models, processors, utils
+        from . import handlers, models, processors, utils
         from . import registrators as marketplace_registrators
         from . import signals as marketplace_signals
         from .plugins import manager
@@ -203,7 +205,7 @@ class MarketplaceConfig(AppConfig):
         )
 
         manager.register(
-            offering_type=PLUGIN_NAME,
+            offering_type=BASIC_OFFERING,
             create_resource_processor=processors.BasicCreateResourceProcessor,
             update_resource_processor=processors.BasicUpdateResourceProcessor,
             delete_resource_processor=processors.BasicDeleteResourceProcessor,

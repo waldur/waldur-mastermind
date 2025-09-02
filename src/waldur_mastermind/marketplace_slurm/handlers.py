@@ -7,8 +7,8 @@ from django.utils import timezone
 from waldur_core.core.utils import month_start
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import SLURM_OFFERING
 from waldur_mastermind.marketplace.plugins import manager
-from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 from waldur_slurm.models import Allocation, AllocationUserUsage
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def update_component_quota(sender, instance: Allocation, created=False, **kwargs
 
     new_limits = {}
     new_usages = {}
-    for component in manager.get_components(PLUGIN_NAME):
+    for component in manager.get_components(SLURM_OFFERING):
         usage = getattr(allocation, component.type + "_usage")
         limit = getattr(allocation, component.type + "_limit")
 
@@ -145,4 +145,4 @@ def drop_offering_user_for_slurm_user(sender, allocation, user, **kwargs):
 def sync_component_user_usage_when_allocation_user_usage_is_submitted(
     sender, instance: AllocationUserUsage, **kwargs
 ):
-    marketplace_utils.sync_component_user_usage(instance, PLUGIN_NAME)
+    marketplace_utils.sync_component_user_usage(instance, SLURM_OFFERING)

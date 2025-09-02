@@ -1,7 +1,7 @@
 from waldur_mastermind.marketplace import registrators as marketplace_registrators
 
-from . import PLUGIN_NAME
+from ..marketplace.enums import RANCHER_OFFERING
 
 
 class RancherRegistrator(marketplace_registrators.MarketplaceRegistrator):
-    plugin_name = PLUGIN_NAME
+    plugin_name = RANCHER_OFFERING

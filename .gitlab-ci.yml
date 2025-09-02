@@ -96,8 +96,8 @@ Run linters:
 Run unit tests:
   extends: .Unit test runner
   script:
+    # STEP 1: Check merge compatibility only it is not a tagged release.
     - |
-      # Check merge compatibility only it is not a tagged release
       if [ "$CI_PIPELINE_SOURCE" == "merge_request_event" ]; then
         echo "[+] Add dummy user $GIT_USER_NAME ($GIT_USER_EMAIL)"
         git config user.name $GIT_USER_NAME
@@ -105,9 +105,27 @@ Run unit tests:
         echo "[+] Merging branches $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME and origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
         git merge --no-ff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
       fi
-    - gitlab-ci-test/waldur-test
-    - coverage xml
-    - coverage report
+
+    # STEP 2: Select which test paths to run.
+    - |
+      pip install PyYAML
+      SELECTED_PATHS=$(python select_tests.py)
+
+    # STEP 3: Execute tests and generate coverage reports.
+    - |
+      if [ -n "$SELECTED_PATHS" ]; then
+        echo "[+] Executing tests on selected paths: '$SELECTED_PATHS'"
+        gitlab-ci-test/waldur-test UNIT "$SELECTED_PATHS"
+
+        echo "[+] Generating coverage reports..."
+        coverage xml
+        coverage report
+      else
+        echo "[+] No relevant tests to run for the given changes. Skipping test execution."
+        # Create empty report files so the artifacts step doesn't fail.
+        touch report.xml coverage.xml
+      fi
+
   coverage: "/TOTAL.+ ([0-9]{1,3}%)/"
   artifacts:
     when: always

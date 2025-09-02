@@ -11,10 +11,11 @@ from waldur_core.logging.models import Event
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import models as structure_tests_models
-from waldur_mastermind.marketplace import PLUGIN_NAME, callbacks, utils
+from waldur_mastermind.marketplace import callbacks, utils
 from waldur_mastermind.marketplace import handlers as marketplace_handlers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
     BillingTypes,
     OrderStates,
     ResourceStates,
@@ -299,7 +300,7 @@ class ResourceHandlerTest(APITransactionTestCase):
 class UpdateOfferingUserUsernameAfterUserChangeTest(APITransactionTestCase):
     def setUp(self):
         self.offering = factories.OfferingFactory(
-            type=PLUGIN_NAME,
+            type=BASIC_OFFERING,
             plugin_options={
                 "username_generation_policy": utils.UsernameGenerationPolicy.IDENTITY_CLAIM.value
             },
@@ -328,7 +329,7 @@ class UpdateOfferingUserUsernameAfterUserChangeTest(APITransactionTestCase):
         self,
     ):
         offering = factories.OfferingFactory(
-            type=PLUGIN_NAME,
+            type=BASIC_OFFERING,
             plugin_options={
                 "username_generation_policy": utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
             },

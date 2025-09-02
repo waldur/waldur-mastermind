@@ -1,9 +1,12 @@
 from functools import cached_property
 
 from waldur_core.structure.tests.factories import ProjectFactory
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    SUPPORT_OFFERING,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests.base import BaseTest
@@ -37,7 +40,7 @@ class SupportFixture:
 
     @cached_property
     def offering(self):
-        return marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
+        return marketplace_factories.OfferingFactory(type=SUPPORT_OFFERING)
 
     @cached_property
     def project(self):

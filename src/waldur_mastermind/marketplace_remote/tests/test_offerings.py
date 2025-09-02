@@ -21,7 +21,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OfferingStates
+from waldur_mastermind.marketplace.enums import REMOTE_OFFERING, OfferingStates
 from waldur_mastermind.marketplace.serializers import (
     OrderCreateSerializer,
     ScreenshotSerializer,
@@ -29,7 +29,6 @@ from waldur_mastermind.marketplace.serializers import (
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.processors import (
     RemoteCreateResourceProcessor,
 )
@@ -442,7 +441,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = REMOTE_OFFERING
         self.offering.save()
         self.url = factories.OfferingFactory.get_url(self.offering, "update_overview")
 
@@ -462,7 +461,7 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = REMOTE_OFFERING
         self.offering.save()
         self.api_url = "http://example.com"
 
@@ -638,7 +637,7 @@ class OfferingImageTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = REMOTE_OFFERING
         self.offering.save()
 
         respx.start()
@@ -720,7 +719,7 @@ class OfferingScreenshotsTest(test.APITransactionTestCase):
         respx.start()
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = REMOTE_OFFERING
         self.api_url = "https://remote-waldur.com"
         self.offering.secret_options = {
             "api_url": self.api_url,

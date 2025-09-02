@@ -17,7 +17,11 @@ from waldur_mastermind.marketplace import (
 from waldur_mastermind.marketplace import (
     serializers as marketplace_serializers,
 )
-from waldur_mastermind.marketplace.enums import OfferingStates
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_TENANT_OFFERING,
+    RANCHER_OFFERING,
+    OfferingStates,
+)
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
@@ -25,7 +29,6 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_MODE_DYNAMIC,
     STORAGE_MODE_FIXED,
     STORAGE_TYPE,
-    TENANT_TYPE,
 )
 from waldur_mastermind.marketplace_rancher.utils import (
     submit_creation_order,
@@ -41,7 +44,7 @@ from waldur_rancher import models as rancher_models
 from waldur_rancher import views as rancher_views
 from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE, NodeRoleType
 
-from . import PLUGIN_NAME, const, serializers
+from . import const, serializers
 
 
 class RancherCreateProcessor(processors.BaseCreateResourceProcessor):
@@ -173,7 +176,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         if not rancher_offering:
             name = f"{offering.name} (private)"
             rancher_offering = Offering.objects.create(
-                type=PLUGIN_NAME,
+                type=RANCHER_OFFERING,
                 shared=False,
                 billable=False,
                 customer=offering.customer,
@@ -694,7 +697,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
         return list(
             Offering.objects.filter(
-                type=TENANT_TYPE,
+                type=OPENSTACK_TENANT_OFFERING,
                 uuid__in=self.order.attributes["openstack_offering_uuid_list"],
             ).values_list("object_id", flat=True)
         )

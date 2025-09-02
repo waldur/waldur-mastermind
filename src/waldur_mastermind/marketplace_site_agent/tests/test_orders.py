@@ -11,10 +11,14 @@ from waldur_core.logging import utils as logging_utils
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    SITE_AGENT_OFFERING,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME, tasks
+from waldur_mastermind.marketplace_site_agent import tasks
 from waldur_mastermind.marketplace_site_agent.tests import (
     fixtures as site_agent_fixtures,
 )
@@ -24,7 +28,7 @@ class SendMessagesAboutPendingOrdersTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = SITE_AGENT_OFFERING
         self.offering.save()
 
         self.order = marketplace_factories.OrderFactory(

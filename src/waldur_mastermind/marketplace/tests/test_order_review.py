@@ -17,8 +17,9 @@ from waldur_core.permissions.fixtures import (
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import PLUGIN_NAME, models, tasks
+from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
     BillingTypes,
     OrderStates,
     ResourceStates,
@@ -74,7 +75,7 @@ class OrderApproveByConsumerTest(test.APITransactionTestCase):
     ):
         mocked_delay.side_effect = process_order
         offering = factories.OfferingFactory(
-            customer=self.fixture.customer, type=PLUGIN_NAME
+            customer=self.fixture.customer, type=BASIC_OFFERING
         )
         order = factories.OrderFactory(
             offering=offering, project=self.project, created_by=self.manager
@@ -123,7 +124,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
     ):
         offering = factories.OfferingFactory(
             customer=self.fixture.customer,
-            type=PLUGIN_NAME,
+            type=BASIC_OFFERING,
         )
         offering_component = factories.OfferingComponentFactory(
             offering=offering,
@@ -168,7 +169,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
         self,
     ):
         offering = factories.OfferingFactory(
-            customer=self.fixture.customer, type=PLUGIN_NAME
+            customer=self.fixture.customer, type=BASIC_OFFERING
         )
         resource = factories.ResourceFactory(offering=offering)
         order = factories.OrderFactory(
@@ -185,7 +186,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
 
     def test_when_order_with_basic_offering_is_approved_resource_is_marked_as_ok(self):
         offering = factories.OfferingFactory(
-            customer=self.fixture.customer, type=PLUGIN_NAME
+            customer=self.fixture.customer, type=BASIC_OFFERING
         )
         order = factories.OrderFactory(
             offering=offering,
@@ -257,7 +258,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
         self.project = self.fixture.project
         self.manager = self.fixture.manager
         self.offering = factories.OfferingFactory(
-            type=PLUGIN_NAME, customer=self.fixture.customer
+            type=BASIC_OFFERING, customer=self.fixture.customer
         )
         resource = factories.ResourceFactory(offering=self.offering)
         self.order = factories.OrderFactory(
@@ -302,7 +303,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
     def test_when_create_order_with_basic_offering_is_rejected_resource_is_marked_as_terminated(
         self,
     ):
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = BASIC_OFFERING
         self.offering.save()
 
         self.reject_order("owner")
@@ -312,7 +313,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
     def test_when_update_order_with_basic_offering_is_rejected_resource_is_marked_as_erred(
         self,
     ):
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = BASIC_OFFERING
         self.offering.save()
         self.order.type = models.Order.Types.UPDATE
         self.order.save()
@@ -340,7 +341,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
     def test_when_terminate_order_with_basic_offering_is_rejected_resource_is_marked_as_ok(
         self,
     ):
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = BASIC_OFFERING
         self.offering.save()
         self.order.type = models.Order.Types.TERMINATE
         self.order.save()

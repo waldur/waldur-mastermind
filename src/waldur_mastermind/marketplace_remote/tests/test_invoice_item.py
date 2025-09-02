@@ -14,11 +14,11 @@ from waldur_mastermind.invoices.tests.factories import (
     InvoiceFactory,
     InvoiceItemFactory,
 )
+from waldur_mastermind.marketplace.enums import REMOTE_OFFERING
 from waldur_mastermind.marketplace.tests.factories import (
     OfferingFactory,
     ResourceFactory,
 )
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.tasks import ResourceInvoicePullTask
 from waldur_mastermind.marketplace_remote.tests.dns_utils import (
     create_selective_dns_mock,
@@ -34,7 +34,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         self.fixture = ProjectFixture()
         self.api_url = "https://remote-waldur.com"
         offering = OfferingFactory(
-            type=PLUGIN_NAME,
+            type=REMOTE_OFFERING,
             secret_options={
                 "api_url": self.api_url,
                 "token": "valid_token",

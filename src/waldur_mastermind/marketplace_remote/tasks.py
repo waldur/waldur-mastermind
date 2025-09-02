@@ -84,6 +84,7 @@ from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_state
 from waldur_mastermind.marketplace.enums import (
+    REMOTE_OFFERING,
     MaintenanceState,
     OfferingStates,
     OrderStates,
@@ -91,12 +92,11 @@ from waldur_mastermind.marketplace.enums import (
     RobotAccountStates,
 )
 from waldur_mastermind.marketplace.utils import get_or_create_plan_period
+from waldur_mastermind.marketplace_remote import models as remote_models
 from waldur_mastermind.marketplace_remote import (
-    PLUGIN_NAME,
     utils,
     utils_sync_remote_offerings,
 )
-from waldur_mastermind.marketplace_remote import models as remote_models
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
     OFFERING_FIELDS,
@@ -374,7 +374,7 @@ class OfferingListPullTask(BackgroundListPullTask):
 
     def get_pulled_objects(self):
         return models.Offering.objects.filter(
-            type=PLUGIN_NAME, secret_options__has_keys=["api_url", "token"]
+            type=REMOTE_OFFERING, secret_options__has_keys=["api_url", "token"]
         )
 
 
@@ -466,7 +466,7 @@ class OfferingUserListPullTask(BackgroundListPullTask):
 
     def get_pulled_objects(self):
         return models.Offering.objects.filter(
-            type=PLUGIN_NAME, secret_options__has_keys=["api_url", "token"]
+            type=REMOTE_OFFERING, secret_options__has_keys=["api_url", "token"]
         )
 
 
@@ -501,7 +501,7 @@ class ResourceListPullTask(BackgroundListPullTask):
     pull_task = ResourcePullTask
 
     def get_pulled_objects(self):
-        return models.Resource.objects.filter(offering__type=PLUGIN_NAME).exclude(
+        return models.Resource.objects.filter(offering__type=REMOTE_OFFERING).exclude(
             backend_id=""
         )
 
@@ -583,7 +583,7 @@ class OrderListPullTask(BackgroundListPullTask):
 
     def get_pulled_objects(self):
         return (
-            models.Order.objects.filter(offering__type=PLUGIN_NAME)
+            models.Order.objects.filter(offering__type=REMOTE_OFFERING)
             .exclude(state__in=OrderStates.TERMINAL_STATES)
             .exclude(backend_id="")
         )
@@ -655,7 +655,7 @@ class ErredOrderListPullTask(BackgroundListPullTask):
 
     def get_pulled_objects(self):
         return (
-            models.Order.objects.filter(offering__type=PLUGIN_NAME)
+            models.Order.objects.filter(offering__type=REMOTE_OFFERING)
             .exclude(backend_id="")
             .filter(
                 state=OrderStates.ERRED,
@@ -781,7 +781,7 @@ class UsageListPullTask(BackgroundListPullTask):
 
     def get_pulled_objects(self):
         return models.Resource.objects.exclude(backend_id="").filter(
-            offering__type=PLUGIN_NAME
+            offering__type=REMOTE_OFFERING
         )
 
 
@@ -901,7 +901,7 @@ class ResourceInvoiceListPullTask(BackgroundListPullTask):
 
     def get_pulled_objects(self):
         return (
-            models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+            models.Resource.objects.filter(offering__type=REMOTE_OFFERING)
             .exclude(state=ResourceStates.TERMINATED)
             .exclude(backend_id="")
         )
@@ -977,7 +977,7 @@ class ResourceRobotAccountListPullTask(BackgroundListPullTask):
 
     def get_pulled_objects(self):
         return (
-            models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+            models.Resource.objects.filter(offering__type=REMOTE_OFFERING)
             .exclude(state=ResourceStates.TERMINATED)
             .exclude(backend_id="")
         )
@@ -1298,7 +1298,7 @@ def delete_remote_project(serialized_project):
     offering_ids = (
         models.Resource.objects.filter(
             project=local_project,
-            offering__type=PLUGIN_NAME,
+            offering__type=REMOTE_OFFERING,
         )
         .values_list("offering_id", flat=True)
         .distinct()
@@ -1361,7 +1361,7 @@ def clean_remote_projects():
     )
 
     for offering in models.Offering.objects.filter(
-        type=PLUGIN_NAME,
+        type=REMOTE_OFFERING,
         state__in=(OfferingStates.ACTIVE, OfferingStates.PAUSED),
     ):
         if (
@@ -1532,7 +1532,7 @@ class RemoteProjectDataListPushTask(BackgroundListPullTask):
     pull_task = RemoteProjectDataPushTask
 
     def get_pulled_objects(self):
-        return models.Offering.objects.filter(type=PLUGIN_NAME)
+        return models.Offering.objects.filter(type=REMOTE_OFFERING)
 
 
 class RemoteResourcePermissionsPushTask(BackgroundPullTask):
@@ -1565,7 +1565,7 @@ class MaintenanceAnnouncementPullTask(BackgroundPullTask):
         try:
             offering = models.Offering.objects.filter(
                 customer=service_provider.customer,
-                type=PLUGIN_NAME,
+                type=REMOTE_OFFERING,
                 secret_options__has_keys=["api_url", "token"],
             ).first()
             if not offering:
@@ -1724,7 +1724,7 @@ class MaintenanceAnnouncementListPullTask(BackgroundListPullTask):
     def get_pulled_objects(self):
         """Get service providers that have remote offerings to sync maintenance from."""
         remote_offering_customers = models.Offering.objects.filter(
-            type=PLUGIN_NAME, secret_options__has_keys=["api_url", "token"]
+            type=REMOTE_OFFERING, secret_options__has_keys=["api_url", "token"]
         ).values_list("customer_id", flat=True)
         return models.ServiceProvider.objects.filter(
             customer_id__in=remote_offering_customers
