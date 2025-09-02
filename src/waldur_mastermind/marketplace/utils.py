@@ -1969,7 +1969,7 @@ def create_service_account(service_account: dict, username: str, scope_type: str
         raise
 
 
-def delete_service_account(service_account: models.ScopedServiceAccount):
+def close_service_account(service_account: models.ScopedServiceAccount):
     """
     Makes a synchronous call to the webhook URL to remove a service account.
     Raises exceptions on failure which should be handled by the viewset.
@@ -1982,7 +1982,8 @@ def delete_service_account(service_account: models.ScopedServiceAccount):
         response = generate_mock_service_account_response(service_account.username)
         response["serviceAccount"]["status"] = "closed"
         response["serviceAccount"]["disabledDate"] = datetime.datetime.now().isoformat()
-        service_account.delete()
+        service_account.set_state_closed()
+        service_account.save(update_fields=["state"])
         return response
 
     if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_API"):
@@ -2002,7 +2003,8 @@ def delete_service_account(service_account: models.ScopedServiceAccount):
                 "Service account %s not found at backend, deleting locally",
                 service_account.username,
             )
-            service_account.delete()
+            service_account.set_state_closed()
+            service_account.save(update_fields=["state"])
             return
 
         url = f"{service_account_url}/{service_account.username}/close"
@@ -2013,9 +2015,11 @@ def delete_service_account(service_account: models.ScopedServiceAccount):
         )
         response.raise_for_status()
         if response.status_code == 200:
-            service_account.delete()
+            service_account.set_state_closed()
+            service_account.save(update_fields=["state"])
     except (httpx.HTTPError, ValueError) as exc:
         logger.error(exc)
+        service_account.set_state_erred()
         service_account.error_message = str(exc)
         service_account.error_traceback = traceback.format_exc()
         service_account.save(update_fields=["error_message", "error_traceback"])
@@ -2095,8 +2099,15 @@ def update_service_account(service_account: models.ScopedServiceAccount):
                 "description": service_account.description,
             },
         )
+        response.raise_for_status()
         return response.json()
     except (httpx.HTTPError, ValueError) as exc:
+        service_account.set_state_erred()
+        service_account.error_message = str(exc)
+        service_account.error_traceback = traceback.format_exc()
+        service_account.save(
+            update_fields=["state", "error_message", "error_traceback"]
+        )
         logger.error(exc)
         raise
 

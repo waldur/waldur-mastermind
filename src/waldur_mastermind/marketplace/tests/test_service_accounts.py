@@ -14,6 +14,7 @@ from waldur_core.permissions.fixtures import (
     ServiceProviderRole,
 )
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import ServiceAccountState
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 TOKEN_URL = "http://example.com/api/token"
@@ -333,10 +334,16 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
         url = factories.ProjectServiceAccountFactory.get_url(account)
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        account.refresh_from_db()
+        self.assertEqual(account.state, ServiceAccountState.CLOSED)
+
+        # Verify that closed accounts don't appear in normal listings
         self.assertFalse(
-            models.ProjectServiceAccount.objects.filter(
-                username=self.account_username
-            ).exists()
+            models.ProjectServiceAccount.objects.exclude(
+                state=ServiceAccountState.CLOSED
+            )
+            .filter(pk=account.pk)
+            .exists()
         )
 
     @data("manager", "admin")
@@ -372,8 +379,16 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
             status.HTTP_204_NO_CONTENT,
             response.data,
         )
+        account.refresh_from_db()
+        self.assertEqual(account.state, ServiceAccountState.CLOSED)
+
+        # Verify that closed accounts don't appear in normal listings
         self.assertFalse(
-            models.ProjectServiceAccount.objects.filter(pk=account.pk).exists()
+            models.ProjectServiceAccount.objects.exclude(
+                state=ServiceAccountState.CLOSED
+            )
+            .filter(pk=account.pk)
+            .exists()
         )
 
     @data("user", "customer_support", "member")
@@ -405,8 +420,16 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
             status.HTTP_204_NO_CONTENT,
             response.data,
         )
+        account.refresh_from_db()
+        self.assertEqual(account.state, ServiceAccountState.CLOSED)
+
+        # Verify that closed accounts don't appear in normal listings
         self.assertFalse(
-            models.CustomerServiceAccount.objects.filter(pk=account.pk).exists()
+            models.CustomerServiceAccount.objects.exclude(
+                state=ServiceAccountState.CLOSED
+            )
+            .filter(pk=account.pk)
+            .exists()
         )
 
     @data("manager", "admin")
@@ -749,6 +772,58 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(response.data["email"], new_email)
         self.assertEqual(response.data["description"], new_description)
+
+    def test_service_account_creation_failure_sets_error_state(self):
+        """Test that service account creation failure sets the account to ERRED state"""
+        # Mock token request success but service account creation failure
+        respx.post(
+            SERVICE_ACCOUNT_URL,
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(return_value=httpx.Response(500, json={"error": "Backend error"}))
+
+        response = self.client.post(
+            self.url,
+            self.payload,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Check that the account was created in ERRED state if it exists
+        accounts = models.ProjectServiceAccount.objects.filter(
+            preferred_identifier=self.test_identifier
+        )
+        if accounts.exists():
+            account = accounts.first()
+            self.assertEqual(account.state, ServiceAccountState.ERRED)
+
+    def test_service_account_update_failure_sets_error_state(self):
+        """Test that service account update failure sets the account to ERRED state"""
+        account = factories.ProjectServiceAccountFactory(project=self.fixture.project)
+        url = factories.ProjectServiceAccountFactory.get_url(account)
+
+        # Mock update request failure
+        respx.put(
+            f"{SERVICE_ACCOUNT_URL}/{account.username}",
+            headers={"Authorization": f"Bearer {self.token}"},
+        ).mock(return_value=httpx.Response(500, json={"error": "Backend error"}))
+
+        response = self.client.patch(url, {"description": "new description"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        account.refresh_from_db()
+        self.assertEqual(account.state, ServiceAccountState.ERRED)
+
+    def test_service_account_default_state_is_ok(self):
+        """Test that newly created service accounts have OK state by default"""
+        response = self.client.post(
+            self.url,
+            self.payload,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        account = models.ProjectServiceAccount.objects.get(
+            preferred_identifier=self.test_identifier
+        )
+        self.assertEqual(account.state, ServiceAccountState.OK)
 
 
 class ServiceAccountOfferingTest(test.APITransactionTestCase):

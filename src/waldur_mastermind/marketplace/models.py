@@ -47,6 +47,7 @@ from waldur_mastermind.marketplace.enums import (
     RequestTypes,
     ResourceStates,
     RobotAccountStates,
+    ServiceAccountState,
 )
 from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_mastermind.notifications import models as notifications_models
@@ -2047,6 +2048,10 @@ class BaseServiceAccount(
 
     username = models.CharField(max_length=32, blank=True)
     description = models.TextField(blank=True)
+    state = FSMIntegerField(
+        default=ServiceAccountState.OK,
+        choices=ServiceAccountState.CHOICES,
+    )
 
     class Meta:
         abstract = True
@@ -2054,6 +2059,24 @@ class BaseServiceAccount(
 
     def get_log_fields(self):
         return ("username",)
+
+    @transition(
+        field=state, source=ServiceAccountState.ERRED, target=ServiceAccountState.OK
+    )
+    def set_state_ok(self):
+        pass
+
+    @transition(
+        field=state,
+        source=[ServiceAccountState.OK, ServiceAccountState.ERRED],
+        target=ServiceAccountState.CLOSED,
+    )
+    def set_state_closed(self):
+        pass
+
+    @transition(field=state, source="*", target=ServiceAccountState.ERRED)
+    def set_state_erred(self):
+        pass
 
 
 class ScopedServiceAccount(BaseServiceAccount):
@@ -2094,7 +2117,7 @@ class ProjectServiceAccount(ScopedServiceAccount):
     tracker = cast(
         FieldInstanceTracker,
         FieldTracker(
-            fields=["username", "email", "description", "preferred_identifier"]
+            fields=["username", "email", "description", "preferred_identifier", "state"]
         ),
     )
 
@@ -2118,6 +2141,13 @@ class CustomerServiceAccount(ScopedServiceAccount):
         to=structure_models.Customer,
         null=True,
         blank=True,
+    )
+
+    tracker = cast(
+        FieldInstanceTracker,
+        FieldTracker(
+            fields=["username", "email", "description", "preferred_identifier", "state"]
+        ),
     )
 
     class Meta:

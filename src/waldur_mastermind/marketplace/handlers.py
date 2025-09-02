@@ -267,7 +267,8 @@ def close_service_accounts_on_project_deletion(sender, instance: Project, **kwar
 
     for service_account in service_accounts:
         try:
-            utils.delete_service_account(service_account)
+            utils.close_service_account(service_account)
+            service_account.delete()
         except (httpx.HTTPError, ValueError) as exc:
             logger.error(
                 "Failed to request deletion of service account %s for project %s: %s",
@@ -288,7 +289,8 @@ def close_customer_service_accounts_on_customer_deletion(
         return
     for service_account in service_accounts:
         try:
-            utils.delete_service_account(service_account)
+            utils.close_service_account(service_account)
+            service_account.delete()
         except (httpx.HTTPError, ValueError) as exc:
             logger.error(
                 "Failed to request deletion of service account %s for customer %s: %s",
