@@ -261,7 +261,58 @@ class WebHookReceiverView(CheckExtensionMixin, views.APIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+
+        # Try to update order output if the issue is linked to an order (fail-safe)
+        try:
+            issue_key = request.data.get("issue", {}).get("key")
+            if issue_key:
+                issue = models.Issue.objects.filter(key=issue_key).first()
+                if issue:
+                    from waldur_mastermind.marketplace import (
+                        models as marketplace_models,
+                    )
+
+                    if isinstance(issue.resource, marketplace_models.Order):
+                        self._update_order_output_from_webhook(
+                            issue.resource, issue, "JIRA", request.data
+                        )
+        except Exception as e:
+            logger.warning(f"Failed to update order output from JIRA webhook: {e}")
+
         return response.Response(status=status.HTTP_200_OK)
+
+    def _update_order_output_from_webhook(self, order, issue, source, webhook_data):
+        """Update order output with webhook event info (fail-safe)."""
+        try:
+            from datetime import datetime
+
+            # Parse existing webhook count from plain text output
+            webhook_count = 1  # Default to 1 for new webhook
+            if order.output:
+                # Look for existing webhook count in the output
+                lines = order.output.split("\n")
+                for line in lines:
+                    if "Webhook Events:" in line:
+                        try:
+                            webhook_count = (
+                                int(line.split("Webhook Events:")[1].strip()) + 1
+                            )
+                        except (IndexError, ValueError):
+                            webhook_count = 1
+                        break
+
+            # Create plain text output
+            output_lines = [
+                f"Issue: {issue.key} ({source})",
+                f"Status: {issue.status}",
+                f"Last Update: {datetime.now().isoformat()}",
+                f"Webhook Events: {webhook_count}",
+            ]
+
+            order.output = "\n".join(output_lines)
+            order.save(update_fields=["output"])
+        except Exception as e:
+            logger.error(f"Failed to update order output from webhook: {e}")
 
 
 class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
@@ -407,7 +458,70 @@ class ZammadWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
         )
         ZammadServiceBackend().update_waldur_issue_from_zammad(issue)
         ZammadServiceBackend().update_waldur_comments_from_zammad(issue)
+
+        # Update order output if issue is linked to an order (fail-safe)
+        try:
+            from waldur_mastermind.marketplace import models as marketplace_models
+
+            if isinstance(issue.resource, marketplace_models.Order):
+                self._update_order_output_from_webhook(
+                    issue.resource, issue, "Zammad", request.data
+                )
+        except Exception as e:
+            logger.warning(f"Failed to update order output from Zammad webhook: {e}")
+
         return response.Response(status=status.HTTP_200_OK)
+
+    def _update_order_output_from_webhook(self, order, issue, source, webhook_data):
+        """Update order output with webhook event info (fail-safe)."""
+        try:
+            import json
+            from datetime import datetime
+
+            existing_output = {}
+            if order.output:
+                try:
+                    existing_output = json.loads(order.output)
+                except json.JSONDecodeError:
+                    existing_output = {}
+
+            # Update with current webhook info
+            existing_output.update(
+                {
+                    "timestamp": datetime.now().isoformat(),
+                    "issue_key": issue.key,
+                    "issue_status": issue.status,
+                    "backend": source,
+                    "last_webhook_update": datetime.now().isoformat(),
+                }
+            )
+
+            # Track webhook events (keep last 5)
+            if "webhook_events" not in existing_output:
+                existing_output["webhook_events"] = []
+
+            existing_output["webhook_events"].append(
+                {
+                    "timestamp": datetime.now().isoformat(),
+                    "source": source,
+                    "ticket_id": str(
+                        webhook_data.get("ticket", {}).get("id", "unknown")
+                    ),
+                }
+            )
+            existing_output["webhook_events"] = existing_output["webhook_events"][-5:]
+
+            # Format as human-readable text for consistency
+            output_lines = [
+                f"Issue: {existing_output.get('issue_key', 'unknown')} ({source})",
+                f"Status: {existing_output.get('issue_status', 'unknown')}",
+                f"Last Update: {existing_output.get('timestamp', 'unknown')}",
+                f"Webhook Events: {len(existing_output.get('webhook_events', []))}",
+            ]
+            order.output = "\n".join(output_lines)
+            order.save(update_fields=["output"])
+        except Exception as e:
+            logger.error(f"Failed to update order output from webhook: {e}")
 
 
 class SmaxWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
@@ -431,7 +545,52 @@ class SmaxWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
             f"Updating issue {issue.key} based on data from ticket with id {issue_id}."
         )
         SmaxServiceBackend().update_waldur_issue_from_smax(issue)
+
+        # Update order output if issue is linked to an order (fail-safe)
+        try:
+            from waldur_mastermind.marketplace import models as marketplace_models
+
+            if isinstance(issue.resource, marketplace_models.Order):
+                self._update_order_output_from_webhook(
+                    issue.resource, issue, "SMAX", request.data
+                )
+        except Exception as e:
+            logger.warning(f"Failed to update order output from SMAX webhook: {e}")
+
         return response.Response(status=status.HTTP_200_OK)
+
+    def _update_order_output_from_webhook(self, order, issue, source, webhook_data):
+        """Update order output with webhook event info (fail-safe)."""
+        try:
+            from datetime import datetime
+
+            # Parse existing webhook count from plain text output
+            webhook_count = 1  # Default to 1 for new webhook
+            if order.output:
+                # Look for existing webhook count in the output
+                lines = order.output.split("\n")
+                for line in lines:
+                    if "Webhook Events:" in line:
+                        try:
+                            webhook_count = (
+                                int(line.split("Webhook Events:")[1].strip()) + 1
+                            )
+                        except (IndexError, ValueError):
+                            webhook_count = 1
+                        break
+
+            # Create plain text output
+            output_lines = [
+                f"Issue: {issue.key} ({source})",
+                f"Status: {issue.status}",
+                f"Last Update: {datetime.now().isoformat()}",
+                f"Webhook Events: {webhook_count}",
+            ]
+
+            order.output = "\n".join(output_lines)
+            order.save(update_fields=["output"])
+        except Exception as e:
+            logger.error(f"Failed to update order output from webhook: {e}")
 
 
 @extend_schema(
