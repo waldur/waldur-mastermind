@@ -2,6 +2,7 @@ import collections
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
+from uuid import UUID
 
 import requests
 from celery.app import shared_task
@@ -383,7 +384,7 @@ class OfferingUserPullTask(BackgroundPullTask):
         remote_offering_users = {
             remote_offering_user.user_username: remote_offering_user.username
             for remote_offering_user in marketplace_offering_users_list.sync(
-                client=client, offering_uuid=local_offering.backend_id
+                client=client, offering_uuid=[UUID(local_offering.backend_id)]
             )
         }
         local_offering_users = {
