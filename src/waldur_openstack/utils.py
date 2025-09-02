@@ -45,8 +45,16 @@ def get_valid_availability_zones(instance):
 
 def get_external_network_id(tenant: Tenant):
     """
-    Fetch external network ID from tenant service settings or customer settings.
+    Fetch external network ID from tenant, service settings or customer settings.
+    Priority order:
+    1. Tenant's external_network_id field (if set)
+    2. CustomerOpenStack external_network_id (if exists)
+    3. Service settings external_network_id option
     """
+    # First priority: tenant's own external_network_id
+    if tenant.external_network_id:
+        return tenant.external_network_id
+
     service_settings = tenant.service_settings
     customer = tenant.project.customer
     external_network_id = service_settings.get_option("external_network_id")
