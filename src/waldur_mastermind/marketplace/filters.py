@@ -38,6 +38,7 @@ from waldur_mastermind.marketplace.enums import (
     OrderStates,
     ResourceStates,
     RobotAccountStates,
+    ServiceAccountState,
 )
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
@@ -543,6 +544,7 @@ class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
 class BaseScopedServiceAccountFilter(django_filters.FilterSet):
     username = django_filters.CharFilter(field_name="username")
     email = django_filters.CharFilter(lookup_expr="icontains")
+    state = core_filters.MappedMultipleChoiceFilter(ServiceAccountState.CHOICES)
 
     class Meta:
         model = models.ScopedServiceAccount
