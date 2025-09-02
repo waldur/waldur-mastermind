@@ -265,6 +265,17 @@ class RemoteResourceSyncStatus:
     )
 
 
+class ServiceAccountState:
+    OK = 1
+    CLOSED = 2
+    ERRED = 3
+    CHOICES = (
+        (OK, "OK"),
+        (CLOSED, "Closed"),
+        (ERRED, "Erred"),
+    )
+
+
 SUPPORT_OFFERING = "Support.OfferingTemplate"
 BOOKING_OFFERING = "Marketplace.Booking"
 BASIC_OFFERING = "Marketplace.Basic"

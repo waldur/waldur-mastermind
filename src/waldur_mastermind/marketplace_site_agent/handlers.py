@@ -4,6 +4,7 @@ from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
 from waldur_core.permissions import models as permission_models
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
@@ -220,4 +221,10 @@ def send_project_service_account_info(
 def send_project_service_account_deletion_info(
     sender, instance: marketplace_models.ProjectServiceAccount, **kwargs
 ):
+    if (
+        not instance.tracker.has_changed("state")
+        or instance.state != marketplace_enums.ServiceAccountState.CLOSED
+    ):
+        return
+
     send_project_service_account_message(instance, created=False)

@@ -2,6 +2,7 @@ import copy
 import datetime
 import logging
 import textwrap
+import traceback
 import uuid
 from typing import cast
 
@@ -120,6 +121,7 @@ from waldur_mastermind.marketplace.enums import (
     OrderStates,
     ResourceStates,
     RobotAccountStates,
+    ServiceAccountState,
 )
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
@@ -5757,6 +5759,13 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
                     }
                 )
         except httpx.HTTPError as e:
+            if "instance" in locals():
+                instance.set_state_erred()
+                instance.error_message = str(e)
+                instance.error_traceback = traceback.format_exc()
+                instance.save(
+                    update_fields=["state", "error_message", "error_traceback"]
+                )
             raise ValidationError({"detail": str(e)})
 
     def perform_update(self, serializer):
@@ -5766,16 +5775,34 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
         instance.description = serializer.validated_data.get(
             "description", instance.description
         )
-        utils.update_service_account(instance)
-        # Update the DB object only if the API call is successful
-        super().perform_update(serializer)
+        try:
+            utils.update_service_account(instance)
+            if instance.state != ServiceAccountState.OK:
+                instance.set_state_ok()
+                instance.error_message = ""
+                instance.error_traceback = ""
+            # Update the DB object only if the API call is successful
+            super().perform_update(serializer)
+        except httpx.HTTPError as e:
+            raise ValidationError({"detail": str(e)})
+
+    update_validators = destroy_validators = [
+        core_validators.StateValidator(
+            ServiceAccountState.OK, ServiceAccountState.ERRED
+        )
+    ]
 
     def perform_destroy(self, instance):
-        utils.delete_service_account(instance)
+        try:
+            utils.close_service_account(instance)
+        except httpx.HTTPError as e:
+            raise ValidationError({"detail": str(e)})
 
 
 class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
-    queryset = models.ProjectServiceAccount.objects.all()
+    queryset = models.ProjectServiceAccount.objects.exclude(
+        state=ServiceAccountState.CLOSED
+    )
     serializer_class = serializers.ProjectServiceAccountSerializer
     filterset_class = filters.ProjectServiceAccountFilter
     filter_backends = (DjangoFilterBackend,)
@@ -5843,9 +5870,13 @@ class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
         )
     ]
 
+    rotate_api_key_validators = [core_validators.StateValidator(ServiceAccountState.OK)]
+
 
 class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
-    queryset = models.CustomerServiceAccount.objects.all()
+    queryset = models.CustomerServiceAccount.objects.exclude(
+        state=ServiceAccountState.CLOSED
+    )
     serializer_class = serializers.CustomerServiceAccountSerializer
     filterset_class = filters.CustomerServiceAccountFilter
     filter_backends = (DjangoFilterBackend,)
@@ -5907,6 +5938,8 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
             ["customer"],
         )
     ]
+
+    rotate_api_key_validators = [core_validators.StateValidator(ServiceAccountState.OK)]
 
 
 class RobotAccountViewSet(core_views.ActionsViewSet):

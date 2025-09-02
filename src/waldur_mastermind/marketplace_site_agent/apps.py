@@ -74,7 +74,7 @@ class MarketplaceSlurmConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace_site_agent.send_project_service_account_info",
         )
 
-        signals.pre_delete.connect(
+        signals.post_save.connect(
             handlers.send_project_service_account_deletion_info,
             sender=marketplace_models.ProjectServiceAccount,
             dispatch_uid="waldur_mastermind.marketplace_site_agent.send_project_service_account_deletion_info",
