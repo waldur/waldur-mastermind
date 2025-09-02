@@ -404,7 +404,8 @@ class OfferingUserPullTest(testcases.TransactionTestCase):
     def setUp(self):
         self.api_url = "http://example.com"
         self.offering = factories.OfferingFactory(
-            secret_options={"api_url": self.api_url, "token": "token"}
+            secret_options={"api_url": self.api_url, "token": "token"},
+            backend_id=uuid.uuid4().hex,
         )
         respx.start()
 
@@ -769,7 +770,7 @@ class OfferingUserPullTaskTest(testcases.TransactionTestCase):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
         self.offering.type = PLUGIN_NAME
-        self.offering.backend_id = "test-backend-id"
+        self.offering.backend_id = uuid.uuid4().hex
         self.offering.secret_options = {
             "api_url": "https://example.com/",
             "token": "token",
