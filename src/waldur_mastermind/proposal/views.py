@@ -853,7 +853,10 @@ class ProposalViewSet(
         )
     ]
     reject_permissions = approve_permissions = [
-        permission_factory(PermissionEnum.APPROVE_AND_REJECT_PROPOSALS, ["round.call"])
+        permission_factory(
+            PermissionEnum.APPROVE_AND_REJECT_PROPOSALS,
+            ["round.call", "round.call.manager"],
+        )
     ]
     reject_serializer_class = approve_serializer_class = (
         serializers.ProposalApproveSerializer
