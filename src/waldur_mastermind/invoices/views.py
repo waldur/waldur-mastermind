@@ -63,6 +63,24 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
                 OpenApiParameter.QUERY,
                 description="Conceal compensation items",
             ),
+            OpenApiParameter(
+                "o",
+                {
+                    "type": "string",
+                    "enum": [
+                        "project_name",
+                        "-project_name",
+                        "resource_name",
+                        "-resource_name",
+                        "provider_name",
+                        "-provider_name",
+                        "name",
+                        "-name",
+                    ],
+                },
+                OpenApiParameter.QUERY,
+                description="Order results by field",
+            ),
         ],
     )
     @action(detail=True)
@@ -76,6 +94,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
         conceal_compensation_items = (
             request.query_params.get("conceal_compensation_items") == "true"
         )
+        ordering = request.query_params.get("o", None)
 
         items = utils.filter_invoice_items(
             queryset,
@@ -84,6 +103,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
             project_uuid,
             offering_uuid,
             conceal_compensation_items,
+            ordering,
         )
         serializer = serializers.InvoiceItemSerializer(
             items, many=True, context={"request": request}
