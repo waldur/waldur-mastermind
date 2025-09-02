@@ -218,36 +218,38 @@ class CustomerSerializer(RestrictedSerializerMixin, serializers.ModelSerializer)
         return calculate_price(obj)
 ```
 
-**Behavior:**
+## Behavior Examples
 
-1. **Standard Request (No `field` parameter):**
+### Standard Request
 
-    - **URL:** `/api/customers/123/`
-    - **Result:** The optional fields (`projects`, `billing_price_estimate`) are excluded. The expensive `get_billing_price_estimate` method is never called.
+**URL:** `/api/customers/123/`
 
-    ```json
-    {
-      "uuid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
-      "name": "Acme Corp",
-      "email": "contact@acme.corp",
-      "created": "2023-10-27T10:00:00Z"
-    }
-    ```
+**Result:** The optional fields (`projects`, `billing_price_estimate`) are excluded. The expensive `get_billing_price_estimate` method is never called.
 
-2. **Requesting an Optional Field:**
+```json
+{
+  "uuid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  "name": "Acme Corp",
+  "email": "contact@acme.corp",
+  "created": "2023-10-27T10:00:00Z"
+}
+```
 
-    - **URL:** `/api/customers/123/?field=name&field=projects`
-    - **Result:** The response is restricted to `name`, and the optional field `projects` is included because it was requested.
+### Requesting Optional Fields
 
-    ```json
-    {
-      "name": "Acme Corp",
-      "projects": [
-        { "name": "Project X" },
-        { "name": "Project Y" }
-      ]
-    }
-    ```
+**URL:** `/api/customers/123/?field=name&field=projects`
+
+**Result:** The response is restricted to `name`, and the optional field `projects` is included because it was requested.
+
+```json
+{
+  "name": "Acme Corp",
+  "projects": [
+    { "name": "Project X" },
+    { "name": "Project Y" }
+  ]
+}
+```
 
 ---
 

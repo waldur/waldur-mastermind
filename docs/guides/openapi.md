@@ -79,8 +79,8 @@ Located in `openapi_extensions.py`, these classes provide a modular way to handl
 
 - **`WaldurTokenScheme`, `WaldurSessionScheme`, `OIDCAuthenticationScheme`**: These extensions map our custom DRF authentication classes to standard OpenAPI security schemes. This is the correct way to document API authentication.
 - **`GenericRelatedFieldExtension`**:
-    - **Problem**: `drf-spectacular` doesn't know how to represent our custom `GenericRelatedField`.
-    - **Solution**: This extension tells the generator to simply represent it as a `string` (which, in our case, is a URL). This avoids schema generation errors and provides a simple, accurate representation.
+  - **Problem**: `drf-spectacular` doesn't know how to represent our custom `GenericRelatedField`.
+  - **Solution**: This extension tells the generator to simply represent it as a `string` (which, in our case, is a URL). This avoids schema generation errors and provides a simple, accurate representation.
 - **`OpenStackNestedSecurityGroupSerializerExtension`**:
     - **Problem**: A specific nested serializer is overly complex, and for the API schema, we only want to show a simplified version of it.
     - **Solution**: This extension bypasses introspection of the serializer entirely and provides a fixed, hardcoded schema (`{"type": "object", "properties": {"url": ...}}`). This is an excellent technique for simplifying complex nested objects in the API documentation.
@@ -106,7 +106,7 @@ Located in `schema_hooks.py`, these functions perform powerful, sweeping modific
 ### Key Hooks and Their Purpose
 
 - **`refactor_pagination_parameters`**:
-    - **Best Practice**: This hook implements the DRY (Don't Repeat Yourself) principle. It finds all instances of `page` and `page_size` parameters, moves their definition to the global `#/components/parameters/` section, and replaces the inline definitions with `$ref` pointers. This reduces schema size and improves consistency.
+  - **Best Practice**: This hook implements the DRY (Don't Repeat Yourself) principle. It finds all instances of `page` and `page_size` parameters, moves their definition to the global `#/components/parameters/` section, and replaces the inline definitions with `$ref` pointers. This reduces schema size and improves consistency.
 - **`add_result_count_header`**:
     - **Purpose**: To document that all our paginated list endpoints return the `x-result-count` header.
     - **Mechanism**: It identifies list endpoints (by checking if `operationId` ends in `_list`), defines a reusable header in `#/components/headers/`, and adds a reference to it in the `2xx` responses of those endpoints.
