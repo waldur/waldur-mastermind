@@ -16,6 +16,9 @@ CELERY_TASK_ROUTES = ("waldur_core.server.celeryconf.PriorityRouter",)
 CELERY_TRACK_STARTED = True
 CELERY_SEND_EVENTS = True
 
+# Fix for Celery 6.0 deprecation warning
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
 # Regular tasks
 CELERY_BEAT_SCHEDULE = {
     "pull-service-properties": {
