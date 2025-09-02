@@ -60,12 +60,12 @@ class Checklist(
         help_text=_("Type of compliance this checklist addresses"),
     )
 
-    def get_visible_questions(self, user) -> list["Question"]:
-        """Get list of questions that should be visible given current answers"""
+    def get_visible_questions(self, completion) -> list["Question"]:
+        """Get list of questions that should be visible given current answers in completion context"""
         visible_questions = []
 
         for question in self.questions.all().order_by("order"):
-            if question.is_visible_for_user(user):
+            if question.is_visible_for_completion(completion):
                 visible_questions.append(question)
 
         return visible_questions
@@ -175,12 +175,13 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
     def is_dependant(self):
         return self.dependencies.exists()
 
-    def is_visible_for_user(self, user):
+    def is_visible_for_completion(self, completion):
+        """Check if question is visible in the given completion context"""
         if not self.is_dependant():
             return True
 
         dependencies_results = [
-            dependency.question_is_visible(user)
+            dependency.question_is_visible(completion)
             for dependency in self.dependencies.all()
         ]
 
@@ -317,10 +318,12 @@ class QuestionDependency(core_models.UuidMixin, TimeStampedModel):
 
         return False
 
-    def question_is_visible(self, user):
-        answer_to_base_question = Answer.objects.filter(
-            question=self.depends_on_question, user=user
+    def question_is_visible(self, completion):
+        """Check if dependency condition is satisfied in the completion context"""
+        answer_to_base_question = completion.answers.filter(
+            question=self.depends_on_question
         ).first()
+
         if not answer_to_base_question:
             return False
 

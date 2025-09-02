@@ -69,7 +69,7 @@ class DependencyLogicOperatorTest(test.APITransactionTestCase):
         )
 
         # Test: No answers - should not be visible
-        self.assertFalse(target_question.is_visible_for_user(self.user))
+        self.assertFalse(target_question.is_visible_for_completion(self.completion))
 
         # Test: Only A answered - should not be visible (AND logic)
         Answer.objects.create(
@@ -78,7 +78,7 @@ class DependencyLogicOperatorTest(test.APITransactionTestCase):
             completion=self.completion,
             answer_data=True,
         )
-        self.assertFalse(target_question.is_visible_for_user(self.user))
+        self.assertFalse(target_question.is_visible_for_completion(self.completion))
 
         # Test: A=True, B=True - should be visible
         Answer.objects.create(
@@ -87,7 +87,7 @@ class DependencyLogicOperatorTest(test.APITransactionTestCase):
             completion=self.completion,
             answer_data=True,
         )
-        self.assertTrue(target_question.is_visible_for_user(self.user))
+        self.assertTrue(target_question.is_visible_for_completion(self.completion))
 
     def test_explicit_or_logic_behavior(self):
         """Test that questions with OR logic work correctly."""
@@ -129,7 +129,7 @@ class DependencyLogicOperatorTest(test.APITransactionTestCase):
         )
 
         # Test: No answers - should not be visible
-        self.assertFalse(target_question.is_visible_for_user(self.user))
+        self.assertFalse(target_question.is_visible_for_completion(self.completion))
 
         # Test: Only A answered - should be visible (OR logic)
         Answer.objects.create(
@@ -138,7 +138,7 @@ class DependencyLogicOperatorTest(test.APITransactionTestCase):
             completion=self.completion,
             answer_data=True,
         )
-        self.assertTrue(target_question.is_visible_for_user(self.user))
+        self.assertTrue(target_question.is_visible_for_completion(self.completion))
 
     def test_or_logic_with_mixed_conditions(self):
         """Test OR logic where one condition is met and another is not."""
@@ -192,7 +192,7 @@ class DependencyLogicOperatorTest(test.APITransactionTestCase):
             completion=self.completion,
             answer_data=False,
         )
-        self.assertTrue(target_question.is_visible_for_user(self.user))
+        self.assertTrue(target_question.is_visible_for_completion(self.completion))
 
     def test_no_dependencies_always_visible(self):
         """Test that questions without dependencies are always visible regardless of logic operator."""
@@ -215,5 +215,79 @@ class DependencyLogicOperatorTest(test.APITransactionTestCase):
         )
 
         # Both should be visible
-        self.assertTrue(question_and.is_visible_for_user(self.user))
-        self.assertTrue(question_or.is_visible_for_user(self.user))
+        self.assertTrue(question_and.is_visible_for_completion(self.completion))
+        self.assertTrue(question_or.is_visible_for_completion(self.completion))
+
+    def test_multi_user_answers_visibility(self):
+        """Test that questions are visible based on answers from any user in the completion context."""
+        # Create dependency questions
+        question_a = Question.objects.create(
+            checklist=self.fixture.checklist,
+            description="Question A (answered by user1)",
+            question_type="boolean",
+            order=1,
+        )
+        question_b = Question.objects.create(
+            checklist=self.fixture.checklist,
+            description="Question B (answered by user2)",
+            question_type="text_input",
+            order=2,
+        )
+
+        # Create target question with OR logic
+        target_question = Question.objects.create(
+            checklist=self.fixture.checklist,
+            description="Target Question (depends on A OR B)",
+            question_type="text_input",
+            order=3,
+            dependency_logic_operator=DependencyLogicOperators.OR,
+        )
+
+        # Create dependencies: target depends on A=True OR B contains "test"
+        QuestionDependency.objects.create(
+            question=target_question,
+            depends_on_question=question_a,
+            required_answer_value=True,
+            operator="equals",
+        )
+        QuestionDependency.objects.create(
+            question=target_question,
+            depends_on_question=question_b,
+            required_answer_value=["test"],
+            operator="contains",
+        )
+
+        # Create two different users
+        user1 = UserFactory()
+        user2 = UserFactory()
+
+        # Test: No answers - target should not be visible
+        self.assertFalse(target_question.is_visible_for_completion(self.completion))
+
+        # User1 answers question A with True
+        Answer.objects.create(
+            question=question_a,
+            user=user1,
+            completion=self.completion,
+            answer_data=True,
+        )
+
+        # Target should now be visible (A=True satisfies OR condition)
+        self.assertTrue(target_question.is_visible_for_completion(self.completion))
+
+        # User2 answers question B with "testing"
+        Answer.objects.create(
+            question=question_b,
+            user=user2,
+            completion=self.completion,
+            answer_data="testing",
+        )
+
+        # Target should still be visible (both conditions satisfied)
+        self.assertTrue(target_question.is_visible_for_completion(self.completion))
+
+        # Change user1's answer to False
+        Answer.objects.filter(question=question_a, user=user1).update(answer_data=False)
+
+        # Target should still be visible (B contains "test" satisfies OR condition)
+        self.assertTrue(target_question.is_visible_for_completion(self.completion))

@@ -107,7 +107,7 @@ class UserChecklistMixin(BaseChecklistMixin):
         checklist = completion.checklist
 
         # Get visible questions using checklist module logic
-        questions = checklist.get_visible_questions(request.user)
+        questions = checklist.get_visible_questions(completion)
 
         # Create response data
         response_data = {
@@ -260,7 +260,7 @@ class ReviewerChecklistMixin(BaseChecklistMixin):
         checklist = completion.checklist
 
         # Get visible questions using checklist module logic
-        questions = checklist.get_visible_questions(request.user)
+        questions = checklist.get_visible_questions(completion)
 
         # Create response data
         response_data = {

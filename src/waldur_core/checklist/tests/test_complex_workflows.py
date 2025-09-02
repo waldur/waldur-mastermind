@@ -124,7 +124,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
         )
 
         # Verify dependent questions become visible
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         visible_descriptions = [q.description for q in visible_questions]
 
         self.assertIn("Will you process EU citizen data?", visible_descriptions)
@@ -295,7 +295,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
         )
 
         # Only root question should be visible for non-financial apps
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         self.assertEqual(len(visible_questions), 1)
         self.assertEqual(visible_questions[0], financial_question)
 
@@ -311,7 +311,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
         )
 
         # Now transaction types should be visible
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         self.assertEqual(len(visible_questions), 2)
 
         # Test card processing branch
@@ -323,7 +323,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
         )
 
         # PCI question should now be visible, but not AML
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         question_descriptions = [q.description for q in visible_questions]
 
         self.assertIn(
@@ -349,7 +349,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
             answer_data=["credit_card", "wire_transfer"],
         )
 
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         question_descriptions = [q.description for q in visible_questions]
 
         # Both compliance questions should be visible
@@ -511,7 +511,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
             answer_data=False,
         )
 
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         self.assertEqual(len(visible_questions), 1)  # Only root question visible
 
         # Switch to AI project
@@ -526,7 +526,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
         )
 
         # Now AI-specific questions should be visible
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         self.assertEqual(len(visible_questions), 3)  # Root + types + training data
 
         # Test low-risk AI (chatbot)
@@ -558,7 +558,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
         self.assertFalse(training_answer.requires_review)
 
         # Bias testing should not be required for low-risk AI
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         bias_question_visible = any(
             q.description == "Have you conducted bias testing?"
             for q in visible_questions
@@ -604,7 +604,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
         self.assertTrue(training_answer.requires_review)
 
         # Bias testing should now be required
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         bias_question_visible = any(
             q.description == "Have you conducted bias testing?"
             for q in visible_questions
@@ -728,7 +728,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
             answer_data=["Low - Internal tools, no sensitive data"],
         )
 
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         self.assertEqual(len(visible_questions), 1)  # Only risk level question
 
         # Test medium-risk path (adds security controls)
@@ -742,7 +742,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
             answer_data=["Medium - Customer-facing, some sensitive data"],
         )
 
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         self.assertEqual(len(visible_questions), 2)  # Risk + security controls
 
         # Test high-risk path (adds pentest and potentially SOC)
@@ -756,7 +756,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
             answer_data=["High - Critical systems, highly sensitive data"],
         )
 
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         question_descriptions = [q.description for q in visible_questions]
 
         self.assertIn("What is your project's risk level?", question_descriptions)
@@ -872,7 +872,7 @@ class DocumentationExampleValidationTest(test.APITransactionTestCase):
         )
 
         # Test: initially only parent question visible
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         self.assertEqual(len(visible_questions), 1)
         self.assertEqual(visible_questions[0], data_handling_question)
 
@@ -885,7 +885,7 @@ class DocumentationExampleValidationTest(test.APITransactionTestCase):
         )
 
         # Now both questions should be visible
-        visible_questions = self.checklist.get_visible_questions(self.fixture.admin)
+        visible_questions = self.checklist.get_visible_questions(completion)
         self.assertEqual(len(visible_questions), 2)
 
         descriptions = [q.description for q in visible_questions]
@@ -1193,9 +1193,7 @@ class RealWorldIntegrationPatternsTest(test.APITransactionTestCase):
         )
 
         # Compliance question should not be visible for low risk
-        visible_questions = onboarding_checklist.get_visible_questions(
-            self.fixture.manager
-        )
+        visible_questions = onboarding_checklist.get_visible_questions(completion)
         compliance_visible = any(
             "compliance frameworks" in q.description.lower() for q in visible_questions
         )
@@ -1213,9 +1211,7 @@ class RealWorldIntegrationPatternsTest(test.APITransactionTestCase):
         )
 
         # Compliance question should now be visible
-        visible_questions = onboarding_checklist.get_visible_questions(
-            self.fixture.manager
-        )
+        visible_questions = onboarding_checklist.get_visible_questions(completion)
         compliance_visible = any(
             "compliance frameworks" in q.description.lower() for q in visible_questions
         )
@@ -1325,9 +1321,7 @@ class RealWorldIntegrationPatternsTest(test.APITransactionTestCase):
         )
 
         # IRB question should not be visible
-        visible_questions = compliance_checklist.get_visible_questions(
-            self.fixture.admin
-        )
+        visible_questions = compliance_checklist.get_visible_questions(completion)
         irb_visible = any("IRB approval" in q.description for q in visible_questions)
         self.assertFalse(irb_visible)
 
@@ -1366,9 +1360,7 @@ class RealWorldIntegrationPatternsTest(test.APITransactionTestCase):
         )
 
         # IRB question should now be visible
-        visible_questions = compliance_checklist.get_visible_questions(
-            self.fixture.admin
-        )
+        visible_questions = compliance_checklist.get_visible_questions(completion)
         irb_visible = any("IRB approval" in q.description for q in visible_questions)
         self.assertTrue(irb_visible)
 
