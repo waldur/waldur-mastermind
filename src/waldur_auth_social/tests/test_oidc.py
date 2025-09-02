@@ -336,3 +336,46 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertIn("PKCE verification failed", str(response.content))
+
+    def test_tara_login_does_not_update_username_for_existing_user(self):
+        # Configure provider for TARA
+        tara_defaults = PROVIDER_DEFAULTS[ProviderChoices.TARA]
+        self.provider.provider = ProviderChoices.TARA
+        self.provider.user_field = tara_defaults["user_field"]
+        self.provider.user_claim = tara_defaults["user_claim"]
+        self.provider.attribute_mapping = tara_defaults["attribute_mapping"]
+        self.provider.save()
+
+        # Re-generate URL for TARA provider
+        self.url = reverse(f"auth_{self.provider.provider}_complete")
+
+        # Create existing user
+        civil_number = "EE12345678901"
+        original_username = "tara_user"
+        existing_user = structure_factories.UserFactory(
+            civil_number=civil_number,
+            username=original_username,
+            first_name="OldFirstName",
+            last_name="OldLastName",
+        )
+
+        # Mock OIDC responses
+        user_info = {
+            "sub": civil_number,
+            "given_name": "NewFirstName",
+            "family_name": "NewLastName",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Perform login
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        # Assertions
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        existing_user.refresh_from_db()
+
+        self.assertEqual(existing_user.username, original_username)
+        self.assertEqual(existing_user.first_name, user_info["given_name"])
+        self.assertEqual(existing_user.last_name, user_info["family_name"])
+        self.assertEqual(existing_user.civil_number, civil_number)
