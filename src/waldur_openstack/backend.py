@@ -53,7 +53,7 @@ from waldur_openstack.session import (
     get_neutron_client,
     get_nova_client,
 )
-from waldur_openstack.utils import is_valid_volume_type_name
+from waldur_openstack.utils import get_external_network_id, is_valid_volume_type_name
 
 from . import models, signals
 
@@ -2349,27 +2349,63 @@ class OpenStackBackend(ServiceBackend):
 
     @log_backend_action()
     def detect_external_network(self, tenant: models.Tenant):
+        """
+        Detect and recover external network configuration for tenant.
+        If no external network is found but one is configured in settings, attempt auto-recovery.
+        """
         session = get_tenant_session(tenant)
         neutron = get_neutron_client(session)
         try:
             routers = neutron.list_routers(tenant_id=tenant.backend_id)["routers"]
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
+
+        # Check if router exists with external gateway
         if bool(routers):
             router = routers[0]
-        else:
-            logger.warning(
-                "Tenant %s (PK: %s) does not have connected routers.", tenant, tenant.pk
-            )
-            return
+            ext_gw = router.get("external_gateway_info", {})
+            if ext_gw and "network_id" in ext_gw:
+                tenant.external_network_id = ext_gw["network_id"]
+                tenant.save()
+                logger.info(
+                    "Found and set external network with id %s for tenant %s (PK: %s)",
+                    ext_gw["network_id"],
+                    tenant,
+                    tenant.pk,
+                )
+                return
 
-        ext_gw = router.get("external_gateway_info", {})
-        if ext_gw and "network_id" in ext_gw:
-            tenant.external_network_id = ext_gw["network_id"]
-            tenant.save()
+        # Auto-recovery: Check if external network is configured but not connected
+        expected_external_network_id = get_external_network_id(tenant)
+        if expected_external_network_id and not tenant.external_network_id:
             logger.info(
-                "Found and set external network with id %s for tenant %s (PK: %s)",
-                ext_gw["network_id"],
+                "Attempting auto-recovery: connecting tenant %s (PK: %s) to external network %s",
+                tenant,
+                tenant.pk,
+                expected_external_network_id,
+            )
+            try:
+                # Try to connect to external network
+                self.connect_tenant_to_external_network(
+                    tenant, expected_external_network_id
+                )
+                logger.info(
+                    "Auto-recovery successful: connected tenant %s (PK: %s) to external network %s",
+                    tenant,
+                    tenant.pk,
+                    expected_external_network_id,
+                )
+            except Exception as e:
+                logger.warning(
+                    "Auto-recovery failed for tenant %s (PK: %s): %s. "
+                    "Manual intervention may be required.",
+                    tenant,
+                    tenant.pk,
+                    e,
+                )
+        elif not routers:
+            logger.warning(
+                "Tenant %s (PK: %s) does not have connected routers and no external network configured.",
                 tenant,
                 tenant.pk,
             )
@@ -2784,13 +2820,38 @@ class OpenStackBackend(ServiceBackend):
 
     @log_backend_action("create floating ip")
     def create_floating_ip(self, floating_ip: models.FloatingIP):
+        external_network_id = get_external_network_id(floating_ip.tenant)
+
+        # If external_network_id from settings but not on tenant, attempt recovery
+        if external_network_id and not floating_ip.tenant.external_network_id:
+            logger.info(
+                "Attempting to recover external network for tenant %s before floating IP creation",
+                floating_ip.tenant,
+            )
+            try:
+                self.detect_external_network(floating_ip.tenant)
+                floating_ip.tenant.refresh_from_db()
+                # Re-check after recovery attempt
+                external_network_id = get_external_network_id(floating_ip.tenant)
+            except Exception as e:
+                logger.warning(
+                    "Failed to recover external network for tenant %s: %s. Proceeding with settings value.",
+                    floating_ip.tenant,
+                    e,
+                )
+
+        if not external_network_id:
+            raise OpenStackBackendError(
+                "Cannot create floating IP: external network ID is not defined for tenant."
+            )
+
         session = get_tenant_session(floating_ip.tenant)
         neutron = get_neutron_client(session)
         try:
             backend_floating_ip = neutron.create_floatingip(
                 {
                     "floatingip": {
-                        "floating_network_id": floating_ip.tenant.external_network_id,
+                        "floating_network_id": external_network_id,
                         "tenant_id": floating_ip.tenant.backend_id,
                     }
                 }

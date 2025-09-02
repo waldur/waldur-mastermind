@@ -503,12 +503,36 @@ class TenantViewSet(structure_views.ResourceViewSet):
     create_network_serializer_class = serializers.OpenStackNetworkSerializer
 
     def external_network_is_defined(tenant):
-        if not tenant.external_network_id:
+        external_network_id = utils.get_external_network_id(tenant)
+        if not external_network_id:
             raise core_exceptions.IncorrectStateException(
                 _(
                     "Cannot create floating IP if tenant external network is not defined."
                 )
             )
+
+        # If we have external_network_id from settings but not on tenant, attempt recovery
+        if external_network_id and not tenant.external_network_id:
+            logger.info(
+                "Attempting to recover external network for tenant %s before floating IP creation",
+                tenant,
+            )
+            try:
+                backend = OpenStackBackend(tenant.service_settings)
+                backend.detect_external_network(tenant)
+                tenant.refresh_from_db()
+                # Check if recovery succeeded
+                if not tenant.external_network_id:
+                    logger.warning(
+                        "External network recovery failed for tenant %s - network not set after recovery attempt",
+                        tenant,
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Failed to recover external network for tenant %s: %s",
+                    tenant,
+                    e,
+                )
 
     @extend_schema(
         description="Create floating IP for tenant",

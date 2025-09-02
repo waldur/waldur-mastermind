@@ -578,6 +578,9 @@ class TenantCreateFloatingIPTest(BaseTenantActionsTest):
     ):
         self.tenant.external_network_id = ""
         self.tenant.save()
+        # Also clear from service settings to ensure validation works
+        self.tenant.service_settings.options = {}
+        self.tenant.service_settings.save()
 
         response = self.client.post(self.url)
 
