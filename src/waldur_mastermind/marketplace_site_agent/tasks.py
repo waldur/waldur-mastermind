@@ -9,8 +9,12 @@ from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OfferingStates, OrderStates
-from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME, utils
+from waldur_mastermind.marketplace.enums import (
+    SITE_AGENT_OFFERING,
+    OfferingStates,
+    OrderStates,
+)
+from waldur_mastermind.marketplace_site_agent import utils
 
 
 def get_offering_ids_for_active_subscriptions(observable_object_type: str):
@@ -27,7 +31,7 @@ def get_offering_ids_for_active_subscriptions(observable_object_type: str):
         user_offerings = (
             marketplace_models.Offering.objects.all()
             .filter_for_user(subscription.user)
-            .filter(type=PLUGIN_NAME)
+            .filter(type=SITE_AGENT_OFFERING)
             .values_list("id", flat=True)
         )
         offering_ids.update(user_offerings)
@@ -38,7 +42,7 @@ def get_offering_ids_for_active_subscriptions(observable_object_type: str):
 @shared_task(name="waldur_mastermind.marketplace_site_agent.sync_offering_users")
 def sync_offering_users():
     offerings = marketplace_models.Offering.objects.filter(
-        type=PLUGIN_NAME,
+        type=SITE_AGENT_OFFERING,
         state__in=[
             OfferingStates.ACTIVE,
             OfferingStates.PAUSED,
@@ -58,7 +62,7 @@ def mark_offering_backend_as_disconnected_after_timeout():
     one_hour_ago = timezone.now() - datetime.timedelta(hours=1)
     integration_statuses = marketplace_models.IntegrationStatus.objects.filter(
         status=marketplace_models.IntegrationStatus.States.ACTIVE,
-        offering__type=PLUGIN_NAME,
+        offering__type=SITE_AGENT_OFFERING,
         last_request_timestamp__lt=one_hour_ago,
     )
     for integration_status in integration_statuses:

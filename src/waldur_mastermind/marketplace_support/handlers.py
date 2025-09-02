@@ -9,8 +9,7 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
+from waldur_mastermind.marketplace.enums import SUPPORT_OFFERING, ResourceStates
 from waldur_mastermind.marketplace_support import utils as marketplace_support_utils
 from waldur_mastermind.support.models import Issue
 
@@ -46,7 +45,7 @@ def update_order_if_issue_was_complete(
     if not (
         issue.resource
         and isinstance(issue.resource, marketplace_models.Order)
-        and issue.resource.offering.type == PLUGIN_NAME
+        and issue.resource.offering.type == SUPPORT_OFFERING
         and issue.resolved is not None
     ):
         return
@@ -69,7 +68,7 @@ def notify_about_request_based_item_creation(
     if not (
         issue.resource
         and isinstance(issue.resource, marketplace_models.Order)
-        and issue.resource.offering.type == PLUGIN_NAME
+        and issue.resource.offering.type == SUPPORT_OFFERING
         and issue.resource.type == ItemTypes.CREATE
     ):
         return
@@ -129,14 +128,14 @@ def _create_issue_if_membership_changed(instance, summary):
         "Checking resources for project %s (id: %s) with PLUGIN_NAME %s",
         project.name,
         project.id,
-        PLUGIN_NAME,
+        SUPPORT_OFFERING,
     )
 
     resources = marketplace_models.Resource.objects.exclude(
         state=ResourceStates.TERMINATED
     ).filter(
         project=project,
-        offering__type=PLUGIN_NAME,
+        offering__type=SUPPORT_OFFERING,
         offering__plugin_options__enable_issues_for_membership_changes=True,
     )
 

@@ -4,17 +4,20 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import ResourceStates, RobotAccountStates
+from waldur_mastermind.marketplace.enums import (
+    SITE_AGENT_OFFERING,
+    ResourceStates,
+    RobotAccountStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME
 
 
 class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = SITE_AGENT_OFFERING
         self.offering.plugin_options = {
             "username_generation_policy": "waldur_username",
             "initial_uidnumber": 1000,

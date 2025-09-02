@@ -17,10 +17,12 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.invoices.tests import factories, fixtures
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_TENANT_OFFERING,
+    SUPPORT_OFFERING,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import TENANT_TYPE
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
 
 @ddt
@@ -203,7 +205,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         self.provider_2 = marketplace_factories.ServiceProviderFactory()
 
         self.offering = marketplace_factories.OfferingFactory(
-            type=TENANT_TYPE, customer=self.provider.customer
+            type=OPENSTACK_TENANT_OFFERING, customer=self.provider.customer
         )
 
         self.offering_component = marketplace_factories.OfferingComponentFactory(
@@ -218,7 +220,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         )
 
         self.offering_2 = marketplace_factories.OfferingFactory(
-            type=TENANT_TYPE, customer=self.provider_2.customer
+            type=OPENSTACK_TENANT_OFFERING, customer=self.provider_2.customer
         )
 
         self.offering_component_2 = marketplace_factories.OfferingComponentFactory(
@@ -258,7 +260,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         self.customer = self.resource_1.project.customer
 
         self.marketplace_support_offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME,
+            type=SUPPORT_OFFERING,
             customer=self.provider.customer,
         )
         self.support_offering_component = (

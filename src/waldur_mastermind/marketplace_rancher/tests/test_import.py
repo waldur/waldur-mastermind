@@ -3,10 +3,12 @@ from unittest import mock
 from django.test import override_settings
 from rest_framework import status, test
 
+from waldur_mastermind.marketplace.enums import (
+    MANAGED_RANCHER_OFFERING,
+    RANCHER_OFFERING,
+)
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
 from waldur_mastermind.marketplace_rancher import (
-    MANAGED_RANCHER_PLUGIN,
-    PLUGIN_NAME,
     const,
 )
 from waldur_openstack.tests import factories as os_factories
@@ -46,7 +48,7 @@ class BaseClusterImportTest(test.APITransactionTestCase):
         self.fixture = fixtures.RancherFixture()
         self.offering = OfferingFactory(
             scope=self.fixture.settings,
-            type=PLUGIN_NAME,
+            type=RANCHER_OFFERING,
             shared=False,
             customer=self.fixture.customer,
         )
@@ -127,7 +129,7 @@ class ManagedClusterImportResourceTest(BaseClusterImportTest):
         super().setUp()
         self.parent_offering = OfferingFactory(
             scope=self.offering,
-            type=MANAGED_RANCHER_PLUGIN,
+            type=MANAGED_RANCHER_OFFERING,
             shared=True,
             customer=self.fixture.customer,
         )

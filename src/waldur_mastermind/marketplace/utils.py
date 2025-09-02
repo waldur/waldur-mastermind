@@ -10,6 +10,7 @@ import traceback
 import unicodedata
 import uuid
 from collections import defaultdict
+from decimal import Decimal
 from enum import Enum
 from io import BytesIO
 from typing import cast
@@ -61,6 +62,10 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
+from waldur_mastermind.marketplace.enums import REMOTE_OFFERING as REMOTE_PLUGIN_NAME
+from waldur_mastermind.marketplace.enums import (
+    SITE_AGENT_OFFERING as SITE_AGENT_PLUGIN_NAME,
+)
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
@@ -68,13 +73,9 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
     RobotAccountStates,
 )
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
-from waldur_mastermind.marketplace_site_agent import (
-    PLUGIN_NAME as SITE_AGENT_PLUGIN_NAME,
-)
 
-from . import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from . import models, plugins
+from .enums import BASIC_OFFERING as BASIC_PLUGIN_NAME
 
 logger = logging.getLogger(__name__)
 USERNAME_ANONYMIZED_POSTFIX_LENGTH = 5
@@ -2221,3 +2222,15 @@ def publish_backend_resource_request(request: models.BackendResourceRequest):
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
+
+
+def convert_slurm_usage(usage: int | float | Decimal, component_type: str) -> int:
+    # This is temporarily uplifted to marketplace in order to avoid circular dependency
+    minutes_in_hour = 60
+    usage_float = float(usage)
+    if component_type in ["ram", "mem"]:
+        mb_in_gb = 1024
+        quantity = int(math.ceil(usage_float / mb_in_gb / minutes_in_hour))
+    else:
+        quantity = int(math.ceil(usage_float / minutes_in_hour))
+    return quantity

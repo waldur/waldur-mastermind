@@ -17,12 +17,12 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_INSTANCE_OFFERING,
     BillingTypes,
     OrderStates,
     ResourceStates,
     RobotAccountStates,
 )
-from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_openstack.tests.fixtures import OpenStackFixture
 
 from . import factories, fixtures
@@ -444,7 +444,7 @@ class MarkResourcesAsErredAfterTimeoutTest(test.APITransactionTestCase):
         super().setUp()
         self.fixture = OpenStackFixture()
         self.offering = factories.OfferingFactory(
-            scope=self.fixture.tenant, type=INSTANCE_TYPE
+            scope=self.fixture.tenant, type=OPENSTACK_INSTANCE_OFFERING
         )
         self.order = factories.OrderFactory(
             offering=self.offering,

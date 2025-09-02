@@ -5,7 +5,7 @@ from waldur_core.logging import utils as logging_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME
+from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ def push_user_role_sync_message(project: structure_models.Project) -> None:
     offering_ids = set(
         project.resource_set.filter(
             state=marketplace_models.ResourceStates.OK,
-            offering__type=PLUGIN_NAME,
+            offering__type=SITE_AGENT_OFFERING,
         ).values_list("offering", flat=True)
     )
     if not offering_ids:

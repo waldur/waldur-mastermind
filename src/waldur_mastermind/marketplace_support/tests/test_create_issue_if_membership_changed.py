@@ -3,13 +3,13 @@ from unittest import mock
 from rest_framework import test
 
 from waldur_core.permissions.fixtures import ProjectRole
+from waldur_mastermind.marketplace.enums import SUPPORT_OFFERING
 from waldur_mastermind.marketplace.tests import (
     factories as marketplace_factories,
 )
 from waldur_mastermind.marketplace.tests import (
     fixtures as marketplace_fixtures,
 )
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
 
 
@@ -19,7 +19,7 @@ class TestMembershipChangeIssues(test.APITransactionTestCase):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
         self.offering.plugin_options["enable_issues_for_membership_changes"] = True
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = SUPPORT_OFFERING
         self.offering.save()
         self.project = self.fixture.project
         self.offering_user = marketplace_factories.OfferingUserFactory(

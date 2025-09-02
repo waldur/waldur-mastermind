@@ -8,7 +8,7 @@ from waldur_mastermind.booking import models
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
-from .. import PLUGIN_NAME
+from ...marketplace.enums import BOOKING_OFFERING
 from . import fixtures
 
 
@@ -107,7 +107,7 @@ class SlotsTest(test.APITransactionTestCase):
         ]
         self.offering = marketplace_factories.OfferingFactory(
             customer=self.fixture.customer,
-            type=PLUGIN_NAME,
+            type=BOOKING_OFFERING,
             attributes={
                 "schedules": schedules,
             },

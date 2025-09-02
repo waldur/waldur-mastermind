@@ -6,13 +6,14 @@ from waldur_core.core import signals as core_signals
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.enums import (
+    REMOTE_OFFERING,
     OrderStates,
     OrderStatesType,
     RemoteResourceSyncStatus,
     ResourceStates,
     ResourceStatesType,
 )
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME, constants, models
+from waldur_mastermind.marketplace_remote import constants, models
 
 
 class RemoteCredentialsSerializer(serializers.Serializer):
@@ -237,7 +238,7 @@ class RemoteSynchronisationSerializer(
 
 
 def mark_synced_fields_as_read_only(sender, fields, serializer, **kwargs):
-    if serializer.instance and serializer.instance.type == PLUGIN_NAME:
+    if serializer.instance and serializer.instance.type == REMOTE_OFFERING:
         for field_name in constants.OFFERING_FIELDS:
             if field_name in fields:
                 fields[field_name] = serializers.ReadOnlyField()

@@ -24,12 +24,12 @@ from waldur_rancher import executors as rancher_executors
 from waldur_rancher import serializers as rancher_serializers
 from waldur_rancher import utils as rancher_utils
 
-from . import MANAGED_RANCHER_PLUGIN
+from ..marketplace.enums import MANAGED_RANCHER_OFFERING
 
 
 class ManagedRancherViewSet(ReadOnlyActionsViewSet):
     queryset = marketplace_models.Resource.objects.filter(
-        offering__type=MANAGED_RANCHER_PLUGIN,
+        offering__type=MANAGED_RANCHER_OFFERING,
     )
     lookup_field = "uuid"
     serializer_class = ResourceSerializer

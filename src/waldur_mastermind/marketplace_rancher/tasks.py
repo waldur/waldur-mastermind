@@ -7,7 +7,8 @@ from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.utils import get_current_month, get_current_year
 from waldur_mastermind.marketplace.models import Resource
 
-from . import MANAGED_RANCHER_PLUGIN, utils
+from ..marketplace.enums import MANAGED_RANCHER_OFFERING
+from . import utils
 
 
 @shared_task(
@@ -16,7 +17,7 @@ from . import MANAGED_RANCHER_PLUGIN, utils
 def sync_managed_rancher_invoice_items():
     year, month = get_current_year(), get_current_month()
     for downstream_invoice_item in InvoiceItem.objects.filter(
-        resource__offering__type=MANAGED_RANCHER_PLUGIN,
+        resource__offering__type=MANAGED_RANCHER_OFFERING,
         invoice__year=year,
         invoice__month=month,
         backend_uuid__isnull=False,

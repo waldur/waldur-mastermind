@@ -3,9 +3,12 @@ from dataclasses import replace
 from django.apps import AppConfig
 from django.db.models import signals
 
-from waldur_mastermind.marketplace.enums import BillingTypes
+from waldur_mastermind.marketplace.enums import (
+    MANAGED_RANCHER_OFFERING,
+    RANCHER_OFFERING,
+    BillingTypes,
+)
 from waldur_mastermind.marketplace_openstack.const import TENANT_COMPONENTS
-from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN
 
 
 class MarketplaceRancherConfig(AppConfig):
@@ -24,12 +27,12 @@ class MarketplaceRancherConfig(AppConfig):
         from waldur_rancher import models as rancher_models
         from waldur_rancher.apps import RancherConfig
 
-        from . import PLUGIN_NAME, handlers, processors, registrators
+        from . import handlers, processors, registrators
 
         registrators.RancherRegistrator.connect()
 
         manager.register(
-            offering_type=PLUGIN_NAME,
+            offering_type=RANCHER_OFFERING,
             create_resource_processor=processors.RancherCreateProcessor,
             delete_resource_processor=processors.RancherDeleteProcessor,
             service_type=RancherConfig.service_name,
@@ -39,7 +42,7 @@ class MarketplaceRancherConfig(AppConfig):
         )
 
         manager.register(
-            offering_type=MANAGED_RANCHER_PLUGIN,
+            offering_type=MANAGED_RANCHER_OFFERING,
             create_resource_processor=processors.ManagedRancherCreateProcessor,
             delete_resource_processor=processors.ManagedRancherDeleteProcessor,
             components=[

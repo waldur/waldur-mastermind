@@ -2,10 +2,13 @@ from rest_framework import test
 
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    SLURM_OFFERING,
+    OrderStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 from waldur_slurm import models as slurm_models
 from waldur_slurm.tests import fixtures as slurm_fixtures
 
@@ -14,7 +17,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
     def setUp(self):
         fixture = slurm_fixtures.SlurmFixture()
         offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, scope=fixture.settings
+            type=SLURM_OFFERING, scope=fixture.settings
         )
         plan = marketplace_factories.PlanFactory(offering=offering)
         order = marketplace_factories.OrderFactory(
@@ -22,11 +25,12 @@ class AllocationCreateTest(test.APITransactionTestCase):
             state=OrderStates.EXECUTING,
             offering=offering,
             limits={
-                component.type: 10 for component in manager.get_components(PLUGIN_NAME)
+                component.type: 10
+                for component in manager.get_components(SLURM_OFFERING)
             },
             attributes={"name": "My-first-allocation"},
         )
-        for component in manager.get_components(PLUGIN_NAME):
+        for component in manager.get_components(SLURM_OFFERING):
             component = marketplace_models.OfferingComponent.objects.create(
                 offering=offering,
                 type=component.type,

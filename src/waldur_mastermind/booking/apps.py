@@ -1,6 +1,8 @@
 from django.apps import AppConfig
 from django.db.models import signals
 
+from ..marketplace.enums import BOOKING_OFFERING
+
 
 class BookingConfig(AppConfig):
     name = "waldur_mastermind.booking"
@@ -10,11 +12,11 @@ class BookingConfig(AppConfig):
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
 
-        from . import PLUGIN_NAME, handlers, processors, utils
+        from . import handlers, processors, utils
         from . import registrators as booking_registrators
 
         manager.register(
-            offering_type=PLUGIN_NAME,
+            offering_type=BOOKING_OFFERING,
             create_resource_processor=processors.BookingCreateProcessor,
             delete_resource_processor=processors.BookingDeleteProcessor,
             change_attributes_for_view=utils.change_attributes_for_view,

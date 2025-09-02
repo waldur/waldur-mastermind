@@ -10,8 +10,8 @@ class MarketplaceSupportConfig(AppConfig):
         from waldur_core.core import signals as core_signals
         from waldur_core.permissions.models import UserRole
         from waldur_mastermind.marketplace import serializers as marketplace_serializers
+        from waldur_mastermind.marketplace.enums import SUPPORT_OFFERING
         from waldur_mastermind.marketplace.plugins import manager
-        from waldur_mastermind.marketplace_support import PLUGIN_NAME
         from waldur_mastermind.marketplace_support.serializers import add_issue
         from waldur_mastermind.support import models as support_models
 
@@ -32,7 +32,7 @@ class MarketplaceSupportConfig(AppConfig):
         )
 
         manager.register(
-            PLUGIN_NAME,
+            SUPPORT_OFFERING,
             create_resource_processor=processor.CreateRequestProcessor,
             update_resource_processor=processor.UpdateRequestProcessor,
             delete_resource_processor=processor.DeleteRequestProcessor,

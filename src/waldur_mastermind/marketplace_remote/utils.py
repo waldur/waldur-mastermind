@@ -74,12 +74,13 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.enums import (
+    REMOTE_OFFERING,
     OfferingStates,
     OrderStates,
     RemoteResourceSyncStatus,
     ResourceStates,
 )
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME, models
+from waldur_mastermind.marketplace_remote import models
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
     OFFERING_FIELDS,
@@ -151,7 +152,7 @@ def get_remote_offerings_for_project(project: structure_models.Project):
     offering_ids = (
         marketplace_models.Resource.objects.filter(
             project=project,
-            offering__type=PLUGIN_NAME,
+            offering__type=REMOTE_OFFERING,
             offering__state=OfferingStates.ACTIVE,
         )
         .exclude(state__in=INVALID_RESOURCE_STATES)
@@ -164,7 +165,7 @@ def get_remote_offerings_for_project(project: structure_models.Project):
 def get_projects_with_remote_offerings():
     projects_with_offerings = defaultdict(set)
     resource_pairs = (
-        marketplace_models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+        marketplace_models.Resource.objects.filter(offering__type=REMOTE_OFFERING)
         .exclude(state__in=INVALID_RESOURCE_STATES)
         .values("offering", "project")
         .distinct()
@@ -182,7 +183,7 @@ def get_projects_with_remote_offerings():
 
     order_pairs = (
         marketplace_models.Order.objects.filter(
-            offering__type=PLUGIN_NAME,
+            offering__type=REMOTE_OFFERING,
             state__in=(
                 OrderStates.PENDING_CONSUMER,
                 OrderStates.PENDING_PROVIDER,
@@ -730,7 +731,7 @@ def upsert_offering(
         local_offering.refresh_from_db()
     else:
         local_offering, _ = marketplace_models.Offering.objects.update_or_create(
-            type=PLUGIN_NAME,
+            type=REMOTE_OFFERING,
             backend_id=remote_offering.uuid.hex,
             customer=local_customer,
             defaults={

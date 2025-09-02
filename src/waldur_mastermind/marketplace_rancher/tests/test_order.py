@@ -5,9 +5,8 @@ from rest_framework import test
 from waldur_core.structure.tests.factories import ProjectFactory, SshPublicKeyFactory
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OrderStates
+from waldur_mastermind.marketplace.enums import RANCHER_OFFERING, OrderStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_rancher import PLUGIN_NAME
 from waldur_openstack.models import Tenant
 from waldur_openstack.tests import (
     factories as openstack_factories,
@@ -27,7 +26,7 @@ class OrderProcessedTest(test.APITransactionTestCase):
     def test_resource_is_created_when_order_is_processed(self):
         service_settings = rancher_factories.RancherServiceSettingsFactory()
         offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, scope=service_settings
+            type=RANCHER_OFFERING, scope=service_settings
         )
 
         flavor = openstack_factories.FlavorFactory(

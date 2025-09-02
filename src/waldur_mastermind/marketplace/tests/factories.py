@@ -13,12 +13,12 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import (
+    SUPPORT_OFFERING,
     BillingTypes,
     ImpactLevel,
     OfferingStates,
     ResourceStates,
 )
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_pid import models as pid_models
 
 OFFERING_OPTIONS = {
@@ -181,7 +181,7 @@ class OfferingFactory(
     options = factory.LazyAttribute(lambda _: {"order": [], "options": {}})
     category = factory.SubFactory(CategoryFactory)
     customer = factory.SubFactory(structure_factories.CustomerFactory)
-    type = PLUGIN_NAME
+    type = SUPPORT_OFFERING
     state = OfferingStates.ACTIVE
 
     @classmethod

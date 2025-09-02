@@ -6,14 +6,14 @@ from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
-from .. import PLUGIN_NAME
+from ...marketplace.enums import BOOKING_OFFERING
 
 
 class BookingFixture(marketplace_fixtures.MarketplaceFixture):
     @cached_property
     def offering(self):
         return marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME,
+            type=BOOKING_OFFERING,
             state=OfferingStates.ACTIVE,
         )
 

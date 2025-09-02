@@ -1,7 +1,7 @@
 from waldur_mastermind.marketplace import registrators as marketplace_registrators
 
-from . import PLUGIN_NAME
+from ..marketplace.enums import SITE_AGENT_OFFERING
 
 
 class RemoteSlurmRegistrator(marketplace_registrators.MarketplaceRegistrator):
-    plugin_name = PLUGIN_NAME
+    plugin_name = SITE_AGENT_OFFERING

@@ -13,6 +13,7 @@ from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, plugins
 from waldur_mastermind.marketplace.enums import (
+    SUPPORT_OFFERING,
     BillingTypes,
     LimitPeriods,
     OfferingStates,
@@ -20,7 +21,6 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace.tests.utils import TestCreateProcessor
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
 
 class BaseOrderCreateTest(test.APITransactionTestCase):
@@ -413,7 +413,7 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
 
     def test_user_can_create_order_with_valid_limits(self):
         offering = factories.OfferingFactory(
-            state=OfferingStates.ACTIVE, type=PLUGIN_NAME
+            state=OfferingStates.ACTIVE, type=SUPPORT_OFFERING
         )
         plan = factories.PlanFactory(offering=offering)
 

@@ -4,9 +4,12 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import BillingTypes, OrderStates
+from waldur_mastermind.marketplace.enums import (
+    SUPPORT_OFFERING,
+    BillingTypes,
+    OrderStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support.tests.fixtures import SupportFixture
 
 
@@ -28,7 +31,7 @@ class MarketplaceSupportApprovedFixture(SupportFixture):
     def marketplace_offering(self):
         return marketplace_factories.OfferingFactory(
             customer=self.provider.customer,
-            type=PLUGIN_NAME,
+            type=SUPPORT_OFFERING,
         )
 
     @cached_property
@@ -79,7 +82,7 @@ class SupportFixture(structure_fixtures.ProjectFixture):
 
     @cached_property
     def offering(self):
-        return marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
+        return marketplace_factories.OfferingFactory(type=SUPPORT_OFFERING)
 
     @cached_property
     def plan(self):

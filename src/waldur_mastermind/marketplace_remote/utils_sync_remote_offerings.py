@@ -12,9 +12,9 @@ from waldur_api_client.models.public_offering_details import PublicOfferingDetai
 
 from waldur_core.core.client import get_waldur_client
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.enums import OfferingStates
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME, utils
+from waldur_mastermind.marketplace.enums import REMOTE_OFFERING, OfferingStates
 from waldur_mastermind.marketplace_remote import models as remote_models
+from waldur_mastermind.marketplace_remote import utils
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class RemoteSynchronisationRunner:
 
     def _process_sync(self) -> None:
         existing_offerings = models.Offering.objects.filter(
-            type=PLUGIN_NAME,
+            type=REMOTE_OFFERING,
             customer=self.sync.local_service_provider.customer,
             secret_options__customer_uuid=self.sync.remote_organization_uuid.hex,
         )

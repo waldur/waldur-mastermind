@@ -27,10 +27,15 @@ from waldur_core.users.enums import InvitationState
 from waldur_core.users.tasks import process_invitation
 from waldur_freeipa.models import Profile
 from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
     MaintenanceState,
     OfferingStates,
     OrderStates,
     ResourceStates,
+)
+from waldur_mastermind.marketplace.enums import SCRIPT_OFFERING as SCRIPT_PLUGIN_NAME
+from waldur_mastermind.marketplace.enums import (
+    SITE_AGENT_OFFERING as SITE_AGENT_PLUGIN_NAME,
 )
 from waldur_mastermind.marketplace.maintenance_utils import (
     MaintenanceAnnouncementTemplate,
@@ -51,18 +56,14 @@ from waldur_mastermind.marketplace.models import (
 from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
 )
-from waldur_mastermind.marketplace_script import PLUGIN_NAME as SCRIPT_PLUGIN_NAME
-from waldur_mastermind.marketplace_site_agent import (
-    PLUGIN_NAME as SITE_AGENT_PLUGIN_NAME,
-)
 from waldur_mastermind.notifications.models import AdminAnnouncement
 
-from . import PLUGIN_NAME, callbacks, log, models, tasks, utils
+from . import callbacks, log, models, tasks, utils
 
 logger = logging.getLogger(__name__)
 
 OFFERING_USER_ALLOWED_OFFERING_TYPES = [
-    PLUGIN_NAME,
+    BASIC_OFFERING,
     SITE_AGENT_PLUGIN_NAME,
     SCRIPT_PLUGIN_NAME,
 ]

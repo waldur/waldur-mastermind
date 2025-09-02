@@ -11,8 +11,8 @@ class MarketplaceSlurmConfig(AppConfig):
 
     def ready(self):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
+        from waldur_mastermind.marketplace.enums import SLURM_OFFERING
         from waldur_mastermind.marketplace.plugins import Component, manager
-        from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
         from waldur_slurm import executors as slurm_executors
         from waldur_slurm import models as slurm_models
         from waldur_slurm import signals as slurm_signals
@@ -36,7 +36,7 @@ class MarketplaceSlurmConfig(AppConfig):
         TOTAL = LimitPeriods.TOTAL
         default_limits = django_settings.WALDUR_SLURM["DEFAULT_LIMITS"]
         manager.register(
-            PLUGIN_NAME,
+            SLURM_OFFERING,
             create_resource_processor=processor.CreateAllocationProcessor,
             delete_resource_processor=processor.DeleteAllocationProcessor,
             components=(

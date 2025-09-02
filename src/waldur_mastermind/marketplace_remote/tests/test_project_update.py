@@ -13,9 +13,8 @@ from waldur_core.core.enums import ReviewStates
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests.factories import ProjectFactory
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import REMOTE_OFFERING, ResourceStates
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
 from waldur_mastermind.marketplace_remote.tests.utils import get_request_data
 
@@ -38,7 +37,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
             "api_url": self.api_url,
             "token": "secret",
         }
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = REMOTE_OFFERING
         self.offering.save()
         self.fixture = fixture
 
@@ -208,7 +207,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
     def test_project_data_pushing(self):
         owner = self.fixture.offering_owner
 
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = REMOTE_OFFERING
         self.offering.save()
 
         middleware.set_current_user(None)

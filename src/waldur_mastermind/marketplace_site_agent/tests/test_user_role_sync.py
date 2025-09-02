@@ -6,9 +6,8 @@ from rest_framework import status, test
 from waldur_core.logging import utils as logging_utils
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME
 
 
 class UserRoleSyncAPITest(test.APITransactionTestCase):
@@ -16,7 +15,7 @@ class UserRoleSyncAPITest(test.APITransactionTestCase):
         self.customer = structure_factories.CustomerFactory()
         self.project = structure_factories.ProjectFactory(customer=self.customer)
         self.offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, project=self.project
+            type=SITE_AGENT_OFFERING, project=self.project
         )
         self.resource = marketplace_factories.ResourceFactory(
             offering=self.offering, project=self.project, state=ResourceStates.OK
@@ -91,7 +90,7 @@ class UserRoleSyncAPITest(test.APITransactionTestCase):
     def test_sync_user_roles_multiple_offerings(self, mocked_publish_messages):
         """Test that messages are sent for all relevant offerings."""
         offering2 = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, project=self.project
+            type=SITE_AGENT_OFFERING, project=self.project
         )
         marketplace_factories.ResourceFactory(
             offering=offering2, project=self.project, state=ResourceStates.OK

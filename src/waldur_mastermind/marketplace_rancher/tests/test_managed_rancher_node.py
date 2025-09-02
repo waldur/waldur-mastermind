@@ -10,15 +10,19 @@ from rest_framework.test import APITransactionTestCase
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
-from waldur_mastermind.marketplace.enums import BillingTypes, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    MANAGED_RANCHER_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    RANCHER_OFFERING,
+    BillingTypes,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
     RAM_TYPE,
     STORAGE_TYPE,
-    TENANT_TYPE,
 )
-from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN, PLUGIN_NAME
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests import fixtures as openstack_fixtures
 from waldur_rancher import models as rancher_models
@@ -37,7 +41,7 @@ class TestManagedRancherNodeCreate(APITransactionTestCase):
         # Create tenant objects
         self.tenant = self.fixture.tenant
         openstack_offering = marketplace_factories.OfferingFactory(
-            type=TENANT_TYPE, scope=openstack_settings
+            type=OPENSTACK_TENANT_OFFERING, scope=openstack_settings
         )
         marketplace_factories.ResourceFactory(
             scope=self.tenant,
@@ -86,10 +90,10 @@ class TestManagedRancherNodeCreate(APITransactionTestCase):
             options={"base_image_name": base_image.name}
         )
         rancher_offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, scope=rancher_service_settings
+            type=RANCHER_OFFERING, scope=rancher_service_settings
         )
         managed_rancher_offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_PLUGIN,
+            type=MANAGED_RANCHER_OFFERING,
             scope=rancher_offering,
         )
         self.cluster = rancher_factories.ClusterFactory(

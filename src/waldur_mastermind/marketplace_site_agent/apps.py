@@ -1,6 +1,8 @@
 from django.apps import AppConfig
 from django.db.models import signals
 
+from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
+
 
 class MarketplaceSlurmConfig(AppConfig):
     name = "waldur_mastermind.marketplace_site_agent"
@@ -12,7 +14,6 @@ class MarketplaceSlurmConfig(AppConfig):
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace_site_agent import (
-            PLUGIN_NAME,
             executors,
             handlers,
             processor,
@@ -24,7 +25,7 @@ class MarketplaceSlurmConfig(AppConfig):
         slurm_registrators.RemoteSlurmRegistrator.connect()
 
         manager.register(
-            PLUGIN_NAME,
+            SITE_AGENT_OFFERING,
             create_resource_processor=processor.CreateAllocationProcessor,
             update_resource_processor=processor.UpdateAllocationLimitsProcessor,
             delete_resource_processor=processor.DeleteAllocationProcessor,

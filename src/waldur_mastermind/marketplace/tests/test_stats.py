@@ -15,14 +15,14 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
 from waldur_mastermind.marketplace import models, tasks, utils
 from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_TENANT_OFFERING,
+    SUPPORT_OFFERING,
     BillingTypes,
     OfferingStates,
     OrderStates,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories, fixtures
-from waldur_mastermind.marketplace_openstack import TENANT_TYPE
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
 
 class StatsBaseTest(test.APITransactionTestCase):
@@ -38,7 +38,7 @@ class StatsBaseTest(test.APITransactionTestCase):
 
         self.offering = factories.OfferingFactory(
             category=self.category,
-            type=TENANT_TYPE,
+            type=OPENSTACK_TENANT_OFFERING,
             state=OfferingStates.ACTIVE,
         )
         self.offering_component = factories.OfferingComponentFactory(
@@ -284,7 +284,7 @@ class ComponentStatsTest(StatsBaseTest):
                 "service_provider_name": self.resource.offering.customer.name,
                 "service_provider_uuid": sp.uuid.hex,
                 "offering_name": self.offering.name,
-                "offering_type": TENANT_TYPE,
+                "offering_type": OPENSTACK_TENANT_OFFERING,
                 "offering_uuid": self.offering.uuid.hex,
                 "plan_name": self.resource.plan.name,
                 "plan_uuid": self.resource.plan.uuid.hex,
@@ -306,7 +306,7 @@ class ComponentStatsTest(StatsBaseTest):
     def test_component_stats_if_invoice_item_details_includes_plan_component_data(
         self,
     ):
-        self.resource.offering.type = PLUGIN_NAME
+        self.resource.offering.type = SUPPORT_OFFERING
         self.resource.offering.save()
         self.offering_component.billing_type = BillingTypes.FIXED
         self.offering_component.save()
@@ -331,7 +331,7 @@ class ComponentStatsTest(StatsBaseTest):
         )
 
     def test_handler(self):
-        self.resource.offering.type = PLUGIN_NAME
+        self.resource.offering.type = SUPPORT_OFFERING
         self.resource.offering.save()
 
         # add usage-based component to the offering and plan

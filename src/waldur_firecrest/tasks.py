@@ -8,8 +8,8 @@ from waldur_core.core.utils import deserialize_instance
 from waldur_core.structure.managers import get_connected_projects
 from waldur_core.structure.models import Project
 from waldur_firecrest.client import FirecrestException
+from waldur_mastermind.marketplace.enums import SLURM_OFFERING
 from waldur_mastermind.marketplace.models import OfferingUser
-from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 
 from . import utils
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @shared_task(name="waldur_firecrest.pull_jobs")
 def pull_jobs():
     """Pull SLURM jobs from Firecrest API for all offering users with valid OAuth tokens."""
-    for offering_user in OfferingUser.objects.filter(offering__type=PLUGIN_NAME):
+    for offering_user in OfferingUser.objects.filter(offering__type=SLURM_OFFERING):
         try:
             oauth_token = OAuthToken.objects.get(
                 provider="keycloak", user=offering_user.user

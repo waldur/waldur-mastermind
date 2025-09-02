@@ -2,10 +2,14 @@ from rest_framework import test
 from rest_framework.serializers import ValidationError
 
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OrderStates
+from waldur_mastermind.marketplace.enums import (
+    MANAGED_RANCHER_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    RANCHER_OFFERING,
+    OrderStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import STORAGE_MODE_DYNAMIC, TENANT_TYPE
-from waldur_mastermind.marketplace_rancher import MANAGED_RANCHER_PLUGIN, PLUGIN_NAME
+from waldur_mastermind.marketplace_openstack import STORAGE_MODE_DYNAMIC
 from waldur_openstack.tests import (
     factories as openstack_factories,
 )
@@ -25,10 +29,10 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
         self.fixture = openstack_fixtures.OpenStackFixture()
         service_settings = rancher_factories.RancherServiceSettingsFactory()
         self.openstack_offering = marketplace_factories.OfferingFactory(
-            type=TENANT_TYPE, scope=self.fixture.tenant.service_settings
+            type=OPENSTACK_TENANT_OFFERING, scope=self.fixture.tenant.service_settings
         )
         self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, scope=service_settings
+            type=RANCHER_OFFERING, scope=service_settings
         )
 
         self.cpu_number = 8
@@ -41,7 +45,7 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
         self.flavor.tenants.add(self.fixture.tenant)
 
         self.offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_PLUGIN, scope=self.rancher_offering
+            type=MANAGED_RANCHER_OFFERING, scope=self.rancher_offering
         )
         self.offering.plugin_options.update(
             {

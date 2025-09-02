@@ -4,9 +4,9 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.callbacks import resource_creation_canceled
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import BOOKING_OFFERING, ResourceStates
 
-from . import PLUGIN_NAME, calendar, utils
+from . import calendar, utils
 
 
 @shared_task(
@@ -53,7 +53,7 @@ def rename_google_calendar(serialized_google_calendar):
 def reject_past_bookings():
     """Reject booking resources that have start times in the past."""
     resources = marketplace_models.Resource.objects.filter(
-        offering__type=PLUGIN_NAME,
+        offering__type=BOOKING_OFFERING,
         state=ResourceStates.CREATING,
     )
     for resource in resources:

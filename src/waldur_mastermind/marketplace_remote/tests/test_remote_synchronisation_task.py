@@ -7,9 +7,9 @@ import respx
 from rest_framework import test
 
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OfferingStates
+from waldur_mastermind.marketplace.enums import REMOTE_OFFERING, OfferingStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME, models, tasks
+from waldur_mastermind.marketplace_remote import models, tasks
 from waldur_mastermind.marketplace_remote.tests import factories, fixtures
 
 
@@ -67,7 +67,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
     def _create_local_offering(self, **kwargs):
         params = dict(
             customer=self.fixture.service_provider.customer,
-            type=PLUGIN_NAME,
+            type=REMOTE_OFFERING,
             backend_id=self.remote_offering["uuid"],
             secret_options={
                 "api_url": self.api_url,
@@ -205,7 +205,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
 
         self.assertEqual(
             marketplace_models.Offering.objects.filter(
-                type=PLUGIN_NAME,
+                type=REMOTE_OFFERING,
                 secret_options__customer_uuid=remote_organization_uuid.hex,
             ).count(),
             2,

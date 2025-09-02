@@ -7,7 +7,8 @@ from waldur_core.core import utils as core_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_openstack import models as openstack_models
 
-from . import INSTANCE_TYPE, VOLUME_TYPE, utils
+from ..marketplace.enums import OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING
+from . import utils
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +40,8 @@ def sync_instances_and_volumes_of_tenant(serialized_resource):
 def create_resources_for_lost_instances_and_volumes():
     """Create marketplace resources for OpenStack instances and volumes that exist in backend but are missing from marketplace."""
     for offering_type, klass in (
-        (INSTANCE_TYPE, openstack_models.Instance),
-        (VOLUME_TYPE, openstack_models.Volume),
+        (OPENSTACK_INSTANCE_OFFERING, openstack_models.Instance),
+        (OPENSTACK_VOLUME_OFFERING, openstack_models.Volume),
     ):
         ids = marketplace_models.Resource.objects.filter(
             offering__type=offering_type
@@ -59,7 +60,9 @@ def create_resources_for_lost_instances_and_volumes():
 )
 def refresh_instance_backend_metadata():
     """Refresh metadata for OpenStack instances from backend to ensure marketplace resources have up-to-date information."""
-    instances = marketplace_models.Resource.objects.filter(offering__type=INSTANCE_TYPE)
+    instances = marketplace_models.Resource.objects.filter(
+        offering__type=OPENSTACK_INSTANCE_OFFERING
+    )
     for instance in instances:
         resource = marketplace_models.Resource.objects.get(scope=instance)
         utils.import_instance_metadata(resource)

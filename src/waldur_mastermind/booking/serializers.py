@@ -10,7 +10,7 @@ from waldur_mastermind.google import serializers as google_serializers
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.models import Offering
 
-from . import PLUGIN_NAME
+from ..marketplace.enums import BOOKING_OFFERING
 
 
 class BookingSlotSerializer(serializers.ModelSerializer):
@@ -105,7 +105,7 @@ class OfferingSerializer(marketplace_serializers.PublicOfferingDetailsSerializer
 
 
 def get_google_calendar_public(serializer, offering: Offering) -> bool | None:
-    if offering.type != PLUGIN_NAME or not hasattr(offering, "googlecalendar"):
+    if offering.type != BOOKING_OFFERING or not hasattr(offering, "googlecalendar"):
         return
 
     return offering.googlecalendar.public

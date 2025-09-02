@@ -9,6 +9,9 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_INSTANCE_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    OPENSTACK_VOLUME_OFFERING,
     BillingTypes,
     OfferingStates,
     OrderStates,
@@ -30,20 +33,19 @@ from waldur_openstack.tests.helpers import override_openstack_settings
 
 from .. import (
     CORES_TYPE,
-    INSTANCE_TYPE,
     RAM_TYPE,
     STORAGE_MODE_DYNAMIC,
     STORAGE_MODE_FIXED,
     STORAGE_TYPE,
-    TENANT_TYPE,
-    VOLUME_TYPE,
 )
 
 
 class TenantGetTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
-        self.offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
+        self.offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_TENANT_OFFERING
+        )
         self.order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
             offering=self.offering,
@@ -73,7 +75,7 @@ class TenantCreateTest(BaseOpenStackTest):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
             scope=self.fixture.settings,
-            type=TENANT_TYPE,
+            type=OPENSTACK_TENANT_OFFERING,
             state=OfferingStates.ACTIVE,
             plugin_options={"storage_mode": STORAGE_MODE_DYNAMIC},
         )
@@ -334,7 +336,9 @@ class TenantMutateTest(test.APITransactionTestCase):
         super().setUp()
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
-        self.offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
+        self.offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_TENANT_OFFERING
+        )
         self.plan = marketplace_factories.PlanFactory(offering=self.offering)
         self.resource = marketplace_factories.ResourceFactory(
             scope=self.tenant,
@@ -488,9 +492,11 @@ class InstanceCreateTest(test.APITransactionTestCase):
         attributes.update(kwargs)
 
         offering = marketplace_factories.OfferingFactory(
-            type=INSTANCE_TYPE, scope=self.tenant
+            type=OPENSTACK_INSTANCE_OFFERING, scope=self.tenant
         )
-        marketplace_factories.OfferingFactory(type=VOLUME_TYPE, scope=self.tenant)
+        marketplace_factories.OfferingFactory(
+            type=OPENSTACK_VOLUME_OFFERING, scope=self.tenant
+        )
         order = marketplace_factories.OrderFactory(
             offering=offering,
             attributes=attributes,
@@ -508,7 +514,9 @@ class InstanceDeleteTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.instance = self.fixture.instance
-        self.offering = marketplace_factories.OfferingFactory(type=INSTANCE_TYPE)
+        self.offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_INSTANCE_OFFERING
+        )
         self.resource = marketplace_factories.ResourceFactory(
             scope=self.instance, offering=self.offering
         )
@@ -713,7 +721,7 @@ class VolumeCreateTest(test.APITransactionTestCase):
         attributes.update(kwargs)
 
         offering = marketplace_factories.OfferingFactory(
-            type=VOLUME_TYPE, scope=self.fixture.tenant
+            type=OPENSTACK_VOLUME_OFFERING, scope=self.fixture.tenant
         )
 
         order: marketplace_models.Order = marketplace_factories.OrderFactory(
@@ -736,7 +744,9 @@ class VolumeDeleteTest(test.APITransactionTestCase):
         self.volume.runtime_state = "available"
         self.volume.save()
 
-        self.offering = marketplace_factories.OfferingFactory(type=VOLUME_TYPE)
+        self.offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_VOLUME_OFFERING
+        )
         self.resource = marketplace_factories.ResourceFactory(
             scope=self.volume, offering=self.offering
         )
@@ -775,7 +785,9 @@ class VolumeDeleteTest(test.APITransactionTestCase):
 class TenantUpdateLimitTestBase(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
-        self.offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
+        self.offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_TENANT_OFFERING
+        )
         self.plan = marketplace_factories.PlanFactory(offering=self.offering)
         self.resource = marketplace_factories.ResourceFactory(
             offering=self.offering,

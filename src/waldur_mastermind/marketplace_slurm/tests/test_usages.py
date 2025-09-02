@@ -9,11 +9,10 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import BillingTypes
+from waldur_mastermind.marketplace.enums import SLURM_OFFERING, BillingTypes
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 from waldur_slurm.models import AllocationUserUsage
 from waldur_slurm.parser import SlurmReportLine
 from waldur_slurm.tests import factories as slurm_factories
@@ -24,7 +23,7 @@ class ComponentUsageTest(test.APITransactionTestCase):
         fixture = structure_fixtures.ProjectFixture()
         service_settings = structure_factories.ServiceSettingsFactory(type="SLURM")
         offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, scope=service_settings
+            type=SLURM_OFFERING, scope=service_settings
         )
         plan = marketplace_factories.PlanFactory(offering=offering)
         self.allocation = slurm_factories.AllocationFactory()
@@ -40,7 +39,7 @@ class ComponentUsageTest(test.APITransactionTestCase):
             plan=plan,
             start=timezone.make_aware(datetime.datetime.now()),
         )
-        for component in manager.get_components(PLUGIN_NAME):
+        for component in manager.get_components(SLURM_OFFERING):
             offering_component = marketplace_models.OfferingComponent.objects.create(
                 offering=offering,
                 type=component.type,
@@ -89,7 +88,7 @@ class ComponentUsageTest(test.APITransactionTestCase):
         self.allocation.ram_usage = 100
         self.allocation.save()
 
-        for component in manager.get_components(PLUGIN_NAME):
+        for component in manager.get_components(SLURM_OFFERING):
             self.assertTrue(
                 marketplace_models.ComponentQuota.objects.filter(
                     resource=self.resource, component__type=component.type
@@ -121,7 +120,7 @@ class ComponentUsageTest(test.APITransactionTestCase):
         self.allocation.ram_usage = 100
         self.allocation.save()
 
-        for component in manager.get_components(PLUGIN_NAME):
+        for component in manager.get_components(SLURM_OFFERING):
             self.assertTrue(
                 InvoiceItem.objects.filter(
                     resource=self.resource,
@@ -169,7 +168,7 @@ class ComponentUserUsageTest(test.APITransactionTestCase):
         self.resource.scope = self.allocation
         self.resource.save()
         offering = self.fixture.offering
-        offering.type = PLUGIN_NAME
+        offering.type = SLURM_OFFERING
         offering.save()
 
         self.user = self.fixture.user

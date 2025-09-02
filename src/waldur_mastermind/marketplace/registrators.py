@@ -16,9 +16,10 @@ from waldur_mastermind.invoices.utils import (
     get_current_month_end,
     get_full_days,
 )
-from waldur_mastermind.marketplace import PLUGIN_NAME, utils
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils
 from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
     BillingTypes,
     LimitPeriods,
     RequestTypes,
@@ -57,7 +58,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
     - TOTAL: One-time billing for total limit amount
     """
 
-    plugin_name = PLUGIN_NAME
+    plugin_name = BASIC_OFFERING
 
     def _find_item(self, source: marketplace_models.Resource, now):
         """

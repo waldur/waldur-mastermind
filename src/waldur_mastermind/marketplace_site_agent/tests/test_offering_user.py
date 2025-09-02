@@ -10,10 +10,9 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME
 from waldur_mastermind.marketplace_site_agent.tests.fixtures import GlauthUserFixture
 
 
@@ -24,7 +23,7 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
         self.resource = fixture.resource
 
         offering = self.resource.offering
-        offering.type = PLUGIN_NAME
+        offering.type = SITE_AGENT_OFFERING
         offering.plugin_options = {
             "service_provider_can_create_offering_user": True,
             "username_generation_policy": "waldur_username",
@@ -158,7 +157,7 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
         self.resource.save()
 
         self.offering = self.resource.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = SITE_AGENT_OFFERING
         self.offering.plugin_options = {
             "service_provider_can_create_offering_user": True,
             "username_generation_policy": "waldur_username",

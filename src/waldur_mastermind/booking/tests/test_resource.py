@@ -10,7 +10,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
-from .. import PLUGIN_NAME
+from ...marketplace.enums import BOOKING_OFFERING
 from . import fixtures
 
 
@@ -18,7 +18,7 @@ class MarketplaceFixture(fixtures.BookingFixture):
     @cached_property
     def offering(self) -> marketplace_models.Offering:
         return marketplace_factories.OfferingFactory(
-            customer=self.customer, type=PLUGIN_NAME
+            customer=self.customer, type=BOOKING_OFFERING
         )
 
     @cached_property

@@ -17,8 +17,9 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import REMOTE_OFFERING
 from waldur_mastermind.marketplace.models import Order, Resource
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME, models, tasks, utils
+from waldur_mastermind.marketplace_remote import models, tasks, utils
 from waldur_mastermind.marketplace_remote.utils import INVALID_RESOURCE_STATES
 
 logger = logging.getLogger(__name__)
@@ -94,7 +95,7 @@ def create_request_when_project_is_updated(
         payload["created_by"] = user
     offering_ids = (
         marketplace_models.Resource.objects.filter(
-            project=instance, offering__type=PLUGIN_NAME
+            project=instance, offering__type=REMOTE_OFFERING
         )
         .exclude(state__in=INVALID_RESOURCE_STATES)
         .values_list("offering_id", flat=True)
@@ -229,7 +230,7 @@ def update_remote_resource_options(sender, instance: Resource, created=False, **
     if not instance.backend_id:
         return
 
-    if instance.offering.type != PLUGIN_NAME:
+    if instance.offering.type != REMOTE_OFFERING:
         return
 
     transaction.on_commit(lambda: utils.push_resource_options(instance))

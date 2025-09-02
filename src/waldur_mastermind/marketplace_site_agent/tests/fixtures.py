@@ -4,10 +4,13 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    SITE_AGENT_OFFERING,
+    OfferingStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace_site_agent import PLUGIN_NAME
 from waldur_slurm.tests import factories as slurm_factories
 
 
@@ -15,7 +18,7 @@ class MarketplaceSiteAgentFixture(marketplace_fixtures.MarketplaceFixture):
     @cached_property
     def offering(self):
         return marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME,
+            type=SITE_AGENT_OFFERING,
             state=OfferingStates.ACTIVE,
             project=self.offering_project,
             customer=self.offering_customer,
@@ -40,7 +43,7 @@ class MarketplaceSiteAgentFixture(marketplace_fixtures.MarketplaceFixture):
 class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
     def __init__(self):
         super().__init__()
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = SITE_AGENT_OFFERING
         self.offering.plugin_options = {
             "service_provider_can_create_offering_user": True,
             "username_generation_policy": "waldur_username",
@@ -82,7 +85,7 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
     def offering_user_without_resources(self):
         # Create a new offering without any resources
         offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME,
+            type=SITE_AGENT_OFFERING,
             customer=self.offering_customer,
             plugin_options={
                 "service_provider_can_create_offering_user": True,
@@ -105,7 +108,7 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
     def offering_user_with_terminated_resource(self):
         # Create a new offering with a terminated resource
         offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME,
+            type=SITE_AGENT_OFFERING,
             customer=self.offering_customer,
             plugin_options={
                 "service_provider_can_create_offering_user": True,

@@ -21,9 +21,13 @@ from waldur_core.structure.tests.factories import (
 )
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    REMOTE_OFFERING,
+    OfferingStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories, fixtures
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME, tasks, utils
+from waldur_mastermind.marketplace_remote import tasks, utils
 from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
 from waldur_mastermind.marketplace_remote.tests.utils import get_request_data
 
@@ -41,7 +45,7 @@ class SyncRemoteProjectPermissionsTest(testcases.TransactionTestCase):
         self.resource = self.fixture.resource
         self.resource.state = ResourceStates.OK
         self.resource.save()
-        self.resource.offering.type = PLUGIN_NAME
+        self.resource.offering.type = REMOTE_OFFERING
         self.api_url = "https://example.com"
         self.resource.offering.secret_options = {
             "api_url": self.api_url,
@@ -353,7 +357,7 @@ class DeleteRemoteProjectsTest(testcases.TransactionTestCase):
         self.backend_id = f"{self.project.customer.uuid}_{self.project.uuid}"
         self.api_url = "http://example.com"
         self.offering = factories.OfferingFactory(
-            type=PLUGIN_NAME,
+            type=REMOTE_OFFERING,
             state=OfferingStates.ACTIVE,
             secret_options={"api_url": self.api_url, "token": "token"},
         )
@@ -463,7 +467,7 @@ class ResourceOrderImportTest(testcases.TransactionTestCase):
         self.resource = self.fixture.resource
         self.resource.backend_id = uuid.uuid4().hex
         self.resource.save()
-        self.resource.offering.type = PLUGIN_NAME
+        self.resource.offering.type = REMOTE_OFFERING
         self.api_url = "https://example.com"
         self.resource.offering.secret_options = {
             "api_url": self.api_url,
@@ -664,7 +668,7 @@ class OfferingListPullTaskTest(testcases.TransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = REMOTE_OFFERING
         self.api_url = "https://example.com"
         self.offering.secret_options = {
             "api_url": self.api_url,
@@ -769,7 +773,7 @@ class OfferingUserPullTaskTest(testcases.TransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
+        self.offering.type = REMOTE_OFFERING
         self.offering.backend_id = uuid.uuid4().hex
         self.offering.secret_options = {
             "api_url": "https://example.com/",
@@ -833,7 +837,7 @@ class UsagePullTest(testcases.TransactionTestCase):
         self.resource = self.fixture.resource
         self.resource.backend_id = uuid.uuid4().hex
         self.resource.save()
-        self.resource.offering.type = PLUGIN_NAME
+        self.resource.offering.type = REMOTE_OFFERING
         self.api_url = "https://example.com"
         self.resource.offering.secret_options = {
             "api_url": self.api_url,

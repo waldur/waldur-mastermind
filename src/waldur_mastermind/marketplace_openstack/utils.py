@@ -13,6 +13,11 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.structure.backend import ServiceBackend
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_INSTANCE_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    OPENSTACK_VOLUME_OFFERING,
+)
 from waldur_mastermind.marketplace.utils import (
     get_resource_state,
     import_current_usages,
@@ -20,13 +25,10 @@ from waldur_mastermind.marketplace.utils import (
 )
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
-    INSTANCE_TYPE,
     RAM_TYPE,
     STORAGE_MODE_DYNAMIC,
     STORAGE_MODE_FIXED,
     STORAGE_TYPE,
-    TENANT_TYPE,
-    VOLUME_TYPE,
 )
 from waldur_openstack import (
     executors as openstack_executors,
@@ -61,18 +63,18 @@ def get_offering_category_for_volume():
 
 
 def get_category_and_name_for_offering_type(offering_type, tenant):
-    if offering_type == INSTANCE_TYPE:
+    if offering_type == OPENSTACK_INSTANCE_OFFERING:
         category = get_offering_category_for_instance()
         name = get_offering_name_for_instance(tenant)
         return category, name
-    elif offering_type == VOLUME_TYPE:
+    elif offering_type == OPENSTACK_VOLUME_OFFERING:
         category = get_offering_category_for_volume()
         name = get_offering_name_for_volume(tenant)
         return category, name
 
 
 def create_offering_components(offering):
-    fixed_components = plugins.manager.get_components(TENANT_TYPE)
+    fixed_components = plugins.manager.get_components(OPENSTACK_TENANT_OFFERING)
 
     for component_data in fixed_components:
         marketplace_models.OfferingComponent.objects.create(
@@ -371,7 +373,7 @@ def create_offerings_for_volume_and_instance(tenant: openstack_models.Tenant):
         return
 
     parent_offering = resource.offering
-    for offering_type in (INSTANCE_TYPE, VOLUME_TYPE):
+    for offering_type in (OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING):
         try:
             category, offering_name = get_category_and_name_for_offering_type(
                 offering_type, tenant
@@ -442,7 +444,9 @@ def create_marketplace_resource_for_imported_resources(
     )
 
     if isinstance(instance, openstack_models.Instance):
-        offering = offering or get_offering(INSTANCE_TYPE, instance.tenant)
+        offering = offering or get_offering(
+            OPENSTACK_INSTANCE_OFFERING, instance.tenant
+        )
 
         if not offering:
             return
@@ -455,7 +459,7 @@ def create_marketplace_resource_for_imported_resources(
         update_external_addresses_of_resource(resource)
 
     if isinstance(instance, openstack_models.Volume):
-        offering = offering or get_offering(VOLUME_TYPE, instance.tenant)
+        offering = offering or get_offering(OPENSTACK_VOLUME_OFFERING, instance.tenant)
 
         if not offering:
             return
@@ -467,7 +471,9 @@ def create_marketplace_resource_for_imported_resources(
         import_volume_metadata(resource)
 
     if isinstance(instance, openstack_models.Tenant):
-        offering = offering or get_offering(TENANT_TYPE, instance.service_settings)
+        offering = offering or get_offering(
+            OPENSTACK_TENANT_OFFERING, instance.service_settings
+        )
 
         if not offering:
             return
@@ -553,7 +559,7 @@ def update_external_addresses_of_offering_floating_ips(
     parent_offering: marketplace_models.Offering,
 ):
     offerings = marketplace_models.Offering.objects.filter(
-        parent=parent_offering, type=INSTANCE_TYPE
+        parent=parent_offering, type=OPENSTACK_INSTANCE_OFFERING
     )
 
     if not offerings:

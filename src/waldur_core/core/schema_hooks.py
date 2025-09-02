@@ -304,7 +304,7 @@ def add_polymorphic_attributes_schema(result, generator, **kwargs):
     Preprocessing hook to add polymorphic schema for the 'attributes' field
     in order creation endpoints based on offering types.
     """
-    from waldur_mastermind.marketplace.plugins import manager
+    from waldur_mastermind.marketplace.plugins import manager  # test-dependency-ignore
 
     result_schemas = result.get("components", {}).get("schemas", {})
     offering_schemas = []
@@ -370,7 +370,9 @@ def create_offering_attributes_schema(processor_class, generator):
     Create schema for attributes field specific to an offering type.
     This extracts the field definitions from the processor configuration.
     """
-    from waldur_mastermind.marketplace.views import OrderViewSet
+    from waldur_mastermind.marketplace.views import (
+        OrderViewSet,
+    )  # test-dependency-ignore
 
     if getattr(processor_class, "create_serializer_class", None):
         serializer_class = processor_class.create_serializer_class

@@ -2,9 +2,12 @@ from unittest import mock
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_INSTANCE_OFFERING,
+    OPENSTACK_VOLUME_OFFERING,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE, VOLUME_TYPE
 from waldur_openstack import models as openstack_models
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests.fixtures import OpenStackFixture
@@ -18,7 +21,7 @@ class TaskTest(BaseOpenStackTest):
         super().setUp()
         self.fixture = OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
-            scope=self.fixture.tenant, type=INSTANCE_TYPE
+            scope=self.fixture.tenant, type=OPENSTACK_INSTANCE_OFFERING
         )
         self.instance = self.fixture.instance
 
@@ -40,10 +43,10 @@ class TaskSyncTenantTest(BaseOpenStackTest):
             project=self.instance.project,
         )
         self.instance_offering = marketplace_factories.OfferingFactory(
-            scope=self.instance.tenant, type=INSTANCE_TYPE
+            scope=self.instance.tenant, type=OPENSTACK_INSTANCE_OFFERING
         )
         self.volume_offering = marketplace_factories.OfferingFactory(
-            scope=self.volume.tenant, type=VOLUME_TYPE
+            scope=self.volume.tenant, type=OPENSTACK_VOLUME_OFFERING
         )
 
     def test_sync_instances_if_tenant_has_been_synchronized(self, mock_backend):

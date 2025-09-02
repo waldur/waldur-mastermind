@@ -8,10 +8,10 @@ from waldur_autoprovisioning.tests import factories as autoprovisioning_factorie
 from waldur_core.core.models import User
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.marketplace import PLUGIN_NAME as MARKETPLACE_BASIC
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import BASIC_OFFERING as MARKETPLACE_BASIC
+from waldur_mastermind.marketplace.enums import OPENSTACK_TENANT_OFFERING
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 
 
 class HandleNewUserTest(TestCase):
@@ -25,7 +25,7 @@ class HandleNewUserTest(TestCase):
         )
 
         self.plan_2 = marketplace_factories.PlanFactory()
-        self.plan_2.offering.type = TENANT_TYPE
+        self.plan_2.offering.type = OPENSTACK_TENANT_OFFERING
         self.plan_2.offering.save()
 
         self.rule_2 = autoprovisioning_factories.RuleFactory(

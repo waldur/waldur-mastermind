@@ -2,6 +2,12 @@ from django.apps import AppConfig
 from django.conf import settings
 from django.db.models import signals
 
+from ..marketplace.enums import (
+    OPENSTACK_INSTANCE_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    OPENSTACK_VOLUME_OFFERING,
+)
+
 
 def get_secret_attributes():
     if not settings.WALDUR_OPENSTACK["TENANT_CREDENTIALS_VISIBLE"]:
@@ -40,9 +46,6 @@ class MarketplaceOpenStackConfig(AppConfig):
 
         from . import (
             AVAILABLE_LIMITS,
-            INSTANCE_TYPE,
-            TENANT_TYPE,
-            VOLUME_TYPE,
             handlers,
             processors,
             utils,
@@ -69,7 +72,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         marketplace_handlers.connect_resource_handlers(*resource_models)
 
         manager.register(
-            offering_type=TENANT_TYPE,
+            offering_type=OPENSTACK_TENANT_OFFERING,
             create_resource_processor=processors.TenantCreateProcessor,
             update_resource_processor=processors.TenantUpdateProcessor,
             delete_resource_processor=processors.TenantDeleteProcessor,
@@ -88,7 +91,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         manager.register(
-            offering_type=INSTANCE_TYPE,
+            offering_type=OPENSTACK_INSTANCE_OFFERING,
             create_resource_processor=processors.InstanceCreateProcessor,
             delete_resource_processor=processors.InstanceDeleteProcessor,
             get_importable_resources_backend_method="get_importable_instances",
@@ -99,7 +102,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         manager.register(
-            offering_type=VOLUME_TYPE,
+            offering_type=OPENSTACK_VOLUME_OFFERING,
             create_resource_processor=processors.VolumeCreateProcessor,
             delete_resource_processor=processors.VolumeDeleteProcessor,
             get_importable_resources_backend_method="get_importable_volumes",

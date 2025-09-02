@@ -12,15 +12,15 @@ from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models, registrators, utils
 from waldur_mastermind.invoices.tests import factories
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import SUPPORT_OFFERING
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 
 
 class BaseSupportInvoiceTest(TransactionTestCase):
     def setUp(self):
         self.fixture = support_fixtures.SupportFixture()
-        self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
+        self.offering = marketplace_factories.OfferingFactory(type=SUPPORT_OFFERING)
         offering_component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering
         )
@@ -134,7 +134,7 @@ class ResourceDeletionInvoiceTest(BaseSupportInvoiceTest):
 
     def get_invoice_items(self, invoice):
         resources_ids = marketplace_models.Resource.objects.filter(
-            offering__type=PLUGIN_NAME
+            offering__type=SUPPORT_OFFERING
         ).values_list("id", flat=True)
         return models.InvoiceItem.objects.filter(
             invoice=invoice,

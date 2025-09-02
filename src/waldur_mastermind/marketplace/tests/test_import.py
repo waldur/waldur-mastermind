@@ -6,7 +6,7 @@ from rest_framework import status, test
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import PLUGIN_NAME
+from waldur_mastermind.marketplace.enums import BASIC_OFFERING
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace_azure import VIRTUAL_MACHINE_TYPE
 
@@ -29,7 +29,7 @@ class ImportableOfferingsListTest(test.APITransactionTestCase):
         return self.client.get(list_url, {"importable": True}).data
 
     def test_if_plugin_does_not_support_import_related_offering_is_filtered_out(self):
-        offerings = self.list_offerings(shared=True, user="staff", type=PLUGIN_NAME)
+        offerings = self.list_offerings(shared=True, user="staff", type=BASIC_OFFERING)
         self.assertEqual(0, len(offerings))
 
     def test_staff_can_list_importable_shared_offerings(self):

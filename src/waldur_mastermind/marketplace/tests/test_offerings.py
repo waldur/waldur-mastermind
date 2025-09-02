@@ -37,6 +37,8 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, serializers, utils
 from waldur_mastermind.marketplace.enums import (
+    SUPPORT_OFFERING,
+    VMWARE_VM_OFFERING,
     BillingTypes,
     OfferingStates,
     OrderStates,
@@ -52,8 +54,6 @@ from waldur_mastermind.marketplace.management.commands.import_offering import (
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
-from waldur_mastermind.marketplace_vmware import VIRTUAL_MACHINE_TYPE
 
 from . import fixtures as marketplace_fixtures
 
@@ -800,7 +800,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             "name": "offering",
             "category": factories.CategoryFactory.get_url(category),
             "customer": structure_factories.CustomerFactory.get_url(self.customer),
-            "type": PLUGIN_NAME,
+            "type": SUPPORT_OFFERING,
             "attributes": {"vendorType": "reseller"},
         }
 
@@ -858,7 +858,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             "name": "offering",
             "category": factories.CategoryFactory.get_url(),
             "customer": structure_factories.CustomerFactory.get_url(self.customer),
-            "type": PLUGIN_NAME,
+            "type": SUPPORT_OFFERING,
             "plans": [
                 {
                     "name": "Small",
@@ -1092,7 +1092,7 @@ class OfferingComponentRemoveTest(BaseOfferingUpdateTest):
 
     def test_it_should_not_be_possible_to_remove_builtin_components(self):
         # Arrange
-        self.offering.type = VIRTUAL_MACHINE_TYPE
+        self.offering.type = VMWARE_VM_OFFERING
         self.offering.save()
 
         cpu_component = factories.OfferingComponentFactory(
@@ -2231,7 +2231,7 @@ class OfferingCreateComponentsTest(test.APITransactionTestCase):
     @data("offering_owner", "service_manager")
     def test_offering_components_create_to_builtin_type_failed(self, user):
         self.client.force_login(getattr(self.fixture, user))
-        self.offering.type = VIRTUAL_MACHINE_TYPE
+        self.offering.type = VMWARE_VM_OFFERING
         self.offering.save()
 
         payload = {
@@ -2319,7 +2319,7 @@ class OfferingUpdateComponentsTest(test.APITransactionTestCase):
     @data("offering_owner", "service_manager")
     def test_offering_components_update_to_builtin_type_failed(self, user):
         self.client.force_login(getattr(self.fixture, user))
-        self.offering.type = VIRTUAL_MACHINE_TYPE
+        self.offering.type = VMWARE_VM_OFFERING
         self.offering.save()
 
         payload = {

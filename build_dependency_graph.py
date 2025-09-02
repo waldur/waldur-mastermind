@@ -1,0 +1,241 @@
+#!/usr/bin/env python
+"""
+Builds a dependency graph of Django applications within the Waldur project.
+
+Purpose:
+This script performs static analysis on the Python source code to determine which
+Django applications depend on others. This is crucial for optimizing CI/CD pipelines
+by allowing us to run tests only for the applications that could have been affected
+by a given code change.
+
+Output Format:
+The script generates a 'dependency_graph.yaml' file in the project root.
+The format is a mapping where each key is an application and its value is a
+list of applications it directly depends on. For example:
+
+    waldur_mastermind.marketplace:
+    - waldur_core.core
+    - waldur_core.structure
+
+This signifies that 'waldur_mastermind.marketplace' depends on 'waldur_core.core'
+and 'waldur_core.structure'.
+"""
+
+import ast
+import logging
+import re
+import sys
+from pathlib import Path
+from typing import Dict, Optional, Set
+
+# --- Third-party Library Imports and Checks ---
+
+try:
+    import yaml
+except ImportError:
+    print("Error: 'PyYAML' library not found.", file=sys.stderr)
+    print("Please install it: pip install PyYAML", file=sys.stderr)
+    sys.exit(1)
+
+
+# --- Configuration Constants ---
+
+# Define the project root as the directory containing this script.
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+# The source directory containing all Django applications.
+SRC_ROOT = PROJECT_ROOT / "src"
+
+# The name of the file where the generated YAML graph will be saved.
+GRAPH_OUTPUT_YAML_FILE = PROJECT_ROOT / "dependency_graph.yaml"
+
+# Directories to exclude from the analysis within each app.
+EXCLUDED_DIRS = ("tests", "migrations", "management")
+
+# Configure logging for clear and informative output.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+# The magic comment string that, if present on an import line, will cause
+# the script to ignore that import for dependency tracking.
+IGNORE_COMMENT_MARKER = "test-dependency-ignore"
+
+
+def find_django_apps(src_path: Path) -> Dict[str, Path]:
+    """
+    Recursively scans the source directory to find all valid Django apps.
+    Identifies apps by their 'apps.py' file and extracts the canonical name.
+    """
+    logging.info(f"Recursively searching for Django apps in: {src_path}")
+    if not src_path.is_dir():
+        logging.error(f"Source directory not found at the expected path: {src_path}")
+        sys.exit(1)
+
+    apps = {}
+    for app_config_path in src_path.rglob("apps.py"):
+        app_dir = app_config_path.parent
+        try:
+            with open(app_config_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            match = re.search(r"name\s*=\s*['\"]([^'\"]+)['\"]", content)
+            if not match:
+                logging.warning(
+                    f"Could not find AppConfig 'name' in {app_config_path}. Skipping."
+                )
+                continue
+            canonical_name = match.group(1)
+            apps[canonical_name] = app_dir
+        except Exception as e:
+            logging.error(f"Failed to parse {app_config_path}: {e}")
+
+    if not apps:
+        logging.warning("No Django apps were found. The resulting graph will be empty.")
+    else:
+        logging.info(f"Found {len(apps)} apps.")
+    return apps
+
+
+def resolve_import_to_app(
+    module_str: Optional[str], project_apps: Set[str]
+) -> Optional[str]:
+    """
+    Resolves a Python import string to the longest matching project app name.
+    This correctly handles nested apps.
+    """
+    if not module_str:
+        return None
+    best_match = None
+    for app_name in project_apps:
+        if module_str == app_name or module_str.startswith(app_name + "."):
+            if best_match is None or len(app_name) > len(best_match):
+                best_match = app_name
+    return best_match
+
+
+def should_ignore_import(node: ast.AST, source_lines: list[str], marker: str) -> bool:
+    """
+    Checks if an import node should be ignored based on a comment marker.
+
+    This function is robust and handles multi-line imports by checking all
+    lines that the AST node spans.
+
+    Args:
+        node: The ast.Import or ast.ImportFrom node.
+        source_lines: A list of all source code lines from the file.
+        marker: The string to search for in a comment.
+
+    Returns:
+        True if the import should be ignored, False otherwise.
+    """
+    # AST line numbers are 1-based, so we subtract 1 for 0-based list indexing.
+    start_line_idx = node.lineno - 1
+    # Safely get the end line number; default to start line if not present.
+    end_line_idx = getattr(node, "end_lineno", node.lineno) - 1
+
+    # Check every line spanned by the import statement.
+    for i in range(start_line_idx, end_line_idx + 1):
+        if marker in source_lines[i]:
+            return True
+    return False
+
+
+def build_dependency_graph():
+    """Main function to build and save the dependency graph."""
+    project_apps_map = find_django_apps(SRC_ROOT)
+    project_app_names = set(project_apps_map.keys())
+
+    # Initialize a dictionary to hold the dependency data.
+    # The keys will be app names, and the values will be sets of their dependencies.
+    # Using a set automatically handles duplicates.
+    dependency_map: Dict[str, Set[str]] = {
+        app_name: set() for app_name in project_app_names
+    }
+
+    if not project_app_names:
+        logging.info("Skipping code analysis as no apps were found.")
+    else:
+        logging.info("Starting analysis of application source code...")
+
+    # The analysis loop populates our dependency_map dictionary.
+    for source_app_name, app_dir in project_apps_map.items():
+        for py_file in app_dir.rglob("*.py"):
+            if any(excluded in py_file.parts for excluded in EXCLUDED_DIRS):
+                continue
+            try:
+                # Read the entire file content once to get lines and parse the AST.
+                with open(py_file, "r", encoding="utf-8") as f:
+                    source_code = f.read()
+                    source_lines = source_code.splitlines()
+                    tree = ast.parse(source_code, filename=py_file.name)
+                for node in ast.walk(tree):
+                    # We only care about import nodes.
+                    if not isinstance(node, ast.ImportFrom | ast.Import):
+                        continue
+
+                    # --- NEW: Check if the import should be ignored ---
+                    if should_ignore_import(node, source_lines, IGNORE_COMMENT_MARKER):
+                        # Log the ignored import for visibility and debugging.
+                        logging.info(
+                            f"Ignoring import on line {node.lineno} in {py_file.name} due to '{IGNORE_COMMENT_MARKER}' comment."
+                        )
+                        continue  # Skip to the next node in the AST
+
+                    dependency_app_name = None
+                    if isinstance(node, ast.ImportFrom):
+                        if node.level == 0 and node.module:
+                            dependency_app_name = resolve_import_to_app(
+                                node.module, project_app_names
+                            )
+                    elif isinstance(node, ast.Import):
+                        for alias in node.names:
+                            imported_module_name = resolve_import_to_app(
+                                alias.name, project_app_names
+                            )
+                            if (
+                                imported_module_name
+                                and source_app_name != imported_module_name
+                            ):
+                                # Add the dependency directly to the set.
+                                dependency_map[source_app_name].add(
+                                    imported_module_name
+                                )
+
+                    if dependency_app_name and source_app_name != dependency_app_name:
+                        # Add the dependency directly to the set.
+                        dependency_map[source_app_name].add(dependency_app_name)
+
+            except Exception as e:
+                logging.warning(f"Could not parse {py_file}: {e}")
+
+    # --- Prepare the final dictionary for YAML output ---
+    logging.info("Preparing final map for YAML output.")
+    final_yaml_map = {}
+    total_dependencies = 0
+    # Iterate through apps in sorted order for a deterministic YAML file.
+    for app_name in sorted(dependency_map.keys()):
+        dependencies = sorted(list(dependency_map[app_name]))
+        if dependencies:
+            final_yaml_map[app_name] = dependencies
+            total_dependencies += len(dependencies)
+
+    # --- Write the dictionary to a YAML file ---
+    try:
+        with open(GRAPH_OUTPUT_YAML_FILE, "w", encoding="utf-8") as f:
+            yaml.dump(final_yaml_map, f, sort_keys=False, default_flow_style=False)
+        logging.info(f"Successfully wrote dependency graph to {GRAPH_OUTPUT_YAML_FILE}")
+    except Exception as e:
+        logging.error(f"Failed to write YAML file: {e}")
+        sys.exit(1)
+
+    # --- Final Summary ---
+    logging.info("-" * 50)
+    logging.info("Graph Generation Summary")
+    logging.info(f"  - Total Apps Found: {len(project_app_names)}")
+    logging.info(f"  - Apps with Dependencies: {len(final_yaml_map)}")
+    logging.info(f"  - Total Dependency Links: {total_dependencies}")
+    logging.info("-" * 50)
+
+    print("\nScript finished successfully.")
+
+
+if __name__ == "__main__":
+    build_dependency_graph()
