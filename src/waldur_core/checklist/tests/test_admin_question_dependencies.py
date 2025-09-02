@@ -219,14 +219,25 @@ class QuestionVisibilityTest(test.APITransactionTestCase):
         self.user = self.fixture.user
 
     def test_question_visibility_with_dependencies(self):
+        # Create completion for visibility testing
+        from waldur_core.checklist.models import ChecklistCompletion
+        from waldur_core.structure.tests.fixtures import ProjectFixture
+
+        project_fixture = ProjectFixture()
+        completion = ChecklistCompletion.objects.create(
+            checklist=self.fixture.checklist,
+            scope=project_fixture.project,
+        )
+
         self.assertEqual(
-            len(self.fixture.checklist.get_visible_questions(self.user)), 1
+            len(self.fixture.checklist.get_visible_questions(completion)), 1
         )
         factories.AnswerFactory(
             question=self.fixture.question,
             user=self.user,
+            completion=completion,
             answer_data="my first answer",
         )
         self.assertEqual(
-            len(self.fixture.checklist.get_visible_questions(self.user)), 2
+            len(self.fixture.checklist.get_visible_questions(completion)), 2
         )
