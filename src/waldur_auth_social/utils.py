@@ -82,9 +82,6 @@ def create_or_update_oauth_user(
     payload = get_user_payload(identity_provider, backend_user)
     lookup_params = get_lookup_params(identity_provider, backend_user)
 
-    if "username" not in payload and "username" not in lookup_params:
-        payload["username"] = uuid.uuid4().hex[:30]
-
     try:
         created = False
         # Use all_objects to reactivate a user who might have been deactivated
@@ -108,6 +105,10 @@ def create_or_update_oauth_user(
 
     except User.DoesNotExist:
         created = True
+
+        if "username" not in payload and "username" not in lookup_params:
+            payload["username"] = uuid.uuid4().hex[:30]
+
         merged_dict = {**lookup_params, **payload}
         registration_method = identity_provider.provider
         if identity_provider.provider == ProviderChoices.REMOTE_EDUTEAMS:
