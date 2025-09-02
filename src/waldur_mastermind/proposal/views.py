@@ -931,10 +931,13 @@ class ReviewViewSet(ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         proposal = serializer.validated_data["proposal"]
 
-        if not has_permission(
-            request.user,
-            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            proposal.round.call,
+        user = request.user
+        permission = PermissionEnum.MANAGE_PROPOSAL_REVIEW
+        call = proposal.round.call
+
+        if not (
+            has_permission(user, permission, call)
+            or has_permission(user, permission, call.manager)
         ):
             raise exceptions.PermissionDenied()
 

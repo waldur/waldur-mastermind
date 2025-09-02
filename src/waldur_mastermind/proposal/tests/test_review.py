@@ -66,7 +66,7 @@ class ReviewCreateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.ReviewFactory.get_list_url()
 
-    @data("staff", "call_manager")
+    @data("staff", "call_manager", "call_organizer_user")
     def test_user_can_add(self, user):
         response = self.create(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
