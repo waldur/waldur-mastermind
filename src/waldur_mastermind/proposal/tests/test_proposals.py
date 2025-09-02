@@ -220,7 +220,9 @@ class ActionTest(test.APITransactionTestCase):
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.DRAFT
         self.proposal.save()
-        self.url = factories.ProposalFactory.get_url(self.proposal, "submit")
+        self.submit_url = factories.ProposalFactory.get_url(self.proposal, "submit")
+        self.approve_url = factories.ProposalFactory.get_url(self.proposal, "approve")
+        self.reject_url = factories.ProposalFactory.get_url(self.proposal, "reject")
         structure_factories.NotificationFactory(
             key="proposal.proposal_state_changed",
         )
@@ -241,7 +243,7 @@ class ActionTest(test.APITransactionTestCase):
     def test_user_can_submit_proposal(self, user, mock_notify):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.post(self.url)
+        response = self.client.post(self.submit_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.proposal.refresh_from_db()
         self.assertTrue(self.proposal.state, ProposalStates.SUBMITTED)
@@ -256,7 +258,7 @@ class ActionTest(test.APITransactionTestCase):
         call_manager = self.fixture.call_manager
         self.proposal.round.call.add_user(call_manager, CallRole.MANAGER)
         self.client.force_authenticate(user)
-        self.client.post(self.url)
+        self.client.post(self.submit_url)
         # Verify that notification email has been sent to proposal creator
         self.assertEqual(len(mail.outbox), 2)
         self.assertEqual(mail.outbox[0].to, [user.email])
@@ -295,7 +297,7 @@ class ActionTest(test.APITransactionTestCase):
     def test_user_can_not_submit_proposal(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.post(self.url)
+        response = self.client.post(self.submit_url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @override_settings(task_always_eager=True)
@@ -305,8 +307,7 @@ class ActionTest(test.APITransactionTestCase):
 
         self.client.force_authenticate(self.fixture.staff)
 
-        url_approve = factories.ProposalFactory.get_url(self.proposal, "approve")
-        response = self.client.post(url_approve)
+        response = self.client.post(self.approve_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.proposal.refresh_from_db()
         self.assertTrue(self.proposal.project)
@@ -355,8 +356,9 @@ class ActionTest(test.APITransactionTestCase):
         self.proposal.save()
 
         self.client.force_authenticate(self.fixture.staff)
-        url_reject = factories.ProposalFactory.get_url(self.proposal, "reject")
-        response = self.client.post(url_reject, {"allocation_comment": "Not suitable"})
+        response = self.client.post(
+            self.reject_url, {"allocation_comment": "Not suitable"}
+        )
 
         self.proposal.refresh_from_db()
 
@@ -378,6 +380,36 @@ class ActionTest(test.APITransactionTestCase):
         self.assertIn(self.proposal.state, body)
         self.assertIn("Not suitable", body)
         self.assertIn(self.fixture.reviewer_1.full_name, body)
+
+    @data(
+        "call_manager",
+        "call_organizer_user",
+    )
+    def test_user_can_approve_or_reject(self, user):
+        accept_response, reject_response = self._approve_reject_proposal(user)
+        self.assertEqual(accept_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(reject_response.status_code, status.HTTP_200_OK)
+
+    @data(
+        "proposal_creator",
+    )
+    def test_user_can_not_approve_or_reject(self, user):
+        accept_response, reject_response = self._approve_reject_proposal(user)
+        self.assertEqual(accept_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(reject_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def _approve_reject_proposal(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        self.proposal.state = ProposalStates.SUBMITTED
+        self.proposal.save()
+        accept_response = self.client.post(self.approve_url)
+
+        self.proposal.state = ProposalStates.SUBMITTED
+        self.proposal.save()
+
+        reject_response = self.client.post(self.reject_url)
+        return accept_response, reject_response
 
 
 @ddt
