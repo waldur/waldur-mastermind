@@ -13,6 +13,9 @@ src/waldur_core/server/settings.py
 /.project
 /.pydevproject
 
+# llm
+.claude/settings.local.json
+
 # Testing artifacts
 
 TEST-*.xml
