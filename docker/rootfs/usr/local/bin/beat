@@ -3,6 +3,64 @@ set -e
 
 echo "INFO: Running Celery Beat..."
 source /etc/waldur/celery.conf
+
+# Self-recovery: Try to detect and fix queue problems without data loss
+echo "INFO: Performing automatic queue health check..."
+
+# Try a quick beat startup test to detect queue problems
+TEMP_LOG=$(mktemp)
+
+# Disable exit-on-error temporarily for this test
+set +e
+{
+    # Start beat in background, capture all output, and kill it after 3 seconds
+    celery -A $CELERY_APP beat --loglevel=CRITICAL > "$TEMP_LOG" 2>&1 &
+    TEST_PID=$!
+
+    # Give beat 3 seconds to either start or fail
+    sleep 3
+
+    # Kill the test process
+    kill $TEST_PID 2>/dev/null
+    wait $TEST_PID 2>/dev/null
+} >/dev/null 2>&1
+set -e
+
+# Check if we caught the supervisor error
+if grep -q "process is stopped by supervisor" "$TEMP_LOG" 2>/dev/null; then
+    echo "WARNING: Detected 'process is stopped by supervisor' queue error"
+    echo "WARNING: Attempting to fix queue state (preserving messages)..."
+
+    # Option 1: Try to force queue redeclaration through amqp-declare-queue
+    # This uses Celery's amqp command to redeclare queues without purging
+    for queue in tasks heavy background; do
+        echo "INFO: Attempting to redeclare queue '$queue'..."
+        celery -A $CELERY_APP amqp queue.declare $queue false true false 2>/dev/null || {
+            echo "INFO: Could not redeclare queue '$queue', may need manual intervention"
+        }
+    done
+
+    # Option 2: If redeclaration doesn't work, try deleting and recreating the queue
+    # This is a last resort and will lose messages, so we only do it if explicitly enabled
+    if [ "$CELERY_FORCE_QUEUE_RESET" = "true" ]; then
+        echo "WARNING: FORCE RESET enabled - queues will be purged (data loss!)"
+        for queue in tasks heavy background; do
+            echo "INFO: Force purging queue '$queue'..."
+            celery -A $CELERY_APP purge -Q $queue --force 2>/dev/null || true
+        done
+    else
+        echo "INFO: To force queue reset (with data loss), set CELERY_FORCE_QUEUE_RESET=true"
+    fi
+
+    sleep 1
+    echo "INFO: Queue recovery attempt completed"
+else
+    echo "INFO: Queue health check passed"
+fi
+
+# Clean up
+rm -f "$TEMP_LOG"
+
 cd /run/waldur/celerybeat
 celery -A $CELERY_APP beat --loglevel=$CELERYBEAT_LOG_LEVEL --pidfile=$CELERYBEAT_PID_FILE $CELERYBEAT_OPTS
 
