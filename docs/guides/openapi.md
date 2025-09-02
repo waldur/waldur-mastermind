@@ -131,21 +131,105 @@ Located in `schema_hooks.py`, these functions perform powerful, sweeping modific
 
 ---
 
-## 6. Best Practices and Conventions
+## 6. Query Parameters and Enum Definitions
+
+### Ordering Parameters
+
+When implementing ordering functionality for API endpoints, proper OpenAPI schema documentation is crucial for API consumers. Waldur uses the convention of `o` as the ordering parameter name (configured in `ORDERING_PARAM`).
+
+#### Best Practice: Explicit Enum Definitions
+
+Instead of using a generic `str` type for ordering parameters, define explicit enums that list all supported ordering fields:
+
+```python
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            "o",
+            {"type": "string", "enum": [
+                "project_name", "-project_name",
+                "resource_name", "-resource_name",
+                "provider_name", "-provider_name",
+                "name", "-name"
+            ]},
+            OpenApiParameter.QUERY,
+            description="Order results by field",
+        ),
+    ],
+)
+@action(detail=True)
+def items(self, request, uuid=None):
+    # Implementation...
+```
+
+This approach generates proper OpenAPI schema:
+
+```yaml
+- in: query
+  name: o
+  schema:
+    type: string
+    enum:
+    - project_name
+    - -project_name
+    - resource_name
+    - -resource_name
+    - provider_name
+    - -provider_name
+    - name
+    - -name
+  description: Order results by field
+```
+
+#### Benefits
+
+- **API Documentation**: Clear enumeration of supported ordering fields
+- **Client Generation**: Generated clients include proper validation and auto-completion
+- **Frontend Integration**: UI components can dynamically generate ordering controls
+- **API Testing**: Testing tools can validate ordering parameters automatically
+
+#### Implementation Pattern
+
+1. **Define the enum schema** in the `@extend_schema` decorator
+2. **Include both ascending and descending options** (prefix with `-` for descending)
+3. **Map to database fields** in your filtering logic:
+
+```python
+def filter_invoice_items(items, ordering=None):
+    if ordering:
+        ordering_map = {
+            'project_name': 'project_name',
+            '-project_name': '-project_name',
+            'resource_name': 'resource__name',
+            '-resource_name': '-resource__name',
+            # ... more mappings
+        }
+
+        db_ordering = ordering_map.get(ordering)
+        if db_ordering:
+            items = core_utils.order_with_nulls(items, db_ordering)
+
+    return items
+```
+
+---
+
+## 7. Best Practices and Conventions
 
 1. **Docstrings are the Source of Truth**: Write clear docstrings on viewset *action methods*. They become the official API descriptions.
 2. **Use the Right Tool for the Job**:
-    - **View-specific logic?** Use the `WaldurOpenApiInspector`.
-    - **Reusable custom class?** Create an `Extension`.
-    - **Global rule for filtering endpoints?** Modify the `WaldurEndpointEnumerator`.
-    - **Schema-wide refactoring or complex polymorphism?** Write a `postprocessing_hook`.
+  - **View-specific logic?** Use the `WaldurOpenApiInspector`.
+  - **Reusable custom class?** Create an `Extension`.
+  - **Global rule for filtering endpoints?** Modify the `WaldurEndpointEnumerator`.
+  - **Schema-wide refactoring or complex polymorphism?** Write a `postprocessing_hook`.
 3. **Leverage View Attributes for Metadata**: We use view attributes like `create_permissions` and `disabled_actions` to control schema generation. This co-locates API behavior and its documentation, making the code easier to maintain.
-4. **Embrace Vendor Extensions (`x-`)**: For custom metadata that doesn't fit the OpenAPI standard (like our `x-permissions`), vendor extensions are the correct and standard way to include it.
-5. **Strive for DRY Schemas**: Use hooks like `refactor_pagination_parameters` to create reusable components (`parameters`, `headers`, `schemas`). This keeps the schema clean and consistent.
-6. **Handle Polymorphism with Hooks**: For complex conditional schemas (`oneOf`, `anyOf`), post-processing hooks are the most flexible and powerful tool available, as demonstrated by `add_polymorphic_attributes_schema`.
-7. **Simplify for the Consumer**: Use extensions (`OpenStackNestedSecurityGroupSerializerExtension`) and hooks (`transform_paginated_arrays`) to simplify complex or deeply nested objects where the full detail is unnecessary for the API consumer. The goal is a schema that is not just accurate, but also usable.
+4. **Define Explicit Enums for Query Parameters**: For parameters like ordering (`o`), filtering, or status selection, always define explicit enum values in the schema instead of generic string types. This provides better documentation, client generation, and validation.
+5. **Embrace Vendor Extensions (`x-`)**: For custom metadata that doesn't fit the OpenAPI standard (like our `x-permissions`), vendor extensions are the correct and standard way to include it.
+6. **Strive for DRY Schemas**: Use hooks like `refactor_pagination_parameters` to create reusable components (`parameters`, `headers`, `schemas`). This keeps the schema clean and consistent.
+7. **Handle Polymorphism with Hooks**: For complex conditional schemas (`oneOf`, `anyOf`), post-processing hooks are the most flexible and powerful tool available, as demonstrated by `add_polymorphic_attributes_schema`.
+8. **Simplify for the Consumer**: Use extensions (`OpenStackNestedSecurityGroupSerializerExtension`) and hooks (`transform_paginated_arrays`) to simplify complex or deeply nested objects where the full detail is unnecessary for the API consumer. The goal is a schema that is not just accurate, but also usable.
 
-## 7. The OpenAPI Schema in the Broader Workflow
+## 8. The OpenAPI Schema in the Broader Workflow
 
 The OpenAPI schema is not merely a documentation artifact; it is a critical, machine-readable contract that drives a significant portion of our development, testing, and release workflows. Our CI/CD pipelines are built around the schema as the single source of truth for the API's structure.
 

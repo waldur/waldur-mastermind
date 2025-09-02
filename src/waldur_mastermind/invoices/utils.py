@@ -98,6 +98,7 @@ def filter_invoice_items(
     project_uuid: str | UUID | None = None,
     offering_uuid: str | UUID | None = None,
     conceal_compensation_items: bool = False,
+    ordering: str | None = None,
 ) -> list:
     """
     Filter invoice items based on various criteria.
@@ -129,6 +130,24 @@ def filter_invoice_items(
 
     if conceal_compensation_items:
         items = items.filter(credit__isnull=True)
+
+    # Apply ordering in database
+    if ordering:
+        # Map ordering fields to database fields
+        ordering_map = {
+            "project_name": "project_name",
+            "-project_name": "-project_name",
+            "resource_name": "resource__name",
+            "-resource_name": "-resource__name",
+            "name": "name",  # InvoiceItem name field
+            "-name": "-name",
+            "provider_name": "resource__offering__customer__name",
+            "-provider_name": "-resource__offering__customer__name",
+        }
+
+        db_ordering = ordering_map.get(ordering)
+        if db_ordering:
+            items = core_utils.order_with_nulls(items, db_ordering)
 
     result = [
         item for item in items if item.total != 0
