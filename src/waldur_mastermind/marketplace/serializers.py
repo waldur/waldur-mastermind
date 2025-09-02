@@ -58,7 +58,9 @@ from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
 from waldur_mastermind.marketplace.enums import (
+    MANAGED_RANCHER_OFFERING,
     OPENSTACK_TENANT_OFFERING,
+    RANCHER_OFFERING,
     BillingTypes,
     LimitPeriods,
     OfferingStates,
@@ -2763,6 +2765,15 @@ def validate_private_offering(order: models.Order):
 
     # Order is ok if consumer and provider project is the same
     if order.offering.project == order.project:
+        return
+
+    # Managed Rancher offering has special private Rancher offering
+    if (
+        order.offering.type == RANCHER_OFFERING
+        and models.Offering.objects.filter(
+            type=MANAGED_RANCHER_OFFERING, scope=order.offering
+        ).exists()
+    ):
         return
 
     raise serializers.ValidationError(

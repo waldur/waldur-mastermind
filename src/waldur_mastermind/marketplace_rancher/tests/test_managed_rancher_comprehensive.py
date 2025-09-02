@@ -57,7 +57,10 @@ class ManagedRancherMultiTenantTest(test.APITransactionTestCase):
             self.openstack_offerings.append(offering)
 
         self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=RANCHER_OFFERING, scope=service_settings
+            type=RANCHER_OFFERING,
+            scope=service_settings,
+            shared=False,
+            billable=False,
         )
 
         # Create flavors with known specifications
@@ -217,7 +220,10 @@ class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
         )
 
         self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=RANCHER_OFFERING, scope=service_settings
+            type=RANCHER_OFFERING,
+            scope=service_settings,
+            shared=False,
+            billable=False,
         )
 
         # Create managed rancher offering with known configurations
@@ -395,7 +401,10 @@ class ManagedRancherEdgeCasesTest(test.APITransactionTestCase):
         )
 
         self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=RANCHER_OFFERING, scope=service_settings
+            type=RANCHER_OFFERING,
+            scope=service_settings,
+            shared=False,
+            billable=False,
         )
 
         self.offering = marketplace_factories.OfferingFactory(
@@ -620,7 +629,10 @@ class ManagedRancherDynamicStorageTest(test.APITransactionTestCase):
         )
 
         self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=RANCHER_OFFERING, scope=service_settings
+            type=RANCHER_OFFERING,
+            scope=service_settings,
+            shared=False,
+            billable=False,
         )
 
         # Create flavors
@@ -747,7 +759,10 @@ class ManagedRancherIntegrationTest(test.APITransactionTestCase):
             type=OPENSTACK_TENANT_OFFERING, scope=openstack_factories.SettingsFactory()
         )
         rancher_offering = marketplace_factories.OfferingFactory(
-            type=RANCHER_OFFERING, scope=service_settings
+            type=RANCHER_OFFERING,
+            scope=service_settings,
+            shared=False,
+            billable=False,
         )
 
         # Create flavors
