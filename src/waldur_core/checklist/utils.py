@@ -1,6 +1,7 @@
 import datetime
 
 from waldur_core.core import utils as core_utils
+from waldur_mastermind.common.utils import parse_date
 
 from . import enums
 
@@ -98,6 +99,15 @@ def is_valid_condition_value(
     ]:
         return True
 
+    # Handle date strings for DATE type questions
+    if isinstance(answer_data, str) and question_type == enums.QuestionTypes.DATE:
+        try:
+            # Try to parse the date string using the utility function
+            parse_date(answer_data)
+            return True
+        except (ValueError, TypeError):
+            return False
+
     return _is_valid_trigger_value(answer_data, question_type)
 
 
@@ -112,6 +122,15 @@ def is_valid_answer(
     ]:
         return True
 
+    # Handle date strings for DATE type questions
+    if isinstance(answer_data, str) and question_type == enums.QuestionTypes.DATE:
+        try:
+            # Try to parse the date string using the utility function
+            parse_date(answer_data)
+            return True
+        except (ValueError, TypeError):
+            return False
+
     return _is_valid_trigger_value(answer_data, question_type)
 
 
@@ -119,6 +138,18 @@ def apply_operator(user_answer: any, required_value: any, operator: str) -> bool
     """Core comparison engine that applies operators between user answers and required values for dependency evaluation and review triggering."""
     if user_answer is None:
         return False
+
+    # Handle date comparison - convert string dates to date objects for comparison
+    if isinstance(required_value, str) and isinstance(user_answer, datetime.date):
+        try:
+            required_value = parse_date(required_value)
+        except (ValueError, TypeError):
+            return False
+    elif isinstance(user_answer, str) and isinstance(required_value, datetime.date):
+        try:
+            user_answer = parse_date(user_answer)
+        except (ValueError, TypeError):
+            return False
 
     if operator == "equals":
         return user_answer == required_value

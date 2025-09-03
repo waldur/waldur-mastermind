@@ -88,6 +88,45 @@ class QuestionDependencyAdminCreateTest(test.APITransactionTestCase):
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_date_question_dependency_with_string_date(self):
+        """Test that date question dependencies work with string date values"""
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+
+        # Create a date question
+        date_question = factories.QuestionFactory(
+            checklist=self.fixture.checklist,
+            question_type=enums.QuestionTypes.DATE,
+            description="Set a Date?",
+        )
+
+        # Create a dependent question
+        dependent_question = factories.QuestionFactory(
+            checklist=self.fixture.checklist,
+            question_type=enums.QuestionTypes.BOOLEAN,
+        )
+
+        payload = {
+            "question": factories.QuestionFactory.get_admin_url(dependent_question),
+            "depends_on_question": factories.QuestionFactory.get_admin_url(
+                date_question
+            ),
+            "operator": "equals",
+            "required_answer_value": "2025-09-05",  # String date format
+        }
+
+        response = self.client.post(self.url, payload)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            f"Expected 201, got {response.status_code}: {response.data}",
+        )
+
+        # Verify the dependency was created
+        dependency = models.QuestionDependency.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(dependency.required_answer_value, "2025-09-05")
+        self.assertEqual(dependency.operator, "equals")
+
     def test_validate_circular(self):
         user = self.fixture.staff
         self.client.force_authenticate(user)
