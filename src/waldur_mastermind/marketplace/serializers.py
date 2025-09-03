@@ -5848,6 +5848,13 @@ class MaintenanceAnnouncementOfferingSerializer(serializers.HyperlinkedModelSeri
             )
         return value
 
+    def validate_offering(self, value):
+        if not value.shared:
+            raise serializers.ValidationError(
+                "Only shared offerings can be included in maintenance announcements."
+            )
+        return value
+
 
 class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
     affected_offerings = MaintenanceAnnouncementOfferingSerializer(
