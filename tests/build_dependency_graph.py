@@ -41,7 +41,10 @@ except ImportError:
 # --- Configuration Constants ---
 
 # Define the project root as the directory containing this script.
-PROJECT_ROOT = Path(__file__).resolve().parent
+# Path(__file__).resolve() -> /path/to/project/tests/build_dependency_graph.py
+# .parent                   -> /path/to/project/tests
+# .parent                   -> /path/to/project/   <-- CORRECT PROJECT ROOT
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # The source directory containing all Django applications.
 SRC_ROOT = PROJECT_ROOT / "src"
