@@ -1085,3 +1085,61 @@ class GenericOrderAttribute:
 
     def to_dict(self):
         return self.attrs
+
+
+def _check_object_status(serialized_instance, model_class, field, invert=False):
+    """
+    Check if a serialized object exists, this method is used to check if a project or user is soft-deleted or inactive.
+    """
+    try:
+        _, pk = serialized_instance.split(":")
+        obj = model_class.all_objects.get(pk=pk)
+        value = getattr(obj, field)
+        if invert:
+            value = not value
+        return {"found": True, "flagged": value, "pk": int(pk)}
+    except (ValueError, model_class.DoesNotExist):
+        return {"found": False, "flagged": False, "pk": None}
+
+
+def log_permission_sync_skip_reason(serialized_project, serialized_user):
+    """
+    Log helper function why permission sync is being skipped due to object status.
+
+    Checks if project/user objects exist but are soft-deleted/inactive and log the reason.
+    """
+    project_status = _check_object_status(
+        serialized_project, structure_models.Project, "is_removed"
+    )
+    user_status = _check_object_status(
+        serialized_user, structure_models.User, "is_active", invert=True
+    )
+    reasons = []
+
+    if project_status["found"]:
+        if project_status["flagged"]:
+            reasons.append("soft-deleted project")
+    else:
+        reasons.append("project not found")
+
+    if user_status["found"]:
+        if user_status["flagged"]:
+            reasons.append("inactive user")
+    else:
+        reasons.append("user not found")
+
+    if reasons:
+        message = "Skipping permission sync: %s" % ", ".join(reasons)
+    else:
+        message = "Skipping permission sync: project %s or user %s not found" % (
+            serialized_project,
+            serialized_user,
+        )
+    logger.warning(
+        "%s (project_id=%s, user_id=%s, project=%s, user=%s)",
+        message,
+        project_status["pk"],
+        user_status["pk"],
+        serialized_project,
+        serialized_user,
+    )

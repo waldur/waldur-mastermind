@@ -1045,14 +1045,18 @@ def update_remote_project_permissions(
         grant: Whether to grant (True) or revoke (False) the permission
         expiration_time: Optional expiration time for the permission
     """
-    project = deserialize_instance(serialized_project)
-    user = deserialize_instance(serialized_user)
+    try:
+        project = deserialize_instance(serialized_project)
+        user = deserialize_instance(serialized_user)
+    except ObjectDoesNotExist:
+        utils.log_permission_sync_skip_reason(serialized_project, serialized_user)
+        return
+
     new_expiration_time = (
         dateparse.parse_datetime(expiration_time)
         if expiration_time
         else expiration_time
     )
-
     sync_project_permission(grant, project, role_name, user, new_expiration_time)
 
 
