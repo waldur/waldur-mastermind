@@ -148,7 +148,7 @@ Generate test pipeline:
 
 # This is the "trigger" job. It has no script.
 # Its only purpose is to start the child pipeline defined in the artifact
-# from the previous job.R
+# from the previous job.
 Run tests dynamically:
   stage: test
   # Use the same rules anchor to ensure it's always included/excluded
@@ -168,6 +168,15 @@ Run tests dynamically:
         job: Generate test pipeline
     # 'strategy: depend' makes this trigger job wait for the child pipeline to finish.
     strategy: depend
+    # This block explicitly tells GitLab to pass variables to the child pipeline.
+    forward:
+      # This is the crucial line. It forwards variables created by 'dotenv'
+      # reports from the 'needs' dependencies, as well as variables defined
+      # in the parent job's 'variables' block.
+      yaml_variables: true
+      # It's also good practice to forward the standard CI variables like
+      # CI_COMMIT_REF_NAME, CI_MERGE_REQUEST_ID, etc.
+      pipeline_variables: true
 
 Run type checkings:
   extends: .Unit test runner
