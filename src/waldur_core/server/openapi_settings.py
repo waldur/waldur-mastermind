@@ -9,6 +9,7 @@ from waldur_mastermind.marketplace.enums import (
     RequestTypes,
     ResourceStates,
     RobotAccountStates,
+    ServiceAccountState,
 )
 from waldur_mastermind.proposal.enums import (
     CallStates,
@@ -60,6 +61,7 @@ SPECTACULAR_SETTINGS = {
         "RancherCatalogScopeType": CatalogScopeTypeChoices,
         "RobotAccountStates": RobotAccountStates.CHOICES,
         "ChecklistOperators": checklist_enums.OPERATORS,
+        "ServiceAccountState": ServiceAccountState.CHOICES,
     },
     "VERSION": None,
 }

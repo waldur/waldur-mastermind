@@ -2052,6 +2052,7 @@ class BaseServiceAccount(
         default=ServiceAccountState.OK,
         choices=ServiceAccountState.CHOICES,
     )
+    get_state_display: Callable[[], Literal["OK", "Closed", "Erred"]]
 
     class Meta:
         abstract = True
