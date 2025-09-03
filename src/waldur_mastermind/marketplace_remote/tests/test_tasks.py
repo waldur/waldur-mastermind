@@ -764,6 +764,61 @@ class OfferingListPullTaskTest(testcases.TransactionTestCase):
         )
 
 
+class OfferingUserListPullTaskTest(testcases.TransactionTestCase):
+    def setUp(self):
+        self.api_url = "http://example.com"
+        self.offering_with_option = factories.OfferingFactory(
+            type=REMOTE_OFFERING,
+            secret_options={"api_url": self.api_url, "token": "token"},
+            plugin_options={"service_provider_can_create_offering_user": True},
+            backend_id=uuid.uuid4().hex,
+        )
+        self.offering_without_option = factories.OfferingFactory(
+            type=REMOTE_OFFERING,
+            secret_options={"api_url": self.api_url, "token": "token"},
+            plugin_options={},  # Explicitly set empty dict to avoid JSONField issues
+            backend_id=uuid.uuid4().hex,
+        )
+
+    def test_offering_with_service_provider_option_is_excluded(self):
+        """
+        Test that offerings with service_provider_can_create_offering_user=True
+        are excluded from the pull task.
+        """
+        task = tasks.OfferingUserListPullTask()
+        pulled_objects = list(task.get_pulled_objects())
+
+        self.assertNotIn(
+            self.offering_with_option,
+            pulled_objects,
+            "Offering with service_provider_can_create_offering_user=True should be excluded",
+        )
+        self.assertIn(
+            self.offering_without_option,
+            pulled_objects,
+            "Offering without the option should be included",
+        )
+
+    def test_offering_with_false_option_is_included(self):
+        """
+        Test that offerings with service_provider_can_create_offering_user=False
+        are included in the pull task.
+        """
+        self.offering_with_option.plugin_options = {
+            "service_provider_can_create_offering_user": False
+        }
+        self.offering_with_option.save()
+
+        task = tasks.OfferingUserListPullTask()
+        pulled_objects = task.get_pulled_objects()
+
+        self.assertIn(
+            self.offering_with_option,
+            pulled_objects,
+            "Offering with service_provider_can_create_offering_user=False should be included",
+        )
+
+
 @override_settings(
     WALDUR_AUTH_SOCIAL={"ENABLE_EDUTEAMS_SYNC": True},
     task_always_eager=True,
