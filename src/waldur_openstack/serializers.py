@@ -590,6 +590,7 @@ class OpenStackSecurityGroupRuleCreateSerializer(OpenStackSecurityGroupRuleSeria
 class OpenStackSecurityGroupRuleUpdateSerializer(OpenStackSecurityGroupRuleSerializer):
     class Meta(OpenStackSecurityGroupRuleSerializer.Meta):
         extra_kwargs = {
+            **OpenStackSecurityGroupRuleSerializer.Meta.extra_kwargs,
             "direction": {"default": models.BaseSecurityGroupRule.INGRESS},
             "ethertype": {"default": models.BaseSecurityGroupRule.IPv4},
         }

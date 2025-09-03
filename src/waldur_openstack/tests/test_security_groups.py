@@ -498,6 +498,32 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(models.SecurityGroupRule.objects.count(), 0)
 
+    def test_user_can_add_rule_with_remote_group_as_url(self):
+        self.client.force_authenticate(self.fixture.admin)
+
+        remote_group = factories.SecurityGroupFactory(
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            tenant=self.fixture.tenant,
+            state=CoreStates.OK,
+        )
+        remote_group_url = factories.SecurityGroupFactory.get_url(remote_group)
+
+        data = [
+            {
+                "protocol": "tcp",
+                "from_port": 1,
+                "to_port": 65535,
+                "remote_group": remote_group_url,
+            }
+        ]
+        response = self.client.post(self.url, data=data)
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        self.assertEqual(self.security_group.rules.count(), 1)
+        created_rule = self.security_group.rules.first()
+        self.assertEqual(created_rule.remote_group, remote_group)
+
 
 @ddt
 class SecurityGroupDeleteTest(BaseSecurityGroupTest):
