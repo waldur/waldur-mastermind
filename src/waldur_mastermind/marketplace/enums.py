@@ -276,6 +276,13 @@ class ServiceAccountState:
     )
 
 
+ServiceAccountStatesType = Literal[
+    "OK",
+    "Closed",
+    "Erred",
+]
+
+
 SUPPORT_OFFERING = "Support.OfferingTemplate"
 BOOKING_OFFERING = "Marketplace.Booking"
 BASIC_OFFERING = "Marketplace.Basic"

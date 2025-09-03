@@ -69,6 +69,8 @@ from waldur_mastermind.marketplace.enums import (
     OrderStatesType,
     ResourceStates,
     ResourceStatesType,
+    ServiceAccountState,
+    ServiceAccountStatesType,
 )
 from waldur_mastermind.marketplace.fields import PublicPlanField
 from waldur_mastermind.marketplace.managers import ResourceQuerySet
@@ -5167,6 +5169,7 @@ class BaseServiceAccountSerializer(
     serializers.HyperlinkedModelSerializer, core_serializers.AugmentedSerializerMixin
 ):
     error_message = serializers.CharField(read_only=True)
+    state = serializers.SerializerMethodField()
 
     class Meta:
         model = models.BaseServiceAccount
@@ -5179,12 +5182,19 @@ class BaseServiceAccountSerializer(
             "description",
             "error_message",
             "error_traceback",
+            "state",
         )
         read_only_fields = [
             "backend_id",
             "error_message",
             "error_traceback",
         ]
+
+    @extend_schema_field(serializers.ChoiceField(choices=ServiceAccountState.CHOICES))
+    def get_state(
+        self, service_account: models.BaseServiceAccount
+    ) -> ServiceAccountStatesType:
+        return service_account.get_state_display()
 
 
 class BaseScopedServiceAccountSerializer(BaseServiceAccountSerializer):
