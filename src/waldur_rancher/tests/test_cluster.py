@@ -722,6 +722,18 @@ class ClusterDeleteTest(test.APITransactionTestCase):
             user_id=self.fixture.owner.id,
         )
 
+    @mock.patch("waldur_rancher.executors.chain")
+    @mock.patch("waldur_rancher.executors.tasks")
+    def test_when_there_are_no_valid_nodes_task_is_not_called(
+        self, mock_tasks, mock_chain
+    ):
+        self.fixture.node.backend_id = ""
+        self.fixture.node.save()
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(mock_tasks.DeleteNodeTask.return_value.si.call_count, 0)
+
     @mock.patch("waldur_rancher.backend.RancherBackend.client")
     @mock.patch("waldur_rancher.tasks.common_utils.delete_request")
     def test_when_cluster_is_deleted_instance_deletion_is_requested(
