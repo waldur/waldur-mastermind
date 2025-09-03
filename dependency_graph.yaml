@@ -223,7 +223,6 @@ waldur_mastermind.support:
 - waldur_core.structure
 - waldur_mastermind.marketplace
 - waldur_mastermind.notifications
-- waldur_openstack
 waldur_openstack:
 - waldur_core.core
 - waldur_core.logging

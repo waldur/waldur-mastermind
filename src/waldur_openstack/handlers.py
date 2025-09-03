@@ -1,10 +1,13 @@
 import logging
 
+from django.contrib.contenttypes.models import ContentType
+
 from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import SshPublicKey
+from waldur_core.core.resolvers import register_resolver
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.quotas.models import QuotaLimit
@@ -234,3 +237,45 @@ def delete_state_service_properties(sender, instance: models.Tenant, **kwargs):
     models.Image.objects.filter(tenants=None).delete()
     models.Flavor.objects.filter(tenants=None).delete()
     models.VolumeType.objects.filter(tenants=None).delete()
+
+
+@register_resolver("resource_external_ip")
+def find_instance_by_external_ip(ip_address: str) -> list[tuple[int, int]]:
+    """
+    Resolves OpenStack instances by their Floating (external) IP address.
+    """
+    instance_ids = set(
+        models.FloatingIP.objects.filter(address=ip_address)
+        .values_list("port__instance_id", flat=True)
+        .distinct()
+    )
+
+    if not instance_ids:
+        return []
+
+    content_type = ContentType.objects.get_for_model(models.Instance)
+    return [
+        (content_type.id, instance_id) for instance_id in instance_ids if instance_id
+    ]
+
+
+@register_resolver("resource_internal_ip")
+def find_instance_by_internal_ip(ip_address: str) -> list[tuple[int, int]]:
+    """
+    Resolves OpenStack instances by their Port (internal) fixed IP address.
+    """
+    instance_ids = set(
+        models.Port.objects.filter(
+            fixed_ips__contains=ip_address, instance_id__isnull=False
+        )
+        .values_list("instance_id", flat=True)
+        .distinct()
+    )
+
+    if not instance_ids:
+        return []
+
+    content_type = ContentType.objects.get_for_model(models.Instance)
+    return [
+        (content_type.id, instance_id) for instance_id in instance_ids if instance_id
+    ]

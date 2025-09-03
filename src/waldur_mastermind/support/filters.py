@@ -1,15 +1,13 @@
 import collections
 
 import django_filters
-from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 
 from waldur_core.core import filters as core_filters
+from waldur_core.core.resolvers import filter_by_resource_attribute
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_openstack import models as openstack_models
-from waldur_openstack.models import FloatingIP, Port
 
 from . import models
 
@@ -74,11 +72,14 @@ class IssueFilter(django_filters.FilterSet):
     resource_uuid = django_filters.UUIDFilter(
         method="filter_by_resource_uuid", label="Resource UUID"
     )
+    # The filter field name MUST match the lookup_key in the resolvers registry.
     resource_external_ip = django_filters.CharFilter(
-        method="filter_by_resource_external_ip", label="Resource external IP"
+        method="filter_by_resource_attribute",
+        label="Resource external IP",
     )
     resource_internal_ip = django_filters.CharFilter(
-        method="filter_by_resource_internal_ip", label="Resource internal IP"
+        method="filter_by_resource_attribute",
+        label="Resource internal IP",
     )
     remote_id = django_filters.CharFilter(
         lookup_expr="icontains", field_name="remote_id"
@@ -106,23 +107,8 @@ class IssueFilter(django_filters.FilterSet):
 
         return queryset.filter(resource_object_id__in=ids)
 
-    def filter_by_resource_external_ip(self, queryset, name, value):
-        instance_ids = FloatingIP.objects.filter(address=value).values_list(
-            "port__instance_id", flat=True
-        )
-        content_type = ContentType.objects.get_for_model(openstack_models.Instance)
-        return queryset.filter(
-            resource_object_id__in=instance_ids, resource_content_type=content_type
-        )
-
-    def filter_by_resource_internal_ip(self, queryset, name, value):
-        instance_ids = Port.objects.filter(
-            fixed_ips__contains=value, instance_id__isnull=False
-        ).values_list("instance_id", flat=True)
-        content_type = ContentType.objects.get_for_model(openstack_models.Instance)
-        return queryset.filter(
-            resource_object_id__in=instance_ids, resource_content_type=content_type
-        )
+    def filter_by_resource_attribute(self, queryset, name, value):
+        return filter_by_resource_attribute(queryset, name, value)
 
     def filter_by_query(self, queryset, name, value):
         return queryset.filter(
