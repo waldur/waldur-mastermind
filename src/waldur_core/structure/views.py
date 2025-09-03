@@ -67,7 +67,6 @@ from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.enums import ResourceStates
-from waldur_mastermind.marketplace_site_agent import utils as remote_slurm_utils
 
 logger = logging.getLogger(__name__)
 
@@ -640,25 +639,6 @@ class ProjectViewSet(
             queryset, many=True, context=self.get_serializer_context()
         )
         return self.get_paginated_response(serializer.data)
-
-    @extend_schema(
-        description="Trigger user role sync for this project",
-        request=None,
-        responses={200: None},
-    )
-    @action(detail=True, methods=["post"])
-    def sync_user_roles(self, request, uuid=None):
-        """
-        Trigger user role sync message for this project.
-        Sends a notification to RabbitMQ that this project needs user role synchronization.
-        """
-        project: models.Project = self.get_object()
-
-        remote_slurm_utils.push_user_role_sync_message(project)
-
-        return Response(status=status.HTTP_200_OK)
-
-    sync_user_roles_permissions = [permissions.is_staff]
 
 
 class UserViewSet(core_views.ActionsViewSet):

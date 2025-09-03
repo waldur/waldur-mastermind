@@ -50,7 +50,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SRC_ROOT = PROJECT_ROOT / "src"
 
 # The name of the file where the generated YAML graph will be saved.
-GRAPH_OUTPUT_YAML_FILE = PROJECT_ROOT / "dependency_graph.yaml"
+GRAPH_OUTPUT_YAML_FILE = PROJECT_ROOT / "tests" / "dependency_graph.yaml"
 
 # Directories to exclude from the analysis within each app.
 EXCLUDED_DIRS = ("tests", "migrations", "management")

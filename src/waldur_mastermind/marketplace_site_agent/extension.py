@@ -11,6 +11,12 @@ class MarketplaceSiteAgentExtension(WaldurExtension):
         return True
 
     @staticmethod
+    def django_urls():
+        from .urls import urlpatterns
+
+        return urlpatterns
+
+    @staticmethod
     def celery_tasks():
         from datetime import timedelta
 

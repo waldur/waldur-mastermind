@@ -2,6 +2,7 @@ import json
 from unittest import mock
 
 from rest_framework import status, test
+from rest_framework.reverse import reverse
 
 from waldur_core.logging import utils as logging_utils
 from waldur_core.logging.tests import factories as logging_factories
@@ -30,15 +31,16 @@ class UserRoleSyncAPITest(test.APITransactionTestCase):
             ],
         )
 
+        self.url = reverse(
+            "project-sync-user-roles", kwargs={"uuid": self.project.uuid.hex}
+        )
+
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
     def test_sync_user_roles_api_action(self, mocked_publish_messages):
         """Test that the sync_user_roles API action triggers message publishing."""
         self.client.force_authenticate(self.staff_user)
-        url = structure_factories.ProjectFactory.get_url(
-            self.project, "sync_user_roles"
-        )
 
-        response = self.client.post(url)
+        response = self.client.post(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mocked_publish_messages.assert_called_once()
@@ -65,11 +67,8 @@ class UserRoleSyncAPITest(test.APITransactionTestCase):
         self.resource.delete()
 
         self.client.force_authenticate(self.staff_user)
-        url = structure_factories.ProjectFactory.get_url(
-            self.project, "sync_user_roles"
-        )
 
-        response = self.client.post(url)
+        response = self.client.post(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mocked_publish_messages.assert_not_called()
@@ -78,11 +77,8 @@ class UserRoleSyncAPITest(test.APITransactionTestCase):
         """Test that non-staff users cannot access the sync_user_roles action."""
         regular_user = structure_factories.UserFactory(is_staff=False)
         self.client.force_authenticate(regular_user)
-        url = structure_factories.ProjectFactory.get_url(
-            self.project, "sync_user_roles"
-        )
 
-        response = self.client.post(url)
+        response = self.client.post(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -96,11 +92,8 @@ class UserRoleSyncAPITest(test.APITransactionTestCase):
             offering=offering2, project=self.project, state=ResourceStates.OK
         )
         self.client.force_authenticate(self.staff_user)
-        url = structure_factories.ProjectFactory.get_url(
-            self.project, "sync_user_roles"
-        )
 
-        response = self.client.post(url)
+        response = self.client.post(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mocked_publish_messages.assert_called_once()
