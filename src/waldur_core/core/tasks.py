@@ -470,6 +470,23 @@ class PollRuntimeStateTask(Task):
     def get_backend(self, instance):
         return instance.get_backend()
 
+    def _get_instance_info(self, instance):
+        """Safely extract instance information for logging."""
+        info = {
+            "pk": getattr(instance, "pk", "unknown"),
+            "class": instance.__class__.__name__,
+        }
+
+        # Safely get UUID if available
+        if hasattr(instance, "uuid") and instance.uuid:
+            info["uuid"] = str(instance.uuid)
+
+        # Safely get name if available
+        if hasattr(instance, "name") and instance.name:
+            info["name"] = instance.name
+
+        return info
+
     def execute(
         self,
         instance,
@@ -482,14 +499,32 @@ class PollRuntimeStateTask(Task):
         getattr(backend, backend_pull_method)(instance)
         instance.refresh_from_db()
         if instance.runtime_state not in (success_state, erred_state, deleted_state):
+            instance_info = self._get_instance_info(instance)
+            uuid_part = (
+                f", UUID: {instance_info['uuid']}" if "uuid" in instance_info else ""
+            )
+            name_part = (
+                f', name: "{instance_info["name"]}"' if "name" in instance_info else ""
+            )
             logger.info(
-                f"Instance {instance.pk} runtime state ({instance.runtime_state}) is not matching "
+                f"Instance {instance_info['class']} (PK: {instance_info['pk']}"
+                f"{uuid_part}{name_part}"
+                f") runtime state ({instance.runtime_state}) is not matching "
                 f"success ({success_state}), erred ({erred_state}) or deleted ({deleted_state}) states, retrying."
             )
             self.retry()
         elif instance.runtime_state == erred_state:
+            instance_info = self._get_instance_info(instance)
+            uuid_part = (
+                f", UUID: {instance_info['uuid']}" if "uuid" in instance_info else ""
+            )
+            name_part = (
+                f', name: "{instance_info["name"]}"' if "name" in instance_info else ""
+            )
             raise RuntimeStateException(
-                f"{instance.__class__.__name__} (PK: {instance.pk}) runtime state become erred: {erred_state}"
+                f"{instance_info['class']} (PK: {instance_info['pk']}"
+                f"{uuid_part}{name_part}"
+                f") runtime state become erred: {erred_state}"
             )
         return instance
 
