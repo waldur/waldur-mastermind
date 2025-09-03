@@ -193,11 +193,12 @@ run_unit_tests:
         path: coverage.xml
 
   coverage: "/TOTAL.+ ([0-9]{1,3}%)/"
-
-  # This line will either be `parallel: 10` or empty, based on the logic above.
-  ${PARALLEL_BLOCK}
 EOF
 
+# Add the parallel block only if it's not empty
+if [ -n "${PARALLEL_BLOCK}" ]; then
+  echo "  ${PARALLEL_BLOCK}" >> "${PIPELINE_OUTPUT_FILE}"
+fi
 
 echo "-----------------------------------"
 echo "[+] STEP 4/4: Final generated configuration:"
