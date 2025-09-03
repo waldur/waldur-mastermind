@@ -290,7 +290,9 @@ class ProjectAdmin(
     cleanup = Cleanup()
 
     def sync_remote(self, request, queryset):
-        from waldur_mastermind.marketplace_remote.tasks import sync_remote_project
+        from waldur_mastermind.marketplace_remote.tasks import (
+            sync_remote_project,
+        )  # test-dependency-ignore
 
         sync_remote_project.delay(
             [core_utils.serialize_instance(project) for project in queryset]
@@ -320,7 +322,7 @@ class ProjectAdmin(
 
     def clean_remote_projects(self, request):
         from waldur_mastermind.marketplace_remote import (
-            tasks as marketplace_remote_tasks,
+            tasks as marketplace_remote_tasks,  # test-dependency-ignore
         )
 
         marketplace_remote_tasks.clean_remote_projects.delay()
