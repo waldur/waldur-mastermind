@@ -269,6 +269,43 @@ class UserChecklistMixinIntegrationTest(test.APITransactionTestCase):
         with self.assertRaises(ValidationError):
             self.viewset.submit_answers(self.request, uuid=self.project_uuid)
 
+    def test_submit_answers_accepts_date_strings(self):
+        """Test that date question answers accept string dates in ISO format."""
+        # Create a date question
+        date_question = factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Set a Date?",
+            question_type=enums.QuestionTypes.DATE,
+            required=True,
+            order=3,
+        )
+
+        # Submit date answer with string format
+        request_data = [
+            {
+                "question_uuid": str(date_question.uuid),
+                "answer_data": "2025-09-04",  # String date format
+            }
+        ]
+
+        self.request = test.APIRequestFactory().post(
+            "/", data=request_data, format="json"
+        )
+        self.request.user = self.staff
+        self.request.data = request_data
+
+        response = self.viewset.submit_answers(self.request, uuid=self.project_uuid)
+
+        # Should be successful
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("Answers submitted successfully", response.data["detail"])
+
+        # Verify the answer was saved
+        answer = models.Answer.objects.get(
+            completion=self.mock_completion, question=date_question, user=self.staff
+        )
+        self.assertEqual(answer.answer_data, "2025-09-04")
+
     def test_unauthorized_user_cannot_access_endpoints(self):
         """Test that unauthorized users cannot access checklist endpoints."""
         # Use regular user instead of staff
