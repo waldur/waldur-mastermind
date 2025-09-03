@@ -5,7 +5,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
-from waldur_azure.models import VirtualMachine
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.quotas.models import QuotaUsage
@@ -318,7 +317,7 @@ def create_resource_of_volume_if_instance_created(
 
 
 def create_marketplace_resource_for_imported_resources(
-    sender, instance: VirtualMachine, offering=None, plan=None, **kwargs
+    sender, instance: Instance, offering=None, plan=None, **kwargs
 ):
     utils.create_marketplace_resource_for_imported_resources(instance, offering, plan)
 

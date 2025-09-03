@@ -134,7 +134,6 @@ waldur_mastermind.marketplace_azure:
 - waldur_core.structure
 - waldur_mastermind.marketplace
 waldur_mastermind.marketplace_openstack:
-- waldur_azure
 - waldur_core.core
 - waldur_core.permissions
 - waldur_core.quotas
