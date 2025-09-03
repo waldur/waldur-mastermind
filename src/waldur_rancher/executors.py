@@ -144,12 +144,13 @@ class ClusterDeleteExecutor(core_executors.DeleteExecutor):
     def get_task_signature(
         cls, instance: models.Cluster, serialized_instance, user: User
     ):
-        if instance.node_set.count():
+        valid_nodes = instance.node_set.exclude(backend_id="")
+        if valid_nodes.exists():
             instance.begin_deleting()
             instance.save()
             _tasks = []
 
-            for node in instance.node_set.all():
+            for node in valid_nodes:
                 _tasks.append(NodeDeleteExecutor.as_signature(node, user_id=user.id))
 
             _tasks.append(tasks.DeleteKeycloakGroupsTask().si(serialized_instance))
