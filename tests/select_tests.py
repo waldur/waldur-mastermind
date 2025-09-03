@@ -29,7 +29,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Optional
+from typing import Dict, List, Optional, Set
 
 # --- Third-party Library Imports and Checks ---
 
@@ -43,13 +43,13 @@ except ImportError:
 # --- Configuration Constants ---
 
 # Define the project root as the directory containing this script.
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # The path to the source code directory.
 SRC_ROOT = PROJECT_ROOT / "src"
 
 # The path to the pre-computed dependency graph file.
-DEPENDENCY_GRAPH_FILE = PROJECT_ROOT / "dependency_graph.yaml"
+DEPENDENCY_GRAPH_FILE = PROJECT_ROOT / "tests" / "dependency_graph.yaml"
 
 # A list of files and directories that, if changed, are considered "core"
 # changes. Any change to these will trigger a full test run as a safety measure.
@@ -57,8 +57,7 @@ FULL_RUN_TRIGGERS = [
     "pyproject.toml",
     "uv.lock",
     ".gitlab-ci.yml",
-    "gitlab-ci-test/",
-    "dependency_graph.yaml",  # If the graph itself changes, run all tests.
+    "tests/dependency_graph.yaml",  # If the graph itself changes, run all tests.
     str(Path(__file__).relative_to(PROJECT_ROOT)),  # If this script changes.
 ]
 
@@ -68,28 +67,38 @@ def log(message: str):
     print(f"[select-tests] {message}", file=sys.stderr)
 
 
-def get_changed_files() -> List[str]:
+def get_changed_files() -> list[str]:
     """
     Gets the list of changed files from Git for the current merge request.
 
-    It relies on the `CI_MERGE_REQUEST_DIFF_BASE_SHA` GitLab variable.
-    If the variable is not set, it returns a trigger for a full test run.
-
-    Returns:
-        A list of file paths relative to the project root.
+    It prioritizes using the source and target branch SHAs, which is robust
+    against local merge commits. It falls back to using the diff base SHA.
     """
+    source_sha = os.environ.get("CI_MERGE_REQUEST_SOURCE_BRANCH_SHA")
+    target_sha = os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_SHA")
     base_sha = os.environ.get("CI_MERGE_REQUEST_DIFF_BASE_SHA")
-    if not base_sha:
+
+    diff_command = None
+
+    # This is the most robust method for MR pipelines.
+    if source_sha and target_sha:
         log(
-            "WARNING: CI_MERGE_REQUEST_DIFF_BASE_SHA not found. Defaulting to full test run."
+            f"Finding changes between target branch ({target_sha[:8]}) and source branch ({source_sha[:8]}...)"
         )
-        # Return a known trigger file to force a full run in the main logic.
+        # The three-dot diff shows changes on the source branch since it diverged from the target.
+        diff_command = ["git", "diff", "--name-only", f"{target_sha}...{source_sha}"]
+    elif base_sha:
+        log(f"Finding changes between HEAD and base commit {base_sha[:8]}...")
+        diff_command = ["git", "diff", "--name-only", f"{base_sha}...HEAD"]
+    else:
+        log(
+            "WARNING: No merge request SHA variables found. Defaulting to full test run."
+        )
         return ["pyproject.toml"]
 
-    log(f"Finding changes between HEAD and base commit {base_sha[:8]}...")
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only", f"{base_sha}...HEAD"],
+            diff_command,
             capture_output=True,
             text=True,
             check=True,
