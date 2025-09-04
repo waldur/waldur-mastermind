@@ -1459,7 +1459,7 @@ class OfferingUserChecklistTest(test.APITransactionTestCase):
 
     def test_submit_answers_endpoint_creates_answers(self):
         """Test that submit answers endpoint creates checklist answers."""
-        self.client.force_authenticate(user=self.fixture.owner)
+        self.client.force_authenticate(user=self.fixture.user)
 
         # Submit answers
         answers_data = [
