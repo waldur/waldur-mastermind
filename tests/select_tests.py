@@ -14,9 +14,8 @@ How it works:
 3.  It uses GitLab's predefined CI variable `CI_MERGE_REQUEST_DIFF_BASE_SHA` to get a
     list of all files changed in the current merge request.
 4.  It maps each changed file to its corresponding Django application.
-5.  It performs a graph traversal on the reverse dependency map to find the
-    complete set of affected applications. This includes both the directly
-    changed applications and any applications that transitively depend on them.
+5.  Build the reverse map and find all DIRECTLY affected apps.
+    Transitive dependency traversal is disabled for simplicity and speed.
 6.  Finally, it prints a space-separated string of the paths to the selected
     application directories. This string can be directly consumed by pytest.
 
@@ -224,23 +223,16 @@ def main():
     reverse_map = build_reverse_dependency_map(dependency_map)
 
     apps_to_test = set(directly_changed_apps)
-    queue = list(directly_changed_apps)  # Seed the queue for traversal
+    log(f"Directly changed apps: {', '.join(sorted(list(apps_to_test)))}")
 
-    log("Starting dependency traversal...")
-    log(f"Directly changed apps: {', '.join(sorted(queue))}")
-
-    while queue:
-        # Get the next app from the queue to find its dependents
-        current_app = queue.pop(0)
+    for current_app in directly_changed_apps:
         dependents = reverse_map.get(current_app, [])
 
         for dependent_app in dependents:
-            if dependent_app not in apps_to_test:
-                apps_to_test.add(dependent_app)
-                queue.append(dependent_app)
-                log(
-                    f"  -> Adding '{dependent_app}' because it depends on '{current_app}'"
-                )
+            apps_to_test.add(dependent_app)
+            log(
+                f"  -> Adding '{dependent_app}' because it directly depends on changed app '{current_app}'"
+            )
 
     # 6. Convert app names back to file paths for pytest.
     test_paths = []

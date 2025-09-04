@@ -50,8 +50,6 @@ echo "--- Dynamic Pipeline Generator ---"
 # This step determines which parts of the codebase *might* need testing based
 # on the git diff and the project's dependency graph.
 echo "[+] STEP 1/4: Selecting application paths based on Git changes..."
-# Install lightweight Python dependencies required for the selection script.
-pip3 install uv PyYAML > /dev/null
 # Execute the selection script and capture its space-separated output.
 SELECTED_PATHS=$(python tests/select_tests.py)
 
