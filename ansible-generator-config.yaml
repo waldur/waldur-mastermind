@@ -297,3 +297,50 @@ collections:
             id: "openstack_tenants_create_floating_ip"
             path_params:
               uuid: "tenant"
+
+      - name: subnet_action
+        plugin: actions
+        resource_type: "OpenStack subnet"
+        description: "Perform actions on OpenStack Subnets."
+
+        base_operation_id: "openstack_subnets"
+
+        actions:
+          connect: "openstack_subnets_connect"
+          disconnect: "openstack_subnets_disconnect"
+          pull: "openstack_subnets_pull"
+          unlink: "openstack_subnets_pull"
+
+        wait_config: *default_wait_config
+        context_params: *base_openstack_context_params
+
+      - name: network_action
+        plugin: actions
+        resource_type: "OpenStack network"
+        description: "Perform actions on OpenStack networks."
+
+        base_operation_id: "openstack_networks"
+
+        actions:
+          pull: "openstack_networks_pull"
+          unlink: "openstack_networks_pull"
+
+        wait_config: *default_wait_config
+        context_params: *base_openstack_context_params
+
+      - name: instance_action
+        plugin: actions
+        resource_type: "OpenStack instance"
+        description: "Perform actions on OpenStack instance."
+
+        base_operation_id: "openstack_instances"
+
+        actions:
+          start: "openstack_instances_start"
+          stop: "openstack_instances_stop"
+          restart: "openstack_instances_restart"
+          pull: "openstack_instances_pull"
+          unlink: "openstack_instances_pull"
+
+        wait_config: *default_wait_config
+        context_params: *base_openstack_context_params
