@@ -11,21 +11,24 @@ set -e
 # --- ARGUMENT PARSING ---
 # This script expects three arguments to be passed from the GitLab CI job.
 
-# Argument 1: The mode of testing (e.g., "UNIT", "MANAGEMENT").
-# Default to "UNIT" for safety, though it should always be provided.
-TEST_MODE="${1}"
+# Argument 1: The mode of testing. Default to "UNIT" if not provided.
+TEST_MODE="${1:-UNIT}"
 
-# Argument 2: A boolean flag ('true' or 'false') indicating whether to
-# enable parallel test splitting. This is determined by the parent pipeline.
-ENABLE_SPLITTING="${2}"
+# Argument 2: Splitting flag. Default to "false" if not provided.
+ENABLE_SPLITTING="${2:-false}"
 
-# The 'shift' command is a standard shell utility that discards arguments
-# from the beginning of the list. `shift 2` discards $1 and $2.
-shift 2
-
-# After shifting, the special variable `$@` now contains all the remaining
-# arguments, which are our test paths. We assign them to TEST_TARGETS.
-TEST_TARGETS="$@"
+# Only shift if we actually have arguments to shift.
+# We check if the third argument ($3) exists. If it does, it means we have
+# test targets to process, so we can safely shift away the first two.
+if [ -n "$3" ]; then
+  shift 2
+  # `$@` now contains all remaining arguments (the test paths).
+  TEST_TARGETS="$@"
+else
+  # If there is no third argument, it means we were called in a simpler way
+  # (like `tests/waldur-test MANAGEMENT`). In this case, there are no dynamic targets.
+  TEST_TARGETS=""
+fi
 
 
 # --- SCRIPT EXECUTION ---
