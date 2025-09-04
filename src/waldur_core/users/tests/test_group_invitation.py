@@ -449,6 +449,21 @@ class RequestRetrieveTest(BaseInvitationTest):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_permission_request_includes_created_by_email_and_template(self):
+        """Test that permission request API response includes created_by_email and project_name_template fields."""
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Verify the new fields are present in the response
+        self.assertIn("created_by_email", response.data)
+        self.assertIn("project_name_template", response.data)
+
+        # Verify the values are correct
+        self.assertEqual(
+            response.data["created_by_email"], self.permission_request.created_by.email
+        )
+
     @data("project_admin", "project_manager", "user")
     def test_user_cannot_get_request(self, user):
         self.client.force_authenticate(user=getattr(self, user))
