@@ -129,58 +129,6 @@ def get_price_estimate(serializer, scope):
         return serializer_instance.data
 
 
-def _get_optimized_price_estimate_data(estimate, context, scope):
-    """Get price estimate data with optimized invoice calculations."""
-
-    # Get current period
-    current_year = utils.get_current_year()
-    current_month = utils.get_current_month()
-
-    # Parse period from request if available
-    request = context.get("request")
-    year = month = None
-
-    if request:
-        try:
-            year = int(request.query_params.get("year", ""))
-            month = int(request.query_params.get("month", ""))
-
-            if not utils.check_past_date(year, month):
-                raise ValueError()
-        except (ValueError, TypeError):
-            year = month = None
-
-    # Use prefetched invoice data if available for current period calculations
-    if (
-        hasattr(scope, "_prefetched_current_invoice_items")
-        and scope._prefetched_current_invoice_items is not None
-        and (not year or not month or (year == current_year and month == current_month))
-    ):
-        # Calculate from prefetched data to avoid DB queries
-        invoice_items = scope._prefetched_current_invoice_items
-
-        # Filter items for this customer (invoice items are already filtered by customer)
-        total_amount = sum(item.get_total() for item in invoice_items)
-        tax_amount = sum(item.get_tax() for item in invoice_items)
-
-        result = {
-            "total": float(estimate.total)
-            if (not year and not month)
-            else total_amount,
-            "current": total_amount,
-            "tax": tax_amount,
-            "tax_current": tax_amount,
-        }
-    else:
-        # Fall back to the regular NestedPriceEstimateSerializer for complex cases
-        serializer_instance = NestedPriceEstimateSerializer(
-            instance=estimate, context=context
-        )
-        result = serializer_instance.data
-
-    return result
-
-
 def add_price_estimate(sender, fields, **kwargs):
     """Add a billing price estimate field to the serializer."""
     fields["billing_price_estimate"] = serializers.SerializerMethodField()
