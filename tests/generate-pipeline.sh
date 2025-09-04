@@ -179,10 +179,8 @@ run_unit_tests:
     ENABLE_SPLITTING: "${ENABLE_SPLITTING_VAR}"
 
   script:
-    # This job simply calls the 'dumb' executor script, passing the necessary
-    # arguments which are available as environment variables in the child pipeline.
     # The '\$' are escaped to be expanded by the GitLab runner in the child job.
-    - tests/waldur-test UNIT "\$TEST_PATHS" "\$ENABLE_SPLITTING"
+    - tests/waldur-test UNIT \$TEST_PATHS \$ENABLE_SPLITTING
 
   artifacts:
     when: always
