@@ -249,6 +249,34 @@ collections:
             path_params:
               uuid: "tenant"
 
+      - name: network_rbac_policy
+        plugin: crud
+        resolvers:
+          target_tenant: "openstack_tenants"
+          network: "openstack_networks"
+
+        resource_type: "OpenStack network RBAC policy"
+        description: "Manage OpenStack Network RBAC policies in Waldur."
+
+        base_operation_id: "openstack_network_rbac_policies"
+
+        context_params:
+          - name: "network"
+            resolver: "openstack_networks"
+            filter_key: "network_uuid"
+
+        operations:
+          create:
+            id: "openstack_networks_rbac_policy_create"
+            path_params:
+              uuid: "network"
+
+          destroy:
+            id: "openstack_networks_rbac_policy_delete_destroy"
+            path_params:
+              uuid: "network"
+              rbac_policy_uuid: "name"
+
       - name: server_group
         plugin: crud
         wait_config: *default_wait_config
