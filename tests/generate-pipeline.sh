@@ -177,8 +177,12 @@ run_unit_tests:
     ENABLE_SPLITTING: "${ENABLE_SPLITTING_VAR}"
 
   script:
-    # The '\$' are escaped to be expanded by the GitLab runner in the child job.
-    - tests/waldur-test UNIT \$TEST_PATHS \$ENABLE_SPLITTING
+    # We must wrap \$TEST_PATHS in double quotes.
+    # This ensures that the entire space-separated string of paths is passed
+    # as a SINGLE argument ($2) to the waldur-test script.
+    # Inside waldur-test, the `eval` command will then correctly re-process
+    # this string, performing the word-splitting that pytest requires.
+    - tests/waldur-test UNIT "\$TEST_PATHS" "\$ENABLE_SPLITTING"
 
   artifacts:
     when: always
