@@ -68,45 +68,57 @@ def log(message: str):
 
 def get_changed_files() -> list[str]:
     """
-    Gets the list of changed files from Git for the current merge request.
+    Gets the list of changed files introduced by the merge request's source branch.
 
-    It prioritizes using the source and target branch SHAs, which is robust
-    against local merge commits. It falls back to using the diff base SHA.
+    This implementation is robust against merges of the target branch into the
+    local checkout, ensuring that only the changes from the source branch are
+    considered.
     """
-    source_sha = os.environ.get("CI_MERGE_REQUEST_SOURCE_BRANCH_SHA")
-    target_sha = os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_SHA")
-    base_sha = os.environ.get("CI_MERGE_REQUEST_DIFF_BASE_SHA")
+    # These variables are set by GitLab at the start of the pipeline and are immutable.
+    target_branch_ref = os.environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME")
+    source_sha = os.environ.get("CI_COMMIT_SHA")  # The tip of the source branch.
 
-    diff_command = None
-
-    # This is the most robust method for MR pipelines.
-    if source_sha and target_sha:
+    # This is the crucial check. If we're not in an MR pipeline, we can't do this diff.
+    if not (target_branch_ref and source_sha):
         log(
-            f"Finding changes between target branch ({target_sha[:8]}) and source branch ({source_sha[:8]}...)"
-        )
-        # The three-dot diff shows changes on the source branch since it diverged from the target.
-        diff_command = ["git", "diff", "--name-only", f"{target_sha}...{source_sha}"]
-    elif base_sha:
-        log(f"Finding changes between HEAD and base commit {base_sha[:8]}...")
-        diff_command = ["git", "diff", "--name-only", f"{base_sha}...HEAD"]
-    else:
-        log(
-            "WARNING: No merge request SHA variables found. Defaulting to full test run."
+            "WARNING: Not in a Merge Request pipeline context. Defaulting to full test run."
         )
         return ["pyproject.toml"]
 
+    target_ref = f"origin/{target_branch_ref}"
+
     try:
-        result = subprocess.run(
-            diff_command,
-            capture_output=True,
-            text=True,
-            check=True,
+        # STEP 1: Find the common ancestor (the "merge-base").
+        # This is the point where the feature branch was created or last rebased
+        # from the target branch.
+        merge_base_cmd = ["git", "merge-base", source_sha, target_ref]
+        merge_base_result = subprocess.run(
+            merge_base_cmd, capture_output=True, text=True, check=True
         )
-        changed = result.stdout.strip().split("\n")
-        log(f"Found {len(changed)} changed file(s).")
+        merge_base_sha = merge_base_result.stdout.strip()
+
+        if not merge_base_sha:
+            raise ValueError("Could not determine merge-base.")
+
+        log(
+            f"Finding changes between merge-base ({merge_base_sha[:8]}) and source branch tip ({source_sha[:8]})"
+        )
+
+        # STEP 2: Diff between the merge-base and the tip of our source branch.
+        # This diff will contain ONLY the changes made on the feature branch.
+        # It correctly ignores any changes that were merged in from the target branch
+        # during the CI job's setup.
+        diff_command = ["git", "diff", "--name-only", merge_base_sha, source_sha]
+        diff_result = subprocess.run(
+            diff_command, capture_output=True, text=True, check=True
+        )
+
+        changed = diff_result.stdout.strip().split("\n")
+        log(f"Found {len(changed)} changed file(s) specific to the source branch.")
         return changed
-    except subprocess.CalledProcessError as e:
-        log(f"ERROR: Git diff command failed: {e.stderr}")
+
+    except (subprocess.CalledProcessError, ValueError) as e:
+        log(f"ERROR: Could not determine changed files via merge-base: {e}")
         log("Defaulting to full test run as a safety precaution.")
         return ["pyproject.toml"]
 
