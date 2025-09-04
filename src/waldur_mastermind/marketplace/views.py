@@ -4405,16 +4405,35 @@ class OfferingUsersViewSet(
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.OfferingUserFilter
 
+    def _offering_user_or_service_provider_permission(request, view, obj=None):
+        """
+        Allow access to:
+        1. The offering user themselves (user == obj.user)
+        2. Service provider staff with UPDATE_OFFERING_USER permission
+        """
+        # For the initial has_permission check (obj=None), allow all authenticated users
+        # The real permission check will happen in has_object_permission with the actual object
+        if not obj:
+            if not request.user.is_authenticated:
+                raise rf_exceptions.PermissionDenied("Authentication required")
+            return
+
+        # Check if the current user is the offering user themselves
+        if request.user == obj.user:
+            return
+
+        # Check if user has service provider permission
+        if has_permission(
+            request, PermissionEnum.UPDATE_OFFERING_USER, obj.offering.customer
+        ):
+            return
+
+        raise rf_exceptions.PermissionDenied()
+
     # User checklist permissions (for offering users filling in checklists)
-    checklist_permissions = [
-        permission_factory(PermissionEnum.UPDATE_OFFERING_USER, ["offering.customer"])
-    ]
-    completion_status_permissions = [
-        permission_factory(PermissionEnum.UPDATE_OFFERING_USER, ["offering.customer"])
-    ]
-    submit_answers_permissions = [
-        permission_factory(PermissionEnum.UPDATE_OFFERING_USER, ["offering.customer"])
-    ]
+    checklist_permissions = [_offering_user_or_service_provider_permission]
+    completion_status_permissions = [_offering_user_or_service_provider_permission]
+    submit_answers_permissions = [_offering_user_or_service_provider_permission]
 
     # Reviewer checklist permissions (for service providers reviewing compliance)
     checklist_review_permissions = [
