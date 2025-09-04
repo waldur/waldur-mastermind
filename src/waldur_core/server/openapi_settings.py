@@ -61,7 +61,7 @@ SPECTACULAR_SETTINGS = {
         "RancherCatalogScopeType": CatalogScopeTypeChoices,
         "RobotAccountStates": RobotAccountStates.CHOICES,
         "ChecklistOperators": checklist_enums.OPERATORS,
-        "ServiceAccountState": ServiceAccountState.CHOICES,
+        "ServiceAccountState": ServiceAccountState.VALUES,
     },
     "VERSION": None,
 }
