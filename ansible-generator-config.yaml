@@ -123,6 +123,12 @@ collections:
         many: true
         context_params: *base_openstack_context_params
 
+      - name: network_facts
+        plugin: facts
+        base_operation_id: "openstack_networks"
+        many: true
+        context_params: *base_openstack_context_params
+
       # --- Order Modules (Marketplace Resources) ---
       - name: vpc
         plugin: order
