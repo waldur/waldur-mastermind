@@ -262,6 +262,22 @@ collections:
             path_params:
               uuid: "tenant"
 
+      - name: subnet
+        plugin: crud
+        wait_config: *default_wait_config
+        context_params: *base_openstack_context_params
+        resolvers:
+          tenant: "openstack_tenants"
+          network: "openstack_networks"
+        resource_type: "OpenStack subnet"
+        description: "Manage OpenStack subnets in Waldur."
+        base_operation_id: "openstack_subnets"
+        operations:
+          create:
+            id: "openstack_networks_create_subnet"
+            path_params:
+              uuid: "network"
+
       - name: floating_ip
         plugin: crud
         wait_config: *default_wait_config
