@@ -120,7 +120,7 @@ class CustomerViewSet(
 
         # Annotate with projects_count to avoid N+1 queries
         queryset = queryset.annotate(
-            projects_count=Count("projects", filter=Q(projects__isnull=False))
+            projects_count=Count("projects", filter=Q(projects__is_removed=False))
         )
 
         # Add users_count annotation - we'll calculate this differently due to complexity
