@@ -257,6 +257,7 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
     created_by_username = serializers.CharField(
         read_only=True, source="created_by.username"
     )
+    created_by_email = serializers.EmailField(read_only=True, source="created_by.email")
     reviewed_by_full_name = serializers.CharField(
         read_only=True, source="reviewed_by.full_name"
     )
@@ -276,6 +277,9 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
     role_description = serializers.CharField(
         read_only=True, source="invitation.role.description"
     )
+    project_name_template = serializers.CharField(
+        read_only=True, source="invitation.project_name_template"
+    )
 
     class Meta:
         model = models.PermissionRequest
@@ -287,6 +291,7 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
             "created",
             "created_by_full_name",
             "created_by_username",
+            "created_by_email",
             "reviewed_by_full_name",
             "reviewed_by_username",
             "reviewed_at",
@@ -297,6 +302,7 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
             "customer_name",
             "role_name",
             "role_description",
+            "project_name_template",
         )
 
         extra_kwargs = {
