@@ -57,7 +57,7 @@ SELECTED_PATHS=$(python tests/select_tests.py)
 
 # Create the dotenv artifact file. The `trigger` job in the parent pipeline
 # will read this file and forward its variables to the child pipeline.
-echo "TEST_PATHS='${SELECTED_PATHS}'" > "${VARS_OUTPUT_FILE}"
+echo "TEST_PATHS=${SELECTED_PATHS}" > "${VARS_OUTPUT_FILE}"
 echo "[+] Selected paths: '${SELECTED_PATHS}'"
 
 
@@ -184,7 +184,7 @@ run_unit_tests:
     # as a SINGLE argument ($2) to the waldur-test script.
     # Inside waldur-test, the `eval` command will then correctly re-process
     # this string, performing the word-splitting that pytest requires.
-    - tests/waldur-test UNIT "\$TEST_PATHS" "\$ENABLE_SPLITTING"
+    - tests/waldur-test UNIT \$ENABLE_SPLITTING \$TEST_PATHS
 
   artifacts:
     when: always

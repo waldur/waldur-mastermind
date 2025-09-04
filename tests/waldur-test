@@ -15,14 +15,17 @@ set -e
 # Default to "UNIT" for safety, though it should always be provided.
 TEST_MODE="${1}"
 
-# Argument 2: A space-separated string of test paths to run.
-# e.g., "src/waldur_aws src/waldur_core/structure"
-# This is passed from the parent pipeline's TEST_PATHS variable.
-TEST_TARGETS="${2}"
-
-# Argument 3: A boolean flag ('true' or 'false') indicating whether to
+# Argument 2: A boolean flag ('true' or 'false') indicating whether to
 # enable parallel test splitting. This is determined by the parent pipeline.
-ENABLE_SPLITTING="${3}"
+ENABLE_SPLITTING="${2}"
+
+# The 'shift' command is a standard shell utility that discards arguments
+# from the beginning of the list. `shift 2` discards $1 and $2.
+shift 2
+
+# After shifting, the special variable `$@` now contains all the remaining
+# arguments, which are our test paths. We assign them to TEST_TARGETS.
+TEST_TARGETS="$@"
 
 
 # --- SCRIPT EXECUTION ---
