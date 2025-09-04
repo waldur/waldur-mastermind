@@ -5190,7 +5190,7 @@ class BaseServiceAccountSerializer(
             "error_traceback",
         ]
 
-    @extend_schema_field(serializers.ChoiceField(choices=ServiceAccountState.CHOICES))
+    @extend_schema_field(serializers.ChoiceField(choices=ServiceAccountState.VALUES))
     def get_state(
         self, service_account: models.BaseServiceAccount
     ) -> ServiceAccountStatesType:

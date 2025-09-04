@@ -275,6 +275,8 @@ class ServiceAccountState:
         (ERRED, "Erred"),
     )
 
+    VALUES = [val for (_, val) in CHOICES]
+
 
 ServiceAccountStatesType = Literal[
     "OK",
