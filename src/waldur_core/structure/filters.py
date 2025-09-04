@@ -812,7 +812,9 @@ class UserRolesFilter(BaseFilterBackend):
 
         if project_roles:
             # Filter project permissions by current customer
-            projects = customer.projects.values_list("id", flat=True)
+            projects = models.Project.available_objects.filter(
+                customer=customer
+            ).values_list("id", flat=True)
             project_users = get_project_users(projects, project_roles)
             query = query | Q(id__in=project_users)
 

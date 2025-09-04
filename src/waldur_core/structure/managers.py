@@ -218,7 +218,10 @@ def get_visible_users(user):
 
 def get_nested_customer_users(customer):
     customer_users = get_customer_users(customer.id)
-    project_users = get_project_users(customer.projects.values_list("id", flat=True))
+    project_ids = structure_models.Project.available_objects.filter(
+        customer=customer
+    ).values_list("id", flat=True)
+    project_users = get_project_users(project_ids)
     return customer_users.union(project_users)
 
 

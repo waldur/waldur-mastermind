@@ -185,7 +185,7 @@ class UsageAggregatorQuotaField(QuotaField):
     Example:
         # This quota will store sum of all customer projects resources
         nc_resource_count = quotas_fields.UsageAggregatorQuotaField(
-            get_children=lambda customer: customer.projects.all(),
+            get_children=lambda customer: Project.available_objects.filter(customer=customer),
         )
     """
 

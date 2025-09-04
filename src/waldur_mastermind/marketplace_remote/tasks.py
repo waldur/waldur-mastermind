@@ -1091,7 +1091,7 @@ def update_remote_customer_permissions(
         else expiration_time
     )
 
-    for project in customer.projects.all():
+    for project in structure_models.Project.available_objects.filter(customer=customer):
         sync_project_permission(grant, project, role_name, user, new_expiration_time)
 
 

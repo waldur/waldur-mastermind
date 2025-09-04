@@ -726,7 +726,9 @@ class CustomerUserSerializer(
     @extend_schema_field(NestedProjectPermissionSerializer(many=True))
     def get_projects(self, user):
         customer = self.context["customer"]
-        project_ids = customer.projects.values_list("id", flat=True)
+        project_ids = models.Project.available_objects.filter(
+            customer=customer
+        ).values_list("id", flat=True)
         projects = UserRole.objects.filter(
             content_type=ContentType.objects.get_for_model(models.Project),
             object_id__in=project_ids,

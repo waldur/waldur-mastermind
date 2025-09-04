@@ -273,7 +273,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         projects = structure_serializers.NestedProjectSerializer(
-            instance=invitation.customer.projects.all(),
+            instance=Project.available_objects.filter(customer=invitation.customer),
             read_only=True,
             context={"request": request},
             many=True,

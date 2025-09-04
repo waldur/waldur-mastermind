@@ -208,7 +208,9 @@ def calculate_usage_for_current_month():
 
     for customer in structure_models.Customer.objects.all():
         scopes.append(customer)
-        for project in customer.projects.all():
+        for project in structure_models.Project.available_objects.filter(
+            customer=customer
+        ):
             scopes.append(project)
 
     for scope in scopes:
