@@ -1,3 +1,4 @@
+from constance import config
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions
 
@@ -183,21 +184,23 @@ def can_see_secret_options(request, instance):
 def check_tos_consent_permission(request, view, obj=None):
     """
     Check if user has consented to Terms of Service for the resource's offering.
-
-    This permission check ensures that users can only directly access resources
-    if they have consented to the offering's Terms of Service (if required).
     """
     if not obj:
+        return
+
+    if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
         return
 
     user = request.user
     offering = obj.offering
     if user.is_staff or user.is_support:
         return
-    if has_permission(request, PermissionEnum.UPDATE_OFFERING, offering.customer):
+
+    if not offering.plugin_options.get(
+        "service_provider_can_create_offering_user", False
+    ):
         return
 
-    # Check if offering has ToS requirements
     if not offering.has_terms_of_service():
         return
 

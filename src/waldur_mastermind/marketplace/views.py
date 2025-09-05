@@ -718,15 +718,26 @@ class ServiceProviderUsersViewSet(mixins.ListModelMixin, rf_viewsets.GenericView
         user_ids = utils.get_service_provider_user_ids(
             self.request.user, service_provider
         )
-
-        # sp_offerings = models.Offering.objects.filter(
-        #     customer=service_provider.customer
-        # )
-        return self.queryset.filter(
-            id__in=user_ids,
-            # offering_consents__offering__in=sp_offerings,
-            # offering_consents__revocation_date__isnull=True,
-        ).distinct()
+        queryset = self.queryset.filter(id__in=user_ids)
+        if config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+            # Only users with active consent for ToS-required offerings or use offerings that don't require ToS
+            queryset = queryset.filter(
+                Q(
+                    offering_consents__offering__customer=service_provider.customer,
+                    offering_consents__offering__plugin_options__service_provider_can_create_offering_user=True,
+                    offering_consents__offering__terms_of_service_configs__is_active=True,
+                    offering_consents__revocation_date__isnull=True,
+                )
+                # Users who have resource access to resource from offering that doesn't require ToS
+                | Q(
+                    id__in=models.OfferingUser.objects.filter(
+                        offering__customer=service_provider.customer,
+                        offering__plugin_options__service_provider_can_create_offering_user=True,
+                        offering__terms_of_service_configs__isnull=True,
+                    ).values_list("user_id", flat=True)
+                )
+            )
+        return queryset.distinct()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -2472,11 +2483,19 @@ class ProviderOfferingViewSet(
         )
         ctype = ContentType.objects.get_for_model(structure_models.Project)
         user_ids = get_user_ids(ctype, project_ids)
-        users = core_models.User.objects.filter(
-            id__in=user_ids,
-            # offering_consents__offering=offering,
-            # offering_consents__revocation_date__isnull=True,
-        )
+
+        # Filter users based on consent if enforcement is enabled globally and offering requires consent
+        users = core_models.User.objects.filter(id__in=user_ids)
+
+        if (
+            config.ENFORCE_USER_CONSENT_FOR_OFFERINGS
+            and offering.has_terms_of_service()
+        ):
+            users = users.filter(
+                offering_consents__offering=offering,
+                offering_consents__revocation_date__isnull=True,
+            )
+
         page = self.paginate_queryset(users)
         serializer = structure_serializers.UserSerializer(
             instance=page,
@@ -3373,8 +3392,6 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         serializers.ResourceUpdateSerializer
     )
 
-    # retrieve_permissions = [permissions.check_tos_consent_permission]
-
     def list(self, request, *args, **kwargs):
         utils.refresh_integration_agent_status(
             request, models.IntegrationStatus.AgentTypes.USAGE_REPORTING
@@ -3779,7 +3796,8 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 class ConsumerResourceViewSet(BaseResourceViewSet):
     def get_queryset(self):
         queryset = self.queryset.filter_for_service_consumer(self.request.user)
-        return filter_queryset_by_user_ip(queryset, self.request)
+        queryset = filter_queryset_by_user_ip(queryset, self.request)
+        return queryset
 
     @action(detail=False, methods=["post"])
     def suggest_name(self, request, *args, **kwargs):
@@ -3843,17 +3861,19 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     update_limits_serializer_class = serializers.ResourceUpdateLimitsSerializer
 
     switch_plan_permissions = [
+        permissions.check_tos_consent_permission,
         permission_factory(
             PermissionEnum.SWITCH_RESOURCE_PLAN,
             ["project", "project.customer"],
-        )
+        ),
     ]
 
     update_limits_permissions = [
+        permissions.check_tos_consent_permission,
         permission_factory(
             PermissionEnum.UPDATE_RESOURCE_LIMITS,
             ["project", "project.customer"],
-        )
+        ),
     ]
 
     switch_plan_validators = update_limits_validators = [
@@ -3876,10 +3896,11 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
         )
 
     update_options_permissions = [
+        permissions.check_tos_consent_permission,
         permission_factory(
             PermissionEnum.UPDATE_RESOURCE_OPTIONS,
             ["project", "project.customer"],
-        )
+        ),
     ]
     update_options_serializer_class = serializers.ResourceOptionsSerializer
 
@@ -4507,12 +4528,6 @@ class OfferingUsersViewSet(
                         Q(offering__customer__in=managed_customers)
                         | Q(user__in=visible_users)
                     )
-                    # & Q(
-                    #     user__offering_consents__offering=F("offering"),
-                    #     user__offering_consents__revocation_date__isnull=True,
-                    # )
-                    # if self.action in ["list", "retrieve"]
-                    # else Q()
                     & (
                         # only offerings managed by customer where the current user has a role
                         Q(offering__customer__id__in=visible_customers)
@@ -4523,6 +4538,19 @@ class OfferingUsersViewSet(
                 )
             )
         ).distinct()
+        if config.ENFORCE_USER_CONSENT_FOR_OFFERINGS and self.action in [
+            "list",
+            "retrieve",
+        ]:
+            # Show if offering has no terms of service or user has active consent
+            queryset = queryset.filter(
+                Q(user=current_user)
+                | ~Q(offering__terms_of_service_configs__is_active=True)
+                | Q(
+                    user__offering_consents__offering=F("offering"),
+                    user__offering_consents__revocation_date__isnull=True,
+                )
+            )
         return queryset
 
     @extend_schema(
@@ -5216,7 +5244,6 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
     @action(detail=False, methods=["get"])
     def count_users_of_service_providers(self, request, *args, **kwargs):
         result = []
-
         for sp in models.ServiceProvider.objects.all().prefetch_related(
             "customer__organization_groups"
         ):
@@ -5225,19 +5252,21 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
                 user_ids = utils.get_service_provider_user_ids(self.request.user, sp)
 
                 sp_offerings = models.Offering.objects.filter(customer=sp.customer)
-                consented_user_ids = (
-                    models.UserOfferingConsent.objects.filter(
-                        offering__in=sp_offerings,
-                        revocation_date__isnull=True,
+                if config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+                    consented_user_ids = (
+                        models.UserOfferingConsent.objects.filter(
+                            offering__in=sp_offerings,
+                            revocation_date__isnull=True,
+                        )
+                        .values_list("user_id", flat=True)
+                        .distinct()
                     )
-                    .values_list("user_id", flat=True)
-                    .distinct()
-                )
-
-                consented_user_ids = set(user_ids) & set(consented_user_ids)
+                    final_user_ids = set(user_ids) & set(consented_user_ids)
+                else:
+                    final_user_ids = user_ids
 
                 data = {
-                    "count": len(consented_user_ids),
+                    "count": len(final_user_ids),
                     "customer_organization_group_uuid": group.uuid.hex,
                     "customer_organization_group_name": group.name,
                 }

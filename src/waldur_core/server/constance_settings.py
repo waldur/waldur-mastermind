@@ -503,6 +503,10 @@ CONSTANCE_CONFIG = {
         "How maintenance notifications are delivered. Choices: AdminAnnouncement or BroadcastMessage.",
         "list_field",
     ),
+    "ENFORCE_USER_CONSENT_FOR_OFFERINGS": (
+        False,
+        "If True, users must have active consent to access offerings that have active Terms of Service.",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -531,6 +535,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE",
         "ENABLE_STALE_RESOURCE_NOTIFICATIONS",
         "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND",
+        "ENFORCE_USER_CONSENT_FOR_OFFERINGS",
     ),
     "Telemetry": (
         "TELEMETRY_URL",

@@ -1,7 +1,10 @@
-import unittest
 import uuid
 
+from constance.test.unittest import override_config as override_constance_config
 from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test import RequestFactory
+from django.test.utils import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITransactionTestCase
@@ -18,9 +21,14 @@ from waldur_core.structure.tests.factories import (
 )
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
-from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    OfferingStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests.factories import (
     CategoryFactory,
+    OfferingComponentFactory,
     OfferingFactory,
     OrderFactory,
     PlanFactory,
@@ -31,6 +39,7 @@ from waldur_mastermind.marketplace.tests.factories import (
 User = get_user_model()
 
 
+@override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
 class TermsOfServiceConsentTest(APITransactionTestCase):
     def setUp(self):
         ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_RESOURCES)
@@ -617,37 +626,6 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
 
         self.assertIsNotNone(offering_user)
 
-    @unittest.skip("Temporarily disabled")
-    def test_resource_access_after_consent_granted(self):
-        """Test that resource access works when consent is granted after resource creation."""
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
-
-        # Create resource
-        resource = ResourceFactory(
-            project=self.project,
-            offering=self.offering,
-            plan=self.plan,
-        )
-        resource.state = ResourceStates.OK
-        resource.save()
-
-        # Verify resource access is denied without consent
-        self.client.force_authenticate(user=self.user)
-        response = self.client.get(ResourceFactory.get_url(resource))
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        # Grant consent
-        models.UserOfferingConsent.objects.create(
-            user=self.user,
-            offering=self.offering,
-            version="1.0",
-        )
-
-        # Check that resource access is now allowed
-        response = self.client.get(ResourceFactory.get_url(resource))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    @unittest.skip("Temporarily disabled")
     def test_user_without_consent_hidden_from_service_provider(self):
         """Test that users without consent are hidden from service provider views."""
         # Don't create consent - user has not agreed to ToS
@@ -662,7 +640,6 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         user_uuids = [ou["user_uuid"] for ou in response.data]
         self.assertNotIn(str(self.user.uuid), user_uuids)
 
-    @unittest.skip("Temporarily disabled")
     def test_granting_consent_makes_user_visible_to_service_provider(self):
         """Test that granting consent makes user visible to service provider views."""
         # Start without consent
@@ -689,7 +666,6 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         user_uuids = [ou["user_uuid"] for ou in response.data]
         self.assertIn(str(self.user.uuid), user_uuids)
 
-    @unittest.skip("Temporarily disabled")
     def test_consent_revocation_hides_user_from_service_provider(self):
         """Test that revoking consent hides user from service provider views."""
         # Create consent first
@@ -750,7 +726,6 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         user_uuids = [ou["user_uuid"] for ou in response.data]
         self.assertIn(str(self.user.uuid), user_uuids)
 
-    @unittest.skip("Temporarily disabled")
     def test_mixed_consent_visibility(self):
         """Test that SP sees only consented users when multiple users have mixed consent status."""
         # Create another user without consent
@@ -789,7 +764,6 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         # Should NOT see user without consent
         self.assertNotIn(str(user_without_consent.uuid), user_uuids)
 
-    @unittest.skip("Temporarily disabled")
     def test_inactive_consent_hides_user(self):
         """Test that users with revoked consent are hidden from service providers."""
         # Create and revoke consent
@@ -939,7 +913,298 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         response = self.client.post(OrderFactory.get_list_url(), order_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_conditional_consent_filtering_when_enabled(self):
+        """Test that consent filtering is applied when ENFORCE_USER_CONSENT_FOR_OFFERINGS is True."""
+        user_without_consent = UserFactory()
+        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
 
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        service_provider_user = UserFactory()
+        self.offering.customer.add_user(service_provider_user, CustomerRole.OWNER)
+        self.client.force_authenticate(user=service_provider_user)
+
+        response = self.client.get("/api/marketplace-offering-users/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user_uuids = [ou["user_uuid"] for ou in response.data]
+
+        self.assertIn(str(self.user.uuid), user_uuids)
+        self.assertNotIn(str(user_without_consent.uuid), user_uuids)
+
+    def test_conditional_consent_filtering_when_disabled(self):
+        """Test that consent filtering is NOT applied when ENFORCE_USER_CONSENT_FOR_OFFERINGS is False."""
+        user_without_consent = UserFactory()
+        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
+
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        # Service provider should see all users when enforcement is disabled
+        service_provider_user = UserFactory()
+        self.offering.customer.add_user(service_provider_user, CustomerRole.OWNER)
+        self.client.force_authenticate(user=service_provider_user)
+
+        with override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False):
+            response = self.client.get("/api/marketplace-offering-users/")
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            user_uuids = [ou["user_uuid"] for ou in response.data]
+
+            self.assertIn(str(self.user.uuid), user_uuids)
+            self.assertIn(str(user_without_consent.uuid), user_uuids)
+
+    def test_conditional_consent_filtering_single_offering_with_tos(self):
+        """Test consent filtering for a single offering that has ToS requirements."""
+        user_without_consent = UserFactory()
+        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
+
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        service_provider_user = UserFactory()
+        self.offering.customer.add_user(service_provider_user, CustomerRole.OWNER)
+        self.client.force_authenticate(user=service_provider_user)
+
+        response = self.client.get("/api/marketplace-offering-users/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user_uuids = [ou["user_uuid"] for ou in response.data]
+
+        self.assertIn(str(self.user.uuid), user_uuids)
+        self.assertNotIn(str(user_without_consent.uuid), user_uuids)
+
+        with override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False):
+            response = self.client.get("/api/marketplace-offering-users/")
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            user_uuids = [ou["user_uuid"] for ou in response.data]
+
+            self.assertIn(str(self.user.uuid), user_uuids)
+            self.assertIn(str(user_without_consent.uuid), user_uuids)
+
+    def test_conditional_consent_filtering_offering_users_endpoint(self):
+        """Test that the OfferingUsers endpoint respects the conditional consent filtering."""
+        user_without_consent = UserFactory()
+        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
+
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        service_provider_user = UserFactory()
+        self.offering.customer.add_user(service_provider_user, CustomerRole.OWNER)
+        self.client.force_authenticate(user=service_provider_user)
+
+        response = self.client.get("/api/marketplace-offering-users/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user_uuids = [ou["user_uuid"] for ou in response.data]
+
+        self.assertIn(str(self.user.uuid), user_uuids)
+        self.assertNotIn(str(user_without_consent.uuid), user_uuids)
+
+        with override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False):
+            response = self.client.get("/api/marketplace-offering-users/")
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            user_uuids = [ou["user_uuid"] for ou in response.data]
+
+            self.assertIn(str(self.user.uuid), user_uuids)
+            self.assertIn(str(user_without_consent.uuid), user_uuids)
+
+    def test_conditional_consent_filtering_customer_users_endpoint(self):
+        """Test that the customer users endpoint respects the conditional consent filtering."""
+        user_without_consent = UserFactory()
+        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
+        self.customer.add_user(self.user, CustomerRole.OWNER)
+
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(
+            f"/api/marketplace-provider-offerings/{self.offering.uuid}/list_customer_users/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user_uuids = [user["uuid"] for user in response.data]
+
+        self.assertIn(str(self.user.uuid), user_uuids)
+        self.assertNotIn(str(user_without_consent.uuid), user_uuids)
+
+        with override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False):
+            response = self.client.get(
+                f"/api/marketplace-provider-offerings/{self.offering.uuid}/list_customer_users/"
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            user_uuids = [user["uuid"] for user in response.data]
+
+            # Should see both users when enforcement is disabled
+            self.assertIn(str(self.user.uuid), user_uuids)
+            self.assertIn(str(user_without_consent.uuid), user_uuids)
+
+    def test_user_visibility_only_for_non_tos_offering_when_no_consent(self):
+        """Test that users without consent only appear for non-ToS offerings."""
+        offering_no_tos = OfferingFactory(
+            customer=self.customer,
+            type="Marketplace.Basic",
+            category=self.category,
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "waldur_username",
+            },
+        )
+        plan_no_tos = PlanFactory(offering=offering_no_tos)
+
+        user_no_consent = UserFactory()
+
+        project2 = ProjectFactory(customer=self.customer)
+
+        resource_tos = ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+        )
+        resource_tos.state = ResourceStates.OK
+        resource_tos.save()
+
+        resource_no_tos = ResourceFactory(
+            project=project2,
+            offering=offering_no_tos,
+            plan=plan_no_tos,
+        )
+        resource_no_tos.state = ResourceStates.OK
+        resource_no_tos.save()
+
+        self.project.add_user(user_no_consent, role=ProjectRole.MANAGER)
+        project2.add_user(user_no_consent, role=ProjectRole.MANAGER)
+
+        service_provider_user = UserFactory()
+        self.offering.customer.add_user(service_provider_user, CustomerRole.OWNER)
+        self.client.force_authenticate(user=service_provider_user)
+
+        response = self.client.get("/api/marketplace-offering-users/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_uuids = [ou["user_uuid"] for ou in response.data]
+
+        self.assertIn(str(user_no_consent.uuid), user_uuids)
+
+        # Verify user only appears for the non-ToS offering
+        user_records = [
+            ou for ou in response.data if ou["user_uuid"] == str(user_no_consent.uuid)
+        ]
+        self.assertEqual(len(user_records), 1)
+
+        offering_uuids_for_user = [ou["offering_uuid"] for ou in user_records]
+        self.assertIn(str(offering_no_tos.uuid), offering_uuids_for_user)
+        self.assertNotIn(str(self.offering.uuid), offering_uuids_for_user)
+
+        response = self.client.get(
+            f"/api/marketplace-provider-offerings/{self.offering.uuid}/list_customer_users/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        customer_user_uuids = [user["uuid"] for user in response.data]
+
+        self.assertNotIn(str(user_no_consent.uuid), customer_user_uuids)
+
+        response = self.client.get(
+            f"/api/marketplace-provider-offerings/{offering_no_tos.uuid}/list_customer_users/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        no_tos_customer_user_uuids = [user["uuid"] for user in response.data]
+
+        # Should see user for non-ToS offering
+        self.assertIn(str(user_no_consent.uuid), no_tos_customer_user_uuids)
+
+    def test_conditional_consent_filtering_mixed_offerings(self):
+        """Test consent filtering with mixed offerings (some with ToS, some without)."""
+        offering_without_tos = OfferingFactory(
+            category=self.category,
+            customer=self.customer,
+            type="Marketplace.Basic",
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "waldur_username",
+            },
+        )
+
+        plan_without_tos = PlanFactory(offering=offering_without_tos)
+        resource_without_tos = ResourceFactory(
+            project=self.project,
+            offering=offering_without_tos,
+            plan=plan_without_tos,
+        )
+        resource_without_tos.state = ResourceStates.OK
+        resource_without_tos.save()
+
+        # Create another user without consent for the main offering
+        user_without_consent = UserFactory()
+
+        # Create a THIRD user who also has no consent for main offering
+        user_no_consent_main = UserFactory()
+
+        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
+        self.project.add_user(user_no_consent_main, role=ProjectRole.MEMBER)
+
+        # Create consent only for the main user for the main offering
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        # Service provider should see all users for offerings without ToS
+        service_provider_user = UserFactory()
+        self.offering.customer.add_user(service_provider_user, CustomerRole.OWNER)
+        self.client.force_authenticate(user=service_provider_user)
+        response = self.client.get("/api/marketplace-offering-users/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user_uuids = [ou["user_uuid"] for ou in response.data]
+
+        # Should see user with consent for main offering and user without consent for non-ToS offering
+        # 5 offering users, but only 3 users should be visible
+        self.assertEqual(len(user_uuids), 3)
+        self.assertIn(str(self.user.uuid), user_uuids)
+        self.assertIn(str(user_without_consent.uuid), user_uuids)
+
+        self.assertIn(str(user_no_consent_main.uuid), user_uuids)
+
+        user_no_consent_main_records = [
+            ou
+            for ou in response.data
+            if ou["user_uuid"] == str(user_no_consent_main.uuid)
+        ]
+
+        self.assertEqual(len(user_no_consent_main_records), 1)
+        self.assertEqual(
+            user_no_consent_main_records[0]["offering_uuid"],
+            str(offering_without_tos.uuid),
+        )
+
+        with override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False):
+            response = self.client.get("/api/marketplace-offering-users/")
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            user_uuids = [ou["user_uuid"] for ou in response.data]
+
+            # Should see ALL users when enforcement is disabled
+            self.assertIn(str(self.user.uuid), user_uuids)
+            self.assertIn(str(user_without_consent.uuid), user_uuids)
+            self.assertIn(str(user_no_consent_main.uuid), user_uuids)
+            self.assertEqual(len(user_uuids), 5)
+
+
+@override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
 class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
     """Test cases for ProviderOfferingToSManagementViewset."""
 
@@ -956,6 +1221,9 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
             customer=self.customer,
             type="Marketplace.Basic",
             state=OfferingStates.ACTIVE,
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+            },
         )
         self.tos_config = models.OfferingTermsOfService.objects.create(
             offering=self.offering,
@@ -1011,6 +1279,147 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
         tos_config = models.OfferingTermsOfService.objects.get(version="2.0")
         self.assertEqual(tos_config.terms_of_service, "New terms of service")
         self.assertTrue(tos_config.requires_reconsent)
+
+    def test_service_provider_users_endpoint_filter(self):
+        """Test that ServiceProviderUsersViewSet works after fixing the resource relationship."""
+        service_provider_user = UserFactory()
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_USERS)
+        self.customer.add_user(service_provider_user, CustomerRole.OWNER)
+        self.client.force_authenticate(user=service_provider_user)
+
+        user1 = UserFactory()
+        user2 = UserFactory()
+        user3 = UserFactory()
+
+        self.project.add_user(user1, role=ProjectRole.MANAGER)
+        self.project.add_user(user2, role=ProjectRole.ADMIN)
+        self.project.add_user(user3, role=ProjectRole.MEMBER)
+
+        # Create user consents for ToS-required offerings
+        models.UserOfferingConsent.objects.create(
+            user=user1,
+            offering=self.offering,
+            version="1.0",
+        )
+        models.UserOfferingConsent.objects.create(
+            user=user2,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        url = f"/api/marketplace-service-providers/{self.service_provider.uuid}/users/"
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+
+        # Should only return users who have ToS consent
+        returned_user_ids = [user["uuid"] for user in data]
+        self.assertIn(str(user1.uuid), returned_user_ids)
+        self.assertIn(str(user2.uuid), returned_user_ids)
+
+    def test_service_provider_users_endpoint_without_tos_offering(self):
+        """Test that users are visible when using offerings without ToS requirements."""
+        service_provider_user = UserFactory()
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_USERS)
+        self.customer.add_user(service_provider_user, CustomerRole.OWNER)
+        self.client.force_authenticate(user=service_provider_user)
+
+        # Create an offering WITHOUT terms of service
+        offering_without_tos = OfferingFactory(
+            customer=self.customer,
+            type="Marketplace.Basic",
+            state=OfferingStates.ACTIVE,
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+            },
+        )
+
+        user_without_tos = UserFactory()
+        user_without_tos2 = UserFactory()
+
+        self.project.add_user(user_without_tos, role=ProjectRole.MANAGER)
+        self.project.add_user(user_without_tos2, role=ProjectRole.ADMIN)
+
+        models.OfferingUser.objects.create(
+            user=user_without_tos,
+            offering=offering_without_tos,
+        )
+        models.OfferingUser.objects.create(
+            user=user_without_tos2,
+            offering=offering_without_tos,
+        )
+
+        user_no_resource = UserFactory()
+        self.project.add_user(user_no_resource, role=ProjectRole.MEMBER)
+
+        url = f"/api/marketplace-service-providers/{self.service_provider.uuid}/users/"
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+        returned_user_ids = [user["uuid"] for user in data]
+        self.assertIn(str(user_without_tos.uuid), returned_user_ids)
+        self.assertIn(str(user_without_tos2.uuid), returned_user_ids)
+
+        self.assertNotIn(str(user_no_resource.uuid), returned_user_ids)
+
+    def test_service_provider_users_endpoint_works_when_consent_disabled(self):
+        """Test that the endpoint works when ENFORCE_USER_CONSENT_FOR_OFFERINGS is False."""
+        service_provider_user = UserFactory()
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_USERS)
+        self.customer.add_user(service_provider_user, CustomerRole.OWNER)
+        self.client.force_authenticate(user=service_provider_user)
+
+        url = f"/api/marketplace-service-providers/{self.service_provider.uuid}/users/"
+
+        with override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(len(response.data), 1)
+
+    def test_marketplace_provider_customer_serializer_with_tos_consent(self):
+        """Test that MarketplaceProviderCustomerSerializer.get_users_qs works with ToS consent."""
+        service_provider_user = UserFactory()
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS
+        )
+        self.customer.add_user(service_provider_user, CustomerRole.OWNER)
+        self.client.force_authenticate(user=service_provider_user)
+
+        # Create users with ToS consent
+        user_with_consent = UserFactory()
+        user_without_consent = UserFactory()
+
+        # Add users to project
+        self.project.add_user(user_with_consent, role=ProjectRole.MANAGER)
+        self.project.add_user(user_without_consent, role=ProjectRole.ADMIN)
+
+        # Create consent for one user
+        models.UserOfferingConsent.objects.create(
+            user=user_with_consent,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        url = f"/api/marketplace-service-providers/{self.service_provider.uuid}/customers/"
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return the customer
+        self.assertEqual(len(response.data), 1)
+        customer_data = response.data[0]
+
+        # Check that users_count reflects only users with consent
+        self.assertEqual(customer_data["users_count"], 1)
+
+        # Check that users field contains only the user with consent
+        users_data = customer_data["users"]
+        self.assertEqual(len(users_data), 1)
+        self.assertEqual(users_data[0]["uuid"], str(user_with_consent.uuid))
 
     def test_update_terms_of_service_config(self):
         """Test updating an existing ToS configuration."""
@@ -1120,6 +1529,7 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
         self.assertEqual(versions, ["3.0", "2.0", "1.0"])
 
 
+@override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
 class ResourceToSConsentPermissionTest(APITransactionTestCase):
     """Test cases for resource access control based on ToS consent."""
 
@@ -1160,15 +1570,6 @@ class ResourceToSConsentPermissionTest(APITransactionTestCase):
 
         self.resource_url = ResourceFactory.get_url(self.resource)
 
-    @unittest.skip("Temporarily disabled")
-    def test_resource_access_without_consent_denied(self):
-        """Test that resource access is denied when user hasn't consented to ToS."""
-        self.client.force_authenticate(user=self.user)
-
-        response = self.client.get(self.resource_url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn("Terms of Service consent required", response.data["detail"])
-
     def test_resource_access_with_consent_allowed(self):
         """Test that resource access is allowed when user has consented to ToS."""
         models.UserOfferingConsent.objects.create(
@@ -1201,17 +1602,6 @@ class ResourceToSConsentPermissionTest(APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_resource_access_service_provider_bypass(self):
-        """Test that service provider users or customer users with list_resources permission can access resources without ToS consent."""
-        service_provider_user = UserFactory()
-        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_RESOURCES)
-        self.offering.customer.add_user(service_provider_user, CustomerRole.OWNER)
-
-        self.client.force_authenticate(user=service_provider_user)
-
-        response = self.client.get(self.resource_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
     def test_resource_access_no_tos_requirements(self):
         """Test that resource access is allowed when offering has no ToS requirements."""
         self.tos_config.delete()
@@ -1222,32 +1612,8 @@ class ResourceToSConsentPermissionTest(APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @unittest.skip("Temporarily disabled")
-    def test_resource_access_revoked_consent_denied(self):
-        """Test that resource access is denied when consent has been revoked."""
-        consent = models.UserOfferingConsent.objects.create(
-            user=self.user,
-            offering=self.offering,
-            version="1.0",
-        )
-        consent.revoke()
 
-        self.client.force_authenticate(user=self.user)
-
-        response = self.client.get(self.resource_url)
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertIn("Terms of Service consent required", response.data["detail"])
-
-    def test_resource_list_still_accessible(self):
-        """Test that resource list is still accessible even without consent."""
-        self.client.force_authenticate(user=self.user)
-
-        response = self.client.get(ResourceFactory.get_list_url())
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn(str(self.resource.name), str(response.data))
-
-
+@override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
 class ResourceConsentUIFieldsTest(APITransactionTestCase):
     """Test cases for user_requires_reconsent field in ResourceSerializer."""
 
@@ -1264,6 +1630,17 @@ class ResourceConsentUIFieldsTest(APITransactionTestCase):
             customer=self.customer,
             type="Marketplace.Basic",
             state=OfferingStates.ACTIVE,
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "waldur_username",
+            },
+        )
+
+        # Create a component that supports limits
+        self.offering_component = OfferingComponentFactory(
+            offering=self.offering,
+            type="storage",
+            billing_type=BillingTypes.LIMIT,
         )
         self.plan = PlanFactory(offering=self.offering)
         self.resource = ResourceFactory(
@@ -1509,3 +1886,209 @@ class ResourceConsentUIFieldsTest(APITransactionTestCase):
         )
         self.assertIsNotNone(resource_data)
         self.assertFalse(resource_data["user_requires_reconsent"])
+
+    def test_update_limits_requires_tos_consent(self):
+        """Test that updating resource limits requires ToS consent."""
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Terms of Service",
+            version="1.0",
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        update_limits_data = {"limits": self.resource.limits}
+        update_limits_url = (
+            f"/api/marketplace-resources/{self.resource.uuid}/update_limits/"
+        )
+
+        response = self.client.post(update_limits_url, update_limits_data)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("Terms of Service consent required", response.data["detail"])
+
+    def test_update_limits_allowed_with_tos_consent(self):
+        """Test that updating resource limits is allowed with ToS consent."""
+        ProjectRole.MANAGER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Terms of Service",
+            version="1.0",
+        )
+
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        # Use the same limits that were set on the resource initially
+        update_limits_data = {"limits": {"storage": 124}}
+        update_limits_url = (
+            f"/api/marketplace-resources/{self.resource.uuid}/update_limits/"
+        )
+
+        response = self.client.post(update_limits_url, update_limits_data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+@override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+class OfferingUsersViewSetPerformanceTest(APITransactionTestCase):
+    """Test performance of OfferingUsersViewSet.get_queryset method."""
+
+    def setUp(self):
+        """Set up test data for performance testing."""
+        # Create users
+        self.user = UserFactory()
+        self.service_provider_user = UserFactory()
+        self.other_user = UserFactory()
+
+        self.customer = CustomerFactory()
+        self.project = ProjectFactory(customer=self.customer)
+
+        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        self.project.add_user(self.other_user, role=ProjectRole.MEMBER)
+
+        self.service_provider = ServiceProviderFactory(customer=self.customer)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_USERS)
+        self.customer.add_user(self.service_provider_user, CustomerRole.OWNER)
+
+        self.offering = OfferingFactory(
+            customer=self.customer,
+            type="Marketplace.Basic",
+            state=OfferingStates.ACTIVE,
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "waldur_username",
+            },
+        )
+
+        self.tos_config = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Terms of Service",
+            version="1.0",
+        )
+
+        self.plan = PlanFactory(offering=self.offering)
+        self.resource = ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+        )
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+
+        self.offering_user_1 = models.OfferingUser.objects.create(
+            user=self.user,
+            offering=self.offering,
+        )
+        self.offering_user_2 = models.OfferingUser.objects.create(
+            user=self.other_user,
+            offering=self.offering,
+        )
+
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        self.list_url = "/api/marketplace-offering-users/"
+
+        from waldur_mastermind.marketplace.views import OfferingUsersViewSet
+
+        self.viewset = OfferingUsersViewSet()
+        self.viewset.queryset = models.OfferingUser.objects.all()
+
+    def test_offering_users_queryset_query_optimization(self):
+        """Test that OfferingUsersViewSet.get_queryset uses optimized queries."""
+
+        factory = RequestFactory()
+        request = factory.get("/api/marketplace-offering-users/")
+        request.user = self.service_provider_user
+
+        self.viewset.request = request
+        self.viewset.action = "list"
+
+        with override_settings(DEBUG=True):
+            connection.queries.clear()
+
+            queryset = self.viewset.get_queryset()
+
+            query_count = len(connection.queries)
+
+            self.assertLessEqual(query_count, 3)
+
+            offering_users = list(queryset)
+            self.assertEqual(len(offering_users), 1)
+            self.assertEqual(offering_users[0].user, self.user)
+
+    @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False)
+    def test_offering_users_queryset_query_optimization_without_tos(self):
+        """Test query optimization when ToS enforcement is disabled."""
+
+        factory = RequestFactory()
+        request = factory.get("/api/marketplace-offering-users/")
+        request.user = self.service_provider_user
+
+        self.viewset.request = request
+        self.viewset.action = "list"
+
+        with override_settings(DEBUG=True):
+            connection.queries.clear()
+
+            queryset = self.viewset.get_queryset()
+
+            query_count = len(connection.queries)
+            self.assertLessEqual(query_count, 3)
+
+            offering_users = list(queryset)
+            self.assertEqual(len(offering_users), 2)
+
+    def test_offering_users_queryset_query_optimization_staff_user(self):
+        """Test query optimization for staff users (bypasses complex filtering)."""
+
+        staff_user = UserFactory(is_staff=True)
+
+        factory = RequestFactory()
+        request = factory.get("/api/marketplace-offering-users/")
+        request.user = staff_user
+
+        self.viewset.request = request
+        self.viewset.action = "list"
+
+        with override_settings(DEBUG=True):
+            connection.queries.clear()
+
+            queryset = self.viewset.get_queryset()
+
+            query_count = len(connection.queries)
+
+            self.assertLessEqual(query_count, 2)
+
+            offering_users = list(queryset)
+            self.assertEqual(len(offering_users), 2)
+
+    def test_offering_users_queryset_query_optimization_regular_user(self):
+        """Test query optimization for regular users (sees only own records)."""
+
+        factory = RequestFactory()
+        request = factory.get("/api/marketplace-offering-users/")
+        request.user = self.user
+
+        self.viewset.request = request
+        self.viewset.action = "list"
+
+        with override_settings(DEBUG=True):
+            connection.queries.clear()
+
+            queryset = self.viewset.get_queryset()
+
+            query_count = len(connection.queries)
+            self.assertLessEqual(query_count, 3)
+
+            offering_users = list(queryset)
+            self.assertEqual(len(offering_users), 1)
+            self.assertEqual(offering_users[0].user, self.user)
