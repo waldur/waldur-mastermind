@@ -2,6 +2,7 @@ import logging
 
 from django.db import transaction
 
+from waldur_core.structure.models import Project
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 
 from . import models
@@ -31,7 +32,8 @@ def update_estimate_when_invoice_is_created(
 
 
 def update_estimates_for_customer(customer):
-    scopes = [customer] + list(customer.projects.all())
+    projects = list(Project.available_objects.filter(customer=customer))
+    scopes = [customer] + projects
     for scope in scopes:
         estimate, _ = models.PriceEstimate.objects.get_or_create(scope=scope)
         estimate.update_total()
