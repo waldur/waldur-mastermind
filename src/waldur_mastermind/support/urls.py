@@ -23,6 +23,11 @@ def register_in(router):
         views.FeedbackViewSet,
         basename="support-feedback",
     )
+    router.register(
+        r"support-issue-statuses",
+        views.IssueStatusViewSet,
+        basename="support-issue-status",
+    )
 
 
 urlpatterns = [

@@ -830,5 +830,19 @@ class DeleteAttachmentsSerializer(serializers.Serializer):
     attachment_ids = serializers.ListField(child=serializers.UUIDField())
 
 
+class IssueStatusSerializer(serializers.HyperlinkedModelSerializer):
+    type_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.IssueStatus
+        fields = ("url", "uuid", "name", "type", "type_display")
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid", "view_name": "support-issue-status-detail"},
+        }
+
+    def get_type_display(self, obj) -> str:
+        return obj.get_type_display()
+
+
 class SmaxWebHookReceiverSerializer(serializers.Serializer):
     id = serializers.CharField()
