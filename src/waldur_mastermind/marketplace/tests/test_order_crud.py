@@ -1,6 +1,7 @@
 import datetime
 from unittest import mock
 
+from constance.test.unittest import override_config as override_constance_config
 from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -555,6 +556,7 @@ class OrderTermsOfServiceCreateTest(BaseOrderCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Order.objects.filter(created_by=user).exists())
 
+    @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
     def test_user_cannot_create_order_if_terms_of_service_have_been_not_accepted(self):
         user = self.fixture.admin
         offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)

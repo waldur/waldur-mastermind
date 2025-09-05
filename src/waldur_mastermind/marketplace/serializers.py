@@ -4,12 +4,13 @@ from decimal import Decimal
 from typing import Literal, cast
 
 import jwt
+from constance import config
 from dateutil.parser import parse as parse_datetime
 from django import forms
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
-from django.db.models import Count, QuerySet, Sum
+from django.db.models import Count, Q, QuerySet, Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.drainage import set_override
@@ -2799,6 +2800,12 @@ def confirm_order_request_user_has_offering_consent(
     order: models.Order, request
 ) -> None:
     """Check that the user has accepted the offering's Terms of Service for an order request."""
+
+    if not order.offering.plugin_options.get(
+        "service_provider_can_create_offering_user", False
+    ):
+        return
+
     if not order.offering.has_terms_of_service():
         return
 
@@ -2841,8 +2848,8 @@ def validate_order(order: models.Order, request):
         raise serializers.ValidationError(
             _("Pending order for resource already exists.")
         )
-
-    # confirm_order_request_user_has_offering_consent(order, request)
+    if config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+        confirm_order_request_user_has_offering_consent(order, request)
 
     utils.validate_order(order, request)
 
@@ -3002,7 +3009,10 @@ class OrderCreateSerializer(
         project = cast(structure_models.Project, attrs["project"])
 
         # Check if offering has ToS and if user needs to consent
-        if offering.has_terms_of_service():
+        if (
+            config.ENFORCE_USER_CONSENT_FOR_OFFERINGS
+            and offering.has_terms_of_service()
+        ):
             if not attrs.get("accepting_terms_of_service"):
                 if not offering.check_user_consent(user):
                     raise ValidationError(
@@ -3318,6 +3328,9 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
 
     def get_user_requires_reconsent(self, resource: models.Resource) -> bool:
         """Check if the current user needs to re-consent for this resource's offering."""
+        if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+            return False
+
         request = self.context.get("request")
         if not request or not request.user or request.user.is_anonymous:
             return False
@@ -3325,7 +3338,14 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         user = request.user
         offering = resource.offering
 
-        if user.is_staff or user.is_support or not offering.has_terms_of_service():
+        if (
+            user.is_staff
+            or user.is_support
+            or not offering.plugin_options.get(
+                "service_provider_can_create_offering_user", False
+            )
+            or not offering.has_terms_of_service()
+        ):
             return False
 
         consent = models.UserOfferingConsent.objects.filter(
@@ -5020,15 +5040,26 @@ class MarketplaceProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
         user = self.context["view"].request.user
         ids = get_service_provider_user_ids(user, service_provider, customer)
 
-        # Filter to only show users who have active consent to any offering from this service provider
-        # sp_offerings = models.Offering.objects.filter(
-        #     customer=service_provider.customer
-        # )
-        return User.objects.filter(
-            id__in=ids,
-            # offering_consents__offering__in=sp_offerings,
-            # offering_consents__revocation_date__isnull=True,
-        ).distinct()
+        queryset = User.objects.filter(id__in=ids)
+        if config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+            # Only users with active consent for ToS-required offerings or use offerings that don't require ToS
+            queryset = queryset.filter(
+                Q(
+                    offering_consents__offering__customer=service_provider.customer,
+                    offering_consents__offering__plugin_options__service_provider_can_create_offering_user=True,
+                    offering_consents__offering__terms_of_service_configs__is_active=True,
+                    offering_consents__revocation_date__isnull=True,
+                )
+                | Q(
+                    id__in=models.OfferingUser.objects.filter(
+                        offering__customer=service_provider.customer,
+                        offering__plugin_options__service_provider_can_create_offering_user=True,
+                        offering__terms_of_service_configs__isnull=True,
+                    ).values_list("user_id", flat=True)
+                )
+            )
+
+        return queryset.distinct()
 
     @extend_schema_field(NestedPriceEstimateSerializer)
     def get_billing_price_estimate(self, customer):
