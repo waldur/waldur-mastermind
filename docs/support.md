@@ -163,12 +163,49 @@ class TemplateStatusNotification:
 
 ```python
 class IssueStatus:
-    name: str           # Backend status name
+    uuid: UUID          # Unique identifier
+    name: str           # Backend status name (e.g., "Done", "Closed", "Cancelled")
     type: int           # RESOLVED or CANCELED
 
     # Types
     RESOLVED = 0        # Successfully completed
     CANCELED = 1        # Failed or canceled
+```
+
+**Status Configuration:**
+
+Status configuration is critical for proper issue resolution detection. The system uses `IssueStatus` entries to determine whether an issue has been successfully resolved or canceled:
+
+- **RESOLVED**: Statuses that indicate successful completion (e.g., "Done", "Resolved", "Completed")
+- **CANCELED**: Statuses that indicate cancellation or failure (e.g., "Cancelled", "Rejected", "Failed")
+
+**Management Access:**
+
+- **Staff users**: Full CRUD access to manage status configurations
+- **Support users**: Read-only access to view existing statuses
+- **Regular users**: No access
+
+**API Operations:**
+
+```http
+# List all issue statuses
+GET /api/support-issue-statuses/
+
+# Create new status (staff only)
+POST /api/support-issue-statuses/
+{
+  "name": "In Progress",
+  "type": 0
+}
+
+# Update existing status (staff only)
+PATCH /api/support-issue-statuses/{uuid}/
+{
+  "name": "Completed"
+}
+
+# Delete status (staff only)
+DELETE /api/support-issue-statuses/{uuid}/
 ```
 
 ### 7. Feedback System
@@ -293,6 +330,8 @@ class SupportBackend:
 | `/api/support-priorities/` | GET | List priorities |
 | `/api/support-templates/` | GET/POST | Manage templates |
 | `/api/support-feedback/` | GET/POST | Manage feedback |
+| `/api/support-issue-statuses/` | GET/POST | Manage issue statuses (staff only) |
+| `/api/support-issue-statuses/{uuid}/` | GET/PATCH/DELETE | Issue status details (staff only) |
 
 ### Webhooks
 
@@ -491,9 +530,14 @@ Scheduled background tasks:
 
 ### 2. Status Configuration
 
-- Map all backend statuses to IssueStatus entries
-- Define clear RESOLVED vs CANCELED mappings
-- Test status transitions before production
+- **Map all backend statuses**: Create IssueStatus entries for every status that your backend can return
+- **Define clear RESOLVED vs CANCELED mappings**:
+  - RESOLVED (type=0): Statuses indicating successful completion
+  - CANCELED (type=1): Statuses indicating cancellation or failure
+- **Use descriptive names**: Match the exact status names from your backend system
+- **Test status transitions**: Verify resolution detection works correctly before production
+- **Staff-only management**: Only staff users can create/modify status configurations
+- **Regular monitoring**: Review status configurations when backend workflows change
 
 ### 3. Performance Optimization
 
@@ -580,7 +624,7 @@ Key database tables:
 - `support_attachment` - File attachments
 - `support_supportuser` - Backend user mapping
 - `support_priority` - Priority levels
-- `support_issuestatus` - Status configuration
+- `support_issuestatus` - Status configuration (with UUID support)
 - `support_template` - Issue templates
 - `support_feedback` - Customer feedback
 

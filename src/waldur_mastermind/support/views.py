@@ -607,3 +607,14 @@ def sync_issues(request):
 
     tasks.sync_issues.delay()
     return response.Response(status=status.HTTP_202_ACCEPTED)
+
+
+class IssueStatusViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+    queryset = models.IssueStatus.objects.all().order_by("name")
+    serializer_class = serializers.IssueStatusSerializer
+    filter_backends = [
+        DjangoFilterBackend,
+        structure_filters.GenericRoleFilter,
+    ]
+    lookup_field = "uuid"
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsStaff]

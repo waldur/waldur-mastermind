@@ -72,44 +72,44 @@ The system is composed of several key scripts and GitLab CI configuration files.
 ### 3.1. Core Scripts (Located in `tests/`)
 
 1. **`build_dependency_graph.py`**
-   - **Purpose:** To generate the `dependency_graph.yaml` file.
-   - **How:** It recursively finds all Django apps, parses their Python files using the `ast` module, and records all inter-app `import` statements.
-   - **When to run:** This script should be run manually and the result committed whenever new apps are added or major refactoring occurs.
+  - **Purpose:** To generate the `dependency_graph.yaml` file.
+  - **How:** It recursively finds all Django apps, parses their Python files using the `ast` module, and records all inter-app `import` statements.
+  - **When to run:** This script should be run manually and the result committed whenever new apps are added or major refactoring occurs.
 
 2. **`select_tests.py`**
-   - **Purpose:** To determine the list of applications to test for a given change.
-   - **How:** It reads the `dependency_graph.yaml`, gets the list of changed files from Git, and identifies the set of directly changed apps. It does **not** perform transitive dependency checks, for a balance of speed and safety.
-   - **Special Case:** If a "core" file (like `pyproject.toml` or `.gitlab-ci.yml`) is changed, it outputs the special string `src` to signal a full test run.
+  - **Purpose:** To determine the list of applications to test for a given change.
+  - **How:** It reads the `dependency_graph.yaml`, gets the list of changed files from Git, and identifies the set of directly changed apps. It does **not** perform transitive dependency checks, for a balance of speed and safety.
+  - **Special Case:** If a "core" file (like `pyproject.toml` or `.gitlab-ci.yml`) is changed, it outputs the special string `src` to signal a full test run.
 
 3. **`generate-pipeline.sh`**
-   - **Purpose:** The main "brain" of the planning phase. It generates the child pipeline configuration.
-   - **How:**
-     1. Calls `select_tests.py`.
-     2. If the result is `src`, it immediately decides on maximum parallelization.
-     3. Otherwise, it runs `pytest --collect-only` to get an exact test count.
-     4. Based on the count and pre-defined thresholds, it determines the number of parallel workers needed.
-     5. It writes a complete `generated-pipeline.yml` file, embedding the correct `parallel:` keyword and other variables.
-     6. It also writes a `generated_vars.env` file to pass the selected test paths to the child pipeline.
+  - **Purpose:** The main "brain" of the planning phase. It generates the child pipeline configuration.
+  - **How:**
+    1. Calls `select_tests.py`.
+    2. If the result is `src`, it immediately decides on maximum parallelization.
+    3. Otherwise, it runs `pytest --collect-only` to get an exact test count.
+    4. Based on the count and pre-defined thresholds, it determines the number of parallel workers needed.
+    5. It writes a complete `generated-pipeline.yml` file, embedding the correct `parallel:` keyword and other variables.
+    6. It also writes a `generated_vars.env` file to pass the selected test paths to the child pipeline.
 
 4. **`waldur-test`**
-   - **Purpose:** The final "executor" script that runs inside the child pipeline jobs.
-   - **How:** It's a simple, robust shell script that receives the test mode, test paths, and a splitting flag (`true`/`false`) as arguments. It constructs the final `pytest` command, adding the `--test-group-*` flags only if instructed to do so.
+  - **Purpose:** The final "executor" script that runs inside the child pipeline jobs.
+  - **How:** It's a simple, robust shell script that receives the test mode, test paths, and a splitting flag (`true`/`false`) as arguments. It constructs the final `pytest` command, adding the `--test-group-*` flags only if instructed to do so.
 
 ### 3.2. GitLab CI Configuration (`.gitlab-ci.yml`)
 
 The main CI file implements a two-job pattern for the dynamic pipeline:
 
 1. **`generate_test_pipeline`**
-   - A non-parallel job that runs first.
-   - It performs the merge check to fail fast.
-   - It executes `tests/generate-pipeline.sh`.
-   - It saves `generated-pipeline.yml` and `generated_vars.env` as artifacts.
+  - A non-parallel job that runs first.
+  - It performs the merge check to fail fast.
+  - It executes `tests/generate-pipeline.sh`.
+  - It saves `generated-pipeline.yml` and `generated_vars.env` as artifacts.
 
 2. **`run_tests_dynamically`**
-   - A non-script, `trigger`-only job.
-   - It `needs` the `generate_test_pipeline` job to ensure it runs second and has access to its artifacts.
-   - It uses `trigger:include:artifact` to start a child pipeline using the generated YAML.
-   - Crucially, it uses `trigger:forward:yaml_variables:true` to pass the `TEST_PATHS` variable to the child pipeline.
+  - A non-script, `trigger`-only job.
+  - It `needs` the `generate_test_pipeline` job to ensure it runs second and has access to its artifacts.
+  - It uses `trigger:include:artifact` to start a child pipeline using the generated YAML.
+  - Crucially, it uses `trigger:forward:yaml_variables:true` to pass the `TEST_PATHS` variable to the child pipeline.
 
 ## 4. How to Maintain This System
 

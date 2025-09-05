@@ -68,10 +68,19 @@ The system determines if an issue is resolved or canceled through the `IssueStat
 
 Each status name from the ticketing system maps to one of two types:
 
-- `IssueStatus.Types.RESOLVED` - Successfully completed
-- `IssueStatus.Types.CANCELED` - Failed or canceled
+- `IssueStatus.Types.RESOLVED` (0) - Successfully completed
+- `IssueStatus.Types.CANCELED` (1) - Failed or canceled
 
-Example configuration:
+**Model Structure:**
+
+```python
+class IssueStatus:
+    uuid: UUID          # Unique identifier for API access
+    name: str           # Exact status name from backend system
+    type: int           # 0=RESOLVED, 1=CANCELED
+```
+
+**Example Configuration:**
 
 ```python
 # In the database/admin:
@@ -79,6 +88,12 @@ IssueStatus.objects.create(name="Done", type=IssueStatus.Types.RESOLVED)
 IssueStatus.objects.create(name="Rejected", type=IssueStatus.Types.CANCELED)
 IssueStatus.objects.create(name="Canceled", type=IssueStatus.Types.CANCELED)
 ```
+
+**Access Control:**
+
+- **Staff users**: Full CRUD access via API and admin interface
+- **Support users**: Read-only access (can view existing statuses)
+- **Regular users**: No access
 
 ### Resolution Logic
 
@@ -123,7 +138,53 @@ WALDUR_SUPPORT = {
 
 ### Status Mapping
 
-Ensure IssueStatus objects are configured to map backend statuses correctly:
+IssueStatus objects can be configured through the API or admin interface to map backend statuses correctly.
+
+#### API Management (Staff Only)
+
+Staff users can manage IssueStatus configurations through the REST API:
+
+```http
+# List all status mappings
+GET /api/support-issue-statuses/
+
+# Create a new status mapping
+POST /api/support-issue-statuses/
+Content-Type: application/json
+
+{
+  "name": "Done",
+  "type": 0  // 0 = RESOLVED, 1 = CANCELED
+}
+
+# Update existing status mapping
+PATCH /api/support-issue-statuses/{uuid}/
+Content-Type: application/json
+
+{
+  "name": "Completed",
+  "type": 0
+}
+
+# Delete status mapping
+DELETE /api/support-issue-statuses/{uuid}/
+```
+
+**Response Format:**
+
+```json
+{
+  "url": "https://waldur.example.com/api/support-issue-statuses/abc123/",
+  "uuid": "abc123-def456-...",
+  "name": "Done",
+  "type": 0,
+  "type_display": "Resolved"
+}
+```
+
+#### Programmatic Setup
+
+For automated deployment, use data migrations or management commands:
 
 ```python
 # Admin interface or data migration
@@ -146,10 +207,15 @@ for status in canceled_statuses:
 ## Best Practices
 
 1. **Status Configuration**: Ensure all possible backend statuses are mapped in IssueStatus
+  - Use the `/api/support-issue-statuses/` API for programmatic management
+  - Staff users should regularly review and update status mappings
+  - Document your backend's status workflow and map all statuses accordingly
+
 2. **Monitoring**: Regularly sync issues to detect status changes
 3. **Error Handling**: Implement proper error handling in callbacks
 4. **Logging**: Monitor handler execution through logs for debugging
 5. **Testing**: Test status transitions with different order types
+6. **API Management**: Use the REST API for consistent status configuration across environments
 
 ## Troubleshooting
 
@@ -174,4 +240,28 @@ If you see critical log messages about missing statuses:
 "There is no information about statuses of an issue. Please, add resolved and canceled statuses in admin."
 ```
 
-Add the required IssueStatus entries through the admin interface.
+**Resolution Options:**
+
+1. **API Management (Recommended)**: Use the REST API to add missing statuses:
+
+   ```http
+   POST /api/support-issue-statuses/
+   Content-Type: application/json
+
+   {
+     "name": "YourBackendStatus",
+     "type": 0  // or 1 for CANCELED
+   }
+   ```
+
+2. **Admin Interface**: Add the required IssueStatus entries through Django admin
+
+3. **Identify Missing Statuses**: Check your backend system for all possible status values and ensure each has a corresponding IssueStatus entry
+
+**Common Missing Statuses by Backend:**
+
+- **JIRA**: "To Do", "In Progress", "Done", "Cancelled"
+- **SMAX**: "Open", "In Progress", "Resolved", "Rejected"
+- **Zammad**: "new", "open", "pending reminder", "pending close", "closed"
+
+Use `GET /api/support-issue-statuses/` to view currently configured statuses and compare against your backend's status list.

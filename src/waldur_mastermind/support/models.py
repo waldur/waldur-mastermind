@@ -476,7 +476,7 @@ class RequestType(
         return self.name
 
 
-class IssueStatus(models.Model):
+class IssueStatus(core_models.UuidMixin, models.Model):
     """This model is needed in order to understand whether the issue has been solved or not.
 
     The field of resolution does not give an exact answer since may be the same in both cases.
