@@ -36,3 +36,31 @@ class GenericRelatedFieldExtension(OpenApiSerializerFieldExtension):
 
     def map_serializer_field(self, auto_schema, direction):
         return build_basic_type(OpenApiTypes.STR)
+
+
+IP_ADDRESS_BOTH_SCHEMA = {
+    "description": "An IPv4 or IPv6 address.",
+    "oneOf": [
+        {"type": "string", "format": "ipv4"},
+        {"type": "string", "format": "ipv6"},
+    ],
+}
+
+
+class IPAddressFieldExtension(OpenApiSerializerFieldExtension):
+    # Target the specific DRF field class we want to customize
+    target_class = "rest_framework.fields.IPAddressField"
+
+    def map_serializer_field(self, auto_schema, direction):
+        # self.target is the actual instance of the field on the serializer
+        field = self.target
+
+        # Only apply our custom schema if the protocol is 'both' (the default)
+        if field.protocol == "both":
+            return IP_ADDRESS_BOTH_SCHEMA
+
+        if field.protocol == "ipv4":
+            return {"type": "string", "format": "ipv4"}
+
+        if field.protocol == "ipv6":
+            return {"type": "string", "format": "ipv6"}
