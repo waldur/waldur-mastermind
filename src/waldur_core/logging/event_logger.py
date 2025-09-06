@@ -82,7 +82,7 @@ def get_valid_events():
 
 def get_event_groups():
     return {
-        key: [item.value for item in value]
+        key.value: [item.value for item in value]
         for key, value in EVENT_GROUP_MAPPING.items()
     }
 
@@ -94,5 +94,18 @@ def get_event_groups_keys():
 def expand_event_groups(groups):
     items = set()
     for group in groups:
-        items.update([item.value for item in EVENT_GROUP_MAPPING.get(group, [])])
+        # Convert string to EventGroup enum if needed
+        if isinstance(group, str):
+            # Find the matching EventGroup enum by value
+            group_enum = None
+            for eg in EventGroup:
+                if eg.value == group:
+                    group_enum = eg
+                    break
+            if group_enum:
+                items.update(
+                    [item.value for item in EVENT_GROUP_MAPPING.get(group_enum, [])]
+                )
+        else:
+            items.update([item.value for item in EVENT_GROUP_MAPPING.get(group, [])])
     return sorted(items)

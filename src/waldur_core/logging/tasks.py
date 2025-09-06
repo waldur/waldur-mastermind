@@ -30,7 +30,7 @@ def get_hooks(
     project: structure_models.Project | None = None,
     customer: structure_models.Customer | None = None,
 ):
-    groups = [g[0].value for g in get_event_groups().items() if event_type in g[1]]
+    groups = [g[0] for g in get_event_groups().items() if event_type in g[1]]
 
     for hook in models.SystemNotification.objects.filter(
         Q(event_types__contains=event_type) | Q(event_groups__has_any_keys=groups)
