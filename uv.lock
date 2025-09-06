@@ -836,7 +836,7 @@ wheels = [
 
 [[package]]
 name = "django-model-utils"
-version = "0.0.post1122+g50cc7a1f1"
+version = "0.0.post1122+g50cc7a1"
 source = { git = "https://github.com/waldur/django-model-utils?rev=handle-instance-model-field-name#50cc7a1f1ed209ea7328d4672ad894a1bb9e74c6" }
 dependencies = [
     { name = "django" },
@@ -3209,7 +3209,7 @@ requires-dist = [
     { name = "django-filter", specifier = "==24.3" },
     { name = "django-fluent-dashboard", specifier = "==2.0" },
     { name = "django-fsm", specifier = "==2.8.1" },
-    { name = "django-health-check", specifier = ">=3.16.2,<4.0.0" },
+    { name = "django-health-check", specifier = ">=3.20.0,<4.0.0" },
     { name = "django-jsoneditor", specifier = "==0.2.3" },
     { name = "django-model-utils", git = "https://github.com/waldur/django-model-utils?rev=handle-instance-model-field-name" },
     { name = "django-modeltranslation", specifier = "==0.18.5" },

@@ -74,6 +74,8 @@ INSTALLED_APPS = (
     "health_check.storage",
     "health_check.contrib.migrations",
     "health_check.contrib.celery_ping",
+    "health_check.contrib.mail",
+    "health_check.contrib.rabbitmq",
     "dbtemplates",
     "netfields",
     "constance",
