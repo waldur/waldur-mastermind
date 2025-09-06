@@ -212,3 +212,95 @@ class SystemNotificationTest(test.APITransactionTestCase):
         tasks.process_event(self.event.id)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].subject, "Test Subject")
+
+
+class EventGroupsProcessingTest(BaseHookApiTest):
+    """Test event group processing with string keys after ORJSON fix"""
+
+    def test_expand_event_groups_with_string_names(self):
+        """
+        Test that expand_event_groups function works with string group names.
+        """
+        # Test with string input (as would come from API query params)
+        result = event_logger.expand_event_groups(["auth"])
+
+        self.assertIsInstance(result, list)
+        self.assertTrue(len(result) > 0)
+
+        # Should contain auth events
+        self.assertIn("auth_logged_in_with_username", result)
+
+        # Result should be sorted
+        self.assertEqual(result, sorted(result))
+
+    def test_get_event_groups_returns_string_keys(self):
+        """
+        Test that get_event_groups function returns string keys, not enum objects.
+        This is critical for ORJSON serialization compatibility.
+        """
+        groups = event_logger.get_event_groups()
+
+        self.assertIsInstance(groups, dict)
+
+        # All keys should be strings
+        for key in groups.keys():
+            self.assertIsInstance(
+                key, str, f"Key '{key}' should be a string, not {type(key)}"
+            )
+
+        # All values should be lists of strings
+        for group_name, event_types in groups.items():
+            self.assertIsInstance(event_types, list)
+            for event_type in event_types:
+                self.assertIsInstance(event_type, str)
+
+    def test_webhook_creation_with_event_groups_string_names(self):
+        """
+        Test webhook creation using event groups with string names
+        (regression test for ORJSON serialization fix).
+        """
+        self.client.force_authenticate(user=self.author)
+
+        # Create webhook with event groups using string names
+        webhook_data = {
+            "event_groups": ["auth", "users"],  # String group names
+            "destination_url": "http://example.com/webhook/",
+        }
+
+        response = self.client.post(WebHookFactory.get_list_url(), webhook_data)
+        self.assertEqual(response.status_code, 201)
+
+        # Verify the webhook was created with correct event types
+        webhook = models.WebHook.objects.get(uuid=response.data["uuid"])
+
+        # Should have expanded the groups into individual event types
+        expected_events = set()
+        groups = event_logger.get_event_groups()
+        expected_events.update(groups["auth"])
+        expected_events.update(groups["users"])
+
+        self.assertEqual(set(webhook.event_types), expected_events)
+
+    def test_email_hook_creation_with_event_groups_string_names(self):
+        """
+        Test email hook creation using event groups with string names.
+        """
+        self.client.force_authenticate(user=self.author)
+
+        # Create email hook with event groups using string names
+        email_hook_data = {
+            "event_groups": ["resources"],  # String group name
+            "email": "test@example.com",
+        }
+
+        response = self.client.post(reverse("emailhook-list"), email_hook_data)
+        self.assertEqual(response.status_code, 201)
+
+        # Verify the email hook was created with correct event types
+        email_hook = models.EmailHook.objects.get(uuid=response.data["uuid"])
+
+        # Should have expanded the groups into individual event types
+        groups = event_logger.get_event_groups()
+        expected_events = set(groups["resources"])
+
+        self.assertEqual(set(email_hook.event_types), expected_events)
