@@ -1,12 +1,15 @@
+import datetime
 import uuid
 from unittest import mock
 
 from cinderclient.v2.volumes import Volume
 from ddt import data, ddt
 from django.test import TestCase
+from django.utils import timezone
 from novaclient.v2.flavors import Flavor
 from novaclient.v2.servers import Server
 
+from waldur_core.core.models import CoreStates
 from waldur_openstack import models
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.models import Port
@@ -1041,3 +1044,308 @@ class CreateInstanceTest(VolumesBaseTest):
         # Assert
         kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
         self.assertEqual(kwargs["availability_zone"], "default_availability_zone")
+
+
+class EnhancedImageDetectionTest(BaseBackendTest):
+    def setUp(self):
+        super().setUp()
+        self.backend_id = "test_instance_id"
+        # Create instance with NO image metadata (empty image field)
+        self.backend_instance_no_image = Server(
+            manager=None,
+            info={
+                "id": self.backend_id,
+                "name": "instance-no-image",
+                "status": "ACTIVE",
+                "key_name": "",
+                "created": "2012-04-23T08:10:00Z",
+                "OS-SRV-USG:launched_at": "2012-04-23T09:15",
+                "flavor": {"id": "flavor_id"},
+                "image": "",  # No image metadata
+                "OS-EXT-SRV-ATTR:root_device_name": "/dev/vda",
+                "networks": {"test-int-net": ["192.168.42.60"]},
+            },
+        )
+
+        # Create a bootable volume with image metadata
+        self.volume_backend_id = "bootable_volume_id"
+        self.image_id_in_volume = "image_id_from_volume"
+        self.image_name_in_volume = "Ubuntu 22.04 x86_64"
+
+        self.bootable_volume = Volume(
+            manager=None,
+            info={
+                "id": self.volume_backend_id,
+                "name": "bootable-volume",
+                "size": 20,
+                "status": "in-use",
+                "bootable": "true",
+                "volume_image_metadata": {
+                    "image_id": self.image_id_in_volume,
+                    "image_name": self.image_name_in_volume,
+                    "checksum": "b1baedc2f98d667e7f587692464b61d0",
+                    "container_format": "bare",
+                    "disk_format": "raw",
+                    "min_disk": "10",
+                    "min_ram": "1024",
+                    "size": "2361393152",
+                },
+                "attachments": [
+                    {
+                        "id": self.volume_backend_id,
+                        "volume_id": self.volume_backend_id,
+                        "server_id": self.backend_id,
+                        "device": "/dev/vda",
+                    }
+                ],
+            },
+        )
+
+        # Create volume reference object for nova API
+        self.volume_ref = type("VolumeRef", (), {"volumeId": self.volume_backend_id})
+
+        # Setup flavor mock (required for instance creation)
+        self.flavor_id = "test_flavor_id"
+        self.backend_flavor = self._get_valid_flavor(self.flavor_id)
+        self.backend_instance_no_image.flavor = self.backend_flavor._info
+        self.mocked_nova.flavors.get.return_value = self.backend_flavor
+
+    def test_image_detection_from_bootable_volume_with_image_id(self):
+        """Test that image is detected from bootable volume when instance has no image metadata"""
+        # Setup mocks
+        self.mocked_nova.servers.get.return_value = self.backend_instance_no_image
+        self.mocked_nova.volumes.get_server_volumes.return_value = [self.volume_ref]
+        self.mocked_cinder.volumes.get.return_value = self.bootable_volume
+
+        # Create the Image object in Waldur database that corresponds to the volume's image_id
+        ImageFactory(
+            settings=self.openstack_settings,
+            backend_id=self.image_id_in_volume,
+            name=self.image_name_in_volume,
+        )
+
+        # Create Volume object in Waldur database with image metadata
+        factories.VolumeFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            backend_id=self.volume_backend_id,
+            bootable=True,
+            image_metadata={
+                "image_id": self.image_id_in_volume,
+                "image_name": self.image_name_in_volume,
+            },
+        )
+
+        # Act
+        instance = self.backend.import_instance(
+            self.tenant, self.backend_id, self.fixture.project
+        )
+
+        # Assert
+        self.assertEqual(instance.backend_id, self.backend_id)
+        self.assertEqual(instance.image_name, self.image_name_in_volume)
+        self.assertTrue(
+            models.Instance.objects.filter(backend_id=self.backend_id).exists()
+        )
+
+    def test_image_name_fallback_when_image_id_not_in_waldur(self):
+        """Test fallback to image_name when image_id from volume doesn't exist in Waldur"""
+        # Setup mocks
+        self.mocked_nova.servers.get.return_value = self.backend_instance_no_image
+        self.mocked_nova.volumes.get_server_volumes.return_value = [self.volume_ref]
+        self.mocked_cinder.volumes.get.return_value = self.bootable_volume
+
+        # Create Image by name only (image_id from volume doesn't exist in Waldur)
+        ImageFactory(
+            settings=self.openstack_settings,
+            backend_id="different_image_id",  # Different from volume's image_id
+            name=self.image_name_in_volume,  # But same name
+        )
+
+        # Create Volume object in Waldur database with image metadata
+        factories.VolumeFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            backend_id=self.volume_backend_id,
+            bootable=True,
+            image_metadata={
+                "image_id": self.image_id_in_volume,  # This ID doesn't exist in Waldur
+                "image_name": self.image_name_in_volume,  # But name does
+            },
+        )
+
+        # Act
+        instance = self.backend.import_instance(
+            self.tenant, self.backend_id, self.fixture.project
+        )
+
+        # Assert - should use image_name directly
+        self.assertEqual(instance.image_name, self.image_name_in_volume)
+
+    def test_volume_prioritization_root_device_first(self):
+        """Test that root device volume is prioritized over other bootable volumes"""
+        # Create second bootable volume (not root device)
+        secondary_volume_id = "secondary_volume_id"
+        secondary_image_name = "Secondary Image"
+
+        secondary_volume = Volume(
+            manager=None,
+            info={
+                "id": secondary_volume_id,
+                "name": "secondary-bootable-volume",
+                "size": 10,
+                "status": "in-use",
+                "bootable": "true",
+                "volume_image_metadata": {
+                    "image_id": "secondary_image_id",
+                    "image_name": secondary_image_name,
+                },
+                "attachments": [
+                    {
+                        "id": secondary_volume_id,
+                        "volume_id": secondary_volume_id,
+                        "server_id": self.backend_id,
+                        "device": "/dev/vdb",  # Not root device
+                    }
+                ],
+            },
+        )
+
+        secondary_volume_ref = type("VolumeRef", (), {"volumeId": secondary_volume_id})
+
+        # Setup mocks - return secondary volume first, then root volume
+        self.mocked_nova.servers.get.return_value = self.backend_instance_no_image
+        self.mocked_nova.volumes.get_server_volumes.return_value = [
+            secondary_volume_ref,
+            self.volume_ref,
+        ]
+
+        def get_volume_side_effect(volume_id):
+            if volume_id == secondary_volume_id:
+                return secondary_volume
+            elif volume_id == self.volume_backend_id:
+                return self.bootable_volume
+
+        self.mocked_cinder.volumes.get.side_effect = get_volume_side_effect
+
+        # Create Volume objects in Waldur database
+        factories.VolumeFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            backend_id=self.volume_backend_id,
+            bootable=True,
+            device="/dev/vda",  # Root device
+            image_metadata={
+                "image_id": self.image_id_in_volume,
+                "image_name": self.image_name_in_volume,
+            },
+        )
+
+        factories.VolumeFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            backend_id=secondary_volume_id,
+            bootable=True,
+            device="/dev/vdb",  # Not root device
+            image_metadata={
+                "image_id": "secondary_image_id",
+                "image_name": secondary_image_name,
+            },
+        )
+
+        # Act
+        instance = self.backend.import_instance(
+            self.tenant, self.backend_id, self.fixture.project
+        )
+
+        # Assert - should use root device volume image name, not secondary volume
+        self.assertEqual(instance.image_name, self.image_name_in_volume)
+        self.assertNotEqual(instance.image_name, secondary_image_name)
+
+    def test_no_bootable_volumes_available(self):
+        """Test that import works gracefully when no bootable volumes have image metadata"""
+        # Setup mocks
+        non_bootable_volume = Volume(
+            manager=None,
+            info={
+                "id": "non_bootable_volume_id",
+                "name": "data-volume",
+                "size": 10,
+                "status": "in-use",
+                "bootable": "false",  # Not bootable
+                "attachments": [
+                    {
+                        "id": "non_bootable_volume_id",
+                        "volume_id": "non_bootable_volume_id",
+                        "server_id": self.backend_id,
+                        "device": "/dev/vdb",
+                    }
+                ],
+            },
+        )
+
+        volume_ref = type("VolumeRef", (), {"volumeId": "non_bootable_volume_id"})
+
+        self.mocked_nova.servers.get.return_value = self.backend_instance_no_image
+        self.mocked_nova.volumes.get_server_volumes.return_value = [volume_ref]
+        self.mocked_cinder.volumes.get.return_value = non_bootable_volume
+
+        # Create non-bootable volume in Waldur
+        factories.VolumeFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            backend_id="non_bootable_volume_id",
+            bootable=False,
+        )
+
+        # Act
+        instance = self.backend.import_instance(
+            self.tenant, self.backend_id, self.fixture.project
+        )
+
+        # Assert - should import successfully without image name
+        self.assertEqual(instance.backend_id, self.backend_id)
+        self.assertEqual(instance.image_name, "")  # No image name available
+
+    def test_pull_tenant_instances_uses_enhanced_detection(self):
+        """Test that pull_tenant_instances now uses enhanced image detection via pull_instance"""
+        # Create instance in Waldur database
+        instance = factories.InstanceFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            backend_id=self.backend_id,
+            state=CoreStates.OK,  # Ensure instance is in OK state so it gets processed
+        )
+
+        # Make instance appear older to bypass pull_instance timing check
+        instance.modified = timezone.now() - datetime.timedelta(seconds=1)
+        instance.save(update_fields=["modified"])
+
+        # Setup mocks for pull_instance path
+        self.mocked_nova.servers.get.return_value = self.backend_instance_no_image
+        self.mocked_nova.volumes.get_server_volumes.return_value = [self.volume_ref]
+        self.mocked_cinder.volumes.get.return_value = self.bootable_volume
+
+        # Create Volume object in Waldur database with image metadata
+        factories.VolumeFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            backend_id=self.volume_backend_id,
+            bootable=True,
+            image_metadata={
+                "image_id": self.image_id_in_volume,
+                "image_name": self.image_name_in_volume,
+            },
+        )
+
+        # Mock ports query (required by pull_instance)
+        with mock.patch.object(instance.ports, "all") as mock_ports_all:
+            mock_ports_all.return_value.values_list.return_value = []
+
+            # Act
+            with mock.patch.object(self.backend, "pull_instance_security_groups"):
+                self.backend.pull_tenant_instances(self.tenant)
+
+        # Assert - instance should have been updated with image name from bootable volume
+        instance.refresh_from_db()
+        self.assertEqual(instance.image_name, self.image_name_in_volume)
