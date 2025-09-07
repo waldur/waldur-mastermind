@@ -3412,35 +3412,22 @@ class OpenStackBackend(ServiceBackend):
                 handle_resource_update_success(snapshot)
 
     def pull_tenant_instances(self, tenant: models.Tenant):
-        backend_instances = self.get_instances(tenant)
         instances = models.Instance.objects.filter(
             tenant=tenant,
             state__in=[CoreStates.OK, CoreStates.ERRED],
         )
-        backend_instances_map = {
-            backend_instance.backend_id: backend_instance
-            for backend_instance in backend_instances
-        }
         for instance in instances:
             try:
-                backend_instance = backend_instances_map[instance.backend_id]
-            except KeyError:
-                handle_resource_not_found(instance)
-            else:
-                self.update_instance_fields(instance, backend_instance)
+                # Use pull_instance which has all the enhanced logic including image detection
+                self.pull_instance(instance)
                 # XXX: can be optimized after https://goo.gl/BZKo8Y will be resolved.
                 self.pull_instance_security_groups(instance)
                 handle_resource_update_success(instance)
-
-    def update_instance_fields(self, instance: models.Instance, backend_instance):
-        # Preserve flavor fields in Waldur database if flavor is deleted in OpenStack
-        fields = set(models.Instance.get_backend_fields())
-        flavor_fields = {"flavor_name", "flavor_disk", "ram", "cores", "disk"}
-        if not backend_instance.flavor_name:
-            fields = fields - flavor_fields
-        fields = list(fields)
-
-        update_pulled_fields(instance, backend_instance, fields)
+            except nova_exceptions.NotFound:
+                handle_resource_not_found(instance)
+            except nova_exceptions.ClientException:
+                # Log the error but continue with other instances
+                handle_resource_update_success(instance)
 
     def pull_instance_server_group(self, instance: models.Instance):
         session = get_tenant_session(instance.tenant)
@@ -4268,6 +4255,30 @@ class OpenStackBackend(ServiceBackend):
             ]
             flavor_id = backend_instance.flavor["id"]
             image_id = backend_instance.image and backend_instance.image.get("id")
+
+            # If no image_id from instance metadata, try to get it from bootable volumes
+            detected_image_name = None
+            if not image_id:
+                detected_image_id, detected_image_name = (
+                    self._detect_image_from_bootable_volumes(
+                        tenant, attached_volume_ids, backend_instance
+                    )
+                )
+                # First try to use detected_image_id if it corresponds to an existing Image in Waldur
+                if detected_image_id:
+                    try:
+                        models.Image.objects.get(
+                            settings=tenant.service_settings,
+                            backend_id=detected_image_id,
+                        )
+                        image_id = detected_image_id
+                        detected_image_name = (
+                            None  # Clear image name since we're using image_id
+                        )
+                    except models.Image.DoesNotExist:
+                        # If image_id doesn't exist in Waldur, use image_name directly
+                        # Don't try to convert image_name back to image_id
+                        pass
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
@@ -4277,6 +4288,7 @@ class OpenStackBackend(ServiceBackend):
             flavor_id,
             connected_internal_network_names,
             image_id,
+            detected_image_name,
         )
         with transaction.atomic():
             instance.tenant = tenant
@@ -4311,6 +4323,95 @@ class OpenStackBackend(ServiceBackend):
                 )
         return volumes
 
+    def _detect_image_from_bootable_volumes(
+        self, tenant: models.Tenant, attached_volume_ids, backend_instance=None
+    ):
+        """
+        Detect image ID or image name from bootable volumes when instance metadata doesn't contain image info.
+        This is useful for instances booted from volumes where the original image reference is lost.
+
+        Uses existing Volume records in Waldur database that already have image_metadata populated.
+
+        Prioritizes volumes in this order:
+        1. Boot volume (attached to root device like /dev/vda)
+        2. First bootable volume in attachment order
+        3. Any bootable volume with image metadata
+
+        Returns:
+            tuple: (image_id, image_name) where image_id can be None if not found,
+                   but image_name might still be available for fallback lookup
+        """
+        bootable_volumes = []
+        root_device_name = None
+
+        # Get root device name if backend_instance is provided
+        if backend_instance:
+            # OpenStack uses underscored attribute names in the client
+            root_device_name = getattr(
+                backend_instance, "OS-EXT-SRV-ATTR:root_device_name", None
+            )
+            # If that doesn't work, try accessing via dict-like interface
+            if not root_device_name and hasattr(backend_instance, "to_dict"):
+                instance_dict = backend_instance.to_dict()
+                root_device_name = instance_dict.get("OS-EXT-SRV-ATTR:root_device_name")
+
+        # Look up volumes in Waldur database by their backend_id
+        # Process volumes in the order they appear in attached_volume_ids (attachment order)
+        for order_index, backend_volume_id in enumerate(attached_volume_ids):
+            try:
+                # Find the volume in Waldur database
+                volume = models.Volume.objects.get(
+                    tenant=tenant, backend_id=backend_volume_id
+                )
+
+                # Check if volume is bootable and has image_metadata
+                if volume.bootable and volume.image_metadata:
+                    image_id = volume.image_metadata.get("image_id")
+                    image_name = volume.image_metadata.get("image_name")
+
+                    # Include volume if it has either image_id or image_name
+                    if image_id or image_name:
+                        # Check if this volume is attached to the root device
+                        is_root_volume = (
+                            (volume.device == root_device_name)
+                            if root_device_name
+                            else False
+                        )
+
+                        bootable_volumes.append(
+                            {
+                                "volume_id": backend_volume_id,
+                                "image_id": image_id,
+                                "image_name": image_name,
+                                "is_root": is_root_volume,
+                                "device": volume.device,
+                                "order": order_index,
+                                "has_image_id": bool(image_id),
+                            }
+                        )
+            except models.Volume.DoesNotExist:
+                # Volume not yet imported in Waldur, skip it
+                continue
+
+        if not bootable_volumes:
+            return None, None
+
+        # Sort bootable volumes by priority:
+        # 1. Root volumes first (identified by root_device_name)
+        # 2. Volumes with image_id over volumes with only image_name
+        # 3. Then by attachment order (first attached volume)
+        # 4. Then by device name (vda comes before vdb, etc.)
+        def volume_priority(vol):
+            if vol["is_root"]:
+                return (0, not vol["has_image_id"], vol["order"], vol["device"])
+            return (1, not vol["has_image_id"], vol["order"], vol["device"])
+
+        bootable_volumes.sort(key=volume_priority)
+
+        # Return both image_id and image_name from the highest priority bootable volume
+        best_volume = bootable_volumes[0]
+        return best_volume["image_id"], best_volume["image_name"]
+
     def _backend_instance_to_instance(
         self,
         tenant: models.Tenant,
@@ -4318,6 +4419,7 @@ class OpenStackBackend(ServiceBackend):
         backend_flavor_id=None,
         connected_internal_network_names=None,
         backend_image_id=None,
+        backend_image_name=None,
     ):
         # parse launch time
         try:
@@ -4404,7 +4506,12 @@ class OpenStackBackend(ServiceBackend):
                 backend_image = self._get_image(tenant, backend_image_id)
                 # If image has been removed in OpenStack cloud, we should skip update
                 if backend_image:
-                    instance.image_name = backend_image.name
+                    instance.image_name = str(
+                        backend_image.name
+                    )  # Ensure string conversion
+        elif backend_image_name:
+            # Use the provided image name directly (from volume metadata fallback)
+            instance.image_name = str(backend_image_name)  # Ensure string conversion
 
         attached_volumes = backend_instance.to_dict().get(
             "os-extended-volumes:volumes_attached", []
@@ -4458,7 +4565,7 @@ class OpenStackBackend(ServiceBackend):
             image_id = backend_instance.image and backend_instance.image.get("id")
             instances.append(
                 self._backend_instance_to_instance(
-                    tenant, backend_instance, flavor_id, backend_image_id=image_id
+                    tenant, backend_instance, flavor_id, None, image_id, None
                 )
             )
         return instances

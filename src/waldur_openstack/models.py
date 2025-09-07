@@ -1305,6 +1305,7 @@ class Instance(
             "availability_zone",
             "hypervisor_hostname",
             "directly_connected_ips",
+            "image_name",
         )
 
     @classmethod
