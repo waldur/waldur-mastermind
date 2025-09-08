@@ -250,7 +250,12 @@ collections:
               uuid: "tenant"
         resolvers:
           tenant: "openstack_tenants"
-          remote_group: "openstack_security_groups"
+          remote_group:
+            base: "openstack_security_groups"
+            filter_by:
+              - source_param: "tenant"
+                source_key: "uuid"
+                target_key: "tenant_uuid"
 
       - name: network
         plugin: crud
@@ -275,8 +280,14 @@ collections:
       - name: network_rbac_policy
         plugin: crud
         resolvers:
+          tenant: "openstack_tenants"
           target_tenant: "openstack_tenants"
-          network: "openstack_networks"
+          network:
+            base: "openstack_networks"
+            filter_by:
+              - source_param: "tenant"
+                source_key: "uuid"
+                target_key: "tenant_uuid"
 
         resource_type: "OpenStack network RBAC policy"
         description: "Manage OpenStack Network RBAC policies in Waldur."
@@ -321,7 +332,12 @@ collections:
         context_params: *base_openstack_context_params
         resolvers:
           tenant: "openstack_tenants"
-          network: "openstack_networks"
+          network:
+            base: "openstack_networks"
+            filter_by:
+              - source_param: "tenant"
+                source_key: "uuid"
+                target_key: "tenant_uuid"
         resource_type: "OpenStack subnet"
         description: "Manage OpenStack subnets in Waldur."
         base_operation_id: "openstack_subnets"
