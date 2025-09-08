@@ -58,6 +58,14 @@ collections:
         skip_resolver_check:
           - homepage
 
+      - name: project_facts
+        plugin: facts
+        base_operation_id: "projects"
+
+      - name: ssh_key_facts
+        plugin: facts
+        base_operation_id: "keys"
+
   - namespace: waldur
     name: marketplace
     version: 1.0.0
@@ -130,6 +138,21 @@ collections:
         base_operation_id: "openstack_networks"
         many: true
         context_params: *base_openstack_context_params
+
+      - name: flavor_facts
+        plugin: facts
+        base_operation_id: "openstack_flavors"
+        many: true
+
+      - name: image_facts
+        plugin: facts
+        base_operation_id: "openstack_images"
+        many: true
+
+      - name: volume_type_facts
+        plugin: facts
+        base_operation_id: "openstack_volume_types"
+        many: true
 
       # --- Order Modules (Marketplace Resources) ---
       - name: vpc
