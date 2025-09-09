@@ -43,6 +43,7 @@ from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.mixins import PermissionMixin
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
+from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.managers import (
     PrivateServiceSettingsManager,
     ServiceSettingsManager,
@@ -773,6 +774,13 @@ class Project(
         verbose_name=_("organization"),
         related_name="projects",
         on_delete=models.CASCADE,
+    )
+
+    kind = models.CharField(
+        max_length=255,
+        default=ProjectKind.DEFAULT,
+        choices=ProjectKind.choices,
+        verbose_name=_("project type"),
     )
     tracker = cast(FieldInstanceTracker, FieldTracker())
     # Entities returned in manager available_objects are limited to not-deleted instances.

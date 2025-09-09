@@ -1145,6 +1145,61 @@ class ServiceProviderProjectServiceAccountsViewSet(
         return super().filter_queryset(queryset)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        description="""Return course project accounts that have access to resources managed by the provider.
+
+        Checks for:
+        - Projects with active service provider's resources
+        - Course accounts with non-blank users
+
+        """,
+        parameters=[
+            SERVICE_PROVIDER_UUID,
+        ],
+    )
+)
+class ServiceProviderCourseAccountsViewSet(
+    mixins.ListModelMixin, rf_viewsets.GenericViewSet
+):
+    serializer_class = serializers.CourseAccountSerializer
+    queryset = models.CourseAccount.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.CourseAccountFilter
+
+    def get_service_provider(self):
+        service_provider = models.ServiceProvider.objects.get(
+            uuid=self.kwargs["service_provider_uuid"]
+        )
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_SERVICE_PROVIDER_COURSE_ACCOUNTS,
+            service_provider.customer,
+        ):
+            raise PermissionDenied()
+        return service_provider
+
+    def get_queryset(self):
+        service_provider = self.get_service_provider()
+
+        resources = utils.get_service_provider_resources(service_provider)
+        project_ids = resources.values_list("project_id", flat=True)
+
+        return self.queryset.filter(
+            project_id__in=project_ids,
+        ).exclude(user=None)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        return {
+            **context,
+            "service_provider": self.get_service_provider(),
+        }
+
+    def filter_queryset(self, queryset):
+        return super().filter_queryset(queryset)
+
+
 class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet):
     queryset = models.Category.objects.all()
     serializer_class = serializers.MarketplaceCategorySerializer
@@ -6762,3 +6817,100 @@ class PublicMaintenanceAnnouncementViewSet(
                 MaintenanceState.COMPLETED,
             ]
         ).order_by("-scheduled_start")
+
+
+class CourseAccountViewSet(core_views.ActionsViewSet):
+    queryset = models.CourseAccount.objects.all()
+    serializer_class = serializers.CourseAccountSerializer
+    filterset_class = filters.CourseAccountFilter
+    filter_backends = (DjangoFilterBackend,)
+    lookup_field = "uuid"
+
+    disabled_actions = ["update", "partial_update"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return qs
+
+        projects = get_connected_projects_by_permission(
+            user, PermissionEnum.MANAGE_COURSE_ACCOUNT
+        )
+        if projects:
+            return qs.filter(project__in=projects)
+        return qs.none()
+
+    def check_create_permissions(request, view, obj=None):
+        serializer = view.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        project = serializer.validated_data.get("project")
+        if not project:
+            raise PermissionDenied()
+        if not (
+            has_permission(request, PermissionEnum.MANAGE_COURSE_ACCOUNT, project)
+            or has_permission(
+                request, PermissionEnum.MANAGE_COURSE_ACCOUNT, project.customer
+            )
+        ):
+            raise PermissionDenied()
+
+    create_permissions = [check_create_permissions]
+    destroy_permissions = [structure_permissions.is_owner]
+    destroy_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_COURSE_ACCOUNT,
+            ["project", "project.customer"],
+        )
+    ]
+
+    def perform_create(self, serializer):
+        owner_username = self.request.user.username
+        try:
+            data = serializer.validated_data
+            response_data = utils.create_course_account(data, owner_username)
+            user = core_models.User.objects.create(
+                username=response_data["tempAccount"]["username"],
+                email=response_data["tempAccount"]["email"],
+                description="Course Account",
+            )
+            instance = serializer.save()
+            instance.user = user
+            instance.save(update_fields=["user"])
+        except httpx.HTTPError as e:
+            if "instance" in locals():
+                instance.set_state_erred()
+                instance.error_message = str(e)
+                instance.error_traceback = traceback.format_exc()
+                instance.save(
+                    update_fields=["state", "error_message", "error_traceback"]
+                )
+            raise ValidationError({"detail": str(e)})
+
+    def perform_destroy(self, instance):
+        try:
+            utils.close_course_account(instance)
+        except httpx.HTTPError as e:
+            raise ValidationError({"detail": str(e)})
+
+    destroy_validators = [
+        core_validators.StateValidator(
+            ServiceAccountState.OK, ServiceAccountState.ERRED
+        )
+    ]
+
+    @action(detail=False, methods=["post"])
+    def create_bulk(self, request):
+        serializer = self.get_serializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+        course_accounts = utils.create_multiple_course_accounts(
+            serializer.validated_data, self.request.user.username
+        )
+        course_accounts_page = self.paginate_queryset(course_accounts)
+        course_accounts_serializer = serializers.CourseAccountSerializer(
+            course_accounts_page, many=True, context={"request": request}
+        )
+        return self.get_paginated_response(course_accounts_serializer.data)
+
+    create_bulk_permissions = [check_create_permissions]
+    create_bulk_serializer_class = serializers.CourseAccountsBulkCreateSerializer

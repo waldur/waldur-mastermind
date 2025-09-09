@@ -79,3 +79,15 @@ class MarketplaceSlurmConfig(AppConfig):
             sender=marketplace_models.ProjectServiceAccount,
             dispatch_uid="waldur_mastermind.marketplace_site_agent.send_project_service_account_deletion_info",
         )
+
+        signals.post_save.connect(
+            handlers.send_course_account_info,
+            sender=marketplace_models.CourseAccount,
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_course_account_info",
+        )
+
+        signals.post_save.connect(
+            handlers.send_course_account_deletion_info,
+            sender=marketplace_models.CourseAccount,
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_course_account_deletion_info",
+        )

@@ -22,6 +22,7 @@ from waldur_core.structure.views import (
 from waldur_core.users import urls as users_urls
 from waldur_mastermind.marketplace.views import (
     ServiceProviderComplianceViewSet,
+    ServiceProviderCourseAccountsViewSet,
     ServiceProviderCustomerProjectsViewSet,
     ServiceProviderCustomersViewSet,
     ServiceProviderKeysViewSet,
@@ -96,6 +97,11 @@ service_provider_router.register(
     r"project_service_accounts",
     ServiceProviderProjectServiceAccountsViewSet,
     basename="service-provider-project-service-accounts",
+)
+service_provider_router.register(
+    r"course_accounts",
+    ServiceProviderCourseAccountsViewSet,
+    basename="service-provider-course-accounts",
 )
 service_provider_router.register(
     r"offerings",

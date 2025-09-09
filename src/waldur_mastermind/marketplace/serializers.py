@@ -7,6 +7,7 @@ import jwt
 from constance import config
 from dateutil.parser import parse as parse_datetime
 from django import forms
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
@@ -44,6 +45,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
+from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.serializers import get_options_serializer_class
@@ -63,6 +65,7 @@ from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
     RANCHER_OFFERING,
     BillingTypes,
+    CourseAccountState,
     LimitPeriods,
     OfferingStates,
     OfferingUserStates,
@@ -6301,3 +6304,85 @@ class OfferingTermsOfServiceUpdateSerializer(serializers.Serializer):
     terms_of_service_link = serializers.URLField(required=False, allow_blank=True)
     version = serializers.CharField(max_length=50, required=False, allow_blank=True)
     requires_reconsent = serializers.BooleanField(required=False, default=False)
+
+
+class CourseAccountSerializer(serializers.HyperlinkedModelSerializer):
+    project = serializers.SlugRelatedField(
+        queryset=structure_models.Project.available_objects.filter(
+            kind=ProjectKind.COURSE,
+        ),
+        slug_field="uuid",
+    )
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
+    project_name = serializers.CharField(read_only=True, source="project.name")
+
+    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
+    user_username = serializers.CharField(read_only=True, source="user.username")
+
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="project.customer.uuid"
+    )
+    customer_name = serializers.CharField(
+        read_only=True, source="project.customer.name"
+    )
+
+    state = serializers.CharField(source="get_state_display", read_only=True)
+    error_message = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = models.CourseAccount
+        fields = (
+            "url",
+            "uuid",
+            "created",
+            "modified",
+            "project",
+            "project_uuid",
+            "project_name",
+            "user_uuid",
+            "user_username",
+            "customer_uuid",
+            "customer_name",
+            "state",
+            "email",
+            "description",
+            "error_message",
+            "error_traceback",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-course-account-detail",
+            },
+        }
+
+    @extend_schema_field(serializers.ChoiceField(choices=CourseAccountState.values))
+    def get_state(self, course_account: models.CourseAccount) -> str:
+        return course_account.get_state_display()
+
+
+class CourseAccountCreateNestedSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.CourseAccount
+        fields = (
+            "email",
+            "description",
+        )
+
+
+class CourseAccountsBulkCreateSerializer(serializers.Serializer):
+    course_accounts = CourseAccountCreateNestedSerializer(many=True)
+    project = serializers.SlugRelatedField(
+        queryset=structure_models.Project.available_objects.filter(
+            kind=ProjectKind.COURSE,
+        ),
+        slug_field="uuid",
+    )
+
+    def validate(self, attrs):
+        super().validate(attrs)
+        if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):
+            raise ValidationError("Course account management feature is disabled")
+
+        if not settings.WALDUR_CORE["COURSE_ACCOUNT_URL"]:
+            raise ValidationError("URL for course accounts is not configured")

@@ -4,6 +4,7 @@ from typing import Any
 
 import httpx
 from constance import config
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -1921,3 +1922,32 @@ def add_maintenance_fields_to_admin_announcement_serializer(sender, fields, **kw
     sender.get_maintenance_scheduled_end = get_maintenance_scheduled_end
     sender.get_maintenance_service_provider = get_maintenance_service_provider
     sender.get_maintenance_affected_offerings = get_maintenance_affected_offerings
+
+
+def close_course_accounts_after_project_removal(
+    sender, instance: structure_models.Project, **kwargs
+):
+    if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):
+        return
+
+    course_accounts = models.CourseAccount.objects.filter(project=instance)
+    if not course_accounts.exists():
+        return
+    try:
+        api_access_token = utils.get_course_account_api_token()
+    except httpx.HTTPError:
+        logger.error(
+            "Unable to get course account API token, skipping accounts removal for project %s",
+            instance,
+        )
+        return
+
+    for course_account in course_accounts:
+        try:
+            utils.close_course_account(course_account, api_access_token)
+        except httpx.HTTPError:
+            logger.error(
+                "Unable to close course account %s from project %s",
+                course_account.user.username,
+                instance,
+            )

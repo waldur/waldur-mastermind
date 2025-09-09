@@ -33,6 +33,7 @@ from waldur_core.structure.managers import (
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.enums import (
+    CourseAccountState,
     OfferingStates,
     OfferingUserStates,
     OrderStates,
@@ -1210,3 +1211,14 @@ class OfferingTermsOfServiceFilter(django_filters.FilterSet):
             "version",
             "requires_reconsent",
         ]
+
+
+class CourseAccountFilter(django_filters.FilterSet):
+    username = django_filters.CharFilter(field_name="user__username")
+    email = django_filters.CharFilter(lookup_expr="icontains")
+    state = core_filters.MappedMultipleChoiceFilter(CourseAccountState.choices)
+    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
+
+    class Meta:
+        model = models.CourseAccount
+        fields = ["username", "email", "state", "project_uuid"]

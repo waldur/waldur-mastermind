@@ -131,6 +131,19 @@ class WaldurCore(BaseModel):
     SERVICE_ACCOUNT_TOKEN_SECRET = Field(
         "", description="Client secret to get access for service account."
     )
+    COURSE_ACCOUNT_TOKEN_URL = Field(
+        "",
+        description="Webhook URL for getting token for further course account management.",
+    )
+    COURSE_ACCOUNT_URL = Field(
+        "", description="Webhook URL for course account management."
+    )
+    COURSE_ACCOUNT_TOKEN_CLIENT_ID = Field(
+        "", description="Client ID to get access token for course account."
+    )
+    COURSE_ACCOUNT_TOKEN_SECRET = Field(
+        "", description="Client secret to get access for course account."
+    )
     PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS: list[str] = Field(
         [],
         description="List of authentication methods for which a manual update of user details is not allowed.",
@@ -226,6 +239,15 @@ class WaldurCore(BaseModel):
         False,
         description="Send service account creation and deletion requests to API.",
     )
+    COURSE_ACCOUNT_USE_API = Field(
+        False,
+        description="Send course account creation and deletion requests to API.",
+    )
+
+    ENABLE_PROJECT_KIND_COURSE = Field(
+        False,
+        description="Enable course kind for projects.",
+    )
 
     SUBNET_BLACKLIST: list[str] = Field(
         [
@@ -263,6 +285,8 @@ class WaldurCore(BaseModel):
             "OECD_FOS_2007_CODE_MANDATORY",
             "INVITATION_USE_WEBHOOKS",
             "SERVICE_ACCOUNT_USE_API",
+            "COURSE_ACCOUNT_USE_API",
+            "ENABLE_PROJECT_KIND_COURSE",
         ]
 
 

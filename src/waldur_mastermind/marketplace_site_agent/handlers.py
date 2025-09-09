@@ -169,12 +169,35 @@ def send_resource_update_message_to_queue(
     utils.push_resource_update_message(instance)
 
 
-def send_project_service_account_message(
-    service_account: marketplace_models.ProjectServiceAccount, created=True
+def send_account_message(
+    account: marketplace_models.ProjectServiceAccount
+    | marketplace_models.CourseAccount,
+    created=True,
 ):
     action = "create" if created else "delete"
-    logger.info("Sending %s message for the %s", action, service_account)
-    project = service_account.project
+    project = account.project
+    username = ""
+    observable_object_type = logging_utils.ObservableObjectType.SERVICE_ACCOUNT
+    match account:
+        case service_account if isinstance(
+            account, marketplace_models.ProjectServiceAccount
+        ):
+            username = service_account.username
+            observable_object_type = logging_utils.ObservableObjectType.SERVICE_ACCOUNT
+        case course_account if isinstance(account, marketplace_models.CourseAccount):
+            username = course_account.user.username
+            observable_object_type = logging_utils.ObservableObjectType.COURSE_ACCOUNT
+    payload = {
+        "account_uuid": account.uuid.hex,
+        "account_username": username,
+        "scope_type": "project",
+        "project_uuid": project.uuid.hex,
+        "project_name": project.name,
+        "action": action,
+    }
+
+    logger.info("Sending %s message for the %s", action, account)
+
     offering_ids = set(
         project.resource_set.filter(
             offering__type=SITE_AGENT_OFFERING,
@@ -186,22 +209,14 @@ def send_project_service_account_message(
     all_messages = []
     for offering in offerings:
         logger.debug(
-            "Processing (%s) event of project service account for project %s, offering %s, username %s",
+            "Processing (%s) account event for project %s, offering %s, username %s",
             action,
             project,
             offering,
-            service_account.username,
+            username,
         )
-        payload = {
-            "service_account_uuid": service_account.uuid.hex,
-            "service_account_username": service_account.username,
-            "scope_type": "project",
-            "project_uuid": project.uuid.hex,
-            "project_name": project.name,
-            "action": action,
-        }
         messages = marketplace_utils.prepare_messages(
-            offering, payload, logging_utils.ObservableObjectType.SERVICE_ACCOUNT
+            offering, payload, observable_object_type
         )
         all_messages.extend(messages)
 
@@ -215,7 +230,7 @@ def send_project_service_account_info(
     if not instance.tracker.has_changed("username") or not instance.username:
         return
 
-    send_project_service_account_message(instance, created=True)
+    send_account_message(instance, created=True)
 
 
 def send_project_service_account_deletion_info(
@@ -227,4 +242,25 @@ def send_project_service_account_deletion_info(
     ):
         return
 
-    send_project_service_account_message(instance, created=False)
+    send_account_message(instance, created=False)
+
+
+def send_course_account_info(
+    sender, instance: marketplace_models.CourseAccount, **kwargs
+):
+    if not instance.tracker.has_changed("user") or not instance.user:
+        return
+
+    send_account_message(instance, created=True)
+
+
+def send_course_account_deletion_info(
+    sender, instance: marketplace_models.CourseAccount, **kwargs
+):
+    if (
+        not instance.tracker.has_changed("state")
+        or instance.state != marketplace_enums.CourseAccountState.CLOSED
+    ):
+        return
+
+    send_account_message(instance, created=False)
