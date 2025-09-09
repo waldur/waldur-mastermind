@@ -821,7 +821,7 @@ def import_offering_screenshots(local_offering: marketplace_models.Offering):
     try:
         remote_screenshots = marketplace_screenshots_list.sync(
             client=client,
-            offering_uuid=remote_offering_uuid,
+            offering_uuid=[uuid.UUID(remote_offering_uuid)],
         )
     except (UnexpectedStatus, TimeoutException) as e:
         logger.error(
