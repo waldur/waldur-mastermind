@@ -405,11 +405,11 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
     @extend_schema(request=None, responses=serializers.CancelRequestResponseSerializer)
     @action(detail=True, methods=["post"])
     def cancel_request(self, request, uuid=None):
-        """Cancel permission request. Only the user who created the request can cancel it."""
+        """Cancel permission request. Users can cancel their own requests, staff can cancel any request."""
         permission_request: models.PermissionRequest = self.get_object()
 
-        # Check that the user canceling is the same user who created the request
-        if permission_request.created_by != request.user:
+        # Check that the user canceling is the same user who created the request OR is staff
+        if permission_request.created_by != request.user and not request.user.is_staff:
             raise PermissionDenied(
                 _("You can only cancel your own permission requests.")
             )

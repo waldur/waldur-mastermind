@@ -1680,9 +1680,26 @@ class PermissionRequestCancelTest(test.APITransactionTestCase):
         self.assertEqual(response.data["scope_name"], self.customer.name)
         self.assertEqual(response.data["scope_uuid"], str(self.customer.uuid))
 
-        # Verify the request state was changed
+    def test_staff_user_can_cancel_other_users_request(self):
+        """Test that staff users can cancel any user's permission request."""
+        staff_user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff_user)
+
+        url = factories.PermissionRequestFactory.get_url(
+            self.pending_request, action="cancel_request"
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that request was actually canceled
         self.pending_request.refresh_from_db()
         self.assertEqual(self.pending_request.state, ReviewStates.CANCELED)
+
+        # Check response format
+        self.assertIn("uuid", response.data)
+        self.assertIn("scope_name", response.data)
+        self.assertIn("scope_uuid", response.data)
 
     def test_user_can_cancel_own_draft_request(self):
         """Test that a user can cancel their own draft permission request."""
@@ -1771,22 +1788,6 @@ class PermissionRequestCancelTest(test.APITransactionTestCase):
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_staff_user_cannot_cancel_other_users_request(self):
-        """Test that even staff users cannot cancel other users' requests."""
-        self.client.force_authenticate(user=self.staff)
-
-        url = factories.PermissionRequestFactory.get_url(
-            self.pending_request, action="cancel_request"
-        )
-        response = self.client.post(url)
-
-        # Staff can see the request but cannot cancel it (only owner can cancel)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        # Verify the request state was not changed
-        self.pending_request.refresh_from_db()
-        self.assertEqual(self.pending_request.state, ReviewStates.PENDING)
 
     def test_cancel_request_twice_fails(self):
         """Test that canceling an already canceled request fails."""
