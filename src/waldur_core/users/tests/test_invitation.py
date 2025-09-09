@@ -10,6 +10,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import PermissionEnum
@@ -1072,3 +1073,758 @@ class InvitationRejectTest(BaseInvitationTest):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class InvitationScopeDescriptionTest(test.APITransactionTestCase):
+    """Test cases for the scope_description field in invitation serializer."""
+
+    def setUp(self):
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.customer_owner = structure_factories.UserFactory()
+
+        # Create customer with description
+        self.customer_with_description = structure_factories.CustomerFactory(
+            name="Test Customer", description="This is a customer with description"
+        )
+        self.customer_with_description.add_user(self.customer_owner, CustomerRole.OWNER)
+
+        # Create customer without description (empty)
+        self.customer_without_description = structure_factories.CustomerFactory(
+            name="Customer No Desc", description=""
+        )
+
+        # Create project with description (projects also have DescribableMixin)
+        self.project_with_description = structure_factories.ProjectFactory(
+            customer=self.customer_with_description,
+            description="This is a project with description",
+        )
+
+        # Create project without description (empty)
+        self.project_without_description = structure_factories.ProjectFactory(
+            customer=self.customer_with_description, description=""
+        )
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_INVITATIONS)
+
+    def test_invitation_includes_scope_description_for_customer_with_description(self):
+        """Test that invitation for customer with description includes scope_description field."""
+        self.client.force_authenticate(user=self.staff)
+
+        payload = {
+            "email": "test@example.com",
+            "scope": structure_factories.CustomerFactory.get_url(
+                self.customer_with_description
+            ),
+            "role": CustomerRole.OWNER.uuid.hex,
+        }
+
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Check that scope_description is present and correct
+        self.assertIn("scope_description", response.data)
+        self.assertEqual(
+            response.data["scope_description"], "This is a customer with description"
+        )
+
+    def test_invitation_has_empty_scope_description_for_customer_without_description(
+        self,
+    ):
+        """Test that invitation for customer without description has empty scope_description."""
+        self.client.force_authenticate(user=self.staff)
+
+        payload = {
+            "email": "test@example.com",
+            "scope": structure_factories.CustomerFactory.get_url(
+                self.customer_without_description
+            ),
+            "role": CustomerRole.OWNER.uuid.hex,
+        }
+
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Check that scope_description is present but empty
+        self.assertIn("scope_description", response.data)
+        self.assertEqual(response.data["scope_description"], "")
+
+    def test_invitation_includes_scope_description_for_project_with_description(self):
+        """Test that invitation for project with description includes scope_description field."""
+        self.client.force_authenticate(user=self.staff)
+
+        payload = {
+            "email": "test@example.com",
+            "scope": structure_factories.ProjectFactory.get_url(
+                self.project_with_description
+            ),
+            "role": ProjectRole.ADMIN.uuid.hex,
+        }
+
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Check that scope_description is present and correct for project
+        self.assertIn("scope_description", response.data)
+        self.assertEqual(
+            response.data["scope_description"], "This is a project with description"
+        )
+
+    def test_invitation_has_empty_scope_description_for_project_without_description(
+        self,
+    ):
+        """Test that invitation for project without description has empty scope_description."""
+        self.client.force_authenticate(user=self.staff)
+
+        payload = {
+            "email": "test@example.com",
+            "scope": structure_factories.ProjectFactory.get_url(
+                self.project_without_description
+            ),
+            "role": ProjectRole.ADMIN.uuid.hex,
+        }
+
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Check that scope_description is present but empty
+        self.assertIn("scope_description", response.data)
+        self.assertEqual(response.data["scope_description"], "")
+
+    def test_invitation_list_includes_scope_description(self):
+        """Test that invitation list endpoint includes scope_description field."""
+        # Create invitations for different scopes
+        customer_invitation = factories.CustomerInvitationFactory(
+            scope=self.customer_with_description,
+            role=CustomerRole.OWNER,
+            created_by=self.staff,
+        )
+        project_invitation = factories.ProjectInvitationFactory(
+            scope=self.project_with_description,
+            role=ProjectRole.ADMIN,
+            created_by=self.staff,
+        )
+
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.get(factories.InvitationBaseFactory.get_list_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(response.data), 2)
+
+        # Check that all invitations have scope_description field
+        for invitation_data in response.data:
+            self.assertIn("scope_description", invitation_data)
+
+        # Find our specific invitations and verify descriptions
+        customer_inv_data = next(
+            (
+                inv
+                for inv in response.data
+                if inv["uuid"] == str(customer_invitation.uuid)
+            ),
+            None,
+        )
+        project_inv_data = next(
+            (
+                inv
+                for inv in response.data
+                if inv["uuid"] == str(project_invitation.uuid)
+            ),
+            None,
+        )
+
+        if customer_inv_data:
+            self.assertEqual(
+                customer_inv_data["scope_description"],
+                "This is a customer with description",
+            )
+        if project_inv_data:
+            self.assertEqual(
+                project_inv_data["scope_description"],
+                "This is a project with description",
+            )
+
+    def test_invitation_detail_includes_scope_description(self):
+        """Test that invitation detail endpoint includes scope_description field."""
+        invitation = factories.CustomerInvitationFactory(
+            scope=self.customer_with_description,
+            role=CustomerRole.OWNER,
+            created_by=self.staff,
+        )
+
+        self.client.force_authenticate(user=self.staff)
+        url = factories.InvitationBaseFactory.get_url(invitation)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("scope_description", response.data)
+        self.assertEqual(
+            response.data["scope_description"], "This is a customer with description"
+        )
+
+    def test_scope_description_updates_when_customer_description_changes(self):
+        """Test that scope_description reflects current customer description."""
+        invitation = factories.CustomerInvitationFactory(
+            scope=self.customer_with_description,
+            role=CustomerRole.OWNER,
+            created_by=self.staff,
+        )
+
+        # Get initial invitation data
+        self.client.force_authenticate(user=self.staff)
+        url = factories.InvitationBaseFactory.get_url(invitation)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["scope_description"], "This is a customer with description"
+        )
+
+        # Update customer description
+        self.customer_with_description.description = "Updated customer description"
+        self.customer_with_description.save()
+
+        # Get invitation data again
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["scope_description"], "Updated customer description"
+        )
+
+
+class InvitationScopeFilterTest(test.APITransactionTestCase):
+    """Test cases for scope name and scope description filters in invitation list."""
+
+    def setUp(self):
+        self.staff = structure_factories.UserFactory(is_staff=True)
+
+        # Create customers with different names and descriptions
+        self.customer_alpha = structure_factories.CustomerFactory(
+            name="Alpha Customer", description="Alpha description content"
+        )
+        self.customer_beta = structure_factories.CustomerFactory(
+            name="Beta Company", description="Beta description text"
+        )
+        self.customer_gamma = structure_factories.CustomerFactory(
+            name="Gamma Corp", description="Gamma content here"
+        )
+
+        # Create projects with different names and descriptions
+        self.project_alpha = structure_factories.ProjectFactory(
+            name="Alpha Project",
+            description="Alpha project description",
+            customer=self.customer_alpha,
+        )
+        self.project_beta = structure_factories.ProjectFactory(
+            name="Beta Development",
+            description="Beta project content",
+            customer=self.customer_beta,
+        )
+
+        # Create invitations for different scopes
+        self.customer_invitation_alpha = factories.CustomerInvitationFactory(
+            scope=self.customer_alpha, created_by=self.staff
+        )
+        self.customer_invitation_beta = factories.CustomerInvitationFactory(
+            scope=self.customer_beta, created_by=self.staff
+        )
+        self.customer_invitation_gamma = factories.CustomerInvitationFactory(
+            scope=self.customer_gamma, created_by=self.staff
+        )
+
+        self.project_invitation_alpha = factories.ProjectInvitationFactory(
+            scope=self.project_alpha, created_by=self.staff
+        )
+        self.project_invitation_beta = factories.ProjectInvitationFactory(
+            scope=self.project_beta, created_by=self.staff
+        )
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_INVITATIONS)
+
+    def test_filter_by_scope_name_customers(self):
+        """Test filtering invitations by customer scope name."""
+        self.client.force_authenticate(user=self.staff)
+
+        # Filter by customer name containing "Alpha"
+        response = self.client.get(
+            factories.InvitationBaseFactory.get_list_url() + "?scope_name=Alpha"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return invitations for Alpha Customer and Alpha Project
+        invitation_uuids = {inv["uuid"] for inv in response.data}
+        expected_uuids = {
+            str(self.customer_invitation_alpha.uuid),
+            str(self.project_invitation_alpha.uuid),
+        }
+
+        self.assertEqual(invitation_uuids, expected_uuids)
+
+    def test_filter_by_scope_name_projects(self):
+        """Test filtering invitations by project scope name."""
+        self.client.force_authenticate(user=self.staff)
+
+        # Filter by project name containing "Development"
+        response = self.client.get(
+            factories.InvitationBaseFactory.get_list_url() + "?scope_name=Development"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return invitation for Beta Development project
+        invitation_uuids = {inv["uuid"] for inv in response.data}
+        expected_uuids = {str(self.project_invitation_beta.uuid)}
+
+        self.assertEqual(invitation_uuids, expected_uuids)
+
+    def test_filter_by_scope_description_customers(self):
+        """Test filtering invitations by customer scope description."""
+        self.client.force_authenticate(user=self.staff)
+
+        # Filter by description containing "content"
+        response = self.client.get(
+            factories.InvitationBaseFactory.get_list_url()
+            + "?scope_description=content"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return invitations for Alpha Customer, Gamma Corp, and Beta Project
+        invitation_uuids = {inv["uuid"] for inv in response.data}
+        expected_uuids = {
+            str(self.customer_invitation_alpha.uuid),  # "Alpha description content"
+            str(self.customer_invitation_gamma.uuid),  # "Gamma content here"
+            str(self.project_invitation_beta.uuid),  # "Beta project content"
+        }
+
+        self.assertEqual(invitation_uuids, expected_uuids)
+
+    def test_filter_by_scope_description_projects(self):
+        """Test filtering invitations by project scope description."""
+        self.client.force_authenticate(user=self.staff)
+
+        # Filter by description containing "project"
+        response = self.client.get(
+            factories.InvitationBaseFactory.get_list_url()
+            + "?scope_description=project"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return invitations for both projects
+        invitation_uuids = {inv["uuid"] for inv in response.data}
+        expected_uuids = {
+            str(self.project_invitation_alpha.uuid),  # "Alpha project description"
+            str(self.project_invitation_beta.uuid),  # "Beta project content"
+        }
+
+        self.assertEqual(invitation_uuids, expected_uuids)
+
+    def test_filter_by_scope_name_case_insensitive(self):
+        """Test that scope name filtering is case-insensitive."""
+        self.client.force_authenticate(user=self.staff)
+
+        # Filter using lowercase
+        response = self.client.get(
+            factories.InvitationBaseFactory.get_list_url() + "?scope_name=beta"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return invitations for Beta Company and Beta Development
+        invitation_uuids = {inv["uuid"] for inv in response.data}
+        expected_uuids = {
+            str(self.customer_invitation_beta.uuid),
+            str(self.project_invitation_beta.uuid),
+        }
+
+        self.assertEqual(invitation_uuids, expected_uuids)
+
+    def test_filter_by_scope_description_case_insensitive(self):
+        """Test that scope description filtering is case-insensitive."""
+        self.client.force_authenticate(user=self.staff)
+
+        # Filter using mixed case
+        response = self.client.get(
+            factories.InvitationBaseFactory.get_list_url() + "?scope_description=TEXT"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return invitation for Beta Company ("Beta description text")
+        invitation_uuids = {inv["uuid"] for inv in response.data}
+        expected_uuids = {str(self.customer_invitation_beta.uuid)}
+
+        self.assertEqual(invitation_uuids, expected_uuids)
+
+    def test_combined_scope_filters(self):
+        """Test using both scope name and description filters together."""
+        self.client.force_authenticate(user=self.staff)
+
+        # Filter by name containing "Beta" AND description containing "text"
+        response = self.client.get(
+            factories.InvitationBaseFactory.get_list_url()
+            + "?scope_name=Beta&scope_description=text"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return only invitation for Beta Company (has both "Beta" in name and "text" in description)
+        invitation_uuids = {inv["uuid"] for inv in response.data}
+        expected_uuids = {str(self.customer_invitation_beta.uuid)}
+
+        self.assertEqual(invitation_uuids, expected_uuids)
+
+    def test_filter_no_matches(self):
+        """Test filtering with values that don't match any scopes."""
+        self.client.force_authenticate(user=self.staff)
+
+        # Filter by non-existent name
+        response = self.client.get(
+            factories.InvitationBaseFactory.get_list_url() + "?scope_name=NonExistent"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_filter_empty_value(self):
+        """Test that empty filter values don't filter anything."""
+        self.client.force_authenticate(user=self.staff)
+
+        # Filter with empty value
+        response = self.client.get(
+            factories.InvitationBaseFactory.get_list_url() + "?scope_name="
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return all invitations
+        invitation_uuids = {inv["uuid"] for inv in response.data}
+        expected_uuids = {
+            str(self.customer_invitation_alpha.uuid),
+            str(self.customer_invitation_beta.uuid),
+            str(self.customer_invitation_gamma.uuid),
+            str(self.project_invitation_alpha.uuid),
+            str(self.project_invitation_beta.uuid),
+        }
+
+        self.assertEqual(invitation_uuids, expected_uuids)
+
+
+class GroupInvitationSubmitRequestTest(test.APITransactionTestCase):
+    """Test cases for the submit_request method response format."""
+
+    def setUp(self):
+        self.user = structure_factories.UserFactory()
+        self.customer = structure_factories.CustomerFactory(name="Test Organization")
+        self.project = structure_factories.ProjectFactory(
+            customer=self.customer, name="Test Project"
+        )
+
+        # Create group invitations for different scopes
+        self.customer_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer, is_active=True, is_public=False
+        )
+        self.project_invitation = factories.ProjectGroupInvitationFactory(
+            scope=self.project, is_active=True, is_public=False
+        )
+
+    def test_submit_request_returns_uuid_and_scope_name_for_customer(self):
+        """Test that submit_request returns UUID, scope name, and scope UUID for customer invitation."""
+        self.client.force_authenticate(user=self.user)
+
+        url = factories.GroupInvitationBaseFactory.get_url(
+            self.customer_invitation, action="submit_request"
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check response format
+        self.assertIn("uuid", response.data)
+        self.assertIn("scope_name", response.data)
+        self.assertIn("scope_uuid", response.data)
+
+        # Check that scope_name is the customer name
+        self.assertEqual(response.data["scope_name"], "Test Organization")
+
+        # Check that scope_uuid is the customer UUID
+        self.assertEqual(response.data["scope_uuid"], str(self.customer.uuid))
+
+        # Check that UUID is a valid hex string
+        uuid_str = response.data["uuid"]
+        self.assertEqual(len(uuid_str), 32)  # UUID hex string length
+
+        # Verify permission request was created
+        permission_request = models.PermissionRequest.objects.get(uuid=uuid_str)
+        self.assertEqual(permission_request.invitation, self.customer_invitation)
+        self.assertEqual(permission_request.created_by, self.user)
+
+    def test_submit_request_returns_uuid_and_scope_name_for_project(self):
+        """Test that submit_request returns UUID, scope name, and scope UUID for project invitation."""
+        self.client.force_authenticate(user=self.user)
+
+        url = factories.GroupInvitationBaseFactory.get_url(
+            self.project_invitation, action="submit_request"
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check response format
+        self.assertIn("uuid", response.data)
+        self.assertIn("scope_name", response.data)
+        self.assertIn("scope_uuid", response.data)
+
+        # Check that scope_name is the project name
+        self.assertEqual(response.data["scope_name"], "Test Project")
+
+        # Check that scope_uuid is the project UUID
+        self.assertEqual(response.data["scope_uuid"], str(self.project.uuid))
+
+        # Check that UUID is a valid hex string
+        uuid_str = response.data["uuid"]
+        self.assertEqual(len(uuid_str), 32)  # UUID hex string length
+
+        # Verify permission request was created
+        permission_request = models.PermissionRequest.objects.get(uuid=uuid_str)
+        self.assertEqual(permission_request.invitation, self.project_invitation)
+        self.assertEqual(permission_request.created_by, self.user)
+
+    def test_submit_request_response_schema_compliance(self):
+        """Test that the response matches the schema definition."""
+        self.client.force_authenticate(user=self.user)
+
+        url = factories.GroupInvitationBaseFactory.get_url(
+            self.customer_invitation, action="submit_request"
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify response has exactly the expected fields from SubmitRequestResponseSerializer
+        expected_fields = {"uuid", "scope_name", "scope_uuid"}
+        actual_fields = set(response.data.keys())
+        self.assertEqual(actual_fields, expected_fields)
+
+        # Verify field types
+        self.assertIsInstance(response.data["uuid"], str)
+        self.assertIsInstance(response.data["scope_name"], str)
+        self.assertIsInstance(response.data["scope_uuid"], str)
+
+
+class PermissionRequestCancelTest(test.APITransactionTestCase):
+    """Test cases for the cancel_request action."""
+
+    def setUp(self):
+        self.user = structure_factories.UserFactory()
+        self.other_user = structure_factories.UserFactory()
+        self.staff = structure_factories.UserFactory(is_staff=True)
+
+        self.customer = structure_factories.CustomerFactory()
+        self.project = structure_factories.ProjectFactory(customer=self.customer)
+
+        # Create group invitations
+        self.customer_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer, is_active=True
+        )
+        self.project_invitation = factories.ProjectGroupInvitationFactory(
+            scope=self.project, is_active=True
+        )
+
+        # Create permission requests
+        self.pending_request = models.PermissionRequest.objects.create(
+            invitation=self.customer_invitation, created_by=self.user
+        )
+        self.pending_request.submit()  # Move to PENDING state
+
+        self.draft_request = models.PermissionRequest.objects.create(
+            invitation=self.project_invitation, created_by=self.user
+        )
+        # Keep in DRAFT state
+
+        self.approved_request = models.PermissionRequest.objects.create(
+            invitation=self.customer_invitation, created_by=self.user
+        )
+        self.approved_request.submit()
+        self.approved_request.approve(self.staff)  # Move to APPROVED state
+
+    def test_user_can_cancel_own_pending_request(self):
+        """Test that a user can cancel their own pending permission request."""
+        self.client.force_authenticate(user=self.user)
+
+        url = factories.PermissionRequestFactory.get_url(
+            self.pending_request, action="cancel_request"
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check response format (similar to submit_request)
+        self.assertIn("uuid", response.data)
+        self.assertIn("scope_name", response.data)
+        self.assertIn("scope_uuid", response.data)
+
+        # Check response content
+        self.assertEqual(response.data["uuid"], self.pending_request.uuid.hex)
+        self.assertEqual(response.data["scope_name"], self.customer.name)
+        self.assertEqual(response.data["scope_uuid"], str(self.customer.uuid))
+
+        # Verify the request state was changed
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.state, ReviewStates.CANCELED)
+
+    def test_user_can_cancel_own_draft_request(self):
+        """Test that a user can cancel their own draft permission request."""
+        self.client.force_authenticate(user=self.user)
+
+        url = factories.PermissionRequestFactory.get_url(
+            self.draft_request, action="cancel_request"
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check response format
+        self.assertIn("uuid", response.data)
+        self.assertIn("scope_name", response.data)
+        self.assertIn("scope_uuid", response.data)
+
+        # Check response content for project scope
+        self.assertEqual(response.data["uuid"], self.draft_request.uuid.hex)
+        self.assertEqual(response.data["scope_name"], self.project.name)
+        self.assertEqual(response.data["scope_uuid"], str(self.project.uuid))
+
+        # Verify the request state was changed
+        self.draft_request.refresh_from_db()
+        self.assertEqual(self.draft_request.state, ReviewStates.CANCELED)
+
+    def test_user_cannot_cancel_other_users_request(self):
+        """Test that a user cannot cancel another user's permission request."""
+        self.client.force_authenticate(user=self.other_user)
+
+        url = factories.PermissionRequestFactory.get_url(
+            self.pending_request, action="cancel_request"
+        )
+        response = self.client.post(url)
+
+        # Permission request filtering prevents other users from seeing the request at all
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # Verify the request state was not changed
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.state, ReviewStates.PENDING)
+
+    def test_cannot_cancel_approved_request(self):
+        """Test that approved requests cannot be canceled."""
+        self.client.force_authenticate(user=self.user)
+
+        url = factories.PermissionRequestFactory.get_url(
+            self.approved_request, action="cancel_request"
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Only pending or draft", str(response.data))
+
+        # Verify the request state was not changed
+        self.approved_request.refresh_from_db()
+        self.assertEqual(self.approved_request.state, ReviewStates.APPROVED)
+
+    def test_cannot_cancel_rejected_request(self):
+        """Test that rejected requests cannot be canceled."""
+        # Create a rejected request
+        rejected_request = models.PermissionRequest.objects.create(
+            invitation=self.customer_invitation, created_by=self.user
+        )
+        rejected_request.submit()
+        rejected_request.reject(self.staff)  # Move to REJECTED state
+
+        self.client.force_authenticate(user=self.user)
+
+        url = factories.PermissionRequestFactory.get_url(
+            rejected_request, action="cancel_request"
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Verify the request state was not changed
+        rejected_request.refresh_from_db()
+        self.assertEqual(rejected_request.state, ReviewStates.REJECTED)
+
+    def test_unauthenticated_user_cannot_cancel_request(self):
+        """Test that unauthenticated users cannot cancel requests."""
+        url = factories.PermissionRequestFactory.get_url(
+            self.pending_request, action="cancel_request"
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_staff_user_cannot_cancel_other_users_request(self):
+        """Test that even staff users cannot cancel other users' requests."""
+        self.client.force_authenticate(user=self.staff)
+
+        url = factories.PermissionRequestFactory.get_url(
+            self.pending_request, action="cancel_request"
+        )
+        response = self.client.post(url)
+
+        # Staff can see the request but cannot cancel it (only owner can cancel)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Verify the request state was not changed
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.state, ReviewStates.PENDING)
+
+    def test_cancel_request_twice_fails(self):
+        """Test that canceling an already canceled request fails."""
+        self.client.force_authenticate(user=self.user)
+
+        url = factories.PermissionRequestFactory.get_url(
+            self.pending_request, action="cancel_request"
+        )
+
+        # First cancellation should succeed
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Second cancellation should fail
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Verify the request is still canceled
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.state, ReviewStates.CANCELED)
+
+    def test_cancel_request_response_schema_compliance(self):
+        """Test that the cancel_request response matches the schema definition."""
+        self.client.force_authenticate(user=self.user)
+
+        url = factories.PermissionRequestFactory.get_url(
+            self.pending_request, action="cancel_request"
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify response has exactly the expected fields from CancelRequestResponseSerializer
+        expected_fields = {"uuid", "scope_name", "scope_uuid"}
+        actual_fields = set(response.data.keys())
+        self.assertEqual(actual_fields, expected_fields)
+
+        # Verify field types
+        self.assertIsInstance(response.data["uuid"], str)
+        self.assertIsInstance(response.data["scope_name"], str)
+        self.assertIsInstance(response.data["scope_uuid"], str)

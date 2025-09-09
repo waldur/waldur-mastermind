@@ -109,6 +109,7 @@ class CustomerViewSet(
         "agreement_number",
         "contact_details",
         "created",
+        "description",
         "name",
         "native_name",
         "registration_code",

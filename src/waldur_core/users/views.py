@@ -301,7 +301,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(request=None)
+    @extend_schema(request=None, responses=serializers.SubmitRequestResponseSerializer)
     @action(detail=True, methods=["post"], filter_backends=[])
     def submit_request(self, request, uuid=None):
         invitation: models.GroupInvitation = self.get_object()
@@ -337,8 +337,26 @@ class GroupInvitationViewSet(ProtectedViewSet):
         )
 
         permission_request.submit()
+
+        # Get scope details safely
+        scope_name = ""
+        scope_uuid = ""
+        if invitation.scope:
+            scope_name = getattr(invitation.scope, "name", str(invitation.scope))
+            scope_uuid = str(invitation.scope.uuid)
+
+        # Use the serializer to validate and format the response
+        response_serializer = serializers.SubmitRequestResponseSerializer(
+            data={
+                "uuid": permission_request.uuid.hex,
+                "scope_name": scope_name,
+                "scope_uuid": scope_uuid,
+            }
+        )
+        response_serializer.is_valid(raise_exception=True)
+
         return Response(
-            {"uuid": permission_request.uuid.hex},
+            response_serializer.data,
             status=status.HTTP_200_OK,
         )
 
@@ -383,6 +401,47 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
     @action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         return self.perform_action(request, uuid, "reject")
+
+    @extend_schema(request=None, responses=serializers.CancelRequestResponseSerializer)
+    @action(detail=True, methods=["post"])
+    def cancel_request(self, request, uuid=None):
+        """Cancel permission request. Only the user who created the request can cancel it."""
+        permission_request: models.PermissionRequest = self.get_object()
+
+        # Check that the user canceling is the same user who created the request
+        if permission_request.created_by != request.user:
+            raise PermissionDenied(
+                _("You can only cancel your own permission requests.")
+            )
+
+        # Check that the request is in a state that can be canceled
+        if permission_request.state not in [ReviewStates.PENDING, ReviewStates.DRAFT]:
+            raise ValidationError(_("Only pending or draft requests can be canceled."))
+
+        permission_request.cancel()
+
+        # Get scope details safely
+        invitation = permission_request.invitation
+        scope_name = ""
+        scope_uuid = ""
+        if invitation.scope:
+            scope_name = getattr(invitation.scope, "name", str(invitation.scope))
+            scope_uuid = str(invitation.scope.uuid)
+
+        # Use the serializer to validate and format the response
+        response_serializer = serializers.CancelRequestResponseSerializer(
+            data={
+                "uuid": permission_request.uuid.hex,
+                "scope_name": scope_name,
+                "scope_uuid": scope_uuid,
+            }
+        )
+        response_serializer.is_valid(raise_exception=True)
+
+        return Response(
+            response_serializer.data,
+            status=status.HTTP_200_OK,
+        )
 
     approve_serializer_class = reject_serializer_class = (
         core_serializers.ReviewCommentSerializer

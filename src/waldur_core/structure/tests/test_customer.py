@@ -1433,3 +1433,136 @@ class CustomerDefaultTaxPercentValidationTest(test.APITransactionTestCase):
         self.customer.refresh_from_db()
         self.assertEqual(self.customer.default_tax_percent, Decimal("25.50"))
         self.assertIsInstance(self.customer.default_tax_percent, Decimal)
+
+
+class CustomerDescriptionTest(BaseCustomerMutationTest):
+    """Test cases for the Customer description field functionality."""
+
+    def test_customer_has_description_field(self):
+        """Test that Customer model has description field from DescribableMixin."""
+        customer = factories.CustomerFactory(description="Test description")
+        self.assertEqual(customer.description, "Test description")
+
+    def test_description_field_in_serializer(self):
+        """Test that description field is exposed in the serializer."""
+        customer = factories.CustomerFactory(
+            description="Test organization description"
+        )
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        url = self._get_customer_url(customer)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("description", response.data)
+        self.assertEqual(response.data["description"], "Test organization description")
+
+    def test_create_customer_with_description(self):
+        """Test creating a customer with description field."""
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        payload = self._get_valid_payload()
+        payload["description"] = "New customer with description"
+
+        response = self.client.post(factories.CustomerFactory.get_list_url(), payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["description"], "New customer with description")
+
+        # Verify in database
+        customer = Customer.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(customer.description, "New customer with description")
+
+    def test_update_customer_description(self):
+        """Test updating a customer's description field."""
+        customer = factories.CustomerFactory(description="Original description")
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        url = self._get_customer_url(customer)
+        response = self.client.patch(url, {"description": "Updated description"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["description"], "Updated description")
+
+        # Verify in database
+        customer.refresh_from_db()
+        self.assertEqual(customer.description, "Updated description")
+
+    def test_description_field_ordering(self):
+        """Test that customers can be ordered by description field."""
+        # Create customers with distinct descriptions
+        customer_a = factories.CustomerFactory(
+            name="Customer A", description="Alpha description"
+        )
+        customer_b = factories.CustomerFactory(
+            name="Customer B", description="Beta description"
+        )
+        customer_c = factories.CustomerFactory(
+            name="Customer C", description="Charlie description"
+        )
+
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        # Test that ordering by description doesn't cause errors
+        response = self.client.get(
+            f"{factories.CustomerFactory.get_list_url()}?ordering=description"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify all customers have description field in response
+        test_customer_uuids = {
+            str(customer_a.uuid),
+            str(customer_b.uuid),
+            str(customer_c.uuid),
+        }
+        test_customers = [
+            customer
+            for customer in response.data
+            if customer["uuid"] in test_customer_uuids
+        ]
+
+        # Ensure all our test customers are present with description field
+        self.assertEqual(len(test_customers), 3)
+        for customer in test_customers:
+            self.assertIn("description", customer)
+            self.assertIn(
+                customer["description"],
+                ["Alpha description", "Beta description", "Charlie description"],
+            )
+
+        # Test descending order also works without error
+        response = self.client.get(
+            f"{factories.CustomerFactory.get_list_url()}?ordering=-description"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_description_field_blank_allowed(self):
+        """Test that description field can be blank."""
+        customer = factories.CustomerFactory(description="")
+        self.assertEqual(customer.description, "")
+
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        # Test creating customer with empty description
+        payload = self._get_valid_payload()
+        payload["description"] = ""
+
+        response = self.client.post(factories.CustomerFactory.get_list_url(), payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["description"], "")
+
+    def test_description_max_length(self):
+        """Test that description field respects maximum length from DescribableMixin."""
+        from waldur_core.core.models import DESCRIPTION_LENGTH
+
+        # Test within limit
+        valid_description = "A" * DESCRIPTION_LENGTH
+        customer = factories.CustomerFactory(description=valid_description)
+        customer.full_clean()  # Should not raise
+
+        # Test exceeding limit
+        invalid_description = "A" * (DESCRIPTION_LENGTH + 1)
+        customer = factories.CustomerFactory.build(description=invalid_description)
+
+        with self.assertRaises(ValidationError):
+            customer.full_clean()

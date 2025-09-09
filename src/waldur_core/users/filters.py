@@ -112,6 +112,8 @@ class GroupInvitationFilter(BaseInvitationFilter):
 class InvitationFilter(BaseInvitationFilter):
     state = django_filters.MultipleChoiceFilter(choices=InvitationState.CHOICES)
     email = django_filters.CharFilter(lookup_expr="icontains")
+    scope_name = django_filters.CharFilter(method="filter_by_scope_name")
+    scope_description = django_filters.CharFilter(method="filter_by_scope_description")
 
     o = django_filters.OrderingFilter(
         fields=("email", "state", "created_by", "created")
@@ -119,7 +121,101 @@ class InvitationFilter(BaseInvitationFilter):
 
     class Meta:
         model = models.Invitation
-        fields = BaseInvitationFilter.Meta.fields + ["email", "state", "civil_number"]
+        fields = BaseInvitationFilter.Meta.fields + [
+            "email",
+            "state",
+            "civil_number",
+            "scope_name",
+            "scope_description",
+        ]
+
+    def filter_by_scope_name(self, queryset, name, value):
+        """Filter invitations by scope name (case-insensitive contains)."""
+        if not value:
+            return queryset
+
+        # Build a list of invitation IDs that match the scope name criteria
+        matching_invitation_ids = []
+
+        # Get all valid content types for scopes
+        for content_type in get_valid_content_types():
+            model_class = content_type.model_class()
+            if not model_class:
+                continue
+
+            # Check if the model has a 'name' field by examining its _meta fields
+            field_names = [f.name for f in model_class._meta.get_fields()]
+            if "name" in field_names:
+                try:
+                    # Find all objects of this type that match the name criteria
+                    matching_scope_ids = list(
+                        model_class.objects.filter(name__icontains=value).values_list(
+                            "id", flat=True
+                        )
+                    )
+
+                    if matching_scope_ids:
+                        # Find invitations that reference these scope objects
+                        invitation_ids = list(
+                            queryset.filter(
+                                content_type=content_type,
+                                object_id__in=matching_scope_ids,
+                            ).values_list("id", flat=True)
+                        )
+                        matching_invitation_ids.extend(invitation_ids)
+                except Exception:
+                    # Skip models that cause database errors
+                    continue
+
+        # Return filtered queryset
+        if matching_invitation_ids:
+            return queryset.filter(id__in=matching_invitation_ids)
+        else:
+            return queryset.none()
+
+    def filter_by_scope_description(self, queryset, name, value):
+        """Filter invitations by scope description (case-insensitive contains)."""
+        if not value:
+            return queryset
+
+        # Build a list of invitation IDs that match the scope description criteria
+        matching_invitation_ids = []
+
+        # Get all valid content types for scopes
+        for content_type in get_valid_content_types():
+            model_class = content_type.model_class()
+            if not model_class:
+                continue
+
+            # Check if the model has a 'description' field by examining its _meta fields
+            field_names = [f.name for f in model_class._meta.get_fields()]
+            if "description" in field_names:
+                try:
+                    # Find all objects of this type that match the description criteria
+                    matching_scope_ids = list(
+                        model_class.objects.filter(
+                            description__icontains=value
+                        ).values_list("id", flat=True)
+                    )
+
+                    if matching_scope_ids:
+                        # Find invitations that reference these scope objects
+                        invitation_ids = list(
+                            queryset.filter(
+                                content_type=content_type,
+                                object_id__in=matching_scope_ids,
+                            ).values_list("id", flat=True)
+                        )
+                        matching_invitation_ids.extend(invitation_ids)
+                except Exception:
+                    # Skip models that cause database errors
+                    continue
+
+        # Return filtered queryset
+        if matching_invitation_ids:
+            return queryset.filter(id__in=matching_invitation_ids)
+        else:
+            return queryset.none()
 
 
 class PermissionRequestScopeFilterBackend(InvitationScopeFilterBackend):
