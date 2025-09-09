@@ -569,19 +569,6 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         self.assertEqual(self.resource.state, ResourceStates.TERMINATED)
         self.assertRaises(ObjectDoesNotExist, self.instance.refresh_from_db)
 
-    def test_force_destroy_is_scheduled(self):
-        self.instance.runtime_state = openstack_models.Instance.RuntimeStates.ACTIVE
-        self.instance.save()
-        self.order.attributes = {"action": "force_destroy"}
-        self.order.save()
-        self.trigger_deletion()
-        self.assertEqual(self.order.state, OrderStates.EXECUTING)
-        self.assertEqual(self.resource.state, ResourceStates.TERMINATING)
-        self.assertEqual(
-            self.instance.state,
-            CoreStates.DELETION_SCHEDULED,
-        )
-
     def test_cannot_delete_instance_that_has_backups(self):
         self.resource.state = ResourceStates.OK
         self.resource.save()
@@ -673,6 +660,29 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         self.order.refresh_from_db()
         self.resource.refresh_from_db()
         self.instance.refresh_from_db()
+
+    def test_force_destroy_is_possible_for_active_instance(self):
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+        self.instance.state = CoreStates.OK
+        self.instance.runtime_state = openstack_models.Instance.RuntimeStates.ACTIVE
+        self.instance.save()
+        self.order.state = OrderStates.DONE
+        self.order.save()
+
+        url = marketplace_factories.ResourceFactory.get_url(self.resource, "terminate")
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            url,
+            {
+                "attributes": {
+                    "action": "force_destroy",
+                    "delete_volumes": True,
+                    "release_floating_ips": True,
+                }
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 class VolumeCreateTest(test.APITransactionTestCase):

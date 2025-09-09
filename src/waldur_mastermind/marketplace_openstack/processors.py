@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
@@ -127,14 +128,22 @@ class InstanceCreateProcessor(TenantMixin, processors.BaseCreateResourceProcesso
 
 class InstanceDeleteProcessor(processors.AbstractDeleteResourceProcessor):
     def validate_order(self, request):
-        instance = self.order.resource.scope
+        instance = cast(openstack_models.Instance, self.order.resource.scope)
         if not instance:
             return
-        for validator in [
-            self._can_destroy_instance,
-            openstack_views.InstanceViewSet._has_backups,
-            openstack_views.InstanceViewSet._has_snapshots,
-        ]:
+        delete_attributes = self.order.attributes
+        action = delete_attributes.get("action", "destroy")
+        validators = {
+            "destroy": [
+                self._can_destroy_instance,
+                openstack_views.InstanceViewSet._has_backups,
+                openstack_views.InstanceViewSet._has_snapshots,
+            ],
+            "force_destroy": openstack_views.MarketplaceInstanceViewSet.force_destroy_validators,
+        }
+        if action not in validators:
+            action = "destroy"
+        for validator in validators[action]:
             validator(instance)
 
     def _can_destroy_instance(self, instance: openstack_models.Instance):
