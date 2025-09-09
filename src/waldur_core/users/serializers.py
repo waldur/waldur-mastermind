@@ -19,6 +19,7 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
     )
     scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
     scope_name = serializers.CharField(read_only=True, source="scope.name")
+    scope_description = serializers.SerializerMethodField()
     scope_type = serializers.SerializerMethodField()
     customer_uuid = serializers.UUIDField(read_only=True, source="customer.uuid")
     customer_name = serializers.CharField(read_only=True, source="customer.name")
@@ -30,6 +31,7 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
         fields = (
             "scope_uuid",
             "scope_name",
+            "scope_description",
             "scope_type",
             "customer_uuid",
             "customer_name",
@@ -38,6 +40,15 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
             "created_by_full_name",
             "created_by_username",
         )
+
+    def get_scope_description(self, invitation: models.BaseInvitation) -> str:
+        """
+        Get the description field from the scope if it exists.
+        Returns empty string if scope doesn't have a description field.
+        """
+        if not invitation.scope:
+            return ""
+        return getattr(invitation.scope, "description", "")
 
     def get_scope_type(self, invitation: models.Invitation) -> str | None:
         if not invitation.content_type:
@@ -324,3 +335,15 @@ class TokenSerializer(serializers.Serializer):
 class InvitationCheckSerializer(serializers.Serializer):
     email = serializers.EmailField()
     civil_number_required = serializers.BooleanField(required=False)
+
+
+class SubmitRequestResponseSerializer(serializers.Serializer):
+    uuid = serializers.CharField(help_text="UUID of the created permission request")
+    scope_name = serializers.CharField(help_text="Name of the invitation scope")
+    scope_uuid = serializers.CharField(help_text="UUID of the invitation scope")
+
+
+class CancelRequestResponseSerializer(serializers.Serializer):
+    uuid = serializers.CharField(help_text="UUID of the canceled permission request")
+    scope_name = serializers.CharField(help_text="Name of the invitation scope")
+    scope_uuid = serializers.CharField(help_text="UUID of the invitation scope")

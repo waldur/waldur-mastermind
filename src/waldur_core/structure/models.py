@@ -284,6 +284,7 @@ CUSTOMER_DETAILS_FIELDS = (
     "slug",
     "native_name",
     "abbreviation",
+    "description",
     "contact_details",
     "agreement_number",
     "email",
@@ -444,6 +445,7 @@ def filter_customers(user):
 class Customer(
     CustomerDetailsMixin,
     core_models.UuidMixin,
+    core_models.DescribableMixin,
     core_models.DescendantMixin,
     core_models.SlugMixin,
     quotas_models.ExtendableQuotaModelMixin,
@@ -516,7 +518,7 @@ class Customer(
         )
 
     def get_log_fields(self):
-        return ("uuid", "name", "abbreviation", "contact_details")
+        return ("uuid", "name", "abbreviation", "description", "contact_details")
 
     def clean(self):
         """Validate that the project metadata checklist is of PROJECT_METADATA type."""
