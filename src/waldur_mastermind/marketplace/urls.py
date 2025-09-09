@@ -212,6 +212,11 @@ def register_in(router):
         views.ProviderOfferingToSManagementViewset,
         basename="marketplace-offering-terms-of-service",
     )
+    router.register(
+        r"marketplace-course-accounts",
+        views.CourseAccountViewSet,
+        basename="marketplace-course-account",
+    )
 
 
 urlpatterns = [

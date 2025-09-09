@@ -1827,11 +1827,7 @@ def generate_mock_service_account_update_response(service_account) -> dict:
     }
 
 
-def get_service_account_api_token():
-    token_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_URL"]
-    client_id = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_CLIENT_ID"]
-    client_secret = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_SECRET"]
-
+def get_account_api_token(token_url, client_id, client_secret):
     token_url = token_url.rstrip("/")
 
     token_request_headers = {
@@ -1860,6 +1856,20 @@ def get_service_account_api_token():
     except httpx.HTTPError as e:
         logger.error("Error obtaining token: %s", e)
         raise
+
+
+def get_service_account_api_token():
+    token_url = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_URL"]
+    client_id = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_CLIENT_ID"]
+    client_secret = settings.WALDUR_CORE["SERVICE_ACCOUNT_TOKEN_SECRET"]
+    return get_account_api_token(token_url, client_id, client_secret)
+
+
+def get_course_account_api_token():
+    token_url = settings.WALDUR_CORE["COURSE_ACCOUNT_TOKEN_URL"]
+    client_id = settings.WALDUR_CORE["COURSE_ACCOUNT_TOKEN_CLIENT_ID"]
+    client_secret = settings.WALDUR_CORE["COURSE_ACCOUNT_TOKEN_SECRET"]
+    return get_account_api_token(token_url, client_id, client_secret)
 
 
 def rotate_service_account_api_key(service_account: models.ScopedServiceAccount):
@@ -2068,6 +2078,39 @@ def get_service_account(service_account: models.ScopedServiceAccount):
         raise
 
 
+def get_course_account(
+    course_account: models.CourseAccount, api_access_token: str | None = None
+):
+    if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):
+        return
+
+    course_account_url = settings.WALDUR_CORE["COURSE_ACCOUNT_URL"]
+    if not course_account_url:
+        raise ValidationError("URL for course accounts is not configured")
+
+    course_account_url = course_account_url.rstrip("/")
+    username = course_account.user.username
+    try:
+        if api_access_token is None:
+            api_access_token = get_course_account_api_token()
+        url = f"{course_account_url}/{username}"
+        response = httpx.get(
+            url,
+            headers={"Authorization": f"Bearer {api_access_token}"},
+            follow_redirects=True,
+        )
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            logger.warning("Course account %s not found", username)
+            return None
+        raise
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.error(exc)
+        raise
+
+
 def update_service_account(service_account: models.ScopedServiceAccount):
     """
     Makes a synchronous call to the webhook URL to update a service account email or/and description fields.
@@ -2247,3 +2290,153 @@ def convert_slurm_usage(usage: int | float | Decimal, component_type: str) -> in
     else:
         quantity = int(math.ceil(usage_float / minutes_in_hour))
     return quantity
+
+
+def post_course_account_to_url(
+    url: str,
+    course_account: dict,
+    owner_username: str = "",
+    api_access_token: str | None = None,
+):
+    try:
+        if api_access_token is None:
+            api_access_token = get_course_account_api_token()
+        project: structure_models.Project = course_account["project"]
+        offering_slugs = list(
+            set(
+                project.resource_set.exclude(
+                    state=ResourceStates.TERMINATED
+                ).values_list("offering__slug", flat=True)
+            )
+        )
+
+        payload = {
+            "ownerUsername": owner_username,
+            "email": course_account["email"],
+            "description": course_account.get("description", ""),
+            "scopeType": "project",
+            "scopeName": project.name,
+            "scopeSlug": project.slug,
+            "scopeOfferingSlugs": offering_slugs,
+        }
+
+        headers = {"Authorization": f"Bearer {api_access_token}"}
+        response = httpx.post(url, json=payload, headers=headers, follow_redirects=True)
+        response.raise_for_status()
+        logger.info("Service account has been successfully updated at %s", url)
+        return response
+    except (httpx.HTTPError, ValueError, KeyError) as e:
+        logger.error("Request to %s failed: %s", url, e)
+        raise
+
+
+def create_course_account(
+    course_account: dict, owner_username: str, api_access_token: str | None = None
+):
+    if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):
+        return
+
+    course_account_url = settings.WALDUR_CORE["COURSE_ACCOUNT_URL"]
+    if not course_account_url:
+        raise ValidationError("URL for course accounts is not configured")
+
+    course_account_url = course_account_url.rstrip("/")
+
+    try:
+        response = post_course_account_to_url(
+            course_account_url, course_account, owner_username, api_access_token
+        )
+        return response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.error(exc)
+        raise
+
+
+def create_multiple_course_accounts(
+    course_accounts_data: list[dict], owner_username: str
+):
+    course_account_url = settings.WALDUR_CORE["COURSE_ACCOUNT_URL"]
+    course_account_url = course_account_url.rstrip("/")
+    course_accounts_created = []
+
+    try:
+        api_access_token = get_course_account_api_token()
+    except (httpx.HTTPError, ValueError, KeyError) as e:
+        logger.error("Request to %s failed: %s", course_account_url, e)
+
+    for course_account_data in course_accounts_data:
+        try:
+            response = post_course_account_to_url(
+                course_account_url,
+                course_account_data,
+                owner_username,
+                api_access_token,
+            )
+            response_data = response.json()
+            user = core_models.User.objects.create(
+                username=response_data["tempAccount"]["username"],
+                email=response_data["tempAccount"]["email"],
+                description="Course Account",
+            )
+            course_account = models.CourseAccount.objects.create(
+                user=user,
+                email=course_account_data["email"],
+                project=course_account_data["project"],
+            )
+            course_accounts_created.append(course_account)
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.error(exc)
+
+    return course_accounts_created
+
+
+def close_course_account(
+    course_account: models.CourseAccount, api_access_token: str | None = None
+):
+    if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):
+        return
+
+    course_account_url = settings.WALDUR_CORE["COURSE_ACCOUNT_URL"]
+    if not course_account_url:
+        raise ValidationError("URL for course accounts is not configured")
+
+    course_account_url = course_account_url.rstrip("/")
+    username = course_account.user.username
+    user = course_account.user
+
+    try:
+        if api_access_token is None:
+            api_access_token = get_course_account_api_token()
+        existing_course_account = get_course_account(course_account, api_access_token)
+        if existing_course_account is None:
+            logger.warning(
+                "Service account %s not found at backend, deleting locally",
+                username,
+            )
+            course_account.set_state_closed()
+            course_account.save(update_fields=["state"])
+            if user:
+                user.is_active = False
+                user.save(update_fields=["is_active"])
+            return
+
+        url = f"{course_account_url}/{username}/close"
+        response = httpx.put(
+            url,
+            headers={"Authorization": f"Bearer {api_access_token}"},
+            follow_redirects=True,
+        )
+        response.raise_for_status()
+        if response.status_code == 200:
+            course_account.set_state_closed()
+            course_account.save(update_fields=["state"])
+            if user:
+                user.is_active = False
+                user.save(update_fields=["is_active"])
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.error(exc)
+        course_account.set_state_erred()
+        course_account.error_message = str(exc)
+        course_account.error_traceback = traceback.format_exc()
+        course_account.save(update_fields=["error_message", "error_traceback"])
+        raise

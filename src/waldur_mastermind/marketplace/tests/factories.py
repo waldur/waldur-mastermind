@@ -9,6 +9,7 @@ from rest_framework.reverse import reverse
 from waldur_core.core import utils as core_utils
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
@@ -851,3 +852,31 @@ class MaintenanceAnnouncementOfferingTemplateFactory(factory.django.DjangoModelF
             "maintenance-announcement-template-offering-list"
         )
         return url if action is None else url + action + "/"
+
+
+class CourseAccountFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CourseAccount],
+):
+    class Meta:
+        model = models.CourseAccount
+
+    project = factory.SubFactory(
+        structure_factories.ProjectFactory, kind=ProjectKind.COURSE
+    )
+    user = factory.SubFactory(structure_factories.UserFactory)
+    email = factory.LazyAttribute(lambda obj: f"{obj.user.username}@example.com")
+    description = factory.Sequence(lambda n: f"Course account {n}")
+
+    @classmethod
+    def get_url(cls, account=None):
+        if account is None:
+            account = CourseAccountFactory()
+        return "http://testserver" + reverse(
+            "marketplace-course-account-detail",
+            kwargs={"uuid": account.uuid.hex},
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("marketplace-course-account-list")

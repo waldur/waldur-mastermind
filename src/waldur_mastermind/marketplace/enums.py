@@ -1,5 +1,8 @@
 from typing import Literal
 
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+
 
 class BillingTypes:
     FIXED = "fixed"
@@ -283,6 +286,12 @@ ServiceAccountStatesType = Literal[
     "Closed",
     "Erred",
 ]
+
+
+class CourseAccountState(models.IntegerChoices):
+    OK = 1, _("OK")
+    CLOSED = 2, _("Closed")
+    ERRED = 3, _("Erred")
 
 
 SUPPORT_OFFERING = "Support.OfferingTemplate"

@@ -37,6 +37,7 @@ from waldur_core.structure.mixins import CoordinatesMixin
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     CategoryColumnWidget,
+    CourseAccountState,
     ImpactLevel,
     LimitPeriods,
     MaintenanceState,
@@ -2683,3 +2684,58 @@ class MaintenanceAnnouncementOfferingTemplate(core_models.UuidMixin, TimeStamped
 
     def __str__(self):
         return f"{self.maintenance_template.name} affects {self.offering.name}"
+
+
+class CourseAccount(
+    core_models.UuidMixin,
+    TimeStampedModel,
+    LoggableMixin,
+    core_models.ErrorMessageMixin,
+    core_models.DescribableMixin,
+):
+    project = models.ForeignKey(
+        to=structure_models.Project,
+        on_delete=models.CASCADE,
+    )
+    user = models.ForeignKey(
+        to=core_models.User,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+    state = FSMIntegerField(
+        default=CourseAccountState.OK,
+        choices=CourseAccountState.choices,
+    )
+    email = models.EmailField(max_length=320, default="")
+    tracker = cast(
+        FieldInstanceTracker,
+        FieldTracker(fields=["email", "description", "state", "user"]),
+    )
+    get_state_display: Callable[[], Literal["OK", "Closed", "Erred"]]
+
+    class Meta:
+        verbose_name = _("Course account")
+        ordering = ["created"]
+
+    def __str__(self):
+        user_name = self.user.username if self.user else "unknown"
+        return f"Course account for {user_name} in {self.project}"
+
+    @transition(
+        field=state, source=CourseAccountState.ERRED, target=CourseAccountState.OK
+    )
+    def set_state_ok(self):
+        pass
+
+    @transition(
+        field=state,
+        source=[CourseAccountState.OK, CourseAccountState.ERRED],
+        target=CourseAccountState.CLOSED,
+    )
+    def set_state_closed(self):
+        pass
+
+    @transition(field=state, source="*", target=CourseAccountState.ERRED)
+    def set_state_erred(self):
+        pass

@@ -585,3 +585,57 @@ class ServiceProviderProjectServiceAccountsTest(test.APITransactionTestCase):
         service_account = response.json()[0]
         self.assertEqual(service_account["username"], new_service_account.username)
         self.assertEqual(service_account["project_uuid"], new_project.uuid.hex)
+
+
+class ServiceProviderCourseAccountsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.service_provider = self.fixture.service_provider
+        self.url = factories.ServiceProviderFactory.get_url(
+            self.service_provider, "course_accounts"
+        )
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.LIST_SERVICE_PROVIDER_COURSE_ACCOUNTS
+        )
+
+        self.resource = self.fixture.resource
+        self.course_account = factories.CourseAccountFactory(
+            project=self.resource.project,
+        )
+
+        self.course_account_hidden = factories.CourseAccountFactory(
+            project=structure_factories.ProjectFactory(),
+        )
+
+    def test_get_course_accounts(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+
+        course_account = response.json()[0]
+        self.assertEqual(
+            course_account["user_username"], self.course_account.user.username
+        )
+        self.assertEqual(course_account["project_uuid"], self.resource.project.uuid.hex)
+
+    def test_filter_course_accounts(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        new_resource = factories.ResourceFactory(
+            name="New resource", offering=self.fixture.offering, state=ResourceStates.OK
+        )
+        new_project = new_resource.project
+
+        new_course_account = factories.CourseAccountFactory(
+            project=new_project,
+        )
+        url = f"{self.url}?project_uuid={new_project.uuid.hex}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+
+        course_account = response.json()[0]
+        self.assertEqual(
+            course_account["user_username"], new_course_account.user.username
+        )
+        self.assertEqual(course_account["project_uuid"], new_project.uuid.hex)

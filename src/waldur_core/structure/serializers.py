@@ -29,6 +29,7 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.serializers import PermissionSerializer
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import models, utils
+from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.managers import (
     count_customer_users,
@@ -260,6 +261,7 @@ class ProjectSerializer(
             "image",
             "resources_count",
             "max_service_accounts",
+            "kind",
         )
         read_only_fields = ("end_date_requested_by",)
         extra_kwargs = {
@@ -350,6 +352,15 @@ class ProjectSerializer(
                 raise serializers.ValidationError(
                     {"oecd_fos_2007_code": _("This field is required.")}
                 )
+
+        if (
+            not settings.WALDUR_CORE.get("ENABLE_PROJECT_KIND_COURSE", False)
+            and attrs.get("kind")
+            and attrs.get("kind") == ProjectKind.COURSE.value
+        ):
+            raise serializers.ValidationError(
+                'Unable to set project kind to "COURSE": ENABLE_PROJECT_KIND_COURSE feature is disabled.'
+            )
 
         return attrs
 

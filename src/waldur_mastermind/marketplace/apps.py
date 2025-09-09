@@ -384,3 +384,9 @@ class MarketplaceConfig(AppConfig):
             sender=AdminAnnouncementSerializer,
             dispatch_uid="waldur_mastermind.marketplace.add_maintenance_fields_to_admin_announcement_serializer",
         )
+
+        signals.pre_delete.connect(
+            handlers.close_course_accounts_after_project_removal,
+            sender=structure_models.Project,
+            dispatch_uid="waldur_mastermind.marketplace.close_course_accounts_after_project_removal",
+        )
