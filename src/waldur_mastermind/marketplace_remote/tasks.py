@@ -24,6 +24,9 @@ from waldur_api_client.api.marketplace_component_usages import (
 from waldur_api_client.api.marketplace_component_user_usages import (
     marketplace_component_user_usages_list,
 )
+from waldur_api_client.api.marketplace_offering_terms_of_service import (
+    marketplace_offering_terms_of_service_list,
+)
 from waldur_api_client.api.marketplace_offering_users import (
     marketplace_offering_users_list,
 )
@@ -48,6 +51,7 @@ from waldur_api_client.api.projects import (
 from waldur_api_client.api.remote_eduteams import (
     remote_eduteams as get_remote_eduteams_user,
 )
+from waldur_api_client.client import AuthenticatedClient
 from waldur_api_client.errors import UnexpectedStatus
 from waldur_api_client.models import ComponentUserUsage
 from waldur_api_client.models.base_public_plan import BasePublicPlan
@@ -126,6 +130,8 @@ LOGICAL_LOCAL_ORDER_STATES_MAP = {
     "rejected": OrderStates.CANCELED,  # If a remote order is rejected, the local one should switch from "executing" to "canceled"
 }
 
+DEFAULT_TOVERSION = "1.0"
+
 
 class OfferingPullTask(BackgroundPullTask):
     def pull(self, local_offering: models.Offering):
@@ -139,7 +145,7 @@ class OfferingPullTask(BackgroundPullTask):
             self.sync_offering_components(local_offering, remote_offering.components)
             self.sync_plans(local_offering, remote_offering.plans)
             self.sync_access_endpoints(local_offering, remote_offering)
-            self.sync_terms_of_service(local_offering, remote_offering)
+            self.sync_terms_of_service(local_offering, remote_offering, client)
         except UnexpectedStatus as exc:
             if exc.status_code == status.HTTP_404_NOT_FOUND:
                 if local_offering.state == OfferingStates.ACTIVE:
@@ -155,6 +161,7 @@ class OfferingPullTask(BackgroundPullTask):
         self,
         local_offering: models.Offering,
         remote_offering_data: PublicOfferingDetails,
+        client: AuthenticatedClient,
     ):
         """Backwards compatibility for old-style ToS of remote offerings."""
         terms_of_service = getattr(remote_offering_data, "terms_of_service", "") or ""
@@ -162,16 +169,89 @@ class OfferingPullTask(BackgroundPullTask):
             getattr(remote_offering_data, "terms_of_service_link", "") or ""
         )
 
+        # New API client will automatically move terms of service to additional_properties since they are not in the expected schema
+        if not terms_of_service and not terms_of_service_link:
+            additional_props = getattr(
+                remote_offering_data, "additional_properties", {}
+            )
+            terms_of_service = additional_props.get("terms_of_service", "") or ""
+            terms_of_service_link = (
+                additional_props.get("terms_of_service_link", "") or ""
+            )
+
+            # If still not found, check nested additional_properties
+            if not terms_of_service and not terms_of_service_link:
+                nested_props = additional_props.get("additional_properties", {})
+                terms_of_service = nested_props.get("terms_of_service", "") or ""
+                terms_of_service_link = (
+                    nested_props.get("terms_of_service_link", "") or ""
+                )
+
         if terms_of_service or terms_of_service_link:
             models.OfferingTermsOfService.objects.update_or_create(
                 offering=local_offering,
-                version="1.0",
+                version=DEFAULT_TOVERSION,
                 defaults={
                     "terms_of_service": terms_of_service,
                     "terms_of_service_link": terms_of_service_link,
                     "is_active": True,
                 },
             )
+        else:
+            try:
+                remote_terms_of_service_list = (
+                    marketplace_offering_terms_of_service_list.sync(
+                        client=client,
+                        offering_uuid=remote_offering_data.uuid,
+                    )
+                )
+                if not remote_terms_of_service_list:
+                    logger.info(
+                        "No terms of service found for offering %s", local_offering
+                    )
+                    models.OfferingTermsOfService.objects.filter(
+                        offering=local_offering
+                    ).delete()
+                    return
+                remote_terms_of_service = remote_terms_of_service_list[0]
+                local_terms_of_service: models.OfferingTermsOfService | None = (
+                    models.OfferingTermsOfService.objects.filter(
+                        offering=local_offering,
+                        version=remote_terms_of_service.version or DEFAULT_TOVERSION,
+                    ).first()
+                )
+                fields = {
+                    "terms_of_service": remote_terms_of_service.terms_of_service or "",
+                    "terms_of_service_link": remote_terms_of_service.terms_of_service_link
+                    or "",
+                    "version": remote_terms_of_service.version or DEFAULT_TOVERSION,
+                    "is_active": remote_terms_of_service.is_active,
+                    "requires_reconsent": remote_terms_of_service.requires_reconsent,
+                }
+                if local_terms_of_service:
+                    for field, value in fields.items():
+                        setattr(local_terms_of_service, field, value)
+                    local_terms_of_service.save()
+                    logger.info(
+                        "Updated existing ToS for offering %s (version %s)",
+                        local_offering,
+                        remote_terms_of_service.version or DEFAULT_TOVERSION,
+                    )
+                else:
+                    models.OfferingTermsOfService.objects.create(
+                        offering=local_offering, **fields
+                    )
+                    logger.info(
+                        "Created new ToS for offering %s (version %s)",
+                        local_offering,
+                        remote_terms_of_service.version or DEFAULT_TOVERSION,
+                    )
+            except UnexpectedStatus as exc:
+                logger.warning(
+                    "Failed to sync terms of service for offering %s: %s",
+                    local_offering,
+                    exc,
+                )
 
     def sync_access_endpoints(
         self, local_offering: models.Offering, remote_offering: PublicOfferingDetails

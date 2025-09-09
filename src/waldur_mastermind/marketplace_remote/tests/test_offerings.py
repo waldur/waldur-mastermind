@@ -232,10 +232,16 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         respx.stop()
         return super().tearDown()
 
-    def mock_offering_details(self, remote_offering):
+    def mock_offering_details(self, remote_offering, tos_response=None):
         respx.get(
             f"{self.api_url}/api/marketplace-public-offerings/{self.offering.backend_id}/"
         ).respond(200, json=remote_offering)
+        # Mock the terms of service endpoint that the new sync code calls
+        if tos_response is None:
+            tos_response = []
+        respx.get(f"{self.api_url}/api/marketplace-offering-terms-of-service/").respond(
+            200, json=tos_response
+        )
 
     @override_settings(task_always_eager=True)
     def test_update_component(self):
@@ -426,6 +432,168 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         self.remote_offering["terms_of_service_link"] = ""
 
         self.mock_offering_details(self.remote_offering)
+
+        self.task.pull(self.offering)
+
+        self.assertEqual(
+            marketplace_models.OfferingTermsOfService.objects.filter(
+                offering=self.offering
+            ).count(),
+            0,
+        )
+
+    @override_settings(task_always_eager=True)
+    def test_sync_terms_of_service_deletes_local_when_remote_empty(self):
+        """Test that existing local ToS records are deleted when remote offering has no ToS"""
+        marketplace_models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Local Terms of Service",
+            terms_of_service_link="https://local.com/tos",
+            version="1.0",
+            is_active=True,
+        )
+
+        self.assertEqual(
+            marketplace_models.OfferingTermsOfService.objects.filter(
+                offering=self.offering
+            ).count(),
+            1,
+        )
+
+        self.remote_offering["terms_of_service"] = ""
+        self.remote_offering["terms_of_service_link"] = ""
+        self.mock_offering_details(self.remote_offering)
+
+        self.task.pull(self.offering)
+
+        self.assertEqual(
+            marketplace_models.OfferingTermsOfService.objects.filter(
+                offering=self.offering
+            ).count(),
+            0,
+        )
+
+    @override_settings(task_always_eager=True)
+    def test_sync_terms_of_service_from_additional_properties(self):
+        """Test that ToS from additional_properties creates OfferingTermsOfService records"""
+        self.remote_offering["terms_of_service"] = ""
+        self.remote_offering["terms_of_service_link"] = ""
+        self.remote_offering["additional_properties"] = {
+            "terms_of_service": "Additional Properties ToS",
+            "terms_of_service_link": "https://additional.com/tos",
+        }
+
+        self.mock_offering_details(self.remote_offering)
+        self.task.pull(self.offering)
+
+        tos_objects = marketplace_models.OfferingTermsOfService.objects.filter(
+            offering=self.offering
+        )
+        self.assertEqual(tos_objects.count(), 1)
+
+        tos = tos_objects.first()
+        self.assertEqual(tos.terms_of_service, "Additional Properties ToS")
+        self.assertEqual(tos.terms_of_service_link, "https://additional.com/tos")
+        self.assertEqual(tos.version, "1.0")
+        self.assertTrue(tos.is_active)
+
+    @override_settings(task_always_eager=True)
+    def test_sync_terms_of_service_from_remote_endpoint(self):
+        """Test that ToS from remote endpoint creates OfferingTermsOfService records"""
+        # Mock remote offering with empty ToS fields
+        self.remote_offering["terms_of_service"] = ""
+        self.remote_offering["terms_of_service_link"] = ""
+        self.remote_offering["additional_properties"] = {}
+
+        # Mock remote ToS endpoint response
+        tos_response = [
+            {
+                "uuid": uuid4().hex,
+                "offering_uuid": self.offering.backend_id,
+                "offering_name": self.offering.name,
+                "terms_of_service": "Remote Endpoint ToS",
+                "terms_of_service_link": "https://remote-endpoint.com/tos",
+                "version": "2.0",
+                "is_active": True,
+                "requires_reconsent": True,
+                "created": "2023-01-01T00:00:00Z",
+                "modified": "2023-01-01T00:00:00Z",
+            }
+        ]
+
+        self.mock_offering_details(self.remote_offering, tos_response)
+        self.task.pull(self.offering)
+
+        # Verify the OfferingTermsOfService object was created
+        tos_objects = marketplace_models.OfferingTermsOfService.objects.filter(
+            offering=self.offering
+        )
+        self.assertEqual(tos_objects.count(), 1)
+
+        tos = tos_objects.first()
+        self.assertEqual(tos.terms_of_service, "Remote Endpoint ToS")
+        self.assertEqual(tos.terms_of_service_link, "https://remote-endpoint.com/tos")
+        self.assertEqual(tos.version, "2.0")
+        self.assertTrue(tos.is_active)
+        self.assertTrue(tos.requires_reconsent)
+
+    @override_settings(task_always_eager=True)
+    def test_sync_terms_of_service_updates_existing_local(self):
+        """Test that existing local ToS is updated when remote endpoint returns data"""
+        # Create existing local ToS
+        marketplace_models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Old Local ToS",
+            terms_of_service_link="https://old.com/tos",
+            version="1.0",
+            is_active=True,
+        )
+
+        self.remote_offering["terms_of_service"] = ""
+        self.remote_offering["terms_of_service_link"] = ""
+        self.remote_offering["additional_properties"] = {}
+
+        tos_response = [
+            {
+                "uuid": uuid4().hex,
+                "offering_uuid": self.offering.backend_id,
+                "offering_name": self.offering.name,
+                "terms_of_service": "Updated Remote ToS",
+                "terms_of_service_link": "https://updated.com/tos",
+                "version": "1.0",
+                "is_active": False,
+                "requires_reconsent": True,
+                "created": "2023-01-01T00:00:00Z",
+                "modified": "2023-01-01T00:00:00Z",
+            }
+        ]
+
+        self.mock_offering_details(self.remote_offering, tos_response)
+        self.task.pull(self.offering)
+
+        tos_objects = marketplace_models.OfferingTermsOfService.objects.filter(
+            offering=self.offering
+        )
+        self.assertEqual(tos_objects.count(), 1)
+
+        tos = tos_objects.first()
+        self.assertEqual(tos.terms_of_service, "Updated Remote ToS")
+        self.assertEqual(tos.terms_of_service_link, "https://updated.com/tos")
+        self.assertEqual(tos.version, "1.0")
+        self.assertFalse(tos.is_active)
+        self.assertTrue(tos.requires_reconsent)
+
+    @override_settings(task_always_eager=True)
+    def test_sync_terms_of_service_handles_endpoint_error(self):
+        """Test that UnexpectedStatus from ToS endpoint is handled gracefully"""
+        self.remote_offering["terms_of_service"] = ""
+        self.remote_offering["terms_of_service_link"] = ""
+        self.remote_offering["additional_properties"] = {}
+        self.mock_offering_details(self.remote_offering)
+
+        respx.get(f"{self.api_url}/api/marketplace-offering-terms-of-service/").respond(
+            status_code=500, json={"error": "Internal server error"}
+        )
 
         self.task.pull(self.offering)
 
