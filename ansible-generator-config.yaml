@@ -4,28 +4,32 @@ definitions:
     erred_states: ["ERRED"]
     state_field: "state"
 
-  project_customer_context_params: &project_customer_context_params
-    - name: "project"
-      description: "The name or UUID of the project to filter resources by."
-      resolver: "projects"
-      filter_key: "project_uuid"
-    - name: "customer"
-      description: "The name or UUID of the customer to filter resources by."
-      resolver: "customers"
-      filter_key: "customer_uuid"
+  # --- Modular and Composable Resolver Anchors ---
+  project_context_resolver: &project_context_resolver
+    project:
+      base: "projects"
+      check_filter_key: "project_uuid"
 
-  base_openstack_context_params: &base_openstack_context_params
-    - name: "project"
-      description: "The name or UUID of the project to filter resources by."
-      resolver: "projects"
-      filter_key: "project_uuid"
-    - name: "customer"
-      description: "The name or UUID of the customer to filter resources by."
-      resolver: "customers"
-      filter_key: "customer_uuid"
-    - name: tenant
-      resolver: "openstack_tenants"
-      filter_key: "tenant_uuid"
+  customer_context_resolver: &customer_context_resolver
+    customer:
+      base: "customers"
+      check_filter_key: "customer_uuid"
+
+  tenant_context_resolver: &tenant_context_resolver
+    tenant:
+      base: "openstack_tenants"
+      check_filter_key: "tenant_uuid"
+
+  project_customer_resolvers: &project_customer_resolvers
+    <<: [*project_context_resolver, *customer_context_resolver]
+
+  base_openstack_resolvers: &base_openstack_resolvers
+    <<:
+      [
+        *project_context_resolver,
+        *customer_context_resolver,
+        *tenant_context_resolver,
+      ]
 
   filter_by_tenant: &filter_by_tenant
     - source_param: "offering"
@@ -49,7 +53,9 @@ collections:
         plugin: crud
         base_operation_id: "projects"
         resolvers:
-          customer: "customers"
+          customer:
+            base: "customers"
+            check_filter_key: "customer"
           type: "project_types"
 
       - name: customer
@@ -61,6 +67,10 @@ collections:
       - name: project_facts
         plugin: facts
         base_operation_id: "projects"
+        resolvers:
+          customer:
+            base: "customers"
+            check_filter_key: "customer"
 
       - name: ssh_key_facts
         plugin: facts
@@ -74,7 +84,7 @@ collections:
         plugin: facts
         base_operation_id: "marketplace_public_offerings"
         resolvers:
-          customer: "customers"
+          <<: *customer_context_resolver
 
       - name: order_facts
         plugin: facts
@@ -83,23 +93,23 @@ collections:
       - name: resource_facts
         plugin: facts
         base_operation_id: "marketplace_resources"
+        resolvers:
+          <<: *project_context_resolver
 
       - name: order
         plugin: crud
         base_operation_id: "marketplace_orders"
         resolvers:
-          customer: customers
-          project: projects
-          offering: marketplace_public_offerings
+          customer: "customers"
+          project: "projects"
+          offering: "marketplace_public_offerings"
 
       - name: offering
         plugin: crud
         base_operation_id: "marketplace_provider_offerings"
         resolvers:
-          category: marketplace_categories
-          customer: customers
-          project: projects
-          offering: marketplace_public_offerings
+          category: "marketplace_categories"
+          customer: "customers"
 
   - namespace: waldur
     name: openstack
@@ -109,35 +119,41 @@ collections:
       - name: vpc_facts
         plugin: facts
         base_operation_id: "openstack_tenants"
-        context_params: *project_customer_context_params
+        resolvers:
+          <<: *project_customer_resolvers
 
       - name: volume_facts
         plugin: facts
         base_operation_id: "openstack_volumes"
-        context_params: *base_openstack_context_params
+        resolvers:
+          <<: *base_openstack_resolvers
 
       - name: instance_facts
         plugin: facts
         base_operation_id: "openstack_instances"
-        context_params: *base_openstack_context_params
+        resolvers:
+          <<: *base_openstack_resolvers
 
       - name: security_group_facts
         plugin: facts
         base_operation_id: "openstack_security_groups"
         many: true
-        context_params: *base_openstack_context_params
+        resolvers:
+          <<: *base_openstack_resolvers
 
       - name: subnet_facts
         plugin: facts
         base_operation_id: "openstack_subnets"
         many: true
-        context_params: *base_openstack_context_params
+        resolvers:
+          <<: *base_openstack_resolvers
 
       - name: network_facts
         plugin: facts
         base_operation_id: "openstack_networks"
         many: true
-        context_params: *base_openstack_context_params
+        resolvers:
+          <<: *base_openstack_resolvers
 
       - name: flavor_facts
         plugin: facts
@@ -160,6 +176,8 @@ collections:
         offering_type: OpenStack.Tenant
         base_operation_id: "openstack_tenants"
         has_limits: true
+        resolvers:
+          <<: *project_context_resolver
 
       - name: volume
         plugin: order
@@ -168,6 +186,7 @@ collections:
         transformations:
           size: "gb_to_mb"
         resolvers:
+          <<: *project_context_resolver
           type: *volume_type_resolver
           image: *image_resolver
           availability_zone:
@@ -213,6 +232,7 @@ collections:
                 description: "If true, release associated floating IPs on termination."
         wait_config: *default_wait_config
         resolvers:
+          <<: *project_context_resolver
           flavor:
             base: "openstack_flavors"
             filter_by: *filter_by_tenant
@@ -237,7 +257,6 @@ collections:
         resource_type: "OpenStack security group"
         description: "Manage OpenStack Security Groups and their rules in Waldur."
         base_operation_id: "openstack_security_groups"
-        context_params: *base_openstack_context_params
         operations:
           update:
             actions:
@@ -249,7 +268,7 @@ collections:
             path_params:
               uuid: "tenant"
         resolvers:
-          tenant: "openstack_tenants"
+          <<: *base_openstack_resolvers
           remote_group:
             base: "openstack_security_groups"
             filter_by:
@@ -260,12 +279,9 @@ collections:
       - name: network
         plugin: crud
         wait_config: *default_wait_config
-        resolvers:
-          tenant: "openstack_tenants"
         resource_type: "OpenStack network"
         description: "Manage OpenStack Networks in Waldur."
         base_operation_id: "openstack_networks"
-        context_params: *base_openstack_context_params
         operations:
           update:
             actions:
@@ -276,9 +292,24 @@ collections:
             id: "openstack_tenants_create_network"
             path_params:
               uuid: "tenant"
+        resolvers:
+          <<: *base_openstack_resolvers
 
       - name: network_rbac_policy
         plugin: crud
+        resource_type: "OpenStack network RBAC policy"
+        description: "Manage OpenStack Network RBAC policies in Waldur."
+        base_operation_id: "openstack_network_rbac_policies"
+        operations:
+          create:
+            id: "openstack_networks_rbac_policy_create"
+            path_params:
+              uuid: "network"
+          destroy:
+            id: "openstack_networks_rbac_policy_delete_destroy"
+            path_params:
+              uuid: "network"
+              rbac_policy_uuid: "name"
         resolvers:
           tenant: "openstack_tenants"
           target_tenant: "openstack_tenants"
@@ -288,35 +319,11 @@ collections:
               - source_param: "tenant"
                 source_key: "uuid"
                 target_key: "tenant_uuid"
-
-        resource_type: "OpenStack network RBAC policy"
-        description: "Manage OpenStack Network RBAC policies in Waldur."
-
-        base_operation_id: "openstack_network_rbac_policies"
-
-        context_params:
-          - name: "network"
-            resolver: "openstack_networks"
-            filter_key: "network_uuid"
-
-        operations:
-          create:
-            id: "openstack_networks_rbac_policy_create"
-            path_params:
-              uuid: "network"
-
-          destroy:
-            id: "openstack_networks_rbac_policy_delete_destroy"
-            path_params:
-              uuid: "network"
-              rbac_policy_uuid: "name"
+            check_filter_key: "network_uuid"
 
       - name: server_group
         plugin: crud
         wait_config: *default_wait_config
-        context_params: *base_openstack_context_params
-        resolvers:
-          tenant: "openstack_tenants"
         resource_type: "OpenStack server group"
         description: "Manage OpenStack Server Groups (Affinity Groups) in Waldur."
         base_operation_id: "openstack_server_groups"
@@ -325,19 +332,12 @@ collections:
             id: "openstack_tenants_create_server_group"
             path_params:
               uuid: "tenant"
+        resolvers:
+          <<: *base_openstack_resolvers
 
       - name: subnet
         plugin: crud
         wait_config: *default_wait_config
-        context_params: *base_openstack_context_params
-        resolvers:
-          tenant: "openstack_tenants"
-          network:
-            base: "openstack_networks"
-            filter_by:
-              - source_param: "tenant"
-                source_key: "uuid"
-                target_key: "tenant_uuid"
         resource_type: "OpenStack subnet"
         description: "Manage OpenStack subnets in Waldur."
         base_operation_id: "openstack_subnets"
@@ -346,13 +346,18 @@ collections:
             id: "openstack_networks_create_subnet"
             path_params:
               uuid: "network"
+        resolvers:
+          <<: *base_openstack_resolvers
+          network:
+            base: "openstack_networks"
+            filter_by:
+              - source_param: "tenant"
+                source_key: "uuid"
+                target_key: "tenant_uuid"
 
       - name: floating_ip
         plugin: crud
         wait_config: *default_wait_config
-        context_params: *base_openstack_context_params
-        resolvers:
-          tenant: "openstack_tenants"
         resource_type: "OpenStack floating IP"
         description: "Manage OpenStack Floating IPs in Waldur."
         base_operation_id: "openstack_floating_ips"
@@ -366,58 +371,59 @@ collections:
             id: "openstack_tenants_create_floating_ip"
             path_params:
               uuid: "tenant"
+        resolvers:
+          <<: *base_openstack_resolvers
 
       # --- Action Modules ---
-
       - name: subnet_action
         plugin: actions
         resource_type: "OpenStack subnet"
         description: "Perform actions on OpenStack Subnets."
         wait_config: *default_wait_config
-        context_params: *base_openstack_context_params
         base_operation_id: "openstack_subnets"
-
         actions:
           - connect
           - disconnect
           - pull
           - unlink
+        resolvers:
+          <<: *base_openstack_resolvers
 
       - name: network_action
         plugin: actions
         resource_type: "OpenStack network"
         description: "Perform actions on OpenStack networks."
         wait_config: *default_wait_config
-        context_params: *base_openstack_context_params
         base_operation_id: "openstack_networks"
-
         actions:
           - pull
           - unlink
+        resolvers:
+          <<: *base_openstack_resolvers
 
       - name: instance_action
         plugin: actions
         resource_type: "OpenStack instance"
         description: "Perform actions on OpenStack instance."
         wait_config: *default_wait_config
-        context_params: *base_openstack_context_params
         base_operation_id: "openstack_instances"
-
         actions:
           - start
           - stop
           - restart
           - pull
           - unlink
+        resolvers:
+          <<: *base_openstack_resolvers
 
       - name: vpc_action
         plugin: actions
         resource_type: "OpenStack tenant"
         description: "Perform actions on OpenStack tenant."
         wait_config: *default_wait_config
-        context_params: *project_customer_context_params
         base_operation_id: "openstack_tenants"
-
         actions:
           - pull
           - unlink
+        resolvers:
+          <<: *project_customer_resolvers
