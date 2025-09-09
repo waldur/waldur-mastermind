@@ -130,6 +130,10 @@ class MarketplaceSection(FeatureSection):
         "Show resource end date as a non optional column in resources list."
     )
 
+    allow_display_of_images_in_markdown = Feature(
+        "Allow display of images in markdown format."
+    )
+
 
 class SupportSection(FeatureSection):
     class Meta:
