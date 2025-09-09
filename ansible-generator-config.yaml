@@ -354,6 +354,7 @@ collections:
               - source_param: "tenant"
                 source_key: "uuid"
                 target_key: "tenant_uuid"
+            check_filter_key: "network_uuid"
 
       - name: floating_ip
         plugin: crud
