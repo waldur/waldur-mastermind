@@ -22,15 +22,15 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.common.utils import quantize_price
+from waldur_mastermind.invoices.structures import InvoiceDetailsDict
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 
 from . import utils
 
 logger = logging.getLogger(__name__)
-
-Units = common_mixins.UnitPriceMixin.Units
 
 
 def get_created_date():
@@ -292,9 +292,9 @@ class InvoiceItem(
         null=True,
     )
     name = models.TextField(default="")
-    details = models.JSONField(
+    details: "InvoiceDetailsDict" = models.JSONField(
         default=dict, blank=True, help_text=_("Stores data about scope")
-    )
+    )  # type: ignore
 
     start = models.DateTimeField(
         default=utils.get_current_month_start,
