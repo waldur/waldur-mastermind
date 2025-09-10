@@ -671,16 +671,16 @@ wheels = [
 
 [[package]]
 name = "django"
-version = "4.2.23"
+version = "4.2.24"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asgiref" },
     { name = "sqlparse" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b5/20/02242739714eb4e53933d6c0fe2c57f41feb449955b0aa39fc2da82b8f3c/django-4.2.23.tar.gz", hash = "sha256:42fdeaba6e6449d88d4f66de47871015097dc6f1b87910db00a91946295cfae4", size = 10448384, upload-time = "2025-06-10T10:06:34.574Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/1a/3b7d8722a4c605078808b9839a6cf207f7aa763655bcf165fa219bedb39e/django-4.2.24.tar.gz", hash = "sha256:40cd7d3f53bc6cd1902eadce23c337e97200888df41e4a73b42d682f23e71d80", size = 10452798, upload-time = "2025-09-03T13:14:05.643Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cb/44/314e8e4612bd122dd0424c88b44730af68eafbee88cc887a86586b7a1f2a/django-4.2.23-py3-none-any.whl", hash = "sha256:dafbfaf52c2f289bd65f4ab935791cb4fb9a198f2a5ba9faf35d7338a77e9803", size = 7993904, upload-time = "2025-06-10T10:06:28.092Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/71/1cfb7cdd51270cf7df26f4ee4df4294b06a110e04bec553301d2b2617f24/django-4.2.24-py3-none-any.whl", hash = "sha256:a6527112c58821a0dfc5ab73013f0bdd906539790a17196658e36e66af43c350", size = 7993901, upload-time = "2025-09-03T13:13:51.365Z" },
 ]
 
 [[package]]
@@ -836,7 +836,7 @@ wheels = [
 
 [[package]]
 name = "django-model-utils"
-version = "0.0.post1122+g50cc7a1"
+version = "0.0.post1122+g50cc7a1f1"
 source = { git = "https://github.com/waldur/django-model-utils?rev=handle-instance-model-field-name#50cc7a1f1ed209ea7328d4672ad894a1bb9e74c6" }
 dependencies = [
     { name = "django" },
@@ -3198,7 +3198,7 @@ requires-dist = [
     { name = "celery-types", marker = "extra == 'dev'", specifier = ">=0.23.0,<1.0.0" },
     { name = "cryptography", specifier = "==44.0.1" },
     { name = "ddt", marker = "extra == 'dev'", specifier = "==1.7.2" },
-    { name = "django", specifier = ">=4.2.21,<5.0.0" },
+    { name = "django", specifier = ">=4.2.24,<5.0.0" },
     { name = "django-admin-tools", specifier = "==0.9.2" },
     { name = "django-auth-ldap", specifier = "==4.1.0" },
     { name = "django-axes", specifier = ">=7.0.0,<8.0.0" },
