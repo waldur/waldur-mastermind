@@ -163,6 +163,7 @@ class InvitationsSection(FeatureSection):
         "Make civil number field mandatory in invitation creation form."
     )
     show_service_accounts = Feature("Show service accounts of the scopes.")
+    show_course_accounts = Feature("Show course accounts of the scopes.")
 
 
 class RancherSection(FeatureSection):

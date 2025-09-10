@@ -614,9 +614,7 @@ class ServiceProviderCourseAccountsTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), 1)
 
         course_account = response.json()[0]
-        self.assertEqual(
-            course_account["user_username"], self.course_account.user.username
-        )
+        self.assertEqual(course_account["username"], self.course_account.user.username)
         self.assertEqual(course_account["project_uuid"], self.resource.project.uuid.hex)
 
     def test_filter_course_accounts(self):
@@ -635,7 +633,5 @@ class ServiceProviderCourseAccountsTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), 1)
 
         course_account = response.json()[0]
-        self.assertEqual(
-            course_account["user_username"], new_course_account.user.username
-        )
+        self.assertEqual(course_account["username"], new_course_account.user.username)
         self.assertEqual(course_account["project_uuid"], new_project.uuid.hex)
