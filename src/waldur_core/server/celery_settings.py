@@ -72,6 +72,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(hours=24),
         "args": (),
     },
+    "create_project_permission_reviews": {
+        "task": "waldur_core.structure.create_project_permission_reviews",
+        "schedule": timedelta(hours=24),
+        "args": (),
+    },
     "update-custom-quotas": {
         "task": "waldur_core.quotas.update_custom_quotas",
         "schedule": timedelta(hours=1),

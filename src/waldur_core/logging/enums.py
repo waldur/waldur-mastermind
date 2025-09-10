@@ -26,6 +26,8 @@ class EventType(str, Enum):
     CUSTOMER_CREATION_SUCCEEDED = "customer_creation_succeeded"
     CUSTOMER_DELETION_SUCCEEDED = "customer_deletion_succeeded"
     CUSTOMER_UPDATE_SUCCEEDED = "customer_update_succeeded"
+    CUSTOMER_PERMISSION_REVIEW_CREATED = "customer_permission_review_created"
+    CUSTOMER_PERMISSION_REVIEW_CLOSED = "customer_permission_review_closed"
     DROPLET_RESIZE_SCHEDULED = "droplet_resize_scheduled"
     DROPLET_RESIZE_SUCCEEDED = "droplet_resize_succeeded"
     FREEIPA_PROFILE_CREATED = "freeipa_profile_created"
@@ -171,6 +173,8 @@ class EventType(str, Enum):
     PROJECT_UPDATE_REQUEST_CREATED = "project_update_request_created"
     PROJECT_UPDATE_REQUEST_REJECTED = "project_update_request_rejected"
     PROJECT_UPDATE_SUCCEEDED = "project_update_succeeded"
+    PROJECT_PERMISSION_REVIEW_CREATED = "project_permission_review_created"
+    PROJECT_PERMISSION_REVIEW_CLOSED = "project_permission_review_closed"
     PROPOSAL_CANCELED = "proposal_canceled"
     PROPOSAL_DOCUMENT_ADDED = "proposal_document_added"
     PROPOSAL_DOCUMENT_REMOVED = "proposal_document_removed"
@@ -367,6 +371,8 @@ EVENT_GROUP_MAPPING = {
         EventType.ROLL_BACK_PROJECT_CREDIT,
         EventType.SET_TO_ZERO_OVERDUE_CREDIT,
         EventType.UPDATE_OF_CREDIT_BY_STAFF,
+        EventType.CUSTOMER_PERMISSION_REVIEW_CREATED,
+        EventType.CUSTOMER_PERMISSION_REVIEW_CLOSED,
     ],
     EventGroup.INVOICES: [
         EventType.ALLOWED_OFFERINGS_HAVE_BEEN_UPDATED,
@@ -415,6 +421,8 @@ EVENT_GROUP_MAPPING = {
         EventType.PROJECT_UPDATE_REQUEST_CREATED,
         EventType.PROJECT_UPDATE_REQUEST_REJECTED,
         EventType.PROJECT_UPDATE_SUCCEEDED,
+        EventType.PROJECT_PERMISSION_REVIEW_CREATED,
+        EventType.PROJECT_PERMISSION_REVIEW_CLOSED,
     ],
     EventGroup.PROPOSAL: [
         EventType.PROPOSAL_CANCELED,

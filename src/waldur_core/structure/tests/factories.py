@@ -386,3 +386,28 @@ class ExternalLinkFactory(
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("external-links-list")
+
+
+class ProjectPermissionReviewFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ProjectPermissionReview],
+):
+    class Meta:
+        model = models.ProjectPermissionReview
+
+    project = factory.SubFactory(ProjectFactory)
+    reviewer = factory.SubFactory(UserFactory)
+    is_pending = True
+
+    @classmethod
+    def get_url(cls, review=None, action=None):
+        if review is None:
+            review = ProjectPermissionReviewFactory()
+        url = "http://testserver" + reverse(
+            "project-permissions-review-detail", kwargs={"uuid": review.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("project-permissions-review-list")

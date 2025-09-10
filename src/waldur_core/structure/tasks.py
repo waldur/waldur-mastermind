@@ -11,6 +11,8 @@ from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.exceptions import (
     ServiceBackendError,
@@ -264,7 +266,45 @@ def create_customer_permission_reviews():
         # Skip customers without users
         if not count_customer_users(customer):
             continue
-        structure_models.CustomerPermissionReview.objects.create(customer=customer)
+        review = structure_models.CustomerPermissionReview.objects.create(
+            customer=customer
+        )
+        event_logger.emit(
+            "Customer permission review has been created for organization %s."
+            % customer.name,
+            event_type=EventType.CUSTOMER_PERMISSION_REVIEW_CREATED,
+            event_context={"customer_permission_review": review},
+            scopes=[customer],
+        )
+
+
+@shared_task(name="waldur_core.structure.create_project_permission_reviews")
+def create_project_permission_reviews():
+    """Create project permission reviews for projects that need periodic review of user permissions."""
+    for project in structure_models.Project.available_objects.all():
+        if structure_models.ProjectPermissionReview.objects.filter(
+            Q(project=project, is_pending=True)
+            | Q(
+                project=project,
+                is_pending=False,
+                closed__gte=timezone.now() - timedelta(days=90),
+            )
+        ).exists():
+            continue
+        if project.get_users().count() < 1:
+            continue
+        review = structure_models.ProjectPermissionReview.objects.create(
+            project=project
+        )
+        logger.info(
+            f"Project permission review has been created for project {project.name} | {project.uuid}."
+        )
+        event_logger.emit(
+            "Project permission review has been created for project %s." % project.name,
+            event_type=EventType.PROJECT_PERMISSION_REVIEW_CREATED,
+            event_context={"project_permission_review": review},
+            scopes=[project],
+        )
 
 
 @shared_task
