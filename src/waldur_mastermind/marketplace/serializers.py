@@ -6317,7 +6317,7 @@ class CourseAccountSerializer(serializers.HyperlinkedModelSerializer):
     project_name = serializers.CharField(read_only=True, source="project.name")
 
     user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
-    user_username = serializers.CharField(read_only=True, source="user.username")
+    username = serializers.CharField(read_only=True, source="user.username")
 
     customer_uuid = serializers.UUIDField(
         read_only=True, source="project.customer.uuid"
@@ -6340,7 +6340,7 @@ class CourseAccountSerializer(serializers.HyperlinkedModelSerializer):
             "project_uuid",
             "project_name",
             "user_uuid",
-            "user_username",
+            "username",
             "customer_uuid",
             "customer_name",
             "state",
