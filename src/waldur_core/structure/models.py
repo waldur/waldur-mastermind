@@ -846,13 +846,37 @@ class Project(
         ordering = ["name"]
 
 
-class CustomerPermissionReview(core_models.UuidMixin):
+class PermissionReview(core_models.UuidMixin, LoggableMixin):
     """
-    Model for tracking customer permission reviews.
+    Abstract base class for permission reviews.
 
     Tracks permission review processes with pending status,
     creation/closure dates, and reviewer information.
-    Used for auditing and managing customer access permissions.
+    Used for auditing and managing access permissions.
+    """
+
+    class Meta:
+        abstract = True
+
+    is_pending = models.BooleanField(default=True)
+    created = AutoCreatedField()
+    closed = models.DateTimeField(null=True, blank=True)
+    reviewer = models.ForeignKey[User](
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    def close(self, user):
+        self.is_pending = False
+        self.closed = timezone.now()
+        self.reviewer = user
+        self.save()
+
+
+class CustomerPermissionReview(PermissionReview):
+    """
+    Model for tracking customer permission reviews.
+
+    Inherits from PermissionReview and adds customer-specific fields.
     """
 
     class Permissions:
@@ -865,22 +889,28 @@ class CustomerPermissionReview(core_models.UuidMixin):
         related_name="reviews",
         on_delete=models.CASCADE,
     )
-    is_pending = models.BooleanField(default=True)
-    created = AutoCreatedField()
-    closed = models.DateTimeField(null=True, blank=True)
-    reviewer = models.ForeignKey[User](
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
-    )
 
     @classmethod
     def get_url_name(cls):
         return "customer_permission_review"
 
-    def close(self, user):
-        self.is_pending = False
-        self.closed = timezone.now()
-        self.reviewer = user
-        self.save()
+
+class ProjectPermissionReview(PermissionReview):
+    """
+    Model for tracking project permission reviews.
+
+    Inherits from PermissionReview and adds project-specific fields.
+    """
+
+    class Permissions:
+        project_path = "project"
+
+    project = models.ForeignKey(
+        Project,
+        verbose_name=_("project"),
+        related_name="reviews",
+        on_delete=models.CASCADE,
+    )
 
 
 def build_service_settings_query(user):

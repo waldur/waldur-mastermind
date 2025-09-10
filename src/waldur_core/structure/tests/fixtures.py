@@ -78,6 +78,8 @@ class ProjectFixture(CustomerFixture):
         ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_PROJECTS)
         ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_ORDERS)
         ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_RESOURCES)
+
+        ProjectRole.MANAGER.add_permission(PermissionEnum.REVIEW_PROJECT_MEMBERSHIP)
         return manager
 
     @cached_property

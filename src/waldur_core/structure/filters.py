@@ -609,15 +609,44 @@ class ConcatenatedNameOrderingBackend(BaseFilterBackend):
         ]
 
 
-class CustomerPermissionReviewFilter(django_filters.FilterSet):
-    customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
-    reviewer_uuid = django_filters.UUIDFilter(field_name="reviewer__uuid")
+class PermissionReviewFilter(django_filters.FilterSet):
+    reviewer_uuid = django_filters.UUIDFilter(
+        field_name="reviewer__uuid", label="Reviewer UUID"
+    )
+    is_pending = django_filters.BooleanFilter(
+        field_name="is_pending", label="Is pending"
+    )
     o = django_filters.OrderingFilter(fields=("created", "closed"))
 
     class Meta:
-        model = models.CustomerPermissionReview
         fields = [
+            "reviewer_uuid",
             "is_pending",
+            "closed",
+        ]
+
+
+class CustomerPermissionReviewFilter(PermissionReviewFilter):
+    customer_uuid = django_filters.UUIDFilter(
+        field_name="customer__uuid", label="Customer UUID"
+    )
+
+    class Meta:
+        model = models.CustomerPermissionReview
+        fields = PermissionReviewFilter.Meta.fields + [
+            "customer_uuid",
+        ]
+
+
+class ProjectPermissionReviewFilter(PermissionReviewFilter):
+    project_uuid = django_filters.UUIDFilter(
+        field_name="project__uuid", label="Project UUID"
+    )
+
+    class Meta:
+        model = models.ProjectPermissionReview
+        fields = PermissionReviewFilter.Meta.fields + [
+            "project_uuid",
         ]
 
 

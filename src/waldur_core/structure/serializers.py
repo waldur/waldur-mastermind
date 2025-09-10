@@ -772,19 +772,17 @@ class BasePermissionSerializer(
         }
 
 
-class CustomerPermissionReviewSerializer(
+class BasePermissionReviewSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
+    """Common base serializer for permission review models."""
+
     class Meta:
-        model = models.CustomerPermissionReview
-        view_name = "customer_permission_review-detail"
-        fields = (
+        fields_common = (
             "url",
             "uuid",
             "reviewer_full_name",
             "reviewer_uuid",
-            "customer_uuid",
-            "customer_name",
             "is_pending",
             "created",
             "closed",
@@ -793,13 +791,50 @@ class CustomerPermissionReviewSerializer(
             "is_pending",
             "closed",
         )
-        related_paths = {
-            "reviewer": ("full_name", "uuid"),
-            "customer": ("name", "uuid"),
-        }
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
         }
+        related_paths_common = {
+            "reviewer": ("full_name", "uuid"),
+        }
+
+
+class CustomerPermissionReviewSerializer(BasePermissionReviewSerializer):
+    customer_uuid = serializers.UUIDField(read_only=True, source="customer.uuid")
+    customer_name = serializers.CharField(read_only=True, source="customer.name")
+
+    class Meta(BasePermissionReviewSerializer.Meta):
+        model = models.CustomerPermissionReview
+        view_name = "customer_permission_review-detail"
+        fields = BasePermissionReviewSerializer.Meta.fields_common + (
+            "customer_uuid",
+            "customer_name",
+        )
+        related_paths = dict(
+            BasePermissionReviewSerializer.Meta.related_paths_common,
+            customer=("name", "uuid"),
+        )
+        read_only_fields = BasePermissionReviewSerializer.Meta.read_only_fields
+        extra_kwargs = BasePermissionReviewSerializer.Meta.extra_kwargs
+
+
+class ProjectPermissionReviewSerializer(BasePermissionReviewSerializer):
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
+    project_name = serializers.CharField(read_only=True, source="project.name")
+
+    class Meta(BasePermissionReviewSerializer.Meta):
+        model = models.ProjectPermissionReview
+        view_name = "project-permissions-review-detail"
+        fields = BasePermissionReviewSerializer.Meta.fields_common + (
+            "project_uuid",
+            "project_name",
+        )
+        related_paths = dict(
+            BasePermissionReviewSerializer.Meta.related_paths_common,
+            project=("name", "uuid"),
+        )
+        read_only_fields = BasePermissionReviewSerializer.Meta.read_only_fields
+        extra_kwargs = BasePermissionReviewSerializer.Meta.extra_kwargs
 
 
 class ProjectPermissionLogSerializer(

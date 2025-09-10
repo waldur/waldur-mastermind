@@ -860,7 +860,51 @@ class CustomerPermissionReviewViewSet(
         if not review.is_pending:
             raise ValidationError(_("Review is already closed."))
         review.close(request.user)
+        event_logger.emit(
+            "Customer permission review has been closed for organization %s."
+            % review.customer.name,
+            event_type=EventType.CUSTOMER_PERMISSION_REVIEW_CLOSED,
+            event_context={"customer_permission_review": review},
+            scopes=[review.customer],
+        )
         return Response(status=status.HTTP_200_OK)
+
+
+class ProjectPermissionReviewViewSet(
+    mixins.RetrieveModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet
+):
+    queryset = models.ProjectPermissionReview.objects.all()
+    serializer_class = serializers.ProjectPermissionReviewSerializer
+    filter_backends = (
+        filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
+    filterset_class = filters.ProjectPermissionReviewFilter
+    lookup_field = "uuid"
+
+    @extend_schema(
+        request=None,
+        responses=None,
+        description="Complete project permission review.",
+    )
+    @action(detail=True, methods=["post"])
+    def close(self, request, uuid=None):
+        review: models.ProjectPermissionReview = self.get_object()
+        if not review.is_pending:
+            raise ValidationError(_("Review is already completed."))
+        review.close(request.user)
+        event_logger.emit(
+            "Project permission review has been closed for project %s."
+            % review.project.name,
+            event_type=EventType.PROJECT_PERMISSION_REVIEW_CLOSED,
+            event_context={"project_permission_review": review},
+            scopes=[review.project],
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    close_permissions = [
+        permission_factory(PermissionEnum.REVIEW_PROJECT_MEMBERSHIP, ["project"])
+    ]
 
 
 @extend_schema_view(
