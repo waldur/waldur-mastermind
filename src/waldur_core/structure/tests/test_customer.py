@@ -678,7 +678,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
     def test_user_can_not_list_project_users(self):
         self.client.force_authenticate(self.fixture.user)
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_users_ordering_by_concatenated_name(self):
         walter = factories.UserFactory(full_name="", username="walter")

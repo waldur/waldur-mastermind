@@ -18,6 +18,8 @@ from waldur_core.structure.views import (
     CustomerProjectMetadataComplianceOverviewViewSet,
     CustomerProjectMetadataComplianceProjectsViewSet,
     CustomerProjectMetadataQuestionAnswersViewSet,
+    CustomerUsersViewSet,
+    ProjectOtherUsersViewSet,
 )
 from waldur_core.users import urls as users_urls
 from waldur_mastermind.marketplace.views import (
@@ -116,6 +118,11 @@ service_provider_router.register(
 
 customer_router = NestedSimpleRouter(router, r"customers", lookup="customer")
 customer_router.register(
+    r"users",
+    CustomerUsersViewSet,
+    basename="customer-users",
+)
+customer_router.register(
     r"project-metadata-compliance-overview",
     CustomerProjectMetadataComplianceOverviewViewSet,
     basename="customer-project-metadata-compliance-overview",
@@ -136,10 +143,19 @@ customer_router.register(
     basename="customer-project-metadata-question-answers",
 )
 
+project_router = NestedSimpleRouter(router, r"projects", lookup="project")
+project_router.register(
+    r"other_users",
+    ProjectOtherUsersViewSet,
+    basename="project-other-users",
+)
+
+
 urlpatterns += [
     re_path(r"^api/", include(router.urls)),
     re_path(r"^api/", include(service_provider_router.urls)),
     re_path(r"^api/", include(customer_router.urls)),
+    re_path(r"^api/", include(project_router.urls)),
     re_path(r"^api/", include("waldur_core.logging.urls")),
     re_path(r"^api/", include("waldur_core.media.urls")),
     re_path(r"^api/", include("waldur_core.structure.urls")),

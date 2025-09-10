@@ -22,7 +22,7 @@ def postprocess_fix_enum(result, generator, **kwargs):
             for parameter in operation.get("parameters", []):
                 if (
                     parameter["schema"]["type"] == "array"
-                    and parameter["schema"]["items"]["type"] == "integer"
+                    and parameter["schema"]["items"].get("type") == "integer"
                 ):
                     parameter["schema"]["items"]["type"] = "string"
     return result
