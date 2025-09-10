@@ -373,6 +373,26 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 source,
             )
             return
+
+        # Additional safeguard: TOTAL period components should only be billed once
+        # This prevents the bug where TOTAL components get billed multiple times
+        if (
+            offering_component.billing_type == BillingTypes.LIMIT
+            and offering_component.limit_period == LimitPeriods.TOTAL
+        ):
+            # Check if this component has already been billed for this resource
+            existing_items = invoice_models.InvoiceItem.objects.filter(
+                resource=source,
+                details__offering_component_type=offering_component.type,
+            )
+            if existing_items.exists():
+                logger.warning(
+                    "Prevented duplicate billing: TOTAL period component %s on resource %s "
+                    "already has existing invoice items. TOTAL components should only be billed once.",
+                    offering_component.type,
+                    source.id,
+                )
+                return
         limit = source.limits.get(offering_component.type, 0)
         if not limit or limit == -1:
             return
@@ -712,9 +732,17 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             details__offering_component_type=component_type,
         )
         if not related_invoice_items.exists():
-            cls.create_or_update_component_item(
-                resource, invoice, component_type, new_quantity
+            # For TOTAL period components, if no previous billing exists,
+            # this is likely due to missing CREATE order billing.
+            # In this case, bill the full amount to recover proper billing state.
+            logger.info(
+                "No existing invoice items found for TOTAL period component %s "
+                "on resource %s. Billing full amount (%s) to recover from missing CREATE billing.",
+                component_type,
+                resource.id,
+                new_quantity,
             )
+            total = 0  # Start from 0 since no previous billing exists
         else:
             total = 0
             for invoice_item in related_invoice_items:
@@ -722,30 +750,28 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                     total -= invoice_item.quantity
                 else:
                     total += invoice_item.quantity
-            diff = new_quantity - total
-            if diff == 0:
-                return
-            plan_component = resource.plan.components.get(
-                component__type=component_type
-            )
-            details = cls.get_component_details(resource, plan_component)
-            start = timezone.now()
-            end = cls.get_period_end_for_limit_period(offering_component.limit_period)
-            invoice_models.InvoiceItem.objects.create(
-                name=f"{RegistrationManager.get_name(resource)} / {cls.get_component_name(plan_component)}",
-                resource=resource,
-                project=resource.project,
-                unit_price=plan_component.price if diff > 0 else -plan_component.price,
-                unit=invoice_models.Units.QUANTITY,
-                quantity=diff if diff > 0 else -diff,
-                article_code=offering_component.article_code
-                or resource.plan.article_code,
-                invoice=invoice,
-                start=start,
-                end=end,
-                details=details,
-                measured_unit=offering_component.measured_unit,
-            )
+
+        diff = new_quantity - total
+        if diff == 0:
+            return
+        plan_component = resource.plan.components.get(component__type=component_type)
+        details = cls.get_component_details(resource, plan_component)
+        start = timezone.now()
+        end = cls.get_period_end_for_limit_period(offering_component.limit_period)
+        invoice_models.InvoiceItem.objects.create(
+            name=f"{RegistrationManager.get_name(resource)} / {cls.get_component_name(plan_component)}",
+            resource=resource,
+            project=resource.project,
+            unit_price=plan_component.price if diff > 0 else -plan_component.price,
+            unit=invoice_models.Units.QUANTITY,
+            quantity=diff if diff > 0 else -diff,
+            article_code=offering_component.article_code or resource.plan.article_code,
+            invoice=invoice,
+            start=start,
+            end=end,
+            details=details,
+            measured_unit=offering_component.measured_unit,
+        )
 
     @classmethod
     def update_invoice_when_usage_is_reported(
