@@ -6,16 +6,12 @@ from django.conf import settings as django_settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, QuerySet
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.plumbing import (
-    OpenApiTypes,
-    build_array_type,
-    build_basic_type,
-)
+from drf_spectacular.plumbing import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiExample,
     OpenApiParameter,
@@ -71,20 +67,18 @@ from waldur_mastermind.marketplace.enums import ResourceStates
 logger = logging.getLogger(__name__)
 
 
-BASE_USER_PARAMETERS = [
-    OpenApiParameter("full_name", str, OpenApiParameter.QUERY),
-    OpenApiParameter("user_keyword", str, OpenApiParameter.QUERY),
-    OpenApiParameter("native_name", str, OpenApiParameter.QUERY),
-    OpenApiParameter("organization", str, OpenApiParameter.QUERY),
-    OpenApiParameter("email", str, OpenApiParameter.QUERY),
-    OpenApiParameter("phone_number", str, OpenApiParameter.QUERY),
-    OpenApiParameter("description", str, OpenApiParameter.QUERY),
-    OpenApiParameter("job_title", str, OpenApiParameter.QUERY),
-    OpenApiParameter("username", str, OpenApiParameter.QUERY),
-    OpenApiParameter("civil_number", str, OpenApiParameter.QUERY),
-    OpenApiParameter("is_active", str, OpenApiParameter.QUERY),
-    OpenApiParameter("registration_method", str, OpenApiParameter.QUERY),
-]
+CUSTOMER_UUID_PARAMETER = OpenApiParameter(
+    name="customer_uuid",
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.PATH,
+    description="UUID of the customer",
+)
+PROJECT_UUID_PARAMETER = OpenApiParameter(
+    name="project_uuid",
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.PATH,
+    description="UUID of the project",
+)
 
 
 class CustomerViewSet(
@@ -285,17 +279,6 @@ class CustomerViewSet(
         """
         return super().destroy(request, *args, **kwargs)
 
-    def get_serializer_class(self):
-        if hasattr(self, "action") and self.action == "users":
-            return serializers.CustomerUserSerializer
-        return super().get_serializer_class()
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        if hasattr(self, "action") and self.action == "users":
-            context["customer"] = self.get_object()
-        return context
-
     def perform_create(self, serializer):
         if not self.request.user.is_staff:
             raise PermissionDenied()
@@ -328,46 +311,6 @@ class CustomerViewSet(
         utils.check_customer_blocked_or_archived(instance)
 
         return super().perform_destroy(instance)
-
-    @extend_schema(
-        description="A list of users connected to the customer.",
-        responses=serializers.CustomerUserSerializer(many=True),
-        parameters=BASE_USER_PARAMETERS
-        + [
-            OpenApiParameter("project_role", str, OpenApiParameter.QUERY),
-            OpenApiParameter("organization_role", str, OpenApiParameter.QUERY),
-            OpenApiParameter("o", str, OpenApiParameter.QUERY),
-            OpenApiParameter(
-                "field",
-                build_array_type(build_basic_type(OpenApiTypes.STR)),
-                OpenApiParameter.QUERY,
-                enum=serializers.CustomerUserSerializer.Meta.fields,
-            ),
-        ],
-    )
-    @action(
-        detail=True,
-        filter_backends=[filters.GenericRoleFilter],
-    )
-    def users(self, request, uuid=None):
-        customer: models.Customer = self.get_object()
-        user = request.user
-        queryset = customer.get_users()
-
-        if not (
-            has_permission(request, PermissionEnum.LIST_CUSTOMER_USERS, customer)
-            or user.is_support
-        ):
-            raise PermissionDenied()
-
-        # we need to handle filtration manually because we want to filter only customer users, not customers.
-        name_filter_backend = filters.UserConcatenatedNameOrderingBackend()
-        queryset = name_filter_backend.filter_queryset(request, queryset, self)
-        roles_filter_backend = filters.UserRolesFilter()
-        queryset = roles_filter_backend.filter_queryset(request, queryset, self)
-        queryset = self.paginate_queryset(queryset)
-        serializer = self.get_serializer(queryset, many=True)
-        return self.get_paginated_response(serializer.data)
 
     @extend_schema(
         description="Return list of countries",
@@ -432,6 +375,36 @@ class CustomerViewSet(
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    parameters=[CUSTOMER_UUID_PARAMETER],
+    description="A list of users connected to the customer.",
+)
+class CustomerUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    serializer_class = serializers.CustomerUserSerializer
+    filter_backends = [
+        filters.GenericRoleFilter,
+        DjangoFilterBackend,
+        filters.UserRolesFilter,
+        filters.ConcatenatedNameOrderingBackend,
+    ]
+    filterset_class = filters.BaseUserFilter
+    queryset = core_models.User.objects.none()
+
+    def get_serializer_context(self) -> dict[str, any]:
+        ctx = super().get_serializer_context()
+        ctx["customer"] = models.Customer.objects.get(uuid=self.kwargs["customer_uuid"])
+        return ctx
+
+    def get_queryset(self) -> QuerySet[core_models.User]:
+        customer = models.Customer.objects.get(uuid=self.kwargs["customer_uuid"])
+        if not (
+            has_permission(self.request, PermissionEnum.LIST_CUSTOMER_USERS, customer)
+            or self.request.user.is_support
+        ):
+            raise PermissionDenied()
+        return customer.get_users()
 
 
 class AccessSubnetViewSet(core_views.ActionsViewSet):
@@ -610,36 +583,31 @@ class ProjectViewSet(
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(
-        description="A list of users which can be added to the "
-        "current project from other projects of the same customer.",
-        responses=serializers.BasicUserSerializer(many=True),
-        parameters=BASE_USER_PARAMETERS,
-    )
-    @action(
-        detail=True,
-        filter_backends=[filters.GenericRoleFilter],
-    )
-    def other_users(self, request, uuid=None):
-        project: models.Project = self.get_object()
+
+@extend_schema(
+    parameters=[PROJECT_UUID_PARAMETER],
+    description="A list of users which can be added to the "
+    "current project from other projects of the same customer.",
+)
+class ProjectOtherUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    serializer_class = serializers.BasicUserSerializer
+    filter_backends = [
+        filters.GenericRoleFilter,
+        filters.ConcatenatedNameOrderingBackend,
+        DjangoFilterBackend,
+    ]
+    filterset_class = filters.BaseUserFilter
+    queryset = core_models.User.objects.none()
+
+    def get_queryset(self) -> QuerySet[core_models.User]:
+        project = models.Project.objects.get(uuid=self.kwargs["project_uuid"])
         projects = (
             models.Project.objects.filter(customer=project.customer)
-            .filter(id__in=get_connected_projects(request.user))
+            .filter(id__in=get_connected_projects(self.request.user))
             .exclude(id=project.id)
         ).values_list("id", flat=True)
 
-        queryset = core_models.User.objects.filter(id__in=get_project_users(projects))
-
-        queryset = filters.UserConcatenatedNameOrderingBackend().filter_queryset(
-            request, queryset, self
-        )
-        filterset = filters.BaseUserFilter(request.GET, queryset=queryset)
-        queryset = filterset.qs
-        queryset = self.paginate_queryset(queryset)
-        serializer = serializers.BasicUserSerializer(
-            queryset, many=True, context=self.get_serializer_context()
-        )
-        return self.get_paginated_response(serializer.data)
+        return core_models.User.objects.filter(id__in=get_project_users(projects))
 
 
 class UserViewSet(core_views.ActionsViewSet):
@@ -1158,16 +1126,7 @@ class ExternalLinkViewSet(viewsets.ModelViewSet):
     ordering_fields = ("name", "url")
 
 
-@extend_schema(
-    parameters=[
-        OpenApiParameter(
-            name="customer_uuid",
-            type=OpenApiTypes.UUID,
-            location=OpenApiParameter.PATH,
-            description="UUID of the customer",
-        )
-    ]
-)
+@extend_schema(parameters=[CUSTOMER_UUID_PARAMETER])
 class CustomerProjectMetadataComplianceOverviewViewSet(
     mixins.ListModelMixin, viewsets.GenericViewSet
 ):
@@ -1264,16 +1223,7 @@ class CustomerProjectMetadataComplianceOverviewViewSet(
         return Response(serializer.data)
 
 
-@extend_schema(
-    parameters=[
-        OpenApiParameter(
-            name="customer_uuid",
-            type=OpenApiTypes.UUID,
-            location=OpenApiParameter.PATH,
-            description="UUID of the customer",
-        )
-    ]
-)
+@extend_schema(parameters=[CUSTOMER_UUID_PARAMETER])
 class CustomerProjectMetadataComplianceDetailsViewSet(
     mixins.ListModelMixin, viewsets.GenericViewSet
 ):
@@ -1565,16 +1515,7 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
         return None
 
 
-@extend_schema(
-    parameters=[
-        OpenApiParameter(
-            name="customer_uuid",
-            type=OpenApiTypes.UUID,
-            location=OpenApiParameter.PATH,
-            description="UUID of the customer",
-        )
-    ]
-)
+@extend_schema(parameters=[CUSTOMER_UUID_PARAMETER])
 class CustomerProjectMetadataComplianceProjectsViewSet(
     mixins.ListModelMixin, viewsets.GenericViewSet
 ):
@@ -1683,16 +1624,7 @@ class CustomerProjectMetadataComplianceProjectsViewSet(
         serializer_class._bulk_completion_data = completion_map
 
 
-@extend_schema(
-    parameters=[
-        OpenApiParameter(
-            name="customer_uuid",
-            type=OpenApiTypes.UUID,
-            location=OpenApiParameter.PATH,
-            description="UUID of the customer",
-        )
-    ]
-)
+@extend_schema(parameters=[CUSTOMER_UUID_PARAMETER])
 class CustomerProjectMetadataQuestionAnswersViewSet(
     mixins.ListModelMixin, viewsets.GenericViewSet
 ):

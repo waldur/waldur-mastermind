@@ -6,8 +6,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions
 from django.db.models import OuterRef, Q, Subquery
 from django.db.models.functions import Concat
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.widgets import BooleanWidget
+from drf_spectacular.plumbing import build_parameter_type
+from drf_spectacular.utils import OpenApiParameter
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
@@ -18,7 +21,11 @@ from waldur_core.core.filters import (
     get_generic_field_filter,
 )
 from waldur_core.core.utils import get_ordering, is_uuid_like, order_with_nulls
-from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.enums import (
+    SYSTEM_CUSTOMER_ROLES,
+    SYSTEM_PROJECT_ROLES,
+    RoleEnum,
+)
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models
 from waldur_core.structure.managers import (
@@ -570,27 +577,36 @@ class UserFilter(BaseUserFilter):
         return queryset.filter(username__in=usernames).distinct()
 
 
-class UserConcatenatedNameOrderingBackend(BaseFilterBackend):
-    """Filter user by concatenated first_name + last_name + username with ?o=concatenated_name"""
+class ConcatenatedNameOrderingBackend(BaseFilterBackend):
+    """
+    Provides ordering by a concatenated field of first_name, last_name, and username.
+    Use the query parameter `o=concatenated_name` or `o=-concatenated_name`.
+    """
 
     def filter_queryset(self, request, queryset, view):
-        queryset = self._filter_queryset(request, queryset, view)
-        return BaseUserFilter(
-            request.query_params, queryset=queryset, request=request
-        ).qs
+        order_param = request.query_params.get("o")
 
-    def _filter_queryset(self, request, queryset, view):
-        if "o" not in request.query_params:
-            return queryset
-        if request.query_params["o"] == "concatenated_name":
-            order_by = "concatenated_name"
-        elif request.query_params["o"] == "-concatenated_name":
-            order_by = "-concatenated_name"
-        else:
-            return queryset
-        return queryset.annotate(
-            concatenated_name=Concat("first_name", "last_name", "username")
-        ).order_by(order_by)
+        if order_param in ("concatenated_name", "-concatenated_name"):
+            return queryset.annotate(
+                concatenated_name=Concat("first_name", "last_name", "username")
+            ).order_by(order_param)
+
+        return queryset
+
+    def get_schema_operation_parameters(self, view):
+        """Declare the 'o' parameter for OpenAPI schema."""
+        return [
+            build_parameter_type(
+                name="o",
+                schema={
+                    "type": "string",
+                    "enum": ["concatenated_name", "-concatenated_name"],
+                },
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Ordering. Sort by a combination of first name, last name, and username.",
+            )
+        ]
 
 
 class CustomerPermissionReviewFilter(django_filters.FilterSet):
@@ -804,7 +820,12 @@ class UserAgreementsFilter(django_filters.FilterSet):
 
 class UserRolesFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        customer = view.get_object()
+        customer_uuid = view.kwargs.get("customer_uuid")
+        if not customer_uuid:
+            return queryset
+
+        customer = get_object_or_404(models.Customer, uuid=customer_uuid)
+
         project_roles = request.query_params.getlist("project_role")
         organization_roles = request.query_params.getlist("organization_role")
 
@@ -824,6 +845,61 @@ class UserRolesFilter(BaseFilterBackend):
             query = query | Q(id__in=customer_users)
 
         return queryset.filter(query)
+
+    def get_schema_operation_parameters(self, view):
+        """
+        Declare role parameters for OpenAPI schema.
+        """
+        return [
+            build_parameter_type(
+                name="project_role",
+                schema={
+                    "type": "array",
+                    "items": {
+                        # Use anyOf to allow enum OR a generic string
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [role.value for role in SYSTEM_PROJECT_ROLES],
+                            },
+                            {
+                                # This second schema allows any other string value
+                                "type": "string"
+                            },
+                        ],
+                    },
+                },
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by one or more project roles. "
+                "Select a standard role or provide a custom role string. "
+                "Can be specified multiple times.",
+            ),
+            build_parameter_type(
+                name="organization_role",
+                schema={
+                    "type": "array",
+                    "items": {
+                        # Use anyOf to allow enum OR a generic string
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [role.value for role in SYSTEM_CUSTOMER_ROLES],
+                            },
+                            {
+                                # This second schema allows any other string value
+                                "type": "string"
+                            },
+                        ],
+                    },
+                },
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by one or more organization roles. "
+                "Select a standard role or provide a custom role string. "
+                "Can be specified multiple times.",
+            ),
+        ]
 
 
 class ProjectEstimatedCostFilter(BaseFilterBackend):
