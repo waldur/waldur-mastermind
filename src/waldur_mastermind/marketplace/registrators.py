@@ -379,9 +379,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         details = cls.get_component_details(source, plan_component)
         quantity = cls.convert_quantity(limit, offering_component.type)
         details["resource_limit_periods"] = [
-            utils.serialize_resource_limit_period(
-                {"start": start, "end": end, "quantity": quantity}
-            )
+            utils.serialize_resource_limit_period(start, end, quantity)
         ]
         total_quantity = cls.get_total_quantity(
             plan_component.plan.unit, quantity, start, end
@@ -451,7 +449,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             new_start = today.replace(hour=0, minute=0, second=0)
             old_end = new_start - timedelta(seconds=1)
         old_period = utils.serialize_resource_limit_period(
-            {"start": old_start, "end": old_end, "quantity": old_quantity}
+            old_start, old_end, old_quantity
         )
         # Get the offering component to determine appropriate period end
         offering_component = source.offering.components.get(type=component_type)
@@ -460,11 +458,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         )
 
         new_period = utils.serialize_resource_limit_period(
-            {
-                "start": new_start,
-                "end": period_end,
-                "quantity": new_quantity,
-            }
+            new_start, period_end, new_quantity
         )
         resource_limit_periods.extend([old_period, new_period])
         plan_component = source.plan.components.get(component__type=component_type)
