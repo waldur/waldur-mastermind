@@ -60,6 +60,7 @@ from waldur_freeipa import models as freeipa_models
 from waldur_mastermind.common.utils import create_request, mb_to_gb
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
+from waldur_mastermind.invoices.structures import InvoiceResourceLimitPeriodDict
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
 from waldur_mastermind.marketplace.enums import REMOTE_OFFERING as REMOTE_PLUGIN_NAME
@@ -758,7 +759,7 @@ def move_resource(resource: models.Resource, project):
         target_invoice.update_cache()
 
 
-def get_invoice_item_for_component_usage(component_usage):
+def get_invoice_item_for_component_usage(component_usage: models.ComponentUsage):
     if not component_usage.plan_period:
         # Field plan_period is optional if component_usage is not connected with billing
         return
@@ -787,14 +788,16 @@ def get_invoice_item_for_component_usage(component_usage):
         pass
 
 
-def serialize_resource_limit_period(period):
-    billing_periods = get_full_days(period["start"], period["end"])
+def serialize_resource_limit_period(
+    start: datetime.datetime, end: datetime.datetime, quantity: int
+) -> InvoiceResourceLimitPeriodDict:
+    billing_periods = get_full_days(start, end)
     return {
-        "start": period["start"].isoformat(),
-        "end": period["end"].isoformat(),
-        "quantity": period["quantity"],
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "quantity": quantity,
         "billing_periods": billing_periods,
-        "total": str(period["quantity"] * billing_periods),
+        "total": str(quantity * billing_periods),
     }
 
 

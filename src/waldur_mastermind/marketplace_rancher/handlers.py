@@ -205,22 +205,16 @@ def copy_invoice_items_when_cluster_is_provisioned(
         invoice_item.project_name = cluster.project.name
         invoice_item.project_uuid = cluster.project.uuid.hex
         invoice_item.start = now
-        try:
-            quantity = invoice_item.details["resource_limit_periods"][0]["quantity"]
+        resource_limit_periods = invoice_item.details.get("resource_limit_periods")
+        if resource_limit_periods:
+            quantity = resource_limit_periods[0]["quantity"]
             invoice_item.details["resource_limit_periods"] = [
-                serialize_resource_limit_period(
-                    {"start": now, "end": end, "quantity": quantity}
-                )
+                serialize_resource_limit_period(now, end, quantity)
             ]
             total_quantity = MarketplaceRegistrator.get_total_quantity(
                 invoice_item.unit, quantity, now, end
             )
             invoice_item.quantity = total_quantity
-        except (KeyError, IndexError):
-            logger.debug(
-                "Failed to copy resource limit periods for invoice item %s",
-                invoice_item,
-            )
         invoice_item.save()
 
     if not resource.plan:
@@ -252,25 +246,17 @@ def copy_invoice_items_when_cluster_is_provisioned(
             )
             continue
         details = MarketplaceRegistrator.get_component_details(resource, plan_component)
-        try:
-            quantity = sum(
-                invoice_item.details["resource_limit_periods"][0]["quantity"]
-                for invoice_item in component_items
-            )
-            details["resource_limit_periods"] = [
-                serialize_resource_limit_period(
-                    {"start": now, "end": end, "quantity": quantity}
-                )
-            ]
-            total_quantity = MarketplaceRegistrator.get_total_quantity(
-                plan_component.plan.unit, quantity, now, end
-            )
-        except (KeyError, IndexError):
-            logger.debug(
-                "Failed to copy resource limit periods for plan component %s",
-                plan_component,
-            )
-            continue
+        quantity = 0
+        for invoice_item in component_items:
+            resource_limit_periods = invoice_item.details.get("resource_limit_periods")
+            if resource_limit_periods:
+                quantity += resource_limit_periods[0]["quantity"]
+        details["resource_limit_periods"] = [
+            serialize_resource_limit_period(now, end, quantity)
+        ]
+        total_quantity = MarketplaceRegistrator.get_total_quantity(
+            plan_component.plan.unit, quantity, now, end
+        )
 
         InvoiceItem.objects.create(
             invoice=invoice,

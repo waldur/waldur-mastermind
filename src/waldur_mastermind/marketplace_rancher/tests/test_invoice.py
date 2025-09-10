@@ -61,9 +61,7 @@ class RancherInvoiceTest(test.APITransactionTestCase):
                 details={
                     "offering_component_type": CORES_TYPE,
                     "resource_limit_periods": [
-                        serialize_resource_limit_period(
-                            {"start": start, "end": end, "quantity": 10}
-                        )
+                        serialize_resource_limit_period(start, end, 10)
                     ],
                 },
                 quantity=get_full_days(start, end) * 10,
