@@ -6326,7 +6326,7 @@ class CourseAccountSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True, source="project.customer.name"
     )
 
-    state = serializers.CharField(source="get_state_display", read_only=True)
+    state = serializers.SerializerMethodField()
     error_message = serializers.CharField(read_only=True)
 
     class Meta:
@@ -6356,7 +6356,7 @@ class CourseAccountSerializer(serializers.HyperlinkedModelSerializer):
             },
         }
 
-    @extend_schema_field(serializers.ChoiceField(choices=CourseAccountState.values))
+    @extend_schema_field(serializers.ChoiceField(choices=CourseAccountState.labels))
     def get_state(self, course_account: models.CourseAccount) -> str:
         return course_account.get_state_display()
 
