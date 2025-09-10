@@ -95,7 +95,9 @@ def remove_incorrect_total_billing_2025(apps, schema_editor):
         if not same_month_orders.exists():
             # This is problematic - TOTAL billing without orders in the same month
             items_to_remove.append(item)
-            total_amount_to_remove += item.price
+            # Calculate price as unit_price * quantity since @property is not available in migrations
+            item_price = item.unit_price * item.quantity
+            total_amount_to_remove += item_price
 
             resource_name = resource.name or f"Resource_{resource.id}"
             customer_name = resource.project.customer.name or "Unknown"
@@ -104,7 +106,7 @@ def remove_incorrect_total_billing_2025(apps, schema_editor):
             offering_uuid = item.details.get("offering_uuid", "Unknown")
 
             print(
-                f"  🚨 Item {item.id} ({invoice_year}-{invoice_month:02d}): {customer_name[:30]} | {resource_name[:25]} | {component_type} | {offering_uuid[:8]}... | {item.price:.2f}"
+                f"  🚨 Item {item.id} ({invoice_year}-{invoice_month:02d}): {customer_name[:30]} | {resource_name[:25]} | {component_type} | {offering_uuid[:8]}... | {item_price:.2f}"
             )
 
     print(f"\n🚨 Found {len(items_to_remove)} problematic TOTAL period items to remove")
@@ -122,7 +124,8 @@ def remove_incorrect_total_billing_2025(apps, schema_editor):
         if customer_name not in customer_summary:
             customer_summary[customer_name] = {"items": 0, "amount": 0}
         customer_summary[customer_name]["items"] += 1
-        customer_summary[customer_name]["amount"] += item.price
+        # Calculate price as unit_price * quantity since @property is not available in migrations
+        customer_summary[customer_name]["amount"] += item.unit_price * item.quantity
 
     print("\n📊 REMOVAL SUMMARY BY CUSTOMER:")
     for customer, data in sorted(
