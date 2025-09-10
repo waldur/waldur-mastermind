@@ -2,6 +2,8 @@ from unittest import mock
 
 from django.test import TestCase
 
+from waldur_core.logging.enums import EventType
+from waldur_core.logging.models import Event
 from waldur_openstack import models
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.tests.fixtures import mock_session
@@ -264,6 +266,10 @@ class NetworkRBACPolicySyncTest(TestCase):
             models.NetworkRBACPolicy.objects.filter(
                 backend_id="cross_service_policy"
             ).exists()
+        )
+
+        self.assertTrue(
+            Event.objects.filter(event_type=EventType.OPENSTACK_NETWORK_PULLED).exists()
         )
 
     def test_sync_handles_nonexistent_networks(self):
