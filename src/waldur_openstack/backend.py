@@ -5301,179 +5301,171 @@ class OpenStackBackend(ServiceBackend):
 
         self._pull_zones(tenant, backend_zones, models.VolumeAvailabilityZone)
 
+    @reraise_exceptions
     @log_backend_action()
     def pull_tenant_network_rbac_policies(self, tenant: models.Tenant):
         """Pull network RBAC policies from OpenStack for a tenant."""
         # Use admin session to get full access to all RBAC policies
         neutron = get_neutron_client(self.admin_session)
 
-        try:
-            # Get all network RBAC policies from OpenStack
-            backend_policies = neutron.list_rbac_policies(object_type="network")[
-                "rbac_policies"
-            ]
+        # Get all network RBAC policies from OpenStack
+        backend_policies = neutron.list_rbac_policies(object_type="network")[
+            "rbac_policies"
+        ]
 
-            # Get all networks that belong to this tenant
-            tenant_networks = tenant.networks.all()
+        # Process INCOMING network sharing policies - networks shared TO this tenant by other tenants
+        # This should always run, even if tenant has no networks
 
-            # Process OUTGOING policies only if tenant has networks
-            processed_policy_ids = []
+        incoming_policies = [
+            p for p in backend_policies if p["target_tenant"] == tenant.backend_id
+        ]
 
-            if tenant_networks.exists():
-                # Get network backend IDs for filtering
-                network_backend_ids = list(
-                    tenant_networks.values_list("backend_id", flat=True)
+        processed_incoming_policy_ids = []
+
+        for backend_policy in incoming_policies:
+            network = models.Network.objects.filter(
+                backend_id=backend_policy["object_id"]
+            ).first()
+
+            if not network:
+                continue
+
+            if network.tenant.service_settings != tenant.service_settings:
+                # Skip policies whose source tenant exists in other service
+                logger.debug(
+                    "Skipping RBAC policy %s because source tenant exists in the other service %s",
+                    str(network.tenant.service_settings),
                 )
-
-                # Filter policies that are for networks belonging to this tenant
-                outgoing_policies = [
-                    p for p in backend_policies if p["object_id"] in network_backend_ids
-                ]
-
-                # Process each outgoing policy
-                for backend_policy in outgoing_policies:
-                    network = tenant_networks.filter(
-                        backend_id=backend_policy["object_id"]
-                    ).first()
-
-                    if not network:
-                        continue
-
-                    try:
-                        target_tenant = models.Tenant.objects.get(
-                            backend_id=backend_policy["target_tenant"],
-                            service_settings=tenant.service_settings,
-                        )
-                    except models.Tenant.DoesNotExist:
-                        # Skip policies whose target tenant doesn't exist in Waldur
-                        logger.debug(
-                            "Skipping RBAC policy %s because target tenant %s doesn't exist in Waldur",
-                            backend_policy["id"],
-                            backend_policy["target_tenant"],
-                        )
-                        continue
-
-                    # Create or update the RBAC policy
-                    policy, created = models.NetworkRBACPolicy.objects.update_or_create(
-                        backend_id=backend_policy["id"],
-                        defaults={
-                            "network": network,
-                            "target_tenant": target_tenant,
-                            "policy_type": backend_policy["action"],
-                        },
-                    )
-
-                    if created:
-                        logger.info(
-                            "Created NetworkRBACPolicy from backend: %s (network: %s, target: %s)",
-                            backend_policy["id"],
-                            network.name,
-                            target_tenant.name,
-                        )
-
-                    processed_policy_ids.append(backend_policy["id"])
-
-                # Clean up stale outgoing policies
-                stale_policies = models.NetworkRBACPolicy.objects.filter(
-                    network__in=tenant_networks
-                ).exclude(backend_id__in=processed_policy_ids)
-
-                # Log and delete stale policies
-                for policy in stale_policies:
-                    logger.info(
-                        "Deleting stale NetworkRBACPolicy: %s (network: %s, target: %s)",
-                        policy.backend_id,
-                        policy.network.name,
-                        policy.target_tenant.name,
-                    )
-
-                stale_count = stale_policies.count()
-                stale_policies.delete()
-
-                if stale_count:
-                    logger.info(
-                        "Deleted %d stale NetworkRBACPolicy objects", stale_count
-                    )
-
-            # Process INCOMING network sharing policies - networks shared TO this tenant by other tenants
-            # This should always run, even if tenant has no networks
-
-            incoming_policies = [
-                p for p in backend_policies if p["target_tenant"] == tenant.backend_id
-            ]
-
-            processed_incoming_policy_ids = []
-
-            for backend_policy in incoming_policies:
-                network = models.Network.objects.filter(
-                    backend_id=backend_policy["object_id"]
-                ).first()
-
-                if not network:
-                    continue
-
-                if network.tenant.service_settings != tenant.service_settings:
-                    # Skip policies whose source tenant exists in other service
-                    logger.debug(
-                        "Skipping RBAC policy %s because source tenant exists in the other service %s",
-                        str(network.tenant.service_settings),
-                    )
-                    event_logger.emit(
-                        "RBAC policy %s skipped: source tenant %s from different service %s",
-                        event_type=EventType.OPENSTACK_NETWORK_PULLED,
-                        event_context={
-                            "rbac_policy_id": backend_policy["id"],
-                            "source_tenant": network.tenant,
-                            "target_tenant": tenant,
-                            "network": network,
-                        },
-                        scopes=[tenant, network.tenant],
-                    )
-                    continue
-
-                # Create or update the RBAC policy
-                policy, created = models.NetworkRBACPolicy.objects.update_or_create(
-                    backend_id=backend_policy["id"],
-                    defaults={
-                        "network": network,
+                event_logger.emit(
+                    "RBAC policy %s skipped: source tenant %s from different service %s",
+                    event_type=EventType.OPENSTACK_NETWORK_PULLED,
+                    event_context={
+                        "rbac_policy_id": backend_policy["id"],
+                        "source_tenant": network.tenant,
                         "target_tenant": tenant,
-                        "policy_type": backend_policy["action"],
+                        "network": network,
                     },
+                    scopes=[tenant, network.tenant],
                 )
+                continue
 
-                if created:
-                    logger.info(
-                        "Created NetworkRBACPolicy from backend: %s (network: %s, source tenant: %s)",
-                        backend_policy["id"],
-                        network.name,
-                        network.tenant.name,
-                    )
+            # Create or update the RBAC policy
+            policy, created = models.NetworkRBACPolicy.objects.update_or_create(
+                backend_id=backend_policy["id"],
+                defaults={
+                    "network": network,
+                    "target_tenant": tenant,
+                    "policy_type": backend_policy["action"],
+                },
+            )
 
-                processed_incoming_policy_ids.append(backend_policy["id"])
-
-            # Clean up stale policies
-            stale_incoming_policies = models.NetworkRBACPolicy.objects.filter(
-                target_tenant=tenant
-            ).exclude(backend_id__in=processed_incoming_policy_ids)
-
-            # Log and delete stale policies
-            for policy in stale_incoming_policies:
+            if created:
                 logger.info(
-                    "Deleting stale NetworkRBACPolicy: %s (network: %s, target: %s)",
-                    policy.backend_id,
-                    policy.network.name,
-                    policy.target_tenant.name,
+                    "Created NetworkRBACPolicy from backend: %s (network: %s, source tenant: %s)",
+                    backend_policy["id"],
+                    network.name,
+                    network.tenant.name,
                 )
 
-            stale_count = stale_incoming_policies.count()
-            stale_incoming_policies.delete()
+            processed_incoming_policy_ids.append(backend_policy["id"])
 
-            if stale_count:
-                logger.info("Deleted %d stale NetworkRBACPolicy objects", stale_count)
+        # Clean up stale policies
+        stale_incoming_policies = models.NetworkRBACPolicy.objects.filter(
+            target_tenant=tenant
+        ).exclude(backend_id__in=processed_incoming_policy_ids)
 
-        except neutron_exceptions.NeutronClientException as e:
-            logger.error("Error pulling network RBAC policies: %s", e)
-            raise OpenStackBackendError(e)
+        # Log and delete stale policies
+        for policy in stale_incoming_policies:
+            logger.info(
+                "Deleting stale NetworkRBACPolicy: %s (network: %s, target: %s)",
+                policy.backend_id,
+                policy.network.name,
+                policy.target_tenant.name,
+            )
+
+        stale_count = stale_incoming_policies.count()
+        stale_incoming_policies.delete()
+
+        if stale_count:
+            logger.info("Deleted %d stale NetworkRBACPolicy objects", stale_count)
+
+        # Process OUTGOING policies only if tenant has networks
+        tenant_networks = tenant.networks.all()
+        processed_policy_ids = []
+
+        if not tenant_networks.exists():
+            return
+
+        # Get network backend IDs for filtering
+        network_backend_ids = list(tenant_networks.values_list("backend_id", flat=True))
+
+        # Filter policies that are for networks belonging to this tenant
+        outgoing_policies = [
+            p for p in backend_policies if p["object_id"] in network_backend_ids
+        ]
+
+        # Process each outgoing policy
+        for backend_policy in outgoing_policies:
+            network = tenant_networks.filter(
+                backend_id=backend_policy["object_id"]
+            ).first()
+
+            if not network:
+                continue
+
+            try:
+                target_tenant = models.Tenant.objects.get(
+                    backend_id=backend_policy["target_tenant"],
+                    service_settings=tenant.service_settings,
+                )
+            except models.Tenant.DoesNotExist:
+                # Skip policies whose target tenant doesn't exist in Waldur
+                logger.debug(
+                    "Skipping RBAC policy %s because target tenant %s doesn't exist in Waldur",
+                    backend_policy["id"],
+                    backend_policy["target_tenant"],
+                )
+                continue
+
+            # Create or update the RBAC policy
+            policy, created = models.NetworkRBACPolicy.objects.update_or_create(
+                backend_id=backend_policy["id"],
+                defaults={
+                    "network": network,
+                    "target_tenant": target_tenant,
+                    "policy_type": backend_policy["action"],
+                },
+            )
+
+            if created:
+                logger.info(
+                    "Created NetworkRBACPolicy from backend: %s (network: %s, target: %s)",
+                    backend_policy["id"],
+                    network.name,
+                    target_tenant.name,
+                )
+
+            processed_policy_ids.append(backend_policy["id"])
+
+        # Clean up stale outgoing policies
+        stale_policies = models.NetworkRBACPolicy.objects.filter(
+            network__in=tenant_networks
+        ).exclude(backend_id__in=processed_policy_ids)
+
+        # Log and delete stale policies
+        for policy in stale_policies:
+            logger.info(
+                "Deleting stale NetworkRBACPolicy: %s (network: %s, target: %s)",
+                policy.backend_id,
+                policy.network.name,
+                policy.target_tenant.name,
+            )
+
+        stale_count = stale_policies.count()
+        stale_policies.delete()
+
+        if stale_count:
+            logger.info("Deleted %d stale NetworkRBACPolicy objects", stale_count)
 
     @reraise_exceptions
     def create_network_rbac_policy(
