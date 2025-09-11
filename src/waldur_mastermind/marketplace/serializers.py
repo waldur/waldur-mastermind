@@ -6304,6 +6304,16 @@ class OfferingTermsOfServiceCreateSerializer(serializers.ModelSerializer):
                     "You don't have permission to manage Terms of Service for this offering."
                 )
 
+        if attrs.get("is_active", False):
+            existing_active = models.OfferingTermsOfService.objects.filter(
+                offering=offering, is_active=True
+            ).exists()
+            if existing_active:
+                raise serializers.ValidationError(
+                    "An active Terms of Service configuration already exists for this offering. "
+                    "Please deactivate the existing configuration before creating a new active one."
+                )
+
         return attrs
 
 

@@ -809,7 +809,7 @@ class OfferingTermsOfService(TimeStampedModel, core_models.UuidMixin):
     terms_of_service = models.TextField(blank=True)
     terms_of_service_link = models.URLField(blank=True)
     version = models.CharField(max_length=50, blank=True)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     requires_reconsent = models.BooleanField(
         default=False,
         help_text="If True, user will be asked to re-consent to the terms of service when the terms of service are updated.",
@@ -817,6 +817,13 @@ class OfferingTermsOfService(TimeStampedModel, core_models.UuidMixin):
 
     class Meta:
         ordering = ["-created"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["offering"],
+                condition=models.Q(is_active=True),
+                name="unique_active_terms_per_offering",
+            )
+        ]
 
 
 class OfferingComponent(
