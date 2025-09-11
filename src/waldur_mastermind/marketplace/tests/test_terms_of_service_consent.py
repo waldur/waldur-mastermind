@@ -2178,3 +2178,201 @@ class OfferingUsersViewSetPerformanceTest(APITransactionTestCase):
             offering_users = list(queryset)
             self.assertEqual(len(offering_users), 1)
             self.assertEqual(offering_users[0].user, self.user)
+
+
+class OfferingTermsOfServiceFilterTest(APITransactionTestCase):
+    """Test the has_active_terms_of_service filter for offerings."""
+
+    def setUp(self):
+        self.user = UserFactory()
+        self.customer = CustomerFactory()
+        self.category = CategoryFactory()
+
+        self.offering_with_active_tos = OfferingFactory(
+            customer=self.customer,
+            category=self.category,
+            name="Offering with active ToS",
+            shared=True,
+            state=OfferingStates.ACTIVE,
+        )
+
+        self.offering_with_inactive_tos = OfferingFactory(
+            customer=self.customer,
+            category=self.category,
+            name="Offering with inactive ToS",
+            shared=True,
+            state=OfferingStates.ACTIVE,
+        )
+
+        self.offering_with_no_tos = OfferingFactory(
+            customer=self.customer,
+            category=self.category,
+            name="Offering with no ToS",
+            shared=True,
+            state=OfferingStates.ACTIVE,
+        )
+
+        self.tos_config = models.OfferingTermsOfService.objects.create(
+            offering=self.offering_with_active_tos,
+            terms_of_service="Active Terms of Service",
+            version="1.0",
+            is_active=True,
+        )
+
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering_with_inactive_tos,
+            terms_of_service="Inactive Terms of Service",
+            version="1.0",
+            is_active=False,
+        )
+
+        self.url = reverse("marketplace-public-offering-list")
+        self.client.force_authenticate(user=self.user)
+
+    def test_filter_offerings_with_active_terms_of_service_true(self):
+        """Test filtering offerings that have active Terms of Service."""
+        response = self.client.get(self.url, {"has_active_terms_of_service": "true"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["uuid"], self.offering_with_active_tos.uuid.hex
+        )
+        self.assertEqual(response.data[0]["name"], "Offering with active ToS")
+
+    def test_filter_offerings_with_active_terms_of_service_false(self):
+        """Test filtering offerings that do not have active Terms of Service."""
+        response = self.client.get(self.url, {"has_active_terms_of_service": "false"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        offering_uuids = [offering["uuid"] for offering in response.data]
+        self.assertIn(self.offering_with_inactive_tos.uuid.hex, offering_uuids)
+        self.assertIn(self.offering_with_no_tos.uuid.hex, offering_uuids)
+
+    def test_filter_offerings_with_terms_of_service_without_filter(self):
+        """Test that all offerings are returned when no filter is applied."""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
+
+        offering_uuids = [offering["uuid"] for offering in response.data]
+        self.assertIn(self.offering_with_active_tos.uuid.hex, offering_uuids)
+        self.assertIn(self.offering_with_inactive_tos.uuid.hex, offering_uuids)
+        self.assertIn(self.offering_with_no_tos.uuid.hex, offering_uuids)
+
+    def test_filter_offerings_with_terms_of_service_inactive_config(self):
+        """Test that offerings with only inactive ToS configs are not included."""
+        response = self.client.get(self.url, {"has_active_terms_of_service": "true"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["uuid"], self.offering_with_active_tos.uuid.hex
+        )
+
+    def test_filter_offerings_with_terms_of_service_multiple_configs(self):
+        """Test that offerings with multiple ToS configs (only one active) work correctly."""
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering_with_active_tos,
+            terms_of_service="Another Terms of Service",
+            version="2.0",
+            is_active=False,
+        )
+
+        response = self.client.get(self.url, {"has_active_terms_of_service": "true"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["uuid"], self.offering_with_active_tos.uuid.hex
+        )
+
+    def test_filter_offerings_with_terms_of_service_true(self):
+        """Test filtering offerings that have any Terms of Service using has_terms_of_service filter."""
+        response = self.client.get(self.url, {"has_terms_of_service": "true"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        offering_uuids = [offering["uuid"] for offering in response.data]
+        self.assertIn(self.offering_with_active_tos.uuid.hex, offering_uuids)
+        self.assertIn(self.offering_with_inactive_tos.uuid.hex, offering_uuids)
+
+    def test_filter_offerings_with_terms_of_service_false(self):
+        """Test filtering offerings that do not have any Terms of Service using has_terms_of_service filter."""
+        response = self.client.get(self.url, {"has_terms_of_service": "false"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        self.assertEqual(response.data[0]["uuid"], self.offering_with_no_tos.uuid.hex)
+        self.assertEqual(response.data[0]["name"], "Offering with no ToS")
+
+    def test_combined_filters_active_tos_and_any_tos(self):
+        """Test combined filters: has_active_terms_of_service=true AND has_terms_of_service=true."""
+        response = self.client.get(
+            self.url,
+            {"has_active_terms_of_service": "true", "has_terms_of_service": "true"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["uuid"], self.offering_with_active_tos.uuid.hex
+        )
+
+    def test_combined_filters_no_active_tos_but_has_any_tos(self):
+        """Test combined filters: has_active_terms_of_service=false AND has_terms_of_service=true."""
+        response = self.client.get(
+            self.url,
+            {"has_active_terms_of_service": "false", "has_terms_of_service": "true"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["uuid"], self.offering_with_inactive_tos.uuid.hex
+        )
+
+    def test_combined_filters_no_active_tos_and_no_any_tos(self):
+        """Test combined filters: has_active_terms_of_service=false AND has_terms_of_service=false."""
+        response = self.client.get(
+            self.url,
+            {"has_active_terms_of_service": "false", "has_terms_of_service": "false"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.offering_with_no_tos.uuid.hex)
+
+    def test_combined_filters_active_tos_but_no_any_tos_impossible(self):
+        """Test combined filters: has_active_terms_of_service=true AND has_terms_of_service=false (should return empty)."""
+        response = self.client.get(
+            self.url,
+            {"has_active_terms_of_service": "true", "has_terms_of_service": "false"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_filter_with_category_and_terms_of_service(self):
+        """Test combining ToS filters with other filters like category."""
+        response = self.client.get(
+            self.url,
+            {
+                "category_uuid": str(self.category.uuid),
+                "has_active_terms_of_service": "true",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["uuid"], self.offering_with_active_tos.uuid.hex
+        )
+
+    def test_filter_with_name_and_terms_of_service(self):
+        """Test combining ToS filters with name filtering."""
+        response = self.client.get(
+            self.url,
+            {"name": "Offering with active ToS", "has_terms_of_service": "true"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["uuid"], self.offering_with_active_tos.uuid.hex
+        )
