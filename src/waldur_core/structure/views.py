@@ -902,10 +902,6 @@ class ProjectPermissionReviewViewSet(
         )
         return Response(status=status.HTTP_200_OK)
 
-    close_permissions = [
-        permission_factory(PermissionEnum.REVIEW_PROJECT_MEMBERSHIP, ["project"])
-    ]
-
 
 @extend_schema_view(
     create=extend_schema(

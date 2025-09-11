@@ -903,7 +903,9 @@ class ProjectPermissionReview(PermissionReview):
     """
 
     class Permissions:
+        customer_path = "project__customer"
         project_path = "project"
+        list_permission = PermissionEnum.REVIEW_PROJECT_MEMBERSHIP
 
     project = models.ForeignKey(
         Project,
