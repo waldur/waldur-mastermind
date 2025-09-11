@@ -30,7 +30,7 @@ class ProjectPermissionReviewCloseActionTest(APITestCase):
         self.review.refresh_from_db()
         self.assertFalse(self.review.is_pending)
 
-    @data("owner", "user")
+    @data("owner", "user", "admin", "member")
     def test_user_cannot_get_project_permission_review(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
