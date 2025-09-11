@@ -6842,6 +6842,35 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
         return qs.none()
 
     def check_create_permissions(request, view, obj=None):
+        # For browsable API to show the form, we need to allow the permission check
+        # without parsing request.data. The actual data validation will happen
+        # during perform_create.
+
+        # Check if this is a browsable API permission check (POST without data)
+        # or a real POST with data
+        is_browsable_api_check = request.method == "POST" and (
+            not hasattr(request, "_full_data") or not request.data
+        )
+
+        if request.method != "POST" or is_browsable_api_check:
+            # For OPTIONS, GET, or browsable API checks, just check if user can create in general
+            if request.user.is_authenticated and (
+                request.user.is_staff or getattr(request.user, "is_support", False)
+            ):
+                return
+            if not request.user.is_authenticated:
+                raise PermissionDenied("Authentication required")
+            # Check if user has permission to any course project
+            projects = get_connected_projects_by_permission(
+                request.user, PermissionEnum.MANAGE_COURSE_ACCOUNT
+            )
+            if not projects:
+                raise PermissionDenied(
+                    "You don't have permission to create course accounts"
+                )
+            return
+
+        # For actual POST requests with data, validate the data
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         project = serializer.validated_data.get("project")
