@@ -73,6 +73,7 @@ from waldur_mastermind.marketplace.enums import (
     OrderStatesType,
     ResourceStates,
     ResourceStatesType,
+    RobotAccountStates,
     ServiceAccountState,
     ServiceAccountStatesType,
 )
@@ -5324,6 +5325,20 @@ class RobotAccountSerializer(BaseServiceAccountSerializer):
     url = serializers.HyperlinkedIdentityField(
         view_name="marketplace-robot-account-detail", lookup_field="uuid"
     )
+    state = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ChoiceField(choices=RobotAccountStates.CHOICES))
+    def get_state(
+        self, robot_account: models.RobotAccount
+    ) -> Literal[
+        "Requested",
+        "Creating",
+        "OK",
+        "Requested deletion",
+        "Deleted",
+        "Error",
+    ]:
+        return robot_account.get_state_display()
 
     class Meta:
         model = models.RobotAccount
@@ -5337,8 +5352,6 @@ class RobotAccountSerializer(BaseServiceAccountSerializer):
             "responsible_user",
             "state",
         )
-
-        state = serializers.CharField(source="get_state_display", read_only=True)
 
         protected_fields = ["resource"]
         read_only_fields = BaseServiceAccountSerializer.Meta.read_only_fields + [
@@ -5358,9 +5371,6 @@ class RobotAccountSerializer(BaseServiceAccountSerializer):
         )
 
     fingerprints = serializers.SerializerMethodField()
-
-    def get_state(self, robot_account: models.RobotAccount) -> str:
-        return robot_account.get_state_display()
 
     @extend_schema_field(FingerprintSerializer(many=True))
     def get_fingerprints(self, robot_account):

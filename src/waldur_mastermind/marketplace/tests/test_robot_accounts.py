@@ -100,6 +100,77 @@ class RobotAccountTest(test.APITransactionTestCase):
         self.assertEqual(fingerprint_sha256, response.data["fingerprints"][0]["sha256"])
         self.assertEqual(fingerprint_sha512, response.data["fingerprints"][0]["sha512"])
 
+    def test_robot_account_state_returns_string_not_integer(self):
+        """Test that the state field returns string values like 'OK' not integers"""
+        self.client.force_authenticate(self.fixture.service_owner)
+
+        # Test each state to ensure it returns the correct string value
+        test_cases = [
+            (RobotAccountStates.REQUESTED, "Requested", "type1"),
+            (RobotAccountStates.CREATING, "Creating", "type2"),
+            (RobotAccountStates.OK, "OK", "type3"),
+            (RobotAccountStates.REQUESTED_DELETION, "Requested deletion", "type4"),
+            (RobotAccountStates.DELETED, "Deleted", "type5"),
+            (RobotAccountStates.ERROR, "Error", "type6"),
+        ]
+
+        for state_value, expected_string, robot_type in test_cases:
+            account = factories.RobotAccountFactory(
+                resource=self.fixture.resource, state=state_value, type=robot_type
+            )
+            url = factories.RobotAccountFactory.get_url(account)
+            response = self.client.get(url)
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertIn("state", response.data)
+            self.assertEqual(
+                response.data["state"],
+                expected_string,
+                f"Expected state to be '{expected_string}' but got '{response.data['state']}' for state value {state_value}",
+            )
+            # Ensure it's a string, not an integer
+            self.assertIsInstance(response.data["state"], str)
+            self.assertNotIsInstance(response.data["state"], int)
+
+    def test_robot_account_list_state_returns_string(self):
+        """Test that the state field returns string values in list view"""
+        self.client.force_authenticate(self.fixture.service_owner)
+
+        # Create accounts with different states and types to avoid unique constraint
+        factories.RobotAccountFactory(
+            resource=self.fixture.resource, state=RobotAccountStates.OK, type="list1"
+        )
+        factories.RobotAccountFactory(
+            resource=self.fixture.resource, state=RobotAccountStates.ERROR, type="list2"
+        )
+
+        url = factories.RobotAccountFactory.get_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(response.data), 2)
+
+        # Check that all states are strings
+        for account_data in response.data:
+            if "state" in account_data:  # Some list views might not include all fields
+                self.assertIsInstance(
+                    account_data["state"],
+                    str,
+                    f"State should be a string, got {type(account_data['state'])}",
+                )
+                self.assertIn(
+                    account_data["state"],
+                    [
+                        "Requested",
+                        "Creating",
+                        "OK",
+                        "Requested deletion",
+                        "Deleted",
+                        "Error",
+                    ],
+                    f"Unexpected state value: {account_data['state']}",
+                )
+
 
 class RobotAccountStateTransitionTest(test.APITransactionTestCase):
     def setUp(self):
