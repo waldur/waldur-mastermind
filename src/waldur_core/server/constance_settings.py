@@ -373,6 +373,11 @@ CONSTANCE_CONFIG = {
         False,
         "Enable mock returns for the service account service",
     ),
+    # Course accounts
+    "ENABLE_MOCK_COURSE_ACCOUNT_BACKEND": (
+        False,
+        "Enable mock returns for the course account service",
+    ),
     # Proposal settings
     "PROPOSAL_REVIEW_DURATION": (7, "Review duration in days."),
     "USER_TABLE_COLUMNS": ("", "Comma-separated list of columns for users table."),
@@ -535,6 +540,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE",
         "ENABLE_STALE_RESOURCE_NOTIFICATIONS",
         "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND",
+        "ENABLE_MOCK_COURSE_ACCOUNT_BACKEND",
         "ENFORCE_USER_CONSENT_FOR_OFFERINGS",
     ),
     "Telemetry": (
@@ -727,6 +733,8 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "RANCHER_USERNAME_INPUT_LABEL",
     # Service accounts
     "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND",
+    # Course accounts
+    "ENABLE_MOCK_COURSE_ACCOUNT_BACKEND",
     # OIDC
     "OIDC_AUTH_URL",
     "OIDC_CLIENT_ID",

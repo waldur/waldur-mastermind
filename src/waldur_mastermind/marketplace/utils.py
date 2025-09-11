@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import os
+import random
 import re
 import textwrap
 import traceback
@@ -1830,6 +1831,43 @@ def generate_mock_service_account_update_response(service_account) -> dict:
     }
 
 
+# Mock data generators for course accounts
+def generate_mock_course_account_response(username: str) -> dict:
+    """Generate a mock course account response that matches the course account request schema."""
+    now = datetime.datetime.now()
+    return {
+        "tempAccount": {
+            "createdAt": now.isoformat(),
+            "updatedAt": now.isoformat(),
+            "type": "user",
+            "status": "active",
+            "lifecyclePhase": "available",
+            "purpose": "course",
+            "disabledDate": (now + datetime.timedelta(weeks=1)).isoformat(),
+            "username": username,
+            "email": "mock@example.com",
+            "description": "Mock course account for testing",
+            "unixUid": 5000 + hash(username) % 1000,  # Generate consistent UID
+            "homeDir": f"/home/{username}",
+            "shell": "/bin/bash",
+            "targetType": "project",
+            "targetIdentifier": f"mock-course-{username[:8]}",
+            "owner": None,
+            "project": None,
+        }
+    }
+
+
+def generate_mock_course_account_creation_response(
+    course_account: dict, username: str
+) -> dict:
+    """Generate a mock course account creation response that matches course account schema."""
+    del course_account, username
+    mock_username = f"course_{random.randint(1000, 9999)}"
+
+    return generate_mock_course_account_response(mock_username)
+
+
 def get_account_api_token(token_url, client_id, client_secret):
     token_url = token_url.rstrip("/")
 
@@ -2336,6 +2374,12 @@ def post_course_account_to_url(
 def create_course_account(
     course_account: dict, owner_username: str, api_access_token: str | None = None
 ):
+    if config.ENABLE_MOCK_COURSE_ACCOUNT_BACKEND:
+        logger.info("Mock mode enabled for create_course_account")
+        return generate_mock_course_account_creation_response(
+            course_account, owner_username
+        )
+
     if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):
         return
 
@@ -2358,6 +2402,16 @@ def create_course_account(
 def create_multiple_course_accounts(
     course_accounts_data: list[dict], owner_username: str
 ):
+    if config.ENABLE_MOCK_COURSE_ACCOUNT_BACKEND:
+        logger.info("Mock mode enabled for create_multiple_course_accounts")
+        course_accounts_created = []
+        for course_account in course_accounts_data:
+            course_account_created = generate_mock_course_account_creation_response(
+                course_account, owner_username
+            )
+            course_accounts_created.append(course_account_created)
+        return course_accounts_created
+
     course_account_url = settings.WALDUR_CORE["COURSE_ACCOUNT_URL"]
     course_account_url = course_account_url.rstrip("/")
     course_accounts_created = []
@@ -2396,6 +2450,18 @@ def create_multiple_course_accounts(
 def close_course_account(
     course_account: models.CourseAccount, api_access_token: str | None = None
 ):
+    if config.ENABLE_MOCK_COURSE_ACCOUNT_BACKEND:
+        logger.info(
+            f"Mock mode enabled for delete_course_account: {course_account.user.username}"
+        )
+        # Generate a response showing the account as closed before deleting
+        response = generate_mock_course_account_response(course_account.user.username)
+        response["tempAccount"]["status"] = "closed"
+        response["tempAccount"]["disabledDate"] = datetime.datetime.now().isoformat()
+        course_account.set_state_closed()
+        course_account.save(update_fields=["state"])
+        return response
+
     if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):
         return
 
