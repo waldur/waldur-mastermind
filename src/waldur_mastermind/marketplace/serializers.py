@@ -6347,7 +6347,6 @@ class CourseAccountSerializer(serializers.HyperlinkedModelSerializer):
     )
 
     state = serializers.SerializerMethodField()
-    error_message = serializers.CharField(read_only=True)
 
     class Meta:
         model = models.CourseAccount
@@ -6369,6 +6368,10 @@ class CourseAccountSerializer(serializers.HyperlinkedModelSerializer):
             "error_message",
             "error_traceback",
         )
+        read_only_fields = [
+            "error_message",
+            "error_traceback",
+        ]
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
