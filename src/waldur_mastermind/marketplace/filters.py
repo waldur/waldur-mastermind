@@ -125,6 +125,16 @@ class OfferingFilter(
         method="filter_uuid_list",
         label="Comma-separated offering UUIDs",
     )
+    has_terms_of_service = django_filters.BooleanFilter(
+        method="filter_has_terms_of_service",
+        label="Has Terms of Service",
+        widget=BooleanWidget,
+    )
+    has_active_terms_of_service = django_filters.BooleanFilter(
+        method="filter_has_active_terms_of_service",
+        label="Has Active Terms of Service",
+        widget=BooleanWidget,
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -236,6 +246,24 @@ class OfferingFilter(
             return queryset.none()
 
         return queryset.filter(uuid__in=uuids).distinct()
+
+    def filter_has_active_terms_of_service(self, queryset, name, value):
+        if value is None:
+            return queryset
+
+        if value:
+            return queryset.filter(terms_of_service_configs__is_active=True).distinct()
+        else:
+            return queryset.exclude(terms_of_service_configs__is_active=True).distinct()
+
+    def filter_has_terms_of_service(self, queryset, name, value):
+        if value is None:
+            return queryset
+
+        if value:
+            return queryset.filter(terms_of_service_configs__isnull=False).distinct()
+        else:
+            return queryset.filter(terms_of_service_configs__isnull=True).distinct()
 
 
 class OfferingCustomersFilterBackend(BaseFilterBackend):
