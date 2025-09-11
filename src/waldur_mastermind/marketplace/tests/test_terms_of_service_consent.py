@@ -3,6 +3,7 @@ import uuid
 from constance.test.unittest import override_config as override_constance_config
 from django.contrib.auth import get_user_model
 from django.db import connection
+from django.db.utils import IntegrityError
 from django.test import RequestFactory
 from django.test.utils import override_settings
 from django.urls import reverse
@@ -39,6 +40,11 @@ from waldur_mastermind.marketplace.tests.factories import (
 User = get_user_model()
 
 
+def deactivate_tos_config(tos_config):
+    tos_config.is_active = False
+    tos_config.save()
+
+
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
 class TermsOfServiceConsentTest(APITransactionTestCase):
     def setUp(self):
@@ -62,6 +68,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
             offering=self.offering,
             terms_of_service="Test Terms of Service",
             version="1.0",
+            is_active=True,
         )
 
         self.plan = PlanFactory(offering=self.offering)
@@ -118,6 +125,21 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         consent.refresh_from_db()
         self.assertIsNotNone(consent.revocation_date)
 
+    def test_only_one_active_tos_config_is_allowed(self):
+        """Test that only one active ToS config is allowed."""
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="1.0",
+        )
+        with self.assertRaises(IntegrityError):
+            models.OfferingTermsOfService.objects.create(
+                offering=self.offering,
+                terms_of_service="Test Terms of Service",
+                version="1.0",
+                is_active=True,
+            )
+
     def test_consent_status_fields_in_serializer(self):
         """Test that consent status fields are included in serializer response."""
         self.client.force_authenticate(user=self.user)
@@ -156,12 +178,17 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         """Test consent status when reconsent is required."""
         self.client.force_authenticate(user=self.user)
 
+        # Deactivate the existing ToS config
+        self.tos_config.is_active = False
+        self.tos_config.save()
+
         # Create new ToS config that requires reconsent
         models.OfferingTermsOfService.objects.create(
             offering=self.offering,
             terms_of_service="Updated Terms of Service",
             version="2.0",
             requires_reconsent=True,
+            is_active=True,
         )
 
         # Create old consent
@@ -407,11 +434,15 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         """Test requires_reconsent filter when value is True."""
         self.client.force_authenticate(user=self.user)
 
+        # Deactivate the existing ToS config
+        deactivate_tos_config(self.tos_config)
+
         models.OfferingTermsOfService.objects.create(
             offering=self.offering,
             terms_of_service="Updated Terms of Service",
             version="2.0",
             requires_reconsent=True,
+            is_active=True,
         )
 
         models.UserOfferingConsent.objects.create(
@@ -428,6 +459,9 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
     def test_requires_reconsent_filter_false(self):
         """Test requires_reconsent filter when value is False."""
         self.client.force_authenticate(user=self.user)
+
+        # Deactivate the existing ToS config
+        deactivate_tos_config(self.tos_config)
 
         # Create ToS that doesn't require reconsent
         models.OfferingTermsOfService.objects.create(
@@ -1230,6 +1264,7 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
             terms_of_service="Initial terms of service",
             terms_of_service_link="https://example.com/tos",
             version="1.0",
+            is_active=True,
         )
         self.plan = PlanFactory(offering=self.offering)
         self.resource = ResourceFactory(
@@ -1263,6 +1298,10 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
     def test_create_terms_of_service_config(self):
         """Test creating a new ToS configuration."""
         self.client.force_authenticate(user=self.user)
+
+        # Deactivate the existing ToS config
+        deactivate_tos_config(self.tos_config)
+
         offering_url = OfferingFactory.get_url(self.offering)
         data = {
             "offering": offering_url,
@@ -1278,6 +1317,44 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
         # Verify the ToS config was created
         tos_config = models.OfferingTermsOfService.objects.get(version="2.0")
         self.assertEqual(tos_config.terms_of_service, "New terms of service")
+        self.assertTrue(tos_config.requires_reconsent)
+
+    def test_create_terms_of_service_config_with_existing_active_tos(self):
+        """Test creating a new ToS configuration with an existing active ToS config."""
+        self.client.force_authenticate(user=self.user)
+        data = {
+            "offering": OfferingFactory.get_url(self.offering),
+            "terms_of_service": "New terms of service",
+            "version": "2.0",
+            "requires_reconsent": True,
+            "is_active": True,
+        }
+
+        response = self.client.post(self.list_url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "An active Terms of Service configuration already exists for this offering",
+            response.data["non_field_errors"][0],
+        )
+
+    def test_create_inactive_terms_of_service_config_with_existing_active_tos(self):
+        """Test creating an inactive ToS configuration when an active one exists."""
+        self.client.force_authenticate(user=self.user)
+        data = {
+            "offering": OfferingFactory.get_url(self.offering),
+            "terms_of_service": "Inactive terms of service",
+            "version": "2.0",
+            "requires_reconsent": True,
+            "is_active": False,  # Inactive
+        }
+
+        response = self.client.post(self.list_url, data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify the ToS config was created
+        tos_config = models.OfferingTermsOfService.objects.get(version="2.0")
+        self.assertEqual(tos_config.terms_of_service, "Inactive terms of service")
+        self.assertFalse(tos_config.is_active)
         self.assertTrue(tos_config.requires_reconsent)
 
     def test_service_provider_users_endpoint_filter(self):
@@ -1507,6 +1584,9 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
         """Test that ToS version tracking works correctly."""
         self.client.force_authenticate(user=self.user)
 
+        # Deactivate the existing ToS config
+        deactivate_tos_config(self.tos_config)
+
         # Create multiple versions
         models.OfferingTermsOfService.objects.create(
             offering=self.offering,
@@ -1557,6 +1637,7 @@ class ResourceToSConsentPermissionTest(APITransactionTestCase):
             terms_of_service="Initial terms of service",
             terms_of_service_link="https://example.com/tos",
             version="1.0",
+            is_active=True,
         )
         self.plan = PlanFactory(offering=self.offering)
         self.resource = ResourceFactory(
@@ -1722,6 +1803,7 @@ class ResourceConsentUIFieldsTest(APITransactionTestCase):
             terms_of_service="Terms of Service",
             version="1.0",
             requires_reconsent=True,
+            is_active=True,
         )
 
         self.client.force_authenticate(user=self.user)
@@ -1798,6 +1880,7 @@ class ResourceConsentUIFieldsTest(APITransactionTestCase):
             terms_of_service="Updated Terms of Service",
             version="2.0",
             requires_reconsent=True,
+            is_active=True,
         )
 
         # Create user consent with old version
@@ -1854,6 +1937,7 @@ class ResourceConsentUIFieldsTest(APITransactionTestCase):
             terms_of_service="Updated Terms of Service",
             version="2.0",
             requires_reconsent=True,
+            is_active=True,
         )
 
         consent = models.UserOfferingConsent.objects.create(
@@ -1893,6 +1977,7 @@ class ResourceConsentUIFieldsTest(APITransactionTestCase):
             offering=self.offering,
             terms_of_service="Terms of Service",
             version="1.0",
+            is_active=True,
         )
 
         self.client.force_authenticate(user=self.user)
@@ -1969,6 +2054,7 @@ class OfferingUsersViewSetPerformanceTest(APITransactionTestCase):
             offering=self.offering,
             terms_of_service="Terms of Service",
             version="1.0",
+            is_active=True,
         )
 
         self.plan = PlanFactory(offering=self.offering)
