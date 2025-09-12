@@ -1608,6 +1608,114 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
         versions = [item["version"] for item in response.data]
         self.assertEqual(versions, ["3.0", "2.0", "1.0"])
 
+    def test_terms_of_service_serializer_user_consent_fields_with_consent(self):
+        """Test that user_consent and has_user_consent fields work when user has consented."""
+        self.client.force_authenticate(user=self.user)
+
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIsNotNone(response.data["user_consent"])
+        self.assertEqual(str(response.data["user_consent"]["uuid"]), str(consent.uuid))
+        self.assertEqual(response.data["user_consent"]["version"], "1.0")
+        self.assertIsNotNone(response.data["user_consent"]["agreement_date"])
+        self.assertFalse(response.data["user_consent"]["is_revoked"])
+
+        self.assertTrue(response.data["has_user_consent"])
+
+    def test_terms_of_service_serializer_user_consent_fields_without_consent(self):
+        """Test that user_consent and has_user_consent fields work when user has not consented."""
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIsNone(response.data["user_consent"])
+
+        self.assertFalse(response.data["has_user_consent"])
+
+    def test_terms_of_service_serializer_user_consent_fields_with_revoked_consent(self):
+        """Test that user_consent and has_user_consent fields work when consent is revoked."""
+        self.client.force_authenticate(user=self.user)
+
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+        consent.revoke()
+
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIsNone(response.data["user_consent"])
+
+        self.assertFalse(response.data["has_user_consent"])
+
+    def test_terms_of_service_serializer_user_consent_fields_anonymous_user(self):
+        """Test that anonymous users cannot access the endpoint (requires authentication)."""
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_terms_of_service_serializer_user_consent_fields_different_user(self):
+        """Test that user_consent fields show correct data for different users."""
+        other_user = UserFactory()
+        other_consent = models.UserOfferingConsent.objects.create(
+            user=other_user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIsNone(response.data["user_consent"])
+        self.assertFalse(response.data["has_user_consent"])
+
+        self.client.force_authenticate(user=other_user)
+
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIsNotNone(response.data["user_consent"])
+        self.assertEqual(
+            str(response.data["user_consent"]["uuid"]), str(other_consent.uuid)
+        )
+        self.assertTrue(response.data["has_user_consent"])
+
+    def test_create_consent_after_revocation(self):
+        """Test that creating consent after revocation works correctly."""
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+        consent.revoke()
+
+        # Now try to create consent again
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            "/api/marketplace-user-offering-consents/",
+            {"offering": str(self.offering.uuid)},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        updated_consent = models.UserOfferingConsent.objects.get(
+            user=self.user, offering=self.offering
+        )
+        self.assertEqual(updated_consent.uuid, consent.uuid)
+        self.assertIsNone(updated_consent.revocation_date)
+        self.assertEqual(updated_consent.version, "1.0")
+
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
 class ResourceToSConsentPermissionTest(APITransactionTestCase):
@@ -2376,3 +2484,28 @@ class OfferingTermsOfServiceFilterTest(APITransactionTestCase):
         self.assertEqual(
             response.data[0]["uuid"], self.offering_with_active_tos.uuid.hex
         )
+
+    def test_filter_offerings_user_has_consent_true(self):
+        """Test filtering offerings where user has consent."""
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering_with_active_tos,
+            version="1.0",
+        )
+
+        response = self.client.get(self.url, {"user_has_consent": "true"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["uuid"], self.offering_with_active_tos.uuid.hex
+        )
+        self.assertTrue(response.data[0]["user_has_consent"])
+
+    def test_filter_offerings_user_has_consent_false(self):
+        """Test filtering offerings where user does not have consent."""
+
+        response = self.client.get(self.url, {"user_has_consent": "false"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
+        for offering in response.data:
+            self.assertFalse(offering["user_has_consent"])

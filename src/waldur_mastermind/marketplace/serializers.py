@@ -1946,8 +1946,10 @@ class ProviderOfferingDetailsSerializer(
 class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
     class Meta(ProviderOfferingDetailsSerializer.Meta):
         view_name = "marketplace-public-offering-detail"
+        fields = ProviderOfferingDetailsSerializer.Meta.fields + ("user_has_consent",)
 
     plugin_options = MergedPluginOptionsField(read_only=True)
+    user_has_consent = serializers.SerializerMethodField()
 
     @extend_schema_field(BasePublicPlanSerializer(many=True))
     def get_filtered_plans(self, offering: models.Offering):
@@ -1957,6 +1959,17 @@ class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
             user=user, offering=offering, allowed_customer_uuid=customer_uuid
         )
         return BasePublicPlanSerializer(qs, many=True, context=self.context).data
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_user_has_consent(self, offering: models.Offering) -> bool:
+        """Check if the current user has active consent for this offering."""
+        request = self.context.get("request")
+        if not request or not request.user or request.user.is_anonymous:
+            return False
+
+        return models.UserOfferingConsent.objects.filter(
+            user=request.user, offering=offering, revocation_date__isnull=True
+        ).exists()
 
     def get_fields(self):
         fields = super().get_fields()
@@ -6176,6 +6189,15 @@ class UserOfferingConsentSerializer(
         return active_tos.version != obj.version
 
 
+class UserConsentInfoSerializer(serializers.Serializer):
+    """Serializer for user consent information in Terms of Service responses."""
+
+    uuid = serializers.UUIDField(read_only=True)
+    version = serializers.CharField(read_only=True)
+    agreement_date = serializers.DateTimeField(read_only=True)
+    is_revoked = serializers.BooleanField(read_only=True)
+
+
 class UserOfferingConsentCreateSerializer(serializers.Serializer):
     offering = serializers.SlugRelatedField(
         slug_field="uuid",
@@ -6220,11 +6242,19 @@ class UserOfferingConsentCreateSerializer(serializers.Serializer):
 
         active_tos = offering.terms_of_service_configs.filter(is_active=True).first()
 
-        consent = models.UserOfferingConsent.objects.create(
+        consent, created = models.UserOfferingConsent.objects.get_or_create(
             user=user,
             offering=offering,
-            version=active_tos.version or "",
+            defaults={
+                "version": active_tos.version or "",
+            },
         )
+
+        # If consent already existed (even if revoked), update it
+        if not created:
+            consent.version = active_tos.version or ""
+            consent.revocation_date = None
+            consent.save()
 
         return consent
 
@@ -6237,6 +6267,8 @@ class OfferingTermsOfServiceSerializer(
 
     offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
     offering_name = serializers.CharField(read_only=True, source="offering.name")
+    user_consent = serializers.SerializerMethodField()
+    has_user_consent = serializers.SerializerMethodField()
 
     class Meta:
         model = models.OfferingTermsOfService
@@ -6249,10 +6281,42 @@ class OfferingTermsOfServiceSerializer(
             "version",
             "is_active",
             "requires_reconsent",
+            "user_consent",
+            "has_user_consent",
             "created",
             "modified",
         )
         read_only_fields = ("created", "modified")
+
+    @extend_schema_field(UserConsentInfoSerializer(allow_null=True))
+    def get_user_consent(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user:
+            return None
+        user = request.user
+        offering = obj.offering
+        consent = models.UserOfferingConsent.objects.filter(
+            user=user, offering=offering, revocation_date__isnull=True
+        ).first()
+        if not consent:
+            return None
+        return {
+            "uuid": consent.uuid,
+            "version": consent.version,
+            "agreement_date": consent.agreement_date,
+            "is_revoked": consent.is_revoked,
+        }
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_has_user_consent(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user:
+            return False
+        user = request.user
+        offering = obj.offering
+        return models.UserOfferingConsent.objects.filter(
+            user=user, offering=offering, revocation_date__isnull=True
+        ).exists()
 
 
 class OfferingTermsOfServiceCreateSerializer(serializers.ModelSerializer):
