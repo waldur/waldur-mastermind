@@ -117,8 +117,8 @@ if [ "$TEST_MODE" = "UNIT" ]; then
   # Combine the base command, splitting arguments, and test targets.
   FINAL_PYTEST_CMD="${PYTEST_BASE_CMD} ${SPLITTING_ARGS} ${TEST_TARGETS}"
 
-elif [ "$TEST_MODE" = "MIGRATIONS" ];
-  # This test checks for missing or conflicting Django migrations. Coverage is not relevant here.
+elif [ "$TEST_MODE" = "MIGRATIONS" ]; then
+  # This test checks for missing or conflicting Django migrations
   echo "[+] Configuring for migrations tests."
   FINAL_PYTEST_CMD="pytest \
       --junitxml=report.xml \
@@ -127,10 +127,10 @@ elif [ "$TEST_MODE" = "MIGRATIONS" ];
       src/waldur_core/core/tests/test_migrations.py"
 
 elif [ "$TEST_MODE" = "OPENAPI" ]; then
-  # This test ensures the OpenAPI schema can be exported. Coverage is not relevant here.
-  # It does NOT require a database connection.
+  # This test ensures the OpenAPI schema can be exported
   echo "[+] Configuring for OpenAPI export test (no database)."
   FINAL_PYTEST_CMD="pytest \
+      --junitxml=report.xml \
       --ds=waldur_mastermind.settings \
       src/waldur_core/core/tests/test_openapi.py"
 else
