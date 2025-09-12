@@ -26,7 +26,7 @@ if [ -n "$3" ]; then
   TEST_TARGETS="$@"
 else
   # If there is no third argument, it means we were called in a simpler way
-  # (like `tests/waldur-test MANAGEMENT`). In this case, there are no dynamic targets.
+  # (like `tests/waldur-test MIGRATIONS`). In this case, there are no dynamic targets.
   TEST_TARGETS=""
 fi
 
@@ -114,16 +114,21 @@ if [ "$TEST_MODE" = "UNIT" ]; then
   # Combine the base command, splitting arguments, and test targets.
   FINAL_PYTEST_CMD="${PYTEST_BASE_CMD} ${SPLITTING_ARGS} ${TEST_TARGETS}"
 
-elif [ "$TEST_MODE" = "MANAGEMENT" ]; then
-  # Management command tests are typically a small, specific set.
-  # We run them as a single job without any selection or splitting.
-  echo "[+] Configuring for management command tests."
+elif [ "$TEST_MODE" = "MIGRATIONS" ]; then
+  # This test checks for missing or conflicting Django migrations.
+  echo "[+] Configuring for migrations tests."
   FINAL_PYTEST_CMD="pytest \
       --junitxml=report.xml \
-      --cov=src/ \
       --create-db \
       --ds=waldur_mastermind.test_settings \
-      src/waldur_core/core/tests/test_management.py"
+      src/waldur_core/core/tests/test_migrations.py"
+
+elif [ "$TEST_MODE" = "OPENAPI" ]; then
+  # This test ensures the OpenAPI schema can be exported without warnings.
+  echo "[+] Configuring for OpenAPI export test."
+  FINAL_PYTEST_CMD="pytest \
+      --ds=waldur_mastermind.test_settings \
+      src/waldur_core/core/tests/test_openapi.py"
 else
   echo "ERROR: UNKNOWN TEST MODE: $TEST_MODE"
   exit 1

@@ -107,11 +107,28 @@ Run linters:
     POSTGRES_USER: runner
     POSTGRES_PASSWORD: waldur
 
-Run management command test:
+Run openapi export test:
+  extends: .Unit test runner
+  services: [] # Override services to disable the database for this job
+  script:
+    - tests/waldur-test OPENAPI
+
+Run migration tests:
   extends: .Unit test runner
   script:
-    - tests/waldur-test MANAGEMENT
-    - DJANGO_SETTINGS_MODULE=waldur_mastermind.test_settings waldur print_settings > /dev/null
+    - tests/waldur-test MIGRATIONS
+  rules:
+    # Skip tests if said so
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    # Always run on develop branch to ensure it's clean
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    # Always run on tagged releases
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+    # For merge requests, only run if migration files have changed
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - src/**/migrations/*.py
 
 # This is the "preparation" job. It's not parallelized.
 # Its only responsibilities are to check for merge conflicts and generate the dynamic

@@ -4,7 +4,7 @@ from django.core.management import call_command
 from django.test import TestCase
 
 
-class CommandsTestCase(TestCase):
+class MigrationsTestCase(TestCase):
     def test_no_missing_migrations(self):
         result = StringIO()
         call_command("makemigrations", dry_run=True, stdout=result)
@@ -16,12 +16,3 @@ class CommandsTestCase(TestCase):
         call_command("migrate", stdout=result)
         result_string = result.getvalue()
         self.assertFalse("Conflicting migrations detected" in result_string)
-
-    def test_openapi_is_exported(self):
-        result = StringIO()
-        call_command(
-            "spectacular",
-            file="waldur-openapi-schema.yaml",
-            fail_on_warn=True,
-            stderr=result,
-        )
