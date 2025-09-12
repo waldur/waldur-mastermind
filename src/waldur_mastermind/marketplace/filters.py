@@ -135,6 +135,11 @@ class OfferingFilter(
         label="Has Active Terms of Service",
         widget=BooleanWidget,
     )
+    user_has_consent = django_filters.BooleanFilter(
+        method="filter_user_has_consent",
+        label="User Has Consent",
+        widget=BooleanWidget,
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -264,6 +269,24 @@ class OfferingFilter(
             return queryset.filter(terms_of_service_configs__isnull=False).distinct()
         else:
             return queryset.filter(terms_of_service_configs__isnull=True).distinct()
+
+    def filter_user_has_consent(self, queryset, name, value):
+        if value is None:
+            return queryset
+
+        request = self.request
+        if not request or not request.user:
+            return queryset.none() if value else queryset
+
+        user = request.user
+        if value:
+            return queryset.filter(
+                user_consents__user=user, user_consents__revocation_date__isnull=True
+            ).distinct()
+        else:
+            return queryset.exclude(
+                user_consents__user=user, user_consents__revocation_date__isnull=True
+            ).distinct()
 
 
 class OfferingCustomersFilterBackend(BaseFilterBackend):
