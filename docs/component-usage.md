@@ -215,10 +215,244 @@ See `src/waldur_mastermind/marketplace/tests/test_usage.py` for comprehensive te
 - API endpoint testing
 - Billing integration tests
 
-## Related Models
+## ComponentUserUsage Model
 
-- **Resource**: The marketplace resource consuming components
-- **OfferingComponent**: Defines component types and billing configuration
-- **ResourcePlanPeriod**: Tracks billing plan changes over time
-- **ComponentUserUsage**: Per-user usage tracking (separate model)
-- **InvoiceItem**: Generated billing line items
+### ComponentUserUsage Overview
+
+The `ComponentUserUsage` model tracks component usage on a per-user basis, providing detailed consumption data for individual users within resources. It works in conjunction with `ComponentUsage` to provide granular user-level usage tracking and analysis.
+
+### ComponentUserUsage Model Definition
+
+**File**: `src/waldur_mastermind/marketplace/models.py:1880`
+
+```python
+class ComponentUserUsage(
+    TimeStampedModel,
+    core_models.DescribableMixin,
+    core_models.BackendMixin,
+    core_models.UuidMixin,
+    LoggableMixin,
+):
+```
+
+### ComponentUserUsage Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `user` | ForeignKey(OfferingUser) | The offering user (optional) |
+| `username` | CharField | Username string (max_length=100) |
+| `component_usage` | ForeignKey(ComponentUsage) | Associated component usage record |
+| `usage` | DecimalField | User-specific usage amount (max_digits=20, decimal_places=2) |
+
+### ComponentUserUsage Relationships
+
+#### ComponentUserUsage Required Relationships
+
+- **ComponentUsage**: Links to the parent component usage record
+
+#### ComponentUserUsage Optional Relationships
+
+- **OfferingUser**: Links to the specific offering user account (can be null)
+
+### ComponentUserUsage Constraints
+
+The model enforces uniqueness through:
+
+- **Unique together**: `("username", "component_usage")` - prevents duplicate user usage for same component usage record
+
+### Creating ComponentUserUsage Records
+
+### 1. Via Update-or-Create Pattern
+
+The most common creation pattern uses `update_or_create()`:
+
+```python
+from waldur_mastermind.marketplace import models
+
+# Sync user usage from external system
+component_user_usage, created = models.ComponentUserUsage.objects.update_or_create(
+    username=username,
+    component_usage=component_usage,
+    defaults={
+        "usage": usage_amount,
+        "user": offering_user  # optional
+    }
+)
+```
+
+### 2. Via Utility Function
+
+**File**: `src/waldur_mastermind/marketplace/utils.py:2300`
+
+```python
+from waldur_mastermind.marketplace.utils import sync_component_user_usage
+
+# Synchronize user usage from allocation
+sync_component_user_usage(allocation_user_usage, plugin_name)
+```
+
+### 3. Direct Creation
+
+```python
+# Create user usage record directly
+user_usage = models.ComponentUserUsage.objects.create(
+    username="john_doe",
+    component_usage=component_usage,
+    usage=25.50,
+    user=offering_user  # optional
+)
+```
+
+### ComponentUserUsage Usage Patterns
+
+#### Automatic Synchronization
+
+The `sync_component_user_usage()` function automatically creates/updates user usage records from allocation data:
+
+```python
+def sync_component_user_usage(allocation_user_usage, plugin_name):
+    # Find associated resource and component
+    # Iterate through offering components
+    # Create/update ComponentUserUsage records
+    component_user_usage, created = (
+        models.ComponentUserUsage.objects.update_or_create(
+            username=allocation_user_usage.username,
+            component_usage=component_usage,
+            defaults={"usage": usage, "user": offering_user},
+        )
+    )
+```
+
+#### Username vs User Relationship
+
+- **username**: Always required, stores the string username
+- **user**: Optional, links to `OfferingUser` record when available
+- This dual approach supports scenarios where user accounts may not exist in the system yet
+
+### ComponentUserUsage API Access
+
+#### ComponentUserUsage ViewSet
+
+**Class**: `ComponentUserUsageViewSet`
+**File**: `src/waldur_mastermind/marketplace/views.py:2850`
+
+- **Endpoint**: `/api/marketplace-component-user-usages/`
+- **Permissions**: Generic role filter + structure permissions
+- **Actions**: Read-only operations
+- **Filtering**: By component usage, user, username, etc.
+
+#### ComponentUserUsage Serializer
+
+**Class**: `ComponentUserUsageSerializer`
+**File**: `src/waldur_mastermind/marketplace/serializers.py:2120`
+
+Key fields exposed:
+
+- `user`: Hyperlinked to OfferingUser
+- `component_usage`: Hyperlinked to ComponentUsage
+- `measured_unit`: Read-only from component
+- `username`, `usage`, `created`, etc.
+
+### ComponentUserUsage User Limits
+
+#### ComponentUserUsageLimit Model
+
+A related model `ComponentUserUsageLimit` defines usage limits per user:
+
+```python
+class ComponentUserUsageLimit(
+    TimeStampedModel,
+    core_models.UuidMixin,
+    LoggableMixin,
+):
+    resource = models.ForeignKey(Resource)
+    component = models.ForeignKey(OfferingComponent)
+    user = models.ForeignKey(OfferingUser)
+    limit = models.DecimalField()
+```
+
+**Constraints**: Unique together `("resource", "component", "user")`
+
+#### Usage Validation
+
+The system validates user usage against limits during creation:
+
+```python
+# Check usage limits during validation
+usage_limit = models.ComponentUserUsageLimit.objects.filter(
+    resource=component_usage.resource,
+    component=component_usage.component,
+    user=user
+).first()
+
+if usage_limit and new_usage > usage_limit.limit:
+    raise ValidationError("Usage exceeds limit")
+```
+
+### ComponentUserUsage Integration Patterns
+
+#### SLURM Plugin Integration
+
+ComponentUserUsage is commonly used with SLURM allocations:
+
+```python
+# Sync from SLURM allocation data
+for offering_component in models.OfferingComponent.objects.filter(offering=resource.offering):
+    if hasattr(allocation_user_usage, offering_component.type + "_usage"):
+        usage = getattr(allocation_user_usage, offering_component.type + "_usage")
+        # Create ComponentUserUsage record
+```
+
+#### Remote Plugin Integration
+
+Remote plugins use ComponentUserUsage for external system synchronization:
+
+**File**: `src/waldur_mastermind/marketplace_remote/tasks.py`
+
+### ComponentUserUsage Testing
+
+#### ComponentUserUsage Test Examples
+
+See `src/waldur_mastermind/marketplace/tests/test_usage.py` for test examples including:
+
+- User usage creation and validation
+- Limit enforcement testing
+- API endpoint testing
+- Integration with ComponentUsage
+
+#### Factory Usage
+
+While there's no dedicated factory, you can create test records:
+
+```python
+from waldur_mastermind.marketplace.tests import factories
+
+# Create related objects first
+component_usage = factories.ComponentUsageFactory()
+offering_user = factories.OfferingUserFactory()
+
+# Create user usage
+user_usage = models.ComponentUserUsage.objects.create(
+    username="test_user",
+    component_usage=component_usage,
+    usage=10.0,
+    user=offering_user
+)
+```
+
+### ComponentUserUsage Related Models
+
+- **ComponentUsage**: Parent usage record this user usage belongs to
+- **OfferingUser**: User account within the offering context
+- **ComponentUserUsageLimit**: Per-user usage limits
+- **Resource**: The marketplace resource (via ComponentUsage)
+- **OfferingComponent**: Component type (via ComponentUsage)
+
+## ComponentUsage and ComponentUserUsage Relationship
+
+### Summary
+
+- **ComponentUsage**: Tracks total component usage for a resource
+- **ComponentUserUsage**: Breaks down usage by individual users
+- **Relationship**: ComponentUserUsage → ComponentUsage (many-to-one)
+- **Use Case**: Detailed user-level billing and usage analysis
