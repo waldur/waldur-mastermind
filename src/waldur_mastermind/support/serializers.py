@@ -93,12 +93,8 @@ class IssueSerializer(
     resource_type = serializers.SerializerMethodField()
     resource_name = serializers.CharField(read_only=True, source="resource.name")
     type = serializers.ChoiceField(
-        choices=[
-            (t.strip(), t.strip()) for t in config.ATLASSIAN_ISSUE_TYPES.split(",")
-        ],
-        initial=utils.get_atlassian_issue_type(),
-        default=utils.get_atlassian_issue_type(),
-    )
+        choices=[]
+    )  # choices and defaults are set in get_fields method
     is_reported_manually = serializers.BooleanField(
         initial=False,
         default=False,
@@ -210,15 +206,22 @@ class IssueSerializer(
 
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
-        try:
-            if getattr(self.context["request"], "_is_generating_schema", False):
-                return fields
-        except (AttributeError, KeyError):
-            pass
+        if getattr(self.context["view"], "swagger_fake_view", False):
+            return fields
 
         user = self.context["request"].user
         if user.is_authenticated and not user.is_staff and not user.is_support:
             del fields["link"]
+
+        if "type" in fields:
+            fields["type"] = serializers.ChoiceField(
+                choices=[
+                    (t.strip(), t.strip())
+                    for t in config.ATLASSIAN_ISSUE_TYPES.split(",")
+                ],
+                initial=utils.get_atlassian_issue_type(),
+                default=utils.get_atlassian_issue_type(),
+            )
 
         return fields
 

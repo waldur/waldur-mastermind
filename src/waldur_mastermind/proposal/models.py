@@ -114,7 +114,10 @@ class Call(
         related_name="+",
     )
     state = models.CharField(
-        default=States.DRAFT, choices=States.CHOICES, db_index=True
+        default=States.DRAFT,
+        choices=States.CHOICES,
+        db_index=True,
+        max_length=10,
     )
     offerings = models.ManyToManyField(
         marketplace_models.Offering, through="RequestedOffering"
@@ -259,7 +262,10 @@ class RequestedOffering(
         related_name="+",
     )
     state = models.CharField(
-        default=States.REQUESTED, choices=States.CHOICES, db_index=True
+        default=States.REQUESTED,
+        choices=States.CHOICES,
+        db_index=True,
+        max_length=10,
     )
     call = models.ForeignKey(Call, on_delete=models.CASCADE)
     offering = models.ForeignKey(marketplace_models.Offering, on_delete=models.CASCADE)
@@ -367,16 +373,19 @@ class Round(
         default=ReviewStrategies.AFTER_ROUND,
         choices=ReviewStrategies.CHOICES,
         db_index=True,
+        max_length=15,
     )
     deciding_entity = models.CharField(
         default=AllocationStrategies.AUTOMATIC,
         choices=AllocationStrategies.CHOICES,
         db_index=True,
+        max_length=15,
     )
     allocation_time = models.CharField(
         default=AllocationTimes.ON_DECISION,
         choices=AllocationTimes.CHOICES,
         db_index=True,
+        max_length=15,
     )
     review_duration_in_days = models.PositiveIntegerField(null=True, blank=True)
     minimum_number_of_reviewers = models.PositiveIntegerField(null=True, blank=True)
@@ -460,7 +469,10 @@ class Proposal(
 
     round = models.ForeignKey(Round, on_delete=models.CASCADE)
     state = models.CharField(
-        default=States.DRAFT, choices=States.CHOICES, db_index=True
+        default=States.DRAFT,
+        choices=States.CHOICES,
+        db_index=True,
+        max_length=10,
     )
     project = models.ForeignKey(
         structure_models.Project, on_delete=models.PROTECT, editable=False, null=True
@@ -624,7 +636,10 @@ class Review(
 
     proposal = models.ForeignKey(Proposal, on_delete=models.PROTECT)
     state = models.CharField(
-        default=States.CREATED, choices=States.CHOICES, db_index=True
+        default=States.CREATED,
+        choices=States.CHOICES,
+        db_index=True,
+        max_length=10,
     )
     summary_score = models.PositiveSmallIntegerField(blank=True, default=0)
     summary_public_comment = models.TextField(blank=True)

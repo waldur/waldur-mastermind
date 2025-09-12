@@ -1010,7 +1010,7 @@ class ProtectedRoundSerializer(
     proposals = ProtectedProposalListSerializer(
         many=True, read_only=True, source="proposal_set"
     )
-    review_duration_in_days = serializers.IntegerField()
+    review_duration_in_days = serializers.IntegerField(required=False)
 
     class Meta(NestedRoundSerializer.Meta):
         fields = NestedRoundSerializer.Meta.fields + ["url", "proposals"]
@@ -1026,23 +1026,12 @@ class ProtectedRoundSerializer(
             )
         )
 
-    def get_fields(self):
-        fields = super().get_fields()
+    def create(self, validated_data):
+        # Set a default value if not provided by the user
+        if "review_duration_in_days" not in validated_data:
+            validated_data["review_duration_in_days"] = config.PROPOSAL_REVIEW_DURATION
 
-        try:
-            request = self.context["request"]
-        except KeyError:
-            return fields
-
-        # Skip field filtering during schema generation
-        if getattr(request, "_is_generating_schema", False):
-            return fields
-
-        # Set default review duration from settings stored in the database
-        if "review_duration_in_days" in fields:
-            fields["review_duration_in_days"].default = config.PROPOSAL_REVIEW_DURATION
-
-        return fields
+        return super().create(validated_data)
 
     def validate(self, attrs):
         start_time = attrs.get("start_time")

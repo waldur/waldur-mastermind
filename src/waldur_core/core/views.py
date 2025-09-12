@@ -614,7 +614,12 @@ class ExtraContextTemplateView(TemplateView):
     def get_context_data(self, *args, **kwargs):
         context = super().get_context_data(*args, **kwargs)
         if self.extra_context:
-            context.update(self.extra_context)
+            extra = {}
+            for key, value in self.extra_context.items():
+                if callable(value):
+                    value = value()
+                extra[key] = value
+            context.update(extra)
         return context
 
 

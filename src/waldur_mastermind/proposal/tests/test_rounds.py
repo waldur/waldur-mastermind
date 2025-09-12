@@ -180,7 +180,7 @@ class RoundUpdateTest(test.APITransactionTestCase):
     )
     def test_user_can_update_round(self, user):
         response = self.update_round(user)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     @data(
         "user",

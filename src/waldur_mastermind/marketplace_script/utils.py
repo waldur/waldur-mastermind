@@ -18,8 +18,6 @@ from .exceptions import JobFailedException
 
 logger = logging.getLogger(__name__)
 
-NAMESPACE = config.K8S_NAMESPACE
-
 
 class DeploymentOptions(Enum):
     DOCKER = "docker"
@@ -134,18 +132,20 @@ def execute_script_in_k8s(image, command, src, dry_run=False, **kwargs):
     )
 
     config_map_data = {"script": src}
-    k8s_backend.create_k8s_config_map(config_map_name, NAMESPACE, config_map_data)
+    k8s_backend.create_k8s_config_map(
+        config_map_name, config.K8S_NAMESPACE, config_map_data
+    )
 
     job_spec = construct_k8s_job_spec(image, command, volume_name, config_map_name, env)
-    k8s_backend.create_k8s_job(job_name, NAMESPACE, job_spec)
+    k8s_backend.create_k8s_job(job_name, config.K8S_NAMESPACE, job_spec)
 
     job_succeeded = k8s_backend.wait_for_k8s_job_completion(
-        job_name, NAMESPACE, timeout=600
+        job_name, config.K8S_NAMESPACE, timeout=600
     )
-    pod_log = k8s_backend.get_k8s_job_result(job_name, NAMESPACE)
+    pod_log = k8s_backend.get_k8s_job_result(job_name, config.K8S_NAMESPACE)
 
-    k8s_backend.delete_job_from_k8s(job_name, NAMESPACE)
-    k8s_backend.delete_config_map_from_k8s(config_map_name, NAMESPACE)
+    k8s_backend.delete_job_from_k8s(job_name, config.K8S_NAMESPACE)
+    k8s_backend.delete_config_map_from_k8s(config_map_name, config.K8S_NAMESPACE)
 
     if not job_succeeded and not dry_run:
         raise JobFailedException(pod_log)

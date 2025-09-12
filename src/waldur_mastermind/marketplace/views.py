@@ -152,6 +152,11 @@ class PublicViewsetMixin:
     """Mixin to allow anonymous access to offerings when configured."""
 
     def get_permissions(self):
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        if getattr(self, "swagger_fake_view", False):
+            return super().get_permissions()
+
         if config.ANONYMOUS_USER_CAN_VIEW_OFFERINGS and self.action in [
             "list",
             "retrieve",

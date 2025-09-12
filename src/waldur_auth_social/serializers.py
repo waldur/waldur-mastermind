@@ -86,7 +86,7 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
 
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
-        if getattr(request, "_is_generating_schema", False):
+        if getattr(self.context["view"], "swagger_fake_view", False):
             return fields
 
         if self.instance:

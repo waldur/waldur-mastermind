@@ -178,7 +178,7 @@ urlpatterns += [
         r"^$",
         core_views.ExtraContextTemplateView.as_view(
             template_name="landing/index.html",
-            extra_context={"site_name": config.SITE_NAME},
+            extra_context={"site_name": lambda: config.SITE_NAME},
         ),
     ),
 ]

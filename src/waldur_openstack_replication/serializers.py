@@ -144,6 +144,12 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
         fields = super().get_fields()
 
         request = self.context["request"]
+
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        if getattr(self.context["view"], "swagger_fake_view", False):
+            return fields
+
         user = request.user
         fields["src_resource"].queryset = filter_queryset_for_user(
             fields["src_resource"].queryset, user

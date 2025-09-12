@@ -128,11 +128,9 @@ elif [ "$TEST_MODE" = "MIGRATIONS" ]; then
 
 elif [ "$TEST_MODE" = "OPENAPI" ]; then
   # This test ensures the OpenAPI schema can be exported
-  echo "[+] Configuring for OpenAPI export test (no database)."
-  FINAL_PYTEST_CMD="pytest \
-      --junitxml=report.xml \
-      --ds=waldur_mastermind.settings \
-      src/waldur_core/core/tests/test_openapi.py"
+  DJANGO_SETTINGS_MODULE=waldur_core.server.base_settings \
+    uv run waldur spectacular --file waldur-openapi-schema.yaml --fail-on-warn
+  exit $?
 else
   echo "ERROR: UNKNOWN TEST MODE: $TEST_MODE"
   exit 1

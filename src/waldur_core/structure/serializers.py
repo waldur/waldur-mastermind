@@ -388,16 +388,27 @@ class CountrySerializerMixin(serializers.Serializer):
                 return [
                     item for item in core_fields.COUNTRIES if item[0] in country_codes
                 ]
-        except (RuntimeError, AttributeError):
+        except Exception:
             logger.exception(
                 "Failed to get country choices, using complete list of countries as fallback."
             )
             return core_fields.COUNTRIES
 
     country = serializers.ChoiceField(
-        required=False, choices=get_country_choices(), allow_blank=True
+        required=False, choices=core_fields.COUNTRIES, allow_blank=True
     )
     country_name = serializers.CharField(read_only=True, source="get_country_display")
+
+    def get_fields(self):
+        fields = super().get_fields()
+
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        if getattr(self.context["view"], "swagger_fake_view", False):
+            return fields
+        if "country" in fields:
+            fields["country"].choices = self.get_country_choices()
+        return fields
 
 
 class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
