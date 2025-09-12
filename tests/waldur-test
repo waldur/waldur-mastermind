@@ -61,10 +61,12 @@ uv pip install --python $(which python) -e ".[dev]"
 echo "[+] Verifying pytest installation"
 python -c "import pytest; print(f'pytest {pytest.__version__} is available')"
 
-echo "[+] Setting up test database configuration..."
-# This heredoc creates a temporary settings file for pytest to use,
-# pointing it to the PostgreSQL service container provided by GitLab CI.
-cat > src/waldur_mastermind/test_settings.py <<-EOF
+# We only need to set up the database configuration if we are not in OPENAPI mode
+if [ "$TEST_MODE" != "OPENAPI" ]; then
+  echo "[+] Setting up test database configuration..."
+  # This heredoc creates a temporary settings file for pytest to use,
+  # pointing it to the PostgreSQL service container provided by GitLab CI.
+  cat > src/waldur_mastermind/test_settings.py <<-EOF
 from waldur_core.server.test_settings import *
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 
@@ -83,6 +85,7 @@ DATABASES = {
     }
 }
 EOF
+fi
 
 
 # --- STEP 2: DYNAMIC PYTEST COMMAND CONSTRUCTION ---
@@ -114,8 +117,8 @@ if [ "$TEST_MODE" = "UNIT" ]; then
   # Combine the base command, splitting arguments, and test targets.
   FINAL_PYTEST_CMD="${PYTEST_BASE_CMD} ${SPLITTING_ARGS} ${TEST_TARGETS}"
 
-elif [ "$TEST_MODE" = "MIGRATIONS" ]; then
-  # This test checks for missing or conflicting Django migrations.
+elif [ "$TEST_MODE" = "MIGRATIONS" ];
+  # This test checks for missing or conflicting Django migrations. Coverage is not relevant here.
   echo "[+] Configuring for migrations tests."
   FINAL_PYTEST_CMD="pytest \
       --junitxml=report.xml \
@@ -124,10 +127,11 @@ elif [ "$TEST_MODE" = "MIGRATIONS" ]; then
       src/waldur_core/core/tests/test_migrations.py"
 
 elif [ "$TEST_MODE" = "OPENAPI" ]; then
-  # This test ensures the OpenAPI schema can be exported without warnings.
-  echo "[+] Configuring for OpenAPI export test."
+  # This test ensures the OpenAPI schema can be exported. Coverage is not relevant here.
+  # It does NOT require a database connection.
+  echo "[+] Configuring for OpenAPI export test (no database)."
   FINAL_PYTEST_CMD="pytest \
-      --ds=waldur_mastermind.test_settings \
+      --ds=waldur_mastermind.settings \
       src/waldur_core/core/tests/test_openapi.py"
 else
   echo "ERROR: UNKNOWN TEST MODE: $TEST_MODE"
@@ -147,8 +151,14 @@ eval $FINAL_PYTEST_CMD
 
 # These final steps will only be reached if the `eval` command (pytest)
 # exits with a status code of 0.
-echo "[+] Tests completed. Generating coverage reports..."
-coverage xml
-coverage report
+
+# Only run coverage reporting for UNIT tests, as other modes don't collect coverage data.
+if [ "$TEST_MODE" = "UNIT" ]; then
+  echo "[+] Tests completed. Generating coverage reports..."
+  coverage xml
+  coverage report
+else
+  echo "[+] Tests completed. Skipping coverage report for mode: ${TEST_MODE}"
+fi
 
 echo "[+] Test runner finished successfully."
