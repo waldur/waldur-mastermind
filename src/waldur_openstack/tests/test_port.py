@@ -23,12 +23,13 @@ class PortCreateTest(BasePortTest):
         self.url = factories.PortFactory.get_list_url()
         self.subnet = self.fixture.subnet
         self.network = self.subnet.network
+        self.fixed_ips = [
+            {"ip_address": "192.168.42.100", "subnet_id": self.subnet.backend_id}
+        ]
         self.valid_data = {
             "name": "Test Port",
             "description": "Test port description",
-            "fixed_ips": [
-                {"ip_address": "192.168.42.100", "subnet_id": self.subnet.backend_id}
-            ],
+            "fixed_ips": self.fixed_ips,
             "port_security_enabled": True,
             "network": factories.NetworkFactory.get_url(self.network),
         }
@@ -67,6 +68,46 @@ class PortCreateTest(BasePortTest):
         response = self.client.post(self.url, invalid_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         create_port_executor_mock.assert_not_called()
+
+    @mock.patch("waldur_openstack.session.neutron_client.Client")
+    @mock.patch("waldur_openstack.backend.get_tenant_session")
+    def test_port_creation_passes_fixed_ips_to_backend(
+        self, mock_get_tenant_session, mock_get_neutron_client
+    ):
+        mock_neutron_instance = mock_get_neutron_client.return_value
+
+        mock_neutron_instance.create_port.return_value = {
+            "port": {
+                "id": "backend_id_from_mock",
+                "status": "ACTIVE",
+                "mac_address": "fa:16:3e:ab:cd:ef",
+                "fixed_ips": [
+                    {"ip_address": "192.168.42.100", "subnet_id": "subnet-backend-id"}
+                ],
+                "admin_state_up": True,
+                "port_security_enabled": True,
+                "device_owner": "",
+            }
+        }
+
+        response = self.client.post(self.url, self.valid_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        port = Port.objects.get(uuid=response.data["uuid"])
+
+        port.get_backend().create_port(port)
+
+        mock_neutron_instance.create_port.assert_called_once_with(
+            {
+                "port": {
+                    "name": port.name,
+                    "description": port.description,
+                    "network_id": port.network.backend_id,
+                    "tenant_id": port.tenant.backend_id,
+                    "fixed_ips": self.fixed_ips,
+                }
+            }
+        )
 
 
 class PortUpdateTest(BasePortTest):
