@@ -3086,7 +3086,7 @@ class OpenStackBackend(ServiceBackend):
             "tenant_id": port.tenant.backend_id,
         }
         if port.fixed_ips:
-            port_payload["fixed_ips"]: port.fixed_ips
+            port_payload["fixed_ips"] = port.fixed_ips
 
         if port.mac_address:
             port_payload["mac_address"] = port.mac_address
