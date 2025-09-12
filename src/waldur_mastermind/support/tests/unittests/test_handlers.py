@@ -8,6 +8,7 @@ from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.support import handlers
 from waldur_mastermind.support.tests import factories
 
 
@@ -238,3 +239,49 @@ class CommentCreatedHandlerTest(TransactionTestCase):
         factories.CommentFactory(is_public=True)
 
         self.assertEqual(len(mail.outbox), 0)
+
+
+class CustomerDeletionHandlerTest(TransactionTestCase):
+    def test_customer_deletion_with_issue_attachments_does_not_fail(self):
+        """Test that deleting a customer with related issues and attachments doesn't raise AttributeError."""
+        # Create a customer with a project
+        customer = structure_factories.CustomerFactory()
+        project = structure_factories.ProjectFactory(customer=customer)
+
+        # Create an issue related to the project
+        issue = factories.IssueFactory(customer=customer, project=project)
+
+        # Create an attachment for the issue
+        factories.AttachmentFactory(issue=issue)
+
+        # Attempt to delete the customer - this should not raise an error
+        try:
+            customer.delete()
+        except AttributeError as e:
+            if "'NoneType' object has no attribute '_base_manager'" in str(e):
+                self.fail(
+                    "AttributeError raised when deleting customer with issue attachments"
+                )
+            else:
+                raise
+
+    def test_get_issue_scopes_handles_deleted_resource(self):
+        """Test that get_issue_scopes handles cases where resource is already deleted."""
+        # Create an issue with a resource
+        issue = factories.IssueFactory()
+
+        # Manually set resource content type and ID to simulate a deleted resource
+        from django.contrib.contenttypes.models import ContentType
+
+        issue.resource_content_type = ContentType.objects.get_for_model(
+            structure_factories.ProjectFactory._meta.model
+        )
+        issue.resource_object_id = 999999  # Non-existent ID
+        issue.save()
+
+        # This should not raise an error
+        scopes = handlers.get_issue_scopes(issue)
+
+        # Should still return customer if it exists
+        if issue.customer:
+            self.assertIn(issue.customer, scopes)

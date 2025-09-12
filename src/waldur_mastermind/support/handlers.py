@@ -4,7 +4,7 @@ from django.db import transaction
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
-from waldur_core.structure.models import Project
+from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.support.models import Issue
 
 from . import models, tasks
@@ -12,11 +12,20 @@ from . import models, tasks
 
 def get_issue_scopes(issue: Issue) -> set:
     result = set()
-    if issue.resource:
-        project_id = issue.resource.project_id
-        result.add(issue.resource)
-    else:
+    project_id = None
+
+    # Try to access resource, but handle case where it's already deleted
+    try:
+        if issue.resource:
+            project_id = issue.resource.project_id
+            result.add(issue.resource)
+    except (AttributeError, ValueError):
+        # Resource may have been deleted, causing ContentType issues
+        pass
+
+    if not project_id:
         project_id = issue.project_id
+
     project = None
     try:
         project = Project.all_objects.get(id=project_id)
@@ -24,9 +33,21 @@ def get_issue_scopes(issue: Issue) -> set:
         pass
     if project:
         result.add(project)
-        result.add(project.customer)
-    if issue.customer:
-        result.add(issue.customer)
+        try:
+            if project.customer:
+                result.add(project.customer)
+        except Customer.DoesNotExist:
+            # Customer may have been deleted in a cascade
+            pass
+
+    # Try to access customer, but handle case where it's already deleted
+    try:
+        if issue.customer:
+            result.add(issue.customer)
+    except Customer.DoesNotExist:
+        # Customer may have been deleted in a cascade
+        pass
+
     return result
 
 
