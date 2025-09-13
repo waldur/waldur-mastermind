@@ -925,6 +925,15 @@ class ReviewViewSet(ActionsViewSet):
         ).order_by("created")
 
     def perform_create(self, serializer):
+        proposal = serializer.validated_data["proposal"]
+        if proposal.state not in [
+            ProposalStates.DRAFT,
+            ProposalStates.IN_REVIEW,
+            ProposalStates.SUBMITTED,
+        ]:
+            raise exceptions.ValidationError(
+                _("Valid states for proposals: Draft, In Review, Submitted.")
+            )
         review: models.Review = serializer.save()
         tasks.notify_reviewer_about_assignment.delay(review.uuid)
 
