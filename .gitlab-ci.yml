@@ -68,17 +68,9 @@ Run linters:
   image: registry.hpc.ut.ee/mirror/library/python:3.11-bullseye
   stage: test
   interruptible: true
-  rules:
-    # Skip tests if said so
-    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
-      when: never
-    - if: '$CI_COMMIT_BRANCH == "develop"'
-    # If tagged release
-    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
-    # If event is related to a created merge request
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  <<: *unit_test_rules
   script:
-    - pip install uv pre-commit
+    - pip install pre-commit
     - pre-commit run --all
 
 .Unit test runner:
@@ -86,6 +78,69 @@ Run linters:
   stage: test
   interruptible: true
   <<: *unit_test_rules
+  before_script:
+    - |
+      echo "[+] Installing project dependencies..."
+      pip install uv
+      uv sync --extra dev
+
+  variables:
+    UV_CACHE_DIR: .uv-cache
+    UV_SYSTEM_PYTHON: 1
+    UV_LINK_MODE: copy
+
+  cache:
+    - key:
+        files:
+          - uv.lock
+      paths:
+        - $UV_CACHE_DIR
+
+Run openapi export test:
+  extends: .Unit test runner
+  script:
+    - uv run waldur spectacular --file waldur-openapi-schema.yaml --fail-on-warn
+    - uv run waldur makemigrations --check --dry-run
+  variables:
+    DJANGO_SETTINGS_MODULE: waldur_core.server.base_settings
+
+Run migration tests:
+  extends: .Unit test runner
+  rules:
+    # Skip tests if said so
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    # Always run on develop branch to ensure it's clean
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    # Always run on tagged releases
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+    # For merge requests, only run if migration files have changed
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - src/**/migrations/*.py
+  script:
+    - |
+      echo "[+] Setting up test database configuration..."
+      cat > src/waldur_mastermind/test_settings.py <<-EOF
+      from waldur_core.server.test_settings import *
+      from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+
+      # Using UNLOGGED tables in PostgreSQL is a significant performance boost for
+      # tests, as it reduces disk I/O by not writing to the WAL.
+      BaseDatabaseSchemaEditor.sql_create_table = "CREATE UNLOGGED TABLE %(table)s (%(definition)s)"
+
+      DATABASES = {
+          'default': {
+              'ENGINE': 'django.db.backends.postgresql',
+              'NAME': 'test_waldur',
+              'USER': 'runner',
+              'HOST': 'postgres',
+              'PORT': 5432,
+              'PASSWORD': 'waldur',
+          }
+      }
+      EOF
+      uv run waldur migrate --noinput
   services:
     - name: "registry.hpc.ut.ee/mirror/library/postgres:15-alpine"
       alias: postgres
@@ -106,29 +161,7 @@ Run linters:
     POSTGRES_DB: test_waldur
     POSTGRES_USER: runner
     POSTGRES_PASSWORD: waldur
-
-Run openapi export test:
-  extends: .Unit test runner
-  services: [] # Override services to disable the database for this job
-  script:
-    - tests/waldur-test OPENAPI
-
-Run migration tests:
-  extends: .Unit test runner
-  script:
-    - tests/waldur-test MIGRATIONS
-  rules:
-    # Skip tests if said so
-    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
-      when: never
-    # Always run on develop branch to ensure it's clean
-    - if: '$CI_COMMIT_BRANCH == "develop"'
-    # Always run on tagged releases
-    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
-    # For merge requests, only run if migration files have changed
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      changes:
-        - src/**/migrations/*.py
+    DJANGO_SETTINGS_MODULE: waldur_mastermind.test_settings
 
 # This is the "preparation" job. It's not parallelized.
 # Its only responsibilities are to check for merge conflicts and generate the dynamic
@@ -199,22 +232,16 @@ Run type checkings:
   extends: .Unit test runner
   script:
     - |
-      pip3 install uv
-      echo "[+] Installing pyright and project with dev dependencies into system Python"
-      uv pip install --python $(which python) pyright
-      uv pip install --python $(which python) -e ".[dev]"
-      echo "[+] Verifying pyright installation"
-      python -c "import pyright; print(f'pyright is available')" || echo "pyright not found as Python module"
-      which pyright || echo "pyright not in PATH"
-      pyright src/waldur_core/structure/models.py \
-             src/waldur_mastermind/marketplace_remote/processors.py \
-             src/waldur_mastermind/marketplace_rancher/ \
-             src/waldur_mastermind/proposal/utils.py \
-             src/waldur_mastermind/proposal/tasks.py \
-             src/waldur_rancher/utils.py \
-             src/waldur_rancher/tasks.py \
-             src/waldur_rancher/backend.py \
-             src/waldur_rancher/serializers.py
+      uv run pyright \
+        src/waldur_core/structure/models.py \
+        src/waldur_mastermind/marketplace_remote/processors.py \
+        src/waldur_mastermind/marketplace_rancher/ \
+        src/waldur_mastermind/proposal/utils.py \
+        src/waldur_mastermind/proposal/tasks.py \
+        src/waldur_rancher/utils.py \
+        src/waldur_rancher/tasks.py \
+        src/waldur_rancher/backend.py \
+        src/waldur_rancher/serializers.py
 
 Try building docker image:
   image:
@@ -258,7 +285,7 @@ Build docker image for tests:
   interruptible: true
   image:
     name: "gcr.io/kaniko-project/executor:debug"
-    entrypoint: [ "" ]
+    entrypoint: [""]
   rules:
     # If scheduled pipeline for 'develop' branch is set up
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
@@ -288,7 +315,10 @@ Publish the latest multiarch docker image:
   extends: .Publish multiarch latest docker image template
   before_script:
     # Merge the before_script from the template
-    - !reference [.Publish multiarch latest docker image template, before_script]
+    - !reference [
+        .Publish multiarch latest docker image template,
+        before_script,
+      ]
     - echo '[+] Build and publish latest docker image'
     - echo $CI_COMMIT_SHA > docker/rootfs/COMMIT_SHA
 
@@ -300,7 +330,10 @@ Publish multiarch docker image with specific version:
       alias: docker
   before_script:
     # Merge the before_script from the template
-    - !reference [.Publish multiarch docker image with specific version template, before_script]
+    - !reference [
+        .Publish multiarch docker image with specific version template,
+        before_script,
+      ]
     - echo "[+] Build and publish $CI_COMMIT_TAG docker image"
     - echo $CI_COMMIT_TAG > docker/rootfs/COMMIT_TAG
     - sed -i "s/version = \"0.0.0\"/version = \"$CI_COMMIT_TAG\"/" pyproject.toml
@@ -401,54 +434,53 @@ Upload configuration guide:
 
   script:
     - pip install uv
-    - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
     - uv sync --extra dev
     - cd /tmp/
     - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-docs
-    - waldur print_settings > $CONF_GUIDE_PATH
-    - waldur print_features_docs > $FEATURES_GUIDE_PATH
-    - waldur print_notifications > $NOTIFICATIONS_GUIDE_PATH
-    - waldur print_commands > $CLI_GUIDE_PATH
-    - waldur print_events > $CI_PROJECT_DIR/docs/events.md
-    - waldur print_templates > $TEMPLATES_LIST_PATH
-    - waldur print_scheduled_jobs > $SCHEDULED_JOB_LIST_PATH
-    - waldur print_mixins > $MIXINS_LIST_PATH
-    - waldur print_registered_handlers > $HANDLERS_LIST_PATH
+    - uv run waldur print_settings > $CONF_GUIDE_PATH
+    - uv run waldur print_features_docs > $FEATURES_GUIDE_PATH
+    - uv run waldur print_notifications > $NOTIFICATIONS_GUIDE_PATH
+    - uv run waldur print_commands > $CLI_GUIDE_PATH
+    - uv run waldur print_events > $CI_PROJECT_DIR/docs/events.md
+    - uv run waldur print_templates > $TEMPLATES_LIST_PATH
+    - uv run waldur print_scheduled_jobs > $SCHEDULED_JOB_LIST_PATH
+    - uv run waldur print_mixins > $MIXINS_LIST_PATH
+    - uv run waldur print_registered_handlers > $HANDLERS_LIST_PATH
 
     # Generate the Structure diagram
     - >
-      waldur generate_mermaid structure
+      uv run waldur generate_mermaid structure
       -i "Customer,Project,OrganizationGroup,ProjectType,User"
       --exclude-field-types="TranslationCharField,TranslationTextField"
       -o $STRUCTURE_MERMAID_PATH
 
     # Generate the Permissions diagram
     - >
-      waldur generate_mermaid permissions
+      uv run waldur generate_mermaid permissions
       -i "User,Role,UserRole,RolePermission"
       --exclude-field-types="TranslationCharField,TranslationTextField"
       -o $PERMISSIONS_MERMAID_PATH
 
     # Generate the Marketplace category diagram
     - >
-      waldur generate_mermaid marketplace
+      uv run waldur generate_mermaid marketplace
       -i "CategoryGroup,Category,CategoryColumn,CategoryComponent,CategoryComponentUsage"
       --exclude-field-types="TranslationCharField,TranslationTextField"
       -o $MARKETPLACE_CATEGORY_MERMAID_PATH
 
     # Generate the Marketplace catalog diagram
     - >
-      waldur generate_mermaid marketplace
+      uv run waldur generate_mermaid marketplace
       -i "Section,Attribute,AttributeOption,Offering,OfferingComponent"
       --exclude-field-types="TranslationCharField,TranslationTextField"
       -o $MARKETPLACE_CATALOG_MERMAID_PATH
 
     # Generate the Marketplace diagram
     - >
-      waldur generate_mermaid marketplace
+      uv run waldur generate_mermaid marketplace
       -i "Plan,PlanComponent,Resource,Order"
       --exclude-field-types="TranslationCharField,TranslationTextField"
       -o $MARKETPLACE_PROVISION_MERMAID_PATH
@@ -486,7 +518,6 @@ Upload HomePort enums:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
     - pip install uv
-    - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
     - uv sync --extra dev
     - cd src/waldur_core/permissions
     - python print_permission_enums.py > /tmp/permission_enums.ts
@@ -497,11 +528,11 @@ Upload HomePort enums:
     - cd waldur-homeport
     - git checkout develop
     - mv /tmp/permission_enums.ts src/permissions/enums.ts
-    - waldur print_events_enums > src/EventsEnums.ts
-    - waldur print_features_enums > src/FeaturesEnums.ts
-    - waldur print_features_description > src/features/FeaturesDescription.ts
-    - waldur print_settings_description > src/SettingsDescription.ts
-    - waldur print_permissions_description > src/administration/roles/PermissionOptions.tsx
+    - uv run waldur print_events_enums > src/EventsEnums.ts
+    - uv run waldur print_features_enums > src/FeaturesEnums.ts
+    - uv run waldur print_features_description > src/features/FeaturesDescription.ts
+    - uv run waldur print_settings_description > src/SettingsDescription.ts
+    - uv run waldur print_permissions_description > src/administration/roles/PermissionOptions.tsx
     - git add src/
     - git commit -m "Update enums" || exit 0
     - git branch new-enums
@@ -518,9 +549,8 @@ Upload MCP metadata:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
     - pip install uv
-    - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
     - uv sync --extra dev
-    - waldur export_model_metadata > /tmp/meta.yaml
+    - uv run waldur export_model_metadata > /tmp/meta.yaml
     - cd /tmp/
     - git clone "https://mastermind:$MCP_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-mcp-server.git"
     - git config --global user.name "$GITLAB_USER_NAME"
@@ -534,18 +564,12 @@ Upload MCP metadata:
     - git push --set-upstream origin new-metadata:main
   before_script: []
 
-Lint MD links:
-  before_script:
-    - touch docs/core_structure.png
-    - touch docs/core_permissions.png
-    - touch docs/marketplace.png
-
 Generate OpenAPI schema:
   stage: deploy
   interruptible: true
   rules:
-      - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-      - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
   image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
@@ -554,7 +578,6 @@ Generate OpenAPI schema:
     - git fetch --tags
   script:
     - pip install uv
-    - export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
     - uv sync --extra dev
 
     # Determine the release version based on the trigger
@@ -574,7 +597,7 @@ Generate OpenAPI schema:
       fi
 
     # Generate the schema, injecting the dynamic version
-    - waldur spectacular --api-version "$RELEASE_VERSION" --file waldur-openapi-schema.yaml --fail-on-warn
+    - uv run waldur spectacular --api-version "$RELEASE_VERSION" --file waldur-openapi-schema.yaml --fail-on-warn
     - echo "Successfully generated OpenAPI schema with version $RELEASE_VERSION"
   artifacts:
     paths:
@@ -608,8 +631,8 @@ Generate Python SDK:
   needs:
     - Generate OpenAPI schema
   script: |
-      pip install git+https://github.com/waldur/openapi-python-client.git
-      openapi-python-client generate --path waldur-openapi-schema.yaml --output-path py-client --overwrite --meta poetry
+    pip install git+https://github.com/waldur/openapi-python-client.git
+    openapi-python-client generate --path waldur-openapi-schema.yaml --output-path py-client --overwrite --meta poetry
   artifacts:
     paths:
       - py-client/

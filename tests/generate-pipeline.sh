@@ -51,9 +51,9 @@ echo "--- Dynamic Pipeline Generator ---"
 # on the git diff and the project's dependency graph.
 echo "[+] STEP 1/4: Selecting application paths based on Git changes..."
 # Install dependency required for the selection script.
-pip3 install PyYAML > /dev/null
+uv pip install PyYAML
 # Execute the selection script and capture its space-separated output.
-SELECTED_PATHS=$(python tests/select_tests.py)
+SELECTED_PATHS=$(uv run tests/select_tests.py)
 
 # Create the dotenv artifact file. The `trigger` job in the parent pipeline
 # will read this file and forward its variables to the child pipeline.
@@ -96,15 +96,14 @@ if [ "${SELECTED_PATHS}" = "src" ]; then
 else
   # --- STEP 3: DISCOVER TEST COUNT FOR PARTIAL RUNS ---
   # If it's not a full run, we need to determine the exact workload.
-  echo "[+] STEP 2/4: Partial run detected. Installing dependencies to discover tests..."
-  export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
-  uv pip install --python $(which python) -e ".[dev]"
+  echo "[+] STEP 2/4: Partial run detected."
+  uv sync --extra dev
 
   echo "[+] Discovering number of tests for selected paths..."
   # Run pytest in "collect-only" mode. This is a dry run that finds all test
   # functions without executing them. We count the lines to get the total.
   # `|| true` prevents the script from failing if pytest encounters a collection error.
-  TEST_COUNT=$(pytest --collect-only -q ${SELECTED_PATHS} | wc -l || true)
+  TEST_COUNT=$(uv run pytest --collect-only -q ${SELECTED_PATHS} | wc -l || true)
   # Ensure TEST_COUNT is a valid integer, defaulting to 0 if the command failed.
   TEST_COUNT=${TEST_COUNT:-0}
   echo "[+] Discovered ${TEST_COUNT} tests."
@@ -171,12 +170,21 @@ run_unit_tests:
         - "-cwal_buffers=48MB"
 
   variables:
-    # These DB connection variables are inherited from the parent job's template.
     POSTGRES_DB: test_waldur
     POSTGRES_USER: runner
     POSTGRES_PASSWORD: waldur
     # This value was determined by the logic in this script.
     ENABLE_SPLITTING: "${ENABLE_SPLITTING_VAR}"
+    UV_CACHE_DIR: .uv-cache
+    UV_SYSTEM_PYTHON: 1
+    UV_LINK_MODE: copy
+
+  cache:
+    - key:
+        files:
+          - uv.lock
+      paths:
+        - $UV_CACHE_DIR
 
   script:
     # We must wrap \$TEST_PATHS in double quotes.
@@ -184,7 +192,7 @@ run_unit_tests:
     # as a SINGLE argument ($2) to the waldur-test script.
     # Inside waldur-test, the `eval` command will then correctly re-process
     # this string, performing the word-splitting that pytest requires.
-    - tests/waldur-test UNIT \$ENABLE_SPLITTING \$TEST_PATHS
+    - tests/waldur-test \$ENABLE_SPLITTING \$TEST_PATHS
 
   artifacts:
     when: always
