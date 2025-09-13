@@ -19,7 +19,7 @@ class SupportedFormat:
     TEXT = "text"
 
 
-def get_active_backend():
+def get_active_backend() -> "SupportBackend":
     backend_type = config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE
     if backend_type == SupportBackendType.ATLASSIAN:
         path = "waldur_mastermind.support.backend.atlassian:ServiceDeskBackend"
