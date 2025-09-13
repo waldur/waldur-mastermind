@@ -9,24 +9,20 @@
 set -e
 
 # --- ARGUMENT PARSING ---
-# This script expects three arguments to be passed from the GitLab CI job.
+# This script expects the following arguments to be passed from the GitLab CI job.
 
-# Argument 1: The mode of testing. Default to "UNIT" if not provided.
-TEST_MODE="${1:-UNIT}"
-
-# Argument 2: Splitting flag. Default to "false" if not provided.
-ENABLE_SPLITTING="${2:-false}"
+# Argument 1: Splitting flag. Default to "false" if not provided.
+ENABLE_SPLITTING="${1:-false}"
 
 # Only shift if we actually have arguments to shift.
-# We check if the third argument ($3) exists. If it does, it means we have
-# test targets to process, so we can safely shift away the first two.
-if [ -n "$3" ]; then
-  shift 2
+# We check if the second argument ($2) exists. If it does, it means we have
+# test targets to process, so we can safely shift away the first argument.
+if [ -n "$2" ]; then
+  shift 1
   # `$@` now contains all remaining arguments (the test paths).
   TEST_TARGETS="$@"
 else
-  # If there is no third argument, it means we were called in a simpler way
-  # (like `tests/waldur-test MIGRATIONS`). In this case, there are no dynamic targets.
+  # If there is no second argument, it means we were called without dynamic targets.
   TEST_TARGETS=""
 fi
 
@@ -34,39 +30,14 @@ fi
 # --- SCRIPT EXECUTION ---
 
 echo "--- Waldur Test Runner ---"
-echo "  Mode:              ${TEST_MODE}"
 echo "  Targets:           ${TEST_TARGETS}"
 echo "  Splitting Enabled: ${ENABLE_SPLITTING}"
 echo "--------------------------"
 
 
-# --- STEP 1: ENVIRONMENT SETUP ---
-# Although dependencies were likely installed in the parent job for test discovery,
-# we re-run the installation here to ensure the environment in this (potentially child pipeline)
-# job is pristine and correct. `uv` is fast, so this is a low-cost safety measure.
-echo "[+] Installing project dependencies..."
-pip3 install uv
-
-# Use system Python environment (no venv) since the test image has dependencies pre-installed
-echo "[+] Install dependencies and package using lock file"
-echo "[+] Python prefix: $(python -c 'import sysconfig; print(sysconfig.get_config_var("prefix"))')"
-export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
-echo "[+] UV_PROJECT_ENVIRONMENT set to: $UV_PROJECT_ENVIRONMENT"
-
-# Install the project in editable mode with dev dependencies
-echo "[+] Installing project with dev dependencies into system Python"
-uv pip install --python $(which python) -e ".[dev]"
-
-# Verify pytest is available
-echo "[+] Verifying pytest installation"
-python -c "import pytest; print(f'pytest {pytest.__version__} is available')"
-
-# We only need to set up the database configuration if we are not in OPENAPI mode
-if [ "$TEST_MODE" != "OPENAPI" ]; then
-  echo "[+] Setting up test database configuration..."
-  # This heredoc creates a temporary settings file for pytest to use,
-  # pointing it to the PostgreSQL service container provided by GitLab CI.
-  cat > src/waldur_mastermind/test_settings.py <<-EOF
+# --- STEP 1: DYNAMIC PYTEST COMMAND CONSTRUCTION ---
+# We build the final pytest command as a string, adding flags conditionally.
+cat > src/waldur_mastermind/test_settings.py <<-EOF
 from waldur_core.server.test_settings import *
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 
@@ -85,63 +56,42 @@ DATABASES = {
     }
 }
 EOF
-fi
 
+# Base command with flags that are always used for unit tests.
+PYTEST_BASE_CMD="uv run pytest \
+    --reuse-db \
+    --junitxml=report.xml \
+    --cov=src/ \
+    --no-migrations \
+    -ra \
+    --ds=waldur_mastermind.test_settings"
 
-# --- STEP 2: DYNAMIC PYTEST COMMAND CONSTRUCTION ---
-# We build the final pytest command as a string, adding flags conditionally.
-
-if [ "$TEST_MODE" = "UNIT" ]; then
-  # Base command with flags that are always used for unit tests.
-  PYTEST_BASE_CMD="pytest \
-      --reuse-db \
-      --junitxml=report.xml \
-      --cov=src/ \
-      --no-migrations \
-      -ra \
-      --ds=waldur_mastermind.test_settings"
-
-  # This is the core logic for parallelization.
-  # The command will only be split if the parent job decided it was necessary
-  # AND if we are actually in a parallel GitLab CI environment (i.e., $CI_NODE_TOTAL is set).
-  SPLITTING_ARGS=""
-  if [ "$ENABLE_SPLITTING" = "true" ] && [ -n "$CI_NODE_TOTAL" ]; then
-    echo "[+] Splitting is enabled and CI parallel variables are present. Adding group flags."
-    SPLITTING_ARGS="--test-group-count $CI_NODE_TOTAL \
-      --test-group=$CI_NODE_INDEX \
-      --test-group-random-seed=12345"
-  else
-    echo "[+] Splitting is disabled or not in a parallel environment. Running as a single group."
-  fi
-
-  # Combine the base command, splitting arguments, and test targets.
-  FINAL_PYTEST_CMD="${PYTEST_BASE_CMD} ${SPLITTING_ARGS} ${TEST_TARGETS}"
-
-elif [ "$TEST_MODE" = "MIGRATIONS" ]; then
-  # This test checks for missing or conflicting Django migrations
-  echo "[+] Configuring for migrations tests."
-  FINAL_PYTEST_CMD="pytest \
-      --junitxml=report.xml \
-      --create-db \
-      --ds=waldur_mastermind.test_settings \
-      src/waldur_core/core/tests/test_migrations.py"
-
-elif [ "$TEST_MODE" = "OPENAPI" ]; then
-  # This test ensures the OpenAPI schema can be exported
-  DJANGO_SETTINGS_MODULE=waldur_core.server.base_settings \
-    uv run waldur spectacular --file waldur-openapi-schema.yaml --fail-on-warn
-  exit $?
+# This is the core logic for parallelization.
+# The command will only be split if the parent job decided it was necessary
+# AND if we are actually in a parallel GitLab CI environment (i.e., $CI_NODE_TOTAL is set).
+SPLITTING_ARGS=""
+if [ "$ENABLE_SPLITTING" = "true" ] && [ -n "$CI_NODE_TOTAL" ]; then
+  echo "[+] Splitting is enabled and CI parallel variables are present. Adding group flags."
+  SPLITTING_ARGS="--test-group-count $CI_NODE_TOTAL \
+    --test-group=$CI_NODE_INDEX \
+    --test-group-random-seed=12345"
 else
-  echo "ERROR: UNKNOWN TEST MODE: $TEST_MODE"
-  exit 1
+  echo "[+] Splitting is disabled or not in a parallel environment. Running as a single group."
 fi
 
+# Combine the base command, splitting arguments, and test targets.
+FINAL_PYTEST_CMD="${PYTEST_BASE_CMD} ${SPLITTING_ARGS} ${TEST_TARGETS}"
 
-# --- STEP 3: EXECUTION & REPORTING ---
+
+# --- STEP 2: EXECUTION & REPORTING ---
 echo "[+] Final pytest command to be executed:"
 echo "----------------------------------------------------"
 echo "$FINAL_PYTEST_CMD"
 echo "----------------------------------------------------"
+
+pip install uv
+uv sync --extra dev
+uv cache prune --ci
 
 # Use `eval` to execute the command string. This is necessary to ensure that
 # all the arguments, quotes, and flags are interpreted correctly by the shell.
@@ -149,14 +99,7 @@ eval $FINAL_PYTEST_CMD
 
 # These final steps will only be reached if the `eval` command (pytest)
 # exits with a status code of 0.
-
-# Only run coverage reporting for UNIT tests, as other modes don't collect coverage data.
-if [ "$TEST_MODE" = "UNIT" ]; then
-  echo "[+] Tests completed. Generating coverage reports..."
-  coverage xml
-  coverage report
-else
-  echo "[+] Tests completed. Skipping coverage report for mode: ${TEST_MODE}"
-fi
+echo "[+] Tests completed. Generating coverage reports..."
+uv run coverage xml
 
 echo "[+] Test runner finished successfully."
