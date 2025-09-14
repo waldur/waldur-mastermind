@@ -141,6 +141,10 @@ def add_price_estimate(sender, fields, **kwargs):
 
 def _optimize_customer_serializer_eager_load(sender):
     """Optimize eager loading for CustomerSerializer to prefetch price estimates and invoice data."""
+    # Check if we already have an optimized eager_load method
+    if hasattr(sender.eager_load, "_billing_optimized"):
+        return
+
     # Store the original eager_load method
     original_eager_load = sender.eager_load
 
@@ -160,6 +164,9 @@ def _optimize_customer_serializer_eager_load(sender):
                 queryset._billing_optimization_enabled = True
 
         return queryset
+
+    # Mark as optimized to avoid double optimization
+    optimized_eager_load._billing_optimized = True
 
     # Replace the eager_load method
     sender.eager_load = optimized_eager_load
