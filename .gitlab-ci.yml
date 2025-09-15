@@ -414,95 +414,81 @@ Upload configuration guide:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   variables:
-    CONF_GUIDE_PATH: docs/admin-guide/mastermind-configuration/configuration-guide.md
-    CLI_GUIDE_PATH: docs/admin-guide/mastermind-configuration/cli-guide.md
-    FEATURES_GUIDE_PATH: docs/admin-guide/mastermind-configuration/features.md
-    NOTIFICATIONS_GUIDE_PATH: docs/admin-guide/mastermind-configuration/notifications.md
-    TEMPLATES_LIST_PATH: docs/admin-guide/mastermind-configuration/templates.md
-    SCHEDULED_JOB_LIST_PATH: docs/admin-guide/mastermind-configuration/scheduled.md
-    MIXINS_LIST_PATH: docs/developer-guide/mixins.md
-    HANDLERS_LIST_PATH: docs/developer-guide/handlers.md
-    DEVELOPER_DOCS_PATH: docs/developer-guide
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
 
-    # Define paths for the Mermaid diagrams ---
-    STRUCTURE_MERMAID_PATH: docs/developer-guide/core_structure.mmd
-    PERMISSIONS_MERMAID_PATH: docs/developer-guide/core_permissions.mmd
-    MARKETPLACE_CATEGORY_MERMAID_PATH: docs/developer-guide/marketplace_category.mmd
-    MARKETPLACE_CATALOG_MERMAID_PATH: docs/developer-guide/marketplace_catalog.mmd
-    MARKETPLACE_PROVISION_MERMAID_PATH: docs/developer-guide/marketplace_provision.mmd
-
   script:
+    # 1. Install dependencies in the main project
     - pip install uv
     - uv sync --extra dev
-    - cd /tmp/
-    - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
-    - git config --global user.name "$GITLAB_USER_NAME"
-    - git config --global user.email "$GITLAB_USER_EMAIL"
-    - cd waldur-docs
-    - uv run waldur print_settings > $CONF_GUIDE_PATH
-    - uv run waldur print_features_docs > $FEATURES_GUIDE_PATH
-    - uv run waldur print_notifications > $NOTIFICATIONS_GUIDE_PATH
-    - uv run waldur print_commands > $CLI_GUIDE_PATH
-    - uv run waldur print_events > $CI_PROJECT_DIR/docs/events.md
-    - uv run waldur print_templates > $TEMPLATES_LIST_PATH
-    - uv run waldur print_scheduled_jobs > $SCHEDULED_JOB_LIST_PATH
-    - uv run waldur print_mixins > $MIXINS_LIST_PATH
-    - uv run waldur print_registered_handlers > $HANDLERS_LIST_PATH
 
-    # Generate the Structure diagram
+    # 2. Generate ALL required documentation files and store them in /tmp
+    - echo "Generating documentation files..."
+    - uv run waldur print_settings > /tmp/configuration-guide.md
+    - uv run waldur print_features_docs > /tmp/features.md
+    - uv run waldur print_notifications > /tmp/notifications.md
+    - uv run waldur print_commands > /tmp/cli-guide.md
+    - uv run waldur print_events > /tmp/events.md
+    - uv run waldur print_templates > /tmp/templates.md
+    - uv run waldur print_scheduled_jobs > /tmp/scheduled.md
+    - uv run waldur print_mixins > /tmp/mixins.md
+    - uv run waldur print_registered_handlers > /tmp/handlers.md
+
+    # Generate Mermaid diagrams, outputting them to /tmp
     - >
       uv run waldur generate_mermaid structure
       -i "Customer,Project,OrganizationGroup,ProjectType,User"
       --exclude-field-types="TranslationCharField,TranslationTextField"
-      -o $STRUCTURE_MERMAID_PATH
-
-    # Generate the Permissions diagram
+      -o /tmp/core_structure.mmd
     - >
       uv run waldur generate_mermaid permissions
       -i "User,Role,UserRole,RolePermission"
       --exclude-field-types="TranslationCharField,TranslationTextField"
-      -o $PERMISSIONS_MERMAID_PATH
-
-    # Generate the Marketplace category diagram
+      -o /tmp/core_permissions.mmd
     - >
       uv run waldur generate_mermaid marketplace
       -i "CategoryGroup,Category,CategoryColumn,CategoryComponent,CategoryComponentUsage"
       --exclude-field-types="TranslationCharField,TranslationTextField"
-      -o $MARKETPLACE_CATEGORY_MERMAID_PATH
-
-    # Generate the Marketplace catalog diagram
+      -o /tmp/marketplace_category.mmd
     - >
       uv run waldur generate_mermaid marketplace
       -i "Section,Attribute,AttributeOption,Offering,OfferingComponent"
       --exclude-field-types="TranslationCharField,TranslationTextField"
-      -o $MARKETPLACE_CATALOG_MERMAID_PATH
-
-    # Generate the Marketplace diagram
+      -o /tmp/marketplace_catalog.mmd
     - >
       uv run waldur generate_mermaid marketplace
       -i "Plan,PlanComponent,Resource,Order"
       --exclude-field-types="TranslationCharField,TranslationTextField"
-      -o $MARKETPLACE_PROVISION_MERMAID_PATH
+      -o /tmp/marketplace_provision.mmd
+    - echo "Generation complete. All files are in /tmp."
 
-    - cp -rv $CI_PROJECT_DIR/docs/* $DEVELOPER_DOCS_PATH
-    - >
-      git add
-      $CONF_GUIDE_PATH
-      $FEATURES_GUIDE_PATH
-      $CLI_GUIDE_PATH
-      $DEVELOPER_DOCS_PATH
-      $TEMPLATES_LIST_PATH
-      $NOTIFICATIONS_GUIDE_PATH
-      $SCHEDULED_JOB_LIST_PATH
-      $MIXINS_LIST_PATH
-      $HANDLERS_LIST_PATH
-      $STRUCTURE_MERMAID_PATH
-      $PERMISSIONS_MERMAID_PATH
-      $MARKETPLACE_CATEGORY_MERMAID_PATH
-      $MARKETPLACE_CATALOG_MERMAID_PATH
-      $MARKETPLACE_PROVISION_MERMAID_PATH
+    # 3. Clone the waldur-docs repository
+    - cd /tmp/
+    - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
+    - cd waldur-docs
+    - git config --global user.name "$GITLAB_USER_NAME"
+    - git config --global user.email "$GITLAB_USER_EMAIL"
 
+    # 4. Move the pre-generated files into place
+    - mv /tmp/configuration-guide.md docs/admin-guide/mastermind-configuration/configuration-guide.md
+    - mv /tmp/features.md docs/admin-guide/mastermind-configuration/features.md
+    - mv /tmp/notifications.md docs/admin-guide/mastermind-configuration/notifications.md
+    - mv /tmp/cli-guide.md docs/admin-guide/mastermind-configuration/cli-guide.md
+    - mv /tmp/templates.md docs/admin-guide/mastermind-configuration/templates.md
+    - mv /tmp/scheduled.md docs/admin-guide/mastermind-configuration/scheduled.md
+    - mv /tmp/mixins.md docs/developer-guide/mixins.md
+    - mv /tmp/handlers.md docs/developer-guide/handlers.md
+    - mv /tmp/core_structure.mmd docs/developer-guide/core_structure.mmd
+    - mv /tmp/core_permissions.mmd docs/developer-guide/core_permissions.mmd
+    - mv /tmp/marketplace_category.mmd docs/developer-guide/marketplace_category.mmd
+    - mv /tmp/marketplace_catalog.mmd docs/developer-guide/marketplace_catalog.mmd
+    - mv /tmp/marketplace_provision.mmd docs/developer-guide/marketplace_provision.mmd
+
+    # 5. Copy over static documentation files and move the generated events.md
+    - cp -rv $CI_PROJECT_DIR/docs/* docs/developer-guide/
+    - mv /tmp/events.md docs/developer-guide/events.md
+
+    # 6. Commit and push the changes
+    - git add docs/
     - git commit -m "Update configuration, CLI and developer guide" || exit 0
     - git branch new-configuration-guide
     - git push --set-upstream origin new-configuration-guide:master
@@ -517,24 +503,39 @@ Upload HomePort enums:
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
+    # 1. Install dependencies in the main project
     - pip install uv
     - uv sync --extra dev
-    - cd src/waldur_core/permissions
-    - python print_permission_enums.py > /tmp/permission_enums.ts
+
+    # 2. Generate ALL required files from the main project context and store them in /tmp
+    # This is the most robust approach, as we are in the correct directory with the virtual env.
+    - echo "Generating enums and descriptions..."
+    - python src/waldur_core/permissions/print_permission_enums.py > /tmp/permission_enums.ts
+    - uv run waldur print_events_enums > /tmp/EventsEnums.ts
+    - uv run waldur print_features_enums > /tmp/FeaturesEnums.ts
+    - uv run waldur print_features_description > /tmp/FeaturesDescription.ts
+    - uv run waldur print_settings_description > /tmp/SettingsDescription.ts
+    - uv run waldur print_permissions_description > /tmp/PermissionOptions.tsx
+
+    # 3. Clone the HomePort repository and move the generated files into it
     - cd /tmp/
     - git clone "https://homeport-updates:$HOMEPORT_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-homeport.git"
+    - cd waldur-homeport
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
-    - cd waldur-homeport
     - git checkout develop
+
+    # 4. Move the pre-generated files to their final destinations
     - mv /tmp/permission_enums.ts src/permissions/enums.ts
-    - uv run waldur print_events_enums > src/EventsEnums.ts
-    - uv run waldur print_features_enums > src/FeaturesEnums.ts
-    - uv run waldur print_features_description > src/features/FeaturesDescription.ts
-    - uv run waldur print_settings_description > src/SettingsDescription.ts
-    - uv run waldur print_permissions_description > src/administration/roles/PermissionOptions.tsx
+    - mv /tmp/EventsEnums.ts src/EventsEnums.ts
+    - mv /tmp/FeaturesEnums.ts src/FeaturesEnums.ts
+    - mv /tmp/FeaturesDescription.ts src/features/FeaturesDescription.ts
+    - mv /tmp/SettingsDescription.ts src/SettingsDescription.ts
+    - mv /tmp/PermissionOptions.tsx src/administration/roles/PermissionOptions.tsx
+
+    # 5. Commit and push the changes
     - git add src/
-    - git commit -m "Update enums" || exit 0
+    - git commit -m "Update enums and descriptions from Waldur Mastermind" || exit 0
     - git branch new-enums
     - git push --set-upstream origin new-enums:develop
   before_script: []
