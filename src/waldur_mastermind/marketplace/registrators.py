@@ -450,6 +450,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         invoice_item = invoice_models.InvoiceItem.objects.get(
             resource=source,
             details__offering_component_type=component_type,
+            details__plan_uuid=str(source.plan.uuid),
             invoice=invoice,
             unit_price__gte=0,  # exclude compensation items
         )

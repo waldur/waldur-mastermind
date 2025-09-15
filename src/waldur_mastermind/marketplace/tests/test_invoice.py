@@ -8,6 +8,7 @@ from rest_framework.reverse import reverse
 
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tasks import create_monthly_invoices
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
@@ -1118,3 +1119,101 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
                 0,
                 "create_component_item should prevent duplicate billing for TOTAL components",
             )
+
+    def test_update_component_item_handles_multiple_plans(self):
+        """
+        Test that update_component_item does not fail with MultipleObjectsReturned error.
+        """
+        offering_component = marketplace_factories.OfferingComponentFactory(
+            offering=self.fixture.offering,
+            type="cpu_limit",
+            name="CPU Limit",
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.MONTH,
+        )
+
+        old_plan = marketplace_factories.PlanFactory(
+            offering=self.fixture.offering,
+            name="Old Plan",
+            unit_price=0,
+            unit=marketplace_models.Plan.Units.PER_MONTH,
+        )
+        new_plan = marketplace_factories.PlanFactory(
+            offering=self.fixture.offering,
+            name="New Plan",
+            unit_price=0,
+            unit=marketplace_models.Plan.Units.PER_MONTH,
+        )
+
+        old_plan_component = marketplace_factories.PlanComponentFactory(
+            plan=old_plan,
+            component=offering_component,
+            price=2.0,
+        )
+        new_plan_component = marketplace_factories.PlanComponentFactory(
+            plan=new_plan,
+            component=offering_component,
+            price=2.0,
+        )
+
+        test_resource = marketplace_factories.ResourceFactory(
+            project=self.fixture.project,
+            offering=self.fixture.offering,
+            plan=old_plan,
+            limits={offering_component.type: 100},
+            state=marketplace_models.ResourceStates.OK,
+        )
+
+        october_invoice = invoices_models.Invoice.objects.create(
+            customer=test_resource.project.customer, year=2025, month=10
+        )
+
+        october_1st = timezone.datetime(2025, 10, 1, tzinfo=timezone.utc)
+        october_15th = timezone.datetime(2025, 10, 15, tzinfo=timezone.utc)
+        october_31st = timezone.datetime(2025, 10, 31, tzinfo=timezone.utc)
+
+        MarketplaceRegistrator.create_component_item(
+            source=test_resource,
+            plan_component=old_plan_component,
+            invoice=october_invoice,
+            start=october_1st,
+            end=october_15th,
+        )
+
+        test_resource.plan = new_plan
+        test_resource.save()
+
+        MarketplaceRegistrator.create_component_item(
+            source=test_resource,
+            plan_component=new_plan_component,
+            invoice=october_invoice,
+            start=october_15th,
+            end=october_31st,
+        )
+
+        items = invoices_models.InvoiceItem.objects.filter(
+            resource=test_resource,
+            details__offering_component_type=offering_component.type,
+            invoice=october_invoice,
+            unit_price__gte=0,
+        )
+        self.assertEqual(
+            items.count(), 2, "Should have 2 invoice items due to plan switch"
+        )
+
+        MarketplaceRegistrator.update_component_item(
+            source=test_resource,
+            component_type=offering_component.type,
+            invoice=october_invoice,
+            new_quantity=150,
+        )
+
+        updated_items = invoices_models.InvoiceItem.objects.filter(
+            resource=test_resource,
+            details__offering_component_type=offering_component.type,
+            invoice=october_invoice,
+            unit_price__gte=0,
+        )
+
+        total_quantity = sum(item.quantity for item in updated_items)
+        self.assertGreater(total_quantity, 100, "Total quantity should be updated")
