@@ -947,6 +947,19 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         response = self.client.post(OrderFactory.get_list_url(), order_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_order_creation_succeeds_when_admin_user(self):
+        """Test that order creation succeeds when admin user."""
+        self.client.force_authenticate(user=UserFactory(is_staff=True))
+        order_data = {
+            "offering": OfferingFactory.get_public_url(self.offering),
+            "project": ProjectFactory.get_url(self.project),
+            "plan": PlanFactory.get_public_url(self.plan),
+            "attributes": {"name": "Test Resource"},
+        }
+        response = self.client.post(OrderFactory.get_list_url(), order_data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     def test_conditional_consent_filtering_when_enabled(self):
         """Test that consent filtering is applied when ENFORCE_USER_CONSENT_FOR_OFFERINGS is True."""
         user_without_consent = UserFactory()
