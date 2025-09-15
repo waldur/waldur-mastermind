@@ -2817,6 +2817,8 @@ def confirm_order_request_user_has_offering_consent(
     order: models.Order, request
 ) -> None:
     """Check that the user has accepted the offering's Terms of Service for an order request."""
+    if request.user.is_staff or request.user.is_support:
+        return
 
     if not order.offering.plugin_options.get(
         "service_provider_can_create_offering_user", False
@@ -3030,12 +3032,15 @@ class OrderCreateSerializer(
             config.ENFORCE_USER_CONSENT_FOR_OFFERINGS
             and offering.has_terms_of_service()
         ):
-            if not attrs.get("accepting_terms_of_service"):
-                if not offering.check_user_consent(user):
-                    raise ValidationError(
-                        _("Terms of service for offering '%s' have not been accepted.")
-                        % offering
-                    )
+            if not (user.is_staff or user.is_support):
+                if not attrs.get("accepting_terms_of_service"):
+                    if not offering.check_user_consent(user):
+                        raise ValidationError(
+                            _(
+                                "Terms of service for offering '%s' have not been accepted."
+                            )
+                            % offering
+                        )
 
         minimal_team_count_for_provisioning = offering.plugin_options.get(
             "minimal_team_count_for_provisioning"
