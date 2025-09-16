@@ -1,3 +1,5 @@
+import datetime
+
 import httpx
 import respx
 from ddt import data, ddt
@@ -77,7 +79,9 @@ class CourseAccountPermissionTest(test.APITransactionTestCase):
 
         # Create a course project for course accounts
         self.course_project = structure_factories.ProjectFactory(
-            customer=self.fixture.project.customer, kind=ProjectKind.COURSE
+            customer=self.fixture.project.customer,
+            kind=ProjectKind.COURSE,
+            end_date=datetime.date.today() + datetime.timedelta(days=30),
         )
 
         # Add MANAGE_COURSE_ACCOUNT permission to relevant roles

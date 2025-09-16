@@ -6458,6 +6458,16 @@ class CourseAccountSerializer(serializers.HyperlinkedModelSerializer):
     def get_state(self, course_account: models.CourseAccount) -> str:
         return course_account.get_state_display()
 
+    def validate(self, attrs):
+        super().validate(attrs)
+        project: structure_models.Project = attrs["project"]
+        if project.end_date is None:
+            message = f"Unable to create a course account for a course project {project} without an end_date"
+            logger.error(message)
+            raise ValidationError(message)
+
+        return attrs
+
 
 class CourseAccountCreateNestedSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
@@ -6484,3 +6494,11 @@ class CourseAccountsBulkCreateSerializer(serializers.Serializer):
 
         if not settings.WALDUR_CORE["COURSE_ACCOUNT_URL"]:
             raise ValidationError("URL for course accounts is not configured")
+
+        project: structure_models.Project = attrs["project"]
+        if project.end_date is None:
+            message = f"Unable to create a course account for a course project {project} without an end_date"
+            logger.error(message)
+            raise ValidationError(message)
+
+        return attrs

@@ -2365,6 +2365,10 @@ def post_course_account_to_url(
             "scopeName": project.name,
             "scopeSlug": project.slug,
             "scopeOfferingSlugs": offering_slugs,
+            "scopeValidTo": project.end_date.isoformat(),
+            "scopeValidFrom": project.start_date.isoformat()
+            if project.start_date
+            else project.created.date().isoformat(),
         }
 
         headers = {"Authorization": f"Bearer {api_access_token}"}
