@@ -57,6 +57,7 @@ FULL_RUN_TRIGGERS = [
     "uv.lock",
     ".gitlab-ci.yml",
     "tests/dependency_graph.yaml",  # If the graph itself changes, run all tests.
+    "src/waldrur_core/server",
     str(Path(__file__).relative_to(PROJECT_ROOT)),  # If this script changes.
 ]
 
