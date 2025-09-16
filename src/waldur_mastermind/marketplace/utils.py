@@ -1378,11 +1378,17 @@ def user_offerings_mapping(offerings):
 
         for user in users:
             for offering in project_offerings:
-                if models.UserOfferingConsent.objects.filter(
-                    user=user,
-                    offering=offering,
-                    is_active=True,
-                ).exists():
+                if (
+                    config.ENFORCE_USER_CONSENT_FOR_OFFERINGS
+                    and offering.has_terms_of_service()
+                ):
+                    if models.UserOfferingConsent.objects.filter(
+                        user=user,
+                        offering=offering,
+                        revocation_date__isnull=True,
+                    ).exists():
+                        user_offerings_set.add((user, offering))
+                else:
                     user_offerings_set.add((user, offering))
 
     for user, offering in user_offerings_set:
