@@ -1250,6 +1250,122 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
             self.assertIn(str(user_no_consent_main.uuid), user_uuids)
             self.assertEqual(len(user_uuids), 5)
 
+    def test_offering_user_serializer_consent_fields_with_consent(self):
+        """Test that OfferingUserSerializer includes consent fields when user has consent."""
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        offering_user, created = models.OfferingUser.objects.get_or_create(
+            user=self.user,
+            offering=self.offering,
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(
+            f"/api/marketplace-offering-users/{offering_user.uuid}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn("has_consent", response.data)
+        self.assertIn("requires_reconsent", response.data)
+        self.assertTrue(response.data["has_consent"])
+        self.assertFalse(response.data["requires_reconsent"])
+
+    def test_offering_user_serializer_consent_fields_without_consent(self):
+        """Test that OfferingUserSerializer includes consent fields when user has no consent."""
+        offering_user, created = models.OfferingUser.objects.get_or_create(
+            user=self.user,
+            offering=self.offering,
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(
+            f"/api/marketplace-offering-users/{offering_user.uuid}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn("has_consent", response.data)
+        self.assertIn("requires_reconsent", response.data)
+        self.assertFalse(response.data["has_consent"])
+        self.assertFalse(response.data["requires_reconsent"])
+
+    def test_offering_user_filter_has_consent_true(self):
+        """Test filtering offering users by has_consent=true with specific user_uuid."""
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        # This user should not be visible because they don't have consent and the view filters them out
+        other_user = UserFactory()
+        self.project.add_user(other_user, role=ProjectRole.MEMBER)
+        other_offering_user, created = models.OfferingUser.objects.get_or_create(
+            user=other_user,
+            offering=self.offering,
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(
+            f"/api/marketplace-offering-users/?user_uuid={self.user.uuid}&has_consent=true"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_uuids = [ou["user_uuid"] for ou in response.data]
+        self.assertIn(str(self.user.uuid), user_uuids)
+        self.assertEqual(len(user_uuids), 1)
+
+        response = self.client.get(
+            f"/api/marketplace-offering-users/?user_uuid={other_user.uuid}&has_consent=true"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_uuids = [ou["user_uuid"] for ou in response.data]
+        self.assertEqual(len(user_uuids), 0)
+
+    def test_offering_user_filter_has_consent_false(self):
+        """Test filtering offering users by has_consent=false with specific user_uuid."""
+        other_user = UserFactory()
+        self.project.add_user(other_user, role=ProjectRole.MEMBER)
+
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(
+            f"/api/marketplace-offering-users/?user_uuid={self.user.uuid}&has_consent=false"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_uuids = [ou["user_uuid"] for ou in response.data]
+        self.assertIn(str(self.user.uuid), user_uuids)
+        self.assertEqual(len(user_uuids), 1)
+
+        response = self.client.get(
+            f"/api/marketplace-offering-users/?user_uuid={other_user.uuid}&has_consent=false"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_uuids = [ou["user_uuid"] for ou in response.data]
+        self.assertEqual(len(user_uuids), 0)
+
+        # Add consent for other user
+        models.UserOfferingConsent.objects.create(
+            user=other_user,
+            offering=self.offering,
+            version="1.0",
+        )
+        response = self.client.get(
+            f"/api/marketplace-offering-users/?user_uuid={other_user.uuid}&has_consent=true"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user_uuids = [ou["user_uuid"] for ou in response.data]
+        self.assertIn(str(other_user.uuid), user_uuids)
+
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
 class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
@@ -2315,6 +2431,10 @@ class OfferingTermsOfServiceFilterTest(APITransactionTestCase):
             name="Offering with active ToS",
             shared=True,
             state=OfferingStates.ACTIVE,
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "waldur_username",
+            },
         )
 
         self.offering_with_inactive_tos = OfferingFactory(

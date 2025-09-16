@@ -3,7 +3,7 @@ import json
 import django_filters
 from constance import config
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q, QuerySet
+from django.db.models import F, Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
@@ -865,6 +865,12 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
     provider_uuid = django_filters.UUIDFilter(field_name="offering__customer__uuid")
     is_restricted = django_filters.BooleanFilter(field_name="is_restricted")
     state = core_filters.MappedMultipleChoiceFilter(OfferingUserStates.CHOICES)
+    has_consent = django_filters.BooleanFilter(
+        method="filter_has_consent",
+        label="User Has Consent",
+        widget=BooleanWidget,
+    )
+
     o = django_filters.OrderingFilter(fields=("created", "modified", "username"))
     query = django_filters.CharFilter(
         method="filter_query", label="Search by offering name, username or user name"
@@ -881,6 +887,20 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
             | Q(user__first_name__icontains=value)
             | Q(user__last_name__icontains=value)
         )
+
+    def filter_has_consent(self, queryset, name, value):
+        if value is None:
+            return queryset
+        if value:
+            return queryset.filter(
+                user__offering_consents__offering=F("offering"),
+                user__offering_consents__revocation_date__isnull=True,
+            ).distinct()
+        else:
+            return queryset.exclude(
+                user__offering_consents__offering=F("offering"),
+                user__offering_consents__revocation_date__isnull=True,
+            ).distinct()
 
 
 class OfferingUserGroupFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter):

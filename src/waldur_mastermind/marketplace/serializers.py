@@ -4126,6 +4126,8 @@ class OfferingUserSerializer(
     state = serializers.SerializerMethodField()
     service_provider_comment = serializers.ReadOnlyField()
     service_provider_comment_url = serializers.ReadOnlyField()
+    has_consent = serializers.SerializerMethodField()
+    requires_reconsent = serializers.SerializerMethodField()
 
     class Meta:
         model = models.OfferingUser
@@ -4149,6 +4151,8 @@ class OfferingUserSerializer(
             "state",
             "service_provider_comment",
             "service_provider_comment_url",
+            "has_consent",
+            "requires_reconsent",
         )
         extra_kwargs = dict(
             url={
@@ -4223,6 +4227,26 @@ class OfferingUserSerializer(
                         raise serializers.ValidationError({uuid_field: str(e)})
 
         return super().to_internal_value(data)
+
+    def get_has_consent(self, obj) -> bool:
+        """Check if the user has active consent for this offering."""
+        if not obj.offering.has_terms_of_service():
+            return False
+        consent = obj.offering.check_user_consent(obj.user)
+        return consent is not None
+
+    def get_requires_reconsent(self, obj) -> bool:
+        """Check if the user needs to re-consent due to ToS changes."""
+        consent = obj.offering.check_user_consent(obj.user)
+        if not consent:
+            return False
+
+        active_tos = obj.offering.terms_of_service_configs.filter(
+            is_active=True
+        ).first()
+        if not active_tos or not active_tos.requires_reconsent:
+            return False
+        return active_tos.version != consent.version
 
     def get_fields(self):
         request = self.context["request"]
