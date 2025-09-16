@@ -353,14 +353,23 @@ class ProjectSerializer(
                     {"oecd_fos_2007_code": _("This field is required.")}
                 )
 
-        if (
-            not settings.WALDUR_CORE.get("ENABLE_PROJECT_KIND_COURSE", False)
-            and attrs.get("kind")
-            and attrs.get("kind") == ProjectKind.COURSE.value
-        ):
-            raise serializers.ValidationError(
-                'Unable to set project kind to "COURSE": ENABLE_PROJECT_KIND_COURSE feature is disabled.'
-            )
+        if attrs.get("kind") == ProjectKind.COURSE.value:
+            if not settings.WALDUR_CORE.get("ENABLE_PROJECT_KIND_COURSE", False):
+                raise serializers.ValidationError(
+                    'Unable to set project kind to "COURSE": ENABLE_PROJECT_KIND_COURSE feature is disabled.'
+                )
+
+            if isinstance(self.instance, models.Project):
+                # Check the existing end date
+                if self.instance.end_date is None:
+                    raise serializers.ValidationError(
+                        'Unable to set project kind to "COURSE": end_date is not set.'
+                    )
+            # Check the end date from attrs
+            elif attrs.get("end_date") is None:
+                raise serializers.ValidationError(
+                    "Unable to create a course project kind: end_date is required."
+                )
 
         return attrs
 
