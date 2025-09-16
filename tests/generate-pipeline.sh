@@ -79,6 +79,9 @@ noop_job:
   image: alpine:latest
   script:
     - echo "No relevant tests were selected to run for this merge request."
+  rules:
+  - if: \$CI_PIPELINE_SOURCE == "parent_pipeline"
+
 EOF
   # Exit successfully with status 0.
   exit 0
