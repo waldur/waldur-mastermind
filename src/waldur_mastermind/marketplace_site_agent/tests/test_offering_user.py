@@ -1,6 +1,7 @@
 import textwrap
 from unittest import mock
 
+from constance.test.unittest import override_config as override_constance_config
 from ddt import data, ddt
 from rest_framework import test
 
@@ -9,6 +10,7 @@ from waldur_core.logging.tests import factories as logging_factories
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -323,3 +325,79 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
             status=marketplace_models.IntegrationStatus.States.ACTIVE,
         )
         self.assertIsNotNone(integration_status.last_request_timestamp)
+
+
+@override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+class UserOfferingsMappingTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+
+        self.offering = self.resource.offering
+        self.offering.type = SITE_AGENT_OFFERING
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
+            "username_generation_policy": "waldur_username",
+        }
+        self.offering.save()
+
+        marketplace_models.OfferingTermsOfService.objects.create(
+            offering=self.offering, terms_of_service="Test ToS", is_active=True
+        )
+
+        self.user = self.fixture.offering_admin
+        self.resource.project.add_user(self.user, ProjectRole.ADMIN)
+
+        marketplace_models.OfferingUser.objects.filter(
+            user=self.user, offering=self.offering
+        ).delete()
+
+    def test_user_offerings_mapping_creates_offering_user_with_consent(self):
+        """Test that user_offerings_mapping creates offering users for users with active consent."""
+
+        marketplace_models.UserOfferingConsent.objects.create(
+            user=self.user, offering=self.offering, version="1.0"
+        )
+
+        self.assertFalse(
+            marketplace_models.OfferingUser.objects.filter(
+                user=self.user, offering=self.offering
+            ).exists()
+        )
+
+        marketplace_utils.user_offerings_mapping([self.offering])
+
+        self.assertTrue(
+            marketplace_models.OfferingUser.objects.filter(
+                user=self.user, offering=self.offering
+            ).exists()
+        )
+
+    def test_user_offerings_mapping_skips_user_without_consent(self):
+        """Test that user_offerings_mapping skips users without consent."""
+
+        marketplace_utils.user_offerings_mapping([self.offering])
+
+        self.assertFalse(
+            marketplace_models.OfferingUser.objects.filter(
+                user=self.user, offering=self.offering
+            ).exists()
+        )
+
+    def test_user_offerings_mapping_skips_user_with_revoked_consent(self):
+        """Test that user_offerings_mapping skips users with revoked consent."""
+
+        consent = marketplace_models.UserOfferingConsent.objects.create(
+            user=self.user, offering=self.offering, version="1.0"
+        )
+        consent.revoke()
+
+        marketplace_utils.user_offerings_mapping([self.offering])
+
+        self.assertFalse(
+            marketplace_models.OfferingUser.objects.filter(
+                user=self.user, offering=self.offering
+            ).exists()
+        )
