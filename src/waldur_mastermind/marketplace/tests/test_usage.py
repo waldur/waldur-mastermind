@@ -18,6 +18,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories
@@ -100,7 +101,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
 
         factories.OrderFactory(
             resource=self.resource,
-            type=models.RequestTypeMixin.Types.CREATE,
+            type=OrderTypes.CREATE,
             state=OrderStates.EXECUTING,
             plan=self.plan,
         )

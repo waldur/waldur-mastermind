@@ -22,7 +22,7 @@ from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     BillingTypes,
     LimitPeriods,
-    RequestTypes,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.models import ComponentUsage
@@ -185,7 +185,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 # Avoid creating invoice item for limit-based components
                 # if limit period is total and resource is not being created
                 if offering_component.limit_period == LimitPeriods.TOTAL:
-                    if order_type == RequestTypes.CREATE:
+                    if order_type == OrderTypes.CREATE:
                         self.create_component_item(
                             source, plan_component, invoice, start, end
                         )
@@ -213,8 +213,8 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
             if (
                 is_fixed
-                or (is_one and order_type == RequestTypes.CREATE)
-                or (is_switch and order_type == RequestTypes.UPDATE)
+                or (is_one and order_type == OrderTypes.CREATE)
+                or (is_switch and order_type == OrderTypes.UPDATE)
             ):
                 unit_price = plan_component.price
                 unit = plan.unit
@@ -647,7 +647,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         ):
             cls.create_discounted_resource(sender, instance, created)
             registrators.RegistrationManager.register(
-                resource, timezone.now(), order_type=RequestTypes.CREATE
+                resource, timezone.now(), order_type=OrderTypes.CREATE
             )
 
         if (
@@ -661,7 +661,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         ):
             registrators.RegistrationManager.terminate(resource, timezone.now())
             registrators.RegistrationManager.register(
-                resource, timezone.now(), order_type=RequestTypes.UPDATE
+                resource, timezone.now(), order_type=OrderTypes.UPDATE
             )
 
         if resource.state != ResourceStates.CREATING and resource_tracker.has_changed(

@@ -5,8 +5,7 @@ from unittest import mock
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OrderStates
+from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
@@ -28,7 +27,7 @@ class SmaxTerminationCancellationTest(TestCase):
         # Create termination order
         self.order = marketplace_factories.OrderFactory(
             offering=self.offering,
-            type=marketplace_models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             state=OrderStates.EXECUTING,
         )
 

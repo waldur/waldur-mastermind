@@ -119,6 +119,7 @@ from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OfferingUserStates,
     OrderStates,
+    OrderTypes,
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
@@ -3559,7 +3560,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         return self.create_resource_order(
             request=request,
             resource=resource,
-            type=models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             attributes=attributes,
         )
 
@@ -3817,7 +3818,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     )
     @action(detail=True, methods=["post"])
     def pull(self, request, uuid=None):
-        resource = self.get_object()
+        resource = cast(models.Resource, self.get_object())
         pull_executor = plugins.manager.get_pull_resource_executor(
             resource.offering.type
         )
@@ -3875,7 +3876,7 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     )
     @action(detail=True, methods=["post"])
     def switch_plan(self, request, uuid=None):
-        resource = self.get_object()
+        resource = cast(models.Resource, self.get_object())
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -3886,7 +3887,7 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
             resource=resource,
             old_plan=resource.plan,
             plan=plan,
-            type=models.Order.Types.UPDATE,
+            type=OrderTypes.UPDATE,
             limits=resource.limits or {},
         )
 
@@ -3898,7 +3899,7 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     )
     @action(detail=True, methods=["post"])
     def update_limits(self, request, uuid=None):
-        resource = self.get_object()
+        resource = cast(models.Resource, self.get_object())
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -3913,7 +3914,7 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
             request=request,
             resource=resource,
             plan=resource.plan,
-            type=models.Order.Types.UPDATE,
+            type=OrderTypes.UPDATE,
             limits=limits,
             attributes={"old_limits": resource.limits},
         )
@@ -3946,7 +3947,7 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     )
     @action(detail=True, methods=["post"])
     def update_options(self, request, uuid=None):
-        resource = self.get_object()
+        resource = cast(models.Resource, self.get_object())
         serializer = self.get_serializer(data=request.data, instance=resource)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -3984,7 +3985,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     )
     @action(detail=True, methods=["post"])
     def set_backend_id(self, request, uuid=None):
-        resource = self.get_object()
+        resource = cast(models.Resource, self.get_object())
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         new_backend_id = serializer.validated_data["backend_id"]
@@ -4023,7 +4024,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     )
     @action(detail=True, methods=["post"])
     def submit_report(self, request, uuid=None):
-        resource = self.get_object()
+        resource = cast(models.Resource, self.get_object())
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         resource.report = serializer.validated_data["report"]
@@ -4044,7 +4045,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     )
     @action(detail=True, methods=["post"])
     def set_backend_metadata(self, request, uuid=None):
-        resource = self.get_object()
+        resource = cast(models.Resource, self.get_object())
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -4137,7 +4138,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     )
     @action(detail=True, methods=["post"])
     def refresh_last_sync(self, request, uuid=None):
-        resource = self.get_object()
+        resource = cast(models.Resource, self.get_object())
         resource.last_sync = timezone.now()
         resource.save(update_fields=["last_sync"])
         return Response(status=status.HTTP_200_OK)

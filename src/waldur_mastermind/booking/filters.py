@@ -10,7 +10,7 @@ from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.filters import ResourceFilter
 
-from ..marketplace.enums import BOOKING_OFFERING
+from ..marketplace.enums import BOOKING_OFFERING, OrderTypes
 
 
 class ResourceOwnerOrCreatorFilterBackend(BaseFilterBackend):
@@ -24,7 +24,7 @@ class ResourceOwnerOrCreatorFilterBackend(BaseFilterBackend):
             )
             try:
                 resource_ids = marketplace_models.Order.objects.filter(
-                    type=marketplace_models.RequestTypeMixin.Types.CREATE,
+                    type=OrderTypes.CREATE,
                     offering__type=BOOKING_OFFERING,
                     created_by=user,
                 ).values_list("resource_id", flat=True)

@@ -32,6 +32,7 @@ from waldur_mastermind.marketplace.enums import (
     MaintenanceState,
     OfferingStates,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.enums import SCRIPT_OFFERING as SCRIPT_PLUGIN_NAME
@@ -131,11 +132,11 @@ ORDER_STATE_HANDLERS = {
 }
 
 RESOURCE_TYPE_HANDLERS = {
-    models.Order.Types.TERMINATE: (
+    OrderTypes.TERMINATE: (
         EventType.MARKETPLACE_RESOURCE_TERMINATE_REQUESTED,
         "Resource {resource_name} deletion has been requested.",
     ),
-    models.Order.Types.UPDATE: (
+    OrderTypes.UPDATE: (
         EventType.MARKETPLACE_RESOURCE_UPDATE_REQUESTED,
         "Resource {resource_name} update has been requested.",
     ),
@@ -362,7 +363,7 @@ def update_resource_when_order_is_rejected_or_erred(
         return
     resource = order.resource
     if order.state == OrderStates.REJECTED:
-        if order.type == models.Order.Types.CREATE:
+        if order.type == OrderTypes.CREATE:
             resource.set_state_terminated()
             resource.save(update_fields=["state"])
         elif resource.state != ResourceStates.OK:
@@ -383,8 +384,8 @@ def update_resource_when_order_is_rejected_or_erred(
 
 def sync_resource_limit_when_order(sender, instance: Order, created=False, **kwargs):
     """Synchronize resource limits when an order is created."""
-    order: models.Order = instance
-    if order.type != models.Order.Types.CREATE:
+    order = instance
+    if order.type != OrderTypes.CREATE:
         return
     if order.resource.state != ResourceStates.CREATING:
         return

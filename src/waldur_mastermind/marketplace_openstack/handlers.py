@@ -17,6 +17,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
     OfferingStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.models import Offering, Resource
@@ -620,7 +621,7 @@ def handle_openstack_tenant_order_creation(
 
     if (
         created
-        and order.type == marketplace_models.Order.Types.CREATE
+        and order.type == OrderTypes.CREATE
         and order.offering.type == OPENSTACK_INSTANCE_OFFERING
     ):
         utils.set_ports_status_for_order(order, "BOOKED")

@@ -8,7 +8,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
     OrderStates,
-    RequestTypes,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -553,7 +553,7 @@ class GetResourceOrderSyncStatusTest(test.APITransactionTestCase):
             resource=self.resource,
             project=self.fixture.project,
             created_by=self.fixture.admin,
-            type=RequestTypes.CREATE,
+            type=OrderTypes.CREATE,
             state=OrderStates.DONE,
             backend_id=self.remote_order_uuid_1,
         )
@@ -561,7 +561,7 @@ class GetResourceOrderSyncStatusTest(test.APITransactionTestCase):
             resource=self.resource,
             project=self.fixture.project,
             created_by=self.fixture.admin,
-            type=RequestTypes.UPDATE,
+            type=OrderTypes.UPDATE,
             state=OrderStates.EXECUTING,
             backend_id=self.remote_order_uuid_2,
         )

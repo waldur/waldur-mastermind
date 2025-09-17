@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import cast
 
 from django.conf import settings
 from django.db import transaction
@@ -86,22 +87,27 @@ def get_plan():
         return
 
 
-def get_or_create_project(customer, user, wrong_customer):
+def get_or_create_project(customer: Customer, user: User, wrong_customer: Customer):
     try:
-        return Project.objects.get(name=user.username, customer=customer)
+        return cast(Project, Project.objects.get(name=user.username, customer=customer))
     except Project.MultipleObjectsReturned:
         logger.warning("Multiple projects with the same name %s exist.", user.username)
         return
     except Project.DoesNotExist:
         try:
             # user has changed and has led to a change in INTERNAL/EXTERNAL decision
-            project = Project.objects.get(name=user.username, customer=wrong_customer)
+            project = cast(
+                Project,
+                Project.objects.get(name=user.username, customer=wrong_customer),
+            )
             move_project(project, customer)
             return project
         except Project.DoesNotExist:
             pass
 
-        project: Project = Project.objects.create(customer=customer, name=user.username)
+        project = cast(
+            Project, Project.objects.create(customer=customer, name=user.username)
+        )
         project.add_user(user, ProjectRole.ADMIN)
         return project
 
@@ -111,7 +117,7 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
 
     order_ids = Order.objects.filter(offering=offering).values_list("id", flat=True)
 
-    order: Order = (
+    order = (
         Order.objects.filter(
             project=project,
             created_by=user,
@@ -152,7 +158,7 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
         resource.init_cost()
         resource.save()
 
-        order: Order = Order(
+        order = Order(
             resource=resource,
             project=project,
             created_by=user,
@@ -227,11 +233,11 @@ def handle_new_user(sender, instance: User, created=False, **kwargs):
     if not external_customer:
         return
 
-    offering: Offering = get_offering()
+    offering = get_offering()
     if not offering:
         return
 
-    plan: Plan = get_plan()
+    plan = get_plan()
     if not plan:
         return
 
@@ -240,9 +246,7 @@ def handle_new_user(sender, instance: User, created=False, **kwargs):
         return
 
     if is_internal_user(user):
-        project: Project = get_or_create_project(
-            internal_customer, user, external_customer
-        )
+        project = get_or_create_project(internal_customer, user, external_customer)
 
         if not project:
             return

@@ -870,7 +870,7 @@ class UserDetailsMatchMixin(models.Model):
     )
 
     @classmethod
-    def get_objects_by_user_patterns(cls, user, required=True):
+    def get_objects_by_user_patterns(cls, user: User, required=True):
         items = []
         for item in cls.objects.all():
             if (

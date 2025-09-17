@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import OrderTypes
 from waldur_mastermind.marketplace_script import models as marketplace_script_models
 
 
@@ -40,9 +41,9 @@ class ResourceSerializer(CommonSerializer):
     resource_backend_metadata = serializers.ReadOnlyField(source="backend_metadata")
 
 
-class DryRunTypes(models.RequestTypeMixin.Types):
+class DryRunTypes(OrderTypes):
     PULL = 4
-    CHOICES = models.RequestTypeMixin.Types.CHOICES + ((PULL, "Pull"),)
+    CHOICES = OrderTypes.CHOICES + ((PULL, "Pull"),)
 
     @classmethod
     def get_type_display(cls, index):

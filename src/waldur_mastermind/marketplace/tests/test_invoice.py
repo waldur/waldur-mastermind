@@ -13,7 +13,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
     OrderStates,
-    RequestTypes,
+    OrderTypes,
 )
 from waldur_mastermind.marketplace.models import Order
 from waldur_mastermind.marketplace.registrators import MarketplaceRegistrator
@@ -146,7 +146,7 @@ class TotalLimitTest(test.APITransactionTestCase):
             resource=self.resource,
             offering=self.resource.offering,
             plan=self.resource.plan,
-            type=RequestTypes.CREATE,
+            type=OrderTypes.CREATE,
             state=OrderStates.DONE,
             created_by=self.fixture.owner,
         )
@@ -154,7 +154,7 @@ class TotalLimitTest(test.APITransactionTestCase):
         # Verify CREATE order exists initially
         self.assertTrue(
             Order.objects.filter(
-                resource=self.resource, type=RequestTypes.CREATE
+                resource=self.resource, type=OrderTypes.CREATE
             ).exists(),
             "CREATE order should exist",
         )
@@ -165,7 +165,7 @@ class TotalLimitTest(test.APITransactionTestCase):
         # Verify CREATE order is gone
         self.assertFalse(
             Order.objects.filter(
-                resource=self.resource, type=RequestTypes.CREATE
+                resource=self.resource, type=OrderTypes.CREATE
             ).exists(),
             "CREATE order should be deleted",
         )

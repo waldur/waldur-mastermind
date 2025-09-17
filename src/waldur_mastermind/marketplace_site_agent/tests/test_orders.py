@@ -14,6 +14,7 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -88,7 +89,7 @@ class AllocationDeleteTest(test.APITransactionTestCase):
             project=self.fixture.project,
             state=OrderStates.EXECUTING,
             resource=self.resource,
-            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
         )
 
     def test_allocation_deletion_is_handled_by_agent(self):
@@ -167,7 +168,7 @@ class AllocationCreationFailureTest(test.APITransactionTestCase):
             project=self.fixture.project,
             state=OrderStates.PENDING_PROVIDER,
             offering=self.offering,
-            type=marketplace_models.RequestTypeMixin.Types.CREATE,
+            type=OrderTypes.CREATE,
             attributes={"name": "failed-allocation"},
         )
 
@@ -267,7 +268,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         # Simulate agent response
         termination_order = marketplace_models.Order.objects.filter(
             resource=self.resource,
-            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
         ).first()
 
         # First approve the order by provider to move it to EXECUTING state
@@ -292,7 +293,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         # Verify that a new termination order was created and went into ERRED state
         termination_orders = marketplace_models.Order.objects.filter(
             resource=self.resource,
-            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             state=OrderStates.ERRED,
         )
         self.assertEqual(
@@ -318,14 +319,14 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         # Create a failed create order
         failed_create_order = marketplace_factories.OrderFactory(
             resource=self.resource,
-            type=marketplace_models.RequestTypeMixin.Types.CREATE,
+            type=OrderTypes.CREATE,
             state=OrderStates.ERRED,
         )
 
         # Create a failed termination order
         failed_termination_order = marketplace_factories.OrderFactory(
             resource=self.resource,
-            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             state=OrderStates.ERRED,
         )
 
@@ -379,7 +380,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         # Create a failed termination order
         failed_termination_order = marketplace_factories.OrderFactory(
             resource=self.resource,
-            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             state=OrderStates.ERRED,
         )
 
@@ -427,7 +428,7 @@ class AllocationCleanupTest(test.APITransactionTestCase):
         # Create an executing terminate order
         executing_terminate_order = marketplace_factories.OrderFactory(
             resource=self.resource,
-            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             state=OrderStates.EXECUTING,
         )
 

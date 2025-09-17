@@ -93,6 +93,7 @@ from waldur_mastermind.marketplace.enums import (
     MaintenanceState,
     OfferingStates,
     OrderStates,
+    OrderTypes,
     ResourceStates,
     RobotAccountStates,
 )
@@ -710,9 +711,9 @@ class ErredOrderPullTask(OrderPullTask):
             local_order.state = correct_local_order_state
             local_order.save(update_fields=["state"])
 
-            if local_order.type == models.Order.Types.UPDATE:
+            if local_order.type == OrderTypes.UPDATE:
                 local_resource.set_state_updating()
-            if local_order.type == models.Order.Types.TERMINATE:
+            if local_order.type == OrderTypes.TERMINATE:
                 local_resource.set_state_terminating()
 
             local_resource.save(update_fields=["state"])
@@ -743,7 +744,7 @@ class ErredOrderListPullTask(BackgroundListPullTask):
             .exclude(backend_id="")
             .filter(
                 state=OrderStates.ERRED,
-                type__in=[models.Order.Types.UPDATE, models.Order.Types.TERMINATE],
+                type__in=[OrderTypes.UPDATE, OrderTypes.TERMINATE],
                 created__month=timezone.now().month,
             )
         )

@@ -5,8 +5,8 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import models, plugins
-from waldur_mastermind.marketplace.enums import OfferingStates
+from waldur_mastermind.marketplace import plugins
+from waldur_mastermind.marketplace.enums import OfferingStates, OrderTypes
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
@@ -183,7 +183,7 @@ class OrderFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), 1)
 
     def test_type_filter_negative(self):
-        self.fixture.order.type = models.RequestTypeMixin.Types.UPDATE
+        self.fixture.order.type = OrderTypes.UPDATE
         self.fixture.order.save()
         user = self.fixture.staff
         self.client.force_authenticate(user)

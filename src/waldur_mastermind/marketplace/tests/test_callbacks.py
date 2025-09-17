@@ -3,7 +3,7 @@ from rest_framework import test
 
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.marketplace import callbacks, models
-from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
+from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes, ResourceStates
 from waldur_mastermind.marketplace.tests import factories
 from waldur_openstack.tests.factories import InstanceFactory
 
@@ -44,7 +44,7 @@ class CallbacksTest(test.APITransactionTestCase):
         )
         order = factories.OrderFactory(
             state=OrderStates.EXECUTING,
-            type=models.Order.Types.UPDATE,
+            type=OrderTypes.UPDATE,
             resource=resource,
             plan=new_plan,
         )
@@ -78,7 +78,7 @@ class CallbacksTest(test.APITransactionTestCase):
         )
         order = factories.OrderFactory(
             state=OrderStates.EXECUTING,
-            type=models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             resource=resource,
             plan=plan,
         )
@@ -127,7 +127,7 @@ class CallbacksTest(test.APITransactionTestCase):
 
         order = factories.OrderFactory(
             state=OrderStates.EXECUTING,
-            type=models.Order.Types.CREATE,
+            type=OrderTypes.CREATE,
             resource=resource,
         )
 

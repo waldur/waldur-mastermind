@@ -78,6 +78,7 @@ from waldur_mastermind.marketplace.enums import (
 
 from . import models, plugins
 from .enums import BASIC_OFFERING as BASIC_PLUGIN_NAME
+from .enums import OrderTypes
 
 logger = logging.getLogger(__name__)
 USERNAME_ANONYMIZED_POSTFIX_LENGTH = 5
@@ -99,13 +100,13 @@ class UsernameGenerationPolicy(Enum):
 def get_order_processor(order: models.Order):
     offering = order.resource.offering
 
-    if order.type == models.RequestTypeMixin.Types.CREATE:
+    if order.type == OrderTypes.CREATE:
         return plugins.manager.get_processor(offering.type, "create_resource_processor")
 
-    elif order.type == models.RequestTypeMixin.Types.UPDATE:
+    elif order.type == OrderTypes.UPDATE:
         return plugins.manager.get_processor(offering.type, "update_resource_processor")
 
-    elif order.type == models.RequestTypeMixin.Types.TERMINATE:
+    elif order.type == OrderTypes.TERMINATE:
         return plugins.manager.get_processor(offering.type, "delete_resource_processor")
 
 
@@ -133,7 +134,7 @@ def process_order(order: models.Order, user):
 
         if (
             order.attributes.get("action") == "force_destroy"
-            and order.type == models.RequestTypeMixin.Types.TERMINATE
+            and order.type == OrderTypes.TERMINATE
             and user.is_staff
         ):
             order.resource.set_state_terminated()
@@ -1029,7 +1030,7 @@ def count_customers_number_change(service_provider):
     for customer_id in (
         models.Order.objects.filter(
             offering__customer=service_provider.customer,
-            type=models.Order.Types.CREATE,
+            type=OrderTypes.CREATE,
             state=OrderStates.DONE,
             created__gte=core_utils.month_start(to_day),
         )
@@ -1051,7 +1052,7 @@ def count_customers_number_change(service_provider):
     for customer_id in (
         models.Order.objects.filter(
             offering__customer=service_provider.customer,
-            type=models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             state=OrderStates.DONE,
             created__gte=core_utils.month_start(to_day),
         )
@@ -1078,7 +1079,7 @@ def count_resources_number_change(service_provider):
     created = (
         models.Order.objects.filter(
             offering__customer=service_provider.customer,
-            type=models.Order.Types.CREATE,
+            type=OrderTypes.CREATE,
             state=OrderStates.DONE,
             created__gte=core_utils.month_start(to_day),
         )
@@ -1091,7 +1092,7 @@ def count_resources_number_change(service_provider):
     terminated = (
         models.Order.objects.filter(
             offering__customer=service_provider.customer,
-            type=models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             state=OrderStates.DONE,
             created__gte=core_utils.month_start(to_day),
         )

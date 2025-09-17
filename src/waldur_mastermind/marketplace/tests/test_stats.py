@@ -21,6 +21,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     OfferingStates,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories, fixtures
@@ -769,7 +770,7 @@ class CountCustomersTest(test.APITransactionTestCase):
             offering=self.fixture.offering,
             project=project,
             resource=resource,
-            type=models.Order.Types.CREATE,
+            type=OrderTypes.CREATE,
             state=OrderStates.DONE,
         )
         return resource
@@ -779,7 +780,7 @@ class CountCustomersTest(test.APITransactionTestCase):
             offering=self.fixture.offering,
             state=OrderStates.DONE,
             resource=resource,
-            type=models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
         )
         resource.state = ResourceStates.TERMINATED
         return resource.save()

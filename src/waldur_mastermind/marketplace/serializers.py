@@ -71,6 +71,7 @@ from waldur_mastermind.marketplace.enums import (
     OfferingUserStates,
     OrderStates,
     OrderStatesType,
+    OrderTypes,
     ResourceStates,
     ResourceStatesType,
     RobotAccountStates,
@@ -2546,9 +2547,9 @@ class BaseItemSerializer(
 
 class BaseRequestSerializer(BaseItemSerializer):
     type = NaturalChoiceField(
-        choices=models.RequestTypeMixin.Types.CHOICES,
+        choices=OrderTypes.CHOICES,
         required=False,
-        default=models.RequestTypeMixin.Types.CREATE,
+        default=OrderTypes.CREATE,
     )
 
     class Meta(BaseItemSerializer.Meta):
@@ -2849,7 +2850,7 @@ def confirm_order_request_user_has_offering_consent(
 def validate_order(order: models.Order, request):
     structure_utils.check_customer_blocked_or_archived(order.project.customer)
 
-    if order.type != models.Order.Types.TERMINATE:
+    if order.type != OrderTypes.TERMINATE:
         structure_utils.check_project_end_date(order.project)
 
         if order.offering.state not in (

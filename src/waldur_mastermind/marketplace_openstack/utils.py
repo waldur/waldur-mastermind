@@ -17,6 +17,7 @@ from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
     OPENSTACK_TENANT_OFFERING,
     OPENSTACK_VOLUME_OFFERING,
+    OrderTypes,
 )
 from waldur_mastermind.marketplace.utils import (
     get_resource_state,
@@ -297,8 +298,8 @@ def restore_limits(resource):
         marketplace_models.Order.objects.filter(
             resource=resource,
             type__in=[
-                marketplace_models.Order.Types.CREATE,
-                marketplace_models.Order.Types.UPDATE,
+                OrderTypes.CREATE,
+                OrderTypes.UPDATE,
             ],
         )
         .order_by("-created")

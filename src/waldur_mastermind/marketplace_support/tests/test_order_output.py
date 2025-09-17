@@ -4,8 +4,7 @@ from unittest import mock
 
 from django.test import TestCase
 
-from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OrderStates
+from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_support import handlers
 from waldur_mastermind.support import models as support_models
@@ -22,7 +21,7 @@ class OrderOutputTest(TestCase):
         )
         self.order = marketplace_factories.OrderFactory(
             offering=self.offering,
-            type=marketplace_models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             state=OrderStates.EXECUTING,
         )
         self.issue = support_factories.IssueFactory(

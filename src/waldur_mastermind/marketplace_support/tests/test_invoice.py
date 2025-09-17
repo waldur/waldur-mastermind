@@ -16,7 +16,7 @@ from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.enums import BillingTypes, OrderStates
+from waldur_mastermind.marketplace.enums import BillingTypes, OrderStates, OrderTypes
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
@@ -296,7 +296,7 @@ class UsagesTest(InvoicesBaseTest):
     def _switch_plan(self):
         marketplace_factories.OrderFactory(
             resource=self.resource,
-            type=marketplace_models.RequestTypeMixin.Types.UPDATE,
+            type=OrderTypes.UPDATE,
             state=OrderStates.EXECUTING,
             plan=self.fixture.new_plan,
         )
@@ -381,7 +381,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
         self,
     ):
         order: marketplace_models.Order = marketplace_factories.OrderFactory(
-            type=marketplace_models.Order.Types.UPDATE,
+            type=OrderTypes.UPDATE,
             resource=self.resource,
             plan=self.fixture.plan,
         )
@@ -391,7 +391,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
         registrators.RegistrationManager.register(
             self.resource,
             timezone.now(),
-            order_type=marketplace_models.Order.Types.UPDATE,
+            order_type=OrderTypes.UPDATE,
         )
         self.invoice = self.get_invoice()
         expected = (

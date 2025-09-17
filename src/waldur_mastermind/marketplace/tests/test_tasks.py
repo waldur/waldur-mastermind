@@ -20,6 +20,7 @@ from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
     BillingTypes,
     OrderStates,
+    OrderTypes,
     ResourceStates,
     RobotAccountStates,
 )
@@ -191,7 +192,7 @@ class TerminateResource(test.APITransactionTestCase):
         self.resource = factories.ResourceFactory(offering=offering)
         factories.OrderFactory(
             resource=self.resource,
-            type=models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             state=OrderStates.EXECUTING,
         )
 
@@ -226,11 +227,11 @@ class ProjectEndDateTest(test.APITransactionTestCase):
             self.assertTrue(
                 models.Order.objects.filter(
                     resource=self.fixture.resource,
-                    type=models.Order.Types.TERMINATE,
+                    type=OrderTypes.TERMINATE,
                 ).count()
             )
             order = models.Order.objects.get(
-                resource=self.fixture.resource, type=models.Order.Types.TERMINATE
+                resource=self.fixture.resource, type=OrderTypes.TERMINATE
             )
             self.assertTrue(order.state, OrderStates.EXECUTING)
 
@@ -392,11 +393,11 @@ class ResourceEndDateTest(test.APITransactionTestCase):
             self.assertTrue(
                 models.Order.objects.filter(
                     resource=self.fixture.resource,
-                    type=models.Order.Types.TERMINATE,
+                    type=OrderTypes.TERMINATE,
                 ).count()
             )
             order = models.Order.objects.get(
-                resource=self.fixture.resource, type=models.Order.Types.TERMINATE
+                resource=self.fixture.resource, type=OrderTypes.TERMINATE
             )
             self.assertTrue(order.state, OrderStates.EXECUTING)
             self.assertEqual(order.created_by, self.system_robot)
@@ -414,11 +415,11 @@ class ResourceEndDateTest(test.APITransactionTestCase):
             self.assertTrue(
                 models.Order.objects.filter(
                     resource=self.fixture.resource,
-                    type=models.Order.Types.TERMINATE,
+                    type=OrderTypes.TERMINATE,
                 ).count()
             )
             order = models.Order.objects.get(
-                resource=self.fixture.resource, type=models.Order.Types.TERMINATE
+                resource=self.fixture.resource, type=OrderTypes.TERMINATE
             )
             self.assertTrue(order.state, OrderStates.EXECUTING)
             self.assertEqual(order.created_by, user)
