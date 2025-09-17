@@ -120,7 +120,7 @@ class FieldFilteringMixin:
             return fields
 
         # Skip field filtering during schema generation
-        if getattr(request, "_is_generating_schema", False):
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
         for field_name, check_access in self.get_filtered_field():
@@ -413,7 +413,7 @@ class CountrySerializerMixin(serializers.Serializer):
 
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
-        if getattr(self.context["view"], "swagger_fake_view", False):
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
         if "country" in fields:
             fields["country"].choices = self.get_country_choices()
@@ -1043,7 +1043,7 @@ class UserSerializer(
 
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
-        if getattr(request, "_is_generating_schema", False):
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
         if not user.is_staff:
