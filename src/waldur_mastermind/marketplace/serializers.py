@@ -7,7 +7,6 @@ import jwt
 from constance import config
 from dateutil.parser import parse as parse_datetime
 from django import forms
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
@@ -6519,12 +6518,6 @@ class CourseAccountsBulkCreateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         super().validate(attrs)
-        if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):
-            raise ValidationError("Course account management feature is disabled")
-
-        if not settings.WALDUR_CORE["COURSE_ACCOUNT_URL"]:
-            raise ValidationError("URL for course accounts is not configured")
-
         project: structure_models.Project = attrs["project"]
         if project.end_date is None:
             message = f"Unable to create a course account for a course project {project} without an end_date"
