@@ -26,7 +26,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core.models import User
 from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.media.mixins import get_upload_path
-from waldur_core.media.validators import ImageValidator
+from waldur_core.media.validators import FileTypeValidator, ImageValidator
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.mixins import PermissionMixin
 from waldur_core.permissions.utils import get_users
@@ -1509,6 +1509,14 @@ class Order(
     termination_comment = models.CharField(blank=True, null=True, max_length=255)
     completed_at = models.DateTimeField(
         _("completion time"), null=True, blank=True, editable=False
+    )
+
+    request_comment = models.CharField(blank=True, null=True, max_length=255)
+    attachment = models.FileField(
+        upload_to="marketplace_order_attachments",
+        blank=True,
+        null=True,
+        validators=[FileTypeValidator(allowed_types=["application/pdf"])],
     )
     get_type_display: Callable[[], str]
 

@@ -2572,6 +2572,8 @@ class BaseOrderSerializer(BaseRequestSerializer):
             "accepting_terms_of_service",
             "callback_url",
             "completed_at",
+            "request_comment",
+            "attachment",
         )
 
         read_only_fields = (
@@ -2582,7 +2584,13 @@ class BaseOrderSerializer(BaseRequestSerializer):
             "output",
             "completed_at",
         )
-        protected_fields = ("offering", "plan", "callback_url")
+        protected_fields = (
+            "offering",
+            "plan",
+            "callback_url",
+            "request_comment",
+            "attachment",
+        )
 
     marketplace_resource_uuid = serializers.UUIDField(
         read_only=True, source="resource.uuid"
