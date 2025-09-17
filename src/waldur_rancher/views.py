@@ -66,43 +66,10 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     serializer_class = serializers.RancherClusterSerializer
     filterset_class = filters.ClusterFilter
     update_executor = executors.ClusterUpdateExecutor
-
-    def perform_create(self, serializer):
-        cluster: models.Cluster = serializer.save()
-        user = self.request.user
-        nodes = serializer.validated_data.get("node_set")
-        install_longhorn = serializer.validated_data["install_longhorn"]
-
-        for node_data in nodes:
-            node_data["cluster"] = cluster
-            models.Node.objects.create(**node_data)
-
-        transaction.on_commit(
-            lambda: executors.ClusterCreateExecutor.execute(
-                cluster,
-                user=user,
-                install_longhorn=install_longhorn,
-                is_heavy_task=True,
-            )
-        )
-
-    def destroy(self, request, *args, **kwargs):
-        user = self.request.user
-        instance: models.Cluster = self.get_object()
-        executors.ClusterDeleteExecutor.execute(
-            instance,
-            user=user,
-            is_heavy_task=True,
-        )
-        return response.Response(
-            {"detail": _("Deletion was scheduled.")}, status=status.HTTP_202_ACCEPTED
-        )
+    disabled_actions = ["create", "destroy"]
 
     update_validators = partial_update_validators = [
         core_validators.StateValidator(CoreStates.OK),
-    ]
-    destroy_validators = structure_views.ResourceViewSet.destroy_validators + [
-        validators.all_cluster_related_vms_can_be_deleted,
     ]
     pull_executor = executors.ClusterPullExecutor
 

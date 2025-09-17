@@ -1,5 +1,5 @@
 """
-Comprehensive tests for ManagedRancherCreateProcessor covering identified gaps:
+Comprehensive tests for RancherCreateProcessor covering identified gaps:
 1. Multi-tenant scenarios
 2. Resource calculation validation
 3. Edge cases and error conditions
@@ -14,7 +14,6 @@ from rest_framework.serializers import ValidationError
 
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
-    MANAGED_RANCHER_OFFERING,
     OPENSTACK_TENANT_OFFERING,
     RANCHER_OFFERING,
     OrderStates,
@@ -26,9 +25,8 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_MODE_DYNAMIC,
     STORAGE_TYPE,
 )
-from waldur_mastermind.marketplace_rancher.processors import (
-    ManagedRancherCreateProcessor,
-)
+from waldur_mastermind.marketplace_rancher.const import DEPLOYMENT_MODE_MANAGED
+from waldur_mastermind.marketplace_rancher.processors import RancherCreateProcessor
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests import fixtures as openstack_fixtures
 from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE
@@ -40,7 +38,7 @@ class Request:
         self.user = request_user
 
 
-class ManagedRancherMultiTenantTest(test.APITransactionTestCase):
+class RancherMultiTenantTest(test.APITransactionTestCase):
     """Test multi-tenant scenarios and resource aggregation"""
 
     def setUp(self):
@@ -55,13 +53,6 @@ class ManagedRancherMultiTenantTest(test.APITransactionTestCase):
                 scope=openstack_factories.SettingsFactory(),
             )
             self.openstack_offerings.append(offering)
-
-        self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=RANCHER_OFFERING,
-            scope=service_settings,
-            shared=False,
-            billable=False,
-        )
 
         # Create flavors with known specifications
         self.worker_flavor = openstack_factories.FlavorFactory(
@@ -80,12 +71,13 @@ class ManagedRancherMultiTenantTest(test.APITransactionTestCase):
             cores=2,
         )
 
-        # Create managed rancher offering
+        # Create rancher offering
         self.offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_OFFERING, scope=self.rancher_offering
+            type=RANCHER_OFFERING, scope=service_settings
         )
         self.offering.plugin_options.update(
             {
+                "deployment_mode": DEPLOYMENT_MODE_MANAGED,
                 "managed_rancher_server_flavor_name": self.server_flavor.name,
                 "managed_rancher_server_system_volume_size_gb": 50,
                 "managed_rancher_server_data_volume_size_gb": 100,
@@ -127,7 +119,7 @@ class ManagedRancherMultiTenantTest(test.APITransactionTestCase):
             state=OrderStates.EXECUTING,
         )
 
-        processor = ManagedRancherCreateProcessor(order)
+        processor = RancherCreateProcessor(order)
 
         # Mock get_tenant_limits to return predictable values
         with patch.object(processor, "get_tenant_limits") as mock_limits:
@@ -163,7 +155,7 @@ class ManagedRancherMultiTenantTest(test.APITransactionTestCase):
             state=OrderStates.EXECUTING,
         )
 
-        processor = ManagedRancherCreateProcessor(order)
+        processor = RancherCreateProcessor(order)
 
         with patch.object(processor, "get_tenant_limits") as mock_limits:
             # Each tenant: 10 workers + 3 servers + 1 LB = many cores
@@ -219,17 +211,14 @@ class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
             type=OPENSTACK_TENANT_OFFERING, scope=openstack_factories.SettingsFactory()
         )
 
-        self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=RANCHER_OFFERING,
-            scope=service_settings,
-            shared=False,
-            billable=False,
-        )
-
         # Create managed rancher offering with known configurations
         self.offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_OFFERING, scope=self.rancher_offering
+            type=RANCHER_OFFERING, scope=service_settings
         )
+        self.offering.plugin_options.update(
+            {"deployment_mode": DEPLOYMENT_MODE_MANAGED}
+        )
+        self.offering.save()
 
         # Define standard flavors
         self.worker_flavor = openstack_factories.FlavorFactory(
@@ -286,7 +275,7 @@ class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
             state=OrderStates.EXECUTING,
         )
 
-        processor = ManagedRancherCreateProcessor(order)
+        processor = RancherCreateProcessor(order)
         limits = processor.get_tenant_limits(self.openstack_offering)
 
         # Fixed overhead: 3 servers (8 cores each) + 1 LB (2 cores) = 26 cores
@@ -311,7 +300,7 @@ class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
             state=OrderStates.EXECUTING,
         )
 
-        processor = ManagedRancherCreateProcessor(order)
+        processor = RancherCreateProcessor(order)
         limits = processor.get_tenant_limits(self.openstack_offering)
 
         # Total: 5 workers (4 cores each) + 3 servers (8 cores each) + 1 LB (2 cores)
@@ -334,7 +323,7 @@ class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
             state=OrderStates.EXECUTING,
         )
 
-        processor = ManagedRancherCreateProcessor(order)
+        processor = RancherCreateProcessor(order)
         limits = processor.get_tenant_limits(self.openstack_offering)
 
         # Storage calculation (all in MB):
@@ -368,7 +357,7 @@ class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
             state=OrderStates.EXECUTING,
         )
 
-        processor = ManagedRancherCreateProcessor(order)
+        processor = RancherCreateProcessor(order)
         limits = processor.get_tenant_limits(self.openstack_offering)
 
         # Storage with Longhorn (all in MB):
@@ -400,16 +389,13 @@ class ManagedRancherEdgeCasesTest(test.APITransactionTestCase):
             type=OPENSTACK_TENANT_OFFERING, scope=openstack_factories.SettingsFactory()
         )
 
-        self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=RANCHER_OFFERING,
-            scope=service_settings,
-            shared=False,
-            billable=False,
-        )
-
         self.offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_OFFERING, scope=self.rancher_offering
+            type=RANCHER_OFFERING, scope=service_settings
         )
+        self.offering.plugin_options.update(
+            {"deployment_mode": DEPLOYMENT_MODE_MANAGED}
+        )
+        self.offering.save()
 
     def test_missing_flavor_validation(self):
         """Test validation fails when required flavor is missing"""
@@ -572,7 +558,7 @@ class ManagedRancherEdgeCasesTest(test.APITransactionTestCase):
         )
         self.offering.save()
 
-        processor = ManagedRancherCreateProcessor(order)
+        processor = RancherCreateProcessor(order)
 
         # Mock aggregated limits in MB
         with patch.object(processor, "get_tenant_limits") as mock_limits:
@@ -628,13 +614,6 @@ class ManagedRancherDynamicStorageTest(test.APITransactionTestCase):
             settings=self.openstack_offering.scope, name="hdd-slow"
         )
 
-        self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=RANCHER_OFFERING,
-            scope=service_settings,
-            shared=False,
-            billable=False,
-        )
-
         # Create flavors
         self.worker_flavor = openstack_factories.FlavorFactory(
             settings=self.openstack_offering.scope,
@@ -656,10 +635,11 @@ class ManagedRancherDynamicStorageTest(test.APITransactionTestCase):
         )
 
         self.offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_OFFERING, scope=self.rancher_offering
+            type=RANCHER_OFFERING, scope=service_settings
         )
         self.offering.plugin_options.update(
             {
+                "deployment_mode": DEPLOYMENT_MODE_MANAGED,
                 "storage_mode": STORAGE_MODE_DYNAMIC,  # Set storage mode on managed rancher offering too
                 "managed_rancher_server_flavor_name": self.server_flavor.name,
                 "managed_rancher_server_system_volume_size_gb": 50,
@@ -703,7 +683,7 @@ class ManagedRancherDynamicStorageTest(test.APITransactionTestCase):
             state=OrderStates.EXECUTING,
         )
 
-        processor = ManagedRancherCreateProcessor(order)
+        processor = RancherCreateProcessor(order)
         limits = processor.get_tenant_limits(self.openstack_offering)
 
         # In dynamic mode, storage should be separated by volume type
@@ -758,12 +738,6 @@ class ManagedRancherIntegrationTest(test.APITransactionTestCase):
         openstack_offering = marketplace_factories.OfferingFactory(
             type=OPENSTACK_TENANT_OFFERING, scope=openstack_factories.SettingsFactory()
         )
-        rancher_offering = marketplace_factories.OfferingFactory(
-            type=RANCHER_OFFERING,
-            scope=service_settings,
-            shared=False,
-            billable=False,
-        )
 
         # Create flavors
         worker_flavor = openstack_factories.FlavorFactory(
@@ -799,10 +773,11 @@ class ManagedRancherIntegrationTest(test.APITransactionTestCase):
         )
 
         offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_OFFERING, scope=rancher_offering
+            type=RANCHER_OFFERING, scope=service_settings
         )
         offering.plugin_options.update(
             {
+                "deployment_mode": DEPLOYMENT_MODE_MANAGED,
                 "managed_rancher_server_flavor_name": server_flavor.name,
                 "managed_rancher_server_system_volume_size_gb": 50,
                 "managed_rancher_server_data_volume_size_gb": 100,
@@ -876,7 +851,7 @@ class ManagedRancherIntegrationTest(test.APITransactionTestCase):
 
             mock_get_order.side_effect = [tenant_order, cluster_order]
 
-            processor = ManagedRancherCreateProcessor(order)
+            processor = RancherCreateProcessor(order)
 
             # Test project creation
             project = processor.create_project()
@@ -980,13 +955,11 @@ class ManagedRancherStorageIntegrationTest(test.APITransactionTestCase):
             cores=2,
         )
 
-        # Create managed rancher offering
-        rancher_offering = marketplace_factories.OfferingFactory(type="Rancher.Cluster")
-        self.offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_OFFERING, scope=rancher_offering
-        )
+        # Create rancher offering
+        self.offering = marketplace_factories.OfferingFactory(type=RANCHER_OFFERING)
         self.offering.plugin_options.update(
             {
+                "deployment_mode": DEPLOYMENT_MODE_MANAGED,
                 "storage_mode": STORAGE_MODE_DYNAMIC,
                 "managed_rancher_server_flavor_name": self.server_flavor.name,
                 "managed_rancher_server_system_volume_size_gb": 50,
@@ -1030,7 +1003,7 @@ class ManagedRancherStorageIntegrationTest(test.APITransactionTestCase):
             state=OrderStates.EXECUTING,
         )
 
-        processor = ManagedRancherCreateProcessor(order)
+        processor = RancherCreateProcessor(order)
 
         # Create a mock tenant with associated marketplace resource
         mock_tenant = openstack_factories.TenantFactory(
@@ -1103,7 +1076,7 @@ class ManagedRancherStorageIntegrationTest(test.APITransactionTestCase):
             state=OrderStates.EXECUTING,
         )
 
-        processor = ManagedRancherCreateProcessor(order)
+        processor = RancherCreateProcessor(order)
 
         # Test 1: Verify values are preserved in order attributes
         self.assertEqual(

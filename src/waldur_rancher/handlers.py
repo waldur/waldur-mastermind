@@ -140,7 +140,7 @@ def delete_keycloak_user_group_membership_from_backend(
             )
             return
         keycloak.remove_user_from_group(backend_user["id"], group.backend_id)
-        local_members = group.keycloakusergroupmembership_set.all()
+        local_members = KeycloakUserGroupMembership.objects.filter(group=group).all()
         if len(local_members) == 0:
             # If the group has no local members, delete it from DB
             group.delete()
@@ -156,8 +156,11 @@ def add_group_to_rancher_scope(
         return
 
     group = instance
+    scope, settings = utils.get_keycloak_group_scope_and_settings(group)
+    if not settings:
+        logger.error("Settings not found for Rancher sync")
+        return
     try:
-        scope, settings = utils.get_keycloak_group_scope_and_settings(group)
         logger.info(
             "Adding group %s to Rancher %s %s", group, group.role.scope_type, scope.name
         )
@@ -184,8 +187,11 @@ def add_group_to_rancher_scope(
 def remove_group_from_rancher_scope(sender, instance: KeycloakGroup, **kwargs):
     """Remove a Keycloak group from Rancher scope."""
     group = instance
+    scope, settings = utils.get_keycloak_group_scope_and_settings(group)
+    if not settings:
+        logger.error("Settings not found for Rancher sync")
+        return
     try:
-        scope, settings = utils.get_keycloak_group_scope_and_settings(group)
         logger.info(
             "Removing group %s from Rancher %s %s",
             group,

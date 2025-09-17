@@ -14,6 +14,7 @@ from waldur_core.core.views import ReadOnlyActionsViewSet
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import permission_factory
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import RANCHER_OFFERING
 from waldur_mastermind.marketplace.serializers import ResourceSerializer
 from waldur_mastermind.marketplace_rancher import tasks
 from waldur_mastermind.marketplace_rancher.serializers import (
@@ -23,13 +24,12 @@ from waldur_openstack.models import Tenant
 from waldur_rancher import executors as rancher_executors
 from waldur_rancher import serializers as rancher_serializers
 from waldur_rancher import utils as rancher_utils
-
-from ..marketplace.enums import MANAGED_RANCHER_OFFERING
+from waldur_rancher.models import Cluster
 
 
 class ManagedRancherViewSet(ReadOnlyActionsViewSet):
     queryset = marketplace_models.Resource.objects.filter(
-        offering__type=MANAGED_RANCHER_OFFERING,
+        offering__type=RANCHER_OFFERING,
     )
     lookup_field = "uuid"
     serializer_class = ResourceSerializer
@@ -40,17 +40,17 @@ class ManagedRancherViewSet(ReadOnlyActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def add_node(self, request, *args, **kwargs):
-        cluster = self.get_object().scope.scope
+        cluster = cast(Cluster, self.get_object().scope)
         serializer = self.get_serializer(
             data=request.data, context={"cluster": cluster}
         )
         serializer.is_valid(raise_exception=True)
         node = serializer.save()
 
-        selected_tenant: Tenant = Tenant.objects.get(uuid=node.initial_data["tenant"])
+        selected_tenant = Tenant.objects.get(uuid=node.initial_data["tenant"])
         try:
-            tenant_resource: marketplace_models.Resource = (
-                marketplace_models.Resource.objects.get(scope=selected_tenant)
+            tenant_resource = marketplace_models.Resource.objects.get(
+                scope=selected_tenant
             )
         except marketplace_models.Resource.DoesNotExist:
             raise ValidationError(

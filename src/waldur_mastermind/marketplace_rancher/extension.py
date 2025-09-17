@@ -21,8 +21,8 @@ class MarketplaceRancherExtension(WaldurExtension):
     @staticmethod
     def celery_tasks():
         return {
-            "waldur_mastermind.marketplace_rancher.sync_managed_rancher_invoice_items": {
-                "task": "waldur_mastermind.marketplace_rancher.sync_managed_rancher_invoice_items",
+            "waldur_mastermind.marketplace_rancher.report_rancher_usage": {
+                "task": "waldur_mastermind.marketplace_rancher.report_rancher_usage",
                 "schedule": timedelta(hours=1),
                 "args": (),
             },

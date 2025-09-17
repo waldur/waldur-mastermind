@@ -4,7 +4,7 @@ from waldur_rancher import models as rancher_models
 from waldur_rancher.serializers import RancherCreateNodeSerializer
 
 
-class ClusterCreateSerializer(serializers.Serializer):
+class ManagedClusterCreateSerializer(serializers.Serializer):
     name = serializers.CharField(help_text="Unique identifier for the cluster")
     worker_nodes_count = serializers.IntegerField()
     worker_nodes_flavor_name = serializers.CharField()

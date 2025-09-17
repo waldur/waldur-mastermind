@@ -3,13 +3,13 @@ from rest_framework.serializers import ValidationError
 
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
-    MANAGED_RANCHER_OFFERING,
     OPENSTACK_TENANT_OFFERING,
     RANCHER_OFFERING,
     OrderStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import STORAGE_MODE_DYNAMIC
+from waldur_mastermind.marketplace_rancher.const import DEPLOYMENT_MODE_MANAGED
 from waldur_openstack.tests import (
     factories as openstack_factories,
 )
@@ -31,9 +31,6 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
         self.openstack_offering = marketplace_factories.OfferingFactory(
             type=OPENSTACK_TENANT_OFFERING, scope=self.fixture.tenant.service_settings
         )
-        self.rancher_offering = marketplace_factories.OfferingFactory(
-            type=RANCHER_OFFERING, scope=service_settings
-        )
 
         self.cpu_number = 8
         self.ram_size = 8
@@ -45,10 +42,11 @@ class ClusterTenantLimitsTest(test.APITransactionTestCase):
         self.flavor.tenants.add(self.fixture.tenant)
 
         self.offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_OFFERING, scope=self.rancher_offering
+            type=RANCHER_OFFERING, scope=service_settings
         )
         self.offering.plugin_options.update(
             {
+                "deployment_mode": DEPLOYMENT_MODE_MANAGED,
                 "managed_rancher_server_flavor_name": self.flavor.name,
                 "managed_rancher_server_system_volume_size_gb": 50,
                 "managed_rancher_server_system_volume_type_name": "prod",
