@@ -5,7 +5,7 @@ from rest_framework import exceptions
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_core.structure import permissions as structure_permissions
-from waldur_mastermind.marketplace.enums import OfferingStates
+from waldur_mastermind.marketplace.enums import OfferingStates, OrderTypes
 
 from . import models
 
@@ -50,7 +50,8 @@ def order_should_not_be_reviewed_by_consumer(order: models.Order):
 
     # Service provider is not required to approve termination order
     if (
-        order.type == models.Order.Types.TERMINATE
+        order.type == OrderTypes.TERMINATE
+        and order.offering.customer
         and structure_permissions._has_owner_access(user, order.offering.customer)
     ):
         return True

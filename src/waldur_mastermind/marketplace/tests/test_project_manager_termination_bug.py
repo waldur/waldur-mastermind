@@ -17,7 +17,7 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.enums import RequestTypes, ResourceStates
+from waldur_mastermind.marketplace.enums import OrderTypes, ResourceStates
 from waldur_mastermind.marketplace.tests import factories
 from waldur_openstack.tests import factories as openstack_factories
 
@@ -98,7 +98,7 @@ class ProjectManagerTerminationPermissionBugTest(test.APITransactionTestCase):
 
         # Verify order was created
         order = models.Order.objects.get(uuid=response.data["order_uuid"])
-        self.assertEqual(order.type, RequestTypes.TERMINATE)
+        self.assertEqual(order.type, OrderTypes.TERMINATE)
         self.assertEqual(order.resource, self.marketplace_resource)
 
     def test_project_manager_termination_with_fix(self):
@@ -120,7 +120,7 @@ class ProjectManagerTerminationPermissionBugTest(test.APITransactionTestCase):
         self.assertIn("order_uuid", response.data)
 
         order = models.Order.objects.get(uuid=response.data["order_uuid"])
-        self.assertEqual(order.type, RequestTypes.TERMINATE)
+        self.assertEqual(order.type, OrderTypes.TERMINATE)
         self.assertEqual(order.resource, self.marketplace_resource)
         self.assertEqual(order.created_by, self.project_manager)
 
@@ -142,7 +142,7 @@ class ProjectManagerTerminationPermissionBugTest(test.APITransactionTestCase):
         self.assertIn("order_uuid", response.data)
 
         order = models.Order.objects.get(uuid=response.data["order_uuid"])
-        self.assertEqual(order.type, RequestTypes.TERMINATE)
+        self.assertEqual(order.type, OrderTypes.TERMINATE)
         self.assertEqual(order.resource, self.marketplace_resource)
         self.assertEqual(order.created_by, self.project_admin)
 

@@ -9,6 +9,7 @@ from waldur_core.core.utils import pwgen
 from waldur_core.core.validators import validate_name
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import Project, ServiceSettings
+from waldur_mastermind.marketplace.enums import OrderTypes
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
@@ -186,7 +187,7 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
             project=dst_project,
             offering=dst_offering,
             created_by=user,
-            type=Order.Types.CREATE,
+            type=OrderTypes.CREATE,
         )
         if not order_should_not_be_reviewed_by_consumer(order):
             raise serializers.ValidationError(

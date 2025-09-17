@@ -10,6 +10,7 @@ from waldur_mastermind.marketplace.enums import (
     BOOKING_OFFERING,
     OfferingStates,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -48,7 +49,7 @@ class OrderProcessedTest(test.APITransactionTestCase):
 
         order = marketplace_factories.OrderFactory(
             offering=self.offering,
-            type=marketplace_models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             resource=resource,
             state=OrderStates.EXECUTING,
         )

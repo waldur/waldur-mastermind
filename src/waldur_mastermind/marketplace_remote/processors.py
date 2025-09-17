@@ -28,6 +28,7 @@ from waldur_api_client.types import UNSET
 from waldur_core.core.models import User
 from waldur_core.core.utils import serialize_instance
 from waldur_mastermind.marketplace import models, processors
+from waldur_mastermind.marketplace.enums import OrderTypes
 from waldur_mastermind.marketplace_remote import utils
 from waldur_mastermind.marketplace_remote.tasks import OrderStatePullTask
 
@@ -162,7 +163,7 @@ class RemoteDeleteResourceProcessor(processors.BasicDeleteResourceProcessor):
         imported_orders = utils.import_resource_orders(resource)
         if imported_orders:
             utils.pull_resource_state(resource)
-        if any(item.type == models.Order.Types.TERMINATE for item in imported_orders):
+        if any(item.type == OrderTypes.TERMINATE for item in imported_orders):
             self.order.set_state_erred()
             self.order.error_message = "Another order exists already."
             self.order.save()

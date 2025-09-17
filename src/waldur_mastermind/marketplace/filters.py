@@ -37,6 +37,7 @@ from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OfferingUserStates,
     OrderStates,
+    OrderTypes,
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
@@ -397,7 +398,7 @@ class OrderFilter(
     customer_uuid = django_filters.UUIDFilter(field_name="project__customer__uuid")
     service_manager_uuid = django_filters.UUIDFilter(method="filter_service_manager")
     state = core_filters.MappedMultipleChoiceFilter(OrderStates.CHOICES)
-    type = core_filters.MappedMultipleChoiceFilter(models.Order.Types.CHOICES)
+    type = core_filters.MappedMultipleChoiceFilter(OrderTypes.CHOICES)
     resource = core_filters.URLFilter(
         view_name="marketplace-resource-detail", field_name="resource__uuid"
     )

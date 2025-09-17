@@ -10,7 +10,11 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import SUPPORT_OFFERING, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    SUPPORT_OFFERING,
+    OrderTypes,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace_support import utils as marketplace_support_utils
 from waldur_mastermind.support.models import Issue
 
@@ -19,16 +23,13 @@ from . import tasks
 logger = logging.getLogger(__name__)
 
 
-ItemTypes = marketplace_models.Order.Types
-
-
 RESOURCE_CALLBACKS = {
-    (ItemTypes.CREATE, True): callbacks.resource_creation_succeeded,
-    (ItemTypes.CREATE, False): callbacks.resource_creation_canceled,
-    (ItemTypes.UPDATE, True): callbacks.resource_update_succeeded,
-    (ItemTypes.UPDATE, False): callbacks.resource_update_failed,
-    (ItemTypes.TERMINATE, True): callbacks.resource_deletion_succeeded,
-    (ItemTypes.TERMINATE, False): callbacks.resource_deletion_failed,
+    (OrderTypes.CREATE, True): callbacks.resource_creation_succeeded,
+    (OrderTypes.CREATE, False): callbacks.resource_creation_canceled,
+    (OrderTypes.UPDATE, True): callbacks.resource_update_succeeded,
+    (OrderTypes.UPDATE, False): callbacks.resource_update_failed,
+    (OrderTypes.TERMINATE, True): callbacks.resource_deletion_succeeded,
+    (OrderTypes.TERMINATE, False): callbacks.resource_deletion_failed,
 }
 
 
@@ -158,7 +159,7 @@ def notify_about_request_based_item_creation(
         issue.resource
         and isinstance(issue.resource, marketplace_models.Order)
         and issue.resource.offering.type == SUPPORT_OFFERING
-        and issue.resource.type == ItemTypes.CREATE
+        and issue.resource.type == OrderTypes.CREATE
     ):
         return
 

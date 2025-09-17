@@ -48,6 +48,7 @@ from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
     OfferingStates,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.serializers import MarketplaceCategorySerializer
@@ -330,7 +331,7 @@ class CancelTerminationOrderView(GenericAPIView):
         qs = models.Order.objects.filter(
             offering__type=REMOTE_OFFERING,
             state=OrderStates.EXECUTING,
-            type=models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
         )
         return get_object_or_404(qs, uuid=item_uuid)
 

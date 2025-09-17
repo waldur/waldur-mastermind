@@ -15,6 +15,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     OfferingStates,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -351,11 +352,11 @@ class TenantMutateTest(test.APITransactionTestCase):
 class TenantDeleteTest(TenantMutateTest):
     def setUp(self):
         super().setUp()
-        self.order: marketplace_models.Order = marketplace_factories.OrderFactory(
+        self.order = marketplace_factories.OrderFactory(
             resource=self.resource,
             project=self.fixture.project,
             state=OrderStates.EXECUTING,
-            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
         )
 
     def test_deletion_is_scheduled(self):
@@ -524,7 +525,7 @@ class InstanceDeleteTest(test.APITransactionTestCase):
             project=self.fixture.project,
             state=OrderStates.EXECUTING,
             resource=self.resource,
-            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
         )
 
     def test_order_is_valid(self):
@@ -764,7 +765,7 @@ class VolumeDeleteTest(test.APITransactionTestCase):
             project=self.fixture.project,
             state=OrderStates.EXECUTING,
             resource=self.resource,
-            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
         )
 
     def test_deletion_is_scheduled(self):
@@ -829,7 +830,7 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
     def setUp(self):
         super().setUp()
         self.order = marketplace_factories.OrderFactory(
-            type=marketplace_models.Order.Types.UPDATE,
+            type=OrderTypes.UPDATE,
             resource=self.resource,
             plan=self.resource.plan,
             offering=self.offering,

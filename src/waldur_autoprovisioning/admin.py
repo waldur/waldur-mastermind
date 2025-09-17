@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin
+from django.contrib.contenttypes.models import ContentType
 
 from waldur_autoprovisioning import models
 from waldur_core.permissions.models import Role
@@ -13,7 +14,9 @@ class RuleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["project_role"].queryset = Role.project_roles()
+        self.fields["project_role"].queryset = Role.objects.filter(
+            content_type=ContentType.objects.get_by_natural_key("structure", "project")
+        )
         if "plan" in self.fields:
             self.fields[
                 "plan"

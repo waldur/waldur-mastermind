@@ -77,6 +77,7 @@ from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
     OfferingStates,
     OrderStates,
+    OrderTypes,
     RemoteResourceSyncStatus,
     ResourceStates,
 )
@@ -503,7 +504,7 @@ def parse_order_state(serialized_state: str) -> int:
 
 
 def parse_order_type(serialized_state: str) -> int:
-    return {v: k for (k, v) in marketplace_models.Order.Types.CHOICES}[serialized_state]
+    return {v: k for (k, v) in OrderTypes.CHOICES}[serialized_state]
 
 
 def parse_offering_state(serialized_state: str) -> int:

@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
 from waldur_autoprovisioning import models
@@ -8,7 +9,7 @@ from waldur_mastermind.marketplace.fields import PublicPlanField
 
 class RuleSerializer(serializers.HyperlinkedModelSerializer):
     project_role = serializers.HyperlinkedRelatedField(
-        queryset=Role.project_roles(),
+        queryset=Role.objects.all(),
         view_name="role-detail",
         lookup_field="uuid",
         required=False,
@@ -136,10 +137,19 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
                 "Either project_role or project_role_name must be provided."
             )
 
+        if (
+            project_role
+            and project_role.content_type
+            != ContentType.objects.get_by_natural_key("structure", "project")
+        ):
+            raise serializers.ValidationError(
+                "The specified role is not a valid project role."
+            )
+
         # If project_role_name is provided, look up the role by name
         if project_role_name:
             try:
-                role = Role.project_roles().get(name=project_role_name)
+                role = Role.objects.get(name=project_role_name)
                 attrs["project_role"] = role
             except Role.DoesNotExist:
                 raise serializers.ValidationError(

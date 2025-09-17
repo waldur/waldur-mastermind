@@ -6,7 +6,7 @@ from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OrderStates,
-    RequestTypes,
+    OrderTypes,
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
@@ -54,7 +54,7 @@ SPECTACULAR_SETTINGS = {
         "CallStates": CallStates.CHOICES,
         "ProposalStates": ProposalStates.CHOICES,
         "RequestedOfferingStates": RequestedOfferingStates.CHOICES,
-        "RequestTypes": RequestTypes.VALUES,
+        "RequestTypes": OrderTypes.VALUES,
         "RancherTemplateQuestionType": RANCHER_TEMPLATE_QUESTION_TYPE,
         "RancherRoleScopeType": RoleScopeType.CHOICES,
         "KeycloakUserGroupMembershipState": KeycloakUserGroupMembershipState.CHOICES,

@@ -19,6 +19,7 @@ from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
     BillingTypes,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -257,7 +258,7 @@ class RemoteUpdateResourceProcessorTest(test.APITransactionTestCase):
             offering=offering,
             resource=self.resource,
             state=OrderStates.EXECUTING,
-            type=marketplace_models.Order.Types.UPDATE,
+            type=OrderTypes.UPDATE,
             limits={"cpu": 10, "ram": 20},
             attributes={"old_limits": {"cpu": 5, "ram": 10}},
         )

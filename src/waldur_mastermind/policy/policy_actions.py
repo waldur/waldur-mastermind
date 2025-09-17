@@ -12,6 +12,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.exceptions import PolicyException
@@ -83,7 +84,7 @@ def terminate_resources(policy: models.Policy):
             order = marketplace_models.Order.objects.create(
                 resource=resource,
                 offering=resource.offering,
-                type=marketplace_models.Order.Types.TERMINATE,
+                type=OrderTypes.TERMINATE,
                 state=OrderStates.EXECUTING,
                 attributes=attributes,
                 project=resource.project,

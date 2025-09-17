@@ -122,7 +122,7 @@ class OfferingUserStates:
     VALUES = [val for (_, val) in CHOICES]
 
 
-class RequestTypes:
+class OrderTypes:
     CREATE = 1
     UPDATE = 2
     TERMINATE = 3

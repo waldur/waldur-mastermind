@@ -29,6 +29,7 @@ from waldur_mastermind.marketplace import exceptions, models, plugins, utils
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OrderStates,
+    OrderTypes,
     ResourceStates,
     RobotAccountStates,
 )
@@ -281,7 +282,7 @@ def terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_o
     failed_creation_resources = (
         models.Order.objects.filter(
             resource__in=resources,
-            type=models.Order.Types.CREATE,
+            type=OrderTypes.CREATE,
             state=OrderStates.ERRED,
         )
         .order_by("-created")
@@ -292,7 +293,7 @@ def terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_o
     resources_with_last_termination_order_erred = (
         models.Order.objects.filter(
             resource__in=resources,
-            type=models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             state=OrderStates.ERRED,
         )
         .order_by("-created")

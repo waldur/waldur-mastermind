@@ -45,7 +45,7 @@ from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OfferingUserStates,
     OrderStates,
-    RequestTypes,
+    OrderTypes,
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
@@ -1164,46 +1164,6 @@ class CostEstimateMixin(models.Model):
             self.error_message = "Policy is violated."
 
 
-class RequestTypeMixin(CostEstimateMixin):
-    """
-    Mixin for request type handling.
-
-    Extends CostEstimateMixin with request type-specific cost calculation
-    for different operation types (CREATE, UPDATE, etc.). Provides
-    pricing logic based on request type and plan switching.
-    """
-
-    class Types(RequestTypes):
-        pass
-
-    type = models.PositiveSmallIntegerField(choices=Types.CHOICES, default=Types.CREATE)
-
-    class Meta:
-        abstract = True
-
-    def init_cost(self):
-        super().init_cost()
-        if self.plan:
-            if self.type == RequestTypeMixin.Types.CREATE:
-                self.cost += self.plan.init_price
-            elif self.type == RequestTypeMixin.Types.UPDATE:
-                self.cost += self.plan.switch_price
-
-    @property
-    def fixed_price(self) -> float:
-        if self.type == RequestTypeMixin.Types.CREATE:
-            return self.plan.fixed_price
-        return 0
-
-    @property
-    def activation_price(self) -> float:
-        if self.type == RequestTypeMixin.Types.CREATE:
-            return self.plan.init_price
-        elif self.type == RequestTypeMixin.Types.UPDATE:
-            return self.plan.switch_price
-        return 0
-
-
 class SafeAttributesMixin(models.Model):
     """
     Mixin for safe attribute handling.
@@ -1448,7 +1408,7 @@ class Resource(
 
     @property
     def creation_order(self) -> "Order | None":
-        return Order.objects.filter(resource=self, type=Order.Types.CREATE).first()
+        return Order.objects.filter(resource=self, type=OrderTypes.CREATE).first()
 
     @property
     def order_in_progress(self):
@@ -1496,7 +1456,7 @@ class Order(
     core_models.UuidMixin,
     core_models.BackendMixin,
     core_models.ErrorMessageMixin,
-    RequestTypeMixin,
+    CostEstimateMixin,
     structure_models.StructureLoggableMixin,
     SafeAttributesMixin,
     TimeStampedModel,
@@ -1508,6 +1468,10 @@ class Order(
     and review tracking by consumers and providers. Supports different
     order types and comprehensive order management.
     """
+
+    type = models.PositiveSmallIntegerField(
+        choices=OrderTypes.CHOICES, default=OrderTypes.CREATE
+    )
 
     old_plan = models.ForeignKey(
         on_delete=models.CASCADE, to=Plan, related_name="+", null=True, blank=True
@@ -1556,6 +1520,28 @@ class Order(
     class Meta:
         verbose_name = _("Order")
         ordering = ("created",)
+
+    def init_cost(self):
+        super().init_cost()
+        if self.plan:
+            if self.type == OrderTypes.CREATE:
+                self.cost += self.plan.init_price
+            elif self.type == OrderTypes.UPDATE:
+                self.cost += self.plan.switch_price
+
+    @property
+    def fixed_price(self) -> float:
+        if self.type == OrderTypes.CREATE:
+            return self.plan.fixed_price
+        return 0
+
+    @property
+    def activation_price(self) -> float:
+        if self.type == OrderTypes.CREATE:
+            return self.plan.init_price
+        elif self.type == OrderTypes.UPDATE:
+            return self.plan.switch_price
+        return 0
 
     @classmethod
     def get_url_name(cls):

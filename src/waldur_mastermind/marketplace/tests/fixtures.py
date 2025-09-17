@@ -13,6 +13,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     OfferingStates,
     OrderStates,
+    OrderTypes,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
@@ -94,7 +95,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
             resource=self.resource,
             plan=self.plan,
             state=OrderStates.EXECUTING,
-            type=marketplace_models.Order.Types.UPDATE,
+            type=OrderTypes.UPDATE,
         )
 
     @cached_property

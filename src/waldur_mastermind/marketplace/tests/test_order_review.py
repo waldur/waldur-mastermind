@@ -22,6 +22,7 @@ from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     BillingTypes,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tasks import process_order
@@ -150,7 +151,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
             offering=offering,
             project=self.project,
             created_by=self.manager,
-            type=models.Order.Types.UPDATE,
+            type=OrderTypes.UPDATE,
             state=OrderStates.PENDING_PROVIDER,
             resource=resource,
             attributes=dict(old_limits=old_limits),
@@ -176,7 +177,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
             offering=offering,
             project=self.project,
             created_by=self.manager,
-            type=models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
             resource=resource,
             state=OrderStates.PENDING_PROVIDER,
         )
@@ -315,7 +316,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
     ):
         self.offering.type = BASIC_OFFERING
         self.offering.save()
-        self.order.type = models.Order.Types.UPDATE
+        self.order.type = OrderTypes.UPDATE
         self.order.save()
 
         plan_period = factories.ResourcePlanPeriodFactory()
@@ -343,7 +344,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
     ):
         self.offering.type = BASIC_OFFERING
         self.offering.save()
-        self.order.type = models.Order.Types.TERMINATE
+        self.order.type = OrderTypes.TERMINATE
         self.order.save()
 
         self.reject_order("owner")

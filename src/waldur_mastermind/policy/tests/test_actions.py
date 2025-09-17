@@ -11,6 +11,7 @@ from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -164,12 +165,12 @@ class ActionsTest(test.APITransactionTestCase):
         self.assertTrue(
             marketplace_models.Order.objects.filter(
                 resource=resource,
-                type=marketplace_models.Order.Types.TERMINATE,
+                type=OrderTypes.TERMINATE,
             ).exists()
         )
         order = marketplace_models.Order.objects.filter(
             resource=resource,
-            type=marketplace_models.Order.Types.TERMINATE,
+            type=OrderTypes.TERMINATE,
         ).get()
         self.assertEqual(order.attributes, {"action": "force_destroy"})
 
