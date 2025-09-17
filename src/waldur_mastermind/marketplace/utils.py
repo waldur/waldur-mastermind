@@ -2423,7 +2423,13 @@ def create_multiple_course_accounts(
             course_accounts_created.append(course_account_created)
         return course_accounts_created
 
+    if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):
+        return
+
     course_account_url = settings.WALDUR_CORE["COURSE_ACCOUNT_URL"]
+    if not course_account_url:
+        raise ValidationError("URL for course accounts is not configured")
+
     course_account_url = course_account_url.rstrip("/")
     course_accounts_created = []
 
