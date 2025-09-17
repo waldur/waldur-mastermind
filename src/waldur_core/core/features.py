@@ -84,6 +84,8 @@ class ProjectSection(FeatureSection):
         "Allows to show permission reviews tab and popups for projects."
     )
 
+    show_kind_in_create_dialog = Feature("Show kind field in project create dialog.")
+
 
 class UserSection(FeatureSection):
     class Meta:
