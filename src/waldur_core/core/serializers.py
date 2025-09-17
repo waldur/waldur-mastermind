@@ -428,7 +428,7 @@ class RestrictedSerializerMixin:
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
         request = self.context["request"]
-        if getattr(request, "_is_generating_schema", False):
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
         query_params = request.query_params
@@ -633,8 +633,7 @@ class SlugSerializerMixin(serializers.Serializer):
         except (KeyError, AttributeError):
             return fields
 
-        # Skip permission-based field modifications during schema generation
-        if getattr(request, "_is_generating_schema", False):
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
         if not user.is_staff:

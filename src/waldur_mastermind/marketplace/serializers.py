@@ -609,7 +609,7 @@ class ServiceProviderSerializer(
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
         request = self.context["request"]
-        if getattr(request, "_is_generating_schema", False):
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
         if request.user.is_anonymous:
@@ -2609,7 +2609,7 @@ class BaseOrderSerializer(BaseRequestSerializer):
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
         request = self.context["view"].request
-        if getattr(request, "_is_generating_schema", False):
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
         user = request.user
@@ -3124,7 +3124,7 @@ class ResourceSuggestNameSerializer(serializers.ModelSerializer):
 
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
-        if getattr(self.context["view"], "swagger_fake_view", False):
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
         user = request.user
@@ -3419,7 +3419,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
         request = self.context["request"]
-        if getattr(request, "_is_generating_schema", False):
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
         keys = request.query_params.getlist(self.FIELDS_PARAM_NAME)
@@ -5033,7 +5033,7 @@ class MarketplaceServiceProviderUserSerializer(
 
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
-        if getattr(request, "_is_generating_schema", False):
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
         if user.is_authenticated and not user.is_staff and not user.is_support:
@@ -5206,11 +5206,8 @@ class ProviderOfferingSerializer(
 
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
-        try:
-            if getattr(self.context["request"], "_is_generating_schema", False):
-                return fields
-        except (AttributeError, KeyError):
-            pass
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
+            return fields
 
         if (
             self.instance
