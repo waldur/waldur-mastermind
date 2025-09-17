@@ -61,9 +61,7 @@ from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
 from waldur_mastermind.marketplace.enums import (
-    MANAGED_RANCHER_OFFERING,
     OPENSTACK_TENANT_OFFERING,
-    RANCHER_OFFERING,
     BillingTypes,
     CourseAccountState,
     LimitPeriods,
@@ -89,6 +87,10 @@ from waldur_mastermind.marketplace.utils import (
     parse_date,
     validate_attributes,
     validate_end_date,
+)
+from waldur_mastermind.marketplace_rancher.const import (
+    DEPLOYMENT_MODE_MANAGED,
+    DEPLOYMENT_MODE_SELF_MANAGED,
 )
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
@@ -230,12 +232,11 @@ class GLAuthPluginOptionsSerializer(serializers.Serializer):
 
 
 class RancherPluginOptionsSerializer(serializers.Serializer):
-    flavors_regex = serializers.CharField(
-        required=False, help_text="Regular expression to limit flavors list"
+    deployment_mode = serializers.ChoiceField(
+        required=False,
+        choices=[DEPLOYMENT_MODE_SELF_MANAGED, DEPLOYMENT_MODE_MANAGED],
+        help_text="Rancher deployment mode",
     )
-
-
-class ManagedRancherPluginOptionsSerializer(serializers.Serializer):
     openstack_offering_uuid_list = serializers.ListSerializer(
         child=serializers.CharField(validators=[core_utils.validate_uuid]),
         required=False,
@@ -302,7 +303,6 @@ class MergedPluginOptionsSerializer(
     GLAuthPluginOptionsSerializer,
     SupportPluginOptionsSerializer,
     RancherPluginOptionsSerializer,
-    ManagedRancherPluginOptionsSerializer,
     AgentPluginOptionsSerializer,
 ):
     pass
@@ -383,7 +383,7 @@ class RemoteServiceSecretOptionsSerializer(serializers.Serializer):
     )
 
 
-class ManagedRancherSecretOptionsSerializer(serializers.Serializer):
+class RancherSecretOptionsSerializer(serializers.Serializer):
     backend_url = serializers.CharField(
         max_length=200,
         label=_("Rancher server URL"),
@@ -521,7 +521,7 @@ class MergedSecretOptionsSerializer(
     ScriptSecretOptionsSerializer,
     GenericSecretOptionsSerializer,
     RemoteServiceSecretOptionsSerializer,
-    ManagedRancherSecretOptionsSerializer,
+    RancherSecretOptionsSerializer,
 ):
     pass
 
@@ -2785,15 +2785,6 @@ def validate_private_offering(order: models.Order):
 
     # Order is ok if consumer and provider project is the same
     if order.offering.project == order.project:
-        return
-
-    # Managed Rancher offering has special private Rancher offering
-    if (
-        order.offering.type == RANCHER_OFFERING
-        and models.Offering.objects.filter(
-            type=MANAGED_RANCHER_OFFERING, scope=order.offering
-        ).exists()
-    ):
         return
 
     raise serializers.ValidationError(

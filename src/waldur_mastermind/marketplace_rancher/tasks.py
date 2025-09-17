@@ -1,39 +1,44 @@
+from datetime import datetime
 from typing import cast
 
 from celery import shared_task
 
-from waldur_core.core.utils import deserialize_instance
-from waldur_mastermind.invoices.models import InvoiceItem
-from waldur_mastermind.invoices.utils import get_current_month, get_current_year
-from waldur_mastermind.marketplace.models import Resource
+from waldur_core.core.utils import deserialize_instance, month_start
+from waldur_mastermind.marketplace.enums import RANCHER_OFFERING, ResourceStates
+from waldur_mastermind.marketplace.models import (
+    ComponentUsage,
+    OfferingComponent,
+    Resource,
+)
+from waldur_mastermind.marketplace.utils import get_or_create_plan_period
 
-from ..marketplace.enums import MANAGED_RANCHER_OFFERING
 from . import utils
 
 
-@shared_task(
-    name="waldur_mastermind.marketplace_rancher.sync_managed_rancher_invoice_items"
-)
-def sync_managed_rancher_invoice_items():
-    year, month = get_current_year(), get_current_month()
-    for downstream_invoice_item in InvoiceItem.objects.filter(
-        resource__offering__type=MANAGED_RANCHER_OFFERING,
-        invoice__year=year,
-        invoice__month=month,
-        backend_uuid__isnull=False,
+@shared_task(name="waldur_mastermind.marketplace_rancher.report_rancher_usage")
+def report_rancher_usage():
+    for resource in Resource.objects.filter(
+        offering__type=RANCHER_OFFERING, state=ResourceStates.OK
     ):
-        try:
-            upstream_invoice_item = InvoiceItem.objects.get(
-                uuid=downstream_invoice_item.backend_uuid
+        collector = utils.UnifiedRancherUsageCollector()
+        usage = collector.collect_usage(resource)
+        today = datetime.today()
+
+        for component_type, quantity in usage.items():
+            offering_component = OfferingComponent.objects.get(
+                offering=resource.offering, type=component_type
             )
-        except InvoiceItem.DoesNotExist:
-            continue
-        utils.sync_managed_rancher_invoice_items(
-            upstream_invoice_item, downstream_invoice_item
-        )
-        utils.sync_aggregated_invoice_item(
-            upstream_invoice_item, downstream_invoice_item
-        )
+            plan_period = get_or_create_plan_period(resource, today)
+            ComponentUsage.objects.update_or_create(
+                resource=resource,
+                component=offering_component,
+                billing_period=month_start(today),
+                plan_period=plan_period,
+                defaults={
+                    "usage": quantity,
+                    "date": today,
+                },
+            )
 
 
 @shared_task(name="waldur_mastermind.marketplace_rancher.update_tenant_limits")

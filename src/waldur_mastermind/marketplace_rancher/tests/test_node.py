@@ -11,7 +11,6 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_mastermind.marketplace.enums import (
-    MANAGED_RANCHER_OFFERING,
     OPENSTACK_TENANT_OFFERING,
     RANCHER_OFFERING,
     BillingTypes,
@@ -85,21 +84,17 @@ class TestManagedRancherNodeCreate(APITransactionTestCase):
         )
         base_image.tenants.add(self.tenant)
         base_image.save()
-        # Create Managed Rancher objects
         rancher_service_settings = rancher_factories.RancherServiceSettingsFactory(
             options={"base_image_name": base_image.name}
         )
         rancher_offering = marketplace_factories.OfferingFactory(
-            type=RANCHER_OFFERING, scope=rancher_service_settings
-        )
-        managed_rancher_offering = marketplace_factories.OfferingFactory(
-            type=MANAGED_RANCHER_OFFERING,
-            scope=rancher_offering,
+            type=RANCHER_OFFERING,
+            scope=rancher_service_settings,
         )
         self.cluster = rancher_factories.ClusterFactory(
             service_settings=rancher_service_settings
         )
-        cluster_resource = marketplace_factories.ResourceFactory(
+        self.cluster_resource = marketplace_factories.ResourceFactory(
             offering=rancher_offering,
             scope=self.cluster,
             project=self.fixture.project,
@@ -108,12 +103,7 @@ class TestManagedRancherNodeCreate(APITransactionTestCase):
                 "cores": self.flavor.cores,
                 "ram": self.flavor.ram,
             },
-        )
-        self.managed_cluster_resource = marketplace_factories.ResourceFactory(
-            offering=managed_rancher_offering,
             state=ResourceStates.OK,
-            scope=cluster_resource,
-            project=self.fixture.project,
         )
         # Create Rancher node
         rancher_factories.NodeFactory(
@@ -124,7 +114,7 @@ class TestManagedRancherNodeCreate(APITransactionTestCase):
             "http://testserver"
             + reverse(
                 "managed-rancher-cluster-resource-detail",
-                kwargs={"uuid": self.managed_cluster_resource.uuid.hex},
+                kwargs={"uuid": self.cluster_resource.uuid.hex},
             )
             + "add_node/"
         )

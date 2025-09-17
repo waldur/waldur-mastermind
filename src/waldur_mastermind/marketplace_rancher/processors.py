@@ -3,6 +3,9 @@ from ipaddress import ip_network
 from time import sleep
 from typing import cast
 
+from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from rest_framework import serializers as rf_serializers
 from rest_framework import status
 from rest_framework.reverse import reverse
@@ -10,18 +13,12 @@ from rest_framework.reverse import reverse
 from waldur_core.core.models import User
 from waldur_core.core.utils import get_system_robot
 from waldur_core.structure.models import Customer, Project, ServiceSettings
+from waldur_core.structure.views import ResourceViewSet
 from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.marketplace import (
     processors,
 )
-from waldur_mastermind.marketplace import (
-    serializers as marketplace_serializers,
-)
-from waldur_mastermind.marketplace.enums import (
-    OPENSTACK_TENANT_OFFERING,
-    RANCHER_OFFERING,
-    OfferingStates,
-)
+from waldur_mastermind.marketplace.enums import OPENSTACK_TENANT_OFFERING
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
@@ -41,35 +38,28 @@ from waldur_openstack import views as os_views
 from waldur_openstack.utils import volume_type_name_to_quota_name
 from waldur_rancher import exceptions
 from waldur_rancher import models as rancher_models
-from waldur_rancher import views as rancher_views
 from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE, NodeRoleType
+from waldur_rancher.executors import ClusterCreateExecutor, ClusterDeleteExecutor
+from waldur_rancher.serializers import RancherClusterSerializer
+from waldur_rancher.validators import related_vm_can_be_deleted
 
 from . import const, serializers
 
 
-class RancherCreateProcessor(processors.BaseCreateResourceProcessor):
-    viewset = rancher_views.ClusterViewSet
-    fields = (
-        "name",
-        "description",
-        "nodes",
-        "tenant",
-        "ssh_public_key",
-        "install_longhorn",
-        "security_groups",
-        "vm_project",
-    )
+class RancherCreateProcessor(processors.AbstractCreateResourceProcessor):
+    def send_request(self, user):
+        deployment_mode = self.order.offering.plugin_options.get(
+            "deployment_mode", const.DEPLOYMENT_MODE_SELF_MANAGED
+        )
+        if deployment_mode == const.DEPLOYMENT_MODE_MANAGED:
+            return self._create_managed_cluster(user)
+        else:
+            return self._create_self_managed_cluster(user)
 
-
-class RancherDeleteProcessor(processors.DeleteScopedResourceProcessor):
-    viewset = rancher_views.ClusterViewSet
-
-
-class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
-    create_serializer_class = serializers.ClusterCreateSerializer
-
-    def send_request(self, user) -> Resource:
-        serializer = serializers.ClusterCreateSerializer(data=self.order.attributes)
+    def _create_managed_cluster(self, user) -> rancher_models.Cluster:
+        serializer = serializers.ManagedClusterCreateSerializer(
+            data=self.order.attributes
+        )
         serializer.is_valid(raise_exception=True)
 
         project = self.create_project()
@@ -77,22 +67,60 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         self.update_subnets(tenants)
         self.create_security_groups(tenants)
         load_balancers = self.create_load_balancers(user, project, tenants)
-        cluster_resource = self.create_cluster(user, project, tenants)
+        cluster = self.create_cluster(user, project, tenants)
         for sg in const.OS_LB_SECURITY_GROUPS:
-            rancher_models.ClusterSecurityGroup.objects.create(
-                cluster=cast(rancher_models.Cluster, cluster_resource.scope),
-                name=sg,
-            )
+            rancher_models.ClusterSecurityGroup.objects.create(cluster=cluster, name=sg)
 
         for load_balancer in load_balancers:
             if load_balancer.floating_ips.count() == 0:
                 continue
             rancher_models.ClusterPublicIP.objects.get_or_create(
-                cluster=cast(rancher_models.Cluster, cluster_resource.scope),
+                cluster=cluster,
                 floating_ip=load_balancer.floating_ips.first(),
             )
 
-        return cluster_resource
+        return cluster
+
+    def _get_post_data(self):
+        return processors.get_order_post_data(
+            self.order,
+            (
+                "name",
+                "description",
+                "nodes",
+                "tenant",
+                "ssh_public_key",
+                "install_longhorn",
+                "security_groups",
+                "vm_project",
+            ),
+        )
+
+    def _create_self_managed_cluster(self, user):
+        return self._trigger_cluster_creation(user, self._get_post_data())
+
+    def _trigger_cluster_creation(self, user, data) -> rancher_models.Cluster:
+        serializer = RancherClusterSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+
+        cluster: rancher_models.Cluster = serializer.save()
+        nodes = serializer.validated_data.get("node_set")
+        install_longhorn = serializer.validated_data["install_longhorn"]
+
+        for node_data in nodes:
+            node_data["cluster"] = cluster
+            rancher_models.Node.objects.create(**node_data)
+
+        transaction.on_commit(
+            lambda: ClusterCreateExecutor.execute(
+                cluster,
+                user=user,
+                install_longhorn=install_longhorn,
+                is_heavy_task=True,
+            )
+        )
+
+        return cluster
 
     def create_project(self) -> Project:
         """
@@ -170,54 +198,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         user: User,
         project: Project,
         tenants: list[os_models.Tenant],
-    ) -> Resource:
-        offering = self.order.offering
-        rancher_offering = cast(Offering, offering.scope)
-        if not rancher_offering:
-            name = f"{offering.name} (private)"
-            rancher_offering = Offering.objects.create(
-                type=RANCHER_OFFERING,
-                shared=False,
-                billable=False,
-                customer=offering.customer,
-                name=name,
-                description=offering.description,
-                plugin_options=offering.plugin_options,
-                secret_options=offering.secret_options,
-                category=offering.category,
-            )
-            marketplace_serializers.update_or_create_service_settings_for_offering(
-                rancher_offering, offering.secret_options
-            )
-            offering.scope = rancher_offering
-            offering.save()
-            settings = cast(ServiceSettings, rancher_offering.scope)
-            settings.begin_creating()
-            settings.save()
-            backend = settings.get_backend()
-            backend.sync()
-            settings.set_ok()
-            settings.save()
-        else:
-            marketplace_serializers.update_or_create_service_settings_for_offering(
-                rancher_offering, offering.secret_options
-            )
-
-        # Sync plans from the offering to the rancher_offering
-        for plan in offering.plans.all():
-            rancher_offering.plans.update_or_create(
-                name=plan.name,
-                defaults={
-                    "backend_id": plan.id,
-                },
-            )
-
-        if rancher_offering.state != OfferingStates.ACTIVE:
-            rancher_offering.activate()
-            rancher_offering.save()
-
-        plan = Plan.objects.filter(offering=rancher_offering).first()
-
+    ) -> rancher_models.Cluster:
         nodes = []
 
         worker_nodes_count = self.order.attributes["worker_nodes_count"]
@@ -241,29 +222,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             "install_longhorn": self.order.attributes.get("install_longhorn", False),
             "vm_project": reverse("project-detail", kwargs={"uuid": project.uuid.hex}),
         }
-
-        # TODO: consider lower wait timeout
-        try:
-            order_uuid = submit_creation_order(
-                user,
-                rancher_offering,
-                plan,
-                self.order.project,
-                attributes,
-                order_wait_timeout=60 * 60,
-            )
-        except exceptions.RancherException as e:
-            resource = self.order.resource
-            order_uuid_raw = str(e).split()[2]
-            order_uuid = order_uuid_raw.replace('"', "")
-            order = Order.objects.filter(uuid=order_uuid).first()
-            if order:
-                cluster_resource = order.resource
-                resource.scope = cluster_resource
-                resource.save()
-            raise
-
-        return Order.objects.get(uuid=order_uuid).resource
+        return self._trigger_cluster_creation(user, attributes)
 
     def format_node(
         self,
@@ -546,10 +505,28 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         return instances
 
     def validate_order(self, request):
-        available_service_settings = self.validate_openstack_offerings()
-        self.validate_flavors(available_service_settings)
-        self.validate_volume_types(available_service_settings)
-        self.validate_limits()
+        if settings.WALDUR_RANCHER["READ_ONLY_MODE"]:
+            raise rf_serializers.ValidationError(
+                "Rancher integration is in read-only mode."
+            )
+        if (
+            self.order.offering.plugin_options.get(
+                "deployment_mode", const.DEPLOYMENT_MODE_SELF_MANAGED
+            )
+            == const.DEPLOYMENT_MODE_MANAGED
+        ):
+            serializer = serializers.ManagedClusterCreateSerializer(
+                data=self.order.attributes
+            )
+            serializer.is_valid(raise_exception=True)
+
+            available_service_settings = self.validate_openstack_offerings()
+            self.validate_flavors(available_service_settings)
+            self.validate_volume_types(available_service_settings)
+            self.validate_limits()
+        else:
+            serializer = RancherClusterSerializer(data=self._get_post_data())
+            serializer.is_valid(raise_exception=True)
 
     def validate_flavors(self, available_service_settings: list[int]):
         worker_nodes_flavor_name = self.order.attributes["worker_nodes_flavor_name"]
@@ -856,28 +833,37 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         return rancher_models.Cluster
 
 
-class ManagedRancherDeleteProcessor(processors.AbstractDeleteResourceProcessor):
-    def send_request(self, user, resource: Resource) -> bool:
-        resource.set_state_terminating()
-        resource.save(update_fields=["state"])
+class RancherDeleteProcessor(processors.AbstractDeleteResourceProcessor):
+    def validate_order(self, request):
+        cluster = cast(rancher_models.Cluster, self.get_resource().scope)
+        for validator in ResourceViewSet.destroy_validators:
+            validator(cluster)
+        for node in cluster.node_set.all():
+            related_vm_can_be_deleted(node)
 
-        cluster_resource = cast(Resource, resource.scope)
-        if not cluster_resource:
-            return True
-        cluster = cast(rancher_models.Cluster, cluster_resource.scope)
-        tenant_resource = (
-            Resource.objects.filter(scope=cluster.tenant).first()
-            if cluster.tenant
-            else None
+    def send_request(self, user, resource: Resource):
+        cluster = cast(rancher_models.Cluster, resource.scope)
+
+        deployment_mode = self.order.offering.plugin_options.get(
+            "deployment_mode", const.DEPLOYMENT_MODE_SELF_MANAGED
         )
-        submit_termination_order(cluster_resource)
-        if not tenant_resource:
-            project = Project.objects.filter(name__icontains=resource.name).first()
-            if project:
-                project = cast(Project, project)
-                tenant_resource = Resource.objects.filter(
-                    project=project, name__istartswith=f"os-tenant-{project.slug}"
-                ).first()
-        if tenant_resource:
-            submit_termination_order(tenant_resource)
-        return True
+        if deployment_mode == const.DEPLOYMENT_MODE_MANAGED:
+            self.delete_managed_cluster(user, cluster)
+        else:
+            self.delete_self_managed_cluster(user, cluster)
+        return False
+
+    def delete_self_managed_cluster(self, user, cluster: rancher_models.Cluster):
+        ClusterDeleteExecutor.execute(
+            cluster,
+            user=user,
+            is_heavy_task=True,
+        )
+
+    def delete_managed_cluster(self, user, cluster: rancher_models.Cluster):
+        self.delete_self_managed_cluster(user, cluster)
+        for resource in Resource.objects.filter(
+            object_id__in=cluster.linked_tenant_ids,
+            content_type=ContentType.objects.get_for_model(os_models.Tenant),
+        ):
+            submit_termination_order(resource)

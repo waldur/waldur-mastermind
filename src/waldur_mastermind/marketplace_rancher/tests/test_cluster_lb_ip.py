@@ -61,12 +61,8 @@ class ManagedRancherClusterIPTest(test.APITransactionTestCase):
         options["external_network_id"] = uuid.uuid4().hex
         service_settings.save()
 
-        self.cluster_resource = marketplace_factories.ResourceFactory(
-            scope=self.cluster,
-            state=ResourceStates.OK,
-        )
         self.resource = marketplace_factories.ResourceFactory(
-            scope=self.cluster_resource,
+            scope=self.cluster,
             state=ResourceStates.OK,
         )
 

@@ -28,11 +28,6 @@ def related_vm_can_be_deleted(node):
             validator(node.instance)
 
 
-def all_cluster_related_vms_can_be_deleted(cluster):
-    for node in cluster.node_set.all():
-        related_vm_can_be_deleted(node)
-
-
 def console_validator(node):
     validators = InstanceViewSet.console_validators
 

@@ -2,7 +2,6 @@ import logging
 import time
 from typing import cast
 
-from django.db.models import Sum
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.reverse import reverse
@@ -12,16 +11,14 @@ from waldur_core.core.models import User
 from waldur_core.core.utils import get_system_robot
 from waldur_core.structure.models import Project
 from waldur_mastermind.common.utils import create_request
-from waldur_mastermind.invoices.models import InvoiceItem
-from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OPENSTACK_TENANT_OFFERING, OrderStates
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace.views import (
     BaseResourceViewSet,
     ConsumerResourceViewSet,
     OrderViewSet,
 )
-from waldur_openstack.models import Tenant
+from waldur_openstack.models import Instance, Tenant
 from waldur_rancher.exceptions import RancherException
 from waldur_rancher.models import Cluster
 
@@ -133,100 +130,55 @@ def submit_update_order(resource: Resource, new_limits: dict):
     return order_uuid
 
 
-def sync_managed_rancher_invoice_items(
-    upstream_invoice_item: InvoiceItem, downstream_invoice_item: InvoiceItem
-):
-    downstream_invoice_item.details = upstream_invoice_item.details
-    downstream_invoice_item.quantity = upstream_invoice_item.quantity
-    downstream_invoice_item.save(update_fields=["details", "quantity"])
+class UnifiedRancherUsageCollector:
+    def collect_usage(self, resource: Resource) -> dict:
+        deployment_mode = resource.offering.plugin_options.get("deployment_mode")
 
+        if deployment_mode == "managed":
+            return self._collect_managed_usage(resource)
+        else:
+            return self._collect_self_managed_usage(resource)
 
-def sync_aggregated_invoice_item(
-    upstream_invoice_item: InvoiceItem, downstream_invoice_item: InvoiceItem
-):
-    """
-    Synchronizes aggregated invoice items for managed Rancher resources when upstream OpenStack items change.
+    def _collect_managed_usage(self, resource: Resource) -> dict:
+        """Aggregate usage from all linked OpenStack tenants."""
+        cluster = cast(Cluster, resource.scope)
+        total_cpu = 0
+        total_ram = 0
+        total_storage = 0
 
-    This function recalculates and updates the total quantity for aggregated invoice items
-    that represent the sum of resources from all linked OpenStack tenants in a Rancher cluster.
+        for tenant_id in cluster.linked_tenant_ids:
+            for instance in Instance.objects.filter(tenant_id=tenant_id, state="OK"):
+                total_cpu += instance.cores
+                total_ram += instance.ram / 1024
+                for volume in instance.volumes.filter(state="OK"):
+                    total_storage += volume.size / 1024
 
-    When an OpenStack tenant's invoice item is updated (e.g., CPU cores or memory usage changes),
-    this function ensures that the corresponding aggregated item in the managed Rancher resource
-    reflects the new total across all tenants in the cluster.
+        return {
+            "cpu_hours": total_cpu,
+            "ram_hours": total_ram,
+            "storage_hours": total_storage,
+        }
 
-    Args:
-        upstream_invoice_item (InvoiceItem): The updated OpenStack tenant invoice item that triggered the sync
-        downstream_invoice_item (InvoiceItem): The corresponding copied invoice item in managed Rancher
+    def _collect_self_managed_usage(self, resource: Resource) -> dict:
+        """Calculate usage from cluster nodes."""
+        cluster = cast(Cluster, resource.scope)
+        total_cpu = 0
+        total_ram = 0
+        total_storage = 0
 
-    Example:
-        If a cluster has 2 OpenStack tenants:
-        - Tenant A: 4 CPU cores
-        - Tenant B: 6 CPU cores
+        for node in cluster.node_set.filter(state="OK"):
+            instance = node.instance
+            if not instance:
+                continue
+            if instance.state != "OK":
+                continue
+            total_cpu += instance.cores
+            total_ram += instance.ram / 1024
+            for volume in instance.volumes.filter(state="OK"):
+                total_storage += volume.size / 1024
 
-        The aggregated item will show: 10 CPU cores total
-
-        If Tenant A is updated to 8 cores, this function will:
-        - Recalculate: 8 + 6 = 14 cores
-        - Update the aggregated item to 14 cores
-    """
-    managed_rancher_resource = downstream_invoice_item.resource
-    if not managed_rancher_resource:
-        return
-
-    rancher_resource = cast(
-        marketplace_models.Resource | None, managed_rancher_resource.scope
-    )
-    if not rancher_resource:
-        return
-
-    rancher_cluster = cast(Cluster | None, rancher_resource.scope)
-    if not rancher_cluster:
-        return
-
-    # Extract the component type (e.g., 'cores', 'memory', 'storage') from the upstream item
-    # This determines which aggregated item needs to be updated
-    offering_component_type = upstream_invoice_item.details.get(
-        "offering_component_type"
-    )
-    if not offering_component_type:
-        return
-
-    plan = managed_rancher_resource.plan
-    if not plan:
-        return
-
-    # Locate the aggregated invoice item for this component type
-    # Aggregated items have backend_uuid=None (not copied from OpenStack)
-    # and represent the sum of all tenant resources of this type
-    try:
-        aggregated_invoice_item = InvoiceItem.objects.get(
-            resource=managed_rancher_resource,
-            invoice=downstream_invoice_item.invoice,
-            details__offering_component_type=offering_component_type,
-            backend_uuid__isnull=True,
-        )
-    except (InvoiceItem.DoesNotExist, InvoiceItem.MultipleObjectsReturned):
-        return
-
-    # Fetch all invoice items from all tenants linked to this cluster
-    # for the same component type and billing period
-    component_items_from_all_tenants = InvoiceItem.objects.filter(
-        resource__object_id__in=rancher_cluster.linked_tenant_ids,
-        resource__offering__type=OPENSTACK_TENANT_OFFERING,
-        invoice=upstream_invoice_item.invoice,
-        details__offering_component_type=offering_component_type,
-    )
-
-    if not component_items_from_all_tenants:
-        logger.debug(
-            "Skipping aggregate invoice item update for resource %s because no source items are found for offering component %s.",
-            upstream_invoice_item.resource,
-            offering_component_type,
-        )
-
-    # Calculate the total quantity across all tenants
-    total_quantity = component_items_from_all_tenants.aggregate(total=Sum("quantity"))[
-        "total"
-    ]
-    aggregated_invoice_item.quantity = total_quantity
-    aggregated_invoice_item.save(update_fields=["quantity"])
+        return {
+            "cpu_hours": total_cpu,
+            "ram_hours": total_ram,
+            "storage_hours": total_storage,
+        }

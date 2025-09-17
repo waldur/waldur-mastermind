@@ -46,24 +46,6 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
             "role": AGENT_ROLE,
         }
 
-    @mock.patch("waldur_rancher.views.executors")
-    def test_create_node_if_cluster_has_been_created(self, mock_executors):
-        self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request(name="name")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        cluster = models.Cluster.objects.get(name="name")
-        self.assertTrue(mock_executors.ClusterCreateExecutor.execute.called)
-        create_node_task = tasks.CreateNodeTask()
-        create_node_task.execute(
-            mock_executors.ClusterCreateExecutor.execute.mock_calls[0][1][
-                0
-            ].node_set.first(),
-            user_id=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2][
-                "user"
-            ].id,
-        )
-        self.assertTrue(cluster.node_set.filter(cluster=cluster).exists())
-
     @mock.patch("waldur_rancher.executors.tasks")
     def test_staff_can_create_node(self, mock_tasks):
         self.client.force_authenticate(self.fixture.staff)
@@ -197,12 +179,6 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         response = self.client.post(self.node_url, self.default_conf)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    @utils.override_plugin_settings(READ_ONLY_MODE=True)
-    def test_create_is_disabled_in_read_only_mode(self):
-        self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request(name="name")
-        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     @mock.patch("waldur_rancher.executors.tasks")
     def test_use_ssh_public_key(self, mock_tasks):

@@ -1619,22 +1619,13 @@ class ProviderOfferingViewSet(
         if (
             not method
             or not offering.scope
-            or not (
-                hasattr(offering.scope, "get_backend")
-                # Case of nested offerings like in Managed Rancher
-                or hasattr(offering.scope.scope, "get_backend")
-            )
+            or not hasattr(offering.scope, "get_backend")
         ):
             raise rf_exceptions.ValidationError(
                 "Current offering plugin does not support resource import"
             )
 
-        # Case of nested offerings like in Managed Rancher
-        # If offering.scope is an Offering, we need to get the backend from its scope
-        if isinstance(offering.scope, models.Offering) and offering.scope.scope:
-            backend = offering.scope.scope.get_backend()
-        else:
-            backend = offering.scope.get_backend()
+        backend = offering.scope.get_backend()
 
         try:
             if isinstance(offering.scope, structure_models.BaseResource):
@@ -1675,11 +1666,7 @@ class ProviderOfferingViewSet(
         )
 
         offering: models.Offering = self.get_object()
-        if isinstance(offering.scope, models.Offering):
-            # Managed Rancher case
-            backend = offering.scope.scope.get_backend()
-        else:
-            backend = offering.scope.get_backend()
+        backend = offering.scope.get_backend()
         method = plugins.manager.import_resource_backend_method(offering.type)
         if not method:
             raise rf_exceptions.ValidationError(
@@ -1693,11 +1680,7 @@ class ProviderOfferingViewSet(
         else:
             field = "service_settings"
 
-        if isinstance(offering.scope, models.Offering):
-            # Managed Rancher case
-            value = offering.scope.scope
-        else:
-            value = offering.scope
+        value = offering.scope
 
         if resource_model.objects.filter(
             **{field: value}, backend_id=backend_id
@@ -3838,9 +3821,6 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
             case scope if isinstance(scope, structure_models.BaseResource):
                 # Case when Waldur has direct access to the backend resource
                 pull_executor.execute(scope)
-            case scope if isinstance(scope, models.Resource):
-                # Managed Rancher case
-                pull_executor.execute(scope.scope)
 
         return Response(
             {"detail": _("Pull operation was successfully scheduled.")},

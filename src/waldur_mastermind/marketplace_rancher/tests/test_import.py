@@ -3,10 +3,7 @@ from unittest import mock
 from django.test import override_settings
 from rest_framework import status, test
 
-from waldur_mastermind.marketplace.enums import (
-    MANAGED_RANCHER_OFFERING,
-    RANCHER_OFFERING,
-)
+from waldur_mastermind.marketplace.enums import RANCHER_OFFERING
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
 from waldur_mastermind.marketplace_rancher import (
     const,
@@ -127,16 +124,12 @@ class ClusterImportResourceTest(BaseClusterImportTest):
 class ManagedClusterImportResourceTest(BaseClusterImportTest):
     def setUp(self):
         super().setUp()
-        self.parent_offering = OfferingFactory(
-            scope=self.offering,
-            type=MANAGED_RANCHER_OFFERING,
-            shared=True,
-            customer=self.fixture.customer,
-        )
-
         self.tenant = self.fixture.tenant
 
-        self.url = OfferingFactory.get_url(self.parent_offering, "import_resource")
+        self.offering.plugin_options["deployment_mode"] = const.DEPLOYMENT_MODE_MANAGED
+        self.offering.save()
+
+        self.url = OfferingFactory.get_url(self.offering, "import_resource")
         self.client.force_authenticate(self.fixture.staff)
         self.mocked_client.get_cluster.return_value = MOCK_CLUSTER
         self.mocked_client.get_cluster_nodes.return_value = MOCK_NODES
