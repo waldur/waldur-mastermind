@@ -13,7 +13,7 @@ from waldur_core.structure.tests.factories import (
     SshPublicKeyFactory,
     UserFactory,
 )
-from waldur_mastermind.marketplace.enums import RANCHER_OFFERING
+from waldur_mastermind.marketplace.enums import RANCHER_OFFERING, OrderTypes
 from waldur_mastermind.marketplace.models import Order, Resource
 from waldur_mastermind.marketplace.tests.factories import (
     OfferingFactory,
@@ -721,7 +721,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
-        order = Order.objects.get(resource=self.resource, type=Order.Types.TERMINATE)
+        order = Order.objects.get(resource=self.resource, type=OrderTypes.TERMINATE)
         process_order(order, self.fixture.owner)
 
         mock_core_tasks.BackendMethodTask.return_value.si.assert_called_once_with(
@@ -749,7 +749,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        order = Order.objects.get(resource=self.resource, type=Order.Types.TERMINATE)
+        order = Order.objects.get(resource=self.resource, type=OrderTypes.TERMINATE)
         process_order(order, self.fixture.owner)
 
         mock_tasks.DeleteNodeTask.return_value.si.assert_called_once_with(
@@ -768,7 +768,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
-        order = Order.objects.get(resource=self.resource, type=Order.Types.TERMINATE)
+        order = Order.objects.get(resource=self.resource, type=OrderTypes.TERMINATE)
         process_order(order, self.fixture.owner)
 
         self.assertEqual(mock_tasks.DeleteNodeTask.return_value.si.call_count, 0)
