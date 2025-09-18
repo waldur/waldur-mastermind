@@ -149,6 +149,10 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="Required user role in a project for provisioning of resources",
     )
+    order_supports_comments_and_metadata = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, orders will support comments and metadata",
+    )
 
 
 class SupportPluginOptionsSerializer(serializers.Serializer):
