@@ -2914,6 +2914,7 @@ class OrderCreateSerializer(
             "created_by",
             "consumer_reviewed_by",
             "consumer_reviewed_at",
+            "attachment",
         )
         protected_fields = ("project",)
         related_paths = {
@@ -3096,6 +3097,12 @@ class OrderCreateSerializer(
                     )
                 )
         return attrs
+
+
+class OrderAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Order
+        fields = ("attachment",)
 
 
 class BackendMetadataSerializer(serializers.Serializer):

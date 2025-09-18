@@ -3424,6 +3424,70 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
                 str(e),
             )
 
+    @extend_schema(
+        request=serializers.OrderAttachmentSerializer,
+        responses={200: serializers.OrderAttachmentSerializer},
+        description="Update the attachment for a pending order.",
+    )
+    @action(
+        detail=True,
+        methods=["put", "patch"],
+        url_path="attachment",
+    )
+    def update_attachment(self, request, uuid=None):
+        """
+        Allows uploading or replacing an attachment for an order.
+        """
+        order: models.Order = self.get_object()
+        serializer = self.get_serializer(order, data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # If an old file exists, delete it before saving the new one
+        if order.attachment:
+            order.attachment.delete(save=False)
+
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        request=None,
+        responses={204: None},
+        description="Delete the attachment from a pending order.",
+    )
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path="attachment",
+    )
+    def delete_attachment(self, request, uuid=None):
+        """
+        Allows deleting an attachment from an order.
+        """
+        order: models.Order = self.get_object()
+
+        if not order.attachment:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        order.attachment.delete(save=False)  # Delete file from storage
+        order.attachment = None
+        order.save(update_fields=["attachment"])
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    update_attachment_serializer_class = serializers.OrderAttachmentSerializer
+
+    attachment_validators = [
+        core_validators.StateValidator(
+            OrderStates.PENDING_PROJECT,
+            OrderStates.PENDING_CONSUMER,
+            OrderStates.PENDING_PROVIDER,
+            state_enum=OrderStates,
+        ),
+    ]
+
+    update_attachment_validators = attachment_validators
+    delete_attachment_validators = attachment_validators
+
 
 class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
     queryset = models.Resource.objects.all()
