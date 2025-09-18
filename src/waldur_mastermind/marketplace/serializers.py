@@ -3541,8 +3541,8 @@ class ResourceResponseStatusSerializer(serializers.Serializer):
 
 class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = models.Resource
-        fields = ("limits",)
+        model = models.Order
+        fields = ("limits", "request_comment", "attachment")
 
     limits = serializers.DictField(
         child=serializers.IntegerField(min_value=0), required=True
