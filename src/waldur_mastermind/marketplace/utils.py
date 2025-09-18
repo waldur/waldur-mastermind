@@ -2420,17 +2420,11 @@ def create_multiple_course_accounts(
             response_data = generate_mock_course_account_creation_response(
                 course_account_data, owner_username
             )
-            user = core_models.User.objects.create(
-                username=response_data["tempAccount"]["username"],
-                email=response_data["tempAccount"]["email"],
-                description="Course Account",
-            )
-            course_account = models.CourseAccount.objects.create(
-                user=user,
-                email=course_account_data["email"],
-                project=course_account_data["project"],
-            )
-            course_accounts_created.append(course_account)
+            # Add email from request to the mock response for consistency
+            response_data["email"] = course_account_data["email"]
+            response_data["project_uuid"] = str(course_account_data["project"].uuid)
+            response_data["project_name"] = course_account_data["project"].name
+            course_accounts_created.append(response_data)
         return course_accounts_created
 
     if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):

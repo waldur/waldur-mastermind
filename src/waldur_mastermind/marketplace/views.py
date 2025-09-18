@@ -6928,10 +6928,17 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
         course_accounts = utils.create_multiple_course_accounts(
             course_accounts_data, self.request.user.username
         )
-        course_accounts_serializer = serializers.CourseAccountSerializer(
-            course_accounts, many=True, context={"request": request}
-        )
-        return Response(course_accounts_serializer.data)
+
+        # Handle both mock (returns dicts) and real API (returns model instances)
+        if course_accounts and isinstance(course_accounts[0], dict):
+            # Mock backend returned dicts, return them directly
+            return Response(course_accounts)
+        else:
+            # Real API returned model instances, serialize them
+            course_accounts_serializer = serializers.CourseAccountSerializer(
+                course_accounts, many=True, context={"request": request}
+            )
+            return Response(course_accounts_serializer.data)
 
     create_bulk_permissions = [check_create_permissions]
     create_bulk_serializer_class = serializers.CourseAccountsBulkCreateSerializer
