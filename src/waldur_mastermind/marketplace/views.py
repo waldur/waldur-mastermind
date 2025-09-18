@@ -6928,11 +6928,10 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
         course_accounts = utils.create_multiple_course_accounts(
             course_accounts_data, self.request.user.username
         )
-        course_accounts_page = self.paginate_queryset(course_accounts)
         course_accounts_serializer = serializers.CourseAccountSerializer(
-            course_accounts_page, many=True, context={"request": request}
+            course_accounts, many=True, context={"request": request}
         )
-        return self.get_paginated_response(course_accounts_serializer.data)
+        return Response(course_accounts_serializer.data)
 
     create_bulk_permissions = [check_create_permissions]
     create_bulk_serializer_class = serializers.CourseAccountsBulkCreateSerializer

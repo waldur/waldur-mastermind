@@ -2416,11 +2416,21 @@ def create_multiple_course_accounts(
     if config.ENABLE_MOCK_COURSE_ACCOUNT_BACKEND:
         logger.info("Mock mode enabled for create_multiple_course_accounts")
         course_accounts_created = []
-        for course_account in course_accounts_data:
-            course_account_created = generate_mock_course_account_creation_response(
-                course_account, owner_username
+        for course_account_data in course_accounts_data:
+            response_data = generate_mock_course_account_creation_response(
+                course_account_data, owner_username
             )
-            course_accounts_created.append(course_account_created)
+            user = core_models.User.objects.create(
+                username=response_data["tempAccount"]["username"],
+                email=response_data["tempAccount"]["email"],
+                description="Course Account",
+            )
+            course_account = models.CourseAccount.objects.create(
+                user=user,
+                email=course_account_data["email"],
+                project=course_account_data["project"],
+            )
+            course_accounts_created.append(course_account)
         return course_accounts_created
 
     if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):
