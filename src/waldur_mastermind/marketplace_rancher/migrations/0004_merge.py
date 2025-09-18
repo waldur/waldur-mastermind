@@ -102,7 +102,6 @@ def unify_and_migrate_rancher_plugins(apps, schema_editor):
     # STEP 3: Flatten the resource structure for migrated offerings
     migrated_offering_ids = [o.id for o in managed_offerings]
     managed_resources = Resource.objects.filter(offering_id__in=migrated_offering_ids)
-    nested_resources_to_delete_ids = set()
 
     # Get ContentTypes for Resource and Cluster models
     resource_content_type = ContentType.objects.get_for_model(Resource)
@@ -125,21 +124,24 @@ def unify_and_migrate_rancher_plugins(apps, schema_editor):
         if nested_resource.content_type_id != cluster_content_type.id:
             continue
 
-        nested_resources_to_delete_ids.add(nested_resource.id)
+        # 1. Store the target scope information from the nested resource.
+        new_content_type_id = nested_resource.content_type_id
+        new_object_id = nested_resource.object_id
 
-        # Repoint the main resource's scope directly to the cluster
-        resource.content_type_id = nested_resource.content_type_id
-        resource.object_id = nested_resource.object_id
+        # 2. Delete the nested resource to free up the unique constraint.
+        nested_resource.delete()
+
+        # 3. Now, update the main resource to point directly to the cluster.
+        resource.content_type_id = new_content_type_id
+        resource.object_id = new_object_id
         resource.save(update_fields=["content_type_id", "object_id"])
 
     # STEP 4: Clean up old invoice items for migrated resources
     # Since the billing model changes, old invoice items become obsolete.
     InvoiceItem.objects.filter(resource__in=managed_resources).delete()
 
-    # STEP 5: Clean up orphaned intermediate resources and offerings
-    if nested_resources_to_delete_ids:
-        Resource.objects.filter(id__in=nested_resources_to_delete_ids).delete()
-
+    # STEP 5: Clean up orphaned intermediate offerings
+    # The nested resources are now deleted within the loop in STEP 3.
     if private_offerings_to_delete_ids:
         Offering.objects.filter(id__in=private_offerings_to_delete_ids).delete()
 
