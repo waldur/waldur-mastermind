@@ -196,6 +196,8 @@ class PermissionSerializer(serializers.ModelSerializer):
         )
 
     def get_scope_type(self, obj) -> str | None:
+        if obj.scope is None:
+            return None
         model_name = obj.scope._meta.model_name
         for key, (app, model) in TYPE_MAP.items():
             if model == model_name:
