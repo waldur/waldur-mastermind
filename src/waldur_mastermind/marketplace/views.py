@@ -6916,10 +6916,17 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
 
     @action(detail=False, methods=["post"])
     def create_bulk(self, request):
-        serializer = self.get_serializer(data=request.data, many=True)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        # Prepare course accounts data with project included
+        course_accounts_data = []
+        for account_data in serializer.validated_data["course_accounts"]:
+            account_data["project"] = serializer.validated_data["project"]
+            course_accounts_data.append(account_data)
+
         course_accounts = utils.create_multiple_course_accounts(
-            serializer.validated_data, self.request.user.username
+            course_accounts_data, self.request.user.username
         )
         course_accounts_page = self.paginate_queryset(course_accounts)
         course_accounts_serializer = serializers.CourseAccountSerializer(

@@ -531,3 +531,311 @@ class CourseAccountHandlerTest(test.APITransactionTestCase):
             if call.request.method == "PUT" and "/close" in str(call.request.url)
         ]
         self.assertEqual(len(close_requests), 0)
+
+
+@override_waldur_core_settings(
+    COURSE_ACCOUNT_USE_API=True,
+    COURSE_ACCOUNT_URL=COURSE_ACCOUNT_URL,
+    COURSE_ACCOUNT_TOKEN_URL=COURSE_ACCOUNT_TOKEN_URL,
+    COURSE_ACCOUNT_TOKEN_CLIENT_ID="test-client-id",
+    COURSE_ACCOUNT_TOKEN_SECRET="test-client-secret",
+)
+@ddt
+class CourseAccountBulkCreateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+        # Setup respx for API mocking
+        respx.start()
+
+        # Mock token request
+        self.test_token = "test-token"
+        respx.post(COURSE_ACCOUNT_TOKEN_URL).mock(
+            return_value=httpx.Response(200, json={"access_token": self.test_token})
+        )
+
+        # Create a course project for course accounts
+        self.course_project = structure_factories.ProjectFactory(
+            customer=self.fixture.project.customer,
+            kind=ProjectKind.COURSE,
+            end_date=datetime.date.today() + datetime.timedelta(days=30),
+        )
+
+        # Add MANAGE_COURSE_ACCOUNT permission to relevant roles
+        CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_COURSE_ACCOUNT)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.MANAGE_COURSE_ACCOUNT)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.MANAGE_COURSE_ACCOUNT)
+
+        # Setup users with appropriate roles for course project
+        self.course_project.add_user(self.fixture.manager, ProjectRole.MANAGER)
+        self.course_project.add_user(self.fixture.admin, ProjectRole.ADMIN)
+        self.course_project.customer.add_user(self.fixture.owner, CustomerRole.OWNER)
+
+        # Setup URL for bulk creation
+        self.bulk_url = factories.CourseAccountFactory.get_list_url() + "create_bulk/"
+
+    def tearDown(self):
+        respx.stop()
+        super().tearDown()
+
+    @data("staff", "manager", "admin", "owner")
+    def test_authorized_user_can_bulk_create_course_accounts(self, user):
+        """Test that authorized users can bulk create course accounts"""
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        # Mock multiple account creation responses
+        respx.post(COURSE_ACCOUNT_URL).mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "tempAccount": {
+                            "username": f"test_user_{i}",
+                            "email": f"test{i}@example.com",
+                        }
+                    },
+                )
+                for i in range(3)
+            ]
+        )
+
+        payload = {
+            "course_accounts": [
+                {"email": "test1@example.com", "description": "Test account 1"},
+                {"email": "test2@example.com", "description": "Test account 2"},
+                {"email": "test3@example.com", "description": ""},
+            ],
+            "project": str(self.course_project.uuid),
+        }
+
+        response = self.client.post(self.bulk_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        # Verify all accounts were created
+        accounts = models.CourseAccount.objects.filter(project=self.course_project)
+        self.assertEqual(accounts.count(), 3)
+
+        # Verify response structure (it's a list, not paginated)
+        self.assertIsInstance(response.data, list)
+        self.assertEqual(len(response.data), 3)
+        for i, account_data in enumerate(response.data, 1):
+            self.assertIn("uuid", account_data)
+            self.assertIn("email", account_data)
+            self.assertEqual(account_data["email"], f"test{i}@example.com")
+
+    @data("user", "customer_support", "member")
+    def test_unauthorized_user_cannot_bulk_create_course_accounts(self, user):
+        """Test that unauthorized users cannot bulk create course accounts"""
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        payload = {
+            "course_accounts": [
+                {"email": "test@example.com", "description": "Test account"},
+            ],
+            "project": str(self.course_project.uuid),
+        }
+
+        response = self.client.post(self.bulk_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+
+    def test_bulk_create_validates_project_uuid(self):
+        """Test that bulk create validates project UUID"""
+        self.client.force_authenticate(self.fixture.staff)
+
+        payload = {
+            "course_accounts": [
+                {"email": "test@example.com", "description": "Test account"},
+            ],
+            "project": "invalid-uuid",
+        }
+
+        response = self.client.post(self.bulk_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("project", response.data)
+
+    def test_bulk_create_validates_email_format(self):
+        """Test that bulk create validates email format"""
+        self.client.force_authenticate(self.fixture.staff)
+
+        payload = {
+            "course_accounts": [
+                {"email": "invalid-email", "description": "Test account"},
+            ],
+            "project": str(self.course_project.uuid),
+        }
+
+        response = self.client.post(self.bulk_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("course_accounts", response.data)
+
+    def test_bulk_create_requires_course_project(self):
+        """Test that bulk create requires a course project (not regular project)"""
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Create a non-course project
+        regular_project = structure_factories.ProjectFactory(
+            customer=self.fixture.project.customer,
+            kind=ProjectKind.DEFAULT,
+        )
+
+        payload = {
+            "course_accounts": [
+                {"email": "test@example.com", "description": "Test account"},
+            ],
+            "project": str(regular_project.uuid),
+        }
+
+        response = self.client.post(self.bulk_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("project", response.data)
+
+    def test_bulk_create_requires_project_end_date(self):
+        """Test that bulk create requires project to have an end_date"""
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Create a course project without end_date
+        project_no_end_date = structure_factories.ProjectFactory(
+            customer=self.fixture.project.customer,
+            kind=ProjectKind.COURSE,
+            end_date=None,
+        )
+
+        payload = {
+            "course_accounts": [
+                {"email": "test@example.com", "description": "Test account"},
+            ],
+            "project": str(project_no_end_date.uuid),
+        }
+
+        response = self.client.post(self.bulk_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_bulk_create_handles_api_errors(self):
+        """Test that bulk create handles API errors gracefully"""
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Mock API error
+        respx.post(COURSE_ACCOUNT_URL).mock(
+            return_value=httpx.Response(500, json={"error": "Internal server error"})
+        )
+
+        payload = {
+            "course_accounts": [
+                {"email": "test@example.com", "description": "Test account"},
+            ],
+            "project": str(self.course_project.uuid),
+        }
+
+        response = self.client.post(self.bulk_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # When API fails, no accounts are created (current behavior)
+        accounts = models.CourseAccount.objects.filter(project=self.course_project)
+        self.assertEqual(accounts.count(), 0)
+
+        # Response should be an empty list
+        self.assertEqual(response.data, [])
+
+    def test_bulk_create_with_empty_course_accounts_list(self):
+        """Test bulk create with empty course accounts list"""
+        self.client.force_authenticate(self.fixture.staff)
+
+        payload = {
+            "course_accounts": [],
+            "project": str(self.course_project.uuid),
+        }
+
+        response = self.client.post(self.bulk_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("course_accounts", response.data)
+
+    def test_bulk_create_validates_duplicate_emails_in_request(self):
+        """Test that bulk create handles duplicate emails in the same request"""
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Mock account creation responses
+        respx.post(COURSE_ACCOUNT_URL).mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "tempAccount": {
+                            "username": "test_user_1",
+                            "email": "test@example.com",
+                        }
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "tempAccount": {
+                            "username": "test_user_2",
+                            "email": "test@example.com",
+                        }
+                    },
+                ),
+            ]
+        )
+
+        payload = {
+            "course_accounts": [
+                {"email": "test@example.com", "description": "First account"},
+                {"email": "test@example.com", "description": "Duplicate account"},
+            ],
+            "project": str(self.course_project.uuid),
+        }
+
+        response = self.client.post(self.bulk_url, payload, format="json")
+        # The API should still succeed but create separate accounts
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        accounts = models.CourseAccount.objects.filter(
+            project=self.course_project, email="test@example.com"
+        )
+        self.assertEqual(accounts.count(), 2)
+
+    def test_bulk_create_with_mixed_valid_and_invalid_data(self):
+        """Test bulk create with some valid and some invalid course account data"""
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Mock successful API calls for valid accounts
+        respx.post(COURSE_ACCOUNT_URL).mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "tempAccount": {
+                            "username": "test_user_1",
+                            "email": "valid@example.com",
+                        }
+                    },
+                ),
+                httpx.Response(
+                    400,
+                    json={"error": "Invalid email domain"},
+                ),
+            ]
+        )
+
+        payload = {
+            "course_accounts": [
+                {"email": "valid@example.com", "description": "Valid account"},
+                {"email": "invalid@blocked.com", "description": "Invalid account"},
+            ],
+            "project": str(self.course_project.uuid),
+        }
+
+        response = self.client.post(self.bulk_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Only the successful account is created (current behavior)
+        accounts = models.CourseAccount.objects.filter(project=self.course_project)
+        self.assertEqual(accounts.count(), 1)
+
+        valid_account = accounts.filter(email="valid@example.com").first()
+        self.assertIsNotNone(valid_account)
+        self.assertEqual(valid_account.state, CourseAccountState.OK)
+
+        # The response should only contain the successful account
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["email"], "valid@example.com")
