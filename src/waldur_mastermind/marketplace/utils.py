@@ -71,6 +71,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
+    OfferingUserStates,
     OrderStates,
     ResourceStates,
     RobotAccountStates,
@@ -1397,10 +1398,15 @@ def user_offerings_mapping(offerings):
             user=user, offering=offering
         ).exists():
             username = generate_username(user, offering)
-            offering_user = models.OfferingUser.objects.create(
-                user=user, offering=offering, username=username
+            # Set state to OK when username is known at creation time
+            state = (
+                OfferingUserStates.OK
+                if username
+                else OfferingUserStates.CREATION_REQUESTED
             )
-            offering_user.save()
+            models.OfferingUser.objects.create(
+                user=user, offering=offering, username=username, state=state
+            )
             logger.info("Offering user %s has been created.")
 
 

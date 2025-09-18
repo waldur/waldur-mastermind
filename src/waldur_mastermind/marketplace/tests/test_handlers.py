@@ -17,6 +17,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     BillingTypes,
+    OfferingUserStates,
     OrderStates,
     ResourceStates,
 )
@@ -586,3 +587,131 @@ class ServiceAccountHandlersTest(APITransactionTestCase):
                 uuid=service_account.uuid
             ).exists()
         )
+
+
+class OfferingUserCreationWithUsernameTest(APITransactionTestCase):
+    """
+    Test that OfferingUser instances are created with correct state when username is known.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        # Create a second offering for testing multiple offerings
+        self.offering2 = factories.OfferingFactory(customer=self.fixture.customer)
+
+    def test_create_offering_user_for_new_resource_with_ok_state_when_username_provided(
+        self,
+    ):
+        """
+        Test that handlers.create_offering_user_for_new_resource creates OfferingUser with OK state.
+        """
+        # Configure offering to generate usernames
+        self.fixture.offering.plugin_options = {
+            "username_generation_policy": "full_name",
+        }
+        self.fixture.offering.save()
+
+        # Create a resource that triggers the handler
+        resource = factories.ResourceFactory(
+            offering=self.fixture.offering,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+
+        # Call the handler function
+        marketplace_handlers.create_offering_user_for_new_resource(
+            None, resource, created=True
+        )
+
+        # Verify OfferingUser was created with OK state
+        project_users = self.fixture.project.get_users()
+        for user in project_users:
+            offering_user = marketplace_models.OfferingUser.objects.get(
+                user=user, offering=self.fixture.offering
+            )
+            self.assertEqual(offering_user.state, OfferingUserStates.OK)
+            self.assertIsNotNone(offering_user.username)
+            # Username should be based on full name for this policy
+            self.assertIn(user.first_name.lower(), offering_user.username)
+
+    def test_create_offering_user_for_new_resource_with_creation_requested_when_no_username(
+        self,
+    ):
+        """
+        Test that handlers.create_offering_user_for_new_resource creates OfferingUser with CREATION_REQUESTED state.
+        """
+        # Configure offering to NOT generate usernames
+        self.fixture.offering.plugin_options = {
+            "username_generation_policy": "service_provider",
+        }
+        self.fixture.offering.save()
+
+        # Create a resource that triggers the handler
+        resource = factories.ResourceFactory(
+            offering=self.fixture.offering,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+
+        # Call the handler function
+        marketplace_handlers.create_offering_user_for_new_resource(
+            None, resource, created=True
+        )
+
+        # Verify OfferingUser was created with CREATION_REQUESTED state
+        project_users = self.fixture.project.get_users()
+        for user in project_users:
+            offering_user = marketplace_models.OfferingUser.objects.get(
+                user=user, offering=self.fixture.offering
+            )
+            self.assertEqual(offering_user.state, OfferingUserStates.CREATION_REQUESTED)
+            self.assertEqual(offering_user.username, "")
+
+
+class OfferingUserDirectCreationTest(APITransactionTestCase):
+    """
+    Test direct creation of OfferingUser objects with different username scenarios.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+    def test_direct_offering_user_creation_with_username_sets_ok_state(self):
+        """
+        Test that directly creating OfferingUser with username sets state to OK.
+        """
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.fixture.user,
+            offering=self.fixture.offering,
+            username="direct_test_user",
+        )
+
+        self.assertEqual(offering_user.state, OfferingUserStates.OK)
+        self.assertEqual(offering_user.username, "direct_test_user")
+
+    def test_direct_offering_user_creation_without_username_keeps_default_state(self):
+        """
+        Test that directly creating OfferingUser without username keeps default state.
+        """
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.fixture.user,
+            offering=self.fixture.offering,
+        )
+
+        self.assertEqual(offering_user.state, OfferingUserStates.CREATION_REQUESTED)
+        self.assertIsNone(offering_user.username)
+
+    def test_direct_offering_user_creation_with_empty_username_keeps_default_state(
+        self,
+    ):
+        """
+        Test that directly creating OfferingUser with empty username keeps default state.
+        """
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.fixture.user,
+            offering=self.fixture.offering,
+            username="",
+        )
+
+        self.assertEqual(offering_user.state, OfferingUserStates.CREATION_REQUESTED)
+        self.assertEqual(offering_user.username, "")

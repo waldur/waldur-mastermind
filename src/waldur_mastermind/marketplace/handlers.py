@@ -31,6 +31,7 @@ from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     MaintenanceState,
     OfferingStates,
+    OfferingUserStates,
     OrderStates,
     OrderTypes,
     ResourceStates,
@@ -1342,11 +1343,15 @@ def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
             logger.info("An offering user for %s in %s already exists", user, offering)
             continue
         username = utils.generate_username(user, offering)
-
+        # Set state to OK when username is known at creation time
+        state = (
+            OfferingUserStates.OK if username else OfferingUserStates.CREATION_REQUESTED
+        )
         offering_user = models.OfferingUser.objects.create(
             offering=offering,
             user=user,
             username=username,
+            state=state,
         )
         utils.setup_linux_related_data(offering_user, offering)
         offering_user.save(update_fields=["backend_metadata"])
@@ -1380,11 +1385,15 @@ def create_offering_user_for_new_resource(sender, instance: Resource, **kwargs):
             continue
 
         username = utils.generate_username(user, offering)
-
+        # Set state to OK when username is known at creation time
+        state = (
+            OfferingUserStates.OK if username else OfferingUserStates.CREATION_REQUESTED
+        )
         offering_user = models.OfferingUser.objects.create(
             offering=offering,
             user=user,
             username=username,
+            state=state,
         )
 
         utils.setup_linux_related_data(offering_user, offering)
