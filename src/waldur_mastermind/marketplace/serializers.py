@@ -241,6 +241,9 @@ class RancherPluginOptionsSerializer(serializers.Serializer):
         choices=[DEPLOYMENT_MODE_SELF_MANAGED, DEPLOYMENT_MODE_MANAGED],
         help_text="Rancher deployment mode",
     )
+    flavors_regex = serializers.CharField(
+        required=False, help_text="Regular expression to limit flavors list"
+    )
     openstack_offering_uuid_list = serializers.ListSerializer(
         child=serializers.CharField(validators=[core_utils.validate_uuid]),
         required=False,
