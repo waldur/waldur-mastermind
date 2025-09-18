@@ -1977,11 +1977,11 @@ class OfferingUser(
         pass
 
     def save(self, *args, **kwargs):
-        # Backward compatibility: if username is being set/changed and state is not OK, transition to OK
+        # Set state to OK when username is known at creation time or when changed
         if (
             self.username
             and self.state != OfferingUserStates.OK
-            and self.tracker.has_changed("username")
+            and (self.tracker.has_changed("username") or not self.pk)
         ):
             self.set_ok()
         super().save(*args, **kwargs)
