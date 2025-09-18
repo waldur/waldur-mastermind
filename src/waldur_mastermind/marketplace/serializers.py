@@ -2551,21 +2551,10 @@ class BaseItemSerializer(
         return fields
 
 
-class BaseRequestSerializer(BaseItemSerializer):
-    type = NaturalChoiceField(
-        choices=OrderTypes.CHOICES,
-        required=False,
-        default=OrderTypes.CREATE,
-    )
-
+class BaseOrderSerializer(BaseItemSerializer):
     class Meta(BaseItemSerializer.Meta):
-        fields = BaseItemSerializer.Meta.fields + ("type",)
-
-
-class BaseOrderSerializer(BaseRequestSerializer):
-    class Meta(BaseRequestSerializer.Meta):
         model = models.Order
-        fields = BaseRequestSerializer.Meta.fields + (
+        fields = BaseItemSerializer.Meta.fields + (
             "resource_uuid",
             "resource_type",
             "resource_name",
@@ -2580,6 +2569,7 @@ class BaseOrderSerializer(BaseRequestSerializer):
             "completed_at",
             "request_comment",
             "attachment",
+            "type",
         )
 
         read_only_fields = (
@@ -2598,6 +2588,11 @@ class BaseOrderSerializer(BaseRequestSerializer):
             "attachment",
         )
 
+    type = NaturalChoiceField(
+        choices=OrderTypes.CHOICES,
+        required=False,
+        default=OrderTypes.CREATE,
+    )
     marketplace_resource_uuid = serializers.UUIDField(
         read_only=True, source="resource.uuid"
     )
