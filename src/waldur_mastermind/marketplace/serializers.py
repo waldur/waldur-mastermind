@@ -6513,6 +6513,11 @@ class CourseAccountsBulkCreateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         super().validate(attrs)
+
+        # Validate that course_accounts list is not empty
+        if not attrs.get("course_accounts"):
+            raise ValidationError({"course_accounts": "This field cannot be empty."})
+
         project: structure_models.Project = attrs["project"]
         if project.end_date is None:
             message = f"Unable to create a course account for a course project {project} without an end_date"
