@@ -3431,8 +3431,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     )
     @action(
         detail=True,
-        methods=["put", "patch"],
-        url_path="attachment",
+        methods=["POST"],
     )
     def update_attachment(self, request, uuid=None):
         """
@@ -3456,8 +3455,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     )
     @action(
         detail=True,
-        methods=["delete"],
-        url_path="attachment",
+        methods=["POST"],
     )
     def delete_attachment(self, request, uuid=None):
         """
