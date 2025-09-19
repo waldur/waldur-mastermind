@@ -2312,7 +2312,7 @@ wheels = [
 
 [[package]]
 name = "pysaml2"
-version = "7.3.0"
+version = "7.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -2323,9 +2323,9 @@ dependencies = [
     { name = "requests" },
     { name = "xmlschema" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/64/8c/1104b6999bd7926d88dd568f9fb085f3ed4da7b9da663fc1a8871c86f12c/pysaml2-7.3.0.tar.gz", hash = "sha256:261fca348f53ea2a6f2998a0605a87842f96522b8d93cb57c83c08d7577dacf2", size = 341670, upload-time = "2023-02-14T14:01:07.315Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/37/9de86b6c14924373a769d0c38749f536105e2aa74fe217716d0161939333/pysaml2-7.4.2.tar.gz", hash = "sha256:2bc5147b3b2f902a9131bf08240c068becea29994aafb7654a63d7270ac5b63b", size = 341425, upload-time = "2023-06-11T10:13:19.285Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fc/4d/0625527680b363a74a6d0e307edbef3bbedfcf48270c6c0b614228ef0586/pysaml2-7.3.0-py3-none-any.whl", hash = "sha256:d2e20bf367191247cf0477001f85e36816255f1634b938645ab75305c059a5f1", size = 419828, upload-time = "2023-02-14T14:01:02.118Z" },
+    { url = "https://files.pythonhosted.org/packages/74/26/55f12b750d21fcbce676b645c90c57d9dd29b352ae38905e0b9028454eb1/pysaml2-7.4.2-py3-none-any.whl", hash = "sha256:6616abe0526915cabef6af3a81570bd4c339bedd8db3ab12dcd4fa0612896837", size = 420106, upload-time = "2023-06-11T10:13:11.089Z" },
 ]
 
 [[package]]
@@ -3242,7 +3242,7 @@ requires-dist = [
     { name = "pyjwt", specifier = ">=2.3.0,<3.0.0" },
     { name = "pyparsing", marker = "extra == 'dev'", specifier = ">=3.1.1,<4.0.0" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.399,<2.0.0" },
-    { name = "pysaml2", specifier = "==7.3.0" },
+    { name = "pysaml2", specifier = "==7.4.2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==8.3.5" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==6.1.1" },
     { name = "pytest-django", marker = "extra == 'dev'", specifier = ">=4.5.2,<5.0.0" },
