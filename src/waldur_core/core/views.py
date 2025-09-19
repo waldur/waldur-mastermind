@@ -798,10 +798,11 @@ def get_latest_github_tag(timeout=5):
 
     # Get the last tag (most recent one)
     try:
+        tags.sort(key=lambda x: version.Version(x["ref"].split("/")[-1]))
         latest_tag = tags[-1]["ref"].replace("refs/tags/", "")
-        version.parse(latest_tag)
-    except (TypeError, KeyError, version.InvalidVersion):
-        logger.error("Invalid tag format in the GitHub response %s", tags)
+
+    except (TypeError, KeyError, version.InvalidVersion) as e:
+        logger.error("Error processing GitHub tags: %s", str(e))
         return None
 
     # Cache for 1 hour
