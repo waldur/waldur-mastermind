@@ -1,0 +1,18 @@
+Dear call manager,
+
+The round "{{ round_name }}" for call "{{ call_name }}" has now closed.
+
+Round summary:
+- Total proposals submitted: {{ total_proposals }}
+- Start date: {{ start_date }}
+- Closed date: {{ close_date }}
+
+Based on the review strategy selected for this round ({{ review_strategy }}), the system has:
+- Set all draft proposals to "canceled" state
+- Moved all submitted proposals to "in_review" state
+- Created {{ total_reviews }} review assignments
+
+You can view the round details and manage proposals by visiting:
+{{ round_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

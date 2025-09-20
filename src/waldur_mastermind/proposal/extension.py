@@ -47,4 +47,14 @@ class ProposalExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "notify_reviewer_on_round_start": {
+                "task": "waldur_mastermind.proposal.notify_reviewer_on_round_start",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
+            "notify_manager_on_round_cutoff": {
+                "task": "waldur_mastermind.proposal.notify_manager_on_round_cutoff",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
         }

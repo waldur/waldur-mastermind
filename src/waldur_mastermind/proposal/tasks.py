@@ -1,7 +1,9 @@
 import logging
+from typing import Any, cast
 
 from celery import shared_task
 from constance import config
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
@@ -422,3 +424,117 @@ def notify_offering_request_decision(requested_offering_uuid):
         context,
         recipients,
     )
+
+
+@shared_task(name="waldur_mastermind.proposal.notify_reviewer_on_round_start")
+def notify_reviewer_on_round_start():
+    today = timezone.now().date()
+    rounds = (
+        proposal_models.Round.objects.filter(
+            call__state=CallStates.ACTIVE,
+            start_time__date=today,
+        )
+        .select_related("call")
+        .distinct()
+    )
+    if not rounds.exists():
+        return
+
+    for round in rounds:
+        call_url = core_utils.format_homeport_link(
+            f"calls/{round.call.uuid}/",
+        )
+
+        base_context = {
+            "site_name": config.SITE_NAME,
+            "call_name": round.call.name,
+            "round_name": round.name,
+            "start_date": round.start_time,
+            "end_date": round.cutoff_time,
+            "call_url": call_url,
+        }
+
+        reviewers = round.call.reviewers
+
+        if not reviewers.exists():
+            # No reviewers - continue
+            continue
+
+        for reviewer in reviewers:
+            if reviewer.email:
+                context = {
+                    **base_context,
+                    "reviewer_name": reviewer.full_name,
+                }
+
+                core_utils.broadcast_mail(
+                    "proposal",
+                    "round_opening_for_reviewers",
+                    context,
+                    [reviewer.email],
+                )
+            else:
+                logger.warning(
+                    f"Cannot send round creation notification to reviewer {reviewer.uuid}. Reviewer has no valid email."
+                )
+
+
+@shared_task(name="waldur_mastermind.proposal.notify_manager_on_round_cutoff")
+def notify_manager_on_round_cutoff():
+    now = timezone.now()
+    rounds = (
+        proposal_models.Round.objects.filter(
+            call__state=CallStates.ACTIVE,
+            cutoff_time__date=now.date(),
+            cutoff_time__hour=now.hour,
+        )
+        .select_related("call", "call__manager", "call__manager__customer")
+        .annotate(
+            total_proposals=Count("proposal"),
+            total_reviews=Count(
+                "proposal__review",
+                filter=~Q(
+                    proposal__review__state=proposal_models.Review.States.REJECTED
+                ),
+            ),
+        )
+        .distinct()
+    )
+    if not rounds.exists():
+        return
+
+    for round_obj in rounds:
+        manager_emails = list(
+            round_obj.call.call_managers.values_list("email", flat=True)
+        )
+
+        if not manager_emails:
+            logger.warning(
+                f"Cannot send round cutoff notification. Call {round_obj.call.uuid} has no managers with valid emails."
+            )
+            continue
+
+        round_url = core_utils.format_homeport_link(
+            f"call/{round_obj.call.uuid}/round/{round_obj.uuid}/",
+        )
+
+        r_any = cast(Any, round_obj)  # pyright typing workaround
+
+        context = {
+            "site_name": config.SITE_NAME,
+            "call_name": round_obj.call.name,
+            "round_name": round_obj.name,
+            "total_proposals": r_any.total_proposals,
+            "total_reviews": r_any.total_reviews,
+            "review_strategy": r_any.get_review_strategy_display(),
+            "start_date": round_obj.start_time,
+            "close_date": round_obj.cutoff_time,
+            "round_url": round_url,
+        }
+
+        core_utils.broadcast_mail(
+            "proposal",
+            "round_closing_for_managers",
+            context,
+            manager_emails,
+        )

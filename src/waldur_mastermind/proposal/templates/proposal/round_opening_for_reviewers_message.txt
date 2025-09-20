@@ -1,0 +1,15 @@
+Dear {{ reviewer_name }},
+
+A new review round is opening for call "{{ call_name }}" where you are registered as a reviewer.
+
+Round details:
+- Round: {{ round_name }}
+- Submission period: {{ start_date }} to {{ end_date }}
+
+You may be assigned proposals to review once they are submitted. Please ensure your availability during the review period.
+
+If you anticipate any conflicts or periods of unavailability during this time, please notify the call manager as soon as possible.
+
+View call details: {{ call_url }}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.

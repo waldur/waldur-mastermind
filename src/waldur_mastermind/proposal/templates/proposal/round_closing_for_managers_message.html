@@ -1,0 +1,31 @@
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Round closed</title>
+</head>
+<body>
+    <p>Dear call manager,</p>
+
+    <p>The round "{{ round_name }}" for call "{{ call_name }}" has now closed.</p>
+
+    <h4>Round summary:</h4>
+    <ul>
+        <li><strong>Total proposals submitted:</strong> {{ total_proposals }}</li>
+        <li><strong>Start date:</strong> {{ start_date }}</li>
+        <li><strong>Closed date:</strong> {{ close_date }}</li>
+    </ul>
+
+    <p>Based on the review strategy selected for this round ({{ review_strategy }}), the system has:</p>
+    <ul>
+        <li>Set all draft proposals to "canceled" state</li>
+        <li>Moved all submitted proposals to "in_review" state</li>
+        <li>Created {{ total_reviews }} review assignments</li>
+    </ul>
+
+    <p>You can view the round details and manage proposals by visiting: <a href="{{ round_url }}">{{ round_url }}</a></p>
+
+    <p>
+        This is an automated message from the {{ site_name }}. Please do not reply to this email.
+    </p>
+</body>
+</html>
