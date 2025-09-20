@@ -88,9 +88,4 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
-            "restrict_offering_users_for_revoked_consents": {
-                "task": "waldur_mastermind.marketplace.restrict_offering_users_for_revoked_consents",
-                "schedule": timedelta(days=1),
-                "args": (),
-            },
         }
