@@ -451,3 +451,36 @@ class ProposalSection(NotificationSection):
             ),
         ],
     )
+
+    round_opening_for_reviewers = Notification(
+        "round_opening_for_reviewers",
+        "A notification to reviewers about a new call round opening.",
+        templates=[
+            NotificationTemplate(
+                "round_opening_for_reviewers_message.txt", "round_opening_for_reviewers"
+            ),
+            NotificationTemplate(
+                "round_opening_for_reviewers_message.html",
+                "round_opening_for_reviewers",
+            ),
+            NotificationTemplate(
+                "round_opening_for_reviewers_subject.txt", "round_opening_for_reviewers"
+            ),
+        ],
+    )
+
+    round_closing_for_managers = Notification(
+        "round_closing_for_managers",
+        "A notification to call managers about a call round closing.",
+        templates=[
+            NotificationTemplate(
+                "round_closing_for_managers_message.txt", "round_closing_for_managers"
+            ),
+            NotificationTemplate(
+                "round_closing_for_managers_message.html", "round_closing_for_managers"
+            ),
+            NotificationTemplate(
+                "round_closing_for_managers_subject.txt", "round_closing_for_managers"
+            ),
+        ],
+    )

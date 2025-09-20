@@ -1,0 +1,25 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>New round opening</title>
+</head>
+<body>
+    <p>Dear {{ reviewer_name }},</p>
+
+    <p>A new review round is opening for call "<strong>{{ call_name }}</strong>" where you are registered as a reviewer.</p>
+
+    <h4>Round details:</h4>
+    <ul>
+      <li><strong>Round:</strong> {{ round_name }}</li>
+      <li><strong>Submission period:</strong> {{ start_date }} to {{ end_date }}</li>
+    </ul>
+
+    <p>You may be assigned proposals to review once they are submitted. Please ensure your availability during the review period.</p>
+
+    <p>If you anticipate any conflicts or periods of unavailability during this time, please notify the call manager as soon as possible.</p>
+    <p>View call details: <a href="{{ call_url }}">{{ call_url }}</a></p>
+
+    <p><em>This is an automated message from the {{ site_name }}. Please do not reply to this email.</em></p>
+
+</body>
+</html>

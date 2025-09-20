@@ -1,9 +1,13 @@
 import datetime
 
 from ddt import data, ddt
+from django.core import mail
+from django.test import override_settings
 from rest_framework import status, test
 
-from waldur_mastermind.proposal import models
+from waldur_core.permissions.fixtures import CallRole
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.proposal import models, tasks
 from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.tests import fixtures
 
@@ -275,3 +279,57 @@ class RoundCloseTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         return self.client.post(self.url)
+
+
+class RoundNotificationsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.round = self.fixture.round
+        self.reviewer_1 = self.fixture.reviewer_1
+        self.reviewer_2 = self.fixture.reviewer_2
+        self.call = self.fixture.call
+        self.call_manager = self.fixture.call_manager
+        self.call.add_user(self.call_manager, CallRole.MANAGER)
+
+        # set the other round in another time not to trigger notification
+        self.fixture.new_round.start_time = datetime.date.today() + datetime.timedelta(
+            days=2
+        )
+        self.fixture.new_round.save()
+
+    @override_settings(task_always_eager=True)
+    def test_reviewer_is_notified_on_round_start(self):
+        structure_factories.NotificationFactory(
+            key="proposal.round_opening_for_reviewers",
+        )
+        self.assertTrue(self.round.call.reviewers.count())
+        tasks.notify_reviewer_on_round_start()
+        self.assertEqual(len(mail.outbox), 2)
+
+        self.assertIn(self.reviewer_1.email, mail.outbox[0].to)
+        self.assertIn(self.reviewer_2.email, mail.outbox[1].to)
+        self.assertIn(self.call.name, mail.outbox[0].subject, mail.outbox[1].subject)
+
+        body_1 = mail.outbox[0].body
+        self.assertIn(self.reviewer_1.full_name, body_1)
+        self.assertIn(self.round.name, body_1)
+
+    @override_settings(task_always_eager=True)
+    def test_manager_is_notified_on_round_cutoff(self):
+        structure_factories.NotificationFactory(
+            key="proposal.round_closing_for_managers",
+        )
+        self.round.cutoff_time = datetime.datetime.now()
+        self.round.save()
+
+        tasks.notify_manager_on_round_cutoff()
+        self.assertEqual(len(mail.outbox), 1)
+
+        self.assertIn(self.call_manager.email, mail.outbox[0].to)
+        self.assertIn(self.call.name, mail.outbox[0].subject)
+
+        body = mail.outbox[0].body
+        self.assertIn("Dear call manager", body)
+        self.assertIn(self.round.name, body)
+        self.assertIn(self.call.name, body)
+        self.assertIn(self.round.get_review_strategy_display(), body)
