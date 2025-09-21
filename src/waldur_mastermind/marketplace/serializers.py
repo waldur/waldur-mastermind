@@ -4348,6 +4348,134 @@ class OfferingUserServiceProviderCommentSerializer(serializers.ModelSerializer):
         model = models.OfferingUser
         fields = ("service_provider_comment", "service_provider_comment_url")
 
+
+class UserChecklistCompletionSerializer(serializers.ModelSerializer):
+    """Serializer for checklist completions associated with user's offering users."""
+
+    offering_user = OfferingUserSerializer(read_only=True)
+    offering_user_uuid = serializers.SerializerMethodField()
+    offering_name = serializers.SerializerMethodField()
+    offering_uuid = serializers.SerializerMethodField()
+    checklist_name = serializers.CharField(source="checklist.name", read_only=True)
+    checklist_uuid = serializers.CharField(source="checklist.uuid", read_only=True)
+    checklist_description = serializers.CharField(
+        source="checklist.description", read_only=True
+    )
+    completion_percentage = serializers.SerializerMethodField()
+    unanswered_required_questions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = checklist_models.ChecklistCompletion
+        fields = (
+            "uuid",
+            "offering_user",
+            "offering_user_uuid",
+            "offering_name",
+            "offering_uuid",
+            "checklist_uuid",
+            "checklist_name",
+            "checklist_description",
+            "is_completed",
+            "completion_percentage",
+            "unanswered_required_questions",
+            "requires_review",
+            "reviewed_by",
+            "reviewed_at",
+            "review_notes",
+            "created",
+            "modified",
+        )
+        read_only_fields = fields
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_offering_user_uuid(self, obj):
+        """Get the UUID of the associated OfferingUser."""
+        # Use cached data if available to avoid N+1 queries
+        if hasattr(obj, "_offering_user_cache") and obj._offering_user_cache:
+            return str(obj._offering_user_cache.uuid)
+
+        # Fallback to database query (should be rare with optimization)
+        try:
+            offering_user = models.OfferingUser.objects.get(id=obj.scope_object_id)
+            return str(offering_user.uuid)
+        except models.OfferingUser.DoesNotExist:
+            return None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_offering_name(self, obj):
+        """Get the name of the offering."""
+        # Use cached data if available to avoid N+1 queries
+        if hasattr(obj, "_offering_user_cache") and obj._offering_user_cache:
+            return obj._offering_user_cache.offering.name
+
+        # Fallback to database query (should be rare with optimization)
+        try:
+            offering_user = models.OfferingUser.objects.get(id=obj.scope_object_id)
+            return offering_user.offering.name
+        except models.OfferingUser.DoesNotExist:
+            return None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_offering_uuid(self, obj):
+        """Get the UUID of the offering."""
+        # Use cached data if available to avoid N+1 queries
+        if hasattr(obj, "_offering_user_cache") and obj._offering_user_cache:
+            return str(obj._offering_user_cache.offering.uuid)
+
+        # Fallback to database query (should be rare with optimization)
+        try:
+            offering_user = models.OfferingUser.objects.get(id=obj.scope_object_id)
+            return str(offering_user.offering.uuid)
+        except models.OfferingUser.DoesNotExist:
+            return None
+
+    @extend_schema_field(serializers.FloatField(min_value=0, max_value=100))
+    def get_completion_percentage(self, obj):
+        """Calculate the completion percentage of the checklist."""
+        total = obj.answers.count()
+        if total == 0:
+            return 0
+        answered = obj.answers.filter(answer_data__isnull=False).count()
+        return round((answered / total) * 100, 2)
+
+    @extend_schema_field(serializers.IntegerField(min_value=0))
+    def get_unanswered_required_questions(self, obj):
+        """Get count of unanswered required questions."""
+        required_questions = obj.checklist.questions.filter(required=True)
+        answered_questions = obj.answers.filter(
+            question__in=required_questions, answer_data__isnull=False
+        ).values_list("question_id", flat=True)
+        return required_questions.exclude(id__in=answered_questions).count()
+
+    def to_representation(self, instance):
+        """Optimized representation using prefetched data."""
+        # The ViewSet should have attached _offering_user_cache to avoid N+1 queries
+        # If not available, fall back to a single query (but this should be rare)
+        if not hasattr(instance, "_offering_user_cache"):
+            try:
+                instance._offering_user_cache = (
+                    models.OfferingUser.objects.select_related("offering", "user").get(
+                        id=instance.scope_object_id
+                    )
+                )
+            except models.OfferingUser.DoesNotExist:
+                instance._offering_user_cache = None
+
+        data = super().to_representation(instance)
+
+        # Add offering user data if available (this should always be true with optimization)
+        if instance._offering_user_cache:
+            data["offering_user"] = {
+                "uuid": str(instance._offering_user_cache.uuid),
+                "username": instance._offering_user_cache.username,
+                "user_full_name": instance._offering_user_cache.user.full_name,
+                "user_email": instance._offering_user_cache.user.email,
+                "state": instance._offering_user_cache.get_state_display(),
+                "is_restricted": instance._offering_user_cache.is_restricted,
+            }
+
+        return data
+
     def validate(self, attrs):
         request = self.context["request"]
         offering_user = self.instance

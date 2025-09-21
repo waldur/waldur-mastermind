@@ -4634,6 +4634,7 @@ class OpenStackBackend(ServiceBackend):
         Therefore we do not pull default zone at all. Please note, however, that default zone
         name could be changed in Nova and Cinder config. We don't support this use case either.
 
+
         All availability zones are split into 3 subsets: stale, missing and common.
         Stale zone are removed, missing zones are created.
         If zone state has been changed, it is synchronized.
@@ -4650,10 +4651,11 @@ class OpenStackBackend(ServiceBackend):
 
         missing_zones = set(back_zones_map.keys()) - set(front_zones_map.keys())
         for zone in missing_zones:
-            frontend_model.objects.create(
+            frontend_model.objects.get_or_create(
                 settings=self.settings,
                 tenant=tenant,
                 name=zone,
+                defaults={"available": back_zones_map[zone]},
             )
 
         stale_zones = set(front_zones_map.keys()) - set(back_zones_map.keys())

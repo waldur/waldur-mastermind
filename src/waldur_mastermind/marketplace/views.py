@@ -21,6 +21,7 @@ from django.db.models import (
     PositiveSmallIntegerField,
     Prefetch,
     Q,
+    Subquery,
 )
 from django.db.models.aggregates import Sum
 from django.db.models.fields import FloatField, IntegerField
@@ -139,6 +140,79 @@ from . import filters, log, models, permissions, plugins, serializers, tasks, ut
 from .handlers import get_plan_scopes
 
 logger = logging.getLogger(__name__)
+
+
+def get_allowed_offering_users_for_user(
+    request_user, include_consent_filtering=False, action=None
+):
+    """
+    Get the queryset of OfferingUsers that the current user is allowed to see.
+    This implements the shared permission logic used by both OfferingUsersViewSet
+    and OfferingUserChecklistCompletionsViewSet.
+
+    Args:
+        request_user: The current user making the request
+        include_consent_filtering: Whether to apply consent filtering
+        action: The action being performed (for consent filtering)
+    """
+    queryset = models.OfferingUser.objects.all()
+
+    if request_user.is_staff or request_user.is_support:
+        # Staff and support users see all OfferingUsers without any filtering
+        return queryset
+
+    visible_users = get_visible_users(request_user)
+    managed_customers = get_connected_customers(request_user)
+    managed_projects = get_connected_projects(request_user)
+    nested_customers = structure_models.Project.objects.filter(
+        id__in=managed_projects
+    ).values_list("customer_id", flat=True)
+    visible_customers = managed_customers.union(nested_customers)
+    visible_organization_groups = structure_models.Customer.objects.filter(
+        id__in=visible_customers
+    ).values_list("organization_groups__id", flat=True)
+
+    queryset = queryset.filter(
+        # Exclude offerings with disabled OfferingUsers feature
+        Q(offering__plugin_options__service_provider_can_create_offering_user=True)
+        &
+        # user can see own remote offering user
+        (
+            Q(user=request_user)
+            | (
+                # service provider can see all records related to managed offerings
+                # but only for users with active consent
+                (
+                    Q(offering__customer__in=managed_customers)
+                    | Q(user__in=visible_users)
+                )
+                & (
+                    # only offerings managed by customer where the current user has a role
+                    Q(offering__customer__id__in=visible_customers)
+                    |
+                    # only offerings from organization_groups including the current user's customers
+                    Q(offering__organization_groups__in=visible_organization_groups)
+                )
+            )
+        )
+    ).distinct()
+
+    if (
+        include_consent_filtering
+        and config.ENFORCE_USER_CONSENT_FOR_OFFERINGS
+        and action in ["list", "retrieve"]
+    ):
+        # Show if offering has no terms of service or user has active consent
+        queryset = queryset.filter(
+            Q(user=request_user)
+            | ~Q(offering__terms_of_service_configs__is_active=True)
+            | Q(
+                user__offering_consents__offering=F("offering"),
+                user__offering_consents__revocation_date__isnull=True,
+            )
+        )
+
+    return queryset
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):
@@ -4601,60 +4675,14 @@ class OfferingUsersViewSet(
         instance.delete()
 
     def get_queryset(self):
-        queryset = super().get_queryset()
         current_user = self.request.user
         if current_user.is_staff or current_user.is_support:
-            return queryset
+            # Staff and support users see all OfferingUsers without any filtering
+            return super().get_queryset()
 
-        visible_users = get_visible_users(current_user)
-        managed_customers = get_connected_customers(current_user)
-        managed_projects = get_connected_projects(current_user)
-        nested_customers = structure_models.Project.objects.filter(
-            id__in=managed_projects
-        ).values_list("customer_id", flat=True)
-        visible_customers = managed_customers.union(nested_customers)
-        visible_organization_groups = structure_models.Customer.objects.filter(
-            id__in=visible_customers
-        ).values_list("organization_groups__id", flat=True)
-
-        queryset = queryset.filter(
-            # Exclude offerings with disabled OfferingUsers feature
-            Q(offering__plugin_options__service_provider_can_create_offering_user=True)
-            &
-            # user can see own remote offering user
-            (
-                Q(user=current_user)
-                | (
-                    # service provider can see all records related to managed offerings
-                    # but only for users with active consent
-                    (
-                        Q(offering__customer__in=managed_customers)
-                        | Q(user__in=visible_users)
-                    )
-                    & (
-                        # only offerings managed by customer where the current user has a role
-                        Q(offering__customer__id__in=visible_customers)
-                        |
-                        # only offerings from organization_groups including the current user's customers
-                        Q(offering__organization_groups__in=visible_organization_groups)
-                    )
-                )
-            )
-        ).distinct()
-        if config.ENFORCE_USER_CONSENT_FOR_OFFERINGS and self.action in [
-            "list",
-            "retrieve",
-        ]:
-            # Show if offering has no terms of service or user has active consent
-            queryset = queryset.filter(
-                Q(user=current_user)
-                | ~Q(offering__terms_of_service_configs__is_active=True)
-                | Q(
-                    user__offering_consents__offering=F("offering"),
-                    user__offering_consents__revocation_date__isnull=True,
-                )
-            )
-        return queryset
+        return get_allowed_offering_users_for_user(
+            self.request.user, include_consent_filtering=True, action=self.action
+        )
 
     @extend_schema(
         request=serializers.OfferingUserUpdateRestrictionSerializer,
@@ -5049,6 +5077,80 @@ class OfferingUsersViewSet(
             )
 
     update_comments_permissions = [_check_update_comments_state]
+
+
+class OfferingUserChecklistCompletionsViewSet(core_views.ReadOnlyActionsViewSet):
+    """List all checklist completions for offering users that the current user is allowed to see."""
+
+    queryset = checklist_models.ChecklistCompletion.objects.all()
+    serializer_class = serializers.UserChecklistCompletionSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.OfferingUserChecklistCompletionsFilter
+    permission_classes = [rf_permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Get all checklist completions for offering users that the current user is allowed to see.
+        Uses the same permission logic as OfferingUsersViewSet.
+        """
+        # Get the base queryset of all checklist completions for OfferingUsers
+        content_type = ContentType.objects.get_for_model(models.OfferingUser)
+
+        # Get the allowed OfferingUsers using the shared helper function
+        allowed_offering_users = get_allowed_offering_users_for_user(
+            self.request.user, include_consent_filtering=True, action="list"
+        )
+
+        # Optimize queryset with proper joins and prefetching
+        queryset = (
+            checklist_models.ChecklistCompletion.objects.filter(
+                scope_content_type=content_type,
+                # Use subquery instead of values_list to avoid evaluation
+                scope_object_id__in=Subquery(allowed_offering_users.values("id")),
+            )
+            .select_related("checklist")
+            .prefetch_related("answers", "answers__question")
+        )
+
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        """Override list to add OfferingUser data optimization."""
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # Optimize by prefetching OfferingUser data in bulk
+        self._attach_offering_user_data(queryset)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def _attach_offering_user_data(self, queryset):
+        """Attach OfferingUser data to completion instances to avoid N+1 queries."""
+        # Get all scope_object_ids from the queryset
+        completion_list = list(queryset)
+        scope_object_ids = [c.scope_object_id for c in completion_list]
+
+        if not scope_object_ids:
+            return
+
+        # Fetch all OfferingUsers with their offerings in one optimized query
+        offering_users_map = {
+            ou.id: ou
+            for ou in models.OfferingUser.objects.filter(
+                id__in=scope_object_ids
+            ).select_related("offering", "user")
+        }
+
+        # Attach the OfferingUser data to each completion instance
+        for completion in completion_list:
+            completion._offering_user_cache = offering_users_map.get(
+                completion.scope_object_id
+            )
 
 
 class OfferingUserGroupViewSet(core_views.ActionsViewSet):
