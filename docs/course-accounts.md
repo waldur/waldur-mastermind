@@ -215,6 +215,114 @@ The backend should support batch creation of course accounts through the same PO
 
 Note: Update operations are disabled for course accounts to maintain consistency with external systems.
 
+### API Response Fields
+
+Each course account includes the following fields:
+
+#### Basic Fields
+
+- `uuid`: Unique identifier for the course account
+- `created`: Account creation timestamp
+- `modified`: Last modification timestamp
+- `email`: Participant email address
+- `description`: Optional description of the account
+- `state`: Current account state (OK, Closed, Erred)
+
+#### User Information
+
+- `user_uuid`: UUID of the linked Waldur user
+- `username`: Username of the linked user
+
+#### Project Information
+
+- `project`: UUID of the parent course project
+- `project_uuid`: Same as project (for consistency)
+- `project_name`: Name of the course project
+- `project_slug`: URL-friendly project identifier
+- `project_start_date`: Course project start date (if set)
+- `project_end_date`: Course project end date (required for course projects)
+
+#### Customer Information
+
+- `customer_uuid`: UUID of the customer that owns the project
+- `customer_name`: Name of the customer organization
+
+#### Error Tracking
+
+- `error_message`: Human-readable error description (if account is in error state)
+- `error_traceback`: Technical error details for debugging
+
+### Filtering and Ordering
+
+The course accounts list endpoint supports comprehensive filtering and ordering options:
+
+#### Basic Filters
+
+- `username`: Filter by username (exact match)
+- `email`: Filter by email (case-insensitive contains)
+- `state`: Filter by account state (OK, Closed, Erred)
+- `project_uuid`: Filter by project UUID
+
+#### Date Range Filters
+
+- `project_start_date_after`: Show accounts where project starts after this date
+- `project_start_date_before`: Show accounts where project starts before this date
+- `project_end_date_after`: Show accounts where project ends after this date
+- `project_end_date_before`: Show accounts where project ends before this date
+
+#### Ordering Options
+
+Use the `o` parameter to order results by:
+
+- `created`: Creation date
+- `modified`: Modification date
+- `state`: Account state
+- `email`: Email address
+- `username`: Username
+- `project_name`: Project name
+- `project_start_date`: Project start date
+- `project_end_date`: Project end date
+
+Add `-` prefix for descending order (e.g., `o=-created`).
+
+### Example API Requests
+
+#### Basic Listing
+
+```bash
+GET /api/marketplace-course-accounts/
+```
+
+#### Filter by Active Accounts
+
+```bash
+GET /api/marketplace-course-accounts/?state=OK
+```
+
+#### Filter by Email Contains
+
+```bash
+GET /api/marketplace-course-accounts/?email=student
+```
+
+#### Filter by Project Date Range
+
+```bash
+GET /api/marketplace-course-accounts/?project_start_date_after=2024-01-01&project_end_date_before=2024-12-31
+```
+
+#### Combine Filters with Ordering
+
+```bash
+GET /api/marketplace-course-accounts/?state=OK&o=-created
+```
+
+#### Order by Project Start Date
+
+```bash
+GET /api/marketplace-course-accounts/?o=project_start_date
+```
+
 ## Permissions
 
 Course account operations require the `MANAGE_COURSE_ACCOUNT` permission at the appropriate scope:

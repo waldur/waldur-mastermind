@@ -5,6 +5,7 @@ from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import F, Q, QuerySet
 from django.utils.translation import gettext_lazy as _
+from django_filters import DateFromToRangeFilter
 from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
 from rest_framework.filters import BaseFilterBackend
@@ -1290,7 +1291,29 @@ class CourseAccountFilter(django_filters.FilterSet):
     email = django_filters.CharFilter(lookup_expr="icontains")
     state = core_filters.MappedMultipleChoiceFilter(CourseAccountState.choices)
     project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
+    project_start_date = DateFromToRangeFilter(field_name="project__start_date")
+    project_end_date = DateFromToRangeFilter(field_name="project__end_date")
+    o = django_filters.OrderingFilter(
+        fields=(
+            "created",
+            "modified",
+            "state",
+            "email",
+            ("user__username", "username"),
+            ("project__name", "project_name"),
+            ("project__start_date", "project_start_date"),
+            ("project__end_date", "project_end_date"),
+        )
+    )
 
     class Meta:
         model = models.CourseAccount
-        fields = ["username", "email", "state", "project_uuid"]
+        fields = [
+            "username",
+            "email",
+            "state",
+            "project_uuid",
+            "project_start_date",
+            "project_end_date",
+            "o",
+        ]
