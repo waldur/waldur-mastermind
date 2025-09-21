@@ -10,6 +10,7 @@ from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
 from rest_framework.filters import BaseFilterBackend
 
+from waldur_core.checklist import models as checklist_models
 from waldur_core.core import filters as core_filters
 from waldur_core.core.filters import (
     CharInFilter,
@@ -903,6 +904,59 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
                 user__offering_consents__offering=F("offering"),
                 user__offering_consents__revocation_date__isnull=True,
             ).distinct()
+
+
+class OfferingUserChecklistCompletionsFilter(core_filters.CreatedModifiedFilter):
+    """Filter for checklist completions related to offering users."""
+
+    user_uuid = django_filters.UUIDFilter(
+        field_name="scope_object_id",
+        method="filter_user_uuid",
+        label="Filter by user UUID",
+    )
+    offering_uuid = django_filters.UUIDFilter(
+        method="filter_offering_uuid", label="Filter by offering UUID"
+    )
+    is_completed = django_filters.BooleanFilter(field_name="is_completed")
+    o = django_filters.OrderingFilter(fields=("modified", "is_completed"))
+
+    class Meta:
+        model = checklist_models.ChecklistCompletion
+        fields = []
+
+    def filter_user_uuid(self, queryset, name, value):
+        """Filter completions by the UUID of the OfferingUser's user."""
+        if not value:
+            return queryset
+
+        # Get content type for OfferingUser
+        content_type = ContentType.objects.get_for_model(models.OfferingUser)
+
+        # Get OfferingUser IDs that belong to the specified user
+        offering_user_ids = models.OfferingUser.objects.filter(
+            user__uuid=value
+        ).values_list("id", flat=True)
+
+        return queryset.filter(
+            scope_content_type=content_type, scope_object_id__in=offering_user_ids
+        )
+
+    def filter_offering_uuid(self, queryset, name, value):
+        """Filter completions by offering UUID."""
+        if not value:
+            return queryset
+
+        # Get content type for OfferingUser
+        content_type = ContentType.objects.get_for_model(models.OfferingUser)
+
+        # Get OfferingUser IDs that belong to the specified offering
+        offering_user_ids = models.OfferingUser.objects.filter(
+            offering__uuid=value
+        ).values_list("id", flat=True)
+
+        return queryset.filter(
+            scope_content_type=content_type, scope_object_id__in=offering_user_ids
+        )
 
 
 class OfferingUserGroupFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter):

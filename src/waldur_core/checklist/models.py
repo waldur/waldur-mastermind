@@ -384,6 +384,7 @@ class ChecklistCompletion(
         unique_together = ["scope_content_type", "scope_object_id", "checklist"]
         verbose_name = "Checklist completion"
         verbose_name_plural = "Checklist completions"
+        ordering = ["-modified"]
 
     def __str__(self):
         return f"{self.scope} - {self.checklist.name}"
