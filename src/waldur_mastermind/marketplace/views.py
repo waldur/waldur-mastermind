@@ -2714,6 +2714,28 @@ class ProviderOfferingViewSet(
         )
         return self.get_paginated_response(serializer.data)
 
+    @action(detail=True, methods=["get"])
+    def list_course_accounts(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        project_ids = (
+            models.Resource.objects.filter(
+                offering=offering,
+            )
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values_list("project_id", flat=True)
+            .distinct()
+        )
+        course_accounts = models.CourseAccount.objects.filter(
+            project_id__in=project_ids,
+        )
+        page = self.paginate_queryset(course_accounts)
+        serializer = serializers.ProjectServiceAccountSerializer(
+            instance=page,
+            many=True,
+            context={"request": request},
+        )
+        return self.get_paginated_response(serializer.data)
+
     @extend_schema(
         request=serializers.MoveOfferingSerializer,
         responses=serializers.PublicOfferingDetailsSerializer,
