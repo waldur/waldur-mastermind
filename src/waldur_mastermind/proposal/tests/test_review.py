@@ -198,6 +198,8 @@ class ActionTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProposalFixture()
         self.review = self.fixture.review
         self.url_accept = factories.ReviewFactory.get_url(self.review, "accept")
+        self.call_manager = self.fixture.call_manager
+        self.review.proposal.round.call.add_user(self.call_manager, CallRole.MANAGER)
 
     @data(
         "staff",
@@ -263,15 +265,13 @@ class ActionTest(test.APITransactionTestCase):
         structure_factories.NotificationFactory(
             key="proposal.new_review_submitted",
         )
-        call_manager = self.fixture.call_manager
-        self.review.proposal.round.call.add_user(call_manager, CallRole.MANAGER)
         response = self._submit_review(user)
         user = getattr(self.fixture, user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Verify notification email was sent
         self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, [call_manager.email])
+        self.assertEqual(mail.outbox[0].to, [self.call_manager.email])
 
         subject = mail.outbox[0].subject
         self.assertIn(
@@ -304,8 +304,6 @@ class ActionTest(test.APITransactionTestCase):
         structure_factories.NotificationFactory(
             key="proposal.review_rejected",
         )
-        call_manager = self.fixture.call_manager
-        self.review.proposal.round.call.add_user(call_manager, CallRole.MANAGER)
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
 
@@ -316,7 +314,7 @@ class ActionTest(test.APITransactionTestCase):
 
         # Verify notification email was sent
         self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, [call_manager.email])
+        self.assertEqual(mail.outbox[0].to, [self.call_manager.email])
 
         subject = mail.outbox[0].subject
         self.assertIn(
@@ -331,6 +329,57 @@ class ActionTest(test.APITransactionTestCase):
         )
         self.assertIn(user.first_name, body)
         self.assertIn("Review Progress:", body)
+
+    @override_settings(task_always_eager=True)
+    @data("reviewer_1")
+    def test_reviews_complete_notifications_sent_after_submit(self, user):
+        structure_factories.NotificationFactory(
+            key="proposal.reviews_complete",
+        )
+
+        response = self._submit_review(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.call_manager.email])
+
+        subject = mail.outbox[0].subject
+        self.assertEqual(
+            f"All reviews complete for proposal: {self.review.proposal.name}", subject
+        )
+
+        body = mail.outbox[0].body
+        self.assertIn(
+            f'All required reviews have been completed for proposal "{self.review.proposal.name}" in call "{self.review.proposal.round.call.name}".',
+            body,
+        )
+        self.assertIn(self.review.proposal.created_by.full_name, body)
+
+    @override_settings(task_always_eager=True)
+    @data("reviewer_1")
+    def test_reviews_complete_notifications_not_sent(self, user):
+        structure_factories.NotificationFactory(
+            key="proposal.reviews_complete",
+        )
+
+        # if there is an incomplete review
+        factories.ReviewFactory(
+            proposal=self.review.proposal,
+            reviewer=self.fixture.reviewer_2,
+            state=models.Review.States.IN_REVIEW,
+        )
+        response = self._submit_review(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 0)
+
+        # if not minimum number of reviews reached
+        self.review.proposal.round.minimum_number_of_reviewers = 2
+        self.review.proposal.round.save()
+
+        response = self._submit_review(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(len(mail.outbox), 0)
 
 
 @ddt

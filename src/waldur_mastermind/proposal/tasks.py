@@ -3,7 +3,7 @@ from typing import Any, cast
 
 from celery import shared_task
 from constance import config
-from django.db.models import Count, Q
+from django.db.models import Avg, Count, Q
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
@@ -538,3 +538,68 @@ def notify_manager_on_round_cutoff():
             context,
             manager_emails,
         )
+
+
+@shared_task(
+    name="waldur_mastermind.proposal.notify_manager_when_reviews_are_completed"
+)
+def notify_manager_when_reviews_are_completed(proposal_uuid):
+    proposal = proposal_models.Proposal.objects.get(uuid=proposal_uuid)
+    completed_reviews = proposal.review_set.filter(
+        state=proposal_models.Review.States.SUBMITTED
+    )
+    incomplete_reviews = proposal.review_set.filter(
+        state__in=(
+            proposal_models.Review.States.CREATED,
+            proposal_models.Review.States.IN_REVIEW,
+        )
+    )
+
+    if incomplete_reviews.exists() or completed_reviews.count() < (
+        proposal.round.minimum_number_of_reviewers or 0
+    ):
+        return
+
+    call = proposal.round.call
+    manager_emails = list(call.call_managers.values_list("email", flat=True))
+
+    if not manager_emails:
+        logger.warning(
+            f"Cannot send review completion notification. Call {call.uuid} has no managers with valid emails."
+        )
+        return
+
+    proposal_url = core_utils.format_homeport_link(
+        f"call-management/{call.manager.customer.uuid}/proposals/{proposal.uuid}/",
+    )
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "proposal_name": proposal.name,
+        "submitter_name": proposal.created_by.full_name
+        if proposal.created_by
+        else "N/A",
+        "call_name": call.name,
+        "reviews_count": completed_reviews.count(),
+        "average_score": completed_reviews.aggregate(avg_score=Avg("summary_score"))[
+            "avg_score"
+        ],
+        "reviews": [
+            {
+                "reviewer_name": review.reviewer.full_name
+                if review.reviewer
+                else "N/A",
+                "score": review.summary_score,
+                "submitted_at": review.modified,
+            }
+            for review in completed_reviews
+        ],
+        "proposal_url": proposal_url,
+    }
+
+    core_utils.broadcast_mail(
+        "proposal",
+        "reviews_complete",
+        context,
+        manager_emails,
+    )

@@ -1040,6 +1040,7 @@ class ReviewViewSet(ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save(state=models.Review.States.SUBMITTED)
         tasks.notify_call_managers_about_new_review.delay(review.uuid)
+        tasks.notify_manager_when_reviews_are_completed.delay(review.proposal.uuid)
         return response.Response(
             "Review has been submitted.",
             status=status.HTTP_200_OK,
