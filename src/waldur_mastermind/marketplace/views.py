@@ -2730,7 +2730,7 @@ class ProviderOfferingViewSet(
             project_id__in=project_ids,
         )
         page = self.paginate_queryset(course_accounts)
-        serializer = serializers.ProjectServiceAccountSerializer(
+        serializer = serializers.CourseAccountSerializer(
             instance=page,
             many=True,
             context={"request": request},
