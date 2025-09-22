@@ -139,6 +139,7 @@ class MarketplaceSection(FeatureSection):
     allow_display_of_images_in_markdown = Feature(
         "Allow display of images in markdown format."
     )
+    display_user_tos = Feature("Enable display of user terms of service in UI.")
 
 
 class SupportSection(FeatureSection):
