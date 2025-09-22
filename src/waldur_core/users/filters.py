@@ -112,6 +112,7 @@ class GroupInvitationFilter(BaseInvitationFilter):
 class InvitationFilter(BaseInvitationFilter):
     state = django_filters.MultipleChoiceFilter(choices=InvitationState.CHOICES)
     email = django_filters.CharFilter(lookup_expr="icontains")
+    email_exact = django_filters.CharFilter(lookup_expr="exact", field_name="email")
     scope_name = django_filters.CharFilter(method="filter_by_scope_name")
     scope_description = django_filters.CharFilter(method="filter_by_scope_description")
 
