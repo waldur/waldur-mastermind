@@ -2628,6 +2628,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        request=None,
         description="Refresh offering user usernames.",
     )
     @action(detail=True, methods=["post"])
