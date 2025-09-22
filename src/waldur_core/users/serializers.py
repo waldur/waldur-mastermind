@@ -17,6 +17,7 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
     created_by_username = serializers.CharField(
         read_only=True, source="created_by.username"
     )
+    created_by_image = serializers.ImageField(read_only=True, source="created_by.image")
     scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
     scope_name = serializers.CharField(read_only=True, source="scope.name")
     scope_description = serializers.SerializerMethodField()
@@ -39,6 +40,7 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
             "role_description",
             "created_by_full_name",
             "created_by_username",
+            "created_by_image",
         )
 
     def get_scope_description(self, invitation: models.BaseInvitation) -> str:
