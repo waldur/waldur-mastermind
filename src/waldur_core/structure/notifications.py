@@ -484,3 +484,13 @@ class ProposalSection(NotificationSection):
             ),
         ],
     )
+
+    reviews_complete = Notification(
+        "reviews_complete",
+        "A notification to the call manager about all reviews being completed for a proposal.",
+        templates=[
+            NotificationTemplate("reviews_complete_message.txt", "reviews_complete"),
+            NotificationTemplate("reviews_complete_message.html", "reviews_complete"),
+            NotificationTemplate("reviews_complete_subject.txt", "reviews_complete"),
+        ],
+    )

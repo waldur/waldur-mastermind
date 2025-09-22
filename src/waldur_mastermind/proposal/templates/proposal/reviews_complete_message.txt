@@ -1,0 +1,19 @@
+Dear call manager,
+
+All required reviews have been completed for proposal "{{ proposal_name }}" in call "{{ call_name }}".
+
+Review summary:
+- Proposal: {{ proposal_name }}
+- Submitted by: {{ submitter_name }}
+- Number of submitted reviews: {{ reviews_count }}
+- Average score: {{ average_score }}/5
+
+Review details:
+{% for r in reviews %}{{ forloop.counter }}. {{ r.reviewer_name }} - {{ r.score }}/5 - {{ r.submitted_at|date:"Y-m-d H:i" }}
+{% empty %}No individual reviews available.
+{% endfor %}
+ACTION REQUIRED: Please review the evaluation and make a decision on this proposal.
+
+Review & decide: {{ proposal_url }}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.
