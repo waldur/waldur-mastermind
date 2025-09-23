@@ -1933,6 +1933,25 @@ class ProviderOfferingViewSet(
         serializers.OfferingIntegrationUpdateSerializer
     )
 
+    @extend_schema(
+        request=serializers.OfferingComplianceChecklistUpdateSerializer,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def update_compliance_checklist(self, request, uuid=None):
+        return self._update_action(request)
+
+    update_compliance_checklist_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_OPTIONS,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+    update_compliance_checklist_validators = update_validators
+    update_compliance_checklist_serializer_class = (
+        serializers.OfferingComplianceChecklistUpdateSerializer
+    )
+
     def _update_media(
         self, request: Request, serializer_class: type[Serializer]
     ) -> Response:
