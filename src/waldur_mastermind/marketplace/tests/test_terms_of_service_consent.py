@@ -1646,6 +1646,28 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
         self.assertEqual(self.tos_config.version, "1.1")
         self.assertTrue(self.tos_config.requires_reconsent)
 
+    def test_update_terms_of_service_config_duplicate_active_validation(self):
+        """Test that updating ToS config to active fails when another active exists."""
+        self.client.force_authenticate(user=self.user)
+
+        other_tos_config = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Other terms of service",
+            terms_of_service_link="https://example.com/other-tos",
+            version="2.0",
+            is_active=False,
+        )
+
+        data = {"is_active": True}
+        other_detail_url = (
+            f"/api/marketplace-offering-terms-of-service/{other_tos_config.uuid}/"
+        )
+
+        response = self.client.put(other_detail_url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("non_field_errors", response.data)
+        self.assertIn("already exists", response.data["non_field_errors"][0])
+
     def test_delete_terms_of_service_config(self):
         """Test deleting a ToS configuration."""
         self.client.force_authenticate(user=self.user)
