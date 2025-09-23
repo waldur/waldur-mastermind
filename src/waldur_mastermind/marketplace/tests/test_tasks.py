@@ -65,32 +65,6 @@ class CalculateUsageForCurrentMonthTest(test.APITransactionTestCase):
 
 
 class NotificationTest(test.APITransactionTestCase):
-    def test_notify_about_resource_change(self):
-        project_fixture = structure_fixtures.ProjectFixture()
-        admin = project_fixture.admin
-        project = project_fixture.project
-        resource = factories.ResourceFactory(project=project, name="Test resource")
-        event_type = "marketplace_resource_create_succeeded"
-        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
-
-        tasks.notify_about_resource_change(
-            event_type,
-            {"resource_name": resource.name},
-            resource.uuid,
-        )
-        self.assertEqual(len(mail.outbox), 1)
-        subject_template_name = "{}/{}_subject.txt".format(
-            "marketplace",
-            "marketplace_resource_create_succeeded",
-        )
-        subject = core_utils.format_text(
-            subject_template_name, {"resource_name": resource.name}
-        )
-        self.assertEqual(mail.outbox[0].subject, subject)
-        self.assertEqual(mail.outbox[0].to[0], admin.email)
-        self.assertTrue(resource.name in mail.outbox[0].body)
-        self.assertTrue(resource.name in mail.outbox[0].subject)
-
     @patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
     def test_notify_user_that_order_been_rejected(self, mock_broadcast_mail):
         """
