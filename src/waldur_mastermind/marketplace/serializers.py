@@ -2675,6 +2675,9 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "activation_price",
             "termination_comment",
             "backend_id",
+            "offering_customer_uuid",
+            "offering_customer_name",
+            "offering_customer_slug",
         )
 
     consumer_reviewed_by = serializers.ReadOnlyField(
@@ -2757,6 +2760,12 @@ class OrderDetailsSerializer(BaseOrderSerializer):
 
     can_terminate = serializers.SerializerMethodField()
     termination_comment = serializers.ReadOnlyField()
+
+    offering_customer_uuid = serializers.UUIDField(
+        read_only=True, source="offering.customer.uuid"
+    )
+    offering_customer_name = serializers.ReadOnlyField(source="offering.customer.name")
+    offering_customer_slug = serializers.ReadOnlyField(source="offering.customer.slug")
 
     def get_can_terminate(self, order: models.Order) -> bool:
         if not plugins.manager.can_cancel_order(order.offering.type):
@@ -3207,6 +3216,8 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "error_message",
             "error_traceback",
             "offering_customer_uuid",
+            "offering_customer_name",
+            "offering_customer_slug",
             "options",
             "available_actions",
             "last_sync",
@@ -3291,6 +3302,8 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     offering_customer_uuid = serializers.UUIDField(
         read_only=True, source="offering.customer.uuid"
     )
+    offering_customer_name = serializers.ReadOnlyField(source="offering.customer.name")
+    offering_customer_slug = serializers.ReadOnlyField(source="offering.customer.slug")
     available_actions = serializers.SerializerMethodField()
     limits = serializers.SerializerMethodField()
     attributes = serializers.SerializerMethodField()
