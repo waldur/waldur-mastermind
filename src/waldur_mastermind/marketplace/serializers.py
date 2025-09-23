@@ -145,6 +145,10 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         help_text="Minimal team count required for provisioning of resources",
         min_value=1,
     )
+    maximal_resource_count_per_project = serializers.IntegerField(
+        required=False,
+        help_text="Maximal number of offering resources allowed per project",
+    )
     required_team_role_for_provisioning = serializers.CharField(
         required=False,
         help_text="Required user role in a project for provisioning of resources",
@@ -3109,6 +3113,33 @@ class OrderCreateSerializer(
                         required_team_role_for_provisioning,
                     )
                 )
+
+        maximal_resource_count_per_project = offering.plugin_options.get(
+            "maximal_resource_count_per_project"
+        )
+        if maximal_resource_count_per_project is not None:
+            try:
+                limit = int(maximal_resource_count_per_project)
+            except (ValueError, TypeError):
+                raise ValidationError(
+                    "Invalid value for maximal_resource_count_per_project setting, expected a positive integer."
+                )
+
+            # Count non-terminated resources for this project and offering
+            current_count = (
+                models.Resource.objects.filter(project=project, offering=offering)
+                .exclude(state=models.Resource.States.TERMINATED)
+                .count()
+            )
+
+            if current_count >= limit:
+                raise ValidationError(
+                    _(
+                        "The maximum number of resources (%s) for this offering has already been reached in the project '%s'."
+                    )
+                    % (limit, project.name)
+                )
+
         return attrs
 
 
