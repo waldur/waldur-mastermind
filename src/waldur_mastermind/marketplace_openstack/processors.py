@@ -36,7 +36,7 @@ class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
     )
 
     def get_post_data(self):
-        order: models.Order = self.order
+        order = self.order
         payload = get_order_post_data(order, self.get_fields())
         # check for default override
         mtu = order.offering.plugin_options.get("default_internal_network_mtu")
@@ -50,6 +50,13 @@ class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
                 logger.warning(
                     f"Invalid MTU value: {mtu} in {order.offering}. Skipping."
                 )
+
+        if not order.limits:
+            raise serializers.ValidationError(
+                _(
+                    "Order does not contain limits. Quotas are required to create a tenant."
+                )
+            )
 
         quotas = utils.map_limits_to_quotas(order.limits, order.offering)
 

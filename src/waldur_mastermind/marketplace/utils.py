@@ -197,7 +197,7 @@ def create_screenshot_thumbnail(screenshot):
     temp_thumb.close()
 
 
-def import_resource_metadata(resource):
+def import_resource_metadata(resource: models.Resource):
     instance = resource.scope
     fields = {"action", "action_details", "state", "runtime_state"}
 

@@ -81,6 +81,7 @@ class TenantCreateTest(BaseOpenStackTest):
             plugin_options={"storage_mode": STORAGE_MODE_DYNAMIC},
         )
         self.plan = marketplace_factories.PlanFactory(offering=self.offering)
+        create_offering_components(self.offering)
 
     @data("staff", "owner", "manager", "admin")
     def test_order_is_created(self, user):
@@ -94,14 +95,12 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertTrue("user_username" in response.data)
 
     def test_limits_are_not_checked_if_offering_components_limits_are_not_defined(self):
-        create_offering_components(self.offering)
         response = self.create_order(
             limits={"cores": 2, "ram": 1024 * 10, "storage": 1024 * 1024 * 10}
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_limits_are_checked_against_offering_components(self):
-        create_offering_components(self.offering)
         self.offering.components.filter(type=CORES_TYPE).update(max_value=10)
         self.offering.components.filter(type=RAM_TYPE).update(max_value=1024 * 10)
         self.offering.components.filter(type=STORAGE_TYPE).update(
@@ -114,7 +113,6 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_max_available_limit_is_checked_against_offering_components(self):
-        create_offering_components(self.offering)
         self.offering.components.filter(type=CORES_TYPE).update(max_value=50)
         self.offering.components.filter(type=RAM_TYPE).update(max_value=1024 * 10)
         self.offering.components.filter(type=STORAGE_TYPE).update(
@@ -136,8 +134,6 @@ class TenantCreateTest(BaseOpenStackTest):
         )
 
     def test_cost_estimate_is_calculated_using_limits(self):
-        create_offering_components(self.offering)
-
         self.create_plan_component(CORES_TYPE, 1)
         self.create_plan_component(RAM_TYPE, 0.5)
         self.create_plan_component(STORAGE_TYPE, 0.1)
@@ -150,8 +146,6 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertEqual(float(response.data["cost"]), expected)
 
     def test_cost_estimate_is_calculated_using_dynamic_storage(self):
-        create_offering_components(self.offering)
-
         self.create_plan_component(CORES_TYPE, 1)
         self.create_plan_component(RAM_TYPE, 0.5)
         marketplace_models.OfferingComponent.objects.create(
@@ -190,8 +184,9 @@ class TenantCreateTest(BaseOpenStackTest):
             "plan": plan_url,
             "attributes": attributes,
         }
-        if limits:
-            payload["limits"] = limits
+        if not limits:
+            limits = {"cores": 2, "ram": 1024 * 10, "storage": 1024 * 1024 * 10}
+        payload["limits"] = limits
 
         self.client.force_login(getattr(self.fixture, user))
         url = marketplace_factories.OrderFactory.get_list_url()
@@ -210,6 +205,7 @@ class TenantCreateTest(BaseOpenStackTest):
             attributes=attributes,
             plan=self.plan,
             state=OrderStates.EXECUTING,
+            limits={"cores": 2, "ram": 1024 * 10, "storage": 1024 * 1024 * 10},
         )
 
         marketplace_utils.process_order(order, self.fixture.staff)
@@ -247,8 +243,6 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertEqual(order.state, OrderStates.DONE)
 
     def test_volume_type_limits_are_propagated(self):
-        create_offering_components(self.offering)
-
         marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,
             type="gigabytes_llvm",
@@ -267,8 +261,6 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertEqual(tenant.get_quota_limit("gigabytes_llvm"), 10)
 
     def test_volume_type_limits_are_initialized_with_zero_by_default(self):
-        create_offering_components(self.offering)
-
         openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="llvm")
         openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="ssd")
         openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="rbd")
@@ -287,8 +279,6 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertEqual(tenant.get_quota_limit("gigabytes_rbd"), 0)
 
     def test_volume_type_limits_zero_is_preserved(self):
-        create_offering_components(self.offering)
-
         openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="ssd")
         openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="rbd")
 
@@ -312,7 +302,6 @@ class TenantCreateTest(BaseOpenStackTest):
     def test_volume_type_limits_unset_in_fixed_storage_mode(self):
         self.offering.plugin_options["storage_mode"] = STORAGE_MODE_FIXED
         self.offering.save()
-        create_offering_components(self.offering)
 
         openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="ssd")
 

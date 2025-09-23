@@ -41,8 +41,8 @@ def copy_attributes(fields, order):
 
 
 class BaseOrderProcessor:
-    def __init__(self, order):
-        self.order: models.Order = order
+    def __init__(self, order: models.Order):
+        self.order = order
 
     def process_order(self, user):
         """
