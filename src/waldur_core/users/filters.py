@@ -41,6 +41,9 @@ class InvitationFilterBackend(BaseFilterBackend):
             customer__in=get_connected_customers_by_permission(
                 user, PermissionEnum.LIST_INVITATIONS
             )
+        ) | Q(
+            email__iexact=user.email,
+            state__in=[InvitationState.PENDING, InvitationState.PENDING_PROJECT],
         )
         for content_type in get_valid_content_types():
             permission = get_create_permission(content_type.model_class())
@@ -49,7 +52,7 @@ class InvitationFilterBackend(BaseFilterBackend):
             scopes = get_scope_ids(user, content_type, permission=permission)
             subquery |= Q(content_type=content_type, object_id__in=scopes)
 
-        return queryset.filter(subquery)
+        return queryset.filter(subquery).distinct()
 
 
 class BaseInvitationFilter(django_filters.FilterSet):
@@ -112,7 +115,7 @@ class GroupInvitationFilter(BaseInvitationFilter):
 class InvitationFilter(BaseInvitationFilter):
     state = django_filters.MultipleChoiceFilter(choices=InvitationState.CHOICES)
     email = django_filters.CharFilter(lookup_expr="icontains")
-    email_exact = django_filters.CharFilter(lookup_expr="exact", field_name="email")
+    email_exact = django_filters.CharFilter(lookup_expr="iexact", field_name="email")
     scope_name = django_filters.CharFilter(method="filter_by_scope_name")
     scope_description = django_filters.CharFilter(method="filter_by_scope_description")
 

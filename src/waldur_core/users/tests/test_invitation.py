@@ -318,6 +318,124 @@ class RetrievePendingInvitationDetailsTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
+class InvitationRetrieveByEmailTest(BaseInvitationTest):
+    def get_list(self, user):
+        self.client.force_authenticate(user=user)
+        response = self.client.get(factories.InvitationBaseFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data
+
+    def test_user_can_fetch_pending_invitations_with_matching_email(self):
+        pending_invitation = factories.CustomerInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.OWNER,
+            email=self.user.email,
+            state=InvitationState.PENDING,
+        )
+        pending_project_invitation = factories.ProjectInvitationFactory(
+            scope=self.project,
+            role=ProjectRole.ADMIN,
+            email=self.user.email,
+            state=InvitationState.PENDING_PROJECT,
+        )
+
+        response_data = self.get_list(self.user)
+        invitation_uuids = [inv["uuid"] for inv in response_data]
+        self.assertIn(str(pending_invitation.uuid), invitation_uuids)
+        self.assertIn(str(pending_project_invitation.uuid), invitation_uuids)
+
+        # Verify the invitation details
+        invitation_data = next(
+            inv for inv in response_data if inv["uuid"] == str(pending_invitation.uuid)
+        )
+        self.assertEqual(invitation_data["email"], self.user.email)
+        self.assertEqual(invitation_data["state"], InvitationState.PENDING)
+
+        project_invitation_data = next(
+            inv
+            for inv in response_data
+            if inv["uuid"] == str(pending_project_invitation.uuid)
+        )
+        self.assertEqual(project_invitation_data["email"], self.user.email)
+        self.assertEqual(
+            project_invitation_data["state"], InvitationState.PENDING_PROJECT
+        )
+
+    def test_user_cannot_fetch_invitation_with_different_email(self):
+        different_email_invitation = factories.CustomerInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.OWNER,
+            email="different@example.com",
+            state=InvitationState.PENDING,
+        )
+
+        response_data = self.get_list(self.user)
+
+        invitation_uuids = [inv["uuid"] for inv in response_data]
+        self.assertNotIn(str(different_email_invitation.uuid), invitation_uuids)
+
+    def test_user_can_fetch_invitation_with_case_insensitive_email_match(self):
+        uppercase_email_invitation = factories.CustomerInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.OWNER,
+            email=self.user.email.upper(),
+            state=InvitationState.PENDING,
+        )
+
+        response_data = self.get_list(self.user)
+
+        # Should include invitation with case-insensitive email match
+        invitation_uuids = [inv["uuid"] for inv in response_data]
+        self.assertIn(str(uppercase_email_invitation.uuid), invitation_uuids)
+
+    def test_user_cannot_fetch_non_pending_invitation_with_matching_email(self):
+        accepted_invitation = factories.CustomerInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.OWNER,
+            email=self.user.email,
+            state=InvitationState.ACCEPTED,
+        )
+
+        response_data = self.get_list(self.user)
+
+        # Should not include non-pending invitations
+        invitation_uuids = [inv["uuid"] for inv in response_data]
+        self.assertNotIn(str(accepted_invitation.uuid), invitation_uuids)
+
+    def test_user_cannot_send_pending_invitation_with_matching_email(self):
+        pending_invitation = factories.CustomerInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.OWNER,
+            email=self.user.email,
+            state=InvitationState.PENDING,
+        )
+
+        self.client.force_authenticate(user=self.user)
+        url = factories.InvitationBaseFactory.get_url(pending_invitation, action="send")
+
+        response = self.client.post(url)
+        self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN])
+
+    def test_user_cannot_cancel_pending_invitation_with_matching_email(self):
+        pending_invitation = factories.CustomerInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.OWNER,
+            email=self.user.email,
+            state=InvitationState.PENDING,
+        )
+
+        self.client.force_authenticate(user=self.user)
+        url = factories.InvitationBaseFactory.get_url(
+            pending_invitation, action="cancel"
+        )
+
+        response = self.client.post(url)
+        self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN])
+
+        pending_invitation.refresh_from_db()
+        self.assertEqual(pending_invitation.state, InvitationState.PENDING)
+
+
 @ddt
 class InvitationCreateTest(BaseInvitationTest):
     @data("staff", "customer_owner")
