@@ -2252,6 +2252,19 @@ class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
         fields = ("resource_options",)
 
 
+class OfferingComplianceChecklistUpdateSerializer(serializers.ModelSerializer):
+    compliance_checklist = serializers.SlugRelatedField(
+        queryset=checklist_models.Checklist.objects.all(),
+        slug_field="uuid",
+        required=False,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = models.Offering
+        fields = ("compliance_checklist",)
+
+
 def update_or_create_service_settings_for_offering(
     offering: models.Offering, service_attributes: dict, certificate: str | None = None
 ):
@@ -4356,6 +4369,8 @@ class UserChecklistCompletionSerializer(serializers.ModelSerializer):
     offering_user_uuid = serializers.SerializerMethodField()
     offering_name = serializers.SerializerMethodField()
     offering_uuid = serializers.SerializerMethodField()
+    customer_provider_uuid = serializers.SerializerMethodField()
+    customer_provider_name = serializers.SerializerMethodField()
     checklist_name = serializers.CharField(source="checklist.name", read_only=True)
     checklist_uuid = serializers.CharField(source="checklist.uuid", read_only=True)
     checklist_description = serializers.CharField(
@@ -4372,6 +4387,8 @@ class UserChecklistCompletionSerializer(serializers.ModelSerializer):
             "offering_user_uuid",
             "offering_name",
             "offering_uuid",
+            "customer_provider_uuid",
+            "customer_provider_name",
             "checklist_uuid",
             "checklist_name",
             "checklist_description",
@@ -4426,6 +4443,34 @@ class UserChecklistCompletionSerializer(serializers.ModelSerializer):
         try:
             offering_user = models.OfferingUser.objects.get(id=obj.scope_object_id)
             return str(offering_user.offering.uuid)
+        except models.OfferingUser.DoesNotExist:
+            return None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_customer_provider_uuid(self, obj):
+        """Get the UUID of the provider customer."""
+        # Use cached data if available to avoid N+1 queries
+        if hasattr(obj, "_offering_user_cache") and obj._offering_user_cache:
+            return str(obj._offering_user_cache.offering.customer.uuid)
+
+        # Fallback to database query (should be rare with optimization)
+        try:
+            offering_user = models.OfferingUser.objects.get(id=obj.scope_object_id)
+            return str(offering_user.offering.customer.uuid)
+        except models.OfferingUser.DoesNotExist:
+            return None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_customer_provider_name(self, obj):
+        """Get the name of the provider customer."""
+        # Use cached data if available to avoid N+1 queries
+        if hasattr(obj, "_offering_user_cache") and obj._offering_user_cache:
+            return obj._offering_user_cache.offering.customer.name
+
+        # Fallback to database query (should be rare with optimization)
+        try:
+            offering_user = models.OfferingUser.objects.get(id=obj.scope_object_id)
+            return offering_user.offering.customer.name
         except models.OfferingUser.DoesNotExist:
             return None
 

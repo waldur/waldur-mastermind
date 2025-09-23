@@ -60,12 +60,26 @@ Authorization: Token <admin-token>
 Attach the compliance checklist to an offering:
 
 ```http
-PATCH /api/marketplace-provider-offerings/<offering-uuid>/
+POST /api/marketplace-provider-offerings/<offering-uuid>/update_compliance_checklist/
 Content-Type: application/json
 Authorization: Token <service-provider-token>
 
 {
   "compliance_checklist": "<checklist-uuid>"
+}
+```
+
+#### 4. Remove Checklist from Offering
+
+Remove the compliance checklist from an offering:
+
+```http
+POST /api/marketplace-provider-offerings/<offering-uuid>/update_compliance_checklist/
+Content-Type: application/json
+Authorization: Token <service-provider-token>
+
+{
+  "compliance_checklist": null
 }
 ```
 
@@ -344,6 +358,8 @@ GET /api/marketplace-offering-user-checklist-completions/?offering_uuid=<uuid>&i
     "offering_user_uuid": "offering-user-uuid-1",
     "offering_name": "Cloud VM Service",
     "offering_uuid": "offering-uuid-1",
+    "customer_provider_uuid": "provider-customer-uuid-1",
+    "customer_provider_name": "TechCorp Solutions",
     "checklist_uuid": "checklist-uuid",
     "checklist_name": "Security Compliance Checklist",
     "checklist_description": "Required security compliance information",
@@ -370,6 +386,8 @@ GET /api/marketplace-offering-user-checklist-completions/?offering_uuid=<uuid>&i
     "offering_user_uuid": "offering-user-uuid-2",
     "offering_name": "Storage Service",
     "offering_uuid": "offering-uuid-2",
+    "customer_provider_uuid": "provider-customer-uuid-2",
+    "customer_provider_name": "DataVault Inc",
     "checklist_uuid": "checklist-uuid-2",
     "checklist_name": "Data Protection Compliance",
     "checklist_description": "Data handling and protection requirements",
@@ -409,6 +427,8 @@ GET /api/marketplace-offering-user-checklist-completions/?offering_uuid=<uuid>&i
 | `offering_user_uuid` | UUID | UUID of the associated offering user |
 | `offering_name` | String | Name of the offering |
 | `offering_uuid` | UUID | UUID of the offering |
+| `customer_provider_uuid` | UUID | UUID of the service provider customer |
+| `customer_provider_name` | String | Name of the service provider customer |
 | `checklist_uuid` | UUID | UUID of the compliance checklist |
 | `checklist_name` | String | Name of the compliance checklist |
 | `checklist_description` | String | Description of the compliance checklist |
