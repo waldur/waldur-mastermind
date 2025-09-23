@@ -319,6 +319,10 @@ class WaldurAuthSocial(BaseModel):
     ENABLE_EDUTEAMS_SYNC = Field(
         False, description="Enable eduTEAMS synchronization with remote Waldur."
     )
+    BLOCK_CREATION_OF_UNINVITED_USERS = Field(
+        False,
+        description="If true, block creation of an account on OIDC login if user email is not provided or provided and is not in the list of one of the active invitations.",
+    )
 
     class Meta:
         public_settings = [
