@@ -36,6 +36,7 @@ from waldur_core.structure.managers import (
     filter_queryset_for_user,
 )
 from waldur_core.structure.models import CUSTOMER_DETAILS_FIELDS
+from waldur_core.structure.notifications import NOTIFICATIONS
 from waldur_core.structure.registry import get_resource_type, get_service_type
 from waldur_mastermind.marketplace.enums import ResourceStates
 
@@ -1615,6 +1616,7 @@ class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
 
 class NotificationSerializer(serializers.HyperlinkedModelSerializer):
     templates = NotificationTemplateDetailSerializers(many=True, read_only=True)
+    context_fields = serializers.SerializerMethodField()
 
     class Meta:
         model = core_models.Notification
@@ -1626,6 +1628,7 @@ class NotificationSerializer(serializers.HyperlinkedModelSerializer):
             "enabled",
             "created",
             "templates",
+            "context_fields",
         )
         read_only_fields = ("created", "enabled")
         extra_kwargs = {
@@ -1634,6 +1637,29 @@ class NotificationSerializer(serializers.HyperlinkedModelSerializer):
                 "lookup_field": "uuid",
             },
         }
+
+    def get_context_fields(self, obj) -> dict:
+        """
+        Finds the notification definition in the global NOTIFICATIONS
+        dictionary and returns its 'context' fields.
+        """
+        try:
+            section_key, notification_key = obj.key.split(".", 1)
+        except ValueError:
+            # Handle cases where the key might not have a dot
+            return {}
+
+        # Safely get the list of notifications for the section
+        notification_definitions = NOTIFICATIONS.get(section_key, [])
+
+        # Find the specific notification by its full key ('path')
+        for definition in notification_definitions:
+            if definition.get("path") == notification_key:
+                # Return the context if it exists, otherwise an empty dict
+                return definition.get("context", {})
+
+        # Return an empty dict if no matching notification was found
+        return {}
 
 
 class NotificationTemplateUpdateSerializers(serializers.Serializer):
