@@ -72,12 +72,12 @@ class Command(BaseCommand):
 
             resources = marketplace_models.Resource.objects.filter(
                 project=project,
-            )
+            ).exclude(state=marketplace_models.ResourceStates.TERMINATED)
 
             if resources.count() == 0:
                 self.stdout.write(
                     self.style.ERROR(
-                        f"The project {project} does not have any resources, skipping processing"
+                        f"The project {project} does not have any  active resources, skipping processing"
                     )
                 )
                 continue
