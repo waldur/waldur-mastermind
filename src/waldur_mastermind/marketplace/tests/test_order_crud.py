@@ -237,6 +237,66 @@ class OrderCreateTest(BaseOrderCreateTest):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_creation_fails_if_maximal_resource_count_per_project_is_reached(self):
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            plugin_options={"maximal_resource_count_per_project": 1},
+        )
+        factories.ResourceFactory(project=self.project, offering=offering)
+
+        response = self.create_order(user, offering)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "The maximum number of resources", response.data["non_field_errors"][0]
+        )
+
+    def test_creation_succeeds_if_maximal_resource_count_per_project_is_not_reached(
+        self,
+    ):
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            plugin_options={"maximal_resource_count_per_project": 2},
+        )
+        factories.ResourceFactory(project=self.project, offering=offering)
+
+        response = self.create_order(user, offering)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_terminated_resources_are_not_counted_towards_limit(self):
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            plugin_options={"maximal_resource_count_per_project": 1},
+        )
+        factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            state=models.Resource.States.TERMINATED,
+        )
+
+        response = self.create_order(user, offering)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_resources_in_other_projects_are_not_counted_towards_limit(self):
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            plugin_options={"maximal_resource_count_per_project": 1},
+        )
+        # Create resource in a different project
+        factories.ResourceFactory(
+            project=structure_factories.ProjectFactory(), offering=offering
+        )
+
+        response = self.create_order(user, offering)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
 
 @ddt
 @mock.patch(
