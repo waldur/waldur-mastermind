@@ -6545,6 +6545,19 @@ class OfferingTermsOfServiceSerializer(
         )
         read_only_fields = ("created", "modified")
 
+    def validate(self, attrs):
+        if attrs.get("is_active", False):
+            offering = self.instance.offering if self.instance else attrs["offering"]
+            existing_active = models.OfferingTermsOfService.objects.filter(
+                offering=offering, is_active=True
+            ).exists()
+            if existing_active:
+                raise serializers.ValidationError(
+                    "An active Terms of Service configuration already exists for this offering. "
+                    "Please deactivate the existing configuration before creating a new active one."
+                )
+        return attrs
+
     @extend_schema_field(UserConsentInfoSerializer(allow_null=True))
     def get_user_consent(self, obj):
         request = self.context.get("request")
