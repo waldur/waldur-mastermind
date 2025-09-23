@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 
 from celery import shared_task
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
@@ -14,22 +15,31 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(name="waldur_mastermind.marketplace_openstack.push_tenant_limits")
-def push_tenant_limits(serialized_resource):
-    resource = core_utils.deserialize_instance(serialized_resource)
+def push_tenant_limits(serialized_resource: str):
+    resource = cast(
+        marketplace_models.Resource,
+        core_utils.deserialize_instance(serialized_resource),
+    )
     utils.push_tenant_limits(resource)
 
 
 @shared_task(name="waldur_mastermind.marketplace_openstack.restore_tenant_limits")
-def restore_tenant_limits(serialized_resource):
-    resource = core_utils.deserialize_instance(serialized_resource)
+def restore_tenant_limits(serialized_resource: str):
+    resource = cast(
+        marketplace_models.Resource,
+        core_utils.deserialize_instance(serialized_resource),
+    )
     utils.restore_limits(resource)
 
 
 @shared_task(
     name="waldur_mastermind.marketplace_openstack.import_instances_and_volumes_of_tenant"
 )
-def sync_instances_and_volumes_of_tenant(serialized_resource):
-    resource = core_utils.deserialize_instance(serialized_resource)
+def sync_instances_and_volumes_of_tenant(serialized_resource: str):
+    resource = cast(
+        openstack_models.Tenant,
+        core_utils.deserialize_instance(serialized_resource),
+    )
     utils.import_instances_and_volumes_of_tenant(resource)
     utils.terminate_expired_instances_and_volumes_of_tenant(resource)
 

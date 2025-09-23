@@ -12,9 +12,6 @@ from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 from model_utils.tracker import FieldInstanceTracker
 
-if TYPE_CHECKING:
-    from django.db.models.manager import RelatedManager
-
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
@@ -25,6 +22,12 @@ from waldur_core.quotas.fields import QuotaField
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import filter_queryset_for_user
+
+if TYPE_CHECKING:
+    from django.db.models.manager import RelatedManager
+
+    from waldur_openstack.backend import OpenStackBackend
+
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +134,7 @@ class Tenant(
         """
         return slugify(name)[:25] + "-user-%s" % core_utils.pwgen(4)
 
-    def get_backend(self):
+    def get_backend(self) -> "OpenStackBackend":
         return self.service_settings.get_backend()
 
     @classmethod
@@ -143,7 +146,7 @@ class Tenant(
             "runtime_state",
         )
 
-    def get_access_url(self) -> str:
+    def get_access_url(self) -> str | None:
         settings = self.service_settings
         access_url = settings.get_option("access_url")
         if access_url:

@@ -131,7 +131,7 @@ def get_offering(offering_type, scope):
         )
 
 
-def import_quotas(offering, source_values):
+def import_quotas(offering: marketplace_models.Offering, source_values):
     storage_mode = offering.plugin_options.get("storage_mode") or STORAGE_MODE_FIXED
 
     result_values = {
@@ -155,8 +155,8 @@ def _apply_quotas(target: openstack_models.Tenant, quotas: dict[str, int]):
         target.set_quota_limit(name, limit)
 
 
-def import_usage(resource):
-    tenant = resource.scope
+def import_usage(resource: marketplace_models.Resource):
+    tenant = cast(openstack_models.Tenant, resource.scope)
 
     if not tenant:
         return
@@ -171,7 +171,7 @@ def import_limits(resource: marketplace_models.Resource):
     Import resource quotas as marketplace limits.
     :param resource: Marketplace resource
     """
-    tenant = resource.scope
+    tenant = cast(openstack_models.Tenant, resource.scope)
 
     if not tenant:
         return
@@ -180,7 +180,7 @@ def import_limits(resource: marketplace_models.Resource):
     resource.save(update_fields=["limits"])
 
 
-def tenant_limits_validator(limits):
+def tenant_limits_validator(limits: dict):
     cores = limits.get(CORES_TYPE) or 0
     if not cores:
         raise exceptions.ValidationError("CPU limit is mandatory.")
@@ -240,13 +240,11 @@ def map_limits_to_quotas(limits, offering: marketplace_models.Offering, is_creat
         quotas["storage"] = ServiceBackend.gb2mb(sum(list(volume_type_quotas.values())))
 
     # Convert quota value from float to integer because OpenStack API fails otherwise
-    quotas = {k: isinstance(v, float) and int(v) or v for k, v in quotas.items()}
-
-    return quotas
+    return {k: int(v) for k, v in quotas.items() if v is not None}
 
 
-def update_limits(order):
-    tenant = order.resource.scope
+def update_limits(order: marketplace_models.Order):
+    tenant = cast(openstack_models.Tenant, order.resource.scope)
     backend = tenant.get_backend()
     quotas = map_limits_to_quotas(order.limits, order.offering, is_create=False)
     backend.push_tenant_quotas(tenant, quotas)
@@ -284,8 +282,8 @@ def import_limits_when_storage_mode_is_switched(resource: marketplace_models.Res
     resource.save(update_fields=["limits"])
 
 
-def push_tenant_limits(resource):
-    tenant = resource.scope
+def push_tenant_limits(resource: marketplace_models.Resource):
+    tenant = cast(openstack_models.Tenant, resource.scope)
     backend = tenant.get_backend()
     quotas = map_limits_to_quotas(resource.limits, resource.offering, is_create=False)
     backend.push_tenant_quotas(tenant, quotas)
@@ -293,7 +291,7 @@ def push_tenant_limits(resource):
         _apply_quotas(tenant, quotas)
 
 
-def restore_limits(resource):
+def restore_limits(resource: marketplace_models.Resource):
     order = (
         marketplace_models.Order.objects.filter(
             resource=resource,
@@ -512,7 +510,7 @@ def get_external_ip(offering, floating_ip_address):
 
 
 def update_external_addresses_of_resource(resource: marketplace_models.Resource):
-    instance = resource.scope
+    instance = cast(openstack_models.Instance, resource.scope)
 
     if not instance:
         return

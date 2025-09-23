@@ -3015,7 +3015,7 @@ class OrderCreateSerializer(
     def get_filtered_field_names(self):
         return ("project",)
 
-    def quotas_validate(self, order):
+    def quotas_validate(self, order: models.Order):
         try:
             if not order.offering.scope:
                 return
