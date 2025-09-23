@@ -19,6 +19,8 @@ from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.models import IdentityProvider
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.core.validators import validate_ssh_public_key
+from waldur_core.users.enums import InvitationState
+from waldur_core.users.models import Invitation
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +106,20 @@ def create_or_update_oauth_user(
             user.save(update_fields=update_fields)
 
     except User.DoesNotExist:
+        if settings.WALDUR_AUTH_SOCIAL.get("BLOCK_CREATION_OF_UNINVITED_USERS", False):
+            if "email" not in payload or not payload["email"]:
+                raise OAuthException(
+                    identity_provider.provider,
+                    "User email is not provided. Account creation is blocked.",
+                )
+
+            if not Invitation.objects.filter(
+                email__iexact=payload["email"], state=InvitationState.PENDING
+            ).exists():
+                raise OAuthException(
+                    identity_provider.provider,
+                    "Account creation is blocked for uninvited users.",
+                )
         created = True
 
         if "username" not in payload and "username" not in lookup_params:
