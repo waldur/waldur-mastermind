@@ -123,17 +123,23 @@ class IntegrationStatusGetTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
+        self.waldur_site_agent_name = "waldur-site-agent/1.0.0"
         factories.IntegrationStatusFactory(
             offering=self.offering,
             agent_type=models.IntegrationStatus.AgentTypes.ORDER_PROCESSING,
+            service_name=self.waldur_site_agent_name,
+            status=models.IntegrationStatus.States.ACTIVE,
         )
         factories.IntegrationStatusFactory(
             offering=self.offering,
             agent_type=models.IntegrationStatus.AgentTypes.USAGE_REPORTING,
+            service_name=self.waldur_site_agent_name,
+            status=models.IntegrationStatus.States.ACTIVE,
         )
         factories.IntegrationStatusFactory(
             offering=self.offering,
             agent_type=models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
+            status=models.IntegrationStatus.States.ACTIVE,
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
@@ -146,6 +152,14 @@ class IntegrationStatusGetTest(test.APITransactionTestCase):
         self.assertEqual(200, response.status_code)
 
         self.assertEqual(3, len(response.data["integration_status"]), response.data)
+
+        integration_status_data = response.data["integration_status"][0]
+
+        self.assertEqual(integration_status_data["agent_type"], "Order processing")
+        self.assertEqual(
+            integration_status_data["service_name"], self.waldur_site_agent_name
+        )
+        self.assertEqual(integration_status_data["status"], "Active")
 
     @data("offering_manager", "offering_admin")
     def test_service_provider_user_can_not_see_integration_statuses_in_offering(
