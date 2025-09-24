@@ -1768,6 +1768,7 @@ class ProviderOfferingDetailsSerializer(
             "parent_name",
             "backend_metadata",
             "has_compliance_requirements",
+            "compliance_checklist",
         )
         related_paths = {
             "customer": ("uuid", "name"),
@@ -1778,6 +1779,7 @@ class ProviderOfferingDetailsSerializer(
                 "description",
                 "name",
             ),
+            "compliance_checklist": ("uuid", "name"),
         }
         protected_fields = ("customer", "type")
         read_only_fields = (
@@ -1810,6 +1812,12 @@ class ProviderOfferingDetailsSerializer(
             "category": {
                 "lookup_field": "uuid",
                 "view_name": "marketplace-category-detail",
+            },
+            "compliance_checklist": {
+                "lookup_field": "uuid",
+                "view_name": "checklists-admin-detail",
+                "allow_null": True,
+                "required": False,
             },
         }
         view_name = "marketplace-provider-offering-detail"

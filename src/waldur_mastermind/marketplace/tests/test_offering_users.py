@@ -1861,6 +1861,125 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_compliance_overview_pagination_default_page_size(self):
+        """Test that compliance overview endpoint supports pagination with default page size."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "compliance-overview"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Check that response has pagination headers
+        self.assertIn("X-Result-Count", response)
+        self.assertEqual(response["X-Result-Count"], "2")  # Total count of offerings
+        # Default pagination returns all items when count is less than default page size
+        self.assertEqual(len(response.data), 2)
+
+    def test_compliance_overview_pagination_with_page_size_param(self):
+        """Test that compliance overview endpoint supports custom page size."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "compliance-overview"
+        )
+
+        # Request with page_size=1
+        response = self.client.get(url, {"page_size": 1})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("X-Result-Count", response)
+        self.assertEqual(response["X-Result-Count"], "2")  # Total count
+        self.assertEqual(len(response.data), 1)  # Only 1 item per page
+
+        # Check that Link header contains navigation links
+        self.assertIn("Link", response)
+        link_header = response["Link"]
+        self.assertIn("next", link_header)
+
+    def test_compliance_overview_pagination_second_page(self):
+        """Test accessing second page of compliance overview."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "compliance-overview"
+        )
+
+        # Request second page with page_size=1
+        response = self.client.get(url, {"page": 2, "page_size": 1})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("X-Result-Count", response)
+        self.assertEqual(response["X-Result-Count"], "2")  # Total count
+        self.assertEqual(len(response.data), 1)  # Second item
+
+        # Check that Link header contains navigation links
+        self.assertIn("Link", response)
+        link_header = response["Link"]
+        self.assertIn("prev", link_header)
+
+    def test_compliance_overview_pagination_exceeds_max_page_size(self):
+        """Test that page_size is limited by max_page_size setting."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "compliance-overview"
+        )
+
+        # Request with very large page_size (exceeds max_page_size=300)
+        response = self.client.get(url, {"page_size": 500})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Even with large page_size, we only get the available items
+        self.assertEqual(len(response.data), 2)
+
+    def test_compliance_overview_database_level_pagination_performance(self):
+        """Test that pagination is applied at database level for performance."""
+        # Create multiple offerings to test pagination performance
+        offerings = []
+        for i in range(10):
+            offering = factories.OfferingFactory(
+                customer=self.service_provider.customer,
+                shared=True,
+                state=models.OfferingStates.ACTIVE,
+                name=f"Test Offering {i}",
+            )
+            offerings.append(offering)
+
+        # Create offering users for some offerings to ensure completion queries are tested
+        for i in range(5):
+            factories.OfferingUserFactory(offering=offerings[i], user=UserFactory())
+
+        self.client.force_authenticate(self.fixture.owner)
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "compliance-overview"
+        )
+
+        # Test with page_size=3 to ensure only 3 offerings are processed
+        from django.db import connection, reset_queries
+        from django.test.utils import override_settings
+
+        with override_settings(DEBUG=True):
+            reset_queries()
+            response = self.client.get(url, {"page_size": 3})
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(len(response.data), 3)  # Should return exactly 3 items
+
+            # Verify pagination headers
+            self.assertIn("X-Result-Count", response)
+            total_count = int(response["X-Result-Count"])
+            self.assertGreaterEqual(
+                total_count, 10
+            )  # At least our 10 offerings plus any from fixture
+            self.assertIn("Link", response)
+
+            # Check that database queries are optimized
+            # Should have reasonable number of queries regardless of total offerings
+            query_count = len(connection.queries)
+            self.assertLess(
+                query_count,
+                10,
+                f"Expected < 10 queries, got {query_count}. This suggests pagination isn't applied at DB level.",
+            )
+
 
 class OfferingComplianceSerializerTest(test.APITransactionTestCase):
     """Test that offering API exposes compliance checklist information."""

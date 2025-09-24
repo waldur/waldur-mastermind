@@ -37,6 +37,7 @@ class ChecklistAdminView(core_views.ActionsViewSet):
     ]
     lookup_field = "uuid"
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+    filterset_class = filters.ChecklistFilter
 
     @extend_schema(
         description="Return checklist questions.",

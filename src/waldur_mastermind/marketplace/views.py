@@ -1006,8 +1006,8 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
         # Get ContentType for OfferingUser (cached after first call)
         content_type = ContentType.objects.get_for_model(models.OfferingUser)
 
-        # Optimized approach: prefetch related data to reduce query count
-        offerings = (
+        # Build base queryset with optimized prefetching
+        base_queryset = (
             models.Offering.objects.filter(customer=service_provider.customer)
             .select_related("compliance_checklist")  # Avoid N+1 for checklist names
             .prefetch_related(
@@ -1018,12 +1018,18 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
             .order_by("name")  # Ensure consistent ordering
         )
 
-        # Get all completion data in bulk
+        # Apply pagination to the QuerySet BEFORE processing
+        paginated_offerings = self.paginate_queryset(base_queryset)
+        if paginated_offerings is None:
+            # No pagination requested, return empty response
+            return self.get_paginated_response([])
+
+        # Get completion data only for paginated offerings
         all_completion_data = {}
-        offering_ids = list(offerings.values_list("id", flat=True))
+        offering_ids = [offering.id for offering in paginated_offerings]
 
         if offering_ids:
-            # Bulk query for all completions related to offerings
+            # Bulk query for completions only for paginated offerings
             completions_qs = (
                 checklist_models.ChecklistCompletion.objects.filter(
                     scope_content_type=content_type,
@@ -1037,7 +1043,7 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
 
             # Group completion data by offering
             offering_user_to_offering = {}
-            for offering in offerings:
+            for offering in paginated_offerings:
                 for user in offering.offeringuser_set.all():
                     offering_user_to_offering[user.id] = offering.id
 
@@ -1061,9 +1067,9 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
                             completion["scope_object_id"]
                         )
 
-        # Build response data from prefetched and bulk data
+        # Build response data from paginated offerings only
         overview_data = []
-        for offering in offerings:
+        for offering in paginated_offerings:
             # Handle offerings without checklist
             if not offering.compliance_checklist:
                 overview_data.append(
@@ -1107,10 +1113,11 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
                 }
             )
 
+        # Serialize only the paginated data
         serializer = serializers.ServiceProviderComplianceOverviewSerializer(
             overview_data, many=True
         )
-        return Response(serializer.data)
+        return self.get_paginated_response(serializer.data)
 
     @action(detail=False, methods=["get"])
     def offering_users(self, request, service_provider_uuid=None):
