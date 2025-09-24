@@ -148,11 +148,39 @@ User responses linked to ChecklistCompletion objects, stored as JSON with automa
 ### Admin Endpoints (Staff Only)
 
 - `GET /api/checklists-admin/` - List checklists (staff only)
+  - **Filter Parameters:**
+    - `checklist_type` - Filter by single checklist type
+      - Supported values: `project_compliance`, `proposal_compliance`, `offering_compliance`, `project_metadata`
+      - Example: `?checklist_type=offering_compliance`
+    - `checklist_type__in` - Filter by multiple checklist types
+      - Accepts multiple values to filter by any of the specified types
+      - Example: `?checklist_type__in=project_compliance&checklist_type__in=offering_compliance`
+      - Returns checklists matching any of the provided types (OR logic)
 - `POST /api/checklists-admin/` - Create checklist (staff only)
 - `GET /api/checklists-admin/{uuid}/` - Checklist details (staff only)
 - `PUT/PATCH /api/checklists-admin/{uuid}/` - Update checklist (staff only)
 - `DELETE /api/checklists-admin/{uuid}/` - Delete checklist (staff only)
 - `GET /api/checklists-admin/{uuid}/questions/` - List checklist questions (staff only)
+
+#### Filtering Examples
+
+**Get all offering compliance checklists:**
+
+```http
+GET /api/checklists-admin/?checklist_type=offering_compliance
+```
+
+**Get all project and proposal compliance checklists:**
+
+```http
+GET /api/checklists-admin/?checklist_type__in=project_compliance&checklist_type__in=proposal_compliance
+```
+
+**Combine with search to find specific checklists:**
+
+```http
+GET /api/checklists-admin/?checklist_type=offering_compliance&search=cloud
+```
 
 - `GET /api/checklists-admin-questions/` - List all questions (staff only)
 - `POST /api/checklists-admin-questions/` - Create question (staff only)
@@ -1000,6 +1028,62 @@ The checklist system integrates with various Waldur applications:
 - **ViewSet Mixins**: Easy integration through `UserChecklistMixin` and `ReviewerChecklistMixin`
 - **Flexible Completion Tracking**: Each integration controls its own completion lifecycle
 - **Permission Delegation**: Host applications define appropriate permission checks
+
+### Marketplace Offering Integration
+
+The checklist system provides special integration with marketplace offerings to enforce compliance requirements:
+
+#### Offering Compliance Checklists
+
+Offerings can be associated with compliance checklists to ensure service providers meet organizational requirements:
+
+- **Compliance Checklist Assignment**: Offerings can reference a specific `offering_compliance` checklist
+- **Compliance Tracking**: Service providers can monitor compliance rates across all their offerings
+- **User-level Compliance**: Each offering user's completion status is tracked individually
+
+#### API Integration
+
+**Offering Serialization:**
+
+- The `compliance_checklist` field is exposed in offering serializers as a hyperlinked relationship
+- The `has_compliance_requirements` boolean field indicates whether an offering has compliance requirements
+
+**Service Provider Compliance Endpoints:**
+
+- `GET /api/marketplace-service-providers/{uuid}/compliance/compliance_overview/` - Get paginated compliance overview for all offerings
+  - Shows compliance statistics for each offering with a checklist
+  - Includes total users, users with completions, completed users, and compliance rate percentage
+  - Supports pagination parameters (`page`, `page_size`) with database-level optimization
+
+**Example Response:**
+
+```json
+[
+  {
+    "offering_uuid": "123e4567-e89b-12d3-a456-426614174000",
+    "offering_name": "Cloud Storage Service",
+    "checklist_name": "Cloud Service Compliance",
+    "total_users": 50,
+    "users_with_completions": 45,
+    "completed_users": 40,
+    "pending_users": 5,
+    "compliance_rate": 80.0
+  }
+]
+```
+
+#### Updating Offering Compliance Checklist
+
+Service providers can update the compliance checklist for their offerings:
+
+```http
+POST /api/marketplace-offerings/{uuid}/update_compliance_checklist/
+Content-Type: application/json
+
+{
+  "compliance_checklist": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
 
 ## Usage Patterns
 

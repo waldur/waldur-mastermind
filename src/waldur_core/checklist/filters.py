@@ -1,6 +1,22 @@
 import django_filters
 
-from . import models
+from . import enums, models
+
+
+class ChecklistFilter(django_filters.FilterSet):
+    checklist_type = django_filters.ChoiceFilter(
+        field_name="checklist_type",
+        choices=enums.ChecklistTypes.CHOICES,
+    )
+    checklist_type__in = django_filters.MultipleChoiceFilter(
+        field_name="checklist_type",
+        choices=enums.ChecklistTypes.CHOICES,
+        help_text="Filter by multiple checklist types",
+    )
+
+    class Meta:
+        model = models.Checklist
+        fields = ["checklist_type"]
 
 
 class QuestionFilter(django_filters.FilterSet):

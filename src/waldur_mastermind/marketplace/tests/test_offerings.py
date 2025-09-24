@@ -2929,3 +2929,126 @@ class OfferingMoveTest(test.APITransactionTestCase):
         response = self._move_offering(self.invalid_customer)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self.offering.customer, self.fixture.customer)
+
+
+class OfferingComplianceChecklistSerializerTest(test.APITransactionTestCase):
+    """Test that ProviderOfferingDetailsSerializer exposes compliance_checklist field."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        factories.ServiceProviderFactory(customer=self.customer)
+        self.offering = factories.OfferingFactory(
+            customer=self.customer, shared=True, state=OfferingStates.ACTIVE
+        )
+
+    def test_offering_without_compliance_checklist_shows_null(self):
+        """Test that offering without compliance checklist shows null in serializer."""
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.OfferingFactory.get_url(self.offering)
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("compliance_checklist", response.data)
+        self.assertIsNone(response.data["compliance_checklist"])
+        self.assertIn("has_compliance_requirements", response.data)
+        self.assertFalse(response.data["has_compliance_requirements"])
+
+    def test_offering_with_compliance_checklist_shows_checklist_info(self):
+        """Test that offering with compliance checklist shows checklist information."""
+        from waldur_core.checklist.tests import factories as checklist_factories
+
+        # Create checklist and assign to offering
+        checklist = checklist_factories.ChecklistFactory(
+            name="Test Compliance Checklist", checklist_type="offering_compliance"
+        )
+        self.offering.compliance_checklist = checklist
+        self.offering.save()
+
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.OfferingFactory.get_url(self.offering)
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("compliance_checklist", response.data)
+        self.assertIsNotNone(response.data["compliance_checklist"])
+
+        # The compliance_checklist field returns a URL string according to HyperlinkedRelatedField
+        # Check that it contains the expected URL pattern
+        compliance_checklist_url = response.data["compliance_checklist"]
+        expected_url_pattern = f"/api/checklists-admin/{checklist.uuid}/"
+        self.assertIn(expected_url_pattern, compliance_checklist_url)
+
+        # Check has_compliance_requirements field
+        self.assertIn("has_compliance_requirements", response.data)
+        self.assertTrue(response.data["has_compliance_requirements"])
+
+    def test_offering_compliance_checklist_url_structure(self):
+        """Test that compliance_checklist field follows proper URL structure."""
+        from waldur_core.checklist.tests import factories as checklist_factories
+
+        checklist = checklist_factories.ChecklistFactory()
+        self.offering.compliance_checklist = checklist
+        self.offering.save()
+
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.OfferingFactory.get_url(self.offering)
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that the URL follows the expected pattern for checklists-admin-detail
+        expected_url_pattern = f"/api/checklists-admin/{checklist.uuid}/"
+        self.assertIn(expected_url_pattern, response.data["compliance_checklist"])
+
+    def test_offering_list_includes_compliance_checklist_field(self):
+        """Test that offering list endpoint includes compliance_checklist field."""
+        from waldur_core.checklist.tests import factories as checklist_factories
+
+        # Create offering with checklist
+        checklist = checklist_factories.ChecklistFactory(name="List Test Checklist")
+        self.offering.compliance_checklist = checklist
+        self.offering.save()
+
+        # Create offering without checklist
+        offering_without_checklist = factories.OfferingFactory(
+            customer=self.customer, shared=True, state=OfferingStates.ACTIVE
+        )
+
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.OfferingFactory.get_list_url()
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(response.data), 2)
+
+        # Find our offerings in the response
+        offering_with_checklist_data = None
+        offering_without_checklist_data = None
+
+        for item in response.data:
+            if item["uuid"] == str(self.offering.uuid):
+                offering_with_checklist_data = item
+            elif item["uuid"] == str(offering_without_checklist.uuid):
+                offering_without_checklist_data = item
+
+        # Verify offering with checklist
+        self.assertIsNotNone(offering_with_checklist_data)
+        self.assertIn("compliance_checklist", offering_with_checklist_data)
+        self.assertIsNotNone(offering_with_checklist_data["compliance_checklist"])
+        # Check that URL contains the checklist UUID
+        expected_url_pattern = f"/api/checklists-admin/{checklist.uuid}/"
+        self.assertIn(
+            expected_url_pattern, offering_with_checklist_data["compliance_checklist"]
+        )
+        self.assertTrue(offering_with_checklist_data["has_compliance_requirements"])
+
+        # Verify offering without checklist
+        self.assertIsNotNone(offering_without_checklist_data)
+        self.assertIn("compliance_checklist", offering_without_checklist_data)
+        self.assertIsNone(offering_without_checklist_data["compliance_checklist"])
+        self.assertFalse(offering_without_checklist_data["has_compliance_requirements"])
