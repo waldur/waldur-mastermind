@@ -5810,7 +5810,7 @@ class SectionSerializer(serializers.HyperlinkedModelSerializer):
 
 class IntegrationStatusSerializer(serializers.ModelSerializer):
     status = serializers.CharField(read_only=True, source="get_status_display")
-    agent_type = serializers.CharField(read_only=True, source="get_agent_type_display")
+    agent_type = serializers.SerializerMethodField()
 
     class Meta:
         model = models.IntegrationStatus
@@ -5818,7 +5818,21 @@ class IntegrationStatusSerializer(serializers.ModelSerializer):
             "agent_type",
             "status",
             "last_request_timestamp",
+            "service_name",
         )
+
+    def get_agent_type(
+        self, integration_status: models.IntegrationStatus
+    ) -> Literal[
+        "Order processing",
+        "Usage reporting",
+        "Glauth sync",
+        "Resource sync",
+        "Event processing",
+        "unknown",
+    ]:
+        agent_type_map = {k: v for k, v in models.IntegrationStatus.AgentTypes.CHOICES}
+        return agent_type_map.get(int(integration_status.agent_type), "unknown")
 
 
 class IntegrationStatusDetailsSerializer(
