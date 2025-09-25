@@ -109,7 +109,7 @@ class GroupInvitationFilter(BaseInvitationFilter):
 
     class Meta:
         model = models.GroupInvitation
-        fields = BaseInvitationFilter.Meta.fields + ["is_active"]
+        fields = BaseInvitationFilter.Meta.fields + ["is_active", "is_public"]
 
 
 class InvitationFilter(BaseInvitationFilter):
