@@ -95,16 +95,16 @@ class QuotaModelMixin(models.Model):
             defaults={"value": limit},
         )
 
-    def get_quota_usage(self, quota_name):
+    def get_quota_usage(self, quota_name, sanitize=True):
         qs = QuotaUsage.objects.filter(scope=self, name=quota_name)
-        return max(
-            0,
-            qs.aggregate(sum=Sum("delta"))["sum"] or 0,
-        )
+        total = qs.aggregate(sum=Sum("delta"))["sum"] or 0
+        if sanitize and total < 0:
+            return 0
+        return max(0, total)
 
     @transaction.atomic
     def set_quota_usage(self, quota_name, usage):
-        current = self.get_quota_usage(quota_name)
+        current = self.get_quota_usage(quota_name, sanitize=False)
         self.add_quota_usage(quota_name, usage - current)
 
     def add_quota_usage(self, quota_name, delta, validate=False):
@@ -164,7 +164,7 @@ class QuotaModelMixin(models.Model):
     @property
     def quota_usages(self):
         return {
-            row["name"]: row["value"] or 0
+            row["name"]: max(0, row["value"] or 0)
             for row in QuotaUsage.objects.filter(scope=self)
             .values("name")
             .annotate(value=Sum("delta"))
