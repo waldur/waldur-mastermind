@@ -4279,6 +4279,8 @@ class OpenStackBackend(ServiceBackend):
                         # If image_id doesn't exist in Waldur, use image_name directly
                         # Don't try to convert image_name back to image_id
                         pass
+        except nova_exceptions.NotFound:
+            raise
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 

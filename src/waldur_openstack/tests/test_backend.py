@@ -1349,3 +1349,23 @@ class EnhancedImageDetectionTest(BaseBackendTest):
         # Assert - instance should have been updated with image name from bootable volume
         instance.refresh_from_db()
         self.assertEqual(instance.image_name, self.image_name_in_volume)
+
+    def test_pull_tenant_instances_handles_not_found_instance(self):
+        from novaclient import exceptions as nova_exceptions
+
+        instance = factories.InstanceFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            backend_id="NONEXISTENT_ID",
+            state=CoreStates.OK,
+        )
+
+        self.mocked_nova.servers.get.side_effect = nova_exceptions.NotFound(code=404)
+
+        with mock.patch.object(instance.ports, "all") as mock_ports_all:
+            mock_ports_all.return_value.values_list.return_value = []
+            self.backend.pull_tenant_instances(self.tenant)
+
+        instance.refresh_from_db()
+        self.assertEqual(instance.state, CoreStates.ERRED)
+        self.assertIn("Does not exist at backend", instance.error_message)
