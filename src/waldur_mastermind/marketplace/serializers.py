@@ -66,6 +66,7 @@ from waldur_mastermind.marketplace.enums import (
     LimitPeriods,
     OfferingStates,
     OfferingUserStates,
+    OfferingUserStatesType,
     OrderStates,
     OrderStatesType,
     OrderTypes,
@@ -4234,20 +4235,8 @@ class OfferingUserSerializer(
             },
         )
 
-    def get_state(
-        self, offering_user: models.OfferingUser
-    ) -> Literal[
-        "Requested",
-        "Creating",
-        "Pending account linking",
-        "Pending additional validation",
-        "OK",
-        "Requested deletion",
-        "Deleting",
-        "Deleted",
-        "Error creating",
-        "Error deleting",
-    ]:
+    @extend_schema_field(serializers.ChoiceField(choices=OfferingUserStates.VALUES))
+    def get_state(self, offering_user: models.OfferingUser) -> OfferingUserStatesType:
         return offering_user.get_state_display()
 
     def to_internal_value(self, data):
@@ -5189,6 +5178,7 @@ class ProjectUserSerializer(serializers.ModelSerializer):
     role = serializers.SerializerMethodField()
     expiration_time = serializers.SerializerMethodField()
     offering_user_username = serializers.SerializerMethodField()
+    offering_user_state = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -5201,6 +5191,7 @@ class ProjectUserSerializer(serializers.ModelSerializer):
             "role",
             "expiration_time",
             "offering_user_username",
+            "offering_user_state",
         ]
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -5222,6 +5213,14 @@ class ProjectUserSerializer(serializers.ModelSerializer):
         project = self.context["project"]
         permission = get_permissions(project, user).first()
         return permission and permission.expiration_time
+
+    @extend_schema_field(serializers.ChoiceField(choices=OfferingUserStates.VALUES))
+    def get_offering_user_state(self, user: User) -> OfferingUserStates | None:
+        offering = self.context["offering"]
+        offering_user = models.OfferingUser.objects.filter(
+            user=user, offering=offering
+        ).first()
+        return offering_user.get_state_display() if offering_user else None
 
 
 class MarketplaceServiceProviderUserSerializer(
