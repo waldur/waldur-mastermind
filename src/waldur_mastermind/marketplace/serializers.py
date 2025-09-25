@@ -5405,6 +5405,7 @@ class ProviderOfferingSerializer(
             "options",
             "resource_options",
             "secret_options",
+            "thumbnail",
         )
 
     category_title = serializers.ReadOnlyField(source="category.title")
