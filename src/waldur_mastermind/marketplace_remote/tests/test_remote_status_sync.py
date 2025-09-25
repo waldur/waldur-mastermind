@@ -311,6 +311,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
                 "username": "john.doe",
                 "expiration_time": "2025-01-01T00:00:00Z",
                 "offering_user_username": "john.doe",
+                "offering_user_state": "OK",
                 "email": "john.doe@example.com",
             },
             {
@@ -321,6 +322,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
                 "username": "jane.smith",
                 "expiration_time": "2025-01-01T00:00:00Z",
                 "offering_user_username": "jane.smith",
+                "offering_user_state": "OK",
                 "email": "jane.smith@example.com",
             },
         ]
@@ -410,6 +412,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
                 "username": "zebra.smith",
                 "expiration_time": "2025-01-01T00:00:00Z",
                 "offering_user_username": "zebra.smith",
+                "offering_user_state": "OK",
                 "email": "zebra.smith@example.com",
             },
             {
@@ -420,6 +423,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
                 "username": "alice.johnson",
                 "expiration_time": "2025-01-01T00:00:00Z",
                 "offering_user_username": "alice.johnson",
+                "offering_user_state": "OK",
                 "email": "alice.johnson@example.com",
             },
         ]
@@ -491,6 +495,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
                 "username": "john.doe",
                 "expiration_time": "2025-01-01T00:00:00Z",
                 "offering_user_username": "john.doe",
+                "offering_user_state": "Requested",
                 "email": "john.doe@example.com",
             }
         ]
@@ -513,6 +518,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
                 "username": "john.unknown",
                 "expiration_time": "2025-01-01T00:00:00Z",
                 "offering_user_username": "john.doe",
+                "offering_user_state": "Requested",
                 "email": "john.doe@example.com",
             }
         ]

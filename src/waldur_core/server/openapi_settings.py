@@ -5,6 +5,7 @@ from waldur_core.users.enums import InvitationState
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
+    OfferingUserStates,
     OrderStates,
     OrderTypes,
     ResourceStates,
@@ -62,6 +63,7 @@ SPECTACULAR_SETTINGS = {
         "RobotAccountStates": RobotAccountStates.CHOICES,
         "ChecklistOperators": checklist_enums.OPERATORS,
         "ServiceAccountState": ServiceAccountState.VALUES,
+        "OfferingUserState": OfferingUserStates.VALUES,
     },
     "VERSION": None,
 }

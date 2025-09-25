@@ -122,6 +122,20 @@ class OfferingUserStates:
     VALUES = [val for (_, val) in CHOICES]
 
 
+OfferingUserStatesType = Literal[
+    "Requested",
+    "Creating",
+    "Pending account linking",
+    "Pending additional validation",
+    "OK",
+    "Requested deletion",
+    "Deleting",
+    "Deleted",
+    "Error creating",
+    "Error deleting",
+]
+
+
 class OrderTypes:
     CREATE = 1
     UPDATE = 2
