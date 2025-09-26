@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError
 from rest_framework import test
 
 from waldur_core.core import validators
+from waldur_core.media.validators import validate_notification_emails
 from waldur_core.structure.models import Customer
 
 
@@ -26,3 +27,25 @@ class CIDRListValidatorTest(test.APITransactionTestCase):
     def test_space_separated_list_rejected(self):
         with self.assertRaises(ValidationError):
             validators.validate_cidr_list("fc00::/7  127.0.0.1/32")
+
+
+class NotificationEmailsValidatorTest(test.APITransactionTestCase):
+    def test_validator_accepts_valid_emails(self):
+        validate_notification_emails("user@localhost")
+
+        validate_notification_emails("user1@localhost,user2@localhost")
+
+        validate_notification_emails(" user1@localhost , user2@localhost ")
+
+        validate_notification_emails("")
+
+        validate_notification_emails(None)
+
+    def test_validator_rejects_invalid_emails(self):
+        with self.assertRaises(ValidationError) as cm:
+            validate_notification_emails("invalid-email")
+        self.assertIn("Invalid email address: invalid-email", str(cm.exception))
+
+        with self.assertRaises(ValidationError) as cm:
+            validate_notification_emails("user1@localhost,invalid-email")
+        self.assertIn("Invalid email address: invalid-email", str(cm.exception))
