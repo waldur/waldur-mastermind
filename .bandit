@@ -1,3 +1,0 @@
-[bandit]
-exclude: tests
-skips: B101,B322,S105,S106
