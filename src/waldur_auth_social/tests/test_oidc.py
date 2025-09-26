@@ -2,7 +2,7 @@ from unittest import mock
 from urllib.parse import parse_qs, urlparse
 
 import responses
-from django.test import override_settings
+from constance.test.unittest import override_config
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 from rest_framework.reverse import reverse
@@ -383,11 +383,7 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         self.assertEqual(existing_user.last_name, user_info["family_name"])
         self.assertEqual(existing_user.civil_number, civil_number)
 
-    @override_settings(
-        WALDUR_AUTH_SOCIAL={
-            "BLOCK_CREATION_OF_UNINVITED_USERS": True,
-        }
-    )
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
     def test_new_user_creation_is_blocked_if_uninvited_and_toggle_is_on(self):
         # Arrange: A new user with no invitation
         user_info = {
@@ -410,11 +406,7 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         )
         self.assertEqual(User.objects.count(), 0)
 
-    @override_settings(
-        WALDUR_AUTH_SOCIAL={
-            "BLOCK_CREATION_OF_UNINVITED_USERS": True,
-        }
-    )
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
     def test_new_user_creation_is_allowed_if_invited_and_toggle_is_on(self):
         # Arrange: A new user with a valid invitation
         user_info = {
@@ -439,11 +431,7 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
         self.assertTrue(User.objects.filter(username=user_info["sub"]).exists())
 
-    @override_settings(
-        WALDUR_AUTH_SOCIAL={
-            "BLOCK_CREATION_OF_UNINVITED_USERS": True,
-        }
-    )
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
     def test_new_user_creation_is_blocked_for_inactive_invitation(self):
         # Arrange: A new user with an expired invitation
         user_info = {
@@ -471,11 +459,7 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         )
         self.assertFalse(User.objects.filter(username=user_info["sub"]).exists())
 
-    @override_settings(
-        WALDUR_AUTH_SOCIAL={
-            "BLOCK_CREATION_OF_UNINVITED_USERS": True,
-        }
-    )
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
     def test_new_user_creation_is_blocked_if_email_is_missing(self):
         # Arrange: User info from provider lacks an email address
         user_info = {

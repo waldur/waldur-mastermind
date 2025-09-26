@@ -3,6 +3,7 @@ import uuid
 from typing import cast
 
 import requests
+from constance import config
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -106,7 +107,7 @@ def create_or_update_oauth_user(
             user.save(update_fields=update_fields)
 
     except User.DoesNotExist:
-        if settings.WALDUR_AUTH_SOCIAL.get("BLOCK_CREATION_OF_UNINVITED_USERS", False):
+        if config.OIDC_BLOCK_CREATION_OF_UNINVITED_USERS:
             if "email" not in payload or not payload["email"]:
                 raise OAuthException(
                     identity_provider.provider,

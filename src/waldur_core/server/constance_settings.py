@@ -495,6 +495,10 @@ CONSTANCE_CONFIG = {
         300,
         "Number of seconds to cache token introspection results.",
     ),
+    "OIDC_BLOCK_CREATION_OF_UNINVITED_USERS": (
+        False,
+        "If true, block creation of an account on OIDC login if user email is not provided or provided and is not in the list of one of the active invitations.",
+    ),
     "DEACTIVATE_USER_IF_NO_ROLES": (
         False,
         "Deactivate user if all roles are revoked (except staff/support)",
@@ -680,6 +684,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "OIDC_CLIENT_SECRET",
         "OIDC_USER_FIELD",
         "OIDC_CACHE_TIMEOUT",
+        "OIDC_BLOCK_CREATION_OF_UNINVITED_USERS",
     ),
 }
 
