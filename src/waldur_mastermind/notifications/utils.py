@@ -39,6 +39,12 @@ def get_mapping(query):
             user.id: user
             for user in User.objects.filter(is_active=True).exclude(email="")
         }
+        # Include notification emails for all customers targeting
+        all_customers = structure_models.Customer.objects.exclude(
+            notification_emails__isnull=True
+        ).exclude(notification_emails="")
+        for customer in all_customers:
+            notification_emails.update(get_customer_notification_emails_dict(customer))
     else:
         customers = query.get("customers", [])
         offerings = query.get("offerings", [])
@@ -81,20 +87,18 @@ def get_mapping(query):
                     )
                     user_customers[user.id].add(customer)
 
-                customer_notification_emails = get_customer_notification_emails(
-                    customer
+                notification_emails.update(
+                    get_customer_notification_emails_dict(customer, customer_offerings)
                 )
-                for email in customer_notification_emails:
-                    notification_emails[email] = {
-                        "email": email,
-                        "customer": customer,
-                        "offerings": customer_offerings,
-                    }
 
         for customer in customers:
             for user in customer.get_users():
                 users[user.id] = user
                 user_customers[user.id].add(customer)
+            for email, info in get_customer_notification_emails_dict(customer).items():
+                if email not in notification_emails:
+                    notification_emails[email] = info
+
     return users, user_offerings, user_customers, notification_emails
 
 
@@ -118,7 +122,7 @@ def get_recipients_for_query(query):
             }
         )
 
-    for email, contact_info in notification_emails.items():
+    for _, contact_info in notification_emails.items():
         result.append(
             {
                 "full_name": f"Notification email for {contact_info['customer'].name}",
@@ -161,3 +165,14 @@ def get_customer_notification_emails(customer):
             f"Failed to parse notification emails for customer {getattr(customer, 'uuid', 'unknown')}: {e}"
         )
         return []
+
+
+def get_customer_notification_emails_dict(customer, offerings=None):
+    notification_emails = {}
+    for email in get_customer_notification_emails(customer):
+        notification_emails[email] = {
+            "email": email,
+            "customer": customer,
+            "offerings": offerings or set(),
+        }
+    return notification_emails
