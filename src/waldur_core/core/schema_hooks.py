@@ -1,3 +1,5 @@
+import copy
+from typing import Any
 from unittest import mock
 
 from drf_spectacular.openapi import AutoSchema
@@ -282,20 +284,137 @@ def remove_waldur_cookie_auth(result, generator, **kwargs):
     return result
 
 
-def adjust_request_body_content_types(result, generator, **kwargs):
+def _has_binary_field(schema_ref: dict[str, Any], full_spec: dict[str, Any]) -> bool:
     """
-    Adjusts the content types for POST requests based on the presence of binary fields.
+    Recursively checks if a schema or its sub-schemas contain a binary field.
+    Handles $ref references and composition (allOf).
     """
+    if not schema_ref:
+        return False
 
-    # Iterate through all paths
-    for path in result["paths"].values():
-        for operation in path.values():
+    # 1. Resolve $ref if it exists
+    if "$ref" in schema_ref:
+        ref_path = schema_ref["$ref"].split("/")[1:]
+        resolved_schema = full_spec
+        for key in ref_path:
+            resolved_schema = resolved_schema.get(key, {})
+        return _has_binary_field(resolved_schema, full_spec)
+
+    # 2. Check for binary format in properties
+    if schema_ref.get("type") == "object" and "properties" in schema_ref:
+        for prop in schema_ref["properties"].values():
+            if prop.get("type") == "string" and prop.get("format") == "binary":
+                return True
+            if prop.get("type") == "object" or "$ref" in prop:
+                if _has_binary_field(prop, full_spec):
+                    return True
+
+    # 3. Handle composition (allOf, anyOf, oneOf)
+    for key in ["allOf", "anyOf", "oneOf"]:
+        if key in schema_ref:
+            for sub_schema in schema_ref[key]:
+                if _has_binary_field(sub_schema, full_spec):
+                    return True
+
+    return False
+
+
+def _get_suffix_for_media_type(media_type: str) -> str:
+    """Generate a CamelCase suffix from a media type string."""
+    if "multipart/form-data" in media_type:
+        return "Multipart"
+    if "application/x-www-form-urlencoded" in media_type:
+        return "Form"
+    # Fallback for other types, e.g., 'text/plain' -> 'TextPlain'
+    parts = media_type.split("/")[-1].replace("-", " ").replace("+", " ").split()
+    return "".join(part.capitalize() for part in parts)
+
+
+def preprocess_request_bodies(result: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+    """
+    Pre-processes request bodies in the OpenAPI spec with a two-step logic:
+
+    1. PRUNING:
+       Removes the 'multipart/form-data' content type from an operation if its
+       schema does not contain any binary fields ('type: string, format: binary').
+       In such cases, 'application/json' is sufficient.
+
+    2. DIFFERENTIATION:
+       If a single schema is still used for multiple content types after pruning,
+       this hook creates distinct copies of the shared schema to ensure the generator
+       creates separate Python classes.
+       - 'application/json' uses the original schema name.
+       - Other content types (e.g., the remaining 'multipart/form-data') will reference
+         a new schema with a suffix (e.g., 'MyModel' -> 'MyModelMultipart').
+
+    This is workaround for a code generator issue:
+    https://github.com/openapi-generators/openapi-python-client/issues/1276
+
+    """
+    if "components" not in result or "schemas" not in result["components"]:
+        return result
+
+    schemas = result["components"]["schemas"]
+
+    for path_data in result.get("paths", {}).values():
+        for operation in path_data.values():
             request_body = operation.get("requestBody")
-            if not request_body:
+            if not request_body or "content" not in request_body:
                 continue
-            if "application/json" in request_body["content"]:
-                request_body["content"].pop("application/x-www-form-urlencoded", None)
-                request_body["content"].pop("multipart/form-data", None)
+
+            content = request_body["content"]
+
+            # STEP 1: PRUNING
+            # If multipart exists but has no binary fields, remove it.
+            for mime_type in (
+                "multipart/form-data",
+                "application/x-www-form-urlencoded",
+            ):
+                mime_schema = content.get(mime_type, {}).get("schema")
+                if mime_schema and not _has_binary_field(mime_schema, result):
+                    del content[mime_type]
+
+            # If only one content type remains after pruning, no differentiation is needed.
+            if len(content) <= 1:
+                continue
+
+            # STEP 2: DIFFERENTIATION
+            # Find schemas ($refs) that are used by more than one content type.
+            refs_to_media_types: dict[str, list[str]] = {}
+            for media_type, details in content.items():
+                schema = details.get("schema")
+                if schema and "$ref" in schema:
+                    ref_path = schema["$ref"]
+                    if ref_path not in refs_to_media_types:
+                        refs_to_media_types[ref_path] = []
+                    refs_to_media_types[ref_path].append(media_type)
+
+            # Process each shared reference
+            for ref_path, media_types in refs_to_media_types.items():
+                if len(media_types) <= 1:
+                    continue  # This ref is not shared, no action needed
+
+                try:
+                    original_schema_name = ref_path.split("/")[-1]
+                    original_schema = schemas.get(original_schema_name)
+                    if not original_schema:
+                        continue
+                except IndexError:
+                    continue
+
+                # Create copies for non-JSON media types
+                for media_type in media_types:
+                    if media_type == "application/json":
+                        continue  # Keep the original for JSON
+
+                    suffix = _get_suffix_for_media_type(media_type)
+                    new_schema_name = f"{original_schema_name}{suffix}"
+
+                    if new_schema_name not in schemas:
+                        schemas[new_schema_name] = copy.deepcopy(original_schema)
+
+                    new_ref_path = f"#/components/schemas/{new_schema_name}"
+                    content[media_type]["schema"]["$ref"] = new_ref_path
     return result
 
 

@@ -36,7 +36,7 @@ SPECTACULAR_SETTINGS = {
         "waldur_core.core.schema_hooks.transform_paginated_arrays",
         "waldur_core.core.schema_hooks.make_fields_optional",
         "waldur_core.core.schema_hooks.remove_waldur_cookie_auth",
-        "waldur_core.core.schema_hooks.adjust_request_body_content_types",
+        "waldur_core.core.schema_hooks.preprocess_request_bodies",
         "waldur_core.core.schema_hooks.add_result_count_header",
         "waldur_core.core.schema_hooks.add_polymorphic_attributes_schema",
     ],
