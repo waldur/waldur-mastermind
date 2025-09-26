@@ -38,7 +38,10 @@ from waldur_core.core.validators import (
 )
 from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.media.mixins import ImageModelMixin
-from waldur_core.media.validators import CertificateValidator
+from waldur_core.media.validators import (
+    CertificateValidator,
+    validate_notification_emails,
+)
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.mixins import PermissionMixin
 from waldur_core.quotas import fields as quotas_fields
@@ -301,6 +304,7 @@ CUSTOMER_DETAILS_FIELDS = (
     "longitude",
     "bank_account",
     "country",
+    "notification_emails",
 )
 
 
@@ -397,6 +401,13 @@ class CustomerDetailsMixin(core_models.NameMixin, VATMixin, CoordinatesMixin):
     postal = models.CharField(blank=True, max_length=20)
     bank_name = models.CharField(blank=True, max_length=150)
     bank_account = models.CharField(blank=True, max_length=50)
+    notification_emails = models.CharField(
+        blank=True,
+        default="",
+        help_text=_("Comma-separated list of notification email addresses"),
+        max_length=640,
+        validators=[validate_notification_emails],
+    )
 
 
 class ServiceAccountMixin(models.Model):

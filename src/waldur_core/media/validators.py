@@ -2,6 +2,7 @@ import os
 
 import magic
 from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.utils.deconstruct import deconstructible
 from django.utils.translation import gettext_lazy as _
 
@@ -119,3 +120,26 @@ CertificateValidator = FileTypeValidator(
     ],
     allowed_extensions=["pem"],
 )
+
+
+def validate_notification_emails(value):
+    if not value:
+        return value
+    try:
+        value_str = str(value).strip()
+        emails = []
+        for email_str in value_str.split(","):
+            email = email_str.strip()
+            if email:
+                emails.append(email)
+
+        for email in emails:
+            try:
+                validate_email(email)
+            except ValidationError:
+                raise ValidationError(f"Invalid email address: {email}")
+
+        return value
+
+    except (TypeError, ValueError) as e:
+        raise ValidationError(f"Invalid notification emails format: {e}")

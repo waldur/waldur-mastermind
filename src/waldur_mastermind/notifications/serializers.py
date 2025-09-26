@@ -70,14 +70,16 @@ class BroadcastMessageSerializer(
     def create(self, validated_data):
         current_user = self.context["request"].user
         validated_data["author"] = current_user
-        matching_users = utils.get_users_for_query(validated_data["query"])
-        validated_data["emails"] = [user.email for user in matching_users if user.email]
+        validated_data["emails"] = utils.get_user_emails_for_query(
+            validated_data["query"]
+        )
         validated_data["query"] = serialize_query(validated_data["query"])
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        matching_users = utils.get_users_for_query(validated_data["query"])
-        validated_data["emails"] = [user.email for user in matching_users if user.email]
+        validated_data["emails"] = utils.get_user_emails_for_query(
+            validated_data["query"]
+        )
         validated_data["query"] = serialize_query(validated_data["query"])
         return super().update(instance, validated_data)
 
