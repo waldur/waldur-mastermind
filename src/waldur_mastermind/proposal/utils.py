@@ -40,12 +40,15 @@ def process_proposals_pending_reviewers(proposal: proposal_models.Proposal):
     for reviewer in get_available_reviewer(proposal):
         proposal_models.Review.objects.create(reviewer=reviewer, proposal=proposal)
 
-    old_state = proposal.state
-    proposal.state = ProposalStates.IN_REVIEW
-    tasks.notify_user_about_proposal_state_update.delay(
-        proposal.uuid, old_state, proposal.state
-    )
-    return proposal.save()
+    # Only update state and send notification if the state is actually changing
+    if proposal.state != ProposalStates.IN_REVIEW:
+        old_state = proposal.state
+        proposal.state = ProposalStates.IN_REVIEW
+        tasks.notify_user_about_proposal_state_update.delay(
+            proposal.uuid, old_state, proposal.state
+        )
+        return proposal.save()
+    return proposal
 
 
 def allocate_proposal(proposal: proposal_models.Proposal):
