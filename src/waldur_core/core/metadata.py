@@ -1,5 +1,6 @@
 import datetime
 from datetime import timedelta
+from typing import Any
 
 import saml2
 from pydantic.v1 import BaseModel, Field
@@ -12,16 +13,16 @@ class ExternalLink(BaseModel):
 
 
 class WaldurCore(BaseModel):
-    EXTENSIONS_AUTOREGISTER = Field(
+    EXTENSIONS_AUTOREGISTER: bool = Field(
         True,
         description="Defines whether extensions should be automatically registered.",
     )
-    RESPONSE_HEADER_IMPERSONATOR_UUID = Field(
+    RESPONSE_HEADER_IMPERSONATOR_UUID: str = Field(
         "X-impersonator-uuid",
         description="The response header, which contains the UUID "
         "of the user who requested the impersonation.",
     )
-    REQUEST_HEADER_IMPERSONATED_USER_UUID = Field(
+    REQUEST_HEADER_IMPERSONATED_USER_UUID: str = Field(
         "HTTP_X_IMPERSONATED_USER_UUID",
         description="The request header, which contains the user UUID "
         "of the user to be impersonated.",
@@ -29,38 +30,38 @@ class WaldurCore(BaseModel):
     AUTHENTICATION_METHODS: list[str] = Field(
         ["LOCAL_SIGNIN"], description="List of enabled authentication methods."
     )
-    INVITATIONS_ENABLED = Field(
+    INVITATIONS_ENABLED: bool = Field(
         True, description="Allows to disable invitations feature."
     )
-    VALIDATE_INVITATION_EMAIL = Field(
+    VALIDATE_INVITATION_EMAIL: bool = Field(
         False, description="Ensure that invitation and user emails match."
     )
-    TOKEN_LIFETIME = Field(
+    TOKEN_LIFETIME: timedelta = Field(
         timedelta(hours=1),
         description="Defines for how long user token should remain valid if there was no action from user.",
     )
-    INVITATION_LIFETIME = Field(
+    INVITATION_LIFETIME: timedelta = Field(
         timedelta(weeks=1), description="Defines for how long invitation remains valid."
     )
-    GROUP_INVITATION_LIFETIME = Field(
+    GROUP_INVITATION_LIFETIME: timedelta = Field(
         timedelta(weeks=1),
         description="Defines for how long group invitation remains valid.",
     )
-    BACKEND_FIELDS_EDITABLE = Field(
+    BACKEND_FIELDS_EDITABLE: bool = Field(
         True,
         description="Allows to control /admin writable fields. "
         "If this flag is disabled it is impossible to edit any field that corresponds to "
         "backend value via /admin. Such restriction allows to save information from corruption.",
     )
-    CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION = Field(
+    CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION: bool = Field(
         False,
         description="Enables generation of the first project on organization creation.",
     )
-    NATIVE_NAME_ENABLED = Field(
+    NATIVE_NAME_ENABLED: bool = Field(
         False,
         description="Allows to render native name field in customer and user forms.",
     )
-    NOTIFICATIONS_PROFILE_CHANGES = Field(
+    NOTIFICATIONS_PROFILE_CHANGES: dict[str, Any] = Field(
         {
             "FIELDS": ("email", "phone_number", "job_title"),
             "ENABLE_OPERATOR_OWNER_NOTIFICATIONS": False,
@@ -68,111 +69,114 @@ class WaldurCore(BaseModel):
         },
         description="Configure notifications about profile changes of organization owners.",
     )
-    ENABLE_ACCOUNTING_START_DATE = Field(
+    ENABLE_ACCOUNTING_START_DATE: bool = Field(
         False,
         description="Allows to enable accounting for organizations using value of accounting_start_date field.",
     )
-    USE_ATOMIC_TRANSACTION = Field(
+    USE_ATOMIC_TRANSACTION: bool = Field(
         True, description="Wrap action views in atomic transaction."
     )
-    NOTIFICATION_SUBJECT = Field(
+    NOTIFICATION_SUBJECT: str = Field(
         "Notifications from Waldur",
         description="It is used as a subject of email emitted by event logging hook.",
     )
-    LOGGING_REPORT_DIRECTORY = Field(
+    LOGGING_REPORT_DIRECTORY: str = Field(
         "/var/log/waldur", description="Directory where log files are located."
     )
-    LOGGING_REPORT_INTERVAL = Field(
+    LOGGING_REPORT_INTERVAL: timedelta = Field(
         timedelta(days=7),
         description="Files older that specified interval are filtered out.",
     )
-    HTTP_CHUNK_SIZE = Field(
+    HTTP_CHUNK_SIZE: int = Field(
         50,
         description="Chunk size for resource fetching from backend API. "
         "It is needed in order to avoid too long HTTP request error.",
     )
-    ONLY_STAFF_CAN_INVITE_USERS = Field(
+    ONLY_STAFF_CAN_INVITE_USERS: bool = Field(
         False, description="Allow to limit invitation management to staff only."
     )
     INVITATION_MAX_AGE: timedelta | None = Field(
         None,
         description="Max age of invitation token. It is used in approve and reject actions.",
     )
-    INVITATION_CREATE_MISSING_USER = Field(
+    INVITATION_CREATE_MISSING_USER: bool = Field(
         False,
         description="Allow to create FreeIPA user using details specified in invitation if user does not exist yet.",
     )
-    INVITATION_USE_WEBHOOKS = Field(
+    INVITATION_USE_WEBHOOKS: bool = Field(
         False,
         description="Allow sending of webhooks instead of sending of emails.",
     )
-    INVITATION_WEBHOOK_URL = Field(
+    INVITATION_WEBHOOK_URL: str = Field(
         "", description="Webhook URL for sending invitations."
     )
-    INVITATION_WEBHOOK_TOKEN_URL = Field(
+    INVITATION_WEBHOOK_TOKEN_URL: str = Field(
         "", description="Keycloak URL to get access token."
     )
-    INVITATION_WEBHOOK_TOKEN_CLIENT_ID = Field(
+    INVITATION_WEBHOOK_TOKEN_CLIENT_ID: str = Field(
         "", description="Client ID to get access token from Keycloak."
     )
-    INVITATION_WEBHOOK_TOKEN_SECRET = Field(
+    INVITATION_WEBHOOK_TOKEN_SECRET: str = Field(
         "", description="Client secret to get access token from Keycloak."
     )
-    SERVICE_ACCOUNT_TOKEN_URL = Field(
+    SERVICE_ACCOUNT_TOKEN_URL: str = Field(
         "",
         description="Webhook URL for getting token for further service account management.",
     )
-    SERVICE_ACCOUNT_URL = Field(
+    SERVICE_ACCOUNT_URL: str = Field(
         "", description="Webhook URL for service account management."
     )
-    SERVICE_ACCOUNT_TOKEN_CLIENT_ID = Field(
+    SERVICE_ACCOUNT_TOKEN_CLIENT_ID: str = Field(
         "", description="Client ID to get access token for service account."
     )
-    SERVICE_ACCOUNT_TOKEN_SECRET = Field(
+    SERVICE_ACCOUNT_TOKEN_SECRET: str = Field(
         "", description="Client secret to get access for service account."
     )
-    COURSE_ACCOUNT_TOKEN_URL = Field(
+    COURSE_ACCOUNT_TOKEN_URL: str = Field(
         "",
         description="Webhook URL for getting token for further course account management.",
     )
-    COURSE_ACCOUNT_URL = Field(
+    COURSE_ACCOUNT_URL: str = Field(
         "", description="Webhook URL for course account management."
     )
-    COURSE_ACCOUNT_TOKEN_CLIENT_ID = Field(
+    COURSE_ACCOUNT_TOKEN_CLIENT_ID: str = Field(
         "", description="Client ID to get access token for course account."
     )
-    COURSE_ACCOUNT_TOKEN_SECRET = Field(
+    COURSE_ACCOUNT_TOKEN_SECRET: str = Field(
         "", description="Client secret to get access for course account."
     )
     PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS: list[str] = Field(
         [],
         description="List of authentication methods for which a manual update of user details is not allowed.",
     )
-    ATTACHMENT_LINK_MAX_AGE = Field(
+    ATTACHMENT_LINK_MAX_AGE: timedelta = Field(
         timedelta(hours=1), description="Max age of secure token for media download."
     )
-    EMAIL_CHANGE_MAX_AGE = Field(
+    EMAIL_CHANGE_MAX_AGE: timedelta = Field(
         timedelta(days=1), description="Max age of change email request."
     )
-    MASTERMIND_URL = Field(
+    MASTERMIND_URL: str = Field(
         "",
         description="It is used for rendering callback URL in MasterMind.",
     )
     SELLER_COUNTRY_CODE: str | None = Field(
+        None,
         description="Specifies seller legal or effective country of registration or residence as an "
-        "ISO 3166-1 alpha-2 country code. It is used for computing VAT charge rate."
+        "ISO 3166-1 alpha-2 country code. It is used for computing VAT charge rate.",
     )
-    TRANSLATION_DOMAIN = Field(
+    TRANSLATION_DOMAIN: str = Field(
         "",
         description="Identifier of translation domain applied to current deployment.",
     )
     MATOMO_URL_BASE: str | None = Field(
+        None,
         description="URL base is used by Matomo analytics application.",
     )
     MATOMO_SITE_ID: int | None = Field(
+        None,
         description="Site ID is used by Matomo analytics application.",
     )
-    SUPPORT_PORTAL_URL = Field(
+    SUPPORT_PORTAL_URL: str = Field(
         "", description="Support portal URL is rendered as a shortcut on dashboard"
     )
     EXTERNAL_LINKS: list[ExternalLink] = Field(
@@ -199,30 +203,30 @@ class WaldurCore(BaseModel):
         "Possible values are: job_title, registration_method, phone_number",
     )
 
-    INVITATION_CIVIL_NUMBER_LABEL = Field(
+    INVITATION_CIVIL_NUMBER_LABEL: str = Field(
         "",
         description="Custom label for civil number field in invitation creation dialog.",
     )
 
     HOMEPORT_SENTRY_DSN: str | None = Field(
-        description="Sentry Data Source Name for Waldur HomePort project."
+        None, description="Sentry Data Source Name for Waldur HomePort project."
     )
 
     HOMEPORT_SENTRY_ENVIRONMENT: str = Field(
+        "waldur-production",
         description="Sentry environment name for Waldur Homeport.",
-        default="waldur-production",
     )
 
     HOMEPORT_SENTRY_TRACES_SAMPLE_RATE: float = Field(
+        0.01,
         description="Percentage of transactions sent to Sentry for tracing.",
-        default=0.01,
     )
 
-    LOCAL_IDP_NAME = Field("Local DB", description="The name of local auth.")
+    LOCAL_IDP_NAME: str = Field("Local DB", description="The name of local auth.")
 
-    LOCAL_IDP_LABEL = Field("Local DB", description="The label of local auth.")
+    LOCAL_IDP_LABEL: str = Field("Local DB", description="The label of local auth.")
 
-    LOCAL_IDP_MANAGEMENT_URL = Field(
+    LOCAL_IDP_MANAGEMENT_URL: str = Field(
         "", description="The URL for management of local user details."
     )
 
@@ -231,20 +235,20 @@ class WaldurCore(BaseModel):
         description="The list of protected fields for local IdP.",
     )
 
-    OECD_FOS_2007_CODE_MANDATORY = Field(
+    OECD_FOS_2007_CODE_MANDATORY: bool = Field(
         False,
         description="Field oecd_fos_2007_code must be required for project.",
     )
-    SERVICE_ACCOUNT_USE_API = Field(
+    SERVICE_ACCOUNT_USE_API: bool = Field(
         False,
         description="Send service account creation and deletion requests to API.",
     )
-    COURSE_ACCOUNT_USE_API = Field(
+    COURSE_ACCOUNT_USE_API: bool = Field(
         False,
         description="Send course account creation and deletion requests to API.",
     )
 
-    ENABLE_PROJECT_KIND_COURSE = Field(
+    ENABLE_PROJECT_KIND_COURSE: bool = Field(
         False,
         description="Enable course kind for projects.",
     )
@@ -264,7 +268,7 @@ class WaldurCore(BaseModel):
     )
 
     class Meta:
-        public_settings = [
+        public_settings: list[str] = [
             "MASTERMIND_URL",
             "AUTHENTICATION_METHODS",
             "INVITATIONS_ENABLED",
@@ -291,21 +295,21 @@ class WaldurCore(BaseModel):
 
 
 class WaldurAuthSocial(BaseModel):
-    REMOTE_EDUTEAMS_TOKEN_URL = Field(
+    REMOTE_EDUTEAMS_TOKEN_URL: str = Field(
         "https://proxy.acc.researcher-access.org/OIDC/token",
         description="The token endpoint is used to obtain tokens.",
     )
-    REMOTE_EDUTEAMS_REFRESH_TOKEN = Field(
+    REMOTE_EDUTEAMS_REFRESH_TOKEN: str = Field(
         "", description="Token is used to authenticate against user info endpoint."
     )
-    REMOTE_EDUTEAMS_USERINFO_URL = Field(
+    REMOTE_EDUTEAMS_USERINFO_URL: str = Field(
         "https://proxy.acc.researcher-access.org/api/userinfo",
         description="It allows to get user data based on userid aka CUID.",
     )
-    REMOTE_EDUTEAMS_CLIENT_ID = Field(
+    REMOTE_EDUTEAMS_CLIENT_ID: str = Field(
         "", description="ID of application used for OAuth authentication."
     )
-    REMOTE_EDUTEAMS_SECRET = Field("", description="Application secret key.")
+    REMOTE_EDUTEAMS_SECRET: str = Field("", description="Application secret key.")
     REMOTE_EDUTEAMS_ENABLED: bool = Field(
         False, description="Enable remote eduTEAMS extension."
     )
@@ -316,31 +320,31 @@ class WaldurAuthSocial(BaseModel):
     REMOTE_EDUTEAMS_SSH_API_PASSWORD: str = Field(
         "", description="Password for SSH API URL"
     )
-    ENABLE_EDUTEAMS_SYNC = Field(
+    ENABLE_EDUTEAMS_SYNC: bool = Field(
         False, description="Enable eduTEAMS synchronization with remote Waldur."
     )
-    BLOCK_CREATION_OF_UNINVITED_USERS = Field(
+    BLOCK_CREATION_OF_UNINVITED_USERS: bool = Field(
         False,
         description="If true, block creation of an account on OIDC login if user email is not provided or provided and is not in the list of one of the active invitations.",
     )
 
     class Meta:
-        public_settings = [
+        public_settings: list[str] = [
             "REMOTE_EDUTEAMS_ENABLED",
             "ENABLE_EDUTEAMS_SYNC",
         ]
 
 
 class WaldurHPC(BaseModel):
-    ENABLED = Field(
+    ENABLED: bool = Field(
         False,
         description="Enable HPC-specific hooks in Waldur deployment",
     )
-    INTERNAL_CUSTOMER_UUID = Field(
+    INTERNAL_CUSTOMER_UUID: str = Field(
         "",
         description="UUID of a Waldur organization (aka customer) where new internal users would be added",
     )
-    EXTERNAL_CUSTOMER_UUID = Field(
+    EXTERNAL_CUSTOMER_UUID: str = Field(
         "",
         description="UUID of a Waldur organization (aka customer) where new external users would be added",
     )
@@ -360,46 +364,46 @@ class WaldurHPC(BaseModel):
         [],
         description="List of user email patterns (as regex) that define if the user belongs to external organization.",
     )
-    INTERNAL_LIMITS = Field(
+    INTERNAL_LIMITS: dict[str, Any] = Field(
         {},
         description="Overrided default values for SLURM offering to be created for users belonging to internal organization.",
     )
-    EXTERNAL_LIMITS = Field(
+    EXTERNAL_LIMITS: dict[str, Any] = Field(
         {},
         description="Overrided default values for SLURM offering to be created for users belonging to external organization.",
     )
-    OFFERING_UUID = Field(
+    OFFERING_UUID: str = Field(
         "",
         description="UUID of a Waldur SLURM offering, which will be used for creating allocations for users",
     )
-    PLAN_UUID = Field(
+    PLAN_UUID: str = Field(
         "",
         description="UUID of a Waldur SLURM offering plan, which will be used for creating allocations for users",
     )
 
 
 class WaldurSlurm(BaseModel):
-    ENABLED = Field(
+    ENABLED: bool = Field(
         False,
         description="Enable support for SLURM plugin in a deployment",
     )
-    CUSTOMER_PREFIX = Field(
+    CUSTOMER_PREFIX: str = Field(
         "waldur_customer_",
         description="Prefix for SLURM account name corresponding to Waldur organization.",
     )
-    PROJECT_PREFIX = Field(
+    PROJECT_PREFIX: str = Field(
         "waldur_project_",
         description="Prefix for SLURM account name corresponding to Waldur project.",
     )
-    ALLOCATION_PREFIX = Field(
+    ALLOCATION_PREFIX: str = Field(
         "waldur_allocation_",
         description="Prefix for SLURM account name corresponding to Waldur allocation",
     )
-    PRIVATE_KEY_PATH = Field(
+    PRIVATE_KEY_PATH: str = Field(
         "/etc/waldur/id_rsa",
         description="Path to private key file used as SSH identity file for accessing SLURM master.",
     )
-    DEFAULT_LIMITS = Field(
+    DEFAULT_LIMITS: dict[str, int] = Field(
         {
             "CPU": 16000,  # Measured unit is CPU-minutes
             "GPU": 400,  # Measured unit is GPU-minutes
@@ -410,7 +414,7 @@ class WaldurSlurm(BaseModel):
 
 
 class WaldurPID(BaseModel):
-    DATACITE = Field(
+    DATACITE: dict[str, str] = Field(
         {
             "REPOSITORY_ID": "",
             "PASSWORD": "",
@@ -424,99 +428,103 @@ class WaldurPID(BaseModel):
 
 
 class WaldurAuthSAML2(BaseModel):
-    NAME = Field(
+    NAME: str = Field(
         "saml2",
         description="Name used for assigning the registration method to the user",
     )
-    XMLSEC_BINARY = Field(
+    XMLSEC_BINARY: str = Field(
         "/usr/bin/xmlsec1", description="Full path to the xmlsec1 binary program"
     )
-    ATTRIBUTE_MAP_DIR = Field(
+    ATTRIBUTE_MAP_DIR: str = Field(
         "/etc/waldur/saml2/attributemaps",
         description="Directory with attribute mapping",
     )
-    DEBUG = Field(False, description="Set to True to output debugging information")
-    IDP_METADATA_LOCAL = Field([], description="IdPs metadata XML files stored locally")
-    IDP_METADATA_REMOTE = Field(
+    DEBUG: bool = Field(
+        False, description="Set to True to output debugging information"
+    )
+    IDP_METADATA_LOCAL: list[str] = Field(
+        [], description="IdPs metadata XML files stored locally"
+    )
+    IDP_METADATA_REMOTE: list[str] = Field(
         [], description="IdPs metadata XML files stored remotely"
     )
-    LOG_FILE = Field(
+    LOG_FILE: str = Field(
         "", description="Empty to disable logging SAML2-related stuff to file"
     )
-    LOG_LEVEL = Field("INFO", description="Log level for SAML2")
-    LOGOUT_REQUESTS_SIGNED = Field(
+    LOG_LEVEL: str = Field("INFO", description="Log level for SAML2")
+    LOGOUT_REQUESTS_SIGNED: str = Field(
         "true", description="Indicates if the entity will sign the logout requests"
     )
-    AUTHN_REQUESTS_SIGNED = Field(
+    AUTHN_REQUESTS_SIGNED: str = Field(
         "true",
         description="Indicates if the authentication requests sent should be signed by default",
     )
-    SIGNATURE_ALGORITHM: str = Field(
+    SIGNATURE_ALGORITHM: str | None = Field(
         None,
         description="Identifies the Signature algorithm URL according to the XML Signature specification (SHA1 is used by default)",
     )
-    DIGEST_ALGORITHM: str = Field(
+    DIGEST_ALGORITHM: str | None = Field(
         None,
         description="Identifies the Message Digest algorithm URL according to the XML Signature specification (SHA1 is used by default)",
     )
-    NAMEID_FORMAT: str = Field(
+    NAMEID_FORMAT: str | None = Field(
         None,
         description='Identified NameID format to use. None means default, empty string ("") disables addition of entity',
     )
-    CERT_FILE = Field("", description="PEM formatted certificate chain file")
-    KEY_FILE = Field("", description="PEM formatted certificate key file")
-    REQUIRED_ATTRIBUTES = Field(
+    CERT_FILE: str = Field("", description="PEM formatted certificate chain file")
+    KEY_FILE: str = Field("", description="PEM formatted certificate key file")
+    REQUIRED_ATTRIBUTES: list[str] = Field(
         [], description="SAML attributes that are required to identify a user"
     )
-    OPTIONAL_ATTRIBUTES = Field(
+    OPTIONAL_ATTRIBUTES: list[str] = Field(
         [], description="SAML attributes that may be useful to have but not required"
     )
-    SAML_ATTRIBUTE_MAPPING = Field(
+    SAML_ATTRIBUTE_MAPPING: dict[str, str] = Field(
         {}, description="Mapping between SAML attributes and User fields"
     )
-    ORGANIZATION = Field(
+    ORGANIZATION: dict[str, Any] = Field(
         {},
         description="Organization responsible for the service (you can set multilanguage information here)",
     )
-    CATEGORIES = Field([COC], description="Links to the entity categories")
-    PRIVACY_STATEMENT_URL = Field(
+    CATEGORIES: list[str] = Field([COC], description="Links to the entity categories")
+    PRIVACY_STATEMENT_URL: str = Field(
         "http://example.com/privacy-policy/",
         description="URL with privacy statement (required by CoC)",
     )
-    DISPLAY_NAME = Field(
+    DISPLAY_NAME: str = Field(
         "Service provider display name",
         description="Service provider display name (required by CoC)",
     )
-    DESCRIPTION = Field(
+    DESCRIPTION: str = Field(
         "Service provider description",
         description="Service provider description (required by CoC)",
     )
-    REGISTRATION_POLICY = Field(
+    REGISTRATION_POLICY: str = Field(
         "http://example.com/registration-policy/",
         description="Registration policy required by mdpi",
     )
-    REGISTRATION_AUTHORITY = Field(
+    REGISTRATION_AUTHORITY: str = Field(
         "http://example.com/registration-authority/",
         description="Registration authority required by mdpi",
     )
-    REGISTRATION_INSTANT = Field(
+    REGISTRATION_INSTANT: str = Field(
         datetime.datetime(2017, 1, 1).isoformat(),
         description="Registration instant time required by mdpi",
     )
-    ENABLE_SINGLE_LOGOUT = Field(False, description="")
-    ALLOW_TO_SELECT_IDENTITY_PROVIDER = Field(True, description="")
-    IDENTITY_PROVIDER_URL: str = Field(None, description="")
-    IDENTITY_PROVIDER_LABEL: str = Field(None, description="")
-    DEFAULT_BINDING = Field(saml2.BINDING_HTTP_POST, description="")
-    DISCOVERY_SERVICE_URL: str = Field(None, description="")
-    DISCOVERY_SERVICE_LABEL: str = Field(None, description="")
-    MANAGEMENT_URL = Field(
+    ENABLE_SINGLE_LOGOUT: bool = Field(False, description="")
+    ALLOW_TO_SELECT_IDENTITY_PROVIDER: bool = Field(True, description="")
+    IDENTITY_PROVIDER_URL: str | None = Field(None, description="")
+    IDENTITY_PROVIDER_LABEL: str | None = Field(None, description="")
+    DEFAULT_BINDING: str = Field(saml2.BINDING_HTTP_POST, description="")
+    DISCOVERY_SERVICE_URL: str | None = Field(None, description="")
+    DISCOVERY_SERVICE_LABEL: str | None = Field(None, description="")
+    MANAGEMENT_URL: str = Field(
         "",
         description="The endpoint for user details management.",
     )
 
     class Meta:
-        public_settings = [
+        public_settings: list[str] = [
             "ENABLE_SINGLE_LOGOUT",
             "ALLOW_TO_SELECT_IDENTITY_PROVIDER",
             "IDENTITY_PROVIDER_URL",
@@ -527,7 +535,9 @@ class WaldurAuthSAML2(BaseModel):
 
 
 class WaldurOpenstack(BaseModel):
-    DEFAULT_SECURITY_GROUPS = Field(
+    DEFAULT_SECURITY_GROUPS: tuple[
+        dict[str, str | tuple[dict[str, str | int], ...]], ...
+    ] = Field(
         (
             {
                 "name": "ssh",
@@ -587,22 +597,22 @@ class WaldurOpenstack(BaseModel):
         description="Default security groups and rules created in each of the provisioned OpenStack tenants",
     )
 
-    SUBNET = Field(
+    SUBNET: dict[str, str] = Field(
         {
             "ALLOCATION_POOL_START": "{first_octet}.{second_octet}.{third_octet}.10",
             "ALLOCATION_POOL_END": "{first_octet}.{second_octet}.{third_octet}.200",
         },
         description="Default allocation pool for auto-created internal network",
     )
-    DEFAULT_BLACKLISTED_USERNAMES = Field(
+    DEFAULT_BLACKLISTED_USERNAMES: list[str] = Field(
         ["admin", "service"],
         description="Usernames that cannot be created by Waldur in OpenStack",
     )
-    TENANT_CREDENTIALS_VISIBLE = Field(
+    TENANT_CREDENTIALS_VISIBLE: bool = Field(
         False,
         description="If true, generated credentials of a tenant are exposed to project users",
     )
-    MAX_CONCURRENT_PROVISION = Field(
+    MAX_CONCURRENT_PROVISION: dict[str, int] = Field(
         {
             "OpenStack.Instance": 4,
             "OpenStack.Volume": 4,
@@ -610,21 +620,21 @@ class WaldurOpenstack(BaseModel):
         },
         description="Maximum parallel executions of provisioning operations for OpenStack resources",
     )
-    ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS = Field(
+    ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS: bool = Field(
         True,
         description="If true, customer users would be offered actions for accessing OpenStack console",
     )
-    REQUIRE_AVAILABILITY_ZONE = Field(
+    REQUIRE_AVAILABILITY_ZONE: bool = Field(
         False,
         description="If true, specification of availability zone during provisioning will become mandatory",
     )
-    ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION = Field(
+    ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION: bool = Field(
         False,
         description="If true, allow connecting of instances directly to external networks",
     )
 
     class Meta:
-        public_settings = [
+        public_settings: list[str] = [
             "ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS",
             "REQUIRE_AVAILABILITY_ZONE",
             "ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION",
@@ -633,48 +643,49 @@ class WaldurOpenstack(BaseModel):
 
 
 class WaldurConfiguration(BaseModel):
-    WALDUR_CORE = WaldurCore()
-    WALDUR_AUTH_SOCIAL = WaldurAuthSocial()
-    WALDUR_HPC = WaldurHPC()
-    WALDUR_SLURM = WaldurSlurm()
-    WALDUR_PID = WaldurPID()
-    WALDUR_OPENSTACK = WaldurOpenstack()
-    WALDUR_AUTH_SAML2 = WaldurAuthSAML2()
-    VERIFY_WEBHOOK_REQUESTS = Field(
+    WALDUR_CORE: WaldurCore = WaldurCore()
+    WALDUR_AUTH_SOCIAL: WaldurAuthSocial = WaldurAuthSocial()
+    WALDUR_HPC: WaldurHPC = WaldurHPC()
+    WALDUR_SLURM: WaldurSlurm = WaldurSlurm()
+    WALDUR_PID: WaldurPID = WaldurPID()
+    WALDUR_OPENSTACK: WaldurOpenstack = WaldurOpenstack()
+    WALDUR_AUTH_SAML2: WaldurAuthSAML2 = WaldurAuthSAML2()
+    VERIFY_WEBHOOK_REQUESTS: bool = Field(
         True,
         description="When webook is processed, requests verifies SSL certificates for HTTPS requests, just like a web browser.",
     )
-    DEFAULT_FROM_EMAIL = Field(
+    DEFAULT_FROM_EMAIL: str = Field(
         "webmaster@localhost",
         description="Default email address to use for automated correspondence from Waldur.",
     )
-    EMAIL_HOOK_FROM_EMAIL = Field(
+    EMAIL_HOOK_FROM_EMAIL: str = Field(
         "",
         description="Alternative email address to use for email hooks.",
     )
-    DEFAULT_REPLY_TO_EMAIL = Field(
+    DEFAULT_REPLY_TO_EMAIL: str = Field(
         "",
         description="Default email address to use for email replies.",
     )
     IPSTACK_ACCESS_KEY: str | None = Field(
-        description="Unique authentication key used to gain access to the ipstack API."
+        None,
+        description="Unique authentication key used to gain access to the ipstack API.",
     )
-    IMPORT_EXPORT_USE_TRANSACTIONS = Field(
+    IMPORT_EXPORT_USE_TRANSACTIONS: bool = Field(
         True,
         description="Controls if resource importing should use database transactions. "
-        "Using transactions makes imports safer as a failure during import won’t import only part of the data set.",
+        "Using transactions makes imports safer as a failure during import won't import only part of the data set.",
     )
     LANGUAGES: list[tuple[str, str]] = Field(
-        (
+        [
             ("en", "English"),
             ("et", "Eesti"),
-        ),
+        ],
         description="The list is a list of two-tuples in the format "
         "(language code, language name) – for example, ('ja', 'Japanese').",
     )
-    LANGUAGE_CODE = Field(
+    LANGUAGE_CODE: str = Field(
         "en", description="Represents the name of a default language."
     )
 
     class Meta:
-        public_settings = ["LANGUAGES", "LANGUAGE_CODE"]
+        public_settings: list[str] = ["LANGUAGES", "LANGUAGE_CODE"]
