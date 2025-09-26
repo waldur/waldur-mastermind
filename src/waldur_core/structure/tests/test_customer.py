@@ -240,9 +240,7 @@ class BaseCustomerMutationTest(CustomerBaseTest):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.ProjectFixture()
-        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER)
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_CUSTOMER)
-        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_CUSTOMER)
 
     # Helper methods
     def _get_valid_payload(self, resource=None):
@@ -907,10 +905,10 @@ class CustomerBlockedTest(CustomerBaseTest):
     def setUp(self):
         super().setUp()
         self.user = factories.UserFactory()
+        self.staff = factories.UserFactory(is_staff=True)
         self.customer = factories.CustomerFactory(blocked=True)
         self.customer.add_user(self.user, CustomerRole.OWNER)
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
-        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_CUSTOMER)
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_CUSTOMER)
 
     def test_blocked_organization_is_not_available_for_updating(self):
@@ -921,6 +919,11 @@ class CustomerBlockedTest(CustomerBaseTest):
 
     def test_blocked_organization_is_not_available_for_deleting(self):
         self.client.force_authenticate(user=self.user)
+        url = factories.CustomerFactory.get_url(customer=self.customer)
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(user=self.staff)
         url = factories.CustomerFactory.get_url(customer=self.customer)
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

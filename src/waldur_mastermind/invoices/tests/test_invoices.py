@@ -10,8 +10,6 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.media.utils import dummy_image
-from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
@@ -379,12 +377,6 @@ class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ProjectFixture()
         self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
         self.url = structure_factories.CustomerFactory.get_url(self.fixture.customer)
-        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_CUSTOMER)
-
-    def test_owner_can_delete_customer_with_pending_invoice(self):
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.delete(self.url)
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
     def test_staff_can_delete_customer_with_pending_invoice(self):
         self.client.force_authenticate(self.fixture.staff)
