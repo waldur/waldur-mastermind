@@ -305,7 +305,7 @@ class CustomerViewSet(
         return super().perform_update(serializer)
 
     def perform_destroy(self, instance):
-        if not has_permission(self.request, PermissionEnum.DELETE_CUSTOMER, instance):
+        if not self.request.user.is_staff:
             raise PermissionDenied()
 
         utils.check_customer_blocked_or_archived(instance)
