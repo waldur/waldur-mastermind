@@ -48,6 +48,22 @@ class BroadcastQueryTest(test.APITransactionTestCase):
         self.assertIn(self.owner.email, emails)
         self.assertIn(self.manager.email, emails)
 
+    def test_notification_emails_included_for_all_users_targeting(self):
+        """Test that notification emails are included when targeting all users"""
+        self.fixture.customer.notification_emails = self.notification_emails_string
+        self.fixture.customer.save()
+
+        emails = get_user_emails_for_query(
+            {
+                "all_users": True,
+            }
+        )
+
+        self.assertIn(self.owner.email, emails)
+        self.assertIn(self.manager.email, emails)
+        self.assertIn("admin@acme.com", emails)
+        self.assertIn("support@acme.com", emails)
+
     def test_notification_emails_included_for_structure_unit_targeting(self):
         """Test that notification emails are included alongside users when targeting offerings"""
         self.fixture.customer.notification_emails = self.notification_emails_string
@@ -66,8 +82,8 @@ class BroadcastQueryTest(test.APITransactionTestCase):
         self.assertIn("admin@acme.com", emails)
         self.assertIn("support@acme.com", emails)
 
-    def test_notification_emails_not_included_for_direct_customer_targeting(self):
-        """Test that notification emails are NOT included when targeting customers directly"""
+    def test_notification_emails_included_for_direct_customer_targeting(self):
+        """Test that notification emails ARE included when targeting customers directly"""
         self.fixture.customer.notification_emails = self.notification_emails_string
         self.fixture.customer.save()
 
@@ -77,12 +93,10 @@ class BroadcastQueryTest(test.APITransactionTestCase):
             }
         )
 
-        # Should only include regular users, not info contacts
         self.assertIn(self.owner.email, emails)
         self.assertIn(self.manager.email, emails)
-
-        self.assertNotIn("admin@acme.com", emails)
-        self.assertNotIn("support@acme.com", emails)
+        self.assertIn("admin@acme.com", emails)
+        self.assertIn("support@acme.com", emails)
 
 
 class BroadcastMappingTest(test.APITransactionTestCase):
@@ -124,8 +138,8 @@ class BroadcastMappingTest(test.APITransactionTestCase):
         self.assertEqual(len(admin_contact["offerings"]), 1)
         self.assertEqual(admin_contact["offerings"][0], self.offering)
 
-    def test_mapping_no_notification_emails_for_direct_customer_targeting(self):
-        """Test that get_mapping does NOT include info contacts for direct customer targeting"""
+    def test_mapping_includes_notification_emails_for_direct_customer_targeting(self):
+        """Test that get_mapping includes notification emails for direct customer targeting"""
 
         users, _, _, notification_emails = get_mapping(
             {
@@ -136,7 +150,8 @@ class BroadcastMappingTest(test.APITransactionTestCase):
         self.assertIn(self.owner.id, users)
         self.assertIn(self.manager.id, users)
 
-        self.assertEqual(len(notification_emails), 0)
+        self.assertIn("admin@acme.com", notification_emails)
+        self.assertIn("support@acme.com", notification_emails)
 
 
 class BroadcastRecipientsTest(test.APITransactionTestCase):
@@ -185,8 +200,10 @@ class BroadcastRecipientsTest(test.APITransactionTestCase):
             self.assertEqual(len(recipient["offerings"]), 1)
             self.assertEqual(recipient["offerings"][0]["uuid"], self.offering.uuid)
 
-    def test_recipients_no_notification_emails_for_direct_customer_targeting(self):
-        """Test that get_recipients_for_query does NOT include notification emails for direct customer targeting"""
+    def test_recipients_includes_notification_emails_for_direct_customer_targeting(
+        self,
+    ):
+        """Test that get_recipients_for_query includes notification emails for direct customer targeting"""
 
         recipients = get_recipients_for_query(
             {
@@ -198,9 +215,34 @@ class BroadcastRecipientsTest(test.APITransactionTestCase):
 
         self.assertIn(self.owner.email, emails)
         self.assertIn(self.manager.email, emails)
+        self.assertIn("admin@acme.com", emails)
+        self.assertIn("support@acme.com", emails)
 
-        self.assertNotIn("admin@acme.com", emails)
-        self.assertNotIn("support@acme.com", emails)
+    def test_recipients_includes_notification_emails_for_all_users_targeting(self):
+        """Test that get_recipients_for_query includes notification emails for all users targeting"""
+
+        recipients = get_recipients_for_query(
+            {
+                "all_users": True,
+            }
+        )
+
+        emails = [recipient["email"] for recipient in recipients]
+
+        self.assertIn(self.owner.email, emails)
+        self.assertIn(self.manager.email, emails)
+        self.assertIn("admin@acme.com", emails)
+        self.assertIn("support@acme.com", emails)
+
+        notification_email_recipients = [
+            r
+            for r in recipients
+            if r["email"] in ["admin@acme.com", "support@acme.com"]
+        ]
+        for recipient in notification_email_recipients:
+            self.assertTrue(recipient["full_name"].startswith("Notification email for"))
+            self.assertIn(self.fixture.customer.name, recipient["full_name"])
+            self.assertEqual(len(recipient["offerings"]), 0)
 
 
 class BroadcastAPITest(test.APITransactionTestCase):
@@ -250,10 +292,10 @@ class BroadcastAPITest(test.APITransactionTestCase):
             f"Notification email for {self.fixture.customer.name}",
         )
 
-    def test_recipients_endpoint_no_notification_emails_for_direct_customer_targeting(
+    def test_recipients_endpoint_includes_notification_emails_for_direct_customer_targeting(
         self,
     ):
-        """Test that /recipients/ endpoint does NOT include info contacts for direct customer targeting"""
+        """Test that /recipients/ endpoint includes notification emails for direct customer targeting"""
 
         response = self.client.get(
             "/api/broadcast-messages/recipients/",
@@ -268,8 +310,8 @@ class BroadcastAPITest(test.APITransactionTestCase):
         emails = [recipient["email"] for recipient in recipients]
         self.assertIn(self.owner.email, emails)
         self.assertIn(self.manager.email, emails)
-        self.assertNotIn("admin@acme.com", emails)
-        self.assertNotIn("support@acme.com", emails)
+        self.assertIn("admin@acme.com", emails)
+        self.assertIn("support@acme.com", emails)
 
     def test_create_broadcast_includes_notification_emails_for_structure_unit_targeting(
         self,
@@ -298,10 +340,10 @@ class BroadcastAPITest(test.APITransactionTestCase):
         self.assertIn("admin@acme.com", emails)
         self.assertIn("support@acme.com", emails)
 
-    def test_create_broadcast_no_notification_emails_for_direct_customer_targeting(
+    def test_create_broadcast_includes_notification_emails_for_direct_customer_targeting(
         self,
     ):
-        """Test that creating a broadcast does NOT include info contacts for direct customer targeting"""
+        """Test that creating a broadcast includes notification emails for direct customer targeting"""
         # Create broadcast with direct customer targeting
         response = self.client.post(
             "/api/broadcast-messages/",
@@ -317,12 +359,67 @@ class BroadcastAPITest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, 201)
         broadcast_data = response.data
 
-        # Check that emails only include users, not info contacts
+        # Check that emails include both users AND notification emails
         emails = broadcast_data["emails"]
         self.assertIn(self.owner.email, emails)
         self.assertIn(self.manager.email, emails)
-        self.assertNotIn("admin@acme.com", emails)
-        self.assertNotIn("support@acme.com", emails)
+        self.assertIn("admin@acme.com", emails)
+        self.assertIn("support@acme.com", emails)
+
+    def test_recipients_endpoint_includes_notification_emails_for_all_users_targeting(
+        self,
+    ):
+        """Test that /recipients/ endpoint includes notification emails for all users targeting"""
+
+        response = self.client.get(
+            "/api/broadcast-messages/recipients/",
+            {
+                "all_users": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        recipients = response.data
+
+        emails = [recipient["email"] for recipient in recipients]
+        self.assertIn(self.owner.email, emails)
+        self.assertIn(self.manager.email, emails)
+        self.assertIn("admin@acme.com", emails)
+        self.assertIn("support@acme.com", emails)
+
+        notification_email_recipients = next(
+            r for r in recipients if r["email"] == "admin@acme.com"
+        )
+        self.assertEqual(
+            notification_email_recipients["full_name"],
+            f"Notification email for {self.fixture.customer.name}",
+        )
+        self.assertEqual(len(notification_email_recipients["offerings"]), 0)
+
+    def test_create_broadcast_includes_notification_emails_for_all_users_targeting(
+        self,
+    ):
+        """Test that creating a broadcast includes notification emails for all users targeting"""
+
+        response = self.client.post(
+            "/api/broadcast-messages/",
+            {
+                "subject": "Test Broadcast",
+                "body": "Test message",
+                "query": {
+                    "all_users": True,
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        broadcast_data = response.data
+
+        emails = broadcast_data["emails"]
+        self.assertIn(self.owner.email, emails)
+        self.assertIn(self.manager.email, emails)
+        self.assertIn("admin@acme.com", emails)
+        self.assertIn("support@acme.com", emails)
 
 
 class BroadcastTaskTest(test.APITransactionTestCase):
