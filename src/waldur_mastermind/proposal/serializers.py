@@ -253,6 +253,8 @@ class ProposalReviewSerializer(
             "comment_project_supporting_documentation",
             "comment_resource_requests",
             "comment_team",
+            "created",
+            "modified",
         )
         protected_fields = ("proposal", "reviewer")
         extra_kwargs = {
