@@ -1,6 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.permissions import enums as permission_enums
 from waldur_core.permissions.fixtures import CustomerRole
@@ -28,10 +29,12 @@ class OfferingComplianceChecklistUpdateTest(test.APITransactionTestCase):
 
         # Create test checklists
         self.checklist1 = checklist_factories.ChecklistFactory(
-            name="Compliance Checklist 1"
+            name="Compliance Checklist 1",
+            checklist_type=ChecklistTypes.OFFERING_COMPLIANCE,
         )
         self.checklist2 = checklist_factories.ChecklistFactory(
-            name="Compliance Checklist 2"
+            name="Compliance Checklist 2",
+            checklist_type=ChecklistTypes.OFFERING_COMPLIANCE,
         )
 
     @data("staff", "owner")

@@ -18,6 +18,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import exceptions as rest_exceptions
 from rest_framework import status, test
 
+from waldur_core.checklist import enums as checklist_enums
 from waldur_core.core import utils as core_utils
 from waldur_core.core.pagination import RESULT_COUNT_HEADER
 from waldur_core.core.tests.helpers import load_json_resource
@@ -2961,7 +2962,8 @@ class OfferingComplianceChecklistSerializerTest(test.APITransactionTestCase):
 
         # Create checklist and assign to offering
         checklist = checklist_factories.ChecklistFactory(
-            name="Test Compliance Checklist", checklist_type="offering_compliance"
+            name="Test Compliance Checklist",
+            checklist_type=checklist_enums.ChecklistTypes.OFFERING_COMPLIANCE,
         )
         self.offering.compliance_checklist = checklist
         self.offering.save()
@@ -2989,7 +2991,9 @@ class OfferingComplianceChecklistSerializerTest(test.APITransactionTestCase):
         """Test that compliance_checklist field follows proper URL structure."""
         from waldur_core.checklist.tests import factories as checklist_factories
 
-        checklist = checklist_factories.ChecklistFactory()
+        checklist = checklist_factories.ChecklistFactory(
+            checklist_type=checklist_enums.ChecklistTypes.OFFERING_COMPLIANCE
+        )
         self.offering.compliance_checklist = checklist
         self.offering.save()
 
@@ -3009,7 +3013,10 @@ class OfferingComplianceChecklistSerializerTest(test.APITransactionTestCase):
         from waldur_core.checklist.tests import factories as checklist_factories
 
         # Create offering with checklist
-        checklist = checklist_factories.ChecklistFactory(name="List Test Checklist")
+        checklist = checklist_factories.ChecklistFactory(
+            name="List Test Checklist",
+            checklist_type=checklist_enums.ChecklistTypes.OFFERING_COMPLIANCE,
+        )
         self.offering.compliance_checklist = checklist
         self.offering.save()
 
