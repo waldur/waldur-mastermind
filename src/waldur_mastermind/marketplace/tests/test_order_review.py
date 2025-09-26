@@ -93,6 +93,34 @@ class OrderApproveByConsumerTest(test.APITransactionTestCase):
             response = self.approve_order(self.fixture.staff)
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_order_approval_handles_project_start_date_correctly(self):
+        """Test that project start_date (DateField) is correctly compared with timezone.now()."""
+        # Set a future start date (as date, not datetime)
+        future_date = datetime.datetime(year=2030, month=1, day=1).date()
+        self.project.start_date = future_date
+        self.project.save()
+
+        # Order should go to PENDING_PROJECT state when project has future start date
+        response = self.approve_order(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.PENDING_PROJECT)
+
+        # Set a past start date
+        past_date = datetime.datetime(year=2020, month=1, day=1).date()
+        self.project.start_date = past_date
+        self.project.save()
+
+        # Reset order state
+        self.order.state = OrderStates.PENDING_CONSUMER
+        self.order.save()
+
+        # Order should not go to PENDING_PROJECT state when project has past start date
+        response = self.approve_order(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertNotEqual(self.order.state, OrderStates.PENDING_PROJECT)
+
     def approve_order(self, user, order=None):
         order = order or self.order
         self.client.force_authenticate(user)

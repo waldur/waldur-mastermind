@@ -3279,7 +3279,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     def approve_by_consumer(self, request, uuid=None):
         order: models.Order = self.get_object()
         order.review_by_consumer(request.user)
-        if order.project.start_date and order.project.start_date > timezone.now():
+        if (
+            order.project.start_date
+            and order.project.start_date > timezone.now().date()
+        ):
             order.state = OrderStates.PENDING_PROJECT
             order.save(update_fields=["state"])
             return Response(status=status.HTTP_200_OK)

@@ -20,6 +20,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.permissions import SAFE_METHODS
 
+from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
@@ -1703,6 +1704,15 @@ class ProviderOfferingDetailsSerializer(
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
     roles = NestedRoleSerializer(many=True, read_only=True)
     has_compliance_requirements = serializers.SerializerMethodField()
+    compliance_checklist = serializers.HyperlinkedRelatedField(
+        queryset=checklist_models.Checklist.objects.filter(
+            checklist_type=checklist_enums.ChecklistTypes.OFFERING_COMPLIANCE
+        ),
+        view_name="checklists-admin-detail",
+        lookup_field="uuid",
+        required=False,
+        allow_null=True,
+    )
 
     class Meta:
         model = models.Offering
@@ -1780,7 +1790,6 @@ class ProviderOfferingDetailsSerializer(
                 "description",
                 "name",
             ),
-            "compliance_checklist": ("uuid", "name"),
         }
         protected_fields = ("customer", "type")
         read_only_fields = (
@@ -1813,12 +1822,6 @@ class ProviderOfferingDetailsSerializer(
             "category": {
                 "lookup_field": "uuid",
                 "view_name": "marketplace-category-detail",
-            },
-            "compliance_checklist": {
-                "lookup_field": "uuid",
-                "view_name": "checklists-admin-detail",
-                "allow_null": True,
-                "required": False,
             },
         }
         view_name = "marketplace-provider-offering-detail"
@@ -2267,7 +2270,9 @@ class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
 
 class OfferingComplianceChecklistUpdateSerializer(serializers.ModelSerializer):
     compliance_checklist = serializers.SlugRelatedField(
-        queryset=checklist_models.Checklist.objects.all(),
+        queryset=checklist_models.Checklist.objects.filter(
+            checklist_type=checklist_enums.ChecklistTypes.OFFERING_COMPLIANCE
+        ),
         slug_field="uuid",
         required=False,
         allow_null=True,
