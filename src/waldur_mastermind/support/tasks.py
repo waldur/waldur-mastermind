@@ -218,8 +218,12 @@ def _send_issue_notification(issue: models.Issue, template, *args, **kwargs):
         text_template = Template(notification_template.text)
         subject_template = Template(notification_template.subject)
     except models.TemplateStatusNotification.DoesNotExist:
-        html_template = get_template("support/notification_%s.html" % template).template
-        text_template = get_template("support/notification_%s.txt" % template).template
+        html_template = get_template(
+            "support/notification_%s_message.html" % template
+        ).template
+        text_template = get_template(
+            "support/notification_%s_message.txt" % template
+        ).template
         subject_template = get_template(
             "support/notification_%s_subject.txt" % template
         ).template
@@ -227,8 +231,12 @@ def _send_issue_notification(issue: models.Issue, template, *args, **kwargs):
 
 
 def _send_issue_feedback(issue, template, *args, **kwargs):
-    html_template = get_template("support/notification_%s.html" % template).template
-    text_template = get_template("support/notification_%s.txt" % template).template
+    html_template = get_template(
+        "support/notification_%s_message.html" % template
+    ).template
+    text_template = get_template(
+        "support/notification_%s_message.txt" % template
+    ).template
     subject_template = get_template(
         "support/notification_%s_subject.txt" % template
     ).template

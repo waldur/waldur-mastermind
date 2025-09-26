@@ -159,11 +159,12 @@ class CommentNotificationTest(smax_base.BaseTest):
             key="support.notification_comment_added", enabled=True
         )
         Template.objects.create(
-            name="support/notification_comment_added.html",
+            name="support/notification_comment_added_message.html",
             content="{{ description|safe }}",
         )
         Template.objects.create(
-            name="support/notification_comment_added.txt", content="{{ description }}"
+            name="support/notification_comment_added_message.txt",
+            content="{{ description }}",
         )
         Template.objects.create(
             name="support/notification_comment_added_subject.txt",
@@ -183,11 +184,11 @@ class CommentNotificationTest(smax_base.BaseTest):
             key="support.notification_comment_updated", enabled=True
         )
         Template.objects.create(
-            name="support/notification_comment_updated.html",
+            name="support/notification_comment_updated_message.html",
             content="New: {{ description|safe }}, old: {{ old_description|safe }}",
         )
         Template.objects.create(
-            name="support/notification_comment_updated.txt",
+            name="support/notification_comment_updated_message.txt",
             content="New: {{ description }}, old: {{ old_description|safe }}",
         )
         Template.objects.create(

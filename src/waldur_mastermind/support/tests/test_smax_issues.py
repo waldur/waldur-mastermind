@@ -121,11 +121,11 @@ class IssueNotificationTest(smax_base.BaseTest):
             key="support.notification_issue_updated", enabled=True
         )
         Template.objects.create(
-            name="support/notification_issue_updated.html",
+            name="support/notification_issue_updated_message.html",
             content="New: {{ description|safe }}, old: {{ old_description|safe }}",
         )
         Template.objects.create(
-            name="support/notification_issue_updated.txt",
+            name="support/notification_issue_updated_message.txt",
             content="New: {{ description }}, old: {{ old_description }}",
         )
         serialized_issue = core_utils.serialize_instance(self.issue)
