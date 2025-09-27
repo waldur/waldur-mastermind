@@ -328,6 +328,7 @@ def filter_rounds(user):
 class Round(
     TimeStampedModel,
     core_models.UuidMixin,
+    core_models.SlugMixin,
 ):
     """Time-bounded submission periods within calls, with configurable review strategies, allocation strategies, and scoring thresholds."""
 
@@ -425,6 +426,27 @@ class Round(
         else:
             return self.Statuses.OPEN
 
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            # Auto-generate slug based on call manager's organization, call, and round start date
+            org_slug = self.call.manager.customer.slug
+            call_slug = self.call.slug
+            round_date = self.start_time.strftime("%Y%m")
+            base_slug = core_models.clean_slug_hyphens(
+                f"{org_slug}-{call_slug}-{round_date}"
+            ).upper()
+
+            # Ensure uniqueness
+            slug = base_slug
+            counter = 1
+            while Round.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+
+            self.slug = slug
+
+        super().save(*args, **kwargs)
+
 
 class ProposalDocumentation(
     TimeStampedModel,
@@ -458,6 +480,7 @@ class Proposal(
     PermissionMixin,
     core_models.UuidMixin,
     core_models.NameMixin,
+    core_models.SlugMixin,
     core_models.DescribableMixin,
     structure_models.StructureLoggableMixin,
     structure_models.ProjectOECDFOS2007CodeMixin,
@@ -561,6 +584,36 @@ class Proposal(
                 )
 
         return True, None
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            # Generate slug with Round slug prefix and unique counter
+            round_slug = (
+                self.round.slug if self.round and self.round.slug else "PROPOSAL"
+            )
+            # Clean the round slug but keep the separator hyphen
+            clean_round_slug = core_models.clean_slug_hyphens(round_slug)
+            base_slug = f"{clean_round_slug}-"
+
+            # Find the highest counter for proposals in this round
+            existing_proposals = Proposal.objects.filter(
+                round=self.round, slug__startswith=base_slug
+            ).exclude(pk=self.pk if self.pk else None)
+
+            max_counter = 0
+            for proposal in existing_proposals:
+                try:
+                    # Extract counter from slug (e.g., "ROUND-SLUG-001" -> 1)
+                    suffix = proposal.slug[len(base_slug) :]
+                    if suffix.isdigit():
+                        max_counter = max(max_counter, int(suffix))
+                except (ValueError, IndexError):
+                    continue
+
+            # Set slug with next available counter (capitalized, 3-digit zero-padded)
+            self.slug = f"{base_slug}{max_counter + 1:03d}".upper()
+
+        super().save(*args, **kwargs)
 
     def submit(self, user):
         """Submit proposal after validation."""
