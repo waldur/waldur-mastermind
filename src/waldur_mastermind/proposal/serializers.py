@@ -390,6 +390,7 @@ class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
         model = models.Proposal
         fields = [
             "uuid",
+            "slug",
             "name",
             "state",
             "reviews",
@@ -447,6 +448,7 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
         model = models.Round
         fields = [
             "uuid",
+            "slug",
             "name",
             "start_time",
             "cutoff_time",
@@ -459,6 +461,9 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
             "review_duration_in_days",
             "minimum_number_of_reviewers",
         ]
+        extra_kwargs = {
+            "slug": {"required": False},
+        }
 
 
 class CallDocumentSerializer(serializers.ModelSerializer):
@@ -1017,6 +1022,17 @@ class ProtectedRoundSerializer(
     class Meta(NestedRoundSerializer.Meta):
         fields = NestedRoundSerializer.Meta.fields + ["url", "proposals"]
 
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get("request")
+
+        # Only allow staff to edit slug field
+        if request and not (request.user and request.user.is_staff):
+            if "slug" in fields:
+                fields["slug"].read_only = True
+
+        return fields
+
     def get_url(self, call_round) -> str:
         return self.context["request"].build_absolute_uri(
             reverse(
@@ -1115,6 +1131,7 @@ class ProposalSerializer(
         fields = [
             "uuid",
             "url",
+            "slug",
             "name",
             "description",
             "project_name",
@@ -1150,6 +1167,7 @@ class ProposalSerializer(
         protected_fields = ("round_uuid",)
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
+            "slug": {"required": False},
             "created_by": {"lookup_field": "uuid", "view_name": "user-detail"},
             "approved_by": {"lookup_field": "uuid", "view_name": "user-detail"},
             "project": {"lookup_field": "uuid", "view_name": "project-detail"},
@@ -1191,6 +1209,12 @@ class ProposalSerializer(
 
     def get_fields(self):
         fields = super().get_fields()
+        request = self.context.get("request")
+
+        # Only allow staff to edit slug field
+        if request and not (request.user and request.user.is_staff):
+            if "slug" in fields:
+                fields["slug"].read_only = True
 
         # Make duration_in_days read-only if call has fixed duration
         def is_fixed_duration(instance):
@@ -1282,23 +1306,24 @@ class CallRoundSerializer(serializers.HyperlinkedModelSerializer):
         fields = [
             "url",
             "uuid",
+            "slug",
             "start_time",
             "cutoff_time",
             "call_uuid",
             "call_name",
             "status",
         ]
-
-    extra_kwargs = {
-        "url": {
-            "lookup_field": "uuid",
-            "view_name": "call-round-detail",
-        },
-        "call": {
-            "lookup_field": "uuid",
-            "view_name": "proposal-public-call-detail",
-        },
-    }
+        extra_kwargs = {
+            "slug": {"required": False},
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "call-round-detail",
+            },
+            "call": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-public-call-detail",
+            },
+        }
 
 
 class CallManagingOrganisationStatSerializer(serializers.Serializer):

@@ -74,7 +74,7 @@ class NameMixin(models.Model):
     )
 
 
-SLUG_NAME_LIMIT = 8
+SLUG_NAME_LIMIT = 10
 
 
 class SlugMixin(models.Model):
@@ -117,7 +117,7 @@ def generate_slug(name, klass):
     Returns:
         A unique slug string
     """
-    base_slug = slugify(name)[:SLUG_NAME_LIMIT]
+    base_slug = clean_slug_hyphens(slugify(name)[:SLUG_NAME_LIMIT])
 
     existing_slugs = klass.objects.filter(slug__startswith=base_slug).values_list(
         "slug", flat=True
@@ -134,6 +134,26 @@ def generate_slug(name, klass):
             pass
 
     return f"{base_slug}-{max_num + 1}"
+
+
+def clean_slug_hyphens(slug: str) -> str:
+    """
+    Clean duplicate hyphens from a slug.
+
+    Replaces multiple consecutive hyphens with a single hyphen
+    and removes leading/trailing hyphens.
+
+    Args:
+        slug: The slug string to clean
+
+    Returns:
+        A cleaned slug string with no duplicate hyphens
+    """
+    # Replace multiple consecutive hyphens with single hyphen
+    cleaned = re.sub(r"-+", "-", slug)
+    # Remove leading and trailing hyphens
+    cleaned = cleaned.strip("-")
+    return cleaned
 
 
 class UiDescribableMixin(DescribableMixin):
