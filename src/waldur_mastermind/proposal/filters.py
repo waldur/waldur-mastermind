@@ -106,6 +106,7 @@ class ProposalFilter(django_filters.FilterSet):
             "round__cutoff_time",
             "state",
             "created",
+            "slug",
         )
     )
 
