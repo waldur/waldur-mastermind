@@ -208,8 +208,10 @@ class ProposalReviewSerializer(
     round_cutoff_time = serializers.ReadOnlyField(source="proposal.round.cutoff_time")
     round_start_time = serializers.ReadOnlyField(source="proposal.round.start_time")
     round_name = serializers.ReadOnlyField(source="proposal.round.name")
+    round_slug = serializers.ReadOnlyField(source="proposal.round.slug")
     call_uuid = serializers.UUIDField(source="proposal.round.call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="proposal.round.call.name")
+    call_slug = serializers.ReadOnlyField(source="proposal.round.call.slug")
     call_managing_organisation_uuid = serializers.ReadOnlyField(
         source="proposal.round.call.manager.uuid"
     )
@@ -219,6 +221,7 @@ class ProposalReviewSerializer(
 
     proposal_name = serializers.ReadOnlyField(source="proposal.name")
     proposal_uuid = serializers.UUIDField(read_only=True, source="proposal.uuid")
+    proposal_slug = serializers.ReadOnlyField(source="proposal.slug")
 
     class Meta:
         model = models.Review
@@ -228,6 +231,7 @@ class ProposalReviewSerializer(
             "proposal",
             "proposal_name",
             "proposal_uuid",
+            "proposal_slug",
             "reviewer",
             "reviewer_full_name",
             "reviewer_uuid",
@@ -239,10 +243,12 @@ class ProposalReviewSerializer(
             "summary_private_comment",
             "round_uuid",
             "round_name",
+            "round_slug",
             "round_cutoff_time",
             "round_start_time",
             "call_name",
             "call_uuid",
+            "call_slug",
             "call_managing_organisation_uuid",
             "comment_project_title",
             "comment_project_summary",
