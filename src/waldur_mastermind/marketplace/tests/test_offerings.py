@@ -23,7 +23,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.pagination import RESULT_COUNT_HEADER
 from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.logging import models as event_models
-from waldur_core.media.utils import dummy_image
+from waldur_core.media.utils import dummy_image, dummy_svg
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
@@ -2152,6 +2152,12 @@ class OfferingThumbnailTest(test.APITransactionTestCase):
         )
         return self.client.post(url, {"thumbnail": dummy_image()}, format="multipart")
 
+    def update_thumbnail_svg(self):
+        url = factories.OfferingFactory.get_url(
+            offering=self.offering, action="update_thumbnail"
+        )
+        return self.client.post(url, {"thumbnail": dummy_svg()}, format="multipart")
+
     def delete_thumbnail(self):
         url_delete = factories.OfferingFactory.get_url(
             offering=self.offering, action="delete_thumbnail"
@@ -2170,6 +2176,10 @@ class OfferingThumbnailTest(test.APITransactionTestCase):
 
         self.offering.refresh_from_db()
         self.assertFalse(self.offering.thumbnail)
+        response = self.update_thumbnail_svg()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertTrue(self.offering.thumbnail)
 
     def _test_negative(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -2180,6 +2190,15 @@ class OfferingThumbnailTest(test.APITransactionTestCase):
 
         response = self.delete_thumbnail()
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.update_thumbnail_svg()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_can_upload_svg_thumbnail(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.update_thumbnail_svg()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertTrue(self.offering.thumbnail)
 
 
 @ddt

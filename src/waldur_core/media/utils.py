@@ -14,6 +14,17 @@ def dummy_image(filetype="gif"):
     return open(tmp_file.name, "rb")
 
 
+def dummy_svg():
+    """Generate a simple SVG file for testing"""
+    svg_content = """<?xml version="1.0" encoding="UTF-8"?>
+<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="50" cy="50" r="40" fill="red"/>
+</svg>"""
+    tmp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".svg", encoding="utf-8")
+    tmp_file.write(svg_content)
+    return open(tmp_file.name, "rb")
+
+
 def guess_image_extension(content: bytes | str) -> str | None:
     mime_type = magic.from_buffer(content[:1024], mime=True)
     if not mime_type:
