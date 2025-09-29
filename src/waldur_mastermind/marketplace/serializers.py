@@ -2487,6 +2487,7 @@ class BaseItemSerializer(
             "offering_plugin_options",
             "provider_name",
             "provider_uuid",
+            "provider_slug",
             "category_title",
             "category_uuid",
             "category_icon",
@@ -2526,6 +2527,9 @@ class BaseItemSerializer(
     provider_name = serializers.ReadOnlyField(source="offering.customer.name")
     provider_uuid = serializers.UUIDField(
         read_only=True, source="offering.customer.uuid"
+    )
+    provider_slug = serializers.UUIDField(
+        read_only=True, source="offering.customer.slug"
     )
     category_title = serializers.ReadOnlyField(source="offering.category.title")
     category_icon = serializers.ImageField(
@@ -2693,9 +2697,6 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "activation_price",
             "termination_comment",
             "backend_id",
-            "offering_customer_uuid",
-            "offering_customer_name",
-            "offering_customer_slug",
         )
 
     consumer_reviewed_by = serializers.ReadOnlyField(
@@ -2778,12 +2779,6 @@ class OrderDetailsSerializer(BaseOrderSerializer):
 
     can_terminate = serializers.SerializerMethodField()
     termination_comment = serializers.ReadOnlyField()
-
-    offering_customer_uuid = serializers.UUIDField(
-        read_only=True, source="offering.customer.uuid"
-    )
-    offering_customer_name = serializers.ReadOnlyField(source="offering.customer.name")
-    offering_customer_slug = serializers.ReadOnlyField(source="offering.customer.slug")
 
     def get_can_terminate(self, order: models.Order) -> bool:
         if not plugins.manager.can_cancel_order(order.offering.type):
@@ -3260,9 +3255,6 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "endpoints",
             "error_message",
             "error_traceback",
-            "offering_customer_uuid",
-            "offering_customer_name",
-            "offering_customer_slug",
             "options",
             "available_actions",
             "last_sync",
@@ -3344,11 +3336,6 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     username = serializers.SerializerMethodField()
     limit_usage = serializers.SerializerMethodField()
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
-    offering_customer_uuid = serializers.UUIDField(
-        read_only=True, source="offering.customer.uuid"
-    )
-    offering_customer_name = serializers.ReadOnlyField(source="offering.customer.name")
-    offering_customer_slug = serializers.ReadOnlyField(source="offering.customer.slug")
     available_actions = serializers.SerializerMethodField()
     limits = serializers.SerializerMethodField()
     attributes = serializers.SerializerMethodField()
@@ -5751,8 +5738,11 @@ class RobotAccountDetailsSerializer(
     customer_name = serializers.CharField(
         read_only=True, source="resource.project.customer.name"
     )
-    offering_customer_uuid = serializers.UUIDField(
+    provider_uuid = serializers.UUIDField(
         read_only=True, source="resource.offering.customer.uuid"
+    )
+    provider_name = serializers.CharField(
+        read_only=True, source="resource.offering.customer.name"
     )
     offering_plugin_options = MergedPluginOptionsField(
         read_only=True, source="resource.offering.plugin_options"
@@ -5767,7 +5757,8 @@ class RobotAccountDetailsSerializer(
             "project_uuid",
             "customer_uuid",
             "customer_name",
-            "offering_customer_uuid",
+            "provider_uuid",
+            "provider_name",
             "offering_plugin_options",
         )
 
