@@ -3764,22 +3764,23 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     @action(detail=True, methods=["post"])
     def move_resource(self, request, uuid=None):
         resource: models.Resource = self.get_object()
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        project = serializer.validated_data["project"]
+        request_serializer = serializers.MoveResourceSerializer(
+            data=request.data, context=self.get_serializer_context()
+        )
+        request_serializer.is_valid(raise_exception=True)
+        project = request_serializer.validated_data["project"]
         try:
             utils.move_resource(resource, project)
         except utils.MoveResourceException as exception:
             error_message = str(exception)
             return JsonResponse({"error_message": error_message}, status=409)
 
-        serialized_resource = serializers.ResourceSerializer(
+        response_serializer = serializers.ResourceSerializer(
             resource, context=self.get_serializer_context()
         )
 
-        return Response(serialized_resource.data, status=status.HTTP_200_OK)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
-    move_resource_serializer_class = serializers.MoveResourceSerializer
     move_resource_permissions = [structure_permissions.is_staff]
 
     @extend_schema(

@@ -40,7 +40,7 @@ from waldur_rancher import exceptions
 from waldur_rancher import models as rancher_models
 from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE, NodeRoleType
 from waldur_rancher.executors import ClusterCreateExecutor, ClusterDeleteExecutor
-from waldur_rancher.serializers import RancherClusterSerializer
+from waldur_rancher.serializers import RancherClusterCreateSerializer
 from waldur_rancher.validators import related_vm_can_be_deleted
 
 from . import const, serializers
@@ -100,7 +100,7 @@ class RancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         return self._trigger_cluster_creation(user, self._get_post_data())
 
     def _trigger_cluster_creation(self, user, data) -> rancher_models.Cluster:
-        serializer = RancherClusterSerializer(data=data)
+        serializer = RancherClusterCreateSerializer(data=data)
         serializer.is_valid(raise_exception=True)
 
         cluster: rancher_models.Cluster = serializer.save()
@@ -525,7 +525,7 @@ class RancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             self.validate_volume_types(available_service_settings)
             self.validate_limits()
         else:
-            serializer = RancherClusterSerializer(data=self._get_post_data())
+            serializer = RancherClusterCreateSerializer(data=self._get_post_data())
             serializer.is_valid(raise_exception=True)
 
     def validate_flavors(self, available_service_settings: list[int]):

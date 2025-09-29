@@ -686,13 +686,13 @@ class BasicCustomerSerializer(serializers.ModelSerializer):
 
 class NestedProjectSerializer(
     core_serializers.AugmentedSerializerMixin,
-    core_serializers.HyperlinkedRelatedModelSerializer,
+    serializers.HyperlinkedModelSerializer,
 ):
     class Meta:
         model = models.Project
         fields = ("uuid", "url")
         extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
+            "url": {"lookup_field": "uuid", "view_name": "project-detail"},
         }
 
 

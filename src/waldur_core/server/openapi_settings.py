@@ -30,6 +30,7 @@ SPECTACULAR_SETTINGS = {
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
     "POSTPROCESSING_HOOKS": [
         "drf_spectacular.hooks.postprocess_schema_enums",
+        "waldur_core.core.schema_hooks.add_polymorphic_attributes_schema",
         "waldur_core.core.schema_hooks.postprocess_drop_description",
         "waldur_core.core.schema_hooks.postprocess_fix_enum",
         "waldur_core.core.schema_hooks.refactor_pagination_parameters",
@@ -38,7 +39,6 @@ SPECTACULAR_SETTINGS = {
         "waldur_core.core.schema_hooks.remove_waldur_cookie_auth",
         "waldur_core.core.schema_hooks.preprocess_request_bodies",
         "waldur_core.core.schema_hooks.add_result_count_header",
-        "waldur_core.core.schema_hooks.add_polymorphic_attributes_schema",
     ],
     "DEFAULT_GENERATOR_CLASS": "waldur_core.core.openapi_generators.WaldurSchemaGenerator",
     "ENUM_GENERATE_CHOICE_DESCRIPTION": False,

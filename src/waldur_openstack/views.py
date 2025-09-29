@@ -1785,7 +1785,6 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         instance: models.Instance = self.get_object()
         serializer = serializers.OpenStackNestedFloatingIPSerializer(
             instance=instance.floating_ips.all(),
-            queryset=models.FloatingIP.objects.all(),
             many=True,
             context=self.get_serializer_context(),
         )
@@ -1852,7 +1851,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
 class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
     queryset = models.Instance.objects.all()
-    serializer_class = serializers.OpenStackInstanceSerializer
+    serializer_class = serializers.OpenStackInstanceCreateSerializer
     filter_backends = structure_views.ResourceViewSet.filter_backends + (
         structure_filters.StartTimeFilter,
     )
@@ -1933,7 +1932,7 @@ class BackupViewSet(structure_views.ResourceViewSet):
 
     @extend_schema(
         description="Restore instance from backup",
-        request=serializers.OpenStackBackupRestorationSerializer,
+        request=serializers.OpenStackBackupRestorationCreateSerializer,
         responses=serializers.OpenStackInstanceSerializer,
     )
     @decorators.action(detail=True, methods=["post"])
@@ -1965,7 +1964,7 @@ class BackupViewSet(structure_views.ResourceViewSet):
         )
 
     restore_validators = [core_validators.StateValidator(CoreStates.OK)]
-    restore_serializer_class = serializers.OpenStackBackupRestorationSerializer
+    restore_serializer_class = serializers.OpenStackBackupRestorationCreateSerializer
 
 
 class SharedSettingsBaseView(generics.GenericAPIView):
