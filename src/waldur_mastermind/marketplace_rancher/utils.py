@@ -131,17 +131,17 @@ def submit_update_order(resource: Resource, new_limits: dict):
 
 
 class UnifiedRancherUsageCollector:
-    def collect_usage(self, resource: Resource) -> dict:
+    def collect_usage(self, resource: Resource) -> dict[str, int]:
         deployment_mode = resource.offering.plugin_options.get("deployment_mode")
+        cluster = cast(Cluster, resource.scope)
 
         if deployment_mode == "managed":
-            return self._collect_managed_usage(resource)
+            return self._collect_managed_usage(cluster)
         else:
-            return self._collect_self_managed_usage(resource)
+            return self._collect_self_managed_usage(cluster)
 
-    def _collect_managed_usage(self, resource: Resource) -> dict:
+    def _collect_managed_usage(self, cluster: Cluster) -> dict:
         """Aggregate usage from all linked OpenStack tenants."""
-        cluster = cast(Cluster, resource.scope)
         total_cpu = 0
         total_ram = 0
         total_storage = 0
@@ -159,9 +159,8 @@ class UnifiedRancherUsageCollector:
             "storage_hours": total_storage,
         }
 
-    def _collect_self_managed_usage(self, resource: Resource) -> dict:
+    def _collect_self_managed_usage(self, cluster: Cluster) -> dict:
         """Calculate usage from cluster nodes."""
-        cluster = cast(Cluster, resource.scope)
         total_cpu = 0
         total_ram = 0
         total_storage = 0

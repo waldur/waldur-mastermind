@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import cast
 
@@ -14,6 +15,8 @@ from waldur_mastermind.marketplace.utils import get_or_create_plan_period
 
 from . import utils
 
+logger = logging.getLogger(__name__)
+
 
 @shared_task(name="waldur_mastermind.marketplace_rancher.report_rancher_usage")
 def report_rancher_usage():
@@ -21,7 +24,13 @@ def report_rancher_usage():
         offering__type=RANCHER_OFFERING, state=ResourceStates.OK
     ):
         collector = utils.UnifiedRancherUsageCollector()
-        usage = collector.collect_usage(resource)
+        if not resource.scope:
+            logger.debug(
+                "Skipping usage collection for Rancher cluster %s because it is not found",
+                resource.id,
+            )
+            continue
+        usage = collector.collect_usage(resource.scope)
         today = datetime.today()
 
         for component_type, quantity in usage.items():
