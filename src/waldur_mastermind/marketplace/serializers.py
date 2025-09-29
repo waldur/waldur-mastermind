@@ -159,6 +159,10 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="If set to True, orders will support comments and metadata",
     )
+    conceal_billing_data = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, pricing and components tab would be concealed.",
+    )
 
 
 class SupportPluginOptionsSerializer(serializers.Serializer):
