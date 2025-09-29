@@ -32,6 +32,7 @@ from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.mixins import GetValueMixin
 from waldur_core.core.models import NAME_LENGTH, User, get_ssh_key_fingerprints
 from waldur_core.core.validators import BackendURLValidator, validate_ssh_public_key
+from waldur_core.media.validators import ImageValidator
 from waldur_core.permissions import models as permission_models
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
@@ -4854,7 +4855,7 @@ core_signals.pre_serializer_fields.connect(
 
 
 class OfferingThumbnailSerializer(serializers.HyperlinkedModelSerializer):
-    thumbnail = serializers.ImageField(required=True)
+    thumbnail = serializers.FileField(required=True, validators=[ImageValidator])
 
     class Meta:
         model = models.Offering
