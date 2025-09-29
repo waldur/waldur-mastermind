@@ -611,6 +611,7 @@ class ServiceViewSet(
 ):
     queryset = models.Service.objects.all().order_by("name")
     serializer_class = serializers.RancherServiceSerializer
+    create_serializer_class = serializers.RancherServiceCreateSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ServiceFilter
     lookup_field = "uuid"

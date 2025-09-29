@@ -123,16 +123,15 @@ class VmwareNestedDiskSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class VmwareNestedNetworkSerializer(
-    core_serializers.AugmentedSerializerMixin,
-    core_serializers.HyperlinkedRelatedModelSerializer,
-):
-    class Meta:
-        model = models.Network
-        fields = ("uuid", "url", "name", "type")
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-        }
+class VmwareNestedNetworkSerializer(serializers.Serializer):
+    url = serializers.HyperlinkedRelatedField(
+        queryset=models.Network.objects.all(),
+        view_name="vmware-network-detail",
+        lookup_field="uuid",
+    )
+
+    def to_internal_value(self, data):
+        return super().to_internal_value(data)["url"]
 
 
 class VmwareVirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
@@ -190,7 +189,6 @@ class VmwareVirtualMachineSerializer(structure_serializers.BaseResourceSerialize
     folder_name = serializers.ReadOnlyField(source="folder.name")
 
     networks = VmwareNestedNetworkSerializer(
-        queryset=models.Network.objects.all(),
         many=True,
         required=False,
         write_only=True,

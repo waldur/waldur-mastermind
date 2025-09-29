@@ -2,6 +2,7 @@ import copy
 from typing import Any
 from unittest import mock
 
+from drf_spectacular.generators import SchemaGenerator
 from drf_spectacular.openapi import AutoSchema
 
 
@@ -418,7 +419,7 @@ def preprocess_request_bodies(result: dict[str, Any], **kwargs: Any) -> dict[str
     return result
 
 
-def add_polymorphic_attributes_schema(result, generator, **kwargs):
+def add_polymorphic_attributes_schema(result, generator: SchemaGenerator, **kwargs):
     """
     Preprocessing hook to add polymorphic schema for the 'attributes' field
     in order creation endpoints based on offering types.
@@ -437,22 +438,14 @@ def add_polymorphic_attributes_schema(result, generator, **kwargs):
         schema = create_offering_attributes_schema(processor_class, generator)
         if not schema:
             continue
+
+        all_registered_components = generator.registry.build(extra_components={})
+        if "schemas" in all_registered_components:
+            result_schemas.update(all_registered_components["schemas"])
+
         schema_name = f"{offering_type.replace('.', '')}CreateOrderAttributes"
         result_schemas[schema_name] = schema
         offering_schemas.append({"$ref": f"#/components/schemas/{schema_name}"})
-
-    result_schemas["OpenStackInstanceCreateOrderAttributes"]["properties"][
-        "security_groups"
-    ] = {
-        "type": "array",
-        "items": {"$ref": "#/components/schemas/OpenStackNestedSecurityGroupRequest"},
-        "description": "Security groups to attach to the instance",
-    }
-
-    result_schemas["OpenStackNestedSecurityGroupRequest"] = {
-        "type": "object",
-        "properties": {"url": {"type": "string", "format": "uri"}},
-    }
 
     result_schemas["GenericOrderAttributes"] = {
         "type": "object",
@@ -520,9 +513,7 @@ def create_offering_attributes_schema(processor_class, generator):
         auto.view.request.query_params.getlist.return_value = []
         auto.registry = generator.registry
 
-    schema = auto._map_serializer(
-        serializer_class, direction="request", bypass_extensions=True
-    )
+    schema = auto._map_serializer(serializer_class, direction="request")
     fields = getattr(processor_class, "fields", ())
     if fields:
         schema["properties"] = {

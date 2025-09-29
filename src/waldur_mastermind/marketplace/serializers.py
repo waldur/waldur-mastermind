@@ -4781,12 +4781,19 @@ class ResourceSetStateErredSerializer(serializers.ModelSerializer):
         )
 
 
-class MoveResourceSerializer(serializers.Serializer):
-    project = structure_serializers.NestedProjectSerializer(
+class ProjectHyperlinkSerializer(serializers.Serializer):
+    url = serializers.HyperlinkedRelatedField(
         queryset=structure_models.Project.available_objects.all(),
-        required=True,
-        many=False,
+        view_name="project-detail",
+        lookup_field="uuid",
     )
+
+    def to_internal_value(self, data):
+        return super().to_internal_value(data)["url"]
+
+
+class MoveResourceSerializer(serializers.Serializer):
+    project = ProjectHyperlinkSerializer(write_only=True)
 
 
 class ResourceSetLimitsSerializer(serializers.Serializer):
