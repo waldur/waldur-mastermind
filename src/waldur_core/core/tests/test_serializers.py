@@ -4,6 +4,7 @@ from collections import namedtuple
 
 from rest_framework import serializers
 from rest_framework.generics import ListAPIView
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.test import (
     APIRequestFactory,
@@ -21,7 +22,8 @@ from waldur_core.core.serializers import (
     RestrictedSerializerMixin,
 )
 from waldur_core.logging.utils import get_loggable_models
-from waldur_core.structure.tests.factories import UserFactory
+from waldur_core.structure.serializers import CustomerSerializer
+from waldur_core.structure.tests.factories import CustomerFactory, UserFactory
 
 
 class Base64Serializer(serializers.Serializer):
@@ -122,8 +124,6 @@ class DictSerializerFieldTest(unittest.TestCase):
 
 class GenericRelatedFieldTest(APITransactionTestCase):
     def setUp(self):
-        from waldur_core.structure.tests.factories import UserFactory
-
         self.user = UserFactory(is_staff=True)
         self.request = APIRequestFactory().get("/")
         self.request.user = self.user
@@ -132,15 +132,11 @@ class GenericRelatedFieldTest(APITransactionTestCase):
         self.field.root._context = {"request": self.request}
 
     def test_if_related_object_exists_it_is_deserialized(self):
-        from waldur_core.structure.tests.factories import CustomerFactory
-
         customer = CustomerFactory()
         valid_url = CustomerFactory.get_url(customer)
         self.assertEqual(self.field.to_internal_value(valid_url), customer)
 
     def test_if_related_object_does_not_exist_validation_error_is_raised(self):
-        from waldur_core.structure.tests.factories import CustomerFactory
-
         customer = CustomerFactory()
         valid_url = CustomerFactory.get_url(customer)
         customer.delete()
@@ -151,8 +147,6 @@ class GenericRelatedFieldTest(APITransactionTestCase):
     def test_if_user_does_not_have_permissions_for_related_object_validation_error_is_raised(
         self,
     ):
-        from waldur_core.structure.tests.factories import CustomerFactory
-
         customer = CustomerFactory()
         valid_url = CustomerFactory.get_url(customer)
         self.user.is_staff = False
@@ -331,9 +325,6 @@ class SlugSerializerMixinTest(APITransactionTestCase):
 
     def setUp(self):
         """Set up test data and users."""
-        from waldur_core.structure.serializers import CustomerSerializer
-        from waldur_core.structure.tests.factories import CustomerFactory
-
         self.factory = APIRequestFactory()
         self.staff_user = UserFactory(is_staff=True)
         self.regular_user = UserFactory(is_staff=False)
@@ -346,8 +337,6 @@ class SlugSerializerMixinTest(APITransactionTestCase):
 
     def test_staff_cannot_set_duplicate_slug_on_create(self):
         """Test that staff cannot create a customer with duplicate slug."""
-        from rest_framework.request import Request
-
         request = Request(self.factory.post("/"))
         request.user = self.staff_user
 
@@ -368,8 +357,6 @@ class SlugSerializerMixinTest(APITransactionTestCase):
 
     def test_staff_cannot_set_duplicate_slug_on_update(self):
         """Test that staff cannot update a customer to have a duplicate slug."""
-        from rest_framework.request import Request
-
         request = Request(self.factory.patch("/"))
         request.user = self.staff_user
 
@@ -394,8 +381,6 @@ class SlugSerializerMixinTest(APITransactionTestCase):
 
     def test_staff_can_update_slug_to_unique_value(self):
         """Test that staff can update a customer's slug to a unique value."""
-        from rest_framework.request import Request
-
         request = Request(self.factory.patch("/"))
         request.user = self.staff_user
 
@@ -421,8 +406,6 @@ class SlugSerializerMixinTest(APITransactionTestCase):
 
     def test_staff_can_update_without_changing_slug(self):
         """Test that staff can update a customer without changing its slug."""
-        from rest_framework.request import Request
-
         request = Request(self.factory.patch("/"))
         request.user = self.staff_user
 
@@ -450,8 +433,6 @@ class SlugSerializerMixinTest(APITransactionTestCase):
 
     def test_regular_user_cannot_edit_slug(self):
         """Test that regular (non-staff) users cannot edit slug."""
-        from rest_framework.request import Request
-
         request = Request(self.factory.patch("/"))
         request.user = self.regular_user
 
