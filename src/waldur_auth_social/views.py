@@ -134,7 +134,7 @@ class OAuthViewComplete(BaseOAuthView):
         )
         serializer.is_valid(raise_exception=True)
 
-        user, created = self.authenticate_user(serializer.validated_data)
+        user, created, access_token = self.authenticate_user(serializer.validated_data)
         token = refresh_token(user)
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])
@@ -150,8 +150,15 @@ class OAuthViewComplete(BaseOAuthView):
             },
             scopes=[user],
         )
+        if config.OIDC_ACCESS_TOKEN_ENABLED:
+            user_token = access_token
+        else:
+            user_token = token.key
+        params = {"token": user_token}
         return redirect(
-            format_homeport_link(f"oauth_login_completed/{provider}/?token={token.key}")
+            format_homeport_link(
+                f"oauth_login_completed/{provider}/?{urlencode(params)}"
+            )
         )
 
     def authenticate_user(self, validated_data):
@@ -181,7 +188,7 @@ class OAuthViewComplete(BaseOAuthView):
                 "refresh_token": refresh_token,
             },
         )
-        return user, created
+        return user, created, access_token
 
     def check_response(self, response, valid_response=requests.codes.ok):
         if response.status_code != valid_response:
