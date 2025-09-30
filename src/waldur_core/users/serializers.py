@@ -1,3 +1,5 @@
+import re
+
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -115,6 +117,28 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
 
     def validate_user_email_patterns(self, value):
         models.GroupInvitation.validate_user_email_patterns(value)
+        return value
+
+    def validate_project_name_template(self, value):
+        """Validate that the template only uses allowed placeholders."""
+        if not value:
+            return value
+
+        # Extract all placeholders from the template
+        placeholders = re.findall(r"\{([^}]+)\}", value)
+
+        # Define allowed placeholders
+        allowed_placeholders = {"username", "email", "full_name"}
+
+        # Check for invalid placeholders
+        invalid_placeholders = set(placeholders) - allowed_placeholders
+
+        if invalid_placeholders:
+            raise serializers.ValidationError(
+                f"Invalid placeholders in template: {', '.join(invalid_placeholders)}. "
+                f"Allowed placeholders are: {', '.join(sorted(allowed_placeholders))}"
+            )
+
         return value
 
     @extend_schema_field(serializers.URLField(allow_null=True))

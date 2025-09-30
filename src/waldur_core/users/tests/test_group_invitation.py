@@ -595,6 +595,90 @@ class PermissionRequestProjectCreationTest(BaseInvitationTest):
             ).exists()
         )
 
+    def test_valid_project_name_template_placeholders(self):
+        """Test that valid placeholders in project_name_template are accepted."""
+        self.client.force_authenticate(user=self.staff)
+
+        # Test each valid placeholder
+        valid_templates = [
+            "{username}_project",
+            "{email}_workspace",
+            "{full_name} Research",
+            "Project for {username} - {email}",
+        ]
+
+        for template in valid_templates:
+            response = self.client.post(
+                factories.CustomerGroupInvitationFactory.get_list_url(),
+                {
+                    "scope": structure_factories.CustomerFactory.get_url(self.customer),
+                    "role": CustomerRole.OWNER.uuid.hex,
+                    "auto_create_project": True,
+                    "project_name_template": template,
+                },
+            )
+            self.assertEqual(
+                response.status_code,
+                status.HTTP_201_CREATED,
+                f"Template '{template}' should be valid. Response: {response.data}",
+            )
+
+    def test_invalid_project_name_template_placeholders_rejected(self):
+        """Test that invalid placeholders in project_name_template are rejected."""
+        self.client.force_authenticate(user=self.staff)
+
+        # Test invalid placeholders
+        invalid_templates = [
+            "{user}_project",  # Legacy placeholder not supported
+            "{invalid_placeholder}_workspace",
+            "{user.username}_research",
+            "Project {user.full_name}",
+        ]
+
+        for template in invalid_templates:
+            response = self.client.post(
+                factories.CustomerGroupInvitationFactory.get_list_url(),
+                {
+                    "scope": structure_factories.CustomerFactory.get_url(self.customer),
+                    "role": CustomerRole.OWNER.uuid.hex,
+                    "auto_create_project": True,
+                    "project_name_template": template,
+                },
+            )
+            self.assertEqual(
+                response.status_code,
+                status.HTTP_400_BAD_REQUEST,
+                f"Template '{template}' should be invalid",
+            )
+            self.assertIn("project_name_template", response.data)
+
+    def test_invalid_template_fallback_to_username(self):
+        """Test that if an invalid template somehow gets through, it falls back to username."""
+        # Directly create an invitation with invalid template (bypassing validation)
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_create_project=True,
+            project_name_template="{invalid_var}_project",
+        )
+
+        # Manually set the template to bypass validation
+        invitation.project_name_template = "{invalid_var}_project"
+        invitation.save()
+
+        permission_request = factories.PermissionRequestFactory(
+            invitation=invitation, created_by=self.user_with_template
+        )
+
+        # Approve should not crash, but fall back to username
+        permission_request.approve(self.staff)
+
+        # Check that project was created with fallback username
+        self.assertTrue(
+            structure_models.Project.objects.filter(
+                name="template_user", customer=self.customer
+            ).exists()
+        )
+
 
 class GroupInvitationPatternTest(BaseGroupInvitationTest):
     def setUp(self):
