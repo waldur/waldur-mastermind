@@ -1,3 +1,4 @@
+import logging
 from functools import wraps
 
 from django.conf import settings
@@ -231,9 +232,19 @@ class ProjectNameTemplateMixin(django_models.Model):
             str: Resolved project name
         """
         if self.project_name_template:
-            return self.project_name_template.format(
-                username=user.username,
-                email=user.email,
-                full_name=user.get_full_name() or user.username,
-            )
+            try:
+                return self.project_name_template.format(
+                    username=user.username,
+                    email=user.email,
+                    full_name=user.get_full_name() or user.username,
+                )
+            except (KeyError, AttributeError) as e:
+                logger = logging.getLogger(__name__)
+                logger.error(
+                    f"Failed to format project name template '{self.project_name_template}' "
+                    f"for user {user.username}: {e}. Falling back to username. "
+                    f"Valid placeholders are: username, email, full_name"
+                )
+                # Fall back to username if template evaluation fails
+                return user.username
         return user.username
