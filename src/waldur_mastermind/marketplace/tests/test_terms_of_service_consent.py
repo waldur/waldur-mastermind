@@ -10,6 +10,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITransactionTestCase
 
+from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
@@ -2664,3 +2665,196 @@ class OfferingTermsOfServiceFilterTest(APITransactionTestCase):
         self.assertEqual(len(response.data), 3)
         for offering in response.data:
             self.assertFalse(offering["user_has_consent"])
+
+
+@override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+class TermsOfServiceConsentEventLoggingTest(APITransactionTestCase):
+    """Test event logging for Terms of Service consent operations."""
+
+    def setUp(self):
+        self.user = UserFactory()
+        self.customer = CustomerFactory()
+        self.project = ProjectFactory(customer=self.customer)
+        self.category = CategoryFactory()
+        self.offering = OfferingFactory(
+            category=self.category,
+            customer=self.customer,
+            type="Marketplace.Basic",
+        )
+
+        self.tos_config = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="1.0",
+            is_active=True,
+        )
+
+        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        self.customer.add_user(self.user, CustomerRole.OWNER)
+
+        self.consent_list_url = reverse("marketplace-user-offering-consent-list")
+        self.consent_data = {
+            "offering": self.offering.uuid,
+        }
+        Event.objects.all().delete()
+
+    def _create_consent(self, user=None, offering=None, version="1.0"):
+        """Helper method to create consent."""
+        return models.UserOfferingConsent.objects.create(
+            user=user or self.user,
+            offering=offering or self.offering,
+            version=version,
+        )
+
+    def _assert_event_created(self, event_type, count=1):
+        """Helper method to assert event was created."""
+        events = Event.objects.filter(event_type=event_type)
+        self.assertEqual(events.count(), count)
+        return events.first()
+
+    def _assert_event_context(
+        self, event, user_name=None, offering_name=None, version="1.0"
+    ):
+        """Helper method to assert event context."""
+        if user_name is not None:
+            self.assertEqual(event.context["user_name"], user_name)
+        if offering_name is not None:
+            self.assertEqual(event.context["offering_name"], offering_name)
+        self.assertEqual(event.context["version"], version)
+
+    def test_consent_granted_event_logging_via_api(self):
+        """Test that consent granted event is logged when creating consent via API."""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(self.consent_list_url, self.consent_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        event = self._assert_event_created("terms_of_service_consent_granted")
+        self._assert_event_context(event, self.user.full_name, self.offering.name)
+
+    def test_consent_granted_event_logging_direct_creation(self):
+        """Test that consent granted event is logged when creating consent directly."""
+        self._create_consent()
+        event = self._assert_event_created("terms_of_service_consent_granted")
+        self._assert_event_context(event, self.user.full_name, self.offering.name)
+
+    def test_consent_revoked_event_logging_via_api(self):
+        """Test that consent revoked event is logged when revoking consent via API."""
+        self.client.force_authenticate(user=self.user)
+        consent = self._create_consent()
+
+        url = reverse(
+            "marketplace-user-offering-consent-revoke",
+            kwargs={"uuid": consent.uuid},
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        event = self._assert_event_created("terms_of_service_consent_revoked")
+        self._assert_event_context(event, self.user.full_name, self.offering.name)
+
+    def test_consent_revoked_event_logging_direct_revoke(self):
+        """Test that consent revoked event is logged when revoking consent directly."""
+        consent = self._create_consent()
+        consent.revoke()
+
+        event = self._assert_event_created("terms_of_service_consent_revoked")
+        self._assert_event_context(event, self.user.full_name, self.offering.name)
+
+    def test_no_duplicate_events_on_multiple_saves(self):
+        """Test that no duplicate events are created on multiple saves."""
+        self.client.force_authenticate(user=self.user)
+        consent = self._create_consent()
+        consent.save()
+        self._assert_event_created("terms_of_service_consent_granted")
+
+    def test_consent_revoked_event_context_includes_revocation_date(self):
+        """Test that consent revoked event context includes revocation date."""
+        consent = self._create_consent()
+        consent.revoke()
+
+        event = Event.objects.filter(
+            event_type="terms_of_service_consent_revoked"
+        ).first()
+        self.assertIsNotNone(event.context["revocation_date"])
+        self.assertIsNotNone(consent.revocation_date)
+
+    def test_consent_granted_event_logging_with_username_fallback(self):
+        """Test that consent granted event uses username when full_name is not available."""
+        user_no_full_name = UserFactory(full_name="")
+        self.project.add_user(user_no_full_name, role=ProjectRole.MANAGER)
+
+        self._create_consent(user=user_no_full_name)
+        event = self._assert_event_created("terms_of_service_consent_granted")
+        self._assert_event_context(
+            event, user_no_full_name.username, self.offering.name
+        )
+
+    def test_consent_granted_event_logging_multiple_consents(self):
+        """Test that multiple consent granted events are logged for different users."""
+        other_user = UserFactory()
+        self.project.add_user(other_user, role=ProjectRole.MEMBER)
+
+        self._create_consent()
+        self._create_consent(user=other_user)
+
+        events = Event.objects.filter(event_type="terms_of_service_consent_granted")
+        self.assertEqual(events.count(), 2)
+
+        user_names = [event.context["user_name"] for event in events]
+        self.assertIn(self.user.full_name, user_names)
+        self.assertIn(other_user.full_name, user_names)
+
+    def test_consent_granted_event_logging_context_completeness(self):
+        """Test that consent granted event context includes all required fields."""
+        consent = self._create_consent()
+        event = self._assert_event_created("terms_of_service_consent_granted")
+        context = event.context
+
+        self.assertIn("user_uuid", context)
+        self.assertIn("user_name", context)
+        self.assertIn("offering_uuid", context)
+        self.assertIn("offering_name", context)
+        self.assertIn("consent_uuid", context)
+        self.assertIn("consent_version", context)
+        self.assertIn("consent_agreement_date", context)
+        self.assertIn("consent_revocation_date", context)
+        self.assertIn("version", context)
+
+        self.assertEqual(context["user_uuid"], self.user.uuid.hex)
+        self.assertEqual(context["user_name"], self.user.full_name)
+        self.assertEqual(context["offering_uuid"], self.offering.uuid.hex)
+        self.assertEqual(context["offering_name"], self.offering.name)
+        self.assertEqual(context["consent_uuid"], consent.uuid.hex)
+        self.assertEqual(context["consent_version"], "1.0")
+        self.assertEqual(context["version"], "1.0")
+
+    def test_consent_granted_event_logging_message_template(self):
+        """Test that consent granted event has correct message template."""
+        self._create_consent()
+        event = self._assert_event_created("terms_of_service_consent_granted")
+
+        expected_message = f"User {self.user.full_name} has accepted Terms of Service for offering {self.offering.name}."
+        self.assertEqual(event.message, expected_message)
+
+    def test_consent_granted_event_logging_event_type(self):
+        """Test that consent granted event has correct event type."""
+        self._create_consent()
+        event = self._assert_event_created("terms_of_service_consent_granted")
+        self.assertEqual(event.event_type, "terms_of_service_consent_granted")
+
+    def test_consent_granted_event_logging_via_events_api(self):
+        """Test that consent granted event is accessible via events API endpoint."""
+        self.client.force_authenticate(UserFactory(is_staff=True))
+        self._create_consent()
+
+        response = self.client.get(
+            "/api/events/", {"event_type": "terms_of_service_consent_granted"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        event_data = response.data[0]
+        self.assertEqual(event_data["event_type"], "terms_of_service_consent_granted")
+        self.assertEqual(event_data["context"]["user_name"], self.user.full_name)
+        self.assertEqual(event_data["context"]["offering_name"], self.offering.name)
+        self.assertEqual(event_data["context"]["version"], "1.0")

@@ -390,3 +390,13 @@ class MarketplaceConfig(AppConfig):
             sender=structure_models.Project,
             dispatch_uid="waldur_mastermind.marketplace.close_course_accounts_after_project_removal",
         )
+        signals.post_save.connect(
+            handlers.log_terms_of_service_consent_granted,
+            sender=models.UserOfferingConsent,
+            dispatch_uid="waldur_mastermind.marketplace.log_terms_of_service_consent_granted",
+        )
+        signals.post_save.connect(
+            handlers.log_terms_of_service_consent_revoked,
+            sender=models.UserOfferingConsent,
+            dispatch_uid="waldur_mastermind.marketplace.log_terms_of_service_consent_revoked",
+        )

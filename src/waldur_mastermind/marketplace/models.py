@@ -760,7 +760,7 @@ class Offering(
             return None
 
 
-class UserOfferingConsent(TimeStampedModel, core_models.UuidMixin):
+class UserOfferingConsent(TimeStampedModel, core_models.UuidMixin, LoggableMixin):
     """
     User consent to Terms of Service for specific offerings
 
@@ -777,6 +777,9 @@ class UserOfferingConsent(TimeStampedModel, core_models.UuidMixin):
     agreement_date = models.DateTimeField(auto_now_add=True)
     version = models.CharField(max_length=50, blank=True)
     revocation_date = models.DateTimeField(null=True, blank=True)
+    tracker = cast(
+        FieldInstanceTracker, FieldTracker(fields=["revocation_date", "version"])
+    )
 
     class Meta:
         unique_together = (
@@ -784,6 +787,9 @@ class UserOfferingConsent(TimeStampedModel, core_models.UuidMixin):
             "offering",
         )
         verbose_name = _("User offering consent")
+
+    def get_log_fields(self):
+        return ("uuid", "version", "agreement_date", "revocation_date")
 
     def __str__(self):
         return f"{self.user.username} - {self.offering.name}"
