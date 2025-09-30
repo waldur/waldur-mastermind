@@ -607,6 +607,36 @@ class SlugSerializerMixin(serializers.Serializer):
 
         return fields
 
+    def validate_slug(self, value):
+        """
+        Validates that the slug is unique for the model.
+
+        Staff can edit slug values, but they must be unique.
+        """
+        if not value:
+            return value
+
+        # Get the model class
+        model_class = self.Meta.model
+
+        # Check if this is an update or create operation
+        instance = getattr(self, "instance", None)
+
+        # Build the query to check for existing slugs
+        queryset = model_class.objects.filter(slug=value)
+
+        # If updating, exclude the current instance
+        if instance:
+            queryset = queryset.exclude(pk=instance.pk)
+
+        # Check if slug already exists
+        if queryset.exists():
+            raise serializers.ValidationError(
+                _("An object with this slug already exists.")
+            )
+
+        return value
+
     def create(self, validated_data):
         if "slug" not in validated_data:
             klass = self.Meta.model

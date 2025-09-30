@@ -324,3 +324,150 @@ class RestrictedSerializerTest(APITransactionTestCase):
                 set(row.keys()),
                 "Fields were not filtered correctly on items in a list response.",
             )
+
+
+class SlugSerializerMixinTest(APITransactionTestCase):
+    """Test SlugSerializerMixin uniqueness validation for staff users."""
+
+    def setUp(self):
+        """Set up test data and users."""
+        from waldur_core.structure.serializers import CustomerSerializer
+        from waldur_core.structure.tests.factories import CustomerFactory
+
+        self.factory = APIRequestFactory()
+        self.staff_user = UserFactory(is_staff=True)
+        self.regular_user = UserFactory(is_staff=False)
+
+        # Create two customers with different slugs
+        self.customer1 = CustomerFactory(name="Test Customer 1", slug="test-customer-1")
+        self.customer2 = CustomerFactory(name="Test Customer 2", slug="test-customer-2")
+
+        self.CustomerSerializer = CustomerSerializer
+
+    def test_staff_cannot_set_duplicate_slug_on_create(self):
+        """Test that staff cannot create a customer with duplicate slug."""
+        from rest_framework.request import Request
+
+        request = Request(self.factory.post("/"))
+        request.user = self.staff_user
+
+        # Try to create a new customer with an existing slug
+        data = {
+            "name": "New Customer",
+            "slug": self.customer1.slug,  # Use existing slug
+        }
+
+        serializer = self.CustomerSerializer(data=data, context={"request": request})
+
+        # Should not be valid due to duplicate slug
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("slug", serializer.errors)
+        self.assertIn(
+            "An object with this slug already exists.", str(serializer.errors["slug"])
+        )
+
+    def test_staff_cannot_set_duplicate_slug_on_update(self):
+        """Test that staff cannot update a customer to have a duplicate slug."""
+        from rest_framework.request import Request
+
+        request = Request(self.factory.patch("/"))
+        request.user = self.staff_user
+
+        # Try to update customer2's slug to match customer1's slug
+        data = {
+            "slug": self.customer1.slug,  # Use existing slug from customer1
+        }
+
+        serializer = self.CustomerSerializer(
+            instance=self.customer2,
+            data=data,
+            partial=True,
+            context={"request": request},
+        )
+
+        # Should not be valid due to duplicate slug
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("slug", serializer.errors)
+        self.assertIn(
+            "An object with this slug already exists.", str(serializer.errors["slug"])
+        )
+
+    def test_staff_can_update_slug_to_unique_value(self):
+        """Test that staff can update a customer's slug to a unique value."""
+        from rest_framework.request import Request
+
+        request = Request(self.factory.patch("/"))
+        request.user = self.staff_user
+
+        # Update customer2's slug to a unique value
+        data = {
+            "slug": "unique-slug-123",
+        }
+
+        serializer = self.CustomerSerializer(
+            instance=self.customer2,
+            data=data,
+            partial=True,
+            context={"request": request},
+        )
+
+        # Should be valid
+        self.assertTrue(serializer.is_valid())
+        serializer.save()
+
+        # Check that slug was updated
+        self.customer2.refresh_from_db()
+        self.assertEqual(self.customer2.slug, "unique-slug-123")
+
+    def test_staff_can_update_without_changing_slug(self):
+        """Test that staff can update a customer without changing its slug."""
+        from rest_framework.request import Request
+
+        request = Request(self.factory.patch("/"))
+        request.user = self.staff_user
+
+        # Update customer2 with the same slug (no change)
+        data = {
+            "slug": self.customer2.slug,  # Same slug as before
+            "name": "Updated Customer 2",
+        }
+
+        serializer = self.CustomerSerializer(
+            instance=self.customer2,
+            data=data,
+            partial=True,
+            context={"request": request},
+        )
+
+        # Should be valid - not changing slug to a duplicate
+        self.assertTrue(serializer.is_valid())
+        serializer.save()
+
+        # Check that name was updated but slug remains the same
+        self.customer2.refresh_from_db()
+        self.assertEqual(self.customer2.slug, "test-customer-2")
+        self.assertEqual(self.customer2.name, "Updated Customer 2")
+
+    def test_regular_user_cannot_edit_slug(self):
+        """Test that regular (non-staff) users cannot edit slug."""
+        from rest_framework.request import Request
+
+        request = Request(self.factory.patch("/"))
+        request.user = self.regular_user
+
+        # Try to update slug as regular user
+        data = {
+            "slug": "new-slug-456",
+        }
+
+        serializer = self.CustomerSerializer(
+            instance=self.customer2,
+            data=data,
+            partial=True,
+            context={"request": request},
+        )
+
+        # The slug field should be read-only for non-staff users
+        # So the slug should not be in validated_data
+        serializer.is_valid()
+        self.assertNotIn("slug", serializer.validated_data)
