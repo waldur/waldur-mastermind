@@ -301,6 +301,8 @@ class EventType(str, Enum):
     USER_PASSWORD_UPDATED = "user_password_updated"
     USER_PASSWORD_UPDATED_BY_STAFF = "user_password_updated_by_staff"
     USER_UPDATE_SUCCEEDED = "user_update_succeeded"
+    TERMS_OF_SERVICE_CONSENT_GRANTED = "terms_of_service_consent_granted"
+    TERMS_OF_SERVICE_CONSENT_REVOKED = "terms_of_service_consent_revoked"
 
 
 class EventGroup(str, Enum):
@@ -320,6 +322,7 @@ class EventGroup(str, Enum):
     SSH = "ssh"
     SUPPORT = "support"
     USERS = "users"
+    TERMS_OF_SERVICE = "terms_of_service"
 
 
 EVENT_GROUP_MAPPING = {
@@ -611,6 +614,10 @@ EVENT_GROUP_MAPPING = {
         EventType.USER_PASSWORD_UPDATED,
         EventType.USER_PASSWORD_UPDATED_BY_STAFF,
         EventType.USER_UPDATE_SUCCEEDED,
+    ],
+    EventGroup.TERMS_OF_SERVICE: [
+        EventType.TERMS_OF_SERVICE_CONSENT_GRANTED,
+        EventType.TERMS_OF_SERVICE_CONSENT_REVOKED,
     ],
 }
 

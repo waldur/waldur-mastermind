@@ -1961,3 +1961,50 @@ def close_course_accounts_after_project_removal(
                 course_account.user.username,
                 instance,
             )
+
+
+def log_terms_of_service_consent_granted(
+    sender, instance: models.UserOfferingConsent, created=False, **kwargs
+):
+    """Log when a user grants consent to Terms of Service."""
+    if not created:
+        return
+    event_logger.emit(
+        "User {user_name} has accepted Terms of Service for offering {offering_name}.",
+        event_type=EventType.TERMS_OF_SERVICE_CONSENT_GRANTED,
+        event_context={
+            "user": instance.user,
+            "offering": instance.offering,
+            "consent": instance,
+            "version": instance.version,
+            "user_name": instance.user.full_name or instance.user.username,
+            "offering_name": instance.offering.name,
+        },
+        scopes=[instance.offering, instance.offering.customer],
+    )
+
+
+def log_terms_of_service_consent_revoked(
+    sender, instance: models.UserOfferingConsent, created=False, **kwargs
+):
+    """Log when a user revokes consent to Terms of Service."""
+    if created or not instance.tracker.has_changed("revocation_date"):
+        return
+
+    if instance.revocation_date is None:
+        return
+
+    event_logger.emit(
+        "User {user_name} has revoked Terms of Service consent for offering {offering_name}.",
+        event_type=EventType.TERMS_OF_SERVICE_CONSENT_REVOKED,
+        event_context={
+            "user": instance.user,
+            "offering": instance.offering,
+            "consent": instance,
+            "version": instance.version,
+            "user_name": instance.user.full_name or instance.user.username,
+            "offering_name": instance.offering.name,
+            "revocation_date": instance.revocation_date,
+        },
+        scopes=[instance.offering, instance.offering.customer],
+    )
