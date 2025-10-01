@@ -6,6 +6,7 @@ from typing import Any, Literal, cast
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
+from django.db.models import Index
 from django.db.models.constraints import UniqueConstraint
 from django.utils import timezone
 from django.utils.functional import cached_property
@@ -634,6 +635,10 @@ class Offering(
     class Meta:
         verbose_name = _("Offering")
         ordering = ["name"]
+        indexes = [
+            Index(fields=["customer", "state"], name="mp_offering_customer_state_idx"),
+            Index(fields=["name"], name="mp_offering_name_idx"),
+        ]
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         order_count = quotas_fields.CounterQuotaField(
@@ -1285,6 +1290,10 @@ class Resource(
     class Meta:
         ordering = ["created"]
         unique_together = ("content_type", "object_id")
+        indexes = [
+            Index(fields=["offering", "state"], name="mp_resource_offering_state_idx"),
+            Index(fields=["project", "state"], name="mp_resource_project_state_idx"),
+        ]
 
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
@@ -1534,6 +1543,9 @@ class Order(
     class Meta:
         verbose_name = _("Order")
         ordering = ("created",)
+        indexes = [
+            Index(fields=["state", "-created"], name="mp_order_state_created_idx"),
+        ]
 
     def init_cost(self):
         super().init_cost()
@@ -1716,6 +1728,9 @@ class ComponentUsage(
                 name="unique_without_optional",
             ),
         ]
+        indexes = [
+            Index(fields=["resource", "-date"], name="mp_compusage_resource_date_idx"),
+        ]
 
     def __str__(self):
         return f"resource: {self.resource.name}, component: {self.component.name}"
@@ -1866,6 +1881,9 @@ class OfferingUser(
     class Meta:
         unique_together = ("offering", "user")
         ordering = ["username"]
+        indexes = [
+            Index(fields=["offering", "user"], name="mp_offeringuser_offer_user_idx"),
+        ]
 
     @transition(
         field=state,
