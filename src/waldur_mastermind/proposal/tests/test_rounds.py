@@ -306,13 +306,19 @@ class RoundNotificationsTest(test.APITransactionTestCase):
         tasks.notify_reviewer_on_round_start()
         self.assertEqual(len(mail.outbox), 2)
 
-        self.assertIn(self.reviewer_1.email, mail.outbox[0].to)
-        self.assertIn(self.reviewer_2.email, mail.outbox[1].to)
+        # Check that both reviewers received emails (order doesn't matter)
+        sent_to_emails = [email.to[0] for email in mail.outbox]
+        self.assertIn(self.reviewer_1.email, sent_to_emails)
+        self.assertIn(self.reviewer_2.email, sent_to_emails)
         self.assertIn(self.call.name, mail.outbox[0].subject, mail.outbox[1].subject)
 
-        body_1 = mail.outbox[0].body
-        self.assertIn(self.reviewer_1.full_name, body_1)
-        self.assertIn(self.round.name, body_1)
+        # Check that the email body contains the correct information
+        # Find the email sent to reviewer_1
+        reviewer_1_email = next(
+            email for email in mail.outbox if self.reviewer_1.email in email.to
+        )
+        self.assertIn(self.reviewer_1.full_name, reviewer_1_email.body)
+        self.assertIn(self.round.name, reviewer_1_email.body)
 
     @override_settings(task_always_eager=True)
     def test_manager_is_notified_on_round_cutoff(self):
