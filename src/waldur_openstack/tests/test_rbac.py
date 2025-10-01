@@ -31,7 +31,7 @@ class CreateRbacPolicyTest(test.APITransactionTestCase):
         self.target_tenant = factories.TenantFactory(
             service_settings=self.tenant.service_settings, backend_id="other_backend_id"
         )
-        self.url = f"/api/openstack-networks/{self.network.uuid}/rbac_policy_create/"
+        self.url = "/api/openstack-network-rbac-policies/"
 
     def tearDown(self):
         self.neutron_client_patcher.stop()
@@ -45,6 +45,7 @@ class CreateRbacPolicyTest(test.APITransactionTestCase):
 
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = {
+            "network": factories.NetworkFactory.get_url(self.network),
             "target_tenant": factories.TenantFactory.get_url(self.target_tenant),
             "policy_type": models.NetworkRBACPolicy.NetworkShareType.SHARED,
         }
@@ -64,6 +65,7 @@ class CreateRbacPolicyTest(test.APITransactionTestCase):
     ):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = {
+            "network": factories.NetworkFactory.get_url(self.network),
             "target_tenant": factories.TenantFactory.get_url(self.target_tenant),
             "policy_type": models.NetworkRBACPolicy.NetworkShareType.SHARED,
         }
@@ -73,6 +75,7 @@ class CreateRbacPolicyTest(test.APITransactionTestCase):
     def test_member_cannot_create_rbac_policy(self):
         self.client.force_authenticate(self.fixture.member)
         payload = {
+            "network": factories.NetworkFactory.get_url(self.network),
             "target_tenant": factories.TenantFactory.get_url(self.target_tenant),
             "policy_type": models.NetworkRBACPolicy.NetworkShareType.SHARED,
         }
@@ -97,7 +100,7 @@ class DeleteRbacPolicyTest(test.APITransactionTestCase):
         self.network = self.fixture.network
         self.rbac_policy = factories.NetworkRBACPolicyFactory(network=self.network)
         self.target_tenant = self.rbac_policy.target_tenant
-        self.url = f"/api/openstack-networks/{self.network.uuid}/rbac_policy_delete/{self.rbac_policy.uuid}/"
+        self.url = f"/api/openstack-network-rbac-policies/{self.rbac_policy.uuid}/"
 
     def tearDown(self):
         self.neutron_client_patcher.stop()

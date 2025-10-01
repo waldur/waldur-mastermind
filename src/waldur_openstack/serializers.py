@@ -1319,7 +1319,7 @@ class NetworkRBACPolicySerializer(
     network = serializers.HyperlinkedRelatedField(
         view_name="openstack-network-detail",
         lookup_field="uuid",
-        read_only=True,
+        queryset=models.Network.objects.filter(state=CoreStates.OK).all(),
     )
 
     target_tenant = serializers.HyperlinkedRelatedField(
