@@ -475,6 +475,7 @@ class ResourceFilter(
 
     offering_type = django_filters.CharFilter(field_name="offering__type")
     offering_billable = django_filters.BooleanFilter(field_name="offering__billable")
+    plan_uuid = django_filters.UUIDFilter(field_name="plan__uuid")
     project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
     project_name = django_filters.CharFilter(field_name="project__name")
     customer_uuid = django_filters.UUIDFilter(field_name="project__customer__uuid")
