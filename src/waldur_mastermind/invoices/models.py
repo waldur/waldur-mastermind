@@ -8,6 +8,7 @@ from dateutil.parser import parse as parse_datetime
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import Index
 from django.db.models.aggregates import Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -53,6 +54,11 @@ class Invoice(
 
     class Meta:
         unique_together = ("customer", "month", "year")
+        indexes = [
+            Index(
+                fields=["year", "month", "customer"], name="inv_invoice_year_month_idx"
+            ),
+        ]
 
     class States:
         PENDING = "pending"
@@ -454,6 +460,11 @@ class InvoiceItem(
                 int(period["total"]) for period in resource_limit_periods
             )
             self.save(update_fields=["details", "quantity"])
+
+    class Meta:
+        indexes = [
+            Index(fields=["resource", "invoice"], name="inv_item_resource_invoice_idx"),
+        ]
 
     def __str__(self):
         return self.name or "<InvoiceItem %s>" % self.pk
