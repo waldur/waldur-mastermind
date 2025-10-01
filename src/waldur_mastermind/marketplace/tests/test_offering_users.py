@@ -1673,7 +1673,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)  # Two offerings
+        self.assertEqual(len(response.data), 1)  # Only offering with checklist
 
         # Check data for offering with checklist
         offering_with_checklist_data = next(
@@ -1692,8 +1692,9 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         )  # No answers yet
         self.assertEqual(offering_with_checklist_data["pending_users"], 2)
         self.assertEqual(offering_with_checklist_data["compliance_rate"], 0.0)
+        self.assertIsNotNone(offering_with_checklist_data["checklist_name"])
 
-        # Check data for offering without checklist
+        # Verify offering without checklist is not included
         offering_without_checklist_data = next(
             (
                 item
@@ -1702,11 +1703,53 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
             ),
             None,
         )
-        self.assertIsNotNone(offering_without_checklist_data)
-        self.assertEqual(offering_without_checklist_data["total_users"], 1)
-        self.assertEqual(offering_without_checklist_data["users_with_completions"], 0)
-        self.assertEqual(offering_without_checklist_data["compliance_rate"], 0.0)
-        self.assertIsNone(offering_without_checklist_data["checklist_name"])
+        self.assertIsNone(offering_without_checklist_data)
+
+    def test_compliance_overview_filters_offerings_without_checklist(self):
+        """Test that compliance overview only shows offerings with compliance checklist."""
+        # Create additional offerings
+        offering_with_checklist_2 = OfferingFactory(
+            customer=self.fixture.customer,
+            compliance_checklist=self.checklist,
+            plugin_options={"service_provider_can_create_offering_user": True},
+        )
+        offering_without_checklist_2 = OfferingFactory(
+            customer=self.fixture.customer,
+            compliance_checklist=None,
+            plugin_options={"service_provider_can_create_offering_user": True},
+        )
+
+        # Create users for the new offerings
+        OfferingUserFactory(
+            offering=offering_with_checklist_2, user=UserFactory(), username="user_new1"
+        )
+        OfferingUserFactory(
+            offering=offering_without_checklist_2,
+            user=UserFactory(),
+            username="user_new2",
+        )
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "compliance-overview"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return offerings with compliance checklist
+        self.assertEqual(len(response.data), 2)  # Only 2 offerings with checklist
+
+        # Verify all returned offerings have checklist_name
+        for offering_data in response.data:
+            self.assertIsNotNone(offering_data["checklist_name"])
+            self.assertIn(offering_data["checklist_name"], [self.checklist.name])
+
+        # Verify specific offerings are included/excluded
+        offering_uuids = {item["offering_uuid"] for item in response.data}
+        self.assertIn(str(self.offering_with_checklist.uuid), offering_uuids)
+        self.assertIn(str(offering_with_checklist_2.uuid), offering_uuids)
+        self.assertNotIn(str(self.offering_without_checklist.uuid), offering_uuids)
+        self.assertNotIn(str(offering_without_checklist_2.uuid), offering_uuids)
 
     def test_compliance_overview_unauthorized_user(self):
         """Test that unauthorized users cannot access compliance overview."""
@@ -1872,9 +1915,11 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Check that response has pagination headers
         self.assertIn("X-Result-Count", response)
-        self.assertEqual(response["X-Result-Count"], "2")  # Total count of offerings
+        self.assertEqual(
+            response["X-Result-Count"], "1"
+        )  # Only offering with checklist
         # Default pagination returns all items when count is less than default page size
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data), 1)
 
     def test_compliance_overview_pagination_with_page_size_param(self):
         """Test that compliance overview endpoint supports custom page size."""
@@ -1888,16 +1933,26 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("X-Result-Count", response)
-        self.assertEqual(response["X-Result-Count"], "2")  # Total count
-        self.assertEqual(len(response.data), 1)  # Only 1 item per page
+        self.assertEqual(
+            response["X-Result-Count"], "1"
+        )  # Only offering with checklist
+        self.assertEqual(len(response.data), 1)  # Only 1 item total
 
-        # Check that Link header contains navigation links
-        self.assertIn("Link", response)
-        link_header = response["Link"]
-        self.assertIn("next", link_header)
+        # With only 1 item total, no pagination links needed
+        # Link header may not be present or may not have "next"
 
     def test_compliance_overview_pagination_second_page(self):
         """Test accessing second page of compliance overview."""
+        # Create additional offering with checklist to test pagination
+        additional_offering = OfferingFactory(
+            customer=self.fixture.customer,
+            compliance_checklist=self.checklist,
+            plugin_options={"service_provider_can_create_offering_user": True},
+        )
+        OfferingUserFactory(
+            offering=additional_offering, user=UserFactory(), username="user_page2"
+        )
+
         self.client.force_authenticate(user=self.fixture.owner)
         url = ServiceProviderFactory.get_compliance_url(
             self.service_provider, "compliance-overview"
@@ -1908,7 +1963,9 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("X-Result-Count", response)
-        self.assertEqual(response["X-Result-Count"], "2")  # Total count
+        self.assertEqual(
+            response["X-Result-Count"], "2"
+        )  # Total count (2 offerings with checklist)
         self.assertEqual(len(response.data), 1)  # Second item
 
         # Check that Link header contains navigation links
@@ -1927,12 +1984,12 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         response = self.client.get(url, {"page_size": 500})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Even with large page_size, we only get the available items
-        self.assertEqual(len(response.data), 2)
+        # Even with large page_size, we only get the available items (1 offering with checklist)
+        self.assertEqual(len(response.data), 1)
 
     def test_compliance_overview_database_level_pagination_performance(self):
         """Test that pagination is applied at database level for performance."""
-        # Create multiple offerings to test pagination performance
+        # Create multiple offerings with checklists to test pagination performance
         offerings = []
         for i in range(10):
             offering = factories.OfferingFactory(
@@ -1940,6 +1997,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
                 shared=True,
                 state=models.OfferingStates.ACTIVE,
                 name=f"Test Offering {i}",
+                compliance_checklist=self.checklist,  # Add checklist so offerings are included
             )
             offerings.append(offering)
 
@@ -2225,20 +2283,20 @@ class ServiceProviderCompliancePerformanceTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Should have 8 offerings total (5 with checklist + 3 without)
-        self.assertEqual(len(response.data), 8)
+        # Should only have 5 offerings (only those with checklist)
+        self.assertEqual(len(response.data), 5)
 
-        # Verify data structure for offerings with checklist
+        # Verify all returned offerings have checklist
         offerings_with_checklist_data = [
             item for item in response.data if item["checklist_name"] is not None
         ]
         self.assertEqual(len(offerings_with_checklist_data), 5)
 
-        # Verify data structure for offerings without checklist
+        # Verify no offerings without checklist are included
         offerings_without_checklist_data = [
             item for item in response.data if item["checklist_name"] is None
         ]
-        self.assertEqual(len(offerings_without_checklist_data), 3)
+        self.assertEqual(len(offerings_without_checklist_data), 0)
 
         # Check that the first offering (with completions) has correct data
         first_offering_data = next(

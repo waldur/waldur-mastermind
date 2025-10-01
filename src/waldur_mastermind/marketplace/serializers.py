@@ -658,6 +658,16 @@ class ServiceProviderComplianceOverviewSerializer(serializers.Serializer):
     compliance_rate = serializers.FloatField(read_only=True)
 
 
+class ServiceProviderChecklistSummarySerializer(serializers.Serializer):
+    """Serializer for service provider checklist summary data."""
+
+    checklist_uuid = serializers.UUIDField(read_only=True)
+    checklist_name = serializers.CharField(read_only=True)
+    questions_count = serializers.IntegerField(read_only=True)
+    offerings_count = serializers.IntegerField(read_only=True)
+    category_name = serializers.CharField(read_only=True, allow_null=True)
+
+
 class ServiceProviderOfferingUserComplianceSerializer(serializers.ModelSerializer):
     """Serializer for offering users with compliance status for service providers."""
 

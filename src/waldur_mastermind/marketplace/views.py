@@ -971,6 +971,17 @@ class ServiceProviderUserCustomersViewSet(
         ],
         methods=["GET"],
     ),
+    checklists_summary=extend_schema(
+        operation_id="service_provider_checklists_summary",
+        description="Get summary of all compliance checklists used by this service provider with usage counts.",
+        responses={
+            status.HTTP_200_OK: serializers.ServiceProviderChecklistSummarySerializer(
+                many=True
+            )
+        },
+        parameters=[SERVICE_PROVIDER_UUID],
+        methods=["GET"],
+    ),
 )
 class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
     """
@@ -1008,7 +1019,10 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
 
         # Build base queryset with optimized prefetching
         base_queryset = (
-            models.Offering.objects.filter(customer=service_provider.customer)
+            models.Offering.objects.filter(
+                customer=service_provider.customer,
+                compliance_checklist__isnull=False,  # Only include offerings with checklist
+            )
             .select_related("compliance_checklist")  # Avoid N+1 for checklist names
             .prefetch_related(
                 # Prefetch offering users
@@ -1070,23 +1084,7 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
         # Build response data from paginated offerings only
         overview_data = []
         for offering in paginated_offerings:
-            # Handle offerings without checklist
-            if not offering.compliance_checklist:
-                overview_data.append(
-                    {
-                        "offering_uuid": offering.uuid,
-                        "offering_name": offering.name,
-                        "checklist_name": None,
-                        "total_users": offering.total_users,
-                        "users_with_completions": 0,
-                        "completed_users": 0,
-                        "pending_users": 0,
-                        "compliance_rate": 0.0 if offering.total_users > 0 else None,
-                    }
-                )
-                continue
-
-            # Handle offerings with checklist
+            # All offerings now have checklists due to filtering
             completion_data = all_completion_data.get(
                 offering.id, {"users_with_completions": set(), "completed_users": set()}
             )
@@ -1173,6 +1171,68 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
 
         serializer = serializers.ServiceProviderOfferingUserComplianceSerializer(
             queryset, many=True, context={"request": request}
+        )
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["get"])
+    def checklists_summary(self, request, service_provider_uuid=None):
+        """Get summary of all checklists used by this service provider's offerings."""
+        service_provider = self.get_service_provider()
+
+        # Create a more efficient query that gets unique checklists with all needed data
+        checklists_queryset = (
+            checklist_models.Checklist.objects.filter(
+                offerings__customer=service_provider.customer,
+                offerings__compliance_checklist__isnull=False,
+            )
+            .select_related("category")
+            .prefetch_related("questions")
+            .annotate(
+                offerings_count=Count("offerings", distinct=True),
+                questions_count=Count("questions", distinct=True),
+            )
+            .distinct()
+            .order_by("-offerings_count", "name")
+        )
+
+        # Apply pagination to the QuerySet
+        page = self.paginate_queryset(checklists_queryset)
+        if page is not None:
+            # Transform paginated checklists to expected format
+            summary_data = [
+                {
+                    "checklist_uuid": checklist.uuid,
+                    "checklist_name": checklist.name,
+                    "questions_count": checklist.questions_count,
+                    "offerings_count": checklist.offerings_count,
+                    "category_name": checklist.category.name
+                    if checklist.category
+                    else None,
+                }
+                for checklist in page
+            ]
+
+            serializer = serializers.ServiceProviderChecklistSummarySerializer(
+                summary_data, many=True
+            )
+            return self.get_paginated_response(serializer.data)
+
+        # Fallback for no pagination (shouldn't happen with DRF pagination enabled)
+        summary_data = [
+            {
+                "checklist_uuid": checklist.uuid,
+                "checklist_name": checklist.name,
+                "questions_count": checklist.questions_count,
+                "offerings_count": checklist.offerings_count,
+                "category_name": checklist.category.name
+                if checklist.category
+                else None,
+            }
+            for checklist in checklists_queryset
+        ]
+
+        serializer = serializers.ServiceProviderChecklistSummarySerializer(
+            summary_data, many=True
         )
         return Response(serializer.data)
 
