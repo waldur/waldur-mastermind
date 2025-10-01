@@ -1129,6 +1129,9 @@ class NetworkViewSet(structure_views.ResourceViewSet):
     set_mtu_validators = [core_validators.StateValidator(CoreStates.OK)]
     set_mtu_serializer_class = serializers.SetMtuSerializer
 
+    # RBAC policy create/delete moved to standalone ViewSet: NetworkRBACPolicyViewSet
+    # TODO: remove after 1.11.2025
+
     def _check_rbac_policy_permissions(self, user, network, target_tenant):
         if user.is_staff:
             return
@@ -2001,12 +2004,85 @@ class VolumeAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
     filterset_class = filters.VolumeAvailabilityZoneFilter
 
 
-class NetworkRBACPolicyViewSet(core_views.ReadOnlyActionsViewSet):
+class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
+    lookup_field = "uuid"
     queryset = models.NetworkRBACPolicy.objects.all().order_by("-created")
     serializer_class = serializers.NetworkRBACPolicySerializer
-    lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.NetworkRBACPolicyFilter
 
     def get_queryset(self):
         return filter_queryset_for_user(self.queryset, self.request.user)
+
+    def _check_rbac_policy_permissions(self, user, network, target_tenant):
+        if user.is_staff:
+            return
+
+        if (
+            network.project.has_user(user, ProjectRole.ADMIN)
+            or network.project.has_user(user, ProjectRole.MANAGER)
+            or network.project.customer.has_user(user, CustomerRole.OWNER)
+        ) and (
+            target_tenant.project.has_user(user, ProjectRole.ADMIN)
+            or target_tenant.project.has_user(user, ProjectRole.MANAGER)
+            or target_tenant.project.customer.has_user(user, CustomerRole.OWNER)
+        ):
+            return
+
+        raise exceptions.PermissionDenied()
+
+    @extend_schema(
+        description="Create RBAC policy for the network",
+        request=serializers.NetworkRBACPolicySerializer,
+        responses=serializers.NetworkRBACPolicySerializer,
+    )
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        network = serializer.validated_data["network"]
+        target_tenant = serializer.validated_data["target_tenant"]
+        policy_type = serializer.validated_data["policy_type"]
+
+        self._check_rbac_policy_permissions(request.user, network, target_tenant)
+
+        backend = network.tenant.get_backend()
+
+        backend_id = backend.create_network_rbac_policy(
+            network,
+            target_tenant=target_tenant,
+            policy_type=policy_type,
+        )
+
+        logger.info("RBAC policy created in backend with ID: %s", backend_id)
+
+        policy = models.NetworkRBACPolicy.objects.create(
+            network=network,
+            target_tenant=target_tenant,
+            backend_id=backend_id,
+            policy_type=policy_type,
+        )
+
+        logger.info("RBAC policy record created in database with UUID: %s", policy.uuid)
+
+        result_serializer = self.get_serializer(policy, context={"request": request})
+        return response.Response(result_serializer.data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        description="Delete RBAC policy for the network",
+        request=None,
+        responses={204: None},
+    )
+    def destroy(self, request, *args, **kwargs):
+        policy: models.NetworkRBACPolicy = self.get_object()
+
+        self._check_rbac_policy_permissions(
+            request.user, policy.network, policy.target_tenant
+        )
+
+        backend = policy.network.tenant.get_backend()
+        backend.delete_network_rbac_policy(rbac_id=policy.backend_id)
+        policy.delete()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
