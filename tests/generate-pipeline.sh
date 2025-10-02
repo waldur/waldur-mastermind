@@ -33,7 +33,11 @@ set -e
 # This prevents the overhead of splitting a tiny number of tests across many runners.
 # For example, it's faster for one runner to execute 40 tests than for 10 runners
 # to start up, coordinate, and each run 4 tests.
-TEST_SPLITTING_THRESHOLD=100
+TEST_SPLITTING_THRESHOLD=300
+
+# The absolute maximum number of parallel jobs to create. This acts as a ceiling
+# to prevent creating an excessive number of jobs even for a very large test suite.
+MAX_PARALLEL_JOBS=10
 
 # The filename for the generated child pipeline configuration. This artifact is
 # used by the `trigger` keyword in the main CI configuration.
@@ -93,9 +97,9 @@ fi
 # the test count is high and can skip the discovery step to save time.
 if [ "${SELECTED_PATHS}" = "src" ]; then
   echo "[+] Full test suite ('src') was selected. Skipping test count discovery."
-  echo "[+] Forcing parallelization for full run."
+  echo "[+] Forcing parallelization with the maximum job count (${MAX_PARALLEL_JOBS})."
   ENABLE_SPLITTING_VAR="true"
-  PARALLEL_BLOCK="parallel: 10"
+  PARALLEL_BLOCK="parallel: ${MAX_PARALLEL_JOBS}"
 else
   # --- STEP 3: DISCOVER TEST COUNT FOR PARTIAL RUNS ---
   # If it's not a full run, we need to determine the exact workload.
@@ -115,8 +119,22 @@ else
   if [ "${TEST_COUNT}" -ge "${TEST_SPLITTING_THRESHOLD}" ]; then
     echo "[+] Test count (${TEST_COUNT}) is >= threshold (${TEST_SPLITTING_THRESHOLD}). Enabling parallelization."
     ENABLE_SPLITTING_VAR="true"
-    # This variable will contain the `parallel: 10` YAML keyword.
-    PARALLEL_BLOCK="parallel: 10"
+
+    # Calculate the desired number of parallel jobs. The goal is to have roughly
+    # TEST_SPLITTING_THRESHOLD tests per job. We use ceiling division to ensure
+    # we have enough jobs for all tests.
+    # Formula for shell integer ceiling division: (numerator + denominator - 1) / denominator
+    PARALLEL_COUNT=$(( (TEST_COUNT + TEST_SPLITTING_THRESHOLD - 1) / TEST_SPLITTING_THRESHOLD ))
+
+    # Cap the parallel count at the configured maximum.
+    if [ "${PARALLEL_COUNT}" -gt "${MAX_PARALLEL_JOBS}" ]; then
+      echo "[+] Calculated parallel count (${PARALLEL_COUNT}) exceeds maximum (${MAX_PARALLEL_JOBS}). Capping at ${MAX_PARALLEL_JOBS}."
+      PARALLEL_COUNT=${MAX_PARALLEL_JOBS}
+    fi
+    echo "[+] Setting parallel job count to ${PARALLEL_COUNT}."
+
+    # This variable will contain the `parallel: N` YAML keyword.
+    PARALLEL_BLOCK="parallel: ${PARALLEL_COUNT}"
   else
     echo "[+] Test count (${TEST_COUNT}) is < threshold (${TEST_SPLITTING_THRESHOLD}). Disabling parallelization."
     ENABLE_SPLITTING_VAR="false"
