@@ -131,6 +131,6 @@ def publish_stomp_messages(messages_to_send: list[dict[str, str]]) -> None:
                 "Failed to publish message to RabbitMQ STOMP queue: %s",
                 e,
             )
-
-    if connection and connection.is_connected():
-        connection.disconnect()
+        finally:
+            if connection and connection.is_connected():
+                connection.disconnect()
