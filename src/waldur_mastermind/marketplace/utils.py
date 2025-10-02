@@ -13,6 +13,7 @@ import uuid
 from collections import defaultdict
 from decimal import Decimal
 from enum import Enum
+from functools import lru_cache
 from io import BytesIO
 from typing import cast
 
@@ -27,6 +28,7 @@ from django.db import transaction
 from django.db.models import F, Q, Sum
 from django.db.models.fields import FloatField
 from django.db.models.functions.math import Ceil
+from django.urls import get_resolver
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from PIL import Image
@@ -2536,3 +2538,68 @@ def close_course_account(
         course_account.error_traceback = traceback.format_exc()
         course_account.save(update_fields=["error_message", "error_traceback"])
         raise
+
+
+def get_viewset_from_basename(basename):
+    """
+    Resolve a router basename to its viewset class
+    """
+    resolver = get_resolver()
+
+    # DRF router creates URLs with basename + action suffix
+    # We'll look for the list action
+    url_name = f"{basename}-list"
+
+    # Get the URL pattern
+    for pattern in resolver.url_patterns:
+        if hasattr(pattern, "name") and pattern.name == url_name:
+            return pattern.callback.cls
+
+    # If not found directly, search in included patterns
+    for pattern in resolver.url_patterns:
+        if hasattr(pattern, "url_patterns"):
+            for sub_pattern in pattern.url_patterns:
+                if hasattr(sub_pattern, "name") and sub_pattern.name == url_name:
+                    return sub_pattern.callback.cls
+
+    return None
+
+
+@lru_cache(maxsize=1)
+def get_model_serializer(model: type):
+    """
+    Retrieve the serializer class associated with a model's viewset.
+
+    This function resolves a model's URL basename to its corresponding DRF viewset
+    and returns the serializer class used by that viewset.
+
+    Args:
+        model (Type): A model class that implements `get_url_name()` method,
+                     which returns the DRF router basename for the model.
+
+    Returns:
+        Type[serializers.Serializer] | None: The serializer class associated with
+                                             the model's viewset, or None if:
+                                             - The model doesn't have get_url_name()
+                                             - No viewset is registered for the basename
+                                             - The viewset doesn't have serializer_class
+
+    Example:
+        >>> from waldur_openstack.models import Instance
+        >>> serializer = get_model_serializer(Instance)
+        >>> print(serializer)
+        <class 'waldur_openstack.serializers.OpenStackInstanceSerializer'>
+
+    Note:
+        This function only retrieves the static `serializer_class` attribute.
+        If the viewset uses dynamic serializer selection via `get_serializer_class()`,
+        this function will return the default serializer class or None.
+    """
+
+    try:
+        base_url = model.get_url_name()
+        view = get_viewset_from_basename(base_url)
+        return getattr(view, "serializer_class", None)
+    except (AttributeError, KeyError, TypeError):
+        logger.debug("Unable to resolve model serializer %s", model)
+        return None

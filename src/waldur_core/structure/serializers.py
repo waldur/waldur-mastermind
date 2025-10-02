@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from functools import lru_cache
 
 from constance import config
 from django.conf import settings
@@ -49,19 +48,6 @@ def get_options_serializer_class(service_type):
         for cls in ServiceOptionsSerializer.get_subclasses()
         if get_service_type(cls) == service_type
     )
-
-
-@lru_cache
-def get_resource_serializer_class(resource_type):
-    try:
-        return next(
-            cls
-            for cls in BaseResourceSerializer.get_subclasses()
-            if get_resource_type(cls.Meta.model) == resource_type
-            and get_service_type(cls) is not None
-        )
-    except StopIteration:
-        return None
 
 
 class PermissionFieldFilteringMixin:

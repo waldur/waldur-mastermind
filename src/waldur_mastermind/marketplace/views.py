@@ -103,10 +103,7 @@ from waldur_core.structure.managers import (
     get_project_users,
     get_visible_users,
 )
-from waldur_core.structure.registry import SupportedServices, get_resource_type
-from waldur_core.structure.serializers import (
-    get_resource_serializer_class,
-)
+from waldur_core.structure.registry import SupportedServices
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
@@ -130,6 +127,7 @@ from waldur_mastermind.marketplace.managers import (
     filter_offering_permissions,
 )
 from waldur_mastermind.marketplace.utils import (
+    get_model_serializer,
     validate_attributes,
 )
 from waldur_mastermind.promotions import models as promotions_models
@@ -3718,8 +3716,8 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
                 instance=resource.scope, context=self.get_serializer_context()
             )
             return Response(serializer.data, status=status.HTTP_200_OK)
-        resource_type = get_resource_type(resource.scope)
-        serializer_class = get_resource_serializer_class(resource_type)
+
+        serializer_class = get_model_serializer(resource.scope)
         if not serializer_class:
             return Response(status=status.HTTP_204_NO_CONTENT)
         serializer = serializer_class(
