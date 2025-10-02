@@ -1383,6 +1383,14 @@ class NetworkRBACPolicySerializer(
         return attrs
 
 
+class DeprecatedNetworkRBACPolicySerializer(NetworkRBACPolicySerializer):
+    network = serializers.HyperlinkedRelatedField(
+        view_name="openstack-network-detail",
+        lookup_field="uuid",
+        read_only=True,
+    )
+
+
 class OpenStackNetworkSerializer(
     structure_serializers.FieldFilteringMixin,
     structure_serializers.BaseResourceActionSerializer,
