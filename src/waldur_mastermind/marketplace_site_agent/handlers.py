@@ -50,10 +50,10 @@ def send_pending_order_to_message_queue(
     if offering.type != SITE_AGENT_OFFERING:
         return
 
-    if (
-        not order.tracker.has_changed("state")
-        or order.state != OrderStates.PENDING_PROVIDER
-    ):
+    if not order.tracker.has_changed("state") or order.state not in [
+        OrderStates.PENDING_PROVIDER,
+        OrderStates.PENDING_CONSUMER,
+    ]:
         return
 
     payload = {"order_uuid": order.uuid.hex, "order_state": order.get_state_display()}
