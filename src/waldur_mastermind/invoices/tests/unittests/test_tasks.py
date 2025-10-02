@@ -98,3 +98,70 @@ class NotificationTest(TestCase):
         tasks.send_invoice_notification(self.invoice.uuid)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(len(mail.outbox[0].attachments), 1)
+
+
+@override_settings(TIME_ZONE="Europe/Tallinn")
+class TimezoneConsistencyTest(TestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.customer = self.fixture.customer
+
+    def test_create_monthly_invoices_uses_local_timezone_for_filtering(self):
+        """Test that invoice filtering uses local timezone consistently."""
+        invoice = factories.InvoiceFactory(
+            year=2023, month=8, state=models.Invoice.States.PENDING
+        )
+
+        with freeze_time("2023-09-01 06:00:00"):
+            tasks.create_monthly_invoices()
+            invoice.refresh_from_db()
+            self.assertEqual(invoice.state, models.Invoice.States.CREATED)
+
+    def test_timezone_edge_case_at_month_boundary(self):
+        """Test the specific timezone bug: UTC+3 task vs UTC filtering."""
+        august_invoice = factories.InvoiceFactory(
+            year=2023, month=8, state=models.Invoice.States.PENDING
+        )
+        # UTC time 22:00:00 is 01:00:00 local time for europe/tallinn timezone
+        with freeze_time("2023-08-31 22:00:00"):
+            tasks.create_monthly_invoices()
+
+            august_invoice.refresh_from_db()
+            self.assertEqual(august_invoice.state, models.Invoice.States.CREATED)
+
+    def test_cross_year_invoice_processing(self):
+        """Test processing invoices from previous year."""
+        december_invoice = factories.InvoiceFactory(
+            year=2022, month=12, state=models.Invoice.States.PENDING
+        )
+
+        # UTC time 22:00:00 is 01:00:00 local time for europe/tallinn timezone
+        with freeze_time("2022-12-31 22:00:00"):
+            tasks.create_monthly_invoices()
+
+            december_invoice.refresh_from_db()
+            self.assertEqual(december_invoice.state, models.Invoice.States.CREATED)
+
+    def test_multiple_old_invoices_processed(self):
+        """Test that multiple old invoices are processed correctly."""
+        july_invoice = factories.InvoiceFactory(
+            year=2023, month=7, state=models.Invoice.States.PENDING
+        )
+        august_invoice = factories.InvoiceFactory(
+            year=2023, month=8, state=models.Invoice.States.PENDING
+        )
+
+        with freeze_time("2023-09-01 06:00:00"):
+            tasks.create_monthly_invoices()
+
+            july_invoice.refresh_from_db()
+            august_invoice.refresh_from_db()
+            self.assertEqual(july_invoice.state, models.Invoice.States.CREATED)
+            self.assertEqual(august_invoice.state, models.Invoice.States.CREATED)
+            # Check that september invoices were created for customers
+            september_invoices = models.Invoice.objects.filter(
+                year=2023, month=9, state=models.Invoice.States.PENDING
+            )
+            self.assertTrue(
+                september_invoices.exists(), "September invoices should be created"
+            )

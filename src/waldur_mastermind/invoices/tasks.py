@@ -32,11 +32,14 @@ def create_monthly_invoices():
     """
     copy_future_price_to_current_price()
 
-    date = timezone.now()
-
+    local_date = timezone.localtime(timezone.now())
     old_invoices = models.Invoice.objects.filter(
-        Q(state=models.Invoice.States.PENDING, year__lt=date.year)
-        | Q(state=models.Invoice.States.PENDING, year=date.year, month__lt=date.month)
+        Q(state=models.Invoice.States.PENDING, year__lt=local_date.year)
+        | Q(
+            state=models.Invoice.States.PENDING,
+            year=local_date.year,
+            month__lt=local_date.month,
+        )
     )
     set_to_zero_overdue_credits()
     for invoice in old_invoices:
@@ -55,7 +58,7 @@ def create_monthly_invoices():
     for customer in customers.iterator():
         try:
             registrators.RegistrationManager.get_or_create_invoice(
-                customer, core_utils.month_start(date)
+                customer, core_utils.month_start(local_date)
             )
         except Exception:
             # Continue processing even if some customers could not be processed
