@@ -131,7 +131,7 @@ class SmaxBackend:
                     id=e["properties"]["Id"],
                     summary=e["properties"]["DisplayLabel"],
                     description=e["properties"]["Description"],
-                    status=e["properties"]["PhaseId"],
+                    status=e["properties"]["Status"],
                     attachments=self._smax_entities_to_attachments(
                         json.loads(e["properties"].get("RequestAttachments", "{}")).get(
                             "complexTypeProperties", []
