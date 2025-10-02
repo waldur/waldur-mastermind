@@ -1151,8 +1151,8 @@ class NetworkViewSet(structure_views.ResourceViewSet):
 
     @extend_schema(
         description="Create RBAC policy for the network",
-        request=serializers.NetworkRBACPolicySerializer,
-        responses=serializers.NetworkRBACPolicySerializer,
+        request=serializers.DeprecatedNetworkRBACPolicySerializer,
+        responses=serializers.DeprecatedNetworkRBACPolicySerializer,
     )
     @decorators.action(detail=True, methods=["post"])
     def rbac_policy_create(self, request, uuid=None):
@@ -1190,7 +1190,9 @@ class NetworkViewSet(structure_views.ResourceViewSet):
         return response.Response(result_serializer.data, status=status.HTTP_201_CREATED)
 
     rbac_policy_create_validators = [core_validators.StateValidator(CoreStates.OK)]
-    rbac_policy_create_serializer_class = serializers.NetworkRBACPolicySerializer
+    rbac_policy_create_serializer_class = (
+        serializers.DeprecatedNetworkRBACPolicySerializer
+    )
 
     @extend_schema(
         description="Delete RBAC policy for the network",
