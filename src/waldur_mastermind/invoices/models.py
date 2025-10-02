@@ -481,7 +481,7 @@ class PaymentType(models.CharField):
     CHOICES = (
         (FIXED_PRICE, "Fixed-price contract"),
         (MONTHLY_INVOICES, "Monthly invoices"),
-        (PAYMENT_GW_MONTHLY, " Payment gateways (monthly)"),
+        (PAYMENT_GW_MONTHLY, "Payment gateways (monthly)"),
     )
 
     def __init__(self, *args, **kwargs):

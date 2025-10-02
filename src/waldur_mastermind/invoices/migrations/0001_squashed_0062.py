@@ -151,7 +151,7 @@ class Migration(migrations.Migration):
                         choices=[
                             ("fixed_price", "Fixed-price contract"),
                             ("invoices", "Monthly invoices"),
-                            ("payment_gw_monthly", " Payment gateways (monthly)"),
+                            ("payment_gw_monthly", "Payment gateways (monthly)"),
                         ],
                         max_length=30,
                     ),
