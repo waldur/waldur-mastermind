@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("invoices", "0017_safe_invoice_task_execution"),
+        ("invoices", "0018_add_model_indexes"),
     ]
 
     operations = [
