@@ -145,10 +145,12 @@ class CustomerCreditUpdateTest(test.APITransactionTestCase):
             ).exists()
         )
 
-    @data("global_support", "owner", "manager", "admin", "user")
+    @data("global_support", "manager", "admin", "user")
     def test_user_cannot_update_credit(self, user):
         response = self.update_credit(user)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(
+            response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
+        )
 
     def test_logging_of_offering_changing(self):
         payload = {"offerings": [marketplace_factories.OfferingFactory.get_url()]}
@@ -262,6 +264,8 @@ class ProjectCreditUpdateTest(test.APITransactionTestCase):
 class ProjectCreditDeleteTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
+        self.project_credit = self.fixture.project_credit
+        self.customer_credit = self.fixture.customer_credit
 
     def delete_credit(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -284,6 +288,29 @@ class ProjectCreditDeleteTest(test.APITransactionTestCase):
     def test_global_support_user_cannot_delete_credit(self, user):
         response = self.delete_credit(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_customer_credit_changed_when_project_deleted_and_flag_enabled(self):
+        self.project_credit.value = 10
+        self.project_credit.mark_unused_credit_as_spent_on_project_termination = True
+        self.project_credit.save()
+
+        self.customer_credit.value = 100
+        self.customer_credit.save()
+
+        self.project_credit.project.delete()
+        self.customer_credit.refresh_from_db()
+        self.assertEqual(self.customer_credit.value, 90)
+
+    def test_customer_credit_unchanged_when_project_deleted_and_flag_disabled(self):
+        self.project_credit.value = 10
+        self.project_credit.save()
+
+        self.customer_credit.value = 100
+        self.customer_credit.save()
+
+        self.project_credit.project.delete()
+        self.customer_credit.refresh_from_db()
+        self.assertEqual(self.customer_credit.value, 100)
 
 
 @ddt

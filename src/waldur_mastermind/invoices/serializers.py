@@ -1116,6 +1116,7 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
             "minimal_consumption_logic",
             "grace_coefficient",
             "apply_as_minimal_consumption",
+            "mark_unused_credit_as_spent_on_project_termination",
         )
 
         extra_kwargs = {
