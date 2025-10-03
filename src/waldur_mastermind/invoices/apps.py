@@ -83,3 +83,9 @@ class InvoiceConfig(AppConfig):
             sender=models.InvoiceItem,
             dispatch_uid="waldur_mastermind.invoices.log_invoice_item_delete",
         )
+
+        signals.pre_delete.connect(
+            handlers.refund_project_credit_on_project_removal,
+            sender=structure_models.Project,
+            dispatch_uid="waldur_mastermind.invoices.refund_project_credit_on_project_removal",
+        )

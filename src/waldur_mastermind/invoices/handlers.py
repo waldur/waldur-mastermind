@@ -305,3 +305,55 @@ def log_invoice_item_delete(sender, instance: models.InvoiceItem, **kwargs):
         },
         scopes=[instance.invoice, instance.invoice.customer],
     )
+
+
+def refund_project_credit_on_project_removal(sender, instance: Project, **kwargs):
+    project = instance
+
+    project_credit = models.ProjectCredit.objects.filter(project=project).first()
+
+    if not project_credit:
+        return
+
+    customer_credit = models.CustomerCredit.objects.filter(
+        customer=project.customer
+    ).first()
+
+    if not customer_credit:
+        return
+
+    if project_credit.value <= 0:
+        return
+
+    if project_credit.mark_unused_credit_as_spent_on_project_termination:
+        old_org_value = int(customer_credit.value or 0)
+        if customer_credit.value > project_credit.value:
+            customer_credit.value -= project_credit.value
+        else:
+            customer_credit.value = 0
+        customer_credit.save(update_fields=["value"])
+        event_logger.emit(
+            "Organization credit has been decreased due to project removal.",
+            event_type=EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
+            event_context={
+                "new_value": int(customer_credit.value or 0),
+                "old_value": old_org_value,
+                "customer": customer_credit.customer,
+            },
+            scopes=[customer_credit.customer],
+        )
+
+    if project_credit.value != 0:
+        old_value = int(project_credit.value)
+        project_credit.value = 0
+        project_credit.save(update_fields=["value"])
+        event_logger.emit(
+            "Project credit has been set to 0 on project removal.",
+            event_type=EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
+            event_context={
+                "new_value": 0,
+                "old_value": old_value,
+                "customer": project.customer,
+            },
+            scopes=[project.customer],
+        )

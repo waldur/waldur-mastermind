@@ -675,6 +675,9 @@ class CustomerCredit(BaseCredit):
 
 class ProjectCredit(BaseCredit):
     project = models.OneToOneField(structure_models.Project, on_delete=models.CASCADE)
+    mark_unused_credit_as_spent_on_project_termination = models.BooleanField(
+        default=False
+    )
 
     @property
     def consumption_last_month(self) -> float:

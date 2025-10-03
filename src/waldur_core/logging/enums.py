@@ -291,6 +291,7 @@ class EventType(str, Enum):
     TOKEN_CREATED = "token_created"
     TOKEN_LIFETIME_UPDATED = "token_lifetime_updated"
     UPDATE_OF_CREDIT_BY_STAFF = "update_of_credit_by_staff"
+    AUTOMATIC_CREDIT_ADJUSTMENT = "automatic_credit_adjustment"
     USER_ACTIVATED = "user_activated"
     USER_CREATION_SUCCEEDED = "user_creation_succeeded"
     USER_DEACTIVATED = "user_deactivated"
@@ -344,6 +345,7 @@ EVENT_GROUP_MAPPING = {
     ],
     EventGroup.CREDITS: [
         EventType.ALLOWED_OFFERINGS_HAVE_BEEN_UPDATED,
+        EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
         EventType.CREATE_OF_CREDIT_BY_STAFF,
         EventType.REDUCTION_OF_CUSTOMER_CREDIT,
         EventType.REDUCTION_OF_CUSTOMER_CREDIT_DUE_TO_MINIMAL_CONSUMPTION,
@@ -358,6 +360,7 @@ EVENT_GROUP_MAPPING = {
     ],
     EventGroup.CUSTOMERS: [
         EventType.ALLOWED_OFFERINGS_HAVE_BEEN_UPDATED,
+        EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
         EventType.CREATE_OF_CREDIT_BY_STAFF,
         EventType.CUSTOMER_CREATION_SUCCEEDED,
         EventType.CUSTOMER_DELETION_SUCCEEDED,
@@ -379,6 +382,7 @@ EVENT_GROUP_MAPPING = {
     ],
     EventGroup.INVOICES: [
         EventType.ALLOWED_OFFERINGS_HAVE_BEEN_UPDATED,
+        EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
         EventType.CREATE_OF_CREDIT_BY_STAFF,
         EventType.INVOICE_CANCELED,
         EventType.INVOICE_CREATED,
