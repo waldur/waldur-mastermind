@@ -105,6 +105,7 @@ from waldur_core.structure.managers import (
 )
 from waldur_core.structure.registry import SupportedServices
 from waldur_core.structure.signals import resource_imported
+from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import callbacks
@@ -2845,6 +2846,77 @@ class ProviderOfferingViewSet(
 
     move_offering_serializer_class = serializers.MoveOfferingSerializer
     move_offering_permissions = [structure_permissions.is_staff]
+
+    @extend_schema(
+        description="Return comprehensive ToS consent statistics for this offering.",
+        responses={200: serializers.ToSConsentDashboardSerializer},
+        filters=False,
+    )
+    @action(detail=True, methods=["get"])
+    def tos_stats(self, request, uuid=None):
+        """Return comprehensive ToS consent statistics for this offering."""
+
+        offering = self.get_object()
+
+        active_users_count = offering.get_quota_usage("active_users_count")
+        total_users_count = offering.get_quota_usage("total_users_count")
+        accepted_consents_count = offering.get_quota_usage("accepted_consents_count")
+        revoked_consents_count = offering.get_quota_usage("revoked_consents_count")
+        total_consents_count = offering.get_quota_usage("total_consents_count")
+
+        active_users_percentage = 0.0
+        if total_users_count > 0:
+            active_users_percentage = round(
+                (active_users_count / total_users_count) * 100, 2
+            )
+
+        revoked_consents_over_time = list(
+            analytics_models.DailyQuotaHistory.objects.filter(
+                scope=offering, name="revoked_consents_today"
+            )
+            .values("date", "usage")
+            .order_by("date")
+        )
+
+        tos_version_adoption = list(
+            models.UserOfferingConsent.objects.filter(offering=offering)
+            .values("version")
+            .annotate(users_count=Count("user", distinct=True))
+            .order_by("-users_count")
+        )
+        active_users_over_time = list(
+            analytics_models.DailyQuotaHistory.objects.filter(
+                scope=offering, name="active_users_count"
+            )
+            .values("date", "usage")
+            .order_by("date")
+        )
+        dashboard_data = {
+            "active_users_count": active_users_count,
+            "total_users_count": total_users_count,
+            "active_users_percentage": active_users_percentage,
+            "accepted_consents_count": accepted_consents_count,
+            "revoked_consents_count": revoked_consents_count,
+            "total_consents_count": total_consents_count,
+            "revoked_consents_over_time": [
+                {"date": record["date"].isoformat(), "count": record["usage"]}
+                for record in revoked_consents_over_time
+            ],
+            "tos_version_adoption": [
+                {
+                    "version": stat["version"] or "Unknown",
+                    "users_count": stat["users_count"],
+                }
+                for stat in tos_version_adoption
+            ],
+            "active_users_over_time": [
+                {"date": record["date"].isoformat(), "count": record["usage"]}
+                for record in active_users_over_time
+            ],
+        }
+
+        serializer = serializers.ToSConsentDashboardSerializer(dashboard_data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):

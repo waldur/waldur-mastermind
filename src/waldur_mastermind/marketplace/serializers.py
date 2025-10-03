@@ -6808,3 +6808,36 @@ class CourseAccountsBulkCreateSerializer(serializers.Serializer):
             raise ValidationError(message)
 
         return attrs
+
+
+class VersionAdoptionSerializer(serializers.Serializer):
+    version = serializers.CharField(read_only=True)
+    users_count = serializers.IntegerField(read_only=True)
+
+
+class TimeSeriesToSDataSerializer(serializers.Serializer):
+    date = serializers.DateField(read_only=True)
+    count = serializers.IntegerField(read_only=True)
+
+
+class ToSConsentDashboardSerializer(serializers.Serializer):
+    """Serializer for Terms of Service consent dashboard statistics."""
+
+    active_users_count = serializers.IntegerField(read_only=True)
+    total_users_count = serializers.IntegerField(read_only=True)
+    active_users_percentage = serializers.FloatField(read_only=True)
+
+    accepted_consents_count = serializers.IntegerField(read_only=True)
+    revoked_consents_count = serializers.IntegerField(read_only=True)
+    total_consents_count = serializers.IntegerField(read_only=True)
+
+    revoked_consents_over_time = serializers.ListField(
+        child=TimeSeriesToSDataSerializer(), read_only=True
+    )
+
+    tos_version_adoption = serializers.ListField(
+        child=VersionAdoptionSerializer(), read_only=True
+    )
+    active_users_over_time = serializers.ListField(
+        child=TimeSeriesToSDataSerializer(), read_only=True
+    )
