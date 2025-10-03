@@ -645,6 +645,12 @@ class Offering(
             target_models=lambda: [Order],
             path_to_scope="offering",
         )
+        active_users_count = quotas_fields.QuotaField()
+        total_users_count = quotas_fields.QuotaField()
+        accepted_consents_count = quotas_fields.QuotaField()
+        revoked_consents_count = quotas_fields.QuotaField()
+        total_consents_count = quotas_fields.QuotaField()
+        revoked_consents_today = quotas_fields.QuotaField()
 
     @transition(
         field=state,

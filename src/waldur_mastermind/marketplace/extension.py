@@ -88,4 +88,9 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
+            "update_daily_consent_history": {
+                "task": "waldur_mastermind.marketplace.update_daily_consent_history",
+                "schedule": timedelta(days=1),
+                "args": (),
+            },
         }

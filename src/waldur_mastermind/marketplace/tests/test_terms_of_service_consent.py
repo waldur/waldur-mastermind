@@ -1,4 +1,6 @@
 import uuid
+from datetime import timedelta
+from uuid import uuid4
 
 from constance.test.unittest import override_config as override_constance_config
 from django.contrib.auth import get_user_model
@@ -7,6 +9,7 @@ from django.db.utils import IntegrityError
 from django.test import RequestFactory
 from django.test.utils import override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITransactionTestCase
 
@@ -21,6 +24,7 @@ from waldur_core.structure.tests.factories import (
     ProjectFactory,
     UserFactory,
 )
+from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
 from waldur_mastermind.marketplace.enums import (
@@ -28,6 +32,7 @@ from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     ResourceStates,
 )
+from waldur_mastermind.marketplace.tasks import update_daily_consent_history
 from waldur_mastermind.marketplace.tests.factories import (
     CategoryFactory,
     OfferingComponentFactory,
@@ -154,7 +159,11 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
 
         # Get consent via list endpoint with filtering
         response = self.client.get(
-            f"{self.consent_list_url}?offering_uuid={self.offering.uuid}&user_uuid={self.user.uuid}"
+            self.consent_list_url,
+            {
+                "offering_uuid": str(self.offering.uuid),
+                "user_uuid": str(self.user.uuid),
+            },
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -170,7 +179,11 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
 
         # Get consent via list endpoint with filtering
         response = self.client.get(
-            f"{self.consent_list_url}?offering_uuid={self.offering.uuid}&user_uuid={self.user.uuid}"
+            self.consent_list_url,
+            {
+                "offering_uuid": str(self.offering.uuid),
+                "user_uuid": str(self.user.uuid),
+            },
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)  # No consents found
@@ -201,7 +214,11 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
 
         # Get consent via list endpoint with filtering
         response = self.client.get(
-            f"{self.consent_list_url}?offering_uuid={self.offering.uuid}&user_uuid={self.user.uuid}"
+            self.consent_list_url,
+            {
+                "offering_uuid": str(self.offering.uuid),
+                "user_uuid": str(self.user.uuid),
+            },
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -334,7 +351,6 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         """Test that revoked consent is not considered active."""
         self.client.force_authenticate(user=self.user)
 
-        # Create and revoke consent
         consent = models.UserOfferingConsent.objects.create(
             user=self.user,
             offering=self.offering,
@@ -344,20 +360,23 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
 
         # Check consent status via filtering - only active consents
         response = self.client.get(
-            f"{self.consent_list_url}?offering_uuid={self.offering.uuid}&user_uuid={self.user.uuid}&has_consent=true"
+            self.consent_list_url,
+            {
+                "offering_uuid": str(self.offering.uuid),
+                "user_uuid": str(self.user.uuid),
+                "has_consent": "true",
+            },
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 0)  # No active consents found
+        self.assertEqual(len(response.data), 0)
 
     def test_consent_across_different_projects(self):
         """Test that consent is user-offering level, not project-specific."""
         self.client.force_authenticate(user=self.user)
 
-        # Create another project
         other_project = ProjectFactory(customer=self.customer)
         other_project.add_user(self.user, role=ProjectRole.MANAGER)
 
-        # Create consent for the offering
         models.UserOfferingConsent.objects.create(
             user=self.user,
             offering=self.offering,
@@ -366,14 +385,22 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
 
         # Check consent status - should be the same for both projects since consent is user-offering level
         response = self.client.get(
-            f"{self.consent_list_url}?offering_uuid={self.offering.uuid}&user_uuid={self.user.uuid}"
+            self.consent_list_url,
+            {
+                "offering_uuid": str(self.offering.uuid),
+                "user_uuid": str(self.user.uuid),
+            },
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertTrue(response.data[0]["has_consent"])
 
         response = self.client.get(
-            f"{self.consent_list_url}?offering_uuid={self.offering.uuid}&user_uuid={self.user.uuid}"
+            self.consent_list_url,
+            {
+                "offering_uuid": str(self.offering.uuid),
+                "user_uuid": str(self.user.uuid),
+            },
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -392,7 +419,11 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
 
         # Check that version is tracked
         response = self.client.get(
-            f"{self.consent_list_url}?offering_uuid={self.offering.uuid}&user_uuid={self.user.uuid}"
+            self.consent_list_url,
+            {
+                "offering_uuid": str(self.offering.uuid),
+                "user_uuid": str(self.user.uuid),
+            },
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -408,7 +439,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
             version="1.0",
         )
 
-        response = self.client.get(f"{self.consent_list_url}?has_consent=true")
+        response = self.client.get(self.consent_list_url, {"has_consent": "true"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertTrue(response.data[0]["has_consent"])
@@ -426,7 +457,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         consent.revoke()
 
         # Test filter for inactive consents
-        response = self.client.get(f"{self.consent_list_url}?has_consent=false")
+        response = self.client.get(self.consent_list_url, {"has_consent": "false"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertFalse(response.data[0]["has_consent"])
@@ -452,7 +483,9 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
             version="1.0",
         )
 
-        response = self.client.get(f"{self.consent_list_url}?requires_reconsent=true")
+        response = self.client.get(
+            self.consent_list_url, {"requires_reconsent": "true"}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertTrue(response.data[0]["requires_reconsent"])
@@ -478,7 +511,9 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
             version="2.0",
         )
 
-        response = self.client.get(f"{self.consent_list_url}?requires_reconsent=false")
+        response = self.client.get(
+            self.consent_list_url, {"requires_reconsent": "false"}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertFalse(response.data[0]["requires_reconsent"])
@@ -1314,7 +1349,8 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(
-            f"/api/marketplace-offering-users/?user_uuid={self.user.uuid}&has_consent=true"
+            "/api/marketplace-offering-users/",
+            {"user_uuid": str(self.user.uuid), "has_consent": "true"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -1323,7 +1359,8 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         self.assertEqual(len(user_uuids), 1)
 
         response = self.client.get(
-            f"/api/marketplace-offering-users/?user_uuid={other_user.uuid}&has_consent=true"
+            "/api/marketplace-offering-users/",
+            {"user_uuid": str(other_user.uuid), "has_consent": "true"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -1338,7 +1375,8 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         self.client.force_authenticate(user=self.user)
 
         response = self.client.get(
-            f"/api/marketplace-offering-users/?user_uuid={self.user.uuid}&has_consent=false"
+            "/api/marketplace-offering-users/",
+            {"user_uuid": str(self.user.uuid), "has_consent": "false"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -1347,7 +1385,8 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         self.assertEqual(len(user_uuids), 1)
 
         response = self.client.get(
-            f"/api/marketplace-offering-users/?user_uuid={other_user.uuid}&has_consent=false"
+            "/api/marketplace-offering-users/",
+            {"user_uuid": str(other_user.uuid), "has_consent": "false"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -1361,7 +1400,8 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
             version="1.0",
         )
         response = self.client.get(
-            f"/api/marketplace-offering-users/?user_uuid={other_user.uuid}&has_consent=true"
+            "/api/marketplace-offering-users/",
+            {"user_uuid": str(other_user.uuid), "has_consent": "true"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         user_uuids = [ou["user_uuid"] for ou in response.data]
@@ -1727,7 +1767,7 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
             is_active=False,
         )
 
-        response = self.client.get(f"{self.list_url}?is_active=true")
+        response = self.client.get(self.list_url, {"is_active": "true"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], str(self.tos_config.uuid))
@@ -2858,3 +2898,403 @@ class TermsOfServiceConsentEventLoggingTest(APITransactionTestCase):
         self.assertEqual(event_data["context"]["user_name"], self.user.full_name)
         self.assertEqual(event_data["context"]["offering_name"], self.offering.name)
         self.assertEqual(event_data["context"]["version"], "1.0")
+
+    def test_consent_granted_event_logging_via_events_api_with_scope(self):
+        """Test that consent granted event is accessible via events API endpoint with scope filter."""
+        self.client.force_authenticate(UserFactory(is_staff=True))
+        self._create_consent()
+
+        offering_url = f"http://testserver/api/marketplace-provider-offerings/{self.offering.uuid.hex}/"
+        response = self.client.get(
+            "/api/events/",
+            {"scope": offering_url, "event_type": "terms_of_service_consent_granted"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        event_data = response.data[0]
+        self.assertEqual(event_data["event_type"], "terms_of_service_consent_granted")
+        self.assertEqual(event_data["context"]["user_name"], self.user.full_name)
+        self.assertEqual(event_data["context"]["offering_name"], self.offering.name)
+        self.assertEqual(event_data["context"]["version"], "1.0")
+
+
+@override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+class ToSConsentStatsTest(APITransactionTestCase):
+    """Test cases for ToS consent statistics using quota system."""
+
+    def setUp(self):
+        self.user = UserFactory(is_staff=True)
+        self.customer = CustomerFactory()
+        self.project = ProjectFactory(customer=self.customer)
+        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+
+        self.offering = OfferingFactory(
+            customer=self.customer,
+            type="Marketplace.Basic",
+            state=OfferingStates.ACTIVE,
+        )
+
+        self.tos_config = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="1.0",
+            is_active=True,
+        )
+
+        self.plan = PlanFactory(offering=self.offering)
+        self.resource = ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+        )
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+
+        self.stats_url = (
+            f"/api/marketplace-provider-offerings/{self.offering.uuid}/tos_stats/"
+        )
+
+    def test_quota_usage_setting(self):
+        """Test quota usage setting and retrieval."""
+        # Set quota values
+        self.offering.set_quota_usage("active_users_count", 10)
+        self.offering.set_quota_usage("total_users_count", 20)
+        self.offering.set_quota_usage("accepted_consents_count", 15)
+        self.offering.set_quota_usage("revoked_consents_count", 5)
+        self.offering.set_quota_usage("total_consents_count", 20)
+        self.offering.set_quota_usage("revoked_consents_today", 2)
+
+        # Test quota retrieval
+        self.assertEqual(self.offering.get_quota_usage("active_users_count"), 10)
+        self.assertEqual(self.offering.get_quota_usage("total_users_count"), 20)
+        self.assertEqual(self.offering.get_quota_usage("accepted_consents_count"), 15)
+        self.assertEqual(self.offering.get_quota_usage("revoked_consents_count"), 5)
+        self.assertEqual(self.offering.get_quota_usage("total_consents_count"), 20)
+        self.assertEqual(self.offering.get_quota_usage("revoked_consents_today"), 2)
+
+    def test_quota_usage_update(self):
+        """Test quota usage update functionality."""
+        # Set initial values
+        self.offering.set_quota_usage("active_users_count", 5)
+        self.offering.set_quota_usage("total_users_count", 10)
+
+        self.assertEqual(self.offering.get_quota_usage("active_users_count"), 5)
+        self.assertEqual(self.offering.get_quota_usage("total_users_count"), 10)
+
+        # Update values
+        self.offering.set_quota_usage("active_users_count", 8)
+        self.offering.set_quota_usage("total_users_count", 12)
+
+        self.assertEqual(self.offering.get_quota_usage("active_users_count"), 8)
+        self.assertEqual(self.offering.get_quota_usage("total_users_count"), 12)
+
+    def test_stats_api_success(self):
+        """Test successful stats API response."""
+        models.OfferingUser.objects.create(
+            user=self.user,
+            offering=self.offering,
+            state=models.OfferingUserStates.OK,
+        )
+
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        # Set quota values
+        self.offering.set_quota_usage("active_users_count", 1)
+        self.offering.set_quota_usage("total_users_count", 1)
+        self.offering.set_quota_usage("accepted_consents_count", 1)
+        self.offering.set_quota_usage("revoked_consents_count", 0)
+        self.offering.set_quota_usage("total_consents_count", 1)
+        self.offering.set_quota_usage("revoked_consents_today", 0)
+
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(self.stats_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+
+        self.assertEqual(data["active_users_count"], 1)
+        self.assertEqual(data["total_users_count"], 1)
+        self.assertEqual(data["active_users_percentage"], 100.0)
+        self.assertEqual(data["accepted_consents_count"], 1)
+        self.assertEqual(data["revoked_consents_count"], 0)
+        self.assertEqual(data["total_consents_count"], 1)
+
+        # if "revoked_consents_over_time" in data:
+        #     self.assertIsInstance(data["revoked_consents_over_time"], list)
+        if "tos_version_adoption" in data:
+            self.assertIsInstance(data["tos_version_adoption"], list)
+
+    def test_stats_api_offering_not_found(self):
+        """Test error when offering is not found."""
+
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(
+            f"/api/marketplace-provider-offerings/{uuid4()}/tos_stats/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_stats_api_no_quota_data(self):
+        """Test stats API when no quota data is available."""
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(self.stats_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return zeros when no quota data
+        data = response.data
+        self.assertEqual(data["active_users_count"], 0)
+        self.assertEqual(data["total_users_count"], 0)
+        self.assertEqual(data["active_users_percentage"], 0.0)
+        self.assertEqual(data["accepted_consents_count"], 0)
+        self.assertEqual(data["revoked_consents_count"], 0)
+        self.assertEqual(data["total_consents_count"], 0)
+
+    def test_daily_quota_history_creation(self):
+        """Test DailyQuotaHistory creation for historical tracking."""
+        from waldur_mastermind.analytics import models as analytics_models
+
+        # Set quota values
+        self.offering.set_quota_usage("active_users_count", 5)
+        self.offering.set_quota_usage("total_users_count", 10)
+        self.offering.set_quota_usage("accepted_consents_count", 8)
+        self.offering.set_quota_usage("revoked_consents_count", 2)
+        self.offering.set_quota_usage("total_consents_count", 10)
+        self.offering.set_quota_usage("revoked_consents_today", 1)
+
+        # Create DailyQuotaHistory records
+        today = timezone.now().date()
+        analytics_models.DailyQuotaHistory.objects.create(
+            scope=self.offering, name="active_users_count", usage=5, date=today
+        )
+        analytics_models.DailyQuotaHistory.objects.create(
+            scope=self.offering, name="total_users_count", usage=10, date=today
+        )
+
+        # Verify records were created
+        quota_records = analytics_models.DailyQuotaHistory.objects.filter(
+            scope=self.offering
+        )
+        self.assertEqual(quota_records.count(), 2)
+
+        active_users_record = quota_records.get(name="active_users_count")
+        self.assertEqual(active_users_record.usage, 5)
+
+        total_users_record = quota_records.get(name="total_users_count")
+        self.assertEqual(total_users_record.usage, 10)
+
+    def test_update_daily_consent_history_task(self):
+        """Test the update_daily_consent_history task with quota system."""
+        from waldur_mastermind.analytics import models as analytics_models
+
+        user1 = UserFactory()
+        user2 = UserFactory()
+        user3 = UserFactory()
+
+        self.project.add_user(user1, role=ProjectRole.MEMBER)
+        self.project.add_user(user2, role=ProjectRole.MEMBER)
+        self.project.add_user(user3, role=ProjectRole.MEMBER)
+
+        models.OfferingUser.objects.create(
+            user=user1,
+            offering=self.offering,
+            state=models.OfferingUserStates.OK,
+        )
+        models.OfferingUser.objects.create(
+            user=user2,
+            offering=self.offering,
+            state=models.OfferingUserStates.OK,
+        )
+        models.OfferingUser.objects.create(
+            user=user3,
+            offering=self.offering,
+            state=models.OfferingUserStates.OK,
+        )
+
+        models.UserOfferingConsent.objects.create(
+            user=user1,
+            offering=self.offering,
+            version="1.0",
+        )
+        models.UserOfferingConsent.objects.create(
+            user=user2,
+            offering=self.offering,
+            version="1.0",
+        )
+        revoked_consent = models.UserOfferingConsent.objects.create(
+            user=user3,
+            offering=self.offering,
+            version="1.0",
+        )
+        revoked_consent.revoke()
+
+        update_daily_consent_history()
+
+        # Check quota values were set
+        self.assertEqual(self.offering.get_quota_usage("active_users_count"), 3)
+        self.assertEqual(self.offering.get_quota_usage("total_users_count"), 3)
+        self.assertEqual(self.offering.get_quota_usage("accepted_consents_count"), 2)
+        self.assertEqual(self.offering.get_quota_usage("revoked_consents_count"), 1)
+        self.assertEqual(self.offering.get_quota_usage("total_consents_count"), 3)
+        self.assertEqual(self.offering.get_quota_usage("revoked_consents_today"), 0)
+
+        quota_records = analytics_models.DailyQuotaHistory.objects.filter(
+            scope=self.offering
+        )
+        self.assertEqual(quota_records.count(), 6)
+
+        active_users_record = quota_records.get(name="active_users_count")
+        self.assertEqual(active_users_record.usage, 3)
+
+        total_users_record = quota_records.get(name="total_users_count")
+        self.assertEqual(total_users_record.usage, 3)
+
+    def test_update_daily_consent_history_task_with_revoked_consents_today(self):
+        """Test the task with consents revoked today."""
+        user = UserFactory()
+        self.project.add_user(user, role=ProjectRole.MEMBER)
+        models.OfferingUser.objects.create(
+            user=user,
+            offering=self.offering,
+            state=models.OfferingUserStates.OK,
+        )
+
+        consent = models.UserOfferingConsent.objects.create(
+            user=user,
+            offering=self.offering,
+            version="1.0",
+        )
+        yesterday = timezone.now().date() - timedelta(days=1)
+        consent.revocation_date = timezone.make_aware(
+            timezone.datetime.combine(yesterday, timezone.datetime.min.time())
+        )
+        consent.save()
+
+        update_daily_consent_history()
+
+        self.assertEqual(self.offering.get_quota_usage("revoked_consents_today"), 1)
+
+    def test_update_daily_consent_history_task_no_offerings_with_tos(self):
+        """Test the task when no offerings have ToS."""
+
+        self.tos_config.is_active = False
+        self.tos_config.save()
+
+        update_daily_consent_history()
+
+        quota_records = analytics_models.DailyQuotaHistory.objects.filter(
+            scope=self.offering
+        )
+        self.assertEqual(quota_records.count(), 0)
+
+    def test_stats_api_with_time_series_data(self):
+        """Test stats API with time series data from DailyQuotaHistory."""
+
+        today = timezone.now().date()
+        yesterday = today - timedelta(days=1)
+        two_days_ago = today - timedelta(days=2)
+
+        # Set current quota values
+        self.offering.set_quota_usage("active_users_count", 4)
+        self.offering.set_quota_usage("total_users_count", 5)
+
+        analytics_models.DailyQuotaHistory.objects.create(
+            scope=self.offering,
+            name="revoked_consents_today",
+            usage=0,
+            date=two_days_ago,
+        )
+        analytics_models.DailyQuotaHistory.objects.create(
+            scope=self.offering, name="revoked_consents_today", usage=1, date=yesterday
+        )
+        analytics_models.DailyQuotaHistory.objects.create(
+            scope=self.offering, name="active_users_count", usage=4, date=today
+        )
+        analytics_models.DailyQuotaHistory.objects.create(
+            scope=self.offering, name="active_users_count", usage=2, date=yesterday
+        )
+        analytics_models.DailyQuotaHistory.objects.create(
+            scope=self.offering, name="active_users_count", usage=3, date=two_days_ago
+        )
+        analytics_models.DailyQuotaHistory.objects.create(
+            scope=self.offering, name="revoked_consents_today", usage=0, date=today
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(self.stats_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(response.data["active_users_count"], 4)
+        self.assertEqual(response.data["total_users_count"], 5)
+
+        revoked_over_time = response.data["revoked_consents_over_time"]
+        self.assertEqual(len(revoked_over_time), 3)
+        self.assertEqual(revoked_over_time[0]["count"], 0)
+        self.assertEqual(revoked_over_time[1]["count"], 1)
+        self.assertEqual(revoked_over_time[2]["count"], 0)
+
+        active_users_over_time = response.data["active_users_over_time"]
+        self.assertEqual(len(active_users_over_time), 3)
+        self.assertEqual(active_users_over_time[0]["count"], 3)
+        self.assertEqual(active_users_over_time[1]["count"], 2)
+        self.assertEqual(active_users_over_time[2]["count"], 4)
+
+    def test_stats_api_permissions(self):
+        """Test that stats API respects permissions."""
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+
+        permission_user = UserFactory()
+        self.customer.add_user(permission_user, CustomerRole.OWNER)
+
+        other_customer = CustomerFactory()
+        other_offering = OfferingFactory(
+            customer=other_customer,
+            type="Marketplace.Basic",
+            state=OfferingStates.ACTIVE,
+        )
+
+        models.OfferingTermsOfService.objects.create(
+            offering=other_offering,
+            terms_of_service="Other Terms",
+            version="1.0",
+            is_active=True,
+        )
+
+        self.offering.set_quota_usage("active_users_count", 5)
+        self.offering.set_quota_usage("total_users_count", 10)
+        other_offering.set_quota_usage("active_users_count", 3)
+        other_offering.set_quota_usage("total_users_count", 8)
+
+        self.client.force_authenticate(user=permission_user)
+
+        response = self.client.get(self.stats_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        regular_user = UserFactory()
+        self.client.force_authenticate(user=regular_user)
+
+        response = self.client.get(self.stats_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        other_stats_url = (
+            f"/api/marketplace-provider-offerings/{other_offering.uuid}/tos_stats/"
+        )
+        response = self.client.get(other_stats_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        staff_user = UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff_user)
+
+        response = self.client.get(self.stats_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.get(other_stats_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
