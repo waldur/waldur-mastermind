@@ -496,9 +496,6 @@ class IssueStatus(core_models.UuidMixin, models.Model):
     )
     type = FSMIntegerField(default=Types.RESOLVED, choices=TYPE_CHOICES)
 
-    def __str__(self):
-        return f"{self.name} / {self.type}"
-
     @classmethod
     def check_success_status(cls, status):
         """Check an issue has been resolved.
