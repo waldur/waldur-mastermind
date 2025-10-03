@@ -43,8 +43,6 @@ def send_pending_order_to_message_queue(
 ):
     """Send pending marketplace order to message queue for site agent processing."""
     order = instance
-    if created:
-        return
 
     offering = order.offering
     if offering.type != SITE_AGENT_OFFERING:
