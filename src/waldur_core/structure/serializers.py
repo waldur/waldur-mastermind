@@ -2,13 +2,14 @@ import logging
 from datetime import datetime
 
 from constance import config
+from dbtemplates import models as dbtemplate_models
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db import models as django_models
 from django.db import transaction
 from django.db.models import Q
-from django.template.loader import get_template
+from django.template import Template, TemplateSyntaxError
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
@@ -1580,8 +1581,11 @@ class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
             },
         }
 
-    def get_content(self, obj) -> str:
-        return get_template(obj.path).template.source
+    def get_content(self, obj: core_models.NotificationTemplate) -> str | None:
+        try:
+            return dbtemplate_models.Template.objects.get(name=obj.path).content
+        except dbtemplate_models.Template.DoesNotExist:
+            return None
 
     def get_original_content(self, obj) -> str | None:
         from django.template.engine import Engine
@@ -1650,6 +1654,12 @@ class NotificationSerializer(serializers.HyperlinkedModelSerializer):
 
 class NotificationTemplateUpdateSerializers(serializers.Serializer):
     content = serializers.CharField()
+
+    def validate_content(self, content):
+        try:
+            Template(content)
+        except TemplateSyntaxError as e:
+            raise serializers.ValidationError(f"Invalid template syntax: {str(e)}")
 
 
 class AuthTokenSerializer(serializers.HyperlinkedModelSerializer):
