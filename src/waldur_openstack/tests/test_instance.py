@@ -231,7 +231,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         instance = models.Instance.objects.get(uuid=response.data["uuid"])
-        self.assertIn(floating_ip, instance.floating_ips)
+        self.assertIn(floating_ip, instance.floating_ips.all())
 
     def test_service_settings_should_have_external_network_id(self):
         self.openstack_settings.options = {"external_network_id": "invalid"}
@@ -290,6 +290,75 @@ class InstanceCreateTest(test.APITransactionTestCase):
                     "subnet": subnet_url,
                     "url": factories.FloatingIPFactory.get_url(floating_ip),
                 }
+            ],
+        )
+
+        response = self.create_instance(data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("floating_ips", response.data)
+
+    def test_user_can_assign_floating_ip_by_address(self):
+        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        floating_ip = factories.FloatingIPFactory(
+            tenant=self.tenant, state=CoreStates.OK, runtime_state="DOWN"
+        )
+        data = self.get_valid_data(
+            floating_ips=[
+                {"subnet": subnet_url, "ip_address": floating_ip.address},
+            ],
+        )
+
+        response = self.create_instance(data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        instance = models.Instance.objects.get(uuid=response.data["uuid"])
+        self.assertIn(floating_ip, instance.floating_ips.all())
+
+    def test_user_cannot_assign_floating_ip_by_invalid_address(self):
+        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        data = self.get_valid_data(
+            floating_ips=[
+                {"subnet": subnet_url, "ip_address": "not a valid ip"},
+            ],
+        )
+        response = self.create_instance(data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("ip_address", response.data["floating_ips"][0])
+
+    def test_user_cannot_assign_floating_ip_by_address_and_url(self):
+        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        floating_ip = factories.FloatingIPFactory(tenant=self.tenant)
+        data = self.get_valid_data(
+            floating_ips=[
+                {
+                    "subnet": subnet_url,
+                    "url": factories.FloatingIPFactory.get_url(floating_ip),
+                    "ip_address": floating_ip.address,
+                }
+            ],
+        )
+
+        response = self.create_instance(data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("non_field_errors", response.data["floating_ips"][0])
+        self.assertIn(
+            "Please specify floating IP URL or IP address, not both",
+            str(response.data),
+        )
+
+    def test_user_cannot_use_floating_ip_in_use_by_address(self):
+        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        port = factories.PortFactory(subnet=self.subnet)
+        floating_ip = factories.FloatingIPFactory(
+            tenant=self.tenant,
+            runtime_state="ACTIVE",
+            port=port,
+        )
+        data = self.get_valid_data(
+            floating_ips=[
+                {"subnet": subnet_url, "ip_address": floating_ip.address},
             ],
         )
 
