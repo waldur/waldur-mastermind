@@ -1922,6 +1922,10 @@ class OpenStackCreateFloatingIPSerializer(serializers.Serializer):
         lookup_field="uuid",
         required=False,
     )
+    ip_address = serializers.IPAddressField(
+        required=False,
+        help_text="Existing floating IP address in selected OpenStack tenant to be assigned to new virtual machine",
+    )
     subnet = serializers.HyperlinkedRelatedField(
         queryset=models.SubNet.objects.all(),
         view_name="openstack-subnet-detail",
@@ -1929,8 +1933,38 @@ class OpenStackCreateFloatingIPSerializer(serializers.Serializer):
     )
 
     def to_internal_value(self, data):
-        value = super().to_internal_value(data)
-        return (value.get("url"), value["subnet"])
+        # Run standard field-level validation and conversion first
+        validated_data = super().to_internal_value(data)
+
+        # Perform object-level validation that was previously in the `validate` method.
+        if validated_data.get("url") and validated_data.get("ip_address"):
+            raise serializers.ValidationError(
+                {
+                    "non_field_errors": [
+                        "Please specify floating IP URL or IP address, not both"
+                    ]
+                }
+            )
+
+        # Process the validated data to find the floating IP and subnet
+        subnet: models.SubNet = validated_data["subnet"]
+        ip_address = validated_data.get("ip_address")
+
+        # After conversion, the HyperlinkedRelatedField stores the object under its field name 'url'.
+        floating_ip = validated_data.get("url")
+
+        if not floating_ip and ip_address:
+            try:
+                floating_ip = models.FloatingIP.objects.get(
+                    tenant=subnet.tenant, address=ip_address
+                )
+            except models.FloatingIP.DoesNotExist:
+                # If IP does not exist in the database, a new one should be allocated.
+                # We pass here, so `floating_ip` remains None, signaling allocation.
+                pass
+
+        # The view expects a tuple of (FloatingIP instance or None, SubNet instance)
+        return (floating_ip, subnet)
 
 
 class OpenStackUsageStatsSerializer(serializers.Serializer):
