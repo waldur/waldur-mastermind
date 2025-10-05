@@ -89,6 +89,7 @@ class SmaxBackend:
 
         self.rest_api = f"{self.api_url}rest/{config.SMAX_TENANT_ID}/"
         self.lwsso_cookie_key = None
+        self._status_mappings = None
 
     def _smax_response_to_user(self, response):
         entities = response.json()["entities"]
@@ -131,7 +132,7 @@ class SmaxBackend:
                     id=e["properties"]["Id"],
                     summary=e["properties"]["DisplayLabel"],
                     description=e["properties"]["Description"],
-                    status=e["properties"]["PhaseId"],
+                    status=self._get_mapped_status(e["properties"]),
                     attachments=self._smax_entities_to_attachments(
                         json.loads(e["properties"].get("RequestAttachments", "{}")).get(
                             "complexTypeProperties", []
@@ -222,6 +223,46 @@ class SmaxBackend:
             result.append(attachment)
 
         return result
+
+    def _get_status_mappings(self):
+        """Fetch and cache status mappings from SMAX enum endpoint."""
+        if self._status_mappings is None:
+            try:
+                response = self.get(
+                    "ems/EnumData_c?layout=DataValue_c,DisplayLabelET_c,DisplayLabel"
+                )
+                entities = response.json()["entities"]
+
+                # Create mapping from DataValue_c to DisplayLabel
+                self._status_mappings = {}
+                for entity in entities:
+                    props = entity["properties"]
+                    data_value = props.get("DataValue_c")
+                    display_label = props.get("DisplayLabel", "").strip()
+                    if data_value and display_label:
+                        self._status_mappings[data_value] = display_label
+
+                logger.debug(
+                    f"Loaded {len(self._status_mappings)} status mappings from SMAX"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to load status mappings from SMAX: {e}")
+                self._status_mappings = {}
+
+        return self._status_mappings
+
+    def _get_mapped_status(self, properties):
+        """Get user-friendly status from properties, fallback to PhaseId if Status not available or not mapped."""
+        # Try to get Status field first
+        status_value = properties.get("Status")
+        if status_value:
+            mappings = self._get_status_mappings()
+            mapped_status = mappings.get(status_value)
+            if mapped_status:
+                return mapped_status
+
+        # Fallback to PhaseId
+        return properties.get("PhaseId", "")
 
     @reraise_exceptions
     def auth(self):
