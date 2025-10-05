@@ -94,11 +94,11 @@ class UserSection(NotificationSection):
 
     # Common context for all invitation notifications
     invitation_context = {
-        "invitation.name": "The name of the structure (Project or Organization) the user is invited to.",
-        "invitation.type": "The type of the structure, either 'project' or 'customer'.",
-        "invitation.role": "The name of the role being granted.",
+        "name": "The name of the structure (Project or Organization) the user is invited to.",
+        "type": "The type of the structure, either 'project' or 'customer'.",
+        "role": "The name of the role being granted.",
         "extra_invitation_text": "Any additional text provided by the inviter.",
-        "sender": "The User model instance who created the invitation. Provides access to `sender.full_name` and `sender.email`.",
+        "sender": "The user name who created the invitation.",
     }
 
     invitation_created = Notification(
