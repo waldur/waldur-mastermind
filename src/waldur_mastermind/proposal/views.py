@@ -955,10 +955,17 @@ class ReviewViewSet(ActionsViewSet):
 
     def check_destroy_permissions(request, view, obj=None):
         """Check permissions for destroying reviews."""
-        if obj and not has_permission(
-            request.user,
-            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            obj.proposal.round.call,
+        if obj and not (
+            has_permission(
+                request.user,
+                PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+                obj.proposal.round.call,
+            )
+            or has_permission(
+                request.user,
+                PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+                obj.proposal.round.call.manager,
+            )
         ):
             raise exceptions.PermissionDenied()
 
