@@ -2543,7 +2543,7 @@ class BaseItemSerializer(
     provider_uuid = serializers.UUIDField(
         read_only=True, source="offering.customer.uuid"
     )
-    provider_slug = serializers.UUIDField(
+    provider_slug = serializers.ReadOnlyField(
         read_only=True, source="offering.customer.slug"
     )
     category_title = serializers.ReadOnlyField(source="offering.category.title")
