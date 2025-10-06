@@ -1660,6 +1660,7 @@ class NotificationTemplateUpdateSerializers(serializers.Serializer):
             Template(content)
         except TemplateSyntaxError as e:
             raise serializers.ValidationError(f"Invalid template syntax: {str(e)}")
+        return content
 
 
 class AuthTokenSerializer(serializers.HyperlinkedModelSerializer):
