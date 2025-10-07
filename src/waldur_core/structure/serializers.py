@@ -235,6 +235,7 @@ class ProjectSerializer(
             "customer_native_name",
             "customer_abbreviation",
             "description",
+            "customer_display_billing_info_in_projects",
             "created",
             "type",
             "type_name",
@@ -262,7 +263,14 @@ class ProjectSerializer(
             },
         }
         related_paths = {
-            "customer": ("uuid", "name", "native_name", "abbreviation", "slug"),
+            "customer": (
+                "uuid",
+                "name",
+                "native_name",
+                "abbreviation",
+                "slug",
+                "display_billing_info_in_projects",
+            ),
             "type": ("name", "uuid"),
         }
 
@@ -312,6 +320,7 @@ class ProjectSerializer(
             "customer__slug",
             "customer__native_name",
             "customer__abbreviation",
+            "customer__display_billing_info_in_projects",
         )
         return queryset.select_related("customer").only(*related_fields)
 
@@ -481,6 +490,7 @@ class CustomerSerializer(
             "image",
             "blocked",
             "archived",
+            "display_billing_info_in_projects",
             "default_tax_percent",
             "accounting_start_date",
             "projects_count",
@@ -499,6 +509,7 @@ class CustomerSerializer(
             "organization_groups",
             "blocked",
             "archived",
+            "display_billing_info_in_projects",
             "sponsor_number",
             "max_service_accounts",
             "project_metadata_checklist",
