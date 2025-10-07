@@ -497,6 +497,7 @@ class Customer(
     )
     blocked = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
+    display_billing_info_in_projects = models.BooleanField(default=True)
     organization_groups = models.ManyToManyField(
         to=OrganizationGroup, related_name="customers", blank=True
     )
