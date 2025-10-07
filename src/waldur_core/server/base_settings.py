@@ -263,6 +263,9 @@ LANGUAGES = (
     ("nb", "Norsk"),
     ("ar", "العربية"),
     ("cs", "Čeština"),
+    ("sl", "Slovenščina"),
+    ("el", "Ελληνικά"),
+    ("bg", "Български"),
 )
 
 # Disable SAML2 CSP warnings
