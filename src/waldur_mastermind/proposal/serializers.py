@@ -37,6 +37,29 @@ from . import models
 logger = logging.getLogger(__name__)
 
 
+class NestedCallActionHyperlinkedRelatedField(serializers.HyperlinkedRelatedField):
+    """
+    HyperlinkedRelatedField for nested call actions that require two lookup fields:
+    - uuid: the call's UUID (parent)
+    - obj_uuid: the nested object's UUID (child)
+    """
+
+    def get_url(self, obj, view_name, request, format):
+        if hasattr(obj, "pk") and obj.pk in (None, ""):
+            return None
+
+        kwargs = {
+            "uuid": obj.call.uuid.hex,
+            "obj_uuid": obj.uuid.hex,
+        }
+        return self.reverse(view_name, kwargs=kwargs, request=request, format=format)
+
+    def get_object(self, view_name, view_args, view_kwargs):
+        lookup_value = view_kwargs.get("obj_uuid")
+        lookup_kwargs = {self.lookup_field: lookup_value}
+        return self.get_queryset().get(**lookup_kwargs)
+
+
 class CallManagingOrganisationSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -496,6 +519,11 @@ class CallResourceTemplateSerializer(
     )
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     url = serializers.SerializerMethodField()
+    requested_offering = NestedCallActionHyperlinkedRelatedField(
+        queryset=models.RequestedOffering.objects.all(),
+        view_name="proposal-call-offering-detail",
+        lookup_field="uuid",
+    )
 
     class Meta:
         model = models.CallResourceTemplate
@@ -517,10 +545,6 @@ class CallResourceTemplateSerializer(
         ]
         read_only_fields = ("created_by",)
         extra_kwargs = {
-            "requested_offering": {
-                "lookup_field": "uuid",
-                "view_name": "proposal-requested-offering-detail",
-            },
             "created_by": {"lookup_field": "uuid", "view_name": "user-detail"},
         }
 

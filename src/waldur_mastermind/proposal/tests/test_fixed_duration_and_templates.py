@@ -32,10 +32,8 @@ class CallResourceTemplateTestCase(APITestCase):
         self.client.force_authenticate(self.staff_user)
         url = proposal_factories.CallResourceTemplateFactory.get_list_url(self.call)
         # get url for self.requested_offering
-        requested_offering_url = (
-            proposal_factories.RequestedOfferingFactory.get_provider_url(
-                requested_offering=self.requested_offering
-            )
+        requested_offering_url = proposal_factories.RequestedOfferingFactory.get_url(
+            call=self.call, requested_offering=self.requested_offering
         )
 
         payload = {
