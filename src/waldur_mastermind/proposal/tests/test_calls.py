@@ -384,6 +384,107 @@ class RequestedOfferingsGetTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_state_filter_applied(self):
+        factories.RequestedOfferingFactory(
+            call=self.fixture.call,
+            state=RequestedOfferingStates.ACCEPTED,
+        )
+        factories.RequestedOfferingFactory(
+            call=self.fixture.call,
+            state=RequestedOfferingStates.CANCELED,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(
+            self.url, {"state": RequestedOfferingStates.REQUESTED}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+        self.assertEqual(response.json()[0]["state"], RequestedOfferingStates.REQUESTED)
+
+    def test_state_filter_multiple_states(self):
+        factories.RequestedOfferingFactory(
+            call=self.fixture.call,
+            state=RequestedOfferingStates.ACCEPTED,
+        )
+        factories.RequestedOfferingFactory(
+            call=self.fixture.call,
+            state=RequestedOfferingStates.CANCELED,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url,
+            {
+                "state": [
+                    RequestedOfferingStates.REQUESTED,
+                    RequestedOfferingStates.ACCEPTED,
+                ]
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should return 3: 1 REQUESTED from fixture, 1 ACCEPTED from fixture, 1 ACCEPTED created here
+        self.assertEqual(len(response.json()), 3)
+        states = {item["state"] for item in response.json()}
+        self.assertEqual(
+            states,
+            {RequestedOfferingStates.REQUESTED, RequestedOfferingStates.ACCEPTED},
+        )
+
+    def test_state_filter_no_results(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"state": RequestedOfferingStates.CANCELED}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 0)
+
+    def test_without_state_filter_returns_all(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should return 2 from fixtures
+        self.assertEqual(len(response.json()), 2)
+
+    def test_state_filter_ignores_invalid_values(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"state": "invalid_state"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should return all offerings from fixture: 2
+        self.assertEqual(len(response.json()), 2)
+
+    def test_state_filter_mixed_valid_and_invalid(self):
+        factories.RequestedOfferingFactory(
+            call=self.fixture.call,
+            state=RequestedOfferingStates.ACCEPTED,
+        )
+        factories.RequestedOfferingFactory(
+            call=self.fixture.call,
+            state=RequestedOfferingStates.CANCELED,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(
+            self.url,
+            {
+                "state": [
+                    RequestedOfferingStates.REQUESTED,
+                    "invalid_state",
+                    RequestedOfferingStates.ACCEPTED,
+                ]
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should return only REQUESTED and ACCEPTED (ignoring "invalid_state")
+        self.assertEqual(len(response.json()), 3)
+        states = {item["state"] for item in response.json()}
+        self.assertEqual(
+            states,
+            {RequestedOfferingStates.REQUESTED, RequestedOfferingStates.ACCEPTED},
+        )
+
 
 @ddt
 class RequestedOfferingsCreateTest(test.APITransactionTestCase):

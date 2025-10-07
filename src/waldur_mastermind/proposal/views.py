@@ -184,6 +184,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         request=None,
         responses=serializers.RequestedOfferingSerializer(many=True),
         description="List offerings for a call.",
+        parameters=[
+            OpenApiParameter(
+                "state", str, OpenApiParameter.QUERY, description="Filter by state"
+            ),
+        ],
         filters=False,
     )
     @extend_schema(
@@ -195,6 +200,27 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     )
     @decorators.action(detail=True, methods=["get", "post"])
     def offerings(self, request, uuid=None):
+        if request.method == "GET":
+            call = self.get_object()
+            queryset = call.requestedoffering_set.all()
+
+            # Apply state filter if provided - only filter with valid states
+            state_filter = request.query_params.getlist("state")
+            if state_filter:
+                # Get valid state values from the enum
+                valid_states = {choice[0] for choice in RequestedOfferingStates.CHOICES}
+                # Filter to only include valid state values
+                valid_state_filter = [s for s in state_filter if s in valid_states]
+                if valid_state_filter:
+                    queryset = queryset.filter(state__in=valid_state_filter)
+
+            serializer = self.get_serializer(
+                queryset,
+                context=self.get_serializer_context(),
+                many=True,
+            )
+            return response.Response(serializer.data, status=status.HTTP_200_OK)
+
         return self.action_list_method("requestedoffering_set")(self, request, uuid)
 
     offerings_serializer_class = serializers.RequestedOfferingSerializer
