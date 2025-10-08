@@ -2034,7 +2034,15 @@ def create_service_account(service_account: dict, username: str, scope_type: str
         )
         return response.json()
     except (httpx.HTTPError, ValueError) as exc:
-        logger.error(exc)
+        error_details = (
+            exc.response.json()
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+            else exc
+        )
+        logger.error(
+            "Unable to create a service account for %s",
+            error_details,
+        )
         raise
 
 
@@ -2087,9 +2095,18 @@ def close_service_account(service_account: models.ScopedServiceAccount):
             service_account.set_state_closed()
             service_account.save(update_fields=["state"])
     except (httpx.HTTPError, ValueError) as exc:
-        logger.error(exc)
+        error_details = (
+            exc.response.json()
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+            else exc
+        )
+        logger.error(
+            "Unable to close the service account %s: %s",
+            service_account.username,
+            error_details,
+        )
         service_account.set_state_erred()
-        service_account.error_message = str(exc)
+        service_account.error_message = str(error_details)
         service_account.error_traceback = traceback.format_exc()
         service_account.save(update_fields=["error_message", "error_traceback"])
         raise
@@ -2204,13 +2221,22 @@ def update_service_account(service_account: models.ScopedServiceAccount):
         response.raise_for_status()
         return response.json()
     except (httpx.HTTPError, ValueError) as exc:
+        error_details = (
+            exc.response.json()
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+            else exc
+        )
+        logger.error(
+            "Unable to update service account %s: %s",
+            service_account.username,
+            error_details,
+        )
         service_account.set_state_erred()
-        service_account.error_message = str(exc)
+        service_account.error_message = str(error_details)
         service_account.error_traceback = traceback.format_exc()
         service_account.save(
             update_fields=["state", "error_message", "error_traceback"]
         )
-        logger.error(exc)
         raise
 
 
@@ -2384,7 +2410,7 @@ def post_course_account_to_url(
         headers = {"Authorization": f"Bearer {api_access_token}"}
         response = httpx.post(url, json=payload, headers=headers, follow_redirects=True)
         response.raise_for_status()
-        logger.info("Service account has been successfully updated at %s", url)
+        logger.info("Course account has been successfully updated at %s", url)
         return response
     except (httpx.HTTPError, ValueError, KeyError) as e:
         logger.error("Request to %s failed: %s", url, e)
@@ -2415,7 +2441,15 @@ def create_course_account(
         )
         return response.json()
     except (httpx.HTTPError, ValueError) as exc:
-        logger.error(exc)
+        error_details = (
+            exc.response.json()
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+            else exc
+        )
+        logger.error(
+            "Unable to create a course account for %s",
+            error_details,
+        )
         raise
 
 
@@ -2533,9 +2567,18 @@ def close_course_account(
                 user.is_active = False
                 user.save(update_fields=["is_active"])
     except (httpx.HTTPError, ValueError) as exc:
-        logger.error(exc)
+        error_details = (
+            exc.response.json()
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+            else exc
+        )
+        logger.error(
+            "Unable to close the course account %s: %s",
+            course_account.email,
+            error_details,
+        )
         course_account.set_state_erred()
-        course_account.error_message = str(exc)
+        course_account.error_message = str(error_details)
         course_account.error_traceback = traceback.format_exc()
         course_account.save(update_fields=["error_message", "error_traceback"])
         raise
