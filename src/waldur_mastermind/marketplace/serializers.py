@@ -5550,7 +5550,12 @@ class MarketplaceServiceProviderUserSerializer(
         if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
-        if user.is_authenticated and not user.is_staff and not user.is_support:
+        if (
+            user.is_authenticated
+            and "is_active" in fields
+            and not user.is_staff
+            and not user.is_support
+        ):
             del fields["is_active"]
 
         return fields
