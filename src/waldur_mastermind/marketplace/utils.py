@@ -406,11 +406,12 @@ def validate_min_max_limit(value, component):
         )
 
 
-def get_components_map(limits, offering):
+def get_components_map(limits, offering: models.Offering):
     valid_component_types = set(
-        offering.components.filter(billing_type=BillingTypes.LIMIT).values_list(
-            "type", flat=True
-        )
+        offering.components.filter(
+            Q(billing_type=BillingTypes.LIMIT)
+            | Q(billing_type=BillingTypes.ONE_TIME, is_prepaid=True)
+        ).values_list("type", flat=True)
     )
 
     invalid_types = set(limits.keys()) - valid_component_types

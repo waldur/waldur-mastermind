@@ -70,11 +70,11 @@ class PluginManager:
         """
         self.backends[offering_type] = kwargs
 
-    def get_offering_types(self):
+    def get_offering_types(self) -> list[str]:
         """
         Return list of offering types.
         """
-        return self.backends.keys()
+        return list(self.backends.keys())
 
     def get_service_type(self, offering_type):
         """

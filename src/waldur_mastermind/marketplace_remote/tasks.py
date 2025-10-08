@@ -2,6 +2,7 @@ import collections
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 import requests
@@ -1546,7 +1547,10 @@ def notify_about_project_details_update(serialized_project_update):
     Args:
         serialized_project_update: Serialized project update request instance
     """
-    review_request = deserialize_instance(serialized_project_update)
+    review_request = cast(
+        remote_models.ProjectUpdateRequest,
+        deserialize_instance(serialized_project_update),
+    )
 
     context = {}
     if review_request.new_description:

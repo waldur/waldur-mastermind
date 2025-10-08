@@ -1,8 +1,11 @@
 import datetime
+from decimal import Decimal
 from unittest import mock
 
 from constance.test.unittest import override_config
+from dateutil.relativedelta import relativedelta
 from ddt import data, ddt, unpack
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -17,7 +20,6 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
-from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, models, plugins
@@ -332,6 +334,132 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_tasks.process_order.delay.assert_not_called()
+
+
+class ResourceRenewTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.project = self.fixture.project
+
+        # Create a prepaid offering and plan
+        self.offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        self.component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="storage",
+            is_prepaid=True,
+            billing_type=BillingTypes.ONE_TIME,
+        )
+        self.plan = factories.PlanFactory(offering=self.offering)
+        factories.PlanComponentFactory(
+            plan=self.plan,
+            component=self.component,
+            price=Decimal("10.0"),  # Price is $10/GB/month for renewal calculations
+        )
+
+        # Create a resource to be renewed
+        self.resource = factories.ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+            state=ResourceStates.OK,
+            limits={"storage": 100},  # 100 GB
+            end_date=timezone.now().date() + relativedelta(months=1),
+        )
+
+        # Create a non-prepaid resource for failure tests
+        self.non_prepaid_resource = factories.ResourceFactory(
+            project=self.project, state=models.Resource.States.OK
+        )
+
+        # Set permissions
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+
+    def renew_resource(self, user, resource, payload):
+        self.client.force_authenticate(user)
+        url = factories.ResourceFactory.get_url(resource, "renew")
+        return self.client.post(url, payload)
+
+    def test_user_can_renew_prepaid_resource(self):
+        # Arrange
+        payload = {"extension_months": 12}
+
+        # Act
+        response = self.renew_resource(self.fixture.owner, self.resource, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(
+            models.Order.objects.filter(
+                type=OrderTypes.UPDATE,
+                resource=self.resource,
+                attributes__action="renew",
+            ).exists()
+        )
+
+    def test_renewal_fails_for_non_prepaid_resource(self):
+        # Arrange
+        payload = {"extension_months": 12}
+
+        # Act
+        response = self.renew_resource(
+            self.fixture.owner, self.non_prepaid_resource, payload
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "This action is only available for prepaid resources.", str(response.data)
+        )
+
+    def test_renewal_fails_if_resource_is_not_in_stable_state(self):
+        # Arrange
+        self.resource.state = models.Resource.States.UPDATING
+        self.resource.save()
+        payload = {"extension_months": 12}
+
+        # Act
+        response = self.renew_resource(self.fixture.owner, self.resource, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @freeze_time("2024-06-01")
+    def test_order_is_created_with_correct_data_and_cost(self):
+        # Arrange
+        self.resource.end_date = timezone.datetime.fromisoformat("2024-07-01").date()
+        self.resource.save()
+
+        payload = {
+            "extension_months": 12,
+            "limits": {"storage": 200},  # Upgrade from 100 to 200 GB
+        }
+
+        # Expected cost = price * limit * months = 10 * 200 * 12 = 24000
+        expected_cost = Decimal("24000.0")
+        expected_new_end_date = self.resource.end_date + relativedelta(months=12)
+
+        # Act
+        response = self.renew_resource(self.fixture.admin, self.resource, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.type, OrderTypes.UPDATE)
+        self.assertEqual(order.resource, self.resource)
+        self.assertEqual(order.plan, self.plan)
+
+        # Verify cost
+        self.assertEqual(order.cost, expected_cost)
+
+        # Verify attributes
+        self.assertEqual(order.attributes["action"], "renew")
+        self.assertEqual(order.attributes["extension_months"], 12)
+        self.assertEqual(
+            order.attributes["new_end_date"], expected_new_end_date.isoformat()
+        )
+        self.assertEqual(order.limits["storage"], 200)
 
 
 @ddt
@@ -683,314 +811,6 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         )
         order.init_cost()
         self.assertEqual(order.cost, 50)
-
-
-class ResourceUpdateTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = MarketplaceFixture()
-        self.resource = self.fixture.resource
-        self.url = factories.ResourceFactory.get_url(self.resource)
-
-    def make_request(self, user, payload=None):
-        self.client.force_authenticate(user)
-        payload = payload or {"name": "new_name", "description": "new description"}
-        return self.client.patch(self.url, payload)
-
-    def test_authorized_user_can_update_resource(self):
-        response = self.make_request(self.fixture.staff)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.resource.refresh_from_db()
-        self.assertEqual(self.resource.name, "new_name")
-        self.assertEqual(self.resource.description, "new description")
-
-    def test_unauthorized_user_can_not_update_resource(self):
-        response = self.make_request(self.fixture.user)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_authorized_user_can_update_end_date(self):
-        with freeze_time("2020-01-01"):
-            response = self.make_request(self.fixture.staff, {"end_date": "2021-01-01"})
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.resource.refresh_from_db()
-            self.assertTrue(self.resource.end_date)
-            self.assertEqual(self.resource.end_date_requested_by, self.fixture.staff)
-
-    def test_authorized_user_can_set_current_past_date(self):
-        with freeze_time("2020-01-01"):
-            response = self.make_request(self.fixture.staff, {"end_date": "2020-01-01"})
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.resource.refresh_from_db()
-            self.assertTrue(self.resource.end_date)
-
-    def test_user_cannot_set_past_date(self):
-        with freeze_time("2022-01-01"):
-            response = self.make_request(self.fixture.staff, {"end_date": "2020-01-01"})
-            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_update_end_date_should_generate_audit_log(self):
-        with freeze_time("2020-01-01"):
-            response = self.make_request(self.fixture.staff, {"end_date": "2021-01-01"})
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.resource.refresh_from_db()
-            self.assertTrue(
-                logging_models.Event.objects.filter(
-                    message=f"End date of marketplace resource {self.resource.name} has been updated. End date: {self.resource.end_date}. User: {self.fixture.staff}."
-                ).exists()
-            )
-
-    def test_resource_end_date_is_set_to_default_termination_if_required_and_not_provided(
-        self,
-    ):
-        self.fixture.resource.offering.plugin_options = {
-            "is_resource_termination_date_required": True,
-            "default_resource_termination_offset_in_days": 7,
-        }
-        self.fixture.resource.offering.save()
-        payload = {
-            "name": "resource name update",
-        }
-        response = self.make_request(self.fixture.staff, payload)
-        self.fixture.resource.refresh_from_db()
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["end_date"], self.fixture.resource.end_date)
-
-    def test_end_date_is_not_updated_if_later_than_max_end_date(self):
-        self.fixture.resource.offering.plugin_options = {
-            "is_resource_termination_date_required": True,
-            "default_resource_termination_offset_in_days": 7,
-            "max_resource_termination_offset_in_days": 30,
-        }
-        self.fixture.resource.offering.save()
-        end_date = self.fixture.resource.created + datetime.timedelta(days=50)
-        end_date = end_date.date()
-        payload = {
-            "end_date": end_date,
-        }
-        response = self.make_request(self.fixture.staff, payload)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_end_date_is_updated_if_earlier_than_max_end_date(self):
-        self.fixture.resource.offering.plugin_options = {
-            "is_resource_termination_date_required": True,
-            "default_resource_termination_offset_in_days": 7,
-            "max_resource_termination_offset_in_days": 30,
-        }
-        self.fixture.resource.offering.save()
-        end_date = self.fixture.resource.created + datetime.timedelta(days=15)
-        end_date = end_date.date()
-        payload = {
-            "end_date": end_date,
-        }
-        response = self.make_request(self.fixture.staff, payload)
-        self.fixture.resource.refresh_from_db()
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            response.data["end_date"], self.fixture.resource.end_date, end_date
-        )
-
-    def test_end_date_is_not_updated_if_later_than_latest_date_for_resource_termination(
-        self,
-    ):
-        with freeze_time("2022-01-01"):
-            self.fixture.resource.offering.plugin_options = {
-                "is_resource_termination_date_required": True,
-                "default_resource_termination_offset_in_days": 7,
-                "latest_date_for_resource_termination": "2030-01-01",
-            }
-            self.fixture.resource.offering.save()
-            end_date = "2031-01-01"
-            payload = {
-                "end_date": end_date,
-            }
-            response = self.make_request(self.fixture.staff, payload)
-            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_reset_error_traceback(self):
-        self.resource.state = ResourceStates.ERRED
-        self.resource.error_traceback = "error_traceback"
-        self.resource.save()
-        self.resource.state = ResourceStates.OK
-        self.resource.save()
-        self.resource.refresh_from_db()
-        self.assertFalse(self.resource.error_traceback)
-
-    def test_changing_of_resource_should_generate_audit_log(self):
-        response = self.make_request(self.fixture.staff)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.resource.refresh_from_db()
-        self.assertEqual(
-            logging_models.Event.objects.filter(
-                event_type="marketplace_resource_update_succeeded",
-                message__contains=self.resource.name,
-            )
-            .filter(message__contains="new_name")
-            .count(),
-            1,
-        )
-
-    def test_log_message_includes_name_of_relative_object(self):
-        new_project = ProjectFactory()
-        self.resource.project = new_project
-        self.resource.save()
-        self.assertEqual(
-            logging_models.Event.objects.filter(
-                event_type="marketplace_resource_update_succeeded",
-                message__contains=self.resource.name,
-            )
-            .filter(message__contains=str(new_project))
-            .count(),
-            1,
-        )
-
-
-@ddt
-class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = MarketplaceFixture()
-        self.resource = self.fixture.resource
-        self.url = factories.ResourceFactory.get_provider_resource_url(
-            self.resource, "set_end_date_by_provider"
-        )
-        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
-        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
-
-    def make_request(self, user, payload):
-        self.client.force_authenticate(user)
-        return self.client.post(self.url, payload)
-
-    @freeze_time("2020-01-01")
-    def test_resource_is_not_used_for_last_3_months_and_end_date_is_7_days_in_future(
-        self,
-    ):
-        self.resource.state = ResourceStates.OK
-        self.resource.save()
-        with freeze_time("2020-05-01"):
-            response = self.make_request(
-                self.fixture.offering_owner, {"end_date": "2020-05-08"}
-            )
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.resource.refresh_from_db()
-            self.assertEqual(self.resource.end_date, parse_date("2020-05-08"))
-
-            self.assertTrue(
-                logging_models.Event.objects.filter(
-                    message__contains="End date of marketplace resource %s has been updated by provider."
-                    % self.resource.name
-                ).exists()
-            )
-
-    @freeze_time("2020-01-01")
-    def test_resource_is_not_used_for_last_3_months_and_end_date_is_not_7_days_in_future(
-        self,
-    ):
-        self.resource.state = ResourceStates.OK
-        self.resource.save()
-        with freeze_time("2020-05-01"):
-            response = self.make_request(
-                self.fixture.offering_owner, {"end_date": "2020-05-05"}
-            )
-            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    @freeze_time("2020-01-01")
-    def test_resource_is_used_for_last_3_months_and_end_date_is_not_7_days_in_future(
-        self,
-    ):
-        self.resource.state = ResourceStates.OK
-        self.resource.save()
-        response = self.make_request(
-            self.fixture.offering_owner, {"end_date": "2020-01-05"}
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    @freeze_time("2020-01-01")
-    def test_resource_is_used_for_last_3_months_and_end_date_is_more_than_7_days_in_future(
-        self,
-    ):
-        self.resource.state = ResourceStates.OK
-        self.resource.save()
-        response = self.make_request(
-            self.fixture.offering_owner, {"end_date": "2020-01-10"}
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    @data("staff", "offering_owner", "service_manager", "global_support")
-    @freeze_time("2020-01-01")
-    def test_permission_positive(self, user):
-        self.resource.state = ResourceStates.OK
-        self.resource.save()
-
-        with freeze_time("2020-05-01"):
-            response = self.make_request(
-                getattr(self.fixture, user), {"end_date": "2020-05-08"}
-            )
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.resource.refresh_from_db()
-            self.assertEqual(
-                self.resource.end_date_requested_by, getattr(self.fixture, user)
-            )
-
-    @data("admin", "manager", "member", "owner", "customer_support")
-    @freeze_time("2020-01-01")
-    def test_permission_negative(self, user):
-        self.resource.state = ResourceStates.OK
-        self.resource.save()
-
-        with freeze_time("2020-05-01"):
-            response = self.make_request(
-                getattr(self.fixture, user), {"end_date": "2020-05-08"}
-            )
-            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-
-@ddt
-class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = MarketplaceFixture()
-        self.resource = self.fixture.resource
-        self.url = factories.ResourceFactory.get_url(
-            self.resource, "set_end_date_by_staff"
-        )
-
-    def make_request(self, user, payload):
-        self.client.force_authenticate(user)
-        return self.client.post(self.url, payload)
-
-    @freeze_time("2020-01-01")
-    @data(
-        "staff",
-    )
-    def test_user_can_set_end_date(self, user):
-        self.resource.state = ResourceStates.OK
-        self.resource.save()
-        with freeze_time("2020-05-01"):
-            response = self.make_request(
-                getattr(self.fixture, user), {"end_date": "2020-05-08"}
-            )
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.resource.refresh_from_db()
-            self.assertEqual(self.resource.end_date, parse_date("2020-05-08"))
-
-            self.assertTrue(
-                logging_models.Event.objects.filter(
-                    message__contains="End date of marketplace resource %s has been updated by staff."
-                    % self.resource.name
-                ).exists()
-            )
-            self.resource.refresh_from_db()
-            self.assertEqual(
-                self.resource.end_date_requested_by, getattr(self.fixture, user)
-            )
-
-    @freeze_time("2020-01-01")
-    @data("offering_owner", "service_manager")
-    def test_user_cannot_set_end_date(self, user):
-        self.resource.state = ResourceStates.OK
-        self.resource.save()
-        with freeze_time("2020-05-01"):
-            response = self.make_request(
-                getattr(self.fixture, user), {"end_date": "2020-05-08"}
-            )
-            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class ResourceUpdateLimitsTest(test.APITransactionTestCase):

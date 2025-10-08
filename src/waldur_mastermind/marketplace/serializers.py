@@ -6,6 +6,7 @@ from typing import Literal, cast
 import jwt
 from constance import config
 from dateutil.parser import parse as parse_datetime
+from dateutil.relativedelta import relativedelta
 from django import forms
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -1359,6 +1360,12 @@ class OfferingOptionsSerializer(serializers.Serializer):
 
 class OfferingComponentSerializer(serializers.ModelSerializer):
     factor = serializers.SerializerMethodField()
+    overage_component = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.OfferingComponent.objects.all(),
+        required=False,
+        allow_null=True,
+    )
 
     class Meta:
         model = models.OfferingComponent
@@ -1380,6 +1387,10 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             "default_limit",
             "factor",
             "is_builtin",
+            "is_prepaid",
+            "overage_component",
+            "min_prepaid_duration",
+            "max_prepaid_duration",
         )
         extra_kwargs = {
             "billing_type": {"required": True},
@@ -1402,7 +1413,54 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     "OpenStack offering components are not editable."
                 )
+        self._validate_prepaid(attrs)
+
         return attrs
+
+    def _validate_prepaid(self, attrs):
+        # Determine the final state of 'is_prepaid'.
+        # On update, if 'is_prepaid' is not in the request, use the existing value.
+        # On create, if not provided, it defaults to False.
+        if self.instance:
+            is_prepaid = attrs.get("is_prepaid", self.instance.is_prepaid)
+        else:
+            is_prepaid = attrs.get("is_prepaid", False)
+
+        overage_component = cast(
+            models.OfferingComponent | None, attrs.get("overage_component")
+        )
+
+        if overage_component:
+            # Rule 1: The current component must be prepaid to have an overage component.
+            if not is_prepaid:
+                raise serializers.ValidationError(
+                    {
+                        "overage_component": _(
+                            "An overage component can only be specified for prepaid components. "
+                            "Please set 'is_prepaid' to true or remove the overage component."
+                        )
+                    }
+                )
+
+            # Rule 2: The linked overage component itself cannot be a prepaid component.
+            if overage_component.is_prepaid:
+                raise serializers.ValidationError(
+                    {
+                        "overage_component": _(
+                            "The linked overage component cannot be a prepaid component itself."
+                        )
+                    }
+                )
+
+            # Rule 3: The overage component's billing type must be USAGE
+            if overage_component.billing_type != BillingTypes.USAGE:
+                raise serializers.ValidationError(
+                    {
+                        "overage_component": _(
+                            "The linked overage component must have a billing type of 'usage'."
+                        )
+                    }
+                )
 
     def create(self, validated_data):
         offering = validated_data.get("offering")
@@ -3065,115 +3123,234 @@ class OrderCreateSerializer(
             pass
 
     def validate(self, attrs):
+        """
+        Main validation coordinator. Extracts context and calls specific validators.
+        """
         attrs = super().validate(attrs)
+
+        # Extract Context
+        request = self.context["request"]
+        user: User = request.user
+        offering: models.Offering = attrs["offering"]
+        project: structure_models.Project = attrs["project"]
         attributes = attrs.get("attributes", {})
+        accepting_tos = attrs.get("accepting_terms_of_service", False)
 
-        name = attributes.get("name") or ""
+        # Execute Validation Blocks
+        self._validate_resource_name(attributes)
+        self._validate_terms_of_service(user, offering, accepting_tos)
+        self._validate_project_policy_constraints(project, offering)
 
-        if len(name) > NAME_LENGTH:
-            raise ValidationError(
-                _("Name is too long. Maximum number of symbols is %s") % NAME_LENGTH
-            )
-
-        offering = cast(models.Offering, attrs["offering"])
-        user: User = self.context["request"].user
-        project = cast(structure_models.Project, attrs["project"])
-
-        # Check if offering has ToS and if user needs to consent
-        if (
-            config.ENFORCE_USER_CONSENT_FOR_OFFERINGS
-            and offering.has_terms_of_service()
-        ):
-            if not (user.is_staff or user.is_support):
-                if not attrs.get("accepting_terms_of_service"):
-                    if not offering.check_user_consent(user):
-                        raise ValidationError(
-                            _(
-                                "Terms of service for offering '%s' have not been accepted."
-                            )
-                            % offering
-                        )
-
-        minimal_team_count_for_provisioning = offering.plugin_options.get(
-            "minimal_team_count_for_provisioning"
-        )
-
-        project_user_count = project.get_users().count()
-
-        if minimal_team_count_for_provisioning:
-            try:
-                minimal_team_count_for_provisioning_int = int(
-                    minimal_team_count_for_provisioning
-                )
-            except ValueError or TypeError:
-                raise ValidationError(
-                    "Invalid value for minimal_team_count_for_provisioning setting, expected positive integer."
-                )
-
-            if project_user_count < minimal_team_count_for_provisioning_int:
-                raise ValidationError(
-                    _(
-                        "The required minimal team count is not satisfied for the project '%s'. Required - %s, actual - %s."
-                    )
-                    % (project, minimal_team_count_for_provisioning, project_user_count)
-                )
-
-        required_team_role_for_provisioning = offering.plugin_options.get(
-            "required_team_role_for_provisioning"
-        )
-        if required_team_role_for_provisioning:
-            project_ct = ContentType.objects.get_for_model(structure_models.Project)
-            role = permission_models.Role.objects.filter(
-                name=required_team_role_for_provisioning,
-                content_type=project_ct,
-                is_active=True,
-            ).first()
-            if not role:
-                raise ValidationError(
-                    _(
-                        "The required active project role '%s' for provisioning does not exist in the system."
-                    )
-                    % required_team_role_for_provisioning
-                )
-
-            if not project.get_users(role).exists():
-                raise ValidationError(
-                    _(
-                        "Users with the required role '%s' are not found in the project '%s'."
-                    )
-                    % (
-                        project,
-                        required_team_role_for_provisioning,
-                    )
-                )
-
-        maximal_resource_count_per_project = offering.plugin_options.get(
-            "maximal_resource_count_per_project"
-        )
-        if maximal_resource_count_per_project is not None:
-            try:
-                limit = int(maximal_resource_count_per_project)
-            except (ValueError, TypeError):
-                raise ValidationError(
-                    "Invalid value for maximal_resource_count_per_project setting, expected a positive integer."
-                )
-
-            # Count non-terminated resources for this project and offering
-            current_count = (
-                models.Resource.objects.filter(project=project, offering=offering)
-                .exclude(state=models.Resource.States.TERMINATED)
-                .count()
-            )
-
-            if current_count >= limit:
-                raise ValidationError(
-                    _(
-                        "The maximum number of resources (%s) for this offering has already been reached in the project '%s'."
-                    )
-                    % (limit, project.name)
-                )
+        # Prepaid Offering Validation
+        prepaid_components = offering.components.filter(is_prepaid=True)
+        if prepaid_components.exists():
+            self._validate_prepaid_attributes(attributes, prepaid_components)
 
         return attrs
+
+    def _validate_resource_name(self, attributes):
+        name = attributes.get("name") or ""
+        if len(name) > NAME_LENGTH:
+            raise ValidationError(
+                {
+                    "attributes.name": _(
+                        "Name is too long. Maximum number of symbols is %s"
+                    )
+                    % NAME_LENGTH
+                }
+            )
+
+    def _validate_terms_of_service(self, user, offering, accepting_tos):
+        """
+        Checks if ToS are required and if the user has accepted them.
+        """
+        if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+            return
+
+        if not offering.has_terms_of_service():
+            return
+
+        # Staff and support are exempt
+        if user.is_staff or user.is_support:
+            return
+
+        # Check if accepted in this request or previously
+        if not accepting_tos and not offering.check_user_consent(user):
+            raise ValidationError(
+                _("Terms of service for offering '%s' have not been accepted.")
+                % offering
+            )
+
+    def _validate_project_policy_constraints(self, project, offering):
+        """
+        Validates offering-defined constraints on the target project.
+        """
+        self._validate_minimal_team_count(project, offering)
+        self._validate_required_team_role(project, offering)
+        self._validate_maximal_resource_count(project, offering)
+
+    def _validate_minimal_team_count(self, project, offering):
+        min_count_setting = offering.plugin_options.get(
+            "minimal_team_count_for_provisioning"
+        )
+        if not min_count_setting:
+            return
+
+        try:
+            min_count = int(min_count_setting)
+        except (ValueError, TypeError):
+            raise ValidationError(
+                "Invalid configuration: minimal_team_count_for_provisioning must be an integer."
+            )
+
+        project_user_count = project.get_users().count()
+        if project_user_count < min_count:
+            raise ValidationError(
+                _(
+                    "Project '%(project)s' does not meet the minimal team size "
+                    "required by this offering. Required: %(required)s, Actual: %(actual)s."
+                )
+                % {
+                    "project": project.name,
+                    "required": min_count,
+                    "actual": project_user_count,
+                }
+            )
+
+    def _validate_required_team_role(self, project, offering):
+        required_role_name = offering.plugin_options.get(
+            "required_team_role_for_provisioning"
+        )
+        if not required_role_name:
+            return
+
+        project_ct = ContentType.objects.get_for_model(structure_models.Project)
+        role = permission_models.Role.objects.filter(
+            name=required_role_name,
+            content_type=project_ct,
+            is_active=True,
+        ).first()
+
+        if not role:
+            raise ValidationError(
+                _("Configuration Error: The required project role '%s' does not exist.")
+                % required_role_name
+            )
+
+        if not project.get_users(role).exists():
+            raise ValidationError(
+                _(
+                    "Project '%(project)s' must have at least one user with the role '%(role)s' "
+                    "to provision this offering."
+                )
+                % {"project": project.name, "role": required_role_name}
+            )
+
+    def _validate_maximal_resource_count(self, project, offering):
+        max_count_setting = offering.plugin_options.get(
+            "maximal_resource_count_per_project"
+        )
+        if max_count_setting is None:
+            return
+
+        try:
+            limit = int(max_count_setting)
+        except (ValueError, TypeError):
+            raise ValidationError(
+                "Invalid configuration: maximal_resource_count_per_project must be an integer."
+            )
+
+        # Count non-terminated resources for this project and offering
+        current_count = (
+            models.Resource.objects.filter(project=project, offering=offering)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .count()
+        )
+
+        if current_count >= limit:
+            raise ValidationError(
+                _(
+                    "Project '%(project)s' has reached the maximum number of resources (%(limit)s) "
+                    "allowed for this offering."
+                )
+                % {"project": project.name, "limit": limit}
+            )
+
+    def _validate_prepaid_attributes(
+        self, attributes, prepaid_components: QuerySet[models.OfferingComponent]
+    ):
+        """
+        Validates attributes specific to prepaid offerings (end_date, duration).
+        """
+
+        # Rule 1: 'end_date' is mandatory for prepaid offerings.
+        end_date_str = attributes.get("end_date")
+        if not end_date_str:
+            raise ValidationError(
+                {
+                    "attributes.end_date": _(
+                        "This field is required for prepaid offerings."
+                    )
+                }
+            )
+
+        try:
+            end_date = datetime.date.fromisoformat(end_date_str)
+        except (ValueError, TypeError):
+            raise ValidationError(
+                {"attributes.end_date": _("Invalid date format. Use YYYY-MM-DD.")}
+            )
+
+        if end_date <= timezone.now().date():
+            raise ValidationError(
+                {"attributes.end_date": _("End date must be in the future.")}
+            )
+
+        # Rule 2: Validate duration against component constraints.
+        start_date = timezone.now().date()
+        # Calculate duration in full months. A partial month at the end counts as a full month.
+        delta = relativedelta(end_date, start_date)
+        duration_in_months = delta.years * 12 + delta.months
+        if delta.days > 0:
+            duration_in_months += 1
+
+        # Check against every prepaid component's duration limits
+        for component in prepaid_components:
+            # Check minimum duration
+            if (
+                component.min_prepaid_duration
+                and duration_in_months < component.min_prepaid_duration
+            ):
+                raise ValidationError(
+                    {
+                        "attributes.end_date": _(
+                            "The selected duration of {calculated_duration} months is less than "
+                            "the minimum required duration of {min_duration} months for component '{component_name}'."
+                        ).format(
+                            calculated_duration=duration_in_months,
+                            min_duration=component.min_prepaid_duration,
+                            component_name=component.name,
+                        )
+                    }
+                )
+
+            # Check maximum duration
+            if (
+                component.max_prepaid_duration
+                and duration_in_months > component.max_prepaid_duration
+            ):
+                raise ValidationError(
+                    {
+                        "attributes.end_date": _(
+                            "The selected duration of {calculated_duration} months exceeds "
+                            "the maximum allowed duration of {max_duration} months for component '{component_name}'."
+                        ).format(
+                            calculated_duration=duration_in_months,
+                            max_duration=component.max_prepaid_duration,
+                            component_name=component.name,
+                        )
+                    }
+                )
 
 
 class OrderAttachmentSerializer(serializers.ModelSerializer):
@@ -3527,8 +3704,8 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
     )
 
     def validate(self, attrs):
-        plan = attrs["plan"]
-        resource = self.context["view"].get_object()
+        plan: models.Plan = attrs["plan"]
+        resource: models.Resource = self.context["view"].get_object()
 
         if plan.offering != resource.offering:
             raise rf_exceptions.ValidationError(
@@ -3549,28 +3726,114 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
         )
 
     def validate_end_date(self, end_date):
+        """
+        Comprehensive validation for the end_date field.
+
+        This method layers validation checks:
+        1. It first enforces the strict rule that prepaid resources cannot have their
+           end_date modified directly via this serializer.
+        2. If that passes, it calls the generic utility function to validate against
+           offering-specific rules defined in plugin_options.
+        """
+        # We need the resource instance to perform validation.
+        # If it's not available (e.g., on create, though this is an update serializer),
+        # we can't perform these checks.
+        if not self.instance:
+            return end_date
+
         if not end_date:
-            return
+            return end_date  # Allowing end_date to be cleared is valid
+
         if end_date < timezone.datetime.today().date():
             raise serializers.ValidationError(
-                {"end_date": _("Cannot be earlier than the current date.")}
+                _("End date cannot be earlier than the current date.")
             )
+
+        resource: models.Resource = self.instance
+
+        if resource and resource.offering.components.filter(is_prepaid=True).exists():
+            # Check if the end_date is actually being changed.
+            # No error if the user submits the same end_date.
+            if resource.end_date != end_date:
+                raise serializers.ValidationError(
+                    _(
+                        "Direct modification of the end date is not allowed for prepaid resources. "
+                        "Please use the 'renew' action to extend the subscription."
+                    )
+                )
+
+        # The utility function handles all other cases (max offset, required date, etc.)
+        end_date = validate_end_date(
+            offering=resource.offering,
+            created_date=resource.created.date(),
+            end_date=end_date,
+        )
         return end_date
 
     def save(self, **kwargs):
-        resource = cast(models.Resource, super().save(**kwargs))
+        """
+        Custom save method to handle setting the 'end_date_requested_by' field
+        and logging correctly.
+
+        This method relies on the `validate_end_date` to have already performed
+        all necessary checks. It only handles the database update.
+        """
+        resource = cast(models.Resource, self.instance)
         user = self.context["request"].user
 
-        end_date = validate_end_date(
-            resource.offering,
-            resource.created.date(),
-            self.validated_data.get("end_date"),
-        )
-        if end_date:
-            resource.end_date = end_date
+        # Get values from validated_data, which has passed all checks.
+        new_name = self.validated_data.get("name", resource.name)
+        new_description = self.validated_data.get("description", resource.description)
+        new_end_date = self.validated_data.get("end_date")
+
+        updated_fields = []
+        if resource.name != new_name:
+            resource.name = new_name
+            updated_fields.append("name")
+
+        if resource.description != new_description:
+            resource.description = new_description
+            updated_fields.append("description")
+
+        if resource.end_date != new_end_date:
+            resource.end_date = new_end_date
             resource.end_date_requested_by = user
-            resource.save(update_fields=["end_date", "end_date_requested_by"])
-        log.log_resource_end_date_has_been_updated(resource, user)
+            updated_fields.extend(["end_date", "end_date_requested_by"])
+            # Log the event only if the date actually changed.
+            log.log_resource_end_date_has_been_updated(resource, user)
+
+        if updated_fields:
+            resource.save(update_fields=updated_fields)
+
+        return resource
+
+
+class ResourceRenewSerializer(serializers.Serializer):
+    """
+    Serializer for validating the payload of a prepaid resource renewal action.
+    """
+
+    extension_months = serializers.IntegerField(
+        min_value=1,
+        max_value=60,  # Sensible upper limit
+        help_text=_("Number of months to extend the subscription by."),
+    )
+    limits = serializers.DictField(
+        child=serializers.IntegerField(min_value=0),
+        required=False,
+        help_text=_("Optional new limits for the resource. Supports upgrades only."),
+    )
+
+    def validate(self, attrs):
+        """
+        Ensure the resource is a renewable prepaid resource.
+        """
+        resource: models.Resource = self.context["resource"]
+        if not resource.offering.components.filter(is_prepaid=True).exists():
+            raise serializers.ValidationError(
+                _("This action is only available for prepaid resources.")
+            )
+        return attrs
 
 
 class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):

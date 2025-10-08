@@ -1,5 +1,6 @@
 import datetime
 from decimal import Decimal
+from typing import cast
 
 import pytest
 from ddt import data, ddt
@@ -46,7 +47,8 @@ class InvoicesBaseTest(test.APITransactionTestCase):
         marketplace_utils.process_order(order, self.fixture.staff)
 
         order.refresh_from_db()
-        self.issue = order.resource.scope
+        self.assertIsNotNone(order.resource.scope, order.error_message)
+        self.issue = cast(support_models.Issue, order.resource.scope)
         self.issue.set_resolved()
         order.resource.refresh_from_db()
 
@@ -380,7 +382,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
     def test_calculate_on_plan_switch_component_if_plan_has_been_switched_in_current_period(
         self,
     ):
-        order: marketplace_models.Order = marketplace_factories.OrderFactory(
+        order = marketplace_factories.OrderFactory(
             type=OrderTypes.UPDATE,
             resource=self.resource,
             plan=self.fixture.plan,
