@@ -255,9 +255,12 @@ class SmaxBackend:
         """Get user-friendly status from properties, fallback to PhaseId if Status not available or not mapped."""
         # Try to get Status field first
         status_value = properties.get("Status")
+        logger.info(f"Received value for Status field: {status_value}")
         if status_value:
             mappings = self._get_status_mappings()
+            logger.info(f"Available mappings: {mappings}")
             mapped_status = mappings.get(status_value)
+            logger.info(f"Mapped status: {mapped_status}")
             if mapped_status:
                 return mapped_status
 
