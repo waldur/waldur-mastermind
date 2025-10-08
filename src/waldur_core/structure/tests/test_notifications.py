@@ -110,7 +110,7 @@ class NotificationTemplateListTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.template = factories.NotificationTemplateFactory(
-            path="marketplace/marketplace_plan_template.txt"
+            path="marketplace/test.txt"
         )
         self.url = factories.NotificationTemplateFactory.get_list_url()
         self.override_url = factories.NotificationTemplateFactory.get_url(
