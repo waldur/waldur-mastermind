@@ -527,6 +527,9 @@ class IssueStatus(core_models.UuidMixin, models.Model):
         verbose_name = _("Issue status")
         verbose_name_plural = _("Issue statuses")
 
+    def __str__(self):
+        return f"{self.name} / {self.type}"
+
 
 class TemplateConfirmationComment(models.Model):
     """
