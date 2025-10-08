@@ -29,6 +29,7 @@ from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
     RequestedOfferingStates,
+    RoundStatuses,
 )
 
 from . import managers
@@ -359,16 +360,8 @@ class Round(
             (FIXED_DATE, "Fixed date"),
         )
 
-    class Statuses:
-        SCHEDULED = "scheduled"
-        OPEN = "open"
-        ENDED = "ended"
-
-        CHOICES = (
-            (SCHEDULED, "Round is scheduled"),
-            (OPEN, "Round is open"),
-            (ENDED, "Round is ended"),
-        )
+    class Statuses(RoundStatuses):
+        pass
 
     review_strategy = models.CharField(
         default=ReviewStrategies.AFTER_ROUND,

@@ -30,6 +30,7 @@ from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
     RequestedOfferingStates,
+    RoundStatuses,
 )
 
 from . import models
@@ -1218,8 +1219,8 @@ class ProposalSerializer(
             raise serializers.ValidationError(_("Call is not active."))
 
         if call_round.status not in (
-            models.Round.Statuses.SCHEDULED,
-            models.Round.Statuses.OPEN,
+            RoundStatuses.SCHEDULED,
+            RoundStatuses.OPEN,
         ):
             raise serializers.ValidationError(_("Round is not active."))
 
