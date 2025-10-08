@@ -890,6 +890,38 @@ class OfferingCreateTest(test.APITransactionTestCase):
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
 
+    def test_update_offering_plugin_options_with_heappe_new_fields(self):
+        """Test that offering plugin options can be updated with new Heappe fields"""
+        offering = factories.OfferingFactory(customer=self.customer)
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = factories.OfferingFactory.get_url(offering, "update_integration")
+        plugin_options = {
+            "heappe_url": "https://heappe.example.com",
+            "heappe_username": "test_user",
+            "heappe_cluster_id": "1",
+            "heappe_local_base_path": "~/",
+            "scratch_project_directory": "/scratch/projects",
+            "project_permanent_directory": "/permanent/projects",
+        }
+
+        response = self.client.post(url, {"plugin_options": plugin_options})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        offering.refresh_from_db()
+        self.assertEqual(
+            offering.plugin_options["scratch_project_directory"], "/scratch/projects"
+        )
+        self.assertEqual(
+            offering.plugin_options["project_permanent_directory"],
+            "/permanent/projects",
+        )
+
+        self.assertEqual(
+            offering.plugin_options["heappe_url"], "https://heappe.example.com"
+        )
+        self.assertEqual(offering.plugin_options["heappe_username"], "test_user")
+
     def test_create_offering_with_minimal_information_in_draft_state(self):
         user = self.fixture.staff
         self.client.force_authenticate(user)

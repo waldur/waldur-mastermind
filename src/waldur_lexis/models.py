@@ -45,7 +45,10 @@ def get_heappe_config(offering):
         )
 
     heappe_cluster_password = offering.secret_options.get("heappe_cluster_password")
-
+    scratch_project_directory = offering.plugin_options.get("scratch_project_directory")
+    project_permanent_directory = offering.plugin_options.get(
+        "project_permanent_directory"
+    )
     return structures.HeappeConfig(
         heappe_url=heappe_url,
         heappe_username=heappe_username,
@@ -53,6 +56,8 @@ def get_heappe_config(offering):
         heappe_cluster_id=heappe_cluster_id,
         heappe_local_base_path=heappe_local_base_path,
         heappe_cluster_password=heappe_cluster_password,
+        scratch_project_directory=scratch_project_directory,
+        project_permanent_directory=project_permanent_directory,
     )
 
 

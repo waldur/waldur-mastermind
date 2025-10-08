@@ -10,3 +10,5 @@ class HeappeConfig:
     heappe_local_base_path: str
     heappe_cluster_password: str | None = None
     heappe_project_id: str | None = None
+    scratch_project_directory: str | None = None
+    project_permanent_directory: str | None = None
