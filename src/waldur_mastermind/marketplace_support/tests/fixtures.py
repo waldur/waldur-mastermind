@@ -73,6 +73,7 @@ class MarketplaceSupportApprovedFixture(SupportFixture):
 
 class SupportFixture(structure_fixtures.ProjectFixture):
     def __init__(self):
+        super().__init__()
         self.plan_component_cpu
         self.plan_component_ram
         self.new_plan_component_cpu

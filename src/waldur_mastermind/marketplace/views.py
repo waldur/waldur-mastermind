@@ -6280,15 +6280,20 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
                         "detail": "Service account creation is disabled or returned no token."
                     }
                 )
-        except httpx.HTTPError as e:
+        except httpx.HTTPError as exc:
+            error_details = (
+                exc.response.json()
+                if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+                else str(exc)
+            )
             if "instance" in locals():
                 instance.set_state_erred()
-                instance.error_message = str(e)
+                instance.error_message = str(error_details)
                 instance.error_traceback = traceback.format_exc()
                 instance.save(
                     update_fields=["state", "error_message", "error_traceback"]
                 )
-            raise ValidationError({"detail": str(e)})
+            raise ValidationError({"detail": error_details})
 
     def perform_update(self, serializer):
         instance: models.ScopedServiceAccount = serializer.instance
@@ -6305,8 +6310,13 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
                 instance.error_traceback = ""
             # Update the DB object only if the API call is successful
             super().perform_update(serializer)
-        except httpx.HTTPError as e:
-            raise ValidationError({"detail": str(e)})
+        except httpx.HTTPError as exc:
+            error_details = (
+                exc.response.json()
+                if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+                else str(exc)
+            )
+            raise ValidationError({"detail": error_details})
 
     update_validators = destroy_validators = [
         core_validators.StateValidator(
@@ -6317,8 +6327,14 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
     def perform_destroy(self, instance):
         try:
             utils.close_service_account(instance)
-        except httpx.HTTPError as e:
-            raise ValidationError({"detail": str(e)})
+        except httpx.HTTPError as exc:
+            raise ValidationError(
+                {
+                    "detail": exc.response.json()
+                    if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+                    else str(exc)
+                }
+            )
 
 
 class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
@@ -6382,8 +6398,13 @@ class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
                 raise ValidationError(
                     {"detail": "API key rotation failed - no token returned"}
                 )
-        except httpx.HTTPError as e:
-            raise ValidationError({"detail": str(e)})
+        except httpx.HTTPError as exc:
+            error_details = (
+                exc.response.json()
+                if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+                else str(exc)
+            )
+            raise ValidationError({"detail": error_details})
 
     rotate_api_key_permissions = [
         permission_factory(
@@ -6451,8 +6472,13 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
                 raise ValidationError(
                     {"detail": "API key rotation failed - no token returned"}
                 )
-        except httpx.HTTPError as e:
-            raise ValidationError({"detail": str(e)})
+        except httpx.HTTPError as exc:
+            error_details = (
+                exc.response.json()
+                if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+                else str(exc)
+            )
+            raise ValidationError({"detail": error_details})
 
     rotate_api_key_permissions = [
         permission_factory(
@@ -7325,21 +7351,31 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
             instance = serializer.save()
             instance.user = user
             instance.save(update_fields=["user"])
-        except httpx.HTTPError as e:
+        except httpx.HTTPError as exc:
+            error_details = (
+                exc.response.json()
+                if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+                else str(exc)
+            )
             if "instance" in locals():
                 instance.set_state_erred()
-                instance.error_message = str(e)
+                instance.error_message = str(error_details)
                 instance.error_traceback = traceback.format_exc()
                 instance.save(
                     update_fields=["state", "error_message", "error_traceback"]
                 )
-            raise ValidationError({"detail": str(e)})
+            raise ValidationError({"detail": str(error_details)})
 
     def perform_destroy(self, instance):
         try:
             utils.close_course_account(instance)
-        except httpx.HTTPError as e:
-            raise ValidationError({"detail": str(e)})
+        except httpx.HTTPError as exc:
+            error_details = (
+                exc.response.json()
+                if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+                else str(exc)
+            )
+            raise ValidationError({"detail": error_details})
 
     destroy_validators = [
         core_validators.StateValidator(

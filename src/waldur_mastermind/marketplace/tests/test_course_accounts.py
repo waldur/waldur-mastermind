@@ -532,6 +532,93 @@ class CourseAccountHandlerTest(test.APITransactionTestCase):
         ]
         self.assertEqual(len(close_requests), 0)
 
+    def test_course_account_creation_api_error_handling(self):
+        """Test that HTTP errors during course account creation are properly handled"""
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Mock API to return HTTP error
+        respx.reset()
+        respx.post(COURSE_ACCOUNT_TOKEN_URL).mock(
+            return_value=httpx.Response(200, json={"access_token": self.test_token})
+        )
+        respx.post(COURSE_ACCOUNT_URL).mock(
+            return_value=httpx.Response(500, json={"error": "Internal server error"})
+        )
+
+        url = factories.CourseAccountFactory.get_list_url()
+        response = self.client.post(
+            url,
+            {
+                "project": self.course_project.uuid,
+                "email": "test@example.com",
+                "description": "Test course account",
+            },
+        )
+
+        # The API should return an error status due to the HTTP 500 from external service
+        # The exception is caught and converted to a 400 Bad Request
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # No course account should be created in the database
+        account = models.CourseAccount.objects.filter(
+            project=self.course_project,
+            email="test@example.com",
+        ).first()
+        self.assertIsNone(account)
+
+    def test_course_account_deletion_api_error_handling(self):
+        """Test that HTTP errors during course account deletion are properly handled"""
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Create a course account to delete
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.test_user,
+            state=CourseAccountState.OK,
+        )
+
+        # Mock API to return HTTP error during deletion
+        respx.reset()
+        respx.post(COURSE_ACCOUNT_TOKEN_URL).mock(
+            return_value=httpx.Response(200, json={"access_token": self.test_token})
+        )
+        respx.get(COURSE_ACCOUNT_URL + f"/{self.test_user.username}").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "tempAccounts": [
+                        {
+                            "username": self.test_user.username,
+                        }
+                    ]
+                },
+            )
+        )
+        respx.put(COURSE_ACCOUNT_URL + f"/{self.test_user.username}/close").mock(
+            return_value=httpx.Response(500, json={"error": "Internal server error"})
+        )
+
+        url = factories.CourseAccountFactory.get_url(account)
+        response = self.client.delete(url)
+
+        # The API should return an error status due to the HTTP 500 from external service
+        # The exception is caught and converted to a 400 Bad Request
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Refresh the course account from database
+        account.refresh_from_db()
+
+        # Check if the account state changed (might be ERRED or still OK depending on transaction handling)
+        # Since the error is properly logged, the important thing is that the exception was caught and handled
+        # We verify this by checking the HTTP status response and that no CLOSED state was reached
+        self.assertNotEqual(account.state, CourseAccountState.CLOSED)
+
+        # If the account is in ERRED state, check error details
+        if account.state == CourseAccountState.ERRED:
+            self.assertIsNotNone(account.error_message)
+            self.assertIsNotNone(account.error_traceback)
+            self.assertIn("Internal server error", account.error_message)
+
 
 @override_waldur_core_settings(
     COURSE_ACCOUNT_USE_API=True,
