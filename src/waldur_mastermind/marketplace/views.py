@@ -3831,7 +3831,13 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
     unlink_permissions = [structure_permissions.is_staff]
 
-    def create_resource_order(self, request, resource, **kwargs):
+    def create_resource_order(
+        self,
+        request,
+        resource: models.Resource,
+        switch_price=None,
+        **kwargs,
+    ):
         with transaction.atomic():
             order = models.Order(
                 project=resource.project,
@@ -3842,6 +3848,14 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
             )
             serializers.validate_order(order, request)
             order.init_cost()
+
+            # If a one-time charge (like a renewal fee) is provided,
+            # it should be the primary cost for an UPDATE order.
+            if order.type == OrderTypes.UPDATE and switch_price is not None:
+                # For renewals, the cost is *only* the switch price.
+                # For plan switches, it might be the plan's switch_price + estimate.
+                order.cost = switch_price
+
             order.save()
 
         return Response({"order_uuid": order.uuid.hex}, status=status.HTTP_200_OK)
@@ -4263,6 +4277,78 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
         ),
     ]
     update_options_serializer_class = serializers.ResourceOptionsSerializer
+
+    @extend_schema(
+        request=serializers.ResourceRenewSerializer,
+        responses={200: serializers.OrderUUIDSerializer},
+        description="Create a renewal order for a prepaid resource.",
+    )
+    @action(detail=True, methods=["post"])
+    def renew(self, request, uuid=None):
+        resource = cast(models.Resource, self.get_object())
+
+        serializer = self.get_serializer(
+            data=request.data,
+            context={"resource": resource},  # Pass resource to serializer context
+        )
+        serializer.is_valid(raise_exception=True)
+
+        extension_months = serializer.validated_data["extension_months"]
+        new_limits = serializer.validated_data.get("limits")  # This can be None
+
+        # If new limits are not provided, use the resource's current limits for the new period.
+        final_limits = new_limits or resource.limits
+
+        # Calculate the new end_date for the resource.
+        # It's safest to calculate from the current end_date, or from today if expired.
+        current_end_date = resource.end_date or timezone.now().date()
+        if current_end_date < timezone.now().date():
+            current_end_date = timezone.now().date()
+
+        new_end_date = current_end_date + relativedelta(months=extension_months)
+
+        # Calculate the renewal cost using the new model method.
+        renewal_cost = resource.get_renewal_cost(extension_months, new_limits)
+
+        # Create an 'UPDATE' order to handle the renewal.
+        # The order processor will be responsible for updating the resource's
+        # end_date and limits upon successful payment/approval.
+        order_attributes = {
+            "action": "renew",
+            "old_limits": resource.limits,
+            "old_end_date": resource.end_date.isoformat()
+            if resource.end_date
+            else None,
+            "new_end_date": new_end_date.isoformat(),
+            "extension_months": extension_months,
+            "renewal_cost": float(renewal_cost),  # Store for auditing
+        }
+
+        # The renewal cost is passed as 'switch_price' to the order,
+        # which is the mechanism for one-time charges on UPDATE orders.
+        return self.create_resource_order(
+            request=request,
+            resource=resource,
+            plan=resource.plan,
+            type=OrderTypes.UPDATE,
+            limits=final_limits,
+            attributes=order_attributes,
+            switch_price=renewal_cost,
+        )
+
+    renew_serializer_class = serializers.ResourceRenewSerializer
+
+    renew_permissions = [
+        permissions.check_tos_consent_permission,
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE_LIMITS,  # Re-use existing permission
+            ["project", "project.customer"],
+        ),
+    ]
+
+    renew_validators = [
+        core_validators.StateValidator(ResourceStates.OK, ResourceStates.ERRED),
+    ]
 
 
 class ProviderResourceViewSet(BaseResourceViewSet):

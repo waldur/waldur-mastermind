@@ -3,10 +3,11 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any, Literal, cast
 
+from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
-from django.db.models import Index
+from django.db.models import Index, Sum
 from django.db.models.constraints import UniqueConstraint
 from django.utils import timezone
 from django.utils.functional import cached_property
@@ -892,6 +893,13 @@ class OfferingComponent(
     is_boolean = models.BooleanField(default=False)
     # default_limit field is used by UI to prefill limit values
     default_limit = models.IntegerField(blank=True, null=True)
+    # following fields are used for prepaid billing
+    is_prepaid = models.BooleanField(default=False)
+    overage_component = models.ForeignKey(
+        on_delete=models.CASCADE, to="OfferingComponent", null=True, blank=True
+    )
+    min_prepaid_duration = models.IntegerField(blank=True, null=True)
+    max_prepaid_duration = models.IntegerField(blank=True, null=True)
     objects = managers.MixinManager("scope")
 
     def validate_amount(self, resource, amount, date):
@@ -1442,6 +1450,139 @@ class Resource(
             ],
         ).first()
         return order_in_progress
+
+    def get_prepaid_balance(
+        self, offering_component: "OfferingComponent", excluded_ids: list | None = None
+    ) -> int:
+        """
+        Calculates the comprehensive remaining prepaid balance for a component.
+
+        This method uses a consistent SUBSCRIPTION-BASED logic for all periodic limits,
+        meaning periods are calculated relative to the resource's creation date.
+
+        The behavior for each period is as follows:
+        - MONTH: Usage is summed for the current subscription month (e.g., from the
+                 15th of one month to the 14th of the next).
+        - QUARTERLY: Usage is summed for the current 3-month subscription quarter.
+        - ANNUAL: Usage is summed for the current 12-month subscription year.
+        - TOTAL: Usage is summed over the entire lifetime of the resource.
+
+        Args:
+            offering_component (OfferingComponent): The component object to check.
+            excluded_ids (list, optional): A list of ComponentUsage primary keys
+                                            to exclude from the sum. This is crucial
+                                            for getting the balance *before* an update.
+
+        Returns:
+            int: The remaining non-negative prepaid quota. Overage is represented
+                 as a balance of 0.
+        """
+        # 1. Get the initial quota purchased by the customer for the period.
+        initial_quota = self.limits.get(offering_component.type, 0)
+        if not isinstance(initial_quota, int | float) or initial_quota <= 0:
+            return 0
+
+        # 2. Determine the time window for summing up usage based on the limit period.
+        now = timezone.now()
+        period_start, period_end = None, None
+        limit_period = offering_component.limit_period
+
+        # Calculate the time delta from creation to now for all periodic calculations.
+        delta = relativedelta(now, self.created)
+        total_months_passed = delta.years * 12 + delta.months
+
+        if limit_period == LimitPeriods.MONTH:
+            # SUBSCRIPTION-BASED MONTH: The period is relative to the creation day.
+            period_start = self.created + relativedelta(months=total_months_passed)
+            period_end = (
+                period_start + relativedelta(months=1) - relativedelta(microseconds=1)
+            )
+
+        elif limit_period == LimitPeriods.QUARTERLY:
+            # SUBSCRIPTION-BASED QUARTER: A 3-month period relative to creation.
+            num_quarters_passed = total_months_passed // 3
+            months_to_add = num_quarters_passed * 3
+            period_start = self.created + relativedelta(months=months_to_add)
+            period_end = (
+                period_start + relativedelta(months=3) - relativedelta(microseconds=1)
+            )
+
+        elif limit_period == LimitPeriods.ANNUAL:
+            # SUBSCRIPTION-BASED YEAR: A 12-month period relative to creation.
+            num_years_passed = total_months_passed // 12
+            period_start = self.created + relativedelta(years=num_years_passed)
+            period_end = (
+                period_start + relativedelta(years=1) - relativedelta(microseconds=1)
+            )
+
+        elif limit_period == LimitPeriods.TOTAL:
+            # SUBSCRIPTION-BASED LIFETIME: The entire resource duration.
+            period_start = self.created
+            period_end = self.end_date or now
+
+        else:
+            # If limit_period is not set or invalid, there is no balance.
+            return 0
+
+        # 3. Sum the total usage reported for this component within the calculated time window.
+        usage_query = self.usages.filter(
+            component=offering_component,
+            date__gte=period_start,
+            date__lte=period_end,
+        )
+
+        if excluded_ids:
+            usage_query = usage_query.exclude(pk__in=excluded_ids)
+
+        usage_aggregation = usage_query.aggregate(total_usage=Sum("usage"))
+        total_usage = usage_aggregation.get("total_usage") or 0
+
+        # 4. Calculate the final balance and ensure it's not negative.
+        balance = initial_quota - total_usage
+
+        return max(0, int(balance))
+
+    def get_renewal_cost(
+        self, extension_months: int, new_limits: dict | None = None
+    ) -> Decimal:
+        """
+        Calculates the cost for renewing a prepaid resource.
+
+        The cost is based on the plan's pricing for the prepaid components.
+        It supports both simple extensions and upgrades (increasing limits).
+
+        Args:
+            extension_months (int): The number of months to extend the subscription by.
+            new_limits (dict, optional): A dictionary of new limits. If provided,
+                                         the cost will reflect the upgraded capacity.
+
+        Returns:
+            Decimal: The total calculated cost for the renewal.
+        """
+        if not self.plan:
+            return Decimal("0.0")
+
+        total_cost = Decimal("0.0")
+        final_limits = new_limits or self.limits
+
+        # Find all prepaid components in the plan and sum their renewal costs
+        for plan_component in self.plan.components.filter(component__is_prepaid=True):
+            component = plan_component.component
+            if not component:
+                continue
+
+            # The price in a ONE_TIME prepaid component is typically per period (e.g., per month).
+            # We multiply this base price by the limit and the number of extension months.
+            # Example: Plan price is $10/GB/month.
+            # Renewal: 100GB for 12 months = 10 * 100 * 12 = $12,000
+
+            # This assumes a simple linear pricing model.
+            # For complex pricing, this logic would need to be more sophisticated.
+            limit_amount = final_limits.get(component.type, 0)
+            component_cost = plan_component.price * limit_amount * extension_months
+            total_cost += component_cost
+
+        return total_cost
 
 
 class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixin):

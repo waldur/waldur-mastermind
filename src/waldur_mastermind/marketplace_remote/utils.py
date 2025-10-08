@@ -3,6 +3,7 @@ import io
 import logging
 import uuid
 from collections import defaultdict
+from collections.abc import Iterable
 from decimal import Decimal
 
 import httpx
@@ -123,7 +124,7 @@ def extract_fields(fields: list[str], remote_dict: dict):
     return extracted_fields
 
 
-def pull_fields(fields: list[str], local_object, remote_dict):
+def pull_fields(fields: Iterable[str], local_object, remote_dict):
     changed_fields = set()
     for field in fields:
         if field not in remote_dict:

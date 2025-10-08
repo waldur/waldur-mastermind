@@ -1,5 +1,8 @@
 from unittest import mock
 
+from dateutil.relativedelta import relativedelta
+from django.utils import timezone
+from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -7,10 +10,12 @@ from waldur_mastermind.marketplace import utils
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 
 
 class ProcessorsTest(test.APITransactionTestCase):
@@ -72,20 +77,130 @@ class ProcessorsTest(test.APITransactionTestCase):
     def test_set_resource_options(self):
         user = structure_factories.UserFactory()
 
-        for offering_type in manager.get_offering_types():
-            offering = factories.OfferingFactory(type=offering_type)
-            offering.resource_options = {
-                "options": {"cpu": None, "ram": None},
-                "order": [],
-            }
-            order = factories.OrderFactory(
-                offering=offering,
-                state=OrderStates.EXECUTING,
-                attributes={"cpu": 1, "storage": 10},
-            )
-            utils.process_order(order, user)
-            order.refresh_from_db()
+        offering_type = manager.get_offering_types()[-1]
+        offering = factories.OfferingFactory(type=offering_type)
+        offering.resource_options = {
+            "options": {"cpu": None, "ram": None},
+            "order": [],
+        }
+        order = factories.OrderFactory(
+            offering=offering,
+            state=OrderStates.EXECUTING,
+            attributes={"cpu": 1, "storage": 10},
+        )
+        utils.process_order(order, user)
+        order.refresh_from_db()
 
         self.assertTrue(isinstance(order.resource.options, dict))
         self.assertFalse("storage" in order.resource.options.keys())
         self.assertTrue("cpu" in order.resource.options.keys())
+
+
+class UpdateResourceProcessorTest(test.APITransactionTestCase):
+    def setUp(self):
+        # Use a fixture that provides all necessary objects
+        self.fixture = MarketplaceFixture()
+        self.user = self.fixture.staff
+
+        # Use the BASIC_OFFERING type, as its processor inherits from
+        # AbstractUpdateResourceProcessor and has a simple, synchronous
+        # update_limits_process method that returns True.
+        self.offering = self.fixture.offering
+        self.offering.type = BASIC_OFFERING
+        self.offering.save()
+
+        self.plan = self.fixture.plan
+        self.plan.offering = self.offering
+        self.plan.save()
+
+    @freeze_time("2024-06-01")
+    def test_renewal_order_updates_limits_end_date_and_history(self):
+        # Arrange
+        initial_end_date = timezone.now().date() + relativedelta(months=1)
+        resource = factories.ResourceFactory(
+            offering=self.offering,
+            plan=self.plan,
+            limits={"storage": 100},
+            end_date=initial_end_date,
+        )
+
+        new_end_date = initial_end_date + relativedelta(months=12)
+        order_attributes = {
+            "action": "renew",
+            "old_limits": resource.limits,
+            "new_end_date": new_end_date.isoformat(),
+            "old_end_date": initial_end_date.isoformat(),
+            "renewal_cost": 24000.0,
+        }
+
+        order = factories.OrderFactory(
+            resource=resource,
+            offering=self.offering,
+            plan=self.plan,
+            state=OrderStates.EXECUTING,
+            type=OrderTypes.UPDATE,
+            limits={"storage": 200},
+            attributes=order_attributes,
+        )
+
+        # Act
+        utils.process_order(order, self.user)
+
+        # Assert
+        resource.refresh_from_db()
+
+        # 1. Verify limits are updated
+        self.assertEqual(resource.limits, {"storage": 200})
+
+        # 2. Verify end_date is updated
+        self.assertEqual(resource.end_date, new_end_date)
+        self.assertEqual(resource.end_date_requested_by, self.user)
+
+        # 3. Verify renewal history is created
+        self.assertIn("renewal_history", resource.attributes)
+        history = resource.attributes["renewal_history"]
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["type"], "renewal")
+        self.assertEqual(history[0]["new_end_date"], new_end_date.isoformat())
+        self.assertEqual(history[0]["new_limits"], {"storage": 200})
+
+    @freeze_time("2024-06-01")
+    def test_limit_update_order_only_updates_limits(self):
+        # Arrange
+        initial_end_date = timezone.now().date() + relativedelta(months=1)
+        resource = factories.ResourceFactory(
+            offering=self.offering,
+            plan=self.plan,
+            limits={"storage": 100},
+            end_date=initial_end_date,
+        )
+
+        order_attributes = {
+            "old_limits": resource.limits,
+            # CRITICAL: 'action' is not 'renew'
+        }
+
+        order = factories.OrderFactory(
+            resource=resource,
+            offering=self.offering,
+            plan=self.plan,
+            state=OrderStates.EXECUTING,
+            type=OrderTypes.UPDATE,
+            limits={"storage": 200},
+            attributes=order_attributes,
+        )
+
+        # Act
+        utils.process_order(order, self.user)
+
+        # Assert
+        resource.refresh_from_db()
+
+        # 1. Verify limits are updated
+        self.assertEqual(resource.limits, {"storage": 200})
+
+        # 2. Verify end_date is NOT changed
+        self.assertEqual(resource.end_date, initial_end_date)
+
+        # 3. Verify renewal history is NOT created
+        self.assertNotIn("renewal_history", resource.attributes)

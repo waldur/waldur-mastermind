@@ -218,9 +218,7 @@ class TenantCreateTest(BaseOpenStackTest):
         tenant = openstack_factories.TenantFactory()
         resource = marketplace_factories.ResourceFactory(scope=tenant)
 
-        order: marketplace_models.Order = marketplace_factories.OrderFactory(
-            resource=resource
-        )
+        order = marketplace_factories.OrderFactory(resource=resource)
         order.set_state_executing()
         order.save()
 
@@ -724,7 +722,7 @@ class VolumeCreateTest(test.APITransactionTestCase):
             type=OPENSTACK_VOLUME_OFFERING, scope=self.fixture.tenant
         )
 
-        order: marketplace_models.Order = marketplace_factories.OrderFactory(
+        order = marketplace_factories.OrderFactory(
             offering=offering,
             attributes=attributes,
             project=self.fixture.project,

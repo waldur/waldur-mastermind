@@ -345,9 +345,7 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         marketplace_factories.PlanComponentFactory(
             plan=self.plan, component=self.offering_component, price=Decimal(50)
         )
-        self.order: marketplace_models.Order = marketplace_factories.OrderFactory(
-            resource=self.resource
-        )
+        self.order = marketplace_factories.OrderFactory(resource=self.resource)
         self.order.set_state_executing()
         self.order.complete()
         self.order.save()
