@@ -1,5 +1,6 @@
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.core.enums import CoreStates
+from waldur_core.onboarding.enums import VerificationStatus
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.users.enums import InvitationState
 from waldur_mastermind.common.enums import Units
@@ -16,6 +17,7 @@ from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
     RequestedOfferingStates,
+    RoundStatuses,
 )
 from waldur_rancher.enums import (
     RANCHER_TEMPLATE_QUESTION_TYPE,
@@ -55,6 +57,7 @@ SPECTACULAR_SETTINGS = {
         "CallStates": CallStates.CHOICES,
         "ProposalStates": ProposalStates.CHOICES,
         "RequestedOfferingStates": RequestedOfferingStates.CHOICES,
+        "RoundStatus": RoundStatuses.VALUES,
         "RequestTypes": OrderTypes.VALUES,
         "RancherTemplateQuestionType": RANCHER_TEMPLATE_QUESTION_TYPE,
         "RancherRoleScopeType": RoleScopeType.CHOICES,
@@ -64,6 +67,7 @@ SPECTACULAR_SETTINGS = {
         "ChecklistOperators": checklist_enums.OPERATORS,
         "ServiceAccountState": ServiceAccountState.VALUES,
         "OfferingUserState": OfferingUserStates.VALUES,
+        "OnboardingVerificationStatus": VerificationStatus.VALUES,
     },
     "VERSION": None,
 }

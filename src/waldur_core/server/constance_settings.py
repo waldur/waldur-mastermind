@@ -520,6 +520,29 @@ CONSTANCE_CONFIG = {
         False,
         "If True, users must have active consent to access offerings that have active Terms of Service.",
     ),
+    "ONBOARDING_VERIFICATION_EXPIRY_HOURS": (
+        48,
+        "Number of hours after which onboarding verifications expire.",
+    ),
+    "ONBOARDING_ARIREGISTER_BASE_URL": (
+        "https://demo-ariregxmlv6.rik.ee/",
+        "Base URL for Estonian Äriregister API endpoint.",
+        "url_field",
+    ),
+    "ONBOARDING_ARIREGISTER_USERNAME": (
+        "",
+        "Username for Estonian Äriregister API authentication.",
+        "text_field",
+    ),
+    "ONBOARDING_ARIREGISTER_PASSWORD": (
+        "",
+        "Password for Estonian Äriregister API authentication.",
+        "secret_field",
+    ),
+    "ONBOARDING_ARIREGISTER_TIMEOUT": (
+        30,
+        "Timeout in seconds for Estonian Äriregister API requests.",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -690,6 +713,13 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "OIDC_CLIENT_SECRET",
         "OIDC_USER_FIELD",
         "OIDC_CACHE_TIMEOUT",
+    ),
+    "Onboarding settings": (
+        "ONBOARDING_VERIFICATION_EXPIRY_HOURS",
+        "ONBOARDING_ARIREGISTER_BASE_URL",
+        "ONBOARDING_ARIREGISTER_USERNAME",
+        "ONBOARDING_ARIREGISTER_PASSWORD",
+        "ONBOARDING_ARIREGISTER_TIMEOUT",
     ),
 }
 

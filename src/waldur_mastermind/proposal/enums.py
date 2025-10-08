@@ -10,6 +10,20 @@ class CallStates:
     )
 
 
+class RoundStatuses:
+    SCHEDULED = "scheduled"
+    OPEN = "open"
+    ENDED = "ended"
+
+    CHOICES = (
+        (SCHEDULED, "Round is scheduled"),
+        (OPEN, "Round is open"),
+        (ENDED, "Round is ended"),
+    )
+
+    VALUES = [val for (val, _) in CHOICES]
+
+
 class RequestedOfferingStates:
     REQUESTED = "requested"
     ACCEPTED = "accepted"
