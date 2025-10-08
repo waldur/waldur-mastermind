@@ -38,7 +38,7 @@ class Command(BaseCommand):
                 print(notification["description"], end="\n\n")
                 print("#### Templates", end="\n\n")
                 for template in notification["templates"]:
-                    template_path = f"{key}/{template.path}"
+                    template_path = f"{key}/{template['path']}"
                     print(f'=== "{template_path}"', end="\n\n")
                     print("```txt")
                     source = file_engine[0].get_template(template_path).template.source
