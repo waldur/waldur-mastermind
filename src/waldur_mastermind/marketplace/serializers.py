@@ -214,6 +214,12 @@ class HeappePluginOptionsSerializer(serializers.Serializer):
     homedir_prefix = serializers.CharField(
         required=False, help_text="GLAuth homedir prefix", default="/home/"
     )
+    scratch_project_directory = serializers.CharField(
+        required=False, help_text="HEAppE scratch project directory"
+    )
+    project_permanent_directory = serializers.CharField(
+        required=False, help_text="HEAppE project permanent directory"
+    )
 
 
 class GLAuthPluginOptionsSerializer(serializers.Serializer):

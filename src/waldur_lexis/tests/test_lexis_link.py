@@ -28,6 +28,8 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
                 "heappe_username": "heappe_user",
                 "heappe_cluster_id": 1,
                 "heappe_local_base_path": "~/",
+                "scratch_project_directory": "/scratch/projects",
+                "project_permanent_directory": "/permanent/projects",
             }
         )
         offering.secret_options.update(
@@ -198,3 +200,14 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
             RobotAccountStates.DELETED,
             robot_account.state,
         )
+
+    def test_get_heappe_config_includes_new_optional_fields(self):
+        """Test that get_heappe_config properly handles the new optional fields"""
+        config = models.get_heappe_config(self.resource.offering)
+
+        self.assertEqual(config.scratch_project_directory, "/scratch/projects")
+        self.assertEqual(config.project_permanent_directory, "/permanent/projects")
+        self.assertEqual(config.heappe_url, "https://heappy.example.com")
+        self.assertEqual(config.heappe_username, "heappe_user")
+        self.assertEqual(config.heappe_cluster_id, 1)
+        self.assertEqual(config.heappe_local_base_path, "~/")
