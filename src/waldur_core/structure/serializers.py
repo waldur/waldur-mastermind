@@ -1617,7 +1617,7 @@ class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
 
 class NotificationSerializer(serializers.HyperlinkedModelSerializer):
     templates = NotificationTemplateDetailSerializers(many=True, read_only=True)
-    context_fields = serializers.SerializerMethodField()
+    context_schema = serializers.SerializerMethodField()
 
     class Meta:
         model = core_models.Notification
@@ -1629,7 +1629,7 @@ class NotificationSerializer(serializers.HyperlinkedModelSerializer):
             "enabled",
             "created",
             "templates",
-            "context_fields",
+            "context_schema",
         )
         read_only_fields = ("created", "enabled")
         extra_kwargs = {
@@ -1639,10 +1639,10 @@ class NotificationSerializer(serializers.HyperlinkedModelSerializer):
             },
         }
 
-    def get_context_fields(self, obj) -> dict:
+    def get_context_schema(self, obj) -> dict:
         """
         Finds the notification definition in the global NOTIFICATIONS
-        dictionary and returns its 'context' fields.
+        dictionary and returns its 'context' schema.
         """
         try:
             section_key, notification_key = obj.key.split(".", 1)
@@ -1656,8 +1656,8 @@ class NotificationSerializer(serializers.HyperlinkedModelSerializer):
         # Find the specific notification by its full key ('path')
         for definition in notification_definitions:
             if definition.get("path") == notification_key:
-                # Return the context if it exists, otherwise an empty dict
-                return definition.get("context", {})
+                # Return the context schema if it exists, otherwise an empty dict
+                return definition.get("context_schema", {})
 
         # Return an empty dict if no matching notification was found
         return {}
