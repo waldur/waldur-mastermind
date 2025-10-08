@@ -1002,6 +1002,9 @@ def resource_has_been_changed(sender, instance: Resource, created=False, **kwarg
             return ""
 
     for field, old_value in sorted(changed_fields.items()):
+        if field in ["last_sync"]:
+            continue
+
         if field == "state":
             old_value_display = models.Resource(state=old_value).get_state_display()
             new_value_display = instance.get_state_display()
