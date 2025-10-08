@@ -603,7 +603,7 @@ def get_valid_template_paths():
     for section_key, notifications in NOTIFICATIONS.items():
         for notification in notifications:
             for template in notification.get("templates", []):
-                valid_template_paths.add(f"{section_key}/{template.path}")
+                valid_template_paths.add(f"{section_key}/{template['path']}")
     return valid_template_paths
 
 

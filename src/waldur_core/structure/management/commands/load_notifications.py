@@ -44,7 +44,7 @@ class Command(BaseCommand):
                     notification_data = {
                         "path": path,
                         "templates": {
-                            f"{key}/{template.path}": template.name
+                            f"{key}/{template['path']}": template["name"]
                             for template in notification["templates"]
                         },
                         "description": notification.get("description"),
