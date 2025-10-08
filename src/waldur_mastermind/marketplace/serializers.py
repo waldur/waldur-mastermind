@@ -4043,6 +4043,12 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             raise rf_exceptions.ValidationError(
                 _("Either plan_period or resource should be provided.")
             )
+
+        if not resource.plan:
+            raise rf_exceptions.ValidationError(
+                {"resource": _("Resource must have a plan to report usage.")}
+            )
+
         offering = resource.offering
 
         States = ResourceStates
