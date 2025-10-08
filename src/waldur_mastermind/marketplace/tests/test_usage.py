@@ -631,3 +631,30 @@ class SubmitUsageTest(test.APITransactionTestCase):
                 },
             ],
         }
+
+    def test_resource_without_plan_validation_error(self):
+        """Test that providing a resource without a plan raises validation error."""
+        resource_without_plan = models.Resource.objects.create(
+            offering=self.offering,
+            project=self.fixture.project,
+        )
+
+        usage_data = {
+            "resource": resource_without_plan.uuid.hex,
+            "usages": [
+                {
+                    "type": "cpu",
+                    "amount": 5,
+                    "description": "Test usage",
+                }
+            ],
+        }
+
+        payload = {
+            "customer": self.service_provider.customer.uuid.hex,
+            "data": core_utils.encode_jwt_token(usage_data, self.secret_code),
+        }
+
+        response = self.client.post("/api/marketplace-public-api/set_usage/", payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Resource must have a plan to report usage", str(response.data))
