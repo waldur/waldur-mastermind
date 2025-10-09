@@ -42,6 +42,7 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_TYPE,
 )
 from waldur_openstack.exceptions import (
+    OpenStackAuthorizationFailed,
     OpenStackBackendError,
     OpenStackTenantNotFound,
 )
@@ -3616,8 +3617,16 @@ class OpenStackBackend(ServiceBackend):
 
     def import_volume(self, tenant: models.Tenant, backend_id, project=None, save=True):
         """Restore Waldur volume instance based on backend data."""
-        session = get_tenant_session(tenant)
-        cinder = get_cinder_client(session)
+        try:
+            session = get_tenant_session(tenant)
+            cinder = get_cinder_client(session)
+        except OpenStackAuthorizationFailed as e:
+            logger.error(
+                "Failed to authenticate with OpenStack for tenant %s: %s",
+                tenant.uuid,
+                e,
+            )
+            raise
         try:
             backend_volume = cinder.volumes.get(backend_id)
         except cinder_exceptions.ClientException as e:
@@ -4320,9 +4329,26 @@ class OpenStackBackend(ServiceBackend):
                     )
                 )
             except models.Volume.DoesNotExist:
-                volumes.append(
-                    self.import_volume(tenant, backend_volume_id, project, save)
-                )
+                try:
+                    volumes.append(
+                        self.import_volume(tenant, backend_volume_id, project, save)
+                    )
+                except OpenStackAuthorizationFailed as e:
+                    # Authentication failed, can't continue with import
+                    logger.error(
+                        "Authentication failed while importing volume %s for tenant %s: %s. Cannot continue import.",
+                        backend_volume_id,
+                        tenant.uuid,
+                        e,
+                    )
+                    raise  # Re-raise auth failures as they affect the entire import process
+                except OpenStackBackendError as e:
+                    # Volume no longer exists in OpenStack, log and skip
+                    logger.warning(
+                        "Volume %s attached to instance could not be imported: %s. Skipping.",
+                        backend_volume_id,
+                        e,
+                    )
         return volumes
 
     def _detect_image_from_bootable_volumes(
