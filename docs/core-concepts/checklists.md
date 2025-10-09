@@ -203,6 +203,7 @@ The core checklist module provides ViewSet mixins for integration into other app
 - `GET /{app}/{uuid}/checklist/` - Get checklist questions with user's answers
 - `GET /{app}/{uuid}/completion_status/` - Get completion status
 - `POST /{app}/{uuid}/submit_answers/` - Submit answers (including answer removal)
+- `GET /{app}/checklist-template/?parent_uuid={parent_uuid}` - Get checklist template for creating new objects
 
 **ReviewerChecklistMixin** - For reviewers (with sensitive review logic):
 
@@ -214,6 +215,103 @@ Examples:
 - `GET /api/proposals/{uuid}/checklist/` - Get proposal checklist
 - `POST /api/proposals/{uuid}/submit_answers/` - Submit proposal answers
 - `GET /api/proposals/{uuid}/checklist_review/` - Review proposal checklist (reviewers only)
+- `GET /api/projects/checklist-template/?parent_uuid={customer_uuid}` - Get project checklist template
+
+## Checklist Templates for New Object Creation
+
+The checklist system provides a template endpoint that enables frontend applications to retrieve checklist questions and visibility rules for creating new objects (e.g., projects) within a specific context (e.g., customer). This functionality allows for dynamic form generation where questions can be shown or hidden based on dependencies without requiring an existing object.
+
+### Template Endpoint Usage
+
+**Endpoint**: `GET /{app}/checklist-template/?parent_uuid={parent_uuid}`
+
+**Parameters**:
+
+- `parent_uuid` (required): UUID of the parent object that determines which checklist to use
+
+**Example for Projects**:
+
+```http
+GET /api/projects/checklist-template/?parent_uuid=123e4567-e89b-12d3-a456-426614174000
+```
+
+**Response Structure**:
+
+```json
+{
+  "checklist": {
+    "uuid": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Project Metadata Checklist",
+    "description": "Required metadata for new projects",
+    "checklist_type": "project_metadata"
+  },
+  "questions": [
+    {
+      "uuid": "q1-uuid",
+      "description": "What is the project purpose?",
+      "user_guidance": "Please describe the main goals and objectives",
+      "question_options": []
+    },
+    {
+      "uuid": "q2-uuid",
+      "description": "Project category",
+      "user_guidance": null,
+      "question_options": [
+        {"uuid": "opt1", "label": "Research", "order": 1},
+        {"uuid": "opt2", "label": "Development", "order": 2},
+        {"uuid": "opt3", "label": "Production", "order": 3}
+      ]
+    }
+  ],
+  "initial_visible_questions": [
+    // Subset of questions that are visible initially (not dependent on other answers)
+  ]
+}
+```
+
+### Frontend Implementation Flow
+
+1. **Form Initialization**: When users initiate object creation (e.g., "Create New Project"), call the template endpoint
+2. **Dynamic Form Building**: Use the returned questions to build a dynamic form, initially showing only `initial_visible_questions`
+3. **Answer-Based Visibility**: As users answer questions, use question dependencies to show/hide additional questions
+4. **Object Creation**: After users complete the form, create the object via the standard creation endpoint
+5. **Answer Submission**: Submit checklist answers using the existing `submit_answers` endpoint
+
+### Implementation for Different Apps
+
+Apps that use `UserChecklistMixin` can implement template support by overriding two methods:
+
+```python
+class ProjectViewSet(UserChecklistMixin, ActionsViewSet):
+    def get_checklist_for_new_object(self, parent_obj):
+        """Return the checklist that will be used for new objects."""
+        # For projects, get checklist from customer configuration
+        if hasattr(parent_obj, "project_metadata_checklist"):
+            return parent_obj.project_metadata_checklist
+        return None
+
+    def get_parent_object_for_checklist(self, parent_uuid):
+        """Return parent object for template lookup."""
+        # For projects, parent is customer
+        try:
+            return Customer.objects.get(uuid=parent_uuid)
+        except Customer.DoesNotExist:
+            return None
+```
+
+### Benefits
+
+- **Single Request**: Get all necessary form information in one API call
+- **Dynamic Forms**: Build responsive forms that adapt based on user input
+- **Consistency**: Ensure all objects follow the same metadata requirements
+- **Validation**: Frontend can validate required fields before object creation
+- **Performance**: Avoid multiple API calls for form setup
+
+### Error Responses
+
+- **400 Bad Request**: Missing `parent_uuid` parameter or no checklist configured
+- **404 Not Found**: Parent object not found
+- **403 Forbidden**: User lacks permission to create objects in the specified context
 
 ## Question Dependencies
 

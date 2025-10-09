@@ -215,6 +215,104 @@ class UserChecklistMixin(BaseChecklistMixin):
 
         return response.Response(response_serializer.data)
 
+    def get_checklist_for_new_object(self, parent_obj):
+        """Get checklist that will be used for new objects.
+
+        Override this method to provide the checklist that will be applied
+        to new objects created under the given parent.
+
+        Args:
+            parent_obj: The parent object (e.g., Customer for new Projects)
+
+        Returns:
+            Checklist instance or None
+        """
+        return None
+
+    @extend_schema(
+        description="Get checklist template for creating new objects.",
+        responses={
+            200: checklist_serializers.ChecklistTemplateSerializer,
+            400: {"description": "No checklist configured"},
+        },
+    )
+    @decorators.action(detail=False, methods=["get"], url_path="checklist-template")
+    def checklist_template(self, request):
+        """Get checklist template with questions for creating new objects.
+
+        This action provides the checklist questions and visibility rules that
+        apply when creating new objects. The frontend can use this to display
+        the correct questions dynamically based on user answers.
+
+        Query Parameters:
+            parent_uuid: UUID of the parent object (e.g., customer UUID for new projects)
+
+        Returns:
+            Checklist template with all questions and their visibility rules.
+        """
+        parent_uuid = request.query_params.get("parent_uuid")
+        if not parent_uuid:
+            return response.Response(
+                {"detail": "parent_uuid query parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get parent object - this needs to be implemented by inheriting viewset
+        parent_obj = self.get_parent_object_for_checklist(parent_uuid)
+        if not parent_obj:
+            return response.Response(
+                {"detail": "Parent object not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Get the checklist for new objects
+        checklist = self.get_checklist_for_new_object(parent_obj)
+        if not checklist:
+            return response.Response(
+                {"detail": "No checklist configured for new objects"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Create a temporary completion for visibility calculation
+        # This is not saved to database
+        temp_completion = checklist_models.ChecklistCompletion(
+            checklist=checklist,
+            scope=None,  # No scope yet as object doesn't exist
+        )
+
+        # Get all questions (no filtering by visibility yet)
+        questions = checklist.questions.all().order_by("order")
+
+        # Create response data
+        response_data = {
+            "checklist": checklist,
+            "questions": questions,
+            "initial_visible_questions": checklist.get_visible_questions(
+                temp_completion
+            ),
+        }
+
+        response_serializer = checklist_serializers.ChecklistTemplateSerializer(
+            response_data, context={"request": request}
+        )
+        return response.Response(response_serializer.data)
+
+    def get_parent_object_for_checklist(self, parent_uuid):
+        """Get parent object for checklist template lookup.
+
+        Must be overridden by inheriting viewsets to provide the parent object
+        lookup logic (e.g., Customer.objects.get(uuid=parent_uuid) for ProjectViewSet).
+
+        Args:
+            parent_uuid: UUID of the parent object
+
+        Returns:
+            Parent object instance or None
+        """
+        raise NotImplementedError(
+            "Subclasses must implement get_parent_object_for_checklist()"
+        )
+
 
 class ReviewerChecklistMixin(BaseChecklistMixin):
     """Mixin for ViewSets that provide checklist review functionality to reviewers.

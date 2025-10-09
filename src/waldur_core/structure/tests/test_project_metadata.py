@@ -94,6 +94,71 @@ class CustomerProjectMetadataTest(
         self.customer.refresh_from_db()
         self.assertEqual(self.customer.project_metadata_checklist, self.checklist)
 
+    def test_checklist_template_endpoint(self):
+        """Test getting checklist template for new projects."""
+        # Assign checklist to customer
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+
+        # Try to get checklist template without parent_uuid
+        self.client.force_authenticate(self.owner)
+        url = "/api/projects/checklist-template/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("parent_uuid", response.data["detail"])
+
+        # Get checklist template with valid customer UUID
+        response = self.client.get(url, {"parent_uuid": self.customer.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check response structure
+        self.assertIn("checklist", response.data)
+        self.assertIn("questions", response.data)
+        self.assertIn("initial_visible_questions", response.data)
+
+        # Verify checklist info
+        self.assertEqual(response.data["checklist"]["uuid"], str(self.checklist.uuid))
+        self.assertEqual(response.data["checklist"]["name"], self.checklist.name)
+
+        # Verify questions
+        self.assertEqual(len(response.data["questions"]), 3)
+        question_descriptions = [q["description"] for q in response.data["questions"]]
+        self.assertIn("Project purpose", question_descriptions)
+        self.assertIn("Is this project confidential?", question_descriptions)
+        self.assertIn("Project category", question_descriptions)
+
+        # Check that select question has options
+        for question in response.data["questions"]:
+            if question["description"] == "Project category":
+                self.assertEqual(len(question["question_options"]), 3)
+                option_labels = [o["label"] for o in question["question_options"]]
+                self.assertIn("Research", option_labels)
+                self.assertIn("Development", option_labels)
+                self.assertIn("Production", option_labels)
+
+    def test_checklist_template_with_nonexistent_customer(self):
+        """Test getting checklist template with invalid customer UUID."""
+        self.client.force_authenticate(self.owner)
+        url = "/api/projects/checklist-template/"
+
+        # Use a UUID that doesn't exist
+        fake_uuid = "12345678-1234-5678-1234-567812345678"
+        response = self.client.get(url, {"parent_uuid": fake_uuid})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("Parent object not found", response.data["detail"])
+
+    def test_checklist_template_with_no_checklist_configured(self):
+        """Test getting checklist template when customer has no checklist configured."""
+        # Ensure customer has no checklist
+        self.customer.project_metadata_checklist = None
+        self.customer.save()
+
+        self.client.force_authenticate(self.owner)
+        url = "/api/projects/checklist-template/"
+        response = self.client.get(url, {"parent_uuid": self.customer.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("No checklist configured", response.data["detail"])
+
     def test_invalid_checklist_type_validation(self):
         """Test that non-PROJECT_METADATA checklists are rejected."""
         # Create a different type of checklist
