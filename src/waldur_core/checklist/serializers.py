@@ -613,3 +613,21 @@ class ChecklistReviewerResponseSerializer(serializers.Serializer):
             "description": obj["checklist"].description,
             "checklist_type": obj["checklist"].checklist_type,
         }
+
+
+class ChecklistTemplateSerializer(serializers.Serializer):
+    """Serializer for checklist template used when creating new objects."""
+
+    checklist = serializers.SerializerMethodField()
+    questions = QuestionSerializer(many=True)
+    initial_visible_questions = QuestionSerializer(many=True)
+
+    @extend_schema_field(serializers.DictField())
+    def get_checklist(self, obj):
+        """Get checklist basic information."""
+        return {
+            "uuid": str(obj["checklist"].uuid),
+            "name": obj["checklist"].name,
+            "description": obj["checklist"].description,
+            "checklist_type": obj["checklist"].checklist_type,
+        }

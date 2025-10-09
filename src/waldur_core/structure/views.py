@@ -491,6 +491,19 @@ class ProjectViewSet(
         except ChecklistCompletion.DoesNotExist:
             return None
 
+    def get_checklist_for_new_object(self, parent_obj):
+        """Get checklist for new projects from customer configuration."""
+        if hasattr(parent_obj, "project_metadata_checklist"):
+            return parent_obj.project_metadata_checklist
+        return None
+
+    def get_parent_object_for_checklist(self, parent_uuid):
+        """Get customer object for checklist template lookup."""
+        try:
+            return models.Customer.objects.get(uuid=parent_uuid)
+        except models.Customer.DoesNotExist:
+            return None
+
     @extend_schema(
         request=serializers.ProjectSerializer,
         examples=[
