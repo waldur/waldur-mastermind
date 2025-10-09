@@ -4166,6 +4166,30 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         structure_views.check_resource_backend_id,
     ]
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        description="Update resource options.",
+    )
+    @action(detail=True, methods=["post"])
+    def update_options(self, request, uuid=None):
+        resource = cast(models.Resource, self.get_object())
+        serializer = self.get_serializer(data=request.data, instance=resource)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {"status": _("Resource options are submitted")}, status=status.HTTP_200_OK
+        )
+
+    update_options_permissions = [
+        permissions.check_tos_consent_permission,
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE_OPTIONS,
+            ["project", "project.customer", "offering.customer"],
+        ),
+    ]
+    update_options_serializer_class = serializers.ResourceOptionsSerializer
+
 
 class ConsumerResourceViewSet(BaseResourceViewSet):
     def get_queryset(self):
@@ -4253,30 +4277,6 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     switch_plan_validators = update_limits_validators = [
         core_validators.StateValidator(ResourceStates.OK),
     ]
-
-    @extend_schema(
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
-        description="Update resource options.",
-    )
-    @action(detail=True, methods=["post"])
-    def update_options(self, request, uuid=None):
-        resource = cast(models.Resource, self.get_object())
-        serializer = self.get_serializer(data=request.data, instance=resource)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-
-        return Response(
-            {"status": _("Resource options are submitted")}, status=status.HTTP_200_OK
-        )
-
-    update_options_permissions = [
-        permissions.check_tos_consent_permission,
-        permission_factory(
-            PermissionEnum.UPDATE_RESOURCE_OPTIONS,
-            ["project", "project.customer"],
-        ),
-    ]
-    update_options_serializer_class = serializers.ResourceOptionsSerializer
 
     @extend_schema(
         request=serializers.ResourceRenewSerializer,

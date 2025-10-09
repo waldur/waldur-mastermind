@@ -1404,10 +1404,11 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
         self.url = factories.ResourceFactory.get_url(self.resource, "update_options")
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_OPTIONS)
 
-    def make_request(self, user, payload=None):
+    def make_request(self, user, payload=None, custom_url=None):
+        url = custom_url or self.url
         self.client.force_authenticate(user)
         payload = payload or {"options": {"email": "order@example.com"}}
-        return self.client.post(self.url, payload)
+        return self.client.post(url, payload)
 
     @data(
         "staff",
@@ -1423,6 +1424,17 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
     def test_user_can_not_update_resource_options(self, user):
         response = self.make_request(getattr(self.fixture, user))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data("offering_owner")
+    def test_service_provider_can_update_resource_options(self, user):
+        url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, "update_options"
+        )
+
+        response = self.make_request(getattr(self.fixture, user), custom_url=url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.options["email"], "order@example.com")
 
 
 @ddt
