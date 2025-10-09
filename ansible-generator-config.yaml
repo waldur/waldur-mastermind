@@ -21,11 +21,7 @@ definitions:
       check_filter_key: "tenant_uuid"
 
   project_customer_resolvers: &project_customer_resolvers
-    <<:
-      [
-        *project_context_resolver,
-        *customer_context_resolver
-      ]
+    <<: [*project_context_resolver, *customer_context_resolver]
 
   base_openstack_resolvers: &base_openstack_resolvers
     <<:
@@ -35,18 +31,23 @@ definitions:
         *tenant_context_resolver,
       ]
 
-  filter_by_tenant: &filter_by_tenant
+  filter_by_offering_tenant: &filter_by_offering_tenant
     - source_param: "offering"
       source_key: "scope_uuid"
       target_key: "tenant_uuid"
 
+  tenant_filter: &tenant_filter
+    - source_param: "tenant"
+      source_key: "uuid"
+      target_key: "tenant_uuid"
+
   image_resolver: &image_resolver
     base: "openstack_images"
-    filter_by: *filter_by_tenant
+    filter_by: *filter_by_offering_tenant
 
   volume_type_resolver: &volume_type_resolver
     base: "openstack_volume_types"
-    filter_by: *filter_by_tenant
+    filter_by: *filter_by_offering_tenant
 
 collections:
   - namespace: waldur
@@ -195,7 +196,7 @@ collections:
           image: *image_resolver
           availability_zone:
             base: "openstack_volume_availability_zones"
-            filter_by: *filter_by_tenant
+            filter_by: *filter_by_offering_tenant
 
       - name: instance
         plugin: order
@@ -239,19 +240,19 @@ collections:
           <<: *project_context_resolver
           flavor:
             base: "openstack_flavors"
-            filter_by: *filter_by_tenant
+            filter_by: *filter_by_offering_tenant
           image: *image_resolver
           system_volume_type: *volume_type_resolver
           data_volume_type: *volume_type_resolver
           security_groups:
             base: "openstack_security_groups"
-            filter_by: *filter_by_tenant
+            filter_by: *filter_by_offering_tenant
           availability_zone:
             base: "openstack_instance_availability_zones"
-            filter_by: *filter_by_tenant
+            filter_by: *filter_by_offering_tenant
           subnet:
             base: "openstack_subnets"
-            filter_by: *filter_by_tenant
+            filter_by: *filter_by_offering_tenant
           ssh_public_key: "keys"
 
       # --- CRUD Modules (Directly Managed Resources) ---
@@ -275,10 +276,7 @@ collections:
           <<: *base_openstack_resolvers
           remote_group:
             base: "openstack_security_groups"
-            filter_by:
-              - source_param: "tenant"
-                source_key: "uuid"
-                target_key: "tenant_uuid"
+            filter_by: *tenant_filter
 
       - name: network
         plugin: crud
@@ -304,25 +302,14 @@ collections:
         resource_type: "OpenStack network RBAC policy"
         description: "Manage OpenStack Network RBAC policies in Waldur."
         base_operation_id: "openstack_network_rbac_policies"
-        operations:
-          create:
-            id: "openstack_networks_rbac_policy_create"
-            path_params:
-              uuid: "network"
-          destroy:
-            id: "openstack_networks_rbac_policy_delete_destroy"
-            path_params:
-              uuid: "network"
-              rbac_policy_uuid: "name"
         resolvers:
-          tenant: "openstack_tenants"
+          tenant:
+            base: "openstack_tenants"
+            check_filter_key: "tenant_uuid"
           target_tenant: "openstack_tenants"
           network:
             base: "openstack_networks"
-            filter_by:
-              - source_param: "tenant"
-                source_key: "uuid"
-                target_key: "tenant_uuid"
+            filter_by: *tenant_filter
             check_filter_key: "network_uuid"
 
       - name: server_group
@@ -354,10 +341,7 @@ collections:
           <<: *base_openstack_resolvers
           network:
             base: "openstack_networks"
-            filter_by:
-              - source_param: "tenant"
-                source_key: "uuid"
-                target_key: "tenant_uuid"
+            filter_by: *tenant_filter
             check_filter_key: "network_uuid"
 
       - name: floating_ip
@@ -378,6 +362,28 @@ collections:
               uuid: "tenant"
         resolvers:
           <<: *base_openstack_resolvers
+
+      - name: port
+        plugin: crud
+        wait_config: *default_wait_config
+        resource_type: "OpenStack port"
+        description: "Manage OpenStack Ports in Waldur."
+        base_operation_id: "openstack_ports"
+        operations:
+          update:
+            actions:
+              update_security_groups:
+                operation: "openstack_ports_update_security_groups"
+                param: "security_groups"
+                compare_key: "security_groups"
+        resolvers:
+          <<: *tenant_context_resolver
+          network:
+            base: "openstack_networks"
+            filter_by: *tenant_filter
+          security_groups:
+            base: "openstack_security_groups"
+            filter_by: *tenant_filter
 
       # --- Action Modules ---
       - name: subnet_action
@@ -432,3 +438,19 @@ collections:
           - unlink
         resolvers:
           <<: *project_customer_resolvers
+
+      - name: port_action
+        plugin: actions
+        resource_type: "OpenStack port"
+        description: "Perform actions on an OpenStack Port."
+        wait_config: *default_wait_config
+        base_operation_id: "openstack_ports"
+        actions:
+          - enable_port
+          - disable_port
+          - enable_port_security
+          - disable_port_security
+          - pull
+          - unlink
+        resolvers:
+          <<: *tenant_context_resolver
