@@ -2,6 +2,7 @@ import datetime
 import uuid
 from unittest import mock
 
+from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2.volumes import Volume
 from ddt import data, ddt
 from django.test import TestCase
@@ -226,6 +227,113 @@ class ImportVolumeTest(BaseBackendTest):
             str(volume.uuid),
         )
         self.assertEqual(volume.name, self.backend_volume.name)
+
+    def test_import_instance_volumes_handles_missing_volumes(self):
+        """Test that missing volumes are skipped gracefully during instance import."""
+        from unittest.mock import patch
+
+        # Set up mock to raise NotFound for missing volume
+        self.mocked_cinder.volumes.get.side_effect = cinder_exceptions.NotFound(404)
+
+        # Test _import_instance_volumes with a missing volume
+        attached_volume_ids = [self.backend_volume_id, "another_volume_id"]
+
+        with patch("waldur_openstack.backend.logger") as mock_logger:
+            volumes = self.backend._import_instance_volumes(
+                self.tenant,
+                attached_volume_ids,
+                project=self.fixture.project,
+                save=True,
+            )
+
+            # Verify that warning was logged for missing volumes
+            self.assertEqual(mock_logger.warning.call_count, 2)
+            # Verify empty list is returned when all volumes are missing
+            self.assertEqual(len(volumes), 0)
+
+    def test_import_instance_volumes_with_mixed_existing_and_missing(self):
+        """Test that existing volumes are kept while missing ones are skipped."""
+        from unittest.mock import patch
+
+        # Create an existing volume in the database
+        factories.VolumeFactory(
+            backend_id="existing_volume_id",
+            tenant=self.tenant,
+            project=self.fixture.project,
+        )
+
+        # Mock cinder to fail for new volume import
+        self.mocked_cinder.volumes.get.side_effect = cinder_exceptions.NotFound(404)
+
+        # Test with one existing and one missing volume
+        attached_volume_ids = ["existing_volume_id", "missing_volume_id"]
+
+        with patch("waldur_openstack.backend.logger") as mock_logger:
+            volumes = self.backend._import_instance_volumes(
+                self.tenant,
+                attached_volume_ids,
+                project=self.fixture.project,
+                save=True,
+            )
+
+            # Verify that existing volume is returned
+            self.assertEqual(len(volumes), 1)
+            self.assertEqual(volumes[0].backend_id, "existing_volume_id")
+            # Verify warning was logged for missing volume
+            self.assertEqual(mock_logger.warning.call_count, 1)
+
+    def test_import_volume_with_authentication_failure(self):
+        """Test that authentication failures are properly handled and re-raised."""
+        from unittest.mock import patch
+
+        from waldur_openstack.exceptions import OpenStackAuthorizationFailed
+
+        # Mock session creation to raise auth error
+        with patch("waldur_openstack.backend.get_tenant_session") as mock_get_session:
+            mock_get_session.side_effect = OpenStackAuthorizationFailed(
+                "Invalid credentials"
+            )
+
+            with patch("waldur_openstack.backend.logger") as mock_logger:
+                # Verify that auth error is raised
+                with self.assertRaises(OpenStackAuthorizationFailed):
+                    self.backend.import_volume(
+                        self.tenant,
+                        self.backend_volume_id,
+                        project=self.fixture.project,
+                        save=True,
+                    )
+
+                # Verify error was logged
+                self.assertTrue(mock_logger.error.called)
+
+    def test_import_instance_volumes_with_authentication_failure(self):
+        """Test that authentication failures during volume import stop the process."""
+        from unittest.mock import patch
+
+        from waldur_openstack.exceptions import OpenStackAuthorizationFailed
+
+        # Create scenario where volume doesn't exist locally
+        attached_volume_ids = ["new_volume_id"]
+
+        # Mock session creation to raise auth error when trying to import
+        with patch("waldur_openstack.backend.get_tenant_session") as mock_get_session:
+            mock_get_session.side_effect = OpenStackAuthorizationFailed(
+                "Session expired"
+            )
+
+            with patch("waldur_openstack.backend.logger") as mock_logger:
+                # Verify that auth error is raised and not caught
+                with self.assertRaises(OpenStackAuthorizationFailed):
+                    self.backend._import_instance_volumes(
+                        self.tenant,
+                        attached_volume_ids,
+                        project=self.fixture.project,
+                        save=True,
+                    )
+
+                # Verify error was logged
+                self.assertTrue(mock_logger.error.called)
 
 
 class PullVolumeTest(BaseBackendTest):
