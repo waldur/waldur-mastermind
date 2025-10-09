@@ -220,6 +220,8 @@ class ProjectSerializer(
         source="get_oecd_fos_2007_code_display"
     )
     description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    start_date = serializers.DateField(required=False, allow_null=True)
+    end_date = serializers.DateField(required=False, allow_null=True)
 
     class Meta:
         model = models.Project
@@ -282,7 +284,7 @@ class ProjectSerializer(
             "start_date" in fields
             and isinstance(self.instance, models.Project)
             and self.instance.start_date
-            and self.instance.start_date < timezone.now().date()
+            and self.instance.start_date <= timezone.now().date()
         ):
             fields["start_date"].read_only = True
 
@@ -295,14 +297,24 @@ class ProjectSerializer(
         return fields
 
     def validate_start_date(self, start_date):
-        if start_date and start_date < timezone.datetime.today().date():
+        # Allow None to clear the field
+        if start_date is None:
+            return start_date
+
+        # Only validate non-None values
+        if start_date < timezone.datetime.today().date():
             raise serializers.ValidationError(
                 {"start_date": _("Cannot be earlier than the current date.")}
             )
         return start_date
 
     def validate_end_date(self, end_date):
-        if end_date and end_date < timezone.datetime.today().date():
+        # Allow None to clear the field
+        if end_date is None:
+            return end_date
+
+        # Only validate non-None values
+        if end_date < timezone.datetime.today().date():
             raise serializers.ValidationError(
                 {"end_date": _("Cannot be earlier than the current date.")}
             )

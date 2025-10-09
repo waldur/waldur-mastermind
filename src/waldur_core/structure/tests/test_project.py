@@ -243,6 +243,145 @@ class ProjectCreateTest(test.APITransactionTestCase):
         response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_validate_start_date(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload["start_date"] = "2021-06-01"
+
+        # Test that past dates are rejected
+        with freeze_time("2021-07-01"):
+            response = self.client.post(
+                factories.ProjectFactory.get_list_url(), payload
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertTrue(
+                "Cannot be earlier than the current date." in str(response.data)
+            )
+            self.assertFalse(Project.objects.filter(name=payload["name"]).exists())
+
+        # Test that current date is accepted
+        with freeze_time("2021-06-01"):
+            response = self.client.post(
+                factories.ProjectFactory.get_list_url(), payload
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            self.assertTrue(
+                Project.objects.filter(
+                    name=payload["name"],
+                    start_date=datetime.datetime(year=2021, month=6, day=1).date(),
+                ).exists()
+            )
+
+    def test_validate_start_date_null_handling(self):
+        """Test that None/null values are properly handled for start_date."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Create a project with a future start_date to avoid read-only logic
+        with freeze_time("2021-01-01"):
+            project = factories.ProjectFactory(
+                customer=self.fixture.customer,
+                start_date=datetime.datetime(year=2025, month=1, day=1).date(),
+            )
+
+            # Test that we can clear the start_date by sending null
+            payload = {"start_date": None}
+            url = factories.ProjectFactory.get_url(project)
+
+            response = self.client.patch(url, payload)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            # Verify the start_date was cleared
+            project.refresh_from_db()
+            self.assertIsNone(project.start_date)
+
+    def test_validate_end_date_null_handling(self):
+        """Test that None/null values are properly handled for end_date."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Create a project with a future end_date
+        with freeze_time("2021-01-01"):
+            project = factories.ProjectFactory(
+                customer=self.fixture.customer,
+                end_date=datetime.datetime(year=2025, month=12, day=31).date(),
+            )
+
+            # Test that we can clear the end_date by sending null
+            payload = {"end_date": None}
+            url = factories.ProjectFactory.get_url(project)
+
+            response = self.client.patch(url, payload)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            # Verify the end_date was cleared
+            project.refresh_from_db()
+            self.assertIsNone(project.end_date)
+
+    def test_start_date_read_only_logic(self):
+        """Test that start_date becomes read-only when the date has arrived."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        with freeze_time("2021-06-01"):
+            # Create a project with start_date = today
+            project = factories.ProjectFactory(
+                customer=self.fixture.customer,
+                start_date=datetime.datetime(year=2021, month=6, day=1).date(),
+            )
+
+            # Try to update the start_date - should be read-only
+            payload = {"start_date": "2021-07-01"}
+            url = factories.ProjectFactory.get_url(project)
+
+            response = self.client.patch(url, payload)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            # Verify the start_date was NOT changed (read-only)
+            project.refresh_from_db()
+            self.assertEqual(
+                project.start_date, datetime.datetime(year=2021, month=6, day=1).date()
+            )
+
+        with freeze_time("2021-05-31"):
+            # Create a project with start_date = tomorrow
+            project2 = factories.ProjectFactory(
+                customer=self.fixture.customer,
+                start_date=datetime.datetime(year=2021, month=6, day=1).date(),
+            )
+
+            # Try to update the start_date - should be allowed (future date)
+            payload = {"start_date": "2021-07-01"}
+            url = factories.ProjectFactory.get_url(project2)
+
+            response = self.client.patch(url, payload)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            # Verify the start_date was changed (not read-only yet)
+            project2.refresh_from_db()
+            self.assertEqual(
+                project2.start_date, datetime.datetime(year=2021, month=7, day=1).date()
+            )
+
+        with freeze_time("2021-06-02"):
+            # Test that past start_date makes field read-only
+            project3 = factories.ProjectFactory(
+                customer=self.fixture.customer,
+                start_date=datetime.datetime(year=2021, month=6, day=1).date(),
+            )
+
+            # Try to update the start_date - should be read-only (past date)
+            payload = {"start_date": "2021-07-01"}
+            url = factories.ProjectFactory.get_url(project3)
+
+            response = self.client.patch(url, payload)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            # Verify the start_date was NOT changed (read-only)
+            project3.refresh_from_db()
+            self.assertEqual(
+                project3.start_date, datetime.datetime(year=2021, month=6, day=1).date()
+            )
+
     def _get_valid_project_payload(self, customer):
         return {
             "name": "New project name",
