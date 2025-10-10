@@ -5503,8 +5503,10 @@ class ProjectUserSerializer(serializers.ModelSerializer):
         permission = get_permissions(project, user).first()
         return permission and permission.expiration_time
 
-    @extend_schema_field(serializers.ChoiceField(choices=OfferingUserStates.VALUES))
-    def get_offering_user_state(self, user: User) -> OfferingUserStates | None:
+    @extend_schema_field(
+        serializers.ChoiceField(choices=OfferingUserStates.VALUES, allow_null=True)
+    )
+    def get_offering_user_state(self, user: User) -> OfferingUserStatesType | None:
         offering = self.context["offering"]
         offering_user = models.OfferingUser.objects.filter(
             user=user, offering=offering
