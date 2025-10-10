@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from waldur_core.core import filters as core_filters
+from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
 from waldur_core.structure import serializers as structure_serializers
 
@@ -14,6 +15,7 @@ from .serializers import (
     OnboardingCompanyValidationRequestSerializer,
     OnboardingJustificationCreateSerializer,
     OnboardingJustificationDocumentationSerializer,
+    OnboardingJustificationReviewSerializer,
     OnboardingJustificationSerializer,
     OnboardingVerificationSerializer,
 )
@@ -165,6 +167,56 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
     attach_document_serializer_class = OnboardingJustificationDocumentationSerializer
+
+    @extend_schema(
+        description="Approve justification and mark verification as VERIFIED.",
+        request=OnboardingJustificationReviewSerializer,
+        responses=OnboardingJustificationSerializer,
+    )
+    @action(
+        detail=True, methods=["post"], permission_classes=[core_permissions.IsStaff]
+    )
+    def approve(self, request, uuid=None):
+        """
+        Approve a justification and update verification status to VERIFIED.
+        """
+        justification = self.get_object()
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        staff_notes = serializer.validated_data.get("staff_notes", "")
+
+        justification.approve_justification(request.user, staff_notes)
+
+        response_serializer = OnboardingJustificationSerializer(justification)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    approve_serializer_class = OnboardingJustificationReviewSerializer
+
+    @extend_schema(
+        description="Reject justification and mark verification as FAILED.",
+        request=OnboardingJustificationReviewSerializer,
+        responses=OnboardingJustificationSerializer,
+    )
+    @action(
+        detail=True, methods=["post"], permission_classes=[core_permissions.IsStaff]
+    )
+    def reject(self, request, uuid=None):
+        """
+        Reject a justification and update verification status to FAILED.
+        """
+        justification = self.get_object()
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        staff_notes = serializer.validated_data.get("staff_notes", "")
+
+        justification.reject_justification(request.user, staff_notes)
+
+        response_serializer = OnboardingJustificationSerializer(justification)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    reject_serializer_class = OnboardingJustificationReviewSerializer
 
 
 class SupportedCountriesView(APIView):

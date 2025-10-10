@@ -93,14 +93,6 @@ class OnboardingCompanyValidationRequestSerializer(serializers.Serializer):
         return value
 
 
-class OnboardingCreateCustomerRequestSerializer(serializers.Serializer):
-    """Serializer for creating customer from verification."""
-
-    verification_uuid = serializers.UUIDField(
-        help_text="UUID of the OnboardingVerification to create customer from"
-    )
-
-
 class OnboardingJustificationSerializer(serializers.ModelSerializer):
     """Serializer for OnboardingJustification model."""
 
@@ -146,13 +138,28 @@ class OnboardingJustificationCreateSerializer(serializers.Serializer):
     )
 
     def validate_verification_uuid(self, value):
-        """Validate that the verification exists and is failed."""
+        """Validate that the verification exists and is failed/escalated."""
         try:
             verification = OnboardingVerification.objects.get(uuid=value)
         except OnboardingVerification.DoesNotExist:
             raise serializers.ValidationError("Verification not found")
 
-        if not verification.status == enums.VerificationStatus.FAILED:
-            raise serializers.ValidationError("Can only justify failed verifications")
+        if verification.status not in [
+            enums.VerificationStatus.FAILED,
+            enums.VerificationStatus.ESCALATED,
+        ]:
+            raise serializers.ValidationError(
+                "Can only justify failed or escalated verifications"
+            )
 
         return value
+
+
+class OnboardingJustificationReviewSerializer(serializers.Serializer):
+    """Serializer for staff review of justifications."""
+
+    staff_notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Administrator notes about the review decision",
+    )
