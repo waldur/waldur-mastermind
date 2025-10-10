@@ -3969,6 +3969,116 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
     set_slug_serializer_class = serializers.ResourceSlugSerializer
 
+    @extend_schema(
+        description="Set downscaled flag for resource.",
+        request=serializers.ResourceDownscaledSerializer,
+        responses={status.HTTP_200_OK: None},
+    )
+    @action(detail=True, methods=["post"])
+    def set_downscaled(self, request, uuid=None):
+        resource: models.Resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_downscaled = serializer.validated_data["downscaled"]
+        old_downscaled = resource.downscaled
+        if new_downscaled != old_downscaled:
+            resource.downscaled = new_downscaled
+            resource.save()
+            logger.info(
+                "%s has changed downscaled from %s to %s for resource %s",
+                request.user.full_name,
+                old_downscaled,
+                new_downscaled,
+                resource.uuid,
+            )
+            return Response(
+                {"status": _("Resource downscaled flag has been changed.")},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"status": _("Resource downscaled flag is not changed.")},
+                status=status.HTTP_200_OK,
+            )
+
+    set_downscaled_permissions = [structure_permissions.is_staff]
+
+    set_downscaled_serializer_class = serializers.ResourceDownscaledSerializer
+
+    @extend_schema(
+        description="Set paused flag for resource.",
+        request=serializers.ResourcePausedSerializer,
+        responses={status.HTTP_200_OK: None},
+    )
+    @action(detail=True, methods=["post"])
+    def set_paused(self, request, uuid=None):
+        resource: models.Resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_paused = serializer.validated_data["paused"]
+        old_paused = resource.paused
+        if new_paused != old_paused:
+            resource.paused = new_paused
+            resource.save()
+            logger.info(
+                "%s has changed paused from %s to %s for resource %s",
+                request.user.full_name,
+                old_paused,
+                new_paused,
+                resource.uuid,
+            )
+            return Response(
+                {"status": _("Resource paused flag has been changed.")},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"status": _("Resource paused flag is not changed.")},
+                status=status.HTTP_200_OK,
+            )
+
+    set_paused_permissions = [structure_permissions.is_staff]
+
+    set_paused_serializer_class = serializers.ResourcePausedSerializer
+
+    @extend_schema(
+        description="Set restrict_member_access flag for resource.",
+        request=serializers.ResourceRestrictMemberAccessSerializer,
+        responses={status.HTTP_200_OK: None},
+    )
+    @action(detail=True, methods=["post"])
+    def set_restrict_member_access(self, request, uuid=None):
+        resource: models.Resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_restrict = serializer.validated_data["restrict_member_access"]
+        old_restrict = resource.restrict_member_access
+        if new_restrict != old_restrict:
+            resource.restrict_member_access = new_restrict
+            resource.save()
+            logger.info(
+                "%s has changed restrict_member_access from %s to %s for resource %s",
+                request.user.full_name,
+                old_restrict,
+                new_restrict,
+                resource.uuid,
+            )
+            return Response(
+                {"status": _("Resource restrict_member_access flag has been changed.")},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"status": _("Resource restrict_member_access flag is not changed.")},
+                status=status.HTTP_200_OK,
+            )
+
+    set_restrict_member_access_permissions = [structure_permissions.is_staff]
+
+    set_restrict_member_access_serializer_class = (
+        serializers.ResourceRestrictMemberAccessSerializer
+    )
+
     def _set_end_date(self, request, is_staff_action):
         resource: models.Resource = self.get_object()
         serializer = serializers.ResourceEndDateByProviderSerializer(

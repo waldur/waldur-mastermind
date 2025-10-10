@@ -3908,6 +3908,24 @@ class ResourceSlugSerializer(serializers.ModelSerializer):
         fields = ("slug",)
 
 
+class ResourceDownscaledSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Resource
+        fields = ("downscaled",)
+
+
+class ResourcePausedSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Resource
+        fields = ("paused",)
+
+
+class ResourceRestrictMemberAccessSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Resource
+        fields = ("restrict_member_access",)
+
+
 class ResourceStateSerializer(serializers.Serializer):
     state = serializers.ChoiceField(["ok", "erred", "terminated"])
 
