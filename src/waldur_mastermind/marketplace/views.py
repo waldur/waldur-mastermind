@@ -3753,6 +3753,12 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     update_serializer_class = partial_update_serializer_class = (
         serializers.ResourceUpdateSerializer
     )
+    update_permissions = partial_update_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE,
+            ["project", "project.customer", "offering", "offering.customer"],
+        )
+    ]
 
     def list(self, request, *args, **kwargs):
         utils.refresh_integration_agent_status(
