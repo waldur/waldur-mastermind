@@ -75,11 +75,10 @@ class Issue:
     project: Project     # Associated project
     resource: GenericFK  # Linked resource (VM, network, etc.)
 
-    # SLA & Timing
+    # Timing
     created: datetime
     modified: datetime
     deadline: datetime
-    first_response_sla: datetime
     resolution_date: datetime
 ```
 
@@ -232,6 +231,55 @@ Full-featured integration with:
 - Customer portal integration
 - Webhook support for real-time updates
 - Custom field mapping
+
+**Authentication Methods:**
+
+Supports multiple authentication methods with automatic fallback:
+
+1. **OAuth 2.0 (Recommended for Enterprise)**
+
+   ```bash
+   ATLASSIAN_OAUTH2_CLIENT_ID=your_client_id
+   ATLASSIAN_OAUTH2_ACCESS_TOKEN=your_access_token
+   ATLASSIAN_OAUTH2_TOKEN_TYPE=Bearer  # Optional, defaults to Bearer
+   ```
+
+2. **Personal Access Token (Server/Data Center)**
+
+   ```bash
+   ATLASSIAN_PERSONAL_ACCESS_TOKEN=your_personal_access_token
+   ```
+
+3. **API Token (Cloud - Recommended)**
+
+   ```bash
+   ATLASSIAN_USERNAME=user@example.com
+   ATLASSIAN_TOKEN=your_api_token
+   ```
+
+4. **Basic Authentication (Legacy)**
+
+   ```bash
+   ATLASSIAN_USERNAME=username
+   ATLASSIAN_PASSWORD=password
+   ```
+
+**Authentication Priority Order:**
+OAuth 2.0 > Personal Access Token > API Token > Basic Authentication
+
+**Security Recommendations:**
+
+- Use OAuth 2.0 for enterprise integrations with fine-grained permissions
+- Use API Tokens for Atlassian Cloud instances
+- Use Personal Access Tokens for Server/Data Center instances
+- Avoid Basic Authentication in production environments
+
+**OAuth 2.0 Setup:**
+
+1. Create an OAuth 2.0 app in your Atlassian organization
+2. Obtain client_id and access_token from the OAuth flow
+3. Configure the credentials in your environment variables
+4. The system will automatically use OAuth 2.0 when configured
 
 #### 2. Micro Focus SMAX
 

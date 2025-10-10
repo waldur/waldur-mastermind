@@ -1,0 +1,117 @@
+{
+  "issueId": "11393",
+  "issueKey": "WAL-TEST",
+  "requestTypeId": "25",
+  "requestType": {
+    "id": "25",
+    "name": "Informational",
+    "_links": {
+      "self": "https://example.net/rest/servicedeskapi/servicedesk/1/requesttype/25"
+    }
+  },
+  "serviceDeskId": "1",
+  "createdDate": {
+    "iso8601": "2018-03-27T13:26:59.210+0300",
+    "jira": "2018-03-27T13:26:59.210+0300",
+    "friendly": "27/Mar/18 1:26 PM",
+    "epochMillis": 1522148819210
+  },
+  "reporter": {
+    "accountId": "557058:c857a9e5-59f5-4ec0-a474-c28ddce3f79b",
+    "emailAddress": "user@example.ee",
+    "displayName": "USER",
+    "active": true,
+    "timeZone": "Europe/Helsinki",
+    "_links": {
+      "jiraRest": "https://example.net/rest/api/2/user?accountId=557058:c857a9e5-59f5-4ec0-a474-c28ddce3f79b",
+      "avatarUrls": {
+        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/557058:c857a9e5-59f5-4ec0-a474-c28ddce3f79b/128",
+        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/557058:c857a9e5-59f5-4ec0-a474-c28ddce3f79b/64",
+        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/557058:c857a9e5-59f5-4ec0-a474-c28ddce3f79b/32",
+        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/557058:c857a9e5-59f5-4ec0-a474-c28ddce3f79b/96"
+      }
+    }
+  },
+  "requestFieldValues": [
+    {
+      "fieldId": "summary",
+      "label": "Summary",
+      "value": "test_issue"
+    },
+    {
+      "fieldId": "description",
+      "label": "Description",
+      "value": "\\n\\n---\\nAdditional Info: \\n"
+    },
+    {
+      "fieldId": "customfield_10200",
+      "label": "Language",
+      "value": "English"
+    },
+    {
+      "fieldId": "customfield_10216",
+      "label": "Feedback Request",
+      "value": [
+        {
+          "id": "10305",
+          "value": "yes"
+        }
+      ]
+    }
+  ],
+  "currentStatus": {
+    "status": "Open",
+    "statusCategory": "NEW",
+    "statusDate": {
+      "iso8601": "2018-03-27T13:26:59.875+0300",
+      "jira": "2018-03-27T13:26:59.875+0300",
+      "friendly": "27/Mar/18 1:26 PM",
+      "epochMillis": 1522148819875
+    }
+  },
+  "sla": {
+    "customfield_10138": {
+      "completedCycles": [],
+      "_links": {
+        "self": "https://example.net/rest/servicedeskapi/request/11393/sla/5"
+      },
+      "id": "5",
+      "name": "Time to resolution"
+    },
+    "customfield_10141": {
+      "completedCycles": [],
+      "_links": {
+        "self": "https://example.net/rest/servicedeskapi/request/11393/sla/8"
+      },
+      "id": "8",
+      "name": "Time to approve normal change"
+    },
+    "customfield_10140": {
+      "completedCycles": [],
+      "_links": {
+        "self": "https://example.net/rest/servicedeskapi/request/11393/sla/7"
+      },
+      "id": "7",
+      "name": "Time to close after resolution"
+    },
+    "customfield_10139": {
+      "ongoingCycle": {
+        "breachTime": {
+          "epochMillis": 1000000
+        }
+      },
+      "completedCycles": [],
+      "_links": {
+        "self": "https://example.net/rest/servicedeskapi/request/11393/sla/6"
+      },
+      "id": "6",
+      "name": "Time to first response"
+    }
+  },
+  "_links": {
+    "jiraRest": "https://example.net/rest/api/2/issue/11393",
+    "web": "https://example.net/browse/WAL-TEST",
+    "self": "https://example.net/rest/servicedeskapi/request/11393",
+    "agent": "https://example.net/servicedesk/agent/SD/WAL-TEST"
+  }
+}

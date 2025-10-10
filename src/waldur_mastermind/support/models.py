@@ -2,6 +2,7 @@ import logging
 import re
 from typing import cast
 
+from constance import config
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -26,6 +27,13 @@ logger = logging.getLogger(__name__)
 
 class BackendNameMixin(models.Model):
     backend_name = models.CharField(max_length=255, blank=True, null=True, default=None)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        if not self.backend_name:
+            self.backend_name = config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE
+            super().save(update_fields=["backend_name"])
 
     class Meta:
         abstract = True
@@ -116,7 +124,6 @@ class Issue(
     resource_object_id = models.PositiveIntegerField(null=True)
     resource = GenericForeignKey("resource_content_type", "resource_object_id")
 
-    first_response_sla = models.DateTimeField(blank=True, null=True)
     resolution_date = models.DateTimeField(blank=True, null=True)
     template = models.ForeignKey["Template"](
         "Template",
@@ -160,7 +167,6 @@ class Issue(
             "customer",
             "project",
             "resource",
-            "first_response_sla",
         )
 
     def get_log_fields(self):

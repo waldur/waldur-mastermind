@@ -1,0 +1,30 @@
+{
+  "id": "10000",
+  "body": "[Name LastName]: Comment description",
+  "public": true,
+  "author": {
+    "accountId": "5b10a2844c20165700ede21g",
+    "emailAddress": "user@example.ee",
+    "displayName": "NC TEST USER",
+    "active": true,
+    "timeZone": "Europe/Helsinki",
+    "_links": {
+      "jiraRest": "https://example.net/rest/api/2/user?accountId=5b10a2844c20165700ede21g",
+      "avatarUrls": {
+        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5b10a2844c20165700ede21g/128",
+        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5b10a2844c20165700ede21g/64",
+        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5b10a2844c20165700ede21g/32",
+        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5b10a2844c20165700ede21g/96"
+      }
+    }
+  },
+  "created": {
+    "iso8601": "2018-03-28T10:40:46.974+0300",
+    "jira": "2018-03-28T10:40:46.974+0300",
+    "friendly": "28/Mar/18 10:40 AM",
+    "epochMillis": 1522224046974
+  },
+  "_links": {
+    "self": "https://example.net/rest/servicedeskapi/request/11393/comment/10000"
+  }
+}
