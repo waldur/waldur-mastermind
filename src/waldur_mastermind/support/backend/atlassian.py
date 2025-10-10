@@ -1,35 +1,48 @@
 import collections
 import functools
-import json
 import logging
-from datetime import datetime
-from html import unescape
+import os
+import re
+import unicodedata
 from io import BytesIO
 
 import dateutil.parser
+import requests
+from atlassian import ServiceDesk
+from atlassian.errors import ApiError, ApiNotFoundError, ApiPermissionError
 from constance import config
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
 from django.template import Context, Template
 from django.utils import timezone
 from django.utils.functional import cached_property
-from jira import Comment, JIRAError
-from jira.utils import json_loads
-from rest_framework import status
+from requests.auth import HTTPBasicAuth
 
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.support import models
-from waldur_mastermind.support.exceptions import SupportUserInactive
 
-from . import SupportBackend, SupportBackendType
-from .jira_fix import JIRA
+from . import SupportBackend
+
+PADDING = 3
+CHARS_LIMIT = 255
 
 logger = logging.getLogger(__name__)
 
 Settings = collections.namedtuple(
-    "Settings", ["backend_url", "username", "password", "email", "token"]
+    "Settings",
+    [
+        "backend_url",
+        "username",
+        "password",
+        "email",
+        "token",
+        "personal_access_token",
+        "oauth2_client_id",
+        "oauth2_access_token",
+        "oauth2_token_type",
+    ],
 )
 
 logger = logging.getLogger(__name__)
@@ -54,10 +67,31 @@ def reraise_exceptions(func):
     def wrapped(self, *args, **kwargs):
         try:
             return func(self, *args, **kwargs)
-        except JIRAError as e:
+        except (
+            ApiError,
+            ApiPermissionError,
+            ApiNotFoundError,
+            requests.exceptions.RequestException,
+        ) as e:
             raise JiraBackendError(e)
 
     return wrapped
+
+
+def adf_from_text(text: str) -> dict:
+    parts = []
+    for i, line in enumerate((text or "").split("\n")):
+        if i:
+            parts.append({"type": "hardBreak"})
+        if line:
+            parts.append({"type": "text", "text": line})
+    if not parts:
+        parts = [{"type": "text", "text": ""}]
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": [{"type": "paragraph", "content": parts}],
+    }
 
 
 class AttachmentSynchronizer:
@@ -96,10 +130,23 @@ class AttachmentSynchronizer:
 
     @cached_property
     def backend_attachments_map(self):
-        return {
-            str(attachment.id): attachment
-            for attachment in self.backend_issue.fields.attachment
-        }
+        if not config.ATLASSIAN_USE_OLD_API:
+            attachments = self.backend.get(
+                f"rest/servicedeskapi/request/{self.current_issue.key}/attachment/"
+            ).get("values", [])
+            return {
+                str(attachment["_links"]["jiraRest"].split("/")[-1]): attachment
+                for attachment in attachments
+            }
+        else:
+            attachments = (
+                self.backend.get(
+                    f"rest/api/2/issue/{self.current_issue.key}?fields=attachment"
+                )
+                .get("fields", {})
+                .get("attachment", [])
+            )
+            return {attachment["id"]: attachment for attachment in attachments}
 
     @cached_property
     def backend_attachments_ids(self):
@@ -136,11 +183,17 @@ class AttachmentSynchronizer:
 
     def _add_attachment(self, issue, backend_attachment):
         attachment = models.Attachment(
-            issue=issue, backend_id=backend_attachment.id, state=CoreStates.OK
+            issue=issue,
+            backend_id=backend_attachment.get("id")
+            or backend_attachment["_links"]["jiraRest"].split("/")[-1],
+            state=CoreStates.OK,
         )
         try:
-            content = self._download_file(backend_attachment.content)
-        except JIRAError as error:
+            content = self._download_file(
+                backend_attachment.get("content")
+                or backend_attachment["_links"]["content"]
+            )
+        except ApiError as error:
             logger.error(
                 f"Unable to load attachment for issue with backend id {issue.backend_id}. Error: {error})."
             )
@@ -155,10 +208,10 @@ class AttachmentSynchronizer:
                 "Unable to create attachment issue_id=%s, backend_id=%s, "
                 "because it already exists in Waldur.",
                 issue.id,
-                backend_attachment.id,
+                backend_attachment.get("id"),
             )
 
-        attachment.file.save(backend_attachment.filename, content, save=True)
+        attachment.file.save(backend_attachment["filename"], content, save=True)
 
 
 class CommentSynchronizer:
@@ -167,7 +220,7 @@ class CommentSynchronizer:
         self.current_issue = current_issue
         self.backend_issue = backend_issue
 
-    def perform_update(self):
+    def delete_old_comments(self):
         if self.stale_comments_ids:
             models.Comment.objects.filter(
                 backend_id__in=self.stale_comments_ids
@@ -192,10 +245,10 @@ class CommentSynchronizer:
 
     @cached_property
     def backend_comments_map(self):
-        return {
-            str(comment.id): comment
-            for comment in self.backend_issue.fields.comment.comments
-        }
+        comments = self.backend.get(
+            f"/rest/api/2/issue/{self.current_issue.key}/comment"
+        ).get("comments", [])
+        return {comment["id"]: comment for comment in comments}
 
     @cached_property
     def backend_comments_ids(self):
@@ -207,365 +260,287 @@ class CommentSynchronizer:
 
 
 class ServiceDeskBackend(SupportBackend):
-    backend_name = SupportBackendType.ATLASSIAN
-
     def __init__(self):
         self.settings = Settings(
-            backend_url=config.ATLASSIAN_API_URL,
+            backend_url=config.ATLASSIAN_API_URL
+            + ("/" if not config.ATLASSIAN_API_URL.endswith("/") else ""),
             username=config.ATLASSIAN_USERNAME,
             password=config.ATLASSIAN_PASSWORD,
             email=config.ATLASSIAN_EMAIL,
             token=config.ATLASSIAN_TOKEN,
+            personal_access_token=config.ATLASSIAN_PERSONAL_ACCESS_TOKEN,
+            oauth2_client_id=config.ATLASSIAN_OAUTH2_CLIENT_ID,
+            oauth2_access_token=config.ATLASSIAN_OAUTH2_ACCESS_TOKEN,
+            oauth2_token_type=config.ATLASSIAN_OAUTH2_TOKEN_TYPE,
         )
         self.verify = config.ATLASSIAN_VERIFY_SSL
-        # allow to define reference by ID as older SD cannot properly resolve
-        # TODO drop once transition to request API is complete
-        self.use_old_api = config.ATLASSIAN_USE_OLD_API
-        self.use_teenage_api = config.ATLASSIAN_USE_TEENAGE_API
-        # In ideal world where Atlassian SD respects its spec the setting below would not be needed
-        self.use_automatic_request_mapping = (
-            config.ATLASSIAN_USE_AUTOMATIC_REQUEST_MAPPING
+        self.api_version = 2 if config.ATLASSIAN_USE_OLD_API else 3
+
+    @cached_property
+    def manager(self):
+        return self._create_service_desk_client()
+
+    def attachment_destroy_is_available(self, attachment=None):
+        return True
+
+    def _create_service_desk_client(self):
+        """Create ServiceDesk client with appropriate authentication method."""
+        base_kwargs = {
+            "url": self.settings.backend_url,
+            "verify_ssl": self.verify,
+        }
+
+        # Priority order: OAuth 2.0 > Personal Access Token > API Token > Basic Auth
+        if self._has_oauth2_config():
+            return self._create_oauth2_client(base_kwargs)
+        elif self.settings.personal_access_token:
+            return self._create_pat_client(base_kwargs)
+        elif self.settings.token:
+            return self._create_api_token_client(base_kwargs)
+        else:
+            return self._create_basic_auth_client(base_kwargs)
+
+    def _has_oauth2_config(self):
+        """Check if OAuth 2.0 configuration is available."""
+        return self.settings.oauth2_client_id and self.settings.oauth2_access_token
+
+    def _create_oauth2_client(self, base_kwargs):
+        """Create ServiceDesk client with OAuth 2.0 authentication."""
+        oauth2_dict = {
+            "client_id": self.settings.oauth2_client_id,
+            "token": {
+                "access_token": self.settings.oauth2_access_token,
+                "token_type": self.settings.oauth2_token_type,
+            },
+        }
+        logger.info("Using OAuth 2.0 authentication for Atlassian ServiceDesk")
+        return ServiceDesk(oauth2=oauth2_dict, **base_kwargs)
+
+    def _create_pat_client(self, base_kwargs):
+        """Create ServiceDesk client with Personal Access Token."""
+        logger.info(
+            "Using Personal Access Token authentication for Atlassian ServiceDesk"
         )
-        # In some cases list of priorities available to customers differ from the total list returned by SDK
-        self.pull_priorities_automatically = config.ATLASSIAN_PULL_PRIORITIES
-        self.strange_setting = config.ATLASSIAN_STRANGE_SETTING
+        return ServiceDesk(token=self.settings.personal_access_token, **base_kwargs)
 
-    def pull_service_properties(self):
-        self.pull_request_types()
-        if self.pull_priorities_automatically:
-            self.pull_priorities()
+    def _create_api_token_client(self, base_kwargs):
+        """Create ServiceDesk client with API Token (Cloud)."""
+        logger.info("Using API Token authentication for Atlassian Cloud ServiceDesk")
+        return ServiceDesk(
+            username=self.settings.username,
+            password=self.settings.token,
+            cloud=True,
+            **base_kwargs,
+        )
 
+    def _create_basic_auth_client(self, base_kwargs):
+        """Create ServiceDesk client with Basic Authentication."""
+        logger.info("Using Basic Authentication for Atlassian ServiceDesk")
+        # Determine if this is a cloud instance based on URL
+        is_cloud = ".atlassian.net" in self.settings.backend_url.lower()
+        return ServiceDesk(
+            username=self.settings.username,
+            password=self.settings.password,
+            cloud=is_cloud,
+            **base_kwargs,
+        )
+
+    def get_authentication_method(self):
+        """Get the current authentication method being used."""
+        if self._has_oauth2_config():
+            return "OAuth 2.0"
+        elif self.settings.personal_access_token:
+            return "Personal Access Token"
+        elif self.settings.token:
+            return "API Token (Cloud)"
+        else:
+            return "Basic Authentication"
+
+    def validate_authentication_config(self):
+        """Validate authentication configuration and log warnings."""
+        auth_method = self.get_authentication_method()
+
+        if auth_method == "Basic Authentication":
+            if ".atlassian.net" in self.settings.backend_url.lower():
+                logger.warning(
+                    "Using Basic Authentication with Atlassian Cloud. "
+                    "Consider using API Tokens for better security."
+                )
+        elif auth_method == "OAuth 2.0":
+            if not all(
+                [
+                    self.settings.oauth2_client_id,
+                    self.settings.oauth2_access_token,
+                ]
+            ):
+                logger.error("Incomplete OAuth 2.0 configuration detected")
+                return False
+
+        logger.info(f"Atlassian ServiceDesk authentication method: {auth_method}")
+        return True
+
+    def get(self, path, **kwargs):
+        headers = kwargs.get("headers", {})
+        headers["X-ExperimentalApi"] = "opt-in"
+        kwargs["headers"] = headers
+        return self.manager.get(path, **kwargs)
+
+    def _get_jira_auth(self):
+        """Get authentication for direct Jira REST API calls"""
+        if self.settings.email and self.settings.token:
+            return HTTPBasicAuth(self.settings.email, self.settings.token)
+        elif self.settings.username and self.settings.password:
+            return HTTPBasicAuth(self.settings.username, self.settings.password)
+        else:
+            raise ServiceBackendError(
+                "No valid authentication credentials for Jira REST API"
+            )
+
+    def _get_jira_headers(self):
+        """Get headers for Jira REST API calls"""
+        return {"Accept": "application/json", "Content-Type": "application/json"}
+
+    def _make_jira_request(self, endpoint, method="GET", **kwargs):
+        """Make a direct Jira REST API request as fallback"""
+        base_url = self.settings.backend_url.rstrip("/")
+        url = f"{base_url}{endpoint}"
+        auth = self._get_jira_auth()
+        headers = self._get_jira_headers()
+
+        try:
+            response = requests.request(
+                method=method,
+                url=url,
+                auth=auth,
+                headers=headers,
+                verify=self.verify,
+                timeout=30,
+                **kwargs,
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Jira REST API fallback failed for {endpoint}: {e}")
+            raise ServiceBackendError(f"Jira REST API request failed: {e}")
+
+    def _get_service_desk_by_id_fallback(self, project_id):
+        """Fallback to get service desk info via Jira REST API"""
+        endpoint = f"/rest/servicedeskapi/servicedesk/{project_id}"
+        return self._make_jira_request(endpoint)
+
+    def _get_request_types_fallback(self, project_id):
+        """Fallback to get request types via Jira REST API"""
+        endpoint = f"/rest/servicedeskapi/servicedesk/{project_id}/requesttype"
+        return self._make_jira_request(endpoint)
+
+    def _get_request_type_fields_fallback(self, project_id, request_type_id):
+        """Fallback to get request type fields via Jira REST API"""
+        endpoint = f"/rest/servicedeskapi/servicedesk/{project_id}/requesttype/{request_type_id}/field"
+        return self._make_jira_request(endpoint)
+
+    def _search_users_fallback(self, query, max_results=50):
+        """Fallback to search users via Jira REST API"""
+        endpoint = f"/rest/api/2/user/search?query={requests.utils.quote(query)}&maxResults={max_results}"
+        return self._make_jira_request(endpoint)
+
+    def _get_issue_metadata_fallback(self, project_key=None):
+        """Get issue creation metadata via Jira REST API"""
+        endpoint = "/rest/api/2/issue/createmeta"
+        if project_key:
+            endpoint += f"?projectKeys={project_key}"
+        return self._make_jira_request(endpoint)
+
+    def _search_customers_hybrid(self, project_id, user_email, start=0, limit=50):
+        """Search customers with hybrid Service Desk API + Jira REST API fallback"""
+        try:
+            # Try Service Desk API first
+            return self.manager.get_customers(
+                project_id, query=user_email, start=start, limit=limit
+            )
+        except (ApiPermissionError, ApiError, requests.exceptions.HTTPError) as e:
+            # Fallback to Jira user search
+            if "401" in str(e) or "403" in str(e):
+                logger.info(
+                    "Service Desk customer search denied, trying Jira user search fallback"
+                )
+                try:
+                    users = self._search_users_fallback(user_email, max_results=limit)
+                    # Convert Jira user format to Service Desk customer format
+                    customers = []
+                    for user in users:
+                        if user.get("emailAddress", "").lower() == user_email.lower():
+                            customers.append(
+                                {
+                                    "emailAddress": user.get("emailAddress"),
+                                    "displayName": user.get("displayName"),
+                                    "accountId": user.get("accountId"),
+                                    "name": user.get("name"),
+                                }
+                            )
+                    return {
+                        "values": customers,
+                        "size": len(customers),
+                        "isLastPage": True,  # Jira user search doesn't support pagination the same way
+                    }
+                except Exception as fe:
+                    logger.warning(f"Jira user search fallback also failed: {fe}")
+                    # Return empty result to allow customer creation
+                    return {"values": [], "size": 0, "isLastPage": True}
+            else:
+                raise
+
+    @reraise_exceptions
+    def get_service_desk_id(self):
+        try:
+            return int(config.ATLASSIAN_PROJECT_ID)
+        except ValueError:
+            try:
+                # Try Service Desk API first
+                return int(
+                    self.manager.get_service_desk_by_id(
+                        config.ATLASSIAN_PROJECT_ID
+                    ).get("id")
+                )
+            except (ApiPermissionError, ApiError, requests.exceptions.HTTPError) as e:
+                # Fallback to Jira REST API
+                if "401" in str(e) or "403" in str(e):
+                    logger.info(
+                        "Service Desk API access denied, trying Jira REST API fallback"
+                    )
+                    try:
+                        sd_info = self._get_service_desk_by_id_fallback(
+                            config.ATLASSIAN_PROJECT_ID
+                        )
+                        return int(sd_info.get("id"))
+                    except Exception as fe:
+                        logger.warning(f"Jira REST API fallback also failed: {fe}")
+                        raise ServiceBackendError(
+                            f"Service desk ID not found for key {config.ATLASSIAN_PROJECT_ID}. "
+                            f"Both Service Desk API and Jira REST API failed."
+                        )
+                raise
+            except ValueError:
+                raise ServiceBackendError(
+                    f"Service desk ID not found for key {config.ATLASSIAN_PROJECT_ID}."
+                )
+
+    @reraise_exceptions
     def ping(self, raise_exception=False):
         try:
-            self.manager.myself()
-        except JIRAError as e:
+            # Validate authentication configuration first
+            if not self.validate_authentication_config():
+                if raise_exception:
+                    raise JiraBackendError("Invalid authentication configuration")
+                return False
+
+            # Test the connection
+            self.manager.get_info()
+        except Exception as e:
             if raise_exception:
                 raise JiraBackendError(e)
             return False
         else:
             return True
-
-    @cached_property
-    def manager(self):
-        if self.settings.token:
-            if getattr(self.settings, "email", None):
-                basic_auth = (self.settings.email, self.settings.token)
-            else:
-                basic_auth = (self.settings.username, self.settings.token)
-        else:
-            basic_auth = (self.settings.username, self.settings.password)
-
-        try:
-            return JIRA(
-                server=self.settings.backend_url,
-                options={"verify": self.verify},
-                basic_auth=basic_auth,
-                validate=False,
-            )
-        except JIRAError as e:
-            if check_captcha(e):
-                raise JiraBackendError(
-                    "JIRA CAPTCHA is triggered. Please reset credentials."
-                )
-            raise JiraBackendError(e)
-
-    @reraise_exceptions
-    def get_field_id_by_name(self, field_name):
-        if not field_name:
-            return None
-        try:
-            fields = getattr(self, "_fields")
-        except AttributeError:
-            fields = self._fields = self.manager.fields()
-        try:
-            return next(f["id"] for f in fields if field_name in f["clauseNames"])
-        except StopIteration:
-            raise JiraBackendError("Can't find custom field %s" % field_name)
-
-    @reraise_exceptions
-    def import_priority(self, priority):
-        return models.Priority(
-            backend_id=priority.id,
-            settings=self.settings,
-            name=priority.name,
-            description=getattr(property, "description", ""),
-            icon_url=priority.iconUrl,
-        )
-
-    def create_issue_from_jira(self, key):
-        backend_issue = self.get_backend_issue(key)
-        if not backend_issue:
-            logger.debug(
-                "Unable to create issue with key=%s, "
-                "because it has already been deleted on backend.",
-                key,
-            )
-            return
-
-        issue = models.Issue(backend_id=key, state=CoreStates.OK)
-        self._backend_issue_to_issue(backend_issue, issue)
-        try:
-            issue.save()
-        except IntegrityError:
-            logger.debug(
-                "Unable to create issue with key=%s, "
-                "because it has been created in another thread.",
-                key,
-            )
-
-    def update_issue(self, issue):
-        backend_issue = self.get_backend_issue(issue.backend_id)
-        if not backend_issue:
-            logger.debug(
-                "Unable to update issue with key=%s, "
-                "because it has already been deleted on backend.",
-                issue.backend_id,
-            )
-            return
-
-        backend_issue.update(summary=issue.summary, description=issue.get_description())
-
-    def update_issue_from_jira(self, issue):
-        start_time = timezone.now()
-
-        backend_issue = self.get_backend_issue(issue.backend_id)
-        if not backend_issue:
-            logger.debug(
-                "Unable to update issue with key=%s, "
-                "because it has already been deleted on backend.",
-                issue.backend_id,
-            )
-            return
-
-        issue.refresh_from_db()
-
-        if issue.modified > start_time:
-            logger.debug(
-                "Skipping issue update with key=%s, "
-                "because it has been updated from other thread.",
-                issue.backend_id,
-            )
-            return
-
-        self._backend_issue_to_issue(backend_issue, issue)
-        issue.save()
-
-    def delete_issue(self, issue):
-        backend_issue = self.get_backend_issue(issue.backend_id)
-        if backend_issue:
-            backend_issue.delete()
-        else:
-            logger.debug(
-                "Unable to delete issue with key=%s, "
-                "because it has already been deleted on backend.",
-                issue.backend_id,
-            )
-
-    def delete_issue_from_jira(self, issue):
-        backend_issue = self.get_backend_issue(issue.backend_id)
-        if not backend_issue:
-            issue.delete()
-        else:
-            logger.debug(
-                "Skipping issue deletion with key=%s, "
-                "because it still exists on backend.",
-                issue.backend_id,
-            )
-
-    def create_comment_from_jira(self, issue, comment_backend_id):
-        backend_comment = self.get_backend_comment(issue.backend_id, comment_backend_id)
-        if not backend_comment:
-            logger.debug(
-                "Unable to create comment with id=%s, "
-                "because it has already been deleted on backend.",
-                comment_backend_id,
-            )
-            return
-
-        comment = models.Comment(
-            issue=issue, backend_id=comment_backend_id, state=CoreStates.OK
-        )
-        self._backend_comment_to_comment(backend_comment, comment)
-
-        try:
-            comment.save()
-        except IntegrityError:
-            logger.debug(
-                "Unable to create comment issue_id=%s, backend_id=%s, "
-                "because it already exists  n Waldur.",
-                issue.id,
-                comment_backend_id,
-            )
-
-    def update_comment(self, comment):
-        backend_comment = self.get_backend_comment(
-            comment.issue.backend_id, comment.backend_id
-        )
-        if not backend_comment:
-            logger.debug(
-                "Unable to update comment with id=%s, "
-                "because it has already been deleted on backend.",
-                comment.id,
-            )
-            return
-
-        backend_comment.update(body=comment.prepare_message())
-
-    def update_comment_from_jira(self, comment):
-        backend_comment = self.get_backend_comment(
-            comment.issue.backend_id, comment.backend_id
-        )
-        if not backend_comment:
-            logger.debug(
-                "Unable to update comment with id=%s, "
-                "because it has already been deleted on backend.",
-                comment.id,
-            )
-            return
-
-        comment.state = CoreStates.OK
-        self._backend_comment_to_comment(backend_comment, comment)
-        comment.save()
-
-    @reraise_exceptions
-    def delete_comment(self, comment):
-        backend_comment = self.get_backend_comment(
-            comment.issue.backend_id, comment.backend_id
-        )
-        if backend_comment:
-            backend_comment.delete()
-        else:
-            logger.debug(
-                "Unable to delete comment with id=%s, "
-                "because it has already been deleted on backend.",
-                comment.id,
-            )
-
-    def delete_comment_from_jira(self, comment):
-        backend_comment = self.get_backend_comment(
-            comment.issue.backend_id, comment.backend_id
-        )
-        if not backend_comment:
-            comment.delete()
-        else:
-            logger.debug(
-                "Skipping comment deletion with id=%s, "
-                "because it still exists on backend.",
-                comment.id,
-            )
-
-    @reraise_exceptions
-    def create_attachment(self, attachment):
-        backend_issue = self.get_backend_issue(attachment.issue.backend_id)
-        if not backend_issue:
-            logger.debug(
-                "Unable to add attachment to issue with id=%s, "
-                "because it has already been deleted on backend.",
-                attachment.issue.id,
-            )
-            return
-
-        backend_attachment = self.manager.waldur_add_attachment(
-            backend_issue, attachment.file
-        )
-        attachment.backend_id = backend_attachment.id
-        attachment.save(update_fields=["backend_id"])
-
-    @reraise_exceptions
-    def delete_attachment(self, attachment):
-        backend_attachment = self.get_backend_attachment(attachment.backend_id)
-        if backend_attachment:
-            backend_attachment.delete()
-        else:
-            logger.debug(
-                "Unable to remove attachment with id=%s, "
-                "because it has already been deleted on backend.",
-                attachment.id,
-            )
-
-    def get_backend_comment(self, issue_backend_id, comment_backend_id):
-        return self._get_backend_obj("comment")(issue_backend_id, comment_backend_id)
-
-    def get_backend_issue(self, issue_backend_id):
-        return self._get_backend_obj("issue")(issue_backend_id)
-
-    def get_backend_attachment(self, attachment_backend_id):
-        return self._get_backend_obj("attachment")(attachment_backend_id)
-
-    def update_attachment_from_jira(self, issue):
-        backend_issue = self.get_backend_issue(issue.backend_id)
-        AttachmentSynchronizer(self, issue, backend_issue).perform_update()
-
-    def delete_old_comments(self, issue):
-        backend_issue = self.get_backend_issue(issue.backend_id)
-        CommentSynchronizer(self, issue, backend_issue).perform_update()
-
-    @reraise_exceptions
-    def _get_backend_obj(self, method):
-        def f(*args, **kwargs):
-            try:
-                func = getattr(self.manager, method)
-                backend_obj = func(*args, **kwargs)
-            except JIRAError as e:
-                if e.status_code == status.HTTP_404_NOT_FOUND:
-                    logger.debug(
-                        f"Jira object {method} has been already deleted on backend"
-                    )
-                    return
-                else:
-                    raise e
-            return backend_obj
-
-        return f
-
-    def _issue_to_dict(self, issue):
-        args = dict(
-            project=issue.project.backend_id,
-            summary=issue.summary,
-            description=issue.get_description(),
-            issuetype={"name": issue.type.name},
-        )
-
-        if issue.priority:
-            args["priority"] = {"name": issue.priority.name}
-
-        if issue.parent:
-            args["parent"] = {"key": issue.parent.backend_id}
-
-        return args
-
-    def _get_property(self, object_name, object_id, property_name):
-        url = self.manager._get_url(
-            f"{object_name}/{object_id}/properties/{property_name}"
-        )
-        response = self.manager._session.get(url)
-        return response.json()
-
-    @reraise_exceptions
-    def create_comment(self, comment):
-        backend_comment = self._add_comment(
-            comment.issue.backend_id,
-            comment.prepare_message(),
-            is_internal=not comment.is_public,
-        )
-        comment.backend_id = backend_comment.id
-        comment.save(update_fields=["backend_id"])
-
-    def _add_comment(self, issue, body, is_internal):
-        data = {
-            "body": body,
-            "properties": [
-                {"key": "sd.public.comment", "value": {"internal": is_internal}},
-            ],
-        }
-
-        url = self.manager._get_url(f"issue/{issue}/comment")
-        response = self.manager._session.post(url, data=json.dumps(data))
-
-        comment = Comment(
-            self.manager._options, self.manager._session, raw=json_loads(response)
-        )
-        return comment
 
     @reraise_exceptions
     def create_issue(self, issue: models.Issue):
@@ -575,223 +550,70 @@ class ServiceDeskBackend(SupportBackend):
             issue.caller.email,
         )
 
+        if not issue.caller:
+            logger.error("Cannot create issue - no caller specified")
+            raise ServiceBackendError(
+                "Issue is not created because no caller is specified."
+            )
+
         if not issue.caller.email:
             logger.error("Cannot create issue - caller user does not have email")
             raise ServiceBackendError(
                 "Issue is not created because caller user does not have email."
             )
 
-        try:
-            logger.debug("Creating JIRA user for caller")
-            self.create_user(issue.caller)
-        except Exception as e:
-            logger.exception(
-                "Failed to create/verify JIRA user for caller %s. Error: %s",
-                issue.caller.username,
-                str(e),
-            )
-            raise
-
-        args = self._issue_to_dict(issue)
-        logger.debug("Prepared issue arguments: %s", args)
-
-        try:
-            logger.debug(
-                "Getting service desk with project ID: %s", config.ATLASSIAN_PROJECT_ID
-            )
-            args["serviceDeskId"] = self.manager.waldur_service_desk(
-                config.ATLASSIAN_PROJECT_ID
-            )
-        except Exception as e:
-            logger.exception(
-                "Failed to get service desk ID. Project ID: %s, Error: %s",
-                config.ATLASSIAN_PROJECT_ID,
-                str(e),
-            )
-            raise
-
-        if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
-            logger.info("Request type not found, pulling request types from JIRA")
+        if not models.RequestType.objects.filter(name=issue.type).count():
             self.pull_request_types()
 
-        if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
-            logger.error(
-                "Request type not found for issue type %s after pulling from JIRA",
-                issue.type,
-            )
+        request_type = models.RequestType.objects.filter(name=issue.type).first()
+
+        if not request_type:
             raise ServiceBackendError(
                 f"Issue is not created because request type is not found for issue type {issue.type}."
             )
 
-        request_type = models.RequestType.objects.filter(
-            issue_type_name=issue.type
-        ).first()
-        logger.debug(
-            "Found request type: %s (backend_id: %s)",
-            request_type.name,
-            request_type.backend_id,
-        )
-        args["requestTypeId"] = request_type.backend_id
+        logger.info("Creating customer request in JIRA")
 
-        on_behalf_username = (
-            issue.caller.username if config.ATLASSIAN_SHARED_USERNAME else None
-        )
-        logger.debug(
-            "Using on behalf username: %s (shared username mode: %s)",
-            on_behalf_username,
-            config.ATLASSIAN_SHARED_USERNAME,
-        )
-
-        try:
-            logger.info("Creating customer request in JIRA")
-            backend_issue = self.manager.waldur_create_customer_request(
-                args, use_old_api=self.use_old_api, username=on_behalf_username
-            )
-            logger.info(
-                "Successfully created JIRA issue with key: %s", backend_issue.key
-            )
-        except Exception as e:
-            logger.exception(
-                "Failed to create customer request in JIRA. Error: %s", str(e)
-            )
-            raise
+        values_dict = {"summary": issue.summary, "description": issue.description}
 
         if config.ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED:
             logger.debug("Custom field mapping is enabled, setting custom fields")
-            args = self._get_custom_fields(issue)
-            logger.debug("Prepared custom fields: %s", args)
+            custom_fields = self._get_custom_fields(issue)
+            values_dict.update(custom_fields)
 
-            try:
-                # Update an issue, because create_customer_request doesn't allow setting custom fields.
-                backend_issue.update(**args)
-                logger.info("Successfully updated issue with custom fields")
-            except JIRAError as e:
-                logger.error("Error when setting custom field via JIRA API: %s", e)
+        # TODO: Consider adding validation to check if all fields in values_dict
+        # are allowed by the request_type. If not, user should get 400 error
+        # and admin should be notified that request types are misconfigured
 
-        self._backend_issue_to_issue(backend_issue, issue)
+        request = self.manager.create_customer_request(
+            self.get_service_desk_id(),
+            request_type.backend_id,
+            values_dict=values_dict,
+            raise_on_behalf_of=issue.caller.email,
+        )
+
+        request_key = request.get("issueKey")
+        issue.backend_id = request_key
+        issue.key = request_key
+        issue.state = CoreStates.OK
         issue.save()
         logger.info(
             "Issue creation completed. Local issue ID: %s, JIRA key: %s",
-            issue.id,
+            getattr(issue, "id", "unknown"),
             issue.key,
         )
 
-    @reraise_exceptions
-    def create_confirmation_comment(self, issue, comment_tmpl=""):
-        if not comment_tmpl:
-            comment_tmpl = self.get_confirmation_comment_template(issue.type)
-
-        if not comment_tmpl:
-            return
-
-        body = (
-            Template(comment_tmpl)
-            .render(Context({"issue": issue}, autoescape=False))
-            .strip()
-        )
-        return self._add_comment(issue.backend_id, body, is_internal=False)
-
-    def create_user(self, user: User):
-        logger.info(
-            "Creating user in JIRA. Username: %s, Email: %s, Shared username mode: %s",
-            user.username,
-            user.email,
-            config.ATLASSIAN_SHARED_USERNAME,
-        )
-        # in case usernames are shared, skip lookups and create SupportCustomer if it is missing
-        if config.ATLASSIAN_SHARED_USERNAME:
-            try:
-                user.supportcustomer
-                logger.info(
-                    "Support customer already exists for user %s", user.username
-                )
-            except ObjectDoesNotExist:
-                logger.info("Creating new support customer for user %s", user.username)
-                support_customer = models.SupportCustomer(
-                    user=user, backend_id=user.username
-                )
-                support_customer.save()
-            return
-
-        # Temporary workaround as JIRA returns 500 error if user already exists
-        if self.use_old_api or self.use_teenage_api:
-            logger.info(
-                "Using old/teenage API to search for user. API mode: %s",
-                "old" if self.use_old_api else "teenage",
-            )
-            # old API has a bug that causes user active status to be set to False if includeInactive is passed as True
-            existing_support_user = self.manager.search_users(user.email)
-        else:
-            logger.info("Using GDPR-compliant API to search for user")
-            # user GDPR-compliant version of user search
-            existing_support_user = self.manager.waldur_search_users(
-                user.email, includeInactive=True
-            )
-
-        if existing_support_user:
-            logger.info("Found existing user(s) in JIRA with email %s", user.email)
-            active_user = [u for u in existing_support_user if u.active]
-            if not active_user:
-                logger.info("User %s exists in JIRA but is inactive", user.email)
-                raise SupportUserInactive(
-                    "Issue is not created because caller user is disabled."
-                )
-
-            logger.debug(
-                "Skipping user %s creation because it already exists", user.email
-            )
-            backend_customer = active_user[0]
-        else:
-            logger.info("Creating new user in JIRA for %s", user.email)
-            try:
-                if self.use_old_api:
-                    logger.info("Using old API to create user")
-                    backend_customer = self.manager.waldur_create_customer(
-                        user.email, user.full_name
-                    )
-                else:
-                    logger.info("Using cloud API to create user")
-                    backend_customer = self.manager.waldur_create_customer_cloud(
-                        user.email, config.ATLASSIAN_PROJECT_ID
-                    )
-                logger.info("Successfully created user in JIRA")
-            except Exception as e:
-                logger.exception(
-                    "Failed to create user in JIRA. Email: %s, Error: %s",
-                    user.email,
-                    str(e),
-                )
-                raise
-
-        backend_id = self.get_user_id(backend_customer)
-        logger.info("Got backend ID for user: %s", backend_id)
-
+    def delete_issue(self, issue):
         try:
-            user.supportcustomer
-            logger.debug("Support customer already exists for user %s", user.username)
-        except ObjectDoesNotExist:
-            if models.SupportCustomer.objects.filter(backend_id=backend_id).exists():
-                logger.error(
-                    "Cannot create support customer - JIRA user with email %s is already associated with another user",
-                    user.email,
-                )
-                raise ServiceBackendError(
-                    "Issue is not created because JIRA user with the same "
-                    "email is already associated with another user."
-                )
-            logger.info("Creating new support customer with backend_id %s", backend_id)
-            support_customer = models.SupportCustomer(user=user, backend_id=backend_id)
-            support_customer.save()
-
-    @reraise_exceptions
-    def get_users(self):
-        users = self.manager.search_assignable_users_for_projects(
-            "", config.ATLASSIAN_PROJECT_ID, maxResults=False
-        )
-        return [
-            models.SupportUser(name=user.displayName, backend_id=self.get_user_id(user))
-            for user in users
-        ]
+            self.manager.delete(
+                f"/rest/api/{self.api_version}/issue/{issue.backend_id}"
+            )
+        except requests.exceptions.HTTPError:
+            logger.debug(
+                "Unable to delete issue with key=%s, "
+                "because it has already been deleted on backend.",
+                issue.backend_id,
+            )
 
     def _get_custom_fields(self, issue):
         args = {}
@@ -825,221 +647,498 @@ class ServiceDeskBackend(SupportBackend):
 
         return args
 
-    def _issue_to_dict(self, issue):
-        args = {
-            "requestFieldValues": {
-                "summary": unescape(issue.summary),
-                "description": unescape(issue.description),
-            }
-        }
+    @reraise_exceptions
+    def get_field_id_by_name(self, field_name):
+        if not field_name:
+            return None
+        try:
+            fields = getattr(self, "_fields")
+        except AttributeError:
+            fields = self._fields = self.get("/rest/api/2/field")
+        try:
+            return next(f["id"] for f in fields if field_name in f["clauseNames"])
+        except StopIteration:
+            raise JiraBackendError("Can't find custom field %s" % field_name)
 
-        if issue.priority:
-            args["requestFieldValues"]["priority"] = {"name": issue.priority}
+    @reraise_exceptions
+    def create_user(self, user: User):
+        logger.info(
+            "Creating user in JIRA. Username: %s, Email: %s, Shared username mode: %s",
+            user.username,
+            user.email,
+            config.ATLASSIAN_SHARED_USERNAME,
+        )
+        # in case usernames are shared, skip lookups and create SupportCustomer if it is missing
+        if config.ATLASSIAN_SHARED_USERNAME:
+            try:
+                user.supportcustomer
+                logger.info(
+                    "Support customer already exists for user %s", user.username
+                )
+            except ObjectDoesNotExist:
+                logger.info("Creating new support customer for user %s", user.username)
+                support_customer = models.SupportCustomer(
+                    user=user, backend_id=user.username
+                )
+                support_customer.save()
+            return
+
+        logger.info("Creating JSM customer for %s", user.email)
+
+        # Handle pagination to search all customers, not just first page
+        start = 0
+        limit = 50
+        customers = []
+
+        while True:
+            response = self._search_customers_hybrid(
+                config.ATLASSIAN_PROJECT_ID, user.email, start=start, limit=limit
+            )
+            batch = response.get("values", [])
+            if not batch:
+                break
+
+            customers.extend(batch)
+
+            # Check if we found the exact customer in this batch
+            existing_customer = next(
+                (c for c in batch if c.get("emailAddress") == user.email), None
+            )
+            if existing_customer:
+                customers = [existing_customer]
+                break
+
+            # Check if we've reached the end
+            if len(batch) < limit or response.get("isLastPage", True):
+                break
+            start += limit
+
+        if not customers:
+            logger.info("User not found, creating new JSM customer: %s", user.username)
+            backend_customer = self.manager.create_customer(user.full_name, user.email)
+            logger.info(
+                "Successfully created JSM customer: %s", backend_customer["accountId"]
+            )
+
+    @reraise_exceptions
+    def pull_request_types(self):
+        """Pull request types from Atlassian Service Desk with Jira REST API fallback."""
+        try:
+            # Try Service Desk API first
+            request_types = self.manager.get_request_types(
+                config.ATLASSIAN_PROJECT_ID
+            ).get("values", [])
+        except (ApiPermissionError, ApiError, requests.exceptions.HTTPError) as e:
+            # Fallback to Jira REST API
+            if "401" in str(e) or "403" in str(e):
+                logger.info(
+                    "Service Desk API access denied for request types, trying Jira REST API fallback"
+                )
+                try:
+                    request_types_response = self._get_request_types_fallback(
+                        config.ATLASSIAN_PROJECT_ID
+                    )
+                    request_types = request_types_response.get("values", [])
+                    logger.info(
+                        f"Successfully retrieved {len(request_types)} request types via Jira REST API fallback"
+                    )
+                except Exception as fe:
+                    logger.error(
+                        f"Both Service Desk API and Jira REST API failed for request types: {fe}"
+                    )
+                    raise ServiceBackendError(f"Failed to retrieve request types: {fe}")
+            else:
+                raise
 
         try:
-            support_customer = issue.caller.supportcustomer
-            args["requestParticipants"] = [support_customer.backend_id]
-        except ObjectDoesNotExist:
-            pass
-        return args
+            with transaction.atomic():
+                for request_type in request_types:
+                    # Simplified approach: Only fetch request type fields if absolutely necessary
+                    # This optimization removes the extra API call per request type for better performance
+                    # Fields can be fetched later when actually needed for issue creation
+                    request_type_fields = []
 
-    def _get_first_sla_field(self, backend_issue):
-        field_name = self.get_field_id_by_name(config.ATLASSIAN_SLA_FIELD)
-        value = getattr(backend_issue.fields, field_name, None)
-        if value and hasattr(value, "ongoingCycle"):
-            epoch_milliseconds = value.ongoingCycle.breachTime.epochMillis
-            if epoch_milliseconds:
-                return datetime.fromtimestamp(
-                    epoch_milliseconds / 1000.0, timezone.get_default_timezone()
+                    models.RequestType.objects.update_or_create(
+                        backend_id=str(request_type.get("id", "")),
+                        defaults={
+                            "name": request_type.get("name", ""),
+                            "backend_name": request_type.get("name", ""),
+                            "fields": request_type_fields,
+                            # "issue_type_name": request_type.get("name", "Task"),
+                        },
+                    )
+                logger.info(
+                    "Successfully pulled %d request types from JIRA", len(request_types)
                 )
+        except Exception as e:
+            logger.exception("Failed to pull request types from JIRA: %s", str(e))
+            raise
+
+    def get_issue_details(self):
+        return {"type": config.ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE}
+
+    @reraise_exceptions
+    def _add_comment(self, issue_key, body, is_internal):
+        """Add a comment to an issue using Service Desk API.
+
+        Args:
+            issue_key: The issue key/ID
+            body: Comment body text
+            is_internal: True for internal comments, False for public comments
+        """
+        # Convert is_internal to public flag (inverted)
+        public = not is_internal
+        return self.manager.create_request_comment(issue_key, body, public=public)
+
+    @reraise_exceptions
+    def _get_property(self, object_name, object_id, property_name):
+        """Get a property from a JIRA object using hybrid fallback.
+
+        This method provides compatibility with the old JIRA API for getting
+        properties like comment visibility settings.
+        """
+        try:
+            # Use hybrid Jira REST API fallback for properties
+            url = f"/rest/api/2/{object_name}/{object_id}/properties/{property_name}"
+            response = self._hybrid_jira_get(url)
+            return response
+        except Exception:
+            # Fallback to default behavior for Service Desk API
+            return {"value": {"internal": False}}
+
+    @reraise_exceptions
+    def get_backend_comment(self, issue_backend_id, comment_backend_id):
+        """Get a comment from the backend using Service Desk API."""
+        try:
+            # Use Service Desk API to get comment
+            return self.manager.get_request_comment_by_id(
+                issue_backend_id, comment_backend_id
+            )
+        except Exception:
+            # Fallback to empty structure if comment not found
+            return {"id": comment_backend_id, "body": "", "author": {"accountId": ""}}
+
+    @reraise_exceptions
+    def create_confirmation_comment(self, issue, comment_tmpl=""):
+        if not comment_tmpl:
+            comment_tmpl = self.get_confirmation_comment_template(issue.type)
+
+        if not comment_tmpl:
+            return
+
+        body = (
+            Template(comment_tmpl)
+            .render(Context({"issue": issue}, autoescape=False))
+            .strip()
+        )
+        return self._add_comment(issue.backend_id, body, is_internal=False)
+
+    def _get_filename(self, path):
+        # JIRA does not support composite symbols from Latin-1 charset.
+        # Hence we need to use NFD normalization which translates
+        # each character into its decomposed form.
+        path = unicodedata.normalize("NFD", path)
+        limit = CHARS_LIMIT - PADDING
+        fname = os.path.basename(path)
+        filename = fname.split(".")[0]
+        filename_extension = fname.split(".")[1:]
+        count = (
+            len(".".join(filename_extension).encode("utf-8")) + 1
+            if filename_extension
+            else 0
+        )
+        char_limit = 0
+
+        for char in filename:
+            count += len(char.encode("utf-8"))
+            if count > limit:
+                break
+            else:
+                char_limit += 1
+
+        if not char_limit:
+            raise ApiError("Attachment filename is very long.")
+
+        tmp = [filename[:char_limit]]
+        tmp.extend(filename_extension)
+        filename = ".".join(tmp)
+        return filename
+
+    def _upload_file(self, issue, upload_file, filename):
+        url = self.manager.url_joiner(
+            self.manager.url, f"/rest/api/2/issue/{issue.key}/attachments"
+        )
+        files = {
+            "file": (filename, upload_file),
+        }
+        headers = {
+            "X-Atlassian-Token": "no-check",
+        }
+        req = requests.Request(
+            "POST", url, headers=headers, files=files, auth=self.manager._session.auth
+        )
+        prepped = req.prepare()
+        prepped.body = re.sub(
+            b"filename=.*", b'filename="%s"\r' % filename.encode("utf-8"), prepped.body
+        )
+        r = self.manager._session.send(prepped)
+
+        return r.json()
+
+    @reraise_exceptions
+    def create_attachment(self, attachment: models.Attachment):
+        file = attachment.file
+        filename = self._get_filename(file.name)
+        backend_attachment = self._upload_file(
+            attachment.issue, file.file.read(), filename
+        )
+
+        # Check if file upload was successful
+        if not backend_attachment or len(backend_attachment) == 0:
+            raise JiraBackendError(f"Failed to upload attachment {filename}")
+
+        attachment.backend_id = backend_attachment[0]["id"]
+        attachment.save(update_fields=["backend_id"])
+
+    @reraise_exceptions
+    def create_comment(self, comment: models.Comment):
+        backend_comment = self.manager.create_request_comment(
+            comment.issue.backend_id, comment.prepare_message(), comment.is_public
+        )
+        comment.backend_id = backend_comment["id"]
+        comment.save(update_fields=["backend_id"])
 
     def _backend_issue_to_issue(self, backend_issue, issue):
-        issue.key = backend_issue.key
-        issue.backend_id = backend_issue.key
-        issue.resolution = (
-            backend_issue.fields.resolution and backend_issue.fields.resolution.name
-        ) or ""
-        issue.status = backend_issue.fields.status.name or ""
-        issue.link = backend_issue.permalink()
-        issue.priority = backend_issue.fields.priority.name
-        issue.first_response_sla = self._get_first_sla_field(backend_issue)
-        issue.summary = backend_issue.fields.summary
-        issue.description = backend_issue.fields.description or ""
-        issue.type = backend_issue.fields.issuetype.name
-        issue.resolution_date = backend_issue.fields.resolutiondate or None
-        issue.feedback_request = self.get_request_feedback_field(backend_issue)
+        def _get_field_value(field_name):
+            return next(
+                (
+                    f
+                    for f in backend_issue["requestFieldValues"]
+                    if f["fieldId"] == field_name
+                ),
+                {},
+            ).get("value", "")
 
-        def get_support_user_by_field(fields, field_name):
-            backend_user = getattr(fields, field_name, None)
+        issue.key = backend_issue["issueKey"]
+        issue.backend_id = backend_issue["issueKey"]
+
+        resolution = (
+            self.manager.get(
+                f"/rest/api/{self.api_version}/issue/{issue.key}?fields=resolution"
+            )
+            .get("fields", {})
+            .get("resolution", {})
+        )
+
+        if resolution:
+            resolution_name = resolution.get("name", "")
+            # When resolved, store the resolution name in status and current status in resolution
+            issue.status = resolution_name
+            issue.resolution = backend_issue["currentStatus"]["status"]
+        else:
+            # When not resolved, both fields should be empty
+            issue.status = ""
+            issue.resolution = ""
+        issue.link = backend_issue["_links"].get("agent") or backend_issue[
+            "_links"
+        ].get("web")
+        # issue.priority = backend_issue.fields.priority.name
+        issue.summary = backend_issue.get("summary") or next(
+            f["value"]
+            for f in backend_issue["requestFieldValues"]
+            if f["fieldId"] == "summary"
+        )
+        issue.description = _get_field_value("description")
+        # issue.type = backend_issue.fields.issuetype.name
+        # issue.resolution_date = backend_issue.fields.resolutiondate or None
+        issue.feedback_request = (
+            self.get_request_feedback_field(backend_issue)
+            if config.ATLASSIAN_REQUEST_FEEDBACK_FIELD
+            else True
+        )
+
+        def get_support_user_by_field(field_name):
+            backend_user = backend_issue.get(field_name, {}).get("accountId", None)
 
             if backend_user:
                 return self.get_or_create_support_user(backend_user)
 
         impact_field_id = self.get_field_id_by_name(config.ATLASSIAN_IMPACT_FIELD)
-        impact = getattr(backend_issue.fields, impact_field_id, None)
+        impact = _get_field_value(impact_field_id)
         if impact:
             issue.impact = impact
 
-        assignee = get_support_user_by_field(backend_issue.fields, "assignee")
+        assignee = get_support_user_by_field("assignee")
         if assignee:
             issue.assignee = assignee
 
-        reporter = get_support_user_by_field(backend_issue.fields, "reporter")
+        reporter = get_support_user_by_field("reporter")
         if reporter:
             issue.reporter = reporter
 
-    def get_or_create_support_user(self, user):
-        user_id = self.get_user_id(user)
-        if user_id:
-            author, _ = models.SupportUser.objects.get_or_create(
-                backend_id=user_id,
-                backend_name=self.backend_name,
-            )
-            return author
+    def get_or_create_support_user(self, user_id):
+        author, _ = models.SupportUser.objects.get_or_create(
+            backend_id=user_id,
+            backend_name=self.backend_name,
+        )
+        return author
 
-    def get_user_id(self, user):
-        try:
-            if self.use_old_api:
-                return user.name  # alias for username
-            else:
-                return user.accountId  # on-demand
-        except AttributeError:
-            return user.key
-        except TypeError:
-            return
-
-    def _backend_comment_to_comment(self, backend_comment, comment):
-        comment.update_message(backend_comment.body)
-        comment.author = self.get_or_create_support_user(backend_comment.author)
-        try:
-            internal = self._get_property(
-                "comment", backend_comment.id, "sd.public.comment"
-            )
-            comment.is_public = not internal.get("value", {}).get("internal", False)
-        except JIRAError:
-            # workaround for backbone-issue-sync-for-jira plugin
-            try:
-                external = self._get_property(
-                    "comment", backend_comment.id, "sd.allow.public.comment"
-                )
-                comment.is_public = external.get("value", {}).get("allow", False)
-            except JIRAError:
-                comment.is_public = False
+    def _backend_comment_to_comment(self, backend_comment, comment: models.Comment):
+        comment.update_message(backend_comment["body"])
+        # Always update the author from backend data
+        comment.author = self.get_or_create_support_user(
+            backend_comment["author"].get("accountId")
+            or backend_comment["author"].get("key")
+        )
+        # Use Service Desk API format directly
+        comment.is_public = backend_comment.get("public", True)
 
     def _backend_attachment_to_attachment(self, backend_attachment, attachment):
-        attachment.created = dateutil.parser.parse(backend_attachment.created)
-        attachment.author = self.get_or_create_support_user(backend_attachment.author)
-
-    @reraise_exceptions
-    def pull_request_types(self):
-        service_desk_id = self.manager.waldur_service_desk(config.ATLASSIAN_PROJECT_ID)
-        # backend_request_types = self.manager.request_types(service_desk_id)
-        backend_request_types = self.manager.waldur_request_types(
-            service_desk_id, config.ATLASSIAN_PROJECT_ID, self.strange_setting
+        attachment.created = dateutil.parser.parse(
+            backend_attachment["created"].get("iso8601")
+            if not config.ATLASSIAN_USE_OLD_API
+            else backend_attachment["created"]
+        )
+        attachment.author = self.get_or_create_support_user(
+            backend_attachment["author"].get("accountId")
+            or backend_attachment["author"].get("key")
         )
 
-        with transaction.atomic():
-            backend_request_type_map = {
-                int(request_type.id): request_type
-                for request_type in backend_request_types
-            }
+    @reraise_exceptions
+    def update_issue_from_jira(self, issue):
+        start_time = timezone.now()
+        customer_request = self.manager.get_customer_request(issue.backend_id)
+        issue.refresh_from_db()
 
-            waldur_request_type = {
-                request_type.backend_id: request_type
-                for request_type in models.RequestType.objects.all()
-            }
+        if issue.modified > start_time:
+            logger.debug(
+                "Skipping issue update with key=%s, "
+                "because it has been updated from other thread.",
+                issue.backend_id,
+            )
+            return
 
-            # cleanup request types if automatic request mapping is done
-            if self.use_automatic_request_mapping:
-                stale_request_types = set(waldur_request_type.keys()) - set(
-                    backend_request_type_map.keys()
-                )
-                models.RequestType.objects.filter(
-                    backend_id__in=stale_request_types
-                ).delete()
-
-            for backend_request_type in backend_request_types:
-                defaults = {
-                    "name": backend_request_type.name,
-                    "fields": self.manager.waldur_request_type_fields(
-                        service_desk_id, backend_request_type.id
-                    ),
-                }
-                if self.use_automatic_request_mapping:
-                    issue_type = self.manager.issue_type(
-                        backend_request_type.issueTypeId
-                    )
-                    defaults["issue_type_name"] = issue_type.name
-
-                models.RequestType.objects.update_or_create(
-                    backend_id=backend_request_type.id,
-                    defaults=defaults,
-                )
+        self._backend_issue_to_issue(customer_request, issue)
+        issue.save()
 
     @reraise_exceptions
-    def pull_priorities(self):
-        backend_priorities = self.manager.priorities()
-        with transaction.atomic():
-            backend_priorities_map = {
-                priority.id: priority for priority in backend_priorities
-            }
-
-            waldur_priorities = {
-                priority.backend_id: priority
-                for priority in models.Priority.objects.all()
-            }
-
-            stale_priorities = set(waldur_priorities.keys()) - set(
-                backend_priorities_map.keys()
-            )
-            models.Priority.objects.filter(backend_id__in=stale_priorities).delete()
-
-            for priority in backend_priorities:
-                models.Priority.objects.update_or_create(
-                    backend_id=priority.id,
-                    defaults={
-                        "name": priority.name,
-                        "description": priority.description,
-                        "icon_url": priority.iconUrl,
-                    },
-                )
-
-    @reraise_exceptions
-    def create_issue_links(self, issue, linked_issues):
-        for linked_issue in linked_issues:
-            link_type = config.ATLASSIAN_LINKED_ISSUE_TYPE
-            self.manager.create_issue_link(link_type, issue.key, linked_issue.key)
-
-    def create_feedback(self, feedback):
-        if feedback.comment:
-            support_user, _ = models.SupportUser.objects.get_or_create_from_user(
-                feedback.issue.caller
-            )
-            comment = models.Comment.objects.create(
-                issue=feedback.issue,
-                description=feedback.comment,
-                is_public=False,
-                author=support_user,
-            )
-            self.create_comment(comment)
-
-        if feedback.evaluation:
-            field_name = self.get_field_id_by_name(config.ATLASSIAN_SATISFACTION_FIELD)
-            backend_issue = self.get_backend_issue(feedback.issue.backend_id)
-            kwargs = {field_name: feedback.get_evaluation_display()}
-            backend_issue.update(**kwargs)
-
-    def get_request_feedback_field(self, backend_issue):
+    def delete_issue_from_jira(self, issue):
         try:
-            field_name = self.get_field_id_by_name(
-                config.ATLASSIAN_REQUEST_FEEDBACK_FIELD
+            self.manager.get_customer_request(issue.backend_id)
+            logger.debug(
+                "Skipping issue deletion with key=%s, "
+                "because it still exists on backend.",
+                issue.backend_id,
             )
-        except JiraBackendError:
-            logger.warning("Field request_feedback is not defined in Jira support.")
-            return True
-        value = getattr(backend_issue.fields, field_name, None)
-        # we treat any value we receive from backend as True. Unset / missing value means False.
-        return bool(value)
+        except requests.exceptions.HTTPError:
+            issue.delete()
+
+    @reraise_exceptions
+    def create_comment_from_jira(self, issue, comment_backend_id):
+        backend_comment = self.manager.get_request_comment_by_id(
+            issue.backend_id, comment_backend_id
+        )
+        comment = models.Comment(
+            issue=issue, backend_id=comment_backend_id, state=CoreStates.OK
+        )
+        self._backend_comment_to_comment(backend_comment, comment)
+
+        try:
+            comment.save()
+        except IntegrityError:
+            logger.debug(
+                "Unable to create comment issue_id=%s, backend_id=%s, "
+                "because it already exists  n Waldur.",
+                issue.id,
+                comment_backend_id,
+            )
+
+    @reraise_exceptions
+    def update_comment(self, comment):
+        try:
+            if config.ATLASSIAN_USE_OLD_API:
+                payload = {"body": comment.prepare_message()}
+            else:
+                payload = {"body": adf_from_text(comment.prepare_message())}
+
+            self.manager.put(
+                f"/rest/api/{self.api_version}/issue/{comment.issue.key}/comment/{comment.backend_id}",
+                data=payload,
+            )
+        except requests.exceptions.HTTPError:
+            logger.debug(
+                "Unable to update comment with backend_id=%s, "
+                "because it has already been deleted on backend.",
+                comment.backend_id,
+            )
+
+    @reraise_exceptions
+    def update_comment_from_jira(self, comment: models.Comment):
+        backend_comment = self.get_backend_comment(
+            comment.issue.backend_id, comment.backend_id
+        )
+        comment.state = CoreStates.OK
+        self._backend_comment_to_comment(backend_comment, comment)
+        comment.save()
+
+    @reraise_exceptions
+    def delete_comment(self, comment):
+        try:
+            self.manager.delete(
+                f"/rest/api/{self.api_version}/issue/{comment.issue.key}/comment/{comment.backend_id}"
+            )
+        except requests.exceptions.HTTPError:
+            logger.debug(
+                "Unable to delete comment with backend_id=%s, "
+                "because it has already been deleted on backend.",
+                comment.backend_id,
+            )
+
+    @reraise_exceptions
+    def delete_comment_from_jira(self, comment: models.Comment):
+        try:
+            self.manager.get_request_comment_by_id(
+                comment.issue.backend_id, comment.backend_id
+            )
+            logger.debug(
+                "Skipping comment deletion with UUID=%s, "
+                "because it still exists on backend.",
+                comment.uuid.hex,
+            )
+        except requests.exceptions.HTTPError:
+            comment.delete()
+
+    @reraise_exceptions
+    def update_attachment_from_jira(self, issue):
+        customer_request = self.manager.get_customer_request(issue.backend_id)
+        AttachmentSynchronizer(self, issue, customer_request).perform_update()
+
+    @reraise_exceptions
+    def get_users(self):
+        start_at = 0
+        max_results = 1000
+        all_users = []
+
+        while True:
+            batch = self.manager.get(
+                f"/rest/api/{self.api_version}/user/assignable/search",
+                params={
+                    "project": config.ATLASSIAN_PROJECT_ID,
+                    "maxResults": max_results,
+                    "startAt": start_at,
+                },
+            )
+            if not batch:
+                break
+            all_users.extend(batch)
+            if len(batch) < max_results:
+                break
+            start_at += max_results
+
+        return [
+            models.SupportUser(name=user["displayName"], backend_id=user["accountId"])
+            for user in all_users
+        ]
 
     def pull_support_users(self):
         """
@@ -1068,5 +1167,96 @@ class ServiceDeskBackend(SupportBackend):
             backend_id__in=[u.backend_id for u in backend_users]
         ).update(is_active=False)
 
-    def get_issue_details(self):
-        return {"type": config.ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE}
+    @reraise_exceptions
+    def pull_priorities(self):
+        backend_priorities = self.manager.get(f"/rest/api/{self.api_version}/priority/")
+
+        with transaction.atomic():
+            backend_priorities_map = {
+                priority["id"]: priority for priority in backend_priorities
+            }
+
+            waldur_priorities = {
+                priority.backend_id: priority
+                for priority in models.Priority.objects.all()
+            }
+
+            stale_priorities = set(waldur_priorities.keys()) - set(
+                backend_priorities_map.keys()
+            )
+            models.Priority.objects.filter(backend_id__in=stale_priorities).delete()
+
+            for priority in backend_priorities:
+                models.Priority.objects.update_or_create(
+                    backend_id=priority["id"],
+                    defaults={
+                        "name": priority["name"],
+                        "description": priority["description"],
+                        "icon_url": priority["iconUrl"],
+                    },
+                )
+
+    @reraise_exceptions
+    def create_issue_links(self, issue, linked_issues):
+        for linked_issue in linked_issues:
+            link_type = config.ATLASSIAN_LINKED_ISSUE_TYPE
+
+            payload = {
+                "type": {"name": link_type},
+                "inwardIssue": {"key": issue.key},
+                "outwardIssue": {"key": linked_issue.key},
+            }
+            self.manager.post(f"/rest/api/{self.api_version}/issueLink", data=payload)
+
+    def create_feedback(self, feedback):
+        if feedback.comment:
+            support_user, _ = models.SupportUser.objects.get_or_create_from_user(
+                feedback.issue.caller
+            )
+            comment = models.Comment.objects.create(
+                issue=feedback.issue,
+                description=feedback.comment,
+                is_public=False,
+                author=support_user,
+            )
+            self.create_comment(comment)
+
+        if feedback.evaluation:
+            field_name = self.get_field_id_by_name(config.ATLASSIAN_SATISFACTION_FIELD)
+            kwargs = {field_name: feedback.get_evaluation_display()}
+            self.manager.post(
+                f"/rest/api/{self.api_version}/issue/{feedback.issue.backend_id}",
+                data=kwargs,
+            )
+
+    def get_request_feedback_field(self, backend_issue):
+        try:
+            field_name = self.get_field_id_by_name(
+                config.ATLASSIAN_REQUEST_FEEDBACK_FIELD
+            )
+        except JiraBackendError:
+            logger.warning("Field request_feedback is not defined in Jira support.")
+            return True
+        value = next(
+            (
+                f
+                for f in backend_issue["requestFieldValues"]
+                if f["fieldId"] == field_name
+            ),
+            {},
+        ).get("value")
+        return bool(value)
+
+    @reraise_exceptions
+    def delete_attachment(self, attachment):
+        try:
+            self.manager.delete(
+                f"/rest/api/{self.api_version}/attachment/{attachment.backend_id}"
+            )
+        except requests.exceptions.HTTPError:
+            pass
+
+    @reraise_exceptions
+    def delete_old_comments(self, issue):
+        customer_request = self.manager.get_customer_request(issue.backend_id)
+        CommentSynchronizer(self, issue, customer_request).delete_old_comments()

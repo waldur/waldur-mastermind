@@ -142,7 +142,6 @@ class IssueSerializer(
             "created",
             "modified",
             "is_reported_manually",
-            "first_response_sla",
             "template",
             "feedback",
             "resolved",
@@ -158,7 +157,6 @@ class IssueSerializer(
             "backend_id",
             "backend_name",
             "link",
-            "first_response_sla",
             "feedback",
         )
         protected_fields = (
@@ -638,8 +636,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return validated_data
 
     def get_issue(self, key):
-        issue = None
-
         try:
             issue = models.Issue.objects.get(backend_id=key)
         except models.Issue.DoesNotExist:

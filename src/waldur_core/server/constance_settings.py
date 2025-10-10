@@ -238,23 +238,10 @@ CONSTANCE_CONFIG = {
         "Toggler for request type displaying",
     ),
     # Atlassian settings
-    "ATLASSIAN_USE_OLD_API": (
-        False,
-        "Toggler for legacy API usage.",
-    ),
-    "ATLASSIAN_USE_TEENAGE_API": (
-        False,
-        "Toggler for teenage API usage.",
-    ),
-    "ATLASSIAN_USE_AUTOMATIC_REQUEST_MAPPING": (
-        True,
-        "Toggler for automatic request mapping.",
-    ),
     "ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS": (
         False,
         "Toggler for mapping between waldur user and service desk agents.",
     ),
-    "ATLASSIAN_STRANGE_SETTING": (1, "A constant in the API path, sometimes differs"),
     "ATLASSIAN_API_URL": (
         "https://example.com/",
         "Atlassian API server URL",
@@ -263,7 +250,19 @@ CONSTANCE_CONFIG = {
     "ATLASSIAN_USERNAME": ("USERNAME", "Username for access user"),
     "ATLASSIAN_PASSWORD": ("PASSWORD", "Password for access user", "secret_field"),
     "ATLASSIAN_EMAIL": ("", "Email for access user", "email_field"),
+    "ATLASSIAN_USE_OLD_API": (
+        False,
+        "Toggler for legacy API usage.",
+    ),
     "ATLASSIAN_TOKEN": ("", "Token for access user", "secret_field"),
+    "ATLASSIAN_PERSONAL_ACCESS_TOKEN": (
+        "",
+        "Personal Access Token for user",
+        "secret_field",
+    ),
+    "ATLASSIAN_OAUTH2_CLIENT_ID": ("", "OAuth 2.0 Client ID", "secret_field"),
+    "ATLASSIAN_OAUTH2_ACCESS_TOKEN": ("", "OAuth 2.0 Access Token", "secret_field"),
+    "ATLASSIAN_OAUTH2_TOKEN_TYPE": ("Bearer", "OAuth 2.0 Token Type"),
     "ATLASSIAN_VERIFY_SSL": (
         True,
         "Toggler for SSL verification",
@@ -284,10 +283,6 @@ CONSTANCE_CONFIG = {
     "ATLASSIAN_EXCLUDED_ATTACHMENT_TYPES": (
         "",
         "Comma-separated list of file extenstions not allowed for attachment.",
-    ),
-    "ATLASSIAN_PULL_PRIORITIES": (
-        True,
-        "Toggler for pulling priorities from backend",
     ),
     "ATLASSIAN_ISSUE_TYPES": (
         "Informational, Service Request, Change Request, Incident",
@@ -632,6 +627,10 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ATLASSIAN_PASSWORD",
         "ATLASSIAN_EMAIL",
         "ATLASSIAN_TOKEN",
+        "ATLASSIAN_PERSONAL_ACCESS_TOKEN",
+        "ATLASSIAN_OAUTH2_CLIENT_ID",
+        "ATLASSIAN_OAUTH2_ACCESS_TOKEN",
+        "ATLASSIAN_OAUTH2_TOKEN_TYPE",
         "ATLASSIAN_PROJECT_ID",
         "ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE",
         "ATLASSIAN_EXCLUDED_ATTACHMENT_TYPES",
@@ -654,11 +653,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ATLASSIAN_SHARED_USERNAME",
         "ATLASSIAN_VERIFY_SSL",
         "ATLASSIAN_USE_OLD_API",
-        "ATLASSIAN_USE_TEENAGE_API",
-        "ATLASSIAN_USE_AUTOMATIC_REQUEST_MAPPING",
         "ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS",
-        "ATLASSIAN_STRANGE_SETTING",
-        "ATLASSIAN_PULL_PRIORITIES",
     ),
     "Zammad settings": (
         "ZAMMAD_API_URL",

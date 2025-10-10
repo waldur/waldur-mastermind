@@ -1,5 +1,5 @@
 import logging
-from datetime import date
+from datetime import date, datetime
 
 from django.db import transaction
 from django.db.models import Avg, Count, Q
@@ -264,18 +264,16 @@ class WebHookReceiverView(CheckExtensionMixin, views.APIView):
 
         # Try to update order output if the issue is linked to an order (fail-safe)
         try:
-            issue_key = request.data.get("issue", {}).get("key")
-            if issue_key:
-                issue = models.Issue.objects.filter(key=issue_key).first()
-                if issue:
-                    from waldur_mastermind.marketplace import (
-                        models as marketplace_models,
-                    )
+            issue_key = serializer.validated_data["issue"]["key"]
+            issue = serializer.get_issue(issue_key)
+            from waldur_mastermind.marketplace import (
+                models as marketplace_models,
+            )
 
-                    if isinstance(issue.resource, marketplace_models.Order):
-                        self._update_order_output_from_webhook(
-                            issue.resource, issue, "JIRA", request.data
-                        )
+            if isinstance(issue.resource, marketplace_models.Order):
+                self._update_order_output_from_webhook(
+                    issue.resource, issue, "JIRA", request.data
+                )
         except Exception as e:
             logger.warning(f"Failed to update order output from JIRA webhook: {e}")
 
@@ -284,8 +282,6 @@ class WebHookReceiverView(CheckExtensionMixin, views.APIView):
     def _update_order_output_from_webhook(self, order, issue, source, webhook_data):
         """Update order output with webhook event info (fail-safe)."""
         try:
-            from datetime import datetime
-
             # Parse existing webhook count from plain text output
             webhook_count = 1  # Default to 1 for new webhook
             if order.output:
