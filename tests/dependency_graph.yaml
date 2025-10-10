@@ -34,6 +34,9 @@ waldur_core.logging:
 waldur_core.media:
 - waldur_core.core
 - waldur_mastermind.support
+waldur_core.onboarding:
+- waldur_core.core
+- waldur_core.structure
 waldur_core.permissions:
 - waldur_core.core
 - waldur_core.logging

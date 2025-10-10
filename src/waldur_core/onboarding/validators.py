@@ -66,7 +66,7 @@ class OnboardingValidator:
             )
 
             if not backend:
-                verification.status = VerificationStatus.FAILED
+                verification.status = VerificationStatus.ESCALATED
                 verification.error_traceback = (
                     f"No validation backend available for country {country}"
                 )
@@ -77,7 +77,7 @@ class OnboardingValidator:
 
             identity_valid, identity_error = backend.validate_user_identity(user)
             if not identity_valid:
-                verification.status = VerificationStatus.FAILED
+                verification.status = VerificationStatus.ESCALATED
                 verification.error_traceback = identity_error
                 verification.error_message = "IDENTITY_VALIDATION_FAILED"
                 verification.validated_at = timezone.now()
@@ -105,9 +105,10 @@ class OnboardingValidator:
             if result.is_valid:
                 verification.status = VerificationStatus.VERIFIED
             else:
-                verification.status = VerificationStatus.FAILED
+                verification.status = VerificationStatus.ESCALATED
                 verification.error_traceback = (
-                    result.error_message or "Validation failed"
+                    result.error_message
+                    or "Automatic validation failed, escalated to manual verification"
                 )
                 verification.error_message = result.error_code or "VALIDATION_FAILED"
 
@@ -115,7 +116,7 @@ class OnboardingValidator:
 
         except ValueError as e:
             # Handle configuration errors (e.g., missing credentials)
-            verification.status = VerificationStatus.FAILED
+            verification.status = VerificationStatus.ESCALATED
             verification.error_traceback = str(e)
             verification.error_message = "CONFIGURATION_ERROR"
             verification.validated_at = timezone.now()
@@ -123,7 +124,7 @@ class OnboardingValidator:
 
         except Exception as e:
             # Handle unexpected errors
-            verification.status = VerificationStatus.FAILED
+            verification.status = VerificationStatus.ESCALATED
             verification.error_traceback = (
                 f"Unexpected error during validation: {str(e)}"
             )

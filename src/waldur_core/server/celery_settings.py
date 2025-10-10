@@ -92,6 +92,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(hours=24),
         "args": (),
     },
+    "expire-stale-verifications": {
+        "task": "waldur_core.onboarding.expire_stale_verifications",
+        "schedule": timedelta(hours=1),
+        "args": (),
+    },
 }
 
 for ext in WaldurExtension.get_extensions():

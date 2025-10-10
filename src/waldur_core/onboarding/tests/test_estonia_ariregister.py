@@ -11,7 +11,7 @@ from waldur_core.onboarding.backends.base import ValidationRequest
 from waldur_core.onboarding.backends.estonia import EstonianAriregisterBackend
 from waldur_core.structure.tests import factories as structure_factories
 
-from .factories import OnboardingVerificationFactory
+from . import factories
 from .fixtures import (
     AUTHORIZED_CIVIL_NUMBER,
     NONEXISTENT_CIVIL_NUMBER,
@@ -46,6 +46,9 @@ class EstonianAriregisterAPITest(APITestCase):
         Returns:
             Response object from the API
         """
+        url = factories.OnboardingVerificationFactory.get_list_url(
+            action="validate_company"
+        )
         data = {
             "country": "EE",
             "legal_person_identifier": legal_person_identifier
@@ -53,9 +56,7 @@ class EstonianAriregisterAPITest(APITestCase):
             "legal_name": legal_name,
             "user_submitted_customer_metadata": user_submitted_customer_metadata or {},
         }
-        return self.client.post(
-            "/api/onboarding-verifications/validate_company/", data, format="json"
-        )
+        return self.client.post(url, data, format="json")
 
     def _mock_ariregister_response(self, mock_post, response_data):
         """
@@ -97,7 +98,9 @@ class EstonianAriregisterAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         verification = response.data
 
-        self._assert_verification_status(verification, "failed", "CONFIGURATION_ERROR")
+        self._assert_verification_status(
+            verification, "escalated", "CONFIGURATION_ERROR"
+        )
         self.assertIn("not configured", verification["error_traceback"])
 
     @override_config(
@@ -112,7 +115,9 @@ class EstonianAriregisterAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         verification = response.data
 
-        self._assert_verification_status(verification, "failed", "CONFIGURATION_ERROR")
+        self._assert_verification_status(
+            verification, "escalated", "CONFIGURATION_ERROR"
+        )
         self.assertIn("not configured", verification["error_traceback"])
 
     @override_config(
@@ -183,7 +188,7 @@ class EstonianAriregisterAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         verification = response.data
 
-        self._assert_verification_status(verification, "failed", "NOT_AUTHORIZED")
+        self._assert_verification_status(verification, "escalated", "NOT_AUTHORIZED")
         self.assertEqual(verification["validation_method"], "ariregister")
         self.assertEqual(verification["verified_user_roles"], [])
         self.assertIn(
@@ -212,7 +217,7 @@ class EstonianAriregisterAPITest(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         verification = response.data
-        self._assert_verification_status(verification, "failed", "NOT_AUTHORIZED")
+        self._assert_verification_status(verification, "escalated", "NOT_AUTHORIZED")
         self.assertEqual(verification["validation_method"], "ariregister")
         self.assertEqual(verification["verified_user_roles"], ["KOAS"])
         self.assertIn(
@@ -233,7 +238,7 @@ class EstonianAriregisterAPITest(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         verification = response.data
-        self._assert_verification_status(verification, "failed", "API_ERROR")
+        self._assert_verification_status(verification, "escalated", "API_ERROR")
         self.assertEqual(verification["validation_method"], "ariregister")
         self.assertIn("Äriregister API error", verification["error_traceback"])
 
@@ -253,12 +258,12 @@ class EstonianAriregisterAPITest(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         verification = response.data
-        self._assert_verification_status(verification, "failed", "COMPANY_NOT_FOUND")
+        self._assert_verification_status(verification, "escalated", "COMPANY_NOT_FOUND")
         self.assertEqual(verification["validation_method"], "ariregister")
         self.assertIn("not found", verification["error_traceback"])
 
     def test_create_customer_from_verified_validation(self):
-        verification = OnboardingVerificationFactory(
+        verification = factories.OnboardingVerificationFactory(
             user=self.user,
             status="verified",
             validation_method=enums.ValidationMethod.ARIREGISTER,
@@ -270,15 +275,19 @@ class EstonianAriregisterAPITest(APITestCase):
             },
         )
 
-        response = self.client.post(
-            f"/api/onboarding-verifications/{verification.uuid}/create_customer/"
+        url = factories.OnboardingVerificationFactory.get_url(
+            verification, action="create_customer"
         )
+        response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("uuid", response.data)
 
     def test_no_backend_available_for_unsupported_country(self):
         """Test validation fails when no backend is available for the country."""
+        url = factories.OnboardingVerificationFactory.get_list_url(
+            action="validate_company"
+        )
         data = {
             "country": "US",  # Unsupported country
             "legal_person_identifier": "12345678",
@@ -286,9 +295,7 @@ class EstonianAriregisterAPITest(APITestCase):
             "user_submitted_customer_metadata": {},
         }
 
-        response = self.client.post(
-            "/api/onboarding-verifications/validate_company/", data, format="json"
-        )
+        response = self.client.post(url, data, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Country 'US' is not supported", response.data["country"][0])
@@ -303,6 +310,19 @@ class EstonianAriregisterBackendTest(TestCase):
             civil_number=AUTHORIZED_CIVIL_NUMBER
         )
         self.legal_person_identifier = "70000310"
+
+    def _mock_ariregister_response(self, mock_post, response_data):
+        """
+        Helper method to configure mock API response.
+
+        Args:
+            mock_post: Mock object for requests.post
+            response_data: Data to return from the mocked API call
+        """
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = response_data
+        mock_post.return_value = mock_response
 
     @override_config(
         ONBOARDING_ARIREGISTER_BASE_URL="https://demo-ariregxmlv6.rik.ee/",
@@ -350,12 +370,10 @@ class EstonianAriregisterBackendTest(TestCase):
     )
     @patch("waldur_core.onboarding.backends.estonia.requests.post")
     def test_user_has_authority_to_represent_company(self, mock_post):
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = get_estonian_ariregister_success_response(
-            self.legal_person_identifier
+        self._mock_ariregister_response(
+            mock_post,
+            get_estonian_ariregister_success_response(self.legal_person_identifier),
         )
-        mock_post.return_value = mock_response
 
         request = ValidationRequest(
             country="EE",
@@ -394,12 +412,10 @@ class EstonianAriregisterBackendTest(TestCase):
     )
     @patch("waldur_core.onboarding.backends.estonia.requests.post")
     def test_user_does_not_exist_in_company_representatives(self, mock_post):
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = get_estonian_ariregister_success_response(
-            self.legal_person_identifier
+        self._mock_ariregister_response(
+            mock_post,
+            get_estonian_ariregister_success_response(self.legal_person_identifier),
         )
-        mock_post.return_value = mock_response
 
         request = ValidationRequest(
             country="EE",
@@ -424,12 +440,10 @@ class EstonianAriregisterBackendTest(TestCase):
     )
     @patch("waldur_core.onboarding.backends.estonia.requests.post")
     def test_user_exists_but_has_no_representation_authority(self, mock_post):
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = get_estonian_ariregister_success_response(
-            self.legal_person_identifier
+        self._mock_ariregister_response(
+            mock_post,
+            get_estonian_ariregister_success_response(self.legal_person_identifier),
         )
-        mock_post.return_value = mock_response
 
         request = ValidationRequest(
             country="EE",
@@ -478,10 +492,9 @@ class EstonianAriregisterBackendTest(TestCase):
     )
     @patch("waldur_core.onboarding.backends.estonia.requests.post")
     def test_company_not_found_in_response(self, mock_post):
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = get_estonian_ariregister_empty_response()
-        mock_post.return_value = mock_response
+        self._mock_ariregister_response(
+            mock_post, get_estonian_ariregister_empty_response()
+        )
 
         request = ValidationRequest(
             country="EE",

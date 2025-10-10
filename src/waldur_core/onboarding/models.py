@@ -1,10 +1,15 @@
+import logging
+
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core.models import ErrorMessageMixin, TimeStampedModel, User, UuidMixin
 from waldur_core.structure import models as structure_models
 
 from . import enums
+
+logger = logging.getLogger(__name__)
 
 
 class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
@@ -144,6 +149,12 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
         self.customer = structure_models.Customer.objects.create(**customer_data)
         self.save(update_fields=["customer"])
 
+        logger.info(
+            "Customer (ID=%s) created from onboarding verification (UUID=%s)",
+            self.customer.id,
+            self.uuid,
+        )
+
         return self.customer
 
 
@@ -185,6 +196,59 @@ class OnboardingJustification(UuidMixin, TimeStampedModel):
 
     def __str__(self):
         return f"Justification for {self.verification} by {self.user}"
+
+    def approve_justification(self, user, notes=""):
+        """
+        Approve the justification and update verification status to VERIFIED.
+
+        Args:
+            user: User approving the justification
+            notes: Optional staff notes about the decision
+        """
+        self.validation_decision = enums.ReviewDecision.APPROVED
+        self.validated_by = user
+        self.validated_at = timezone.now()
+        self.staff_notes = notes
+        self.save()
+
+        # Update verification status
+        self.verification.status = enums.VerificationStatus.VERIFIED
+        self.verification.save(update_fields=["status"])
+
+        logger.info(
+            "Justification (UUID=%s) for verification (UUID=%s) is approved by user %s(%s)",
+            self.uuid,
+            self.verification.uuid,
+            user.full_name,
+            user.uuid,
+        )
+
+    def reject_justification(self, user, notes=""):
+        """
+        Reject the justification and update verification status to FAILED.
+
+        Args:
+            user: User rejecting the justification
+            notes: Optional staff notes about the decision
+        """
+
+        self.validation_decision = enums.ReviewDecision.REJECTED
+        self.validated_by = user
+        self.validated_at = timezone.now()
+        self.staff_notes = notes
+        self.save()
+
+        # Update verification status to FAILED
+        self.verification.status = enums.VerificationStatus.FAILED
+        self.verification.save(update_fields=["status"])
+
+        logger.info(
+            "Justification (UUID=%s) for verification (UUID=%s) is rejected by staff user %s(%s)",
+            self.uuid,
+            self.verification.uuid,
+            user.full_name,
+            user.uuid,
+        )
 
 
 class OnboardingJustificationDocumentation(
