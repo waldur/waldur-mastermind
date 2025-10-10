@@ -1,4 +1,5 @@
 import datetime
+import logging
 
 from celery import shared_task
 from django.utils import timezone
@@ -14,7 +15,9 @@ from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OrderStates,
 )
-from waldur_mastermind.marketplace_site_agent import utils
+from waldur_mastermind.marketplace_site_agent import enums, models, utils
+
+logger = logging.getLogger(__name__)
 
 
 def get_offering_ids_for_active_subscriptions(observable_object_type: str):
@@ -129,3 +132,24 @@ def send_messages_about_pending_orders():
         )
         if messages:
             logging_tasks.publish_messages.delay(messages)
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace_site_agent.mark_agent_services_as_inactive"
+)
+def mark_agent_services_as_inactive():
+    active_agent_services = models.AgentService.objects.filter(
+        state=enums.AgentServiceState.ACTIVE,
+    )
+
+    for agent_service in active_agent_services:
+        processor_last = agent_service.agentprocessor_set.order_by("last_run").last()
+        if not processor_last:
+            continue
+        if processor_last.last_run <= timezone.now() - datetime.timedelta(minutes=10):
+            agent_service.state = enums.AgentServiceState.IDLE
+            agent_service.save(update_fields=["state"])
+            logger.info(
+                "Agent service %s has been marked as inactive because its processors have not ran for more than 10 minutes.",
+                agent_service.name,
+            )
