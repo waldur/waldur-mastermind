@@ -136,3 +136,40 @@ def validate_x509_certificate(data):
         x509.load_pem_x509_certificate(data)
     except ValueError:
         raise ValidationError(_("Invalid X509 certificate."))
+
+
+def validate_unix_path(path):
+    """Validate that the given path is a valid Unix/Linux file path."""
+    if not isinstance(path, str):
+        raise ValidationError(_("Path must be a string."))
+
+    if not path.strip():
+        raise ValidationError(_("Path cannot be empty."))
+
+    # Check for invalid characters in Unix paths
+    NULL_CHAR = "\0"  # Null character is not allowed in Unix paths
+    invalid_chars = [NULL_CHAR]
+    if any(char in path for char in invalid_chars):
+        raise ValidationError(_("Path contains invalid characters."))
+
+    # Path should start with / for absolute paths (recommended for config files)
+    if not path.startswith("/"):
+        raise ValidationError(_("Path should be absolute (start with /)."))
+
+    # Check path length (most Unix systems have limits)
+    UNIX_PATH_MAX = 4096  # PATH_MAX on most Unix systems
+    if len(path) > UNIX_PATH_MAX:
+        raise ValidationError(_("Path is too long (maximum 4096 characters)."))
+
+    # Check for path traversal attempts
+    if "/../" in path or path.endswith("/..") or ".." in path.split():
+        raise ValidationError(_("Path contains invalid directory traversal."))
+
+    # Check each path component length (NAME_MAX is typically 255)
+    UNIX_NAME_MAX = 255
+    path_components = path.split("/")
+    for component in path_components:
+        if len(component) > UNIX_NAME_MAX:
+            raise ValidationError(
+                _("Path component is too long (maximum 255 characters).")
+            )
