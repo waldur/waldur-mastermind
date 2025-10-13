@@ -1,3 +1,5 @@
+from unittest import mock
+
 from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.reverse import reverse
@@ -2313,3 +2315,168 @@ class ServiceProviderCompliancePerformanceTest(test.APITransactionTestCase):
             first_offering_data["pending_users"], 1
         )  # 3 total - 2 completed = 1 pending
         self.assertAlmostEqual(first_offering_data["compliance_rate"], 66.67, places=1)
+
+
+class OfferingUserSignalTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+
+        self.offering = OfferingFactory()
+        self.offering.project = self.fixture.project
+        self.offering.save()
+
+        self.user = self.fixture.user
+        self.offering_user = OfferingUserFactory(
+            offering=self.offering,
+            user=self.user,
+            username="testuser",
+        )
+
+        self.offering.project.add_user(self.user, ProjectRole.ADMIN)
+
+        # Create event subscription for the offering user
+        from waldur_core.logging import utils as logging_utils
+        from waldur_core.logging.tests import factories as logging_factories
+
+        logging_factories.EventSubscriptionFactory(
+            user=self.user,
+            observable_objects=[
+                {"object_type": logging_utils.ObservableObjectType.OFFERING_USER.value}
+            ],
+        )
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_offering_user_updated_message_sent_on_update(self, mock_publish_messages):
+        """Test that update message is sent when OfferingUser is updated."""
+        self.offering_user.username = "updateduser"
+        self.offering_user.is_restricted = True
+        self.offering_user.save()
+
+        mock_publish_messages.assert_called_once()
+
+        message = mock_publish_messages.call_args[0][0][0]
+        import json
+
+        payload = json.loads(message["payload"])
+
+        self.assertEqual(payload["offering_user_uuid"], self.offering_user.uuid.hex)
+        self.assertEqual(payload["user_uuid"], self.user.uuid.hex)
+        self.assertEqual(payload["username"], "updateduser")
+        self.assertEqual(payload["state"], self.offering_user.state)
+        self.assertEqual(payload["action"], "update")
+        self.assertIn("username", payload["changed_fields"])
+        self.assertIn("is_restricted", payload["changed_fields"])
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_offering_user_created_message_sent_on_creation(
+        self, mock_publish_messages
+    ):
+        """Test that creation message is sent when OfferingUser is created."""
+        # Create a new offering user
+        new_offering_user = OfferingUserFactory(
+            offering=self.offering,
+            user=self.fixture.admin,
+            username="newuser",
+        )
+
+        mock_publish_messages.assert_called_once()
+
+        message = mock_publish_messages.call_args[0][0][0]
+        import json
+
+        payload = json.loads(message["payload"])
+
+        self.assertEqual(payload["offering_user_uuid"], new_offering_user.uuid.hex)
+        self.assertEqual(payload["user_uuid"], self.fixture.admin.uuid.hex)
+        self.assertEqual(payload["username"], "newuser")
+        self.assertEqual(payload["state"], new_offering_user.state)
+        self.assertEqual(payload["action"], "create")
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_offering_user_updated_message_not_sent_when_no_changes(
+        self, mock_publish_messages
+    ):
+        """Test that update message is NOT sent when no fields changed."""
+        self.offering_user.save()
+
+        mock_publish_messages.assert_not_called()
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_offering_user_updated_message_sent_for_basic_offering(
+        self, mock_publish_messages
+    ):
+        """Test that update message is sent for basic offerings too."""
+        self.offering.type = "basic"
+        self.offering.save()
+
+        self.offering_user.username = "updateduser"
+        self.offering_user.save()
+
+        mock_publish_messages.assert_called_once()
+
+        message = mock_publish_messages.call_args[0][0][0]
+        import json
+
+        payload = json.loads(message["payload"])
+
+        self.assertEqual(payload["offering_user_uuid"], self.offering_user.uuid.hex)
+        self.assertEqual(payload["user_uuid"], self.user.uuid.hex)
+        self.assertEqual(payload["username"], "updateduser")
+        self.assertEqual(payload["action"], "update")
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_offering_user_deleted_message_sent_on_deletion(
+        self, mock_publish_messages
+    ):
+        """Test that deletion message is sent when OfferingUser is deleted."""
+        self.offering_user.delete()
+
+        mock_publish_messages.assert_called_once()
+
+        message = mock_publish_messages.call_args[0][0][0]
+        import json
+
+        payload = json.loads(message["payload"])
+
+        self.assertEqual(payload["offering_user_uuid"], self.offering_user.uuid.hex)
+        self.assertEqual(payload["user_uuid"], self.user.uuid.hex)
+        self.assertEqual(payload["username"], "testuser")
+        self.assertEqual(payload["action"], "delete")
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_offering_user_deleted_message_sent_for_basic_offering(
+        self, mock_publish_messages
+    ):
+        """Test that deletion message is sent for basic offerings too."""
+        self.offering.type = "basic"
+        self.offering.save()
+
+        self.offering_user.delete()
+
+        mock_publish_messages.assert_called_once()
+
+        message = mock_publish_messages.call_args[0][0][0]
+        import json
+
+        payload = json.loads(message["payload"])
+
+        self.assertEqual(payload["offering_user_uuid"], self.offering_user.uuid.hex)
+        self.assertEqual(payload["user_uuid"], self.user.uuid.hex)
+        self.assertEqual(payload["username"], "testuser")
+        self.assertEqual(payload["action"], "delete")
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_offering_user_state_change_tracking(self, mock_publish_messages):
+        """Test that state changes are properly tracked in update messages."""
+        self.offering_user.request_deletion()
+        self.offering_user.save()
+
+        mock_publish_messages.assert_called_once()
+
+        message = mock_publish_messages.call_args[0][0][0]
+        import json
+
+        payload = json.loads(message["payload"])
+
+        self.assertIn("state", payload["changed_fields"])
+        self.assertEqual(payload["state"], self.offering_user.state)

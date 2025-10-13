@@ -12,7 +12,10 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
-from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    SITE_AGENT_OFFERING,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_site_agent.tests.fixtures import GlauthUserFixture
@@ -87,7 +90,7 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
         resource_creation_succeeded(self.resource)
 
         # Verify that publish_messages.delay was called
-        mocked_publish_messages.assert_called_once()
+        mocked_publish_messages.assert_called()
 
         message = mocked_publish_messages.call_args[0][0][0]
         offering_user = marketplace_models.OfferingUser.objects.get(
@@ -98,6 +101,8 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
         self.assertIn(self.offering_admin.username, message["payload"])
         self.assertIn(self.offering_admin.uuid.hex, message["payload"])
         self.assertIn(offering_user.uuid.hex, message["payload"])
+        self.assertIn("state", str(message["payload"]))
+        self.assertIn("username_set", message["payload"])
 
     def test_offering_user_created_after_resource_creation(self):
         self.resource.project.add_user(self.offering_admin, ProjectRole.ADMIN)

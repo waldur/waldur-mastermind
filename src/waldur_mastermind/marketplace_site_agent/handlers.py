@@ -65,8 +65,6 @@ def send_pending_order_to_message_queue(
 def send_offering_user_username_message(
     sender, instance: OfferingUser, created=False, **kwargs
 ):
-    if not created:
-        return
     offering_user = instance
     offering = offering_user.offering
     if offering.type != SITE_AGENT_OFFERING:
@@ -82,6 +80,8 @@ def send_offering_user_username_message(
         "username": offering_user.username,
         "offering_user_uuid": offering_user.uuid.hex,
         "user_uuid": offering_user.user.uuid.hex,
+        "state": offering_user.state,
+        "action": "username_set",
     }
     messages = marketplace_utils.prepare_messages(
         offering_user.offering,

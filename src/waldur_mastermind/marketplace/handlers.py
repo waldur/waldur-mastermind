@@ -20,6 +20,8 @@ from waldur_core.checklist import models as checklist_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import User
 from waldur_core.logging import event_logger
+from waldur_core.logging import tasks as logging_tasks
+from waldur_core.logging import utils as logging_utils
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer, Project
@@ -27,6 +29,7 @@ from waldur_core.users import models as users_models
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.tasks import process_invitation
 from waldur_freeipa.models import Profile
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     MaintenanceState,
@@ -2011,3 +2014,89 @@ def log_terms_of_service_consent_revoked(
         },
         scopes=[instance.offering, instance.offering.customer],
     )
+
+
+def send_offering_user_created_message(
+    sender, instance: models.OfferingUser, created=False, **kwargs
+):
+    """Send OfferingUser creation message to message queue for external systems."""
+    if not created:
+        return
+
+    offering_user = instance
+    offering = offering_user.offering
+
+    payload = {
+        "offering_user_uuid": offering_user.uuid.hex,
+        "user_uuid": offering_user.user.uuid.hex,
+        "username": offering_user.username,
+        "state": offering_user.state,
+        "action": "create",
+    }
+
+    logger.info("Preparing OfferingUser creation messages for %s", offering_user)
+
+    messages = marketplace_utils.prepare_messages(
+        offering,
+        payload,
+        logging_utils.ObservableObjectType.OFFERING_USER,
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)
+
+
+def send_offering_user_updated_message(
+    sender, instance: models.OfferingUser, created=False, **kwargs
+):
+    """Send OfferingUser update message to message queue for external systems."""
+    if created:
+        return
+
+    offering_user = instance
+    offering = offering_user.offering
+
+    changed_fields = offering_user.tracker.changed()
+    if not changed_fields:
+        return
+
+    payload = {
+        "offering_user_uuid": offering_user.uuid.hex,
+        "user_uuid": offering_user.user.uuid.hex,
+        "username": offering_user.username,
+        "state": offering_user.state,
+        "changed_fields": list(changed_fields.keys()),
+        "action": "update",
+    }
+
+    logger.info("Preparing OfferingUser update message for %s", offering_user)
+
+    messages = marketplace_utils.prepare_messages(
+        offering,
+        payload,
+        logging_utils.ObservableObjectType.OFFERING_USER,
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)
+
+
+def send_offering_user_deleted_message(sender, instance: models.OfferingUser, **kwargs):
+    """Send OfferingUser deletion message to message queue for external systems."""
+    offering_user = instance
+    offering = offering_user.offering
+
+    payload = {
+        "offering_user_uuid": offering_user.uuid.hex,
+        "user_uuid": offering_user.user.uuid.hex,
+        "username": offering_user.username,
+        "action": "delete",
+    }
+
+    logger.info("Preparing OfferingUser deletion message for %s", offering_user)
+
+    messages = marketplace_utils.prepare_messages(
+        offering,
+        payload,
+        logging_utils.ObservableObjectType.OFFERING_USER,
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)
