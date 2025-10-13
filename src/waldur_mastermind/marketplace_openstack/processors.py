@@ -174,6 +174,8 @@ class InstanceDeleteProcessor(processors.AbstractDeleteResourceProcessor):
         )
 
     def send_request(self, user, resource: models.Resource):
+        if not resource.scope:
+            return True
         delete_instance(resource.scope, self.order.attributes)
         return False
 
