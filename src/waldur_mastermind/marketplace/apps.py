@@ -273,6 +273,24 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.send_offering_user_created_message,
+            sender=models.OfferingUser,
+            dispatch_uid="waldur_mastermind.marketplace.send_offering_user_created_message",
+        )
+
+        signals.post_save.connect(
+            handlers.send_offering_user_updated_message,
+            sender=models.OfferingUser,
+            dispatch_uid="waldur_mastermind.marketplace.send_offering_user_updated_message",
+        )
+
+        signals.post_delete.connect(
+            handlers.send_offering_user_deleted_message,
+            sender=models.OfferingUser,
+            dispatch_uid="waldur_mastermind.marketplace.send_offering_user_deleted_message",
+        )
+
+        signals.post_save.connect(
             handlers.log_resource_robot_account_created_or_updated,
             sender=models.RobotAccount,
             dispatch_uid="waldur_core.marketplace.handlers.log_resource_robot_account_created_or_updated",
