@@ -3668,7 +3668,7 @@ class OpenStackBackend(ServiceBackend):
             )
             if backend_volume_availability_zone:
                 availability_zone = models.VolumeAvailabilityZone.objects.get(
-                    name=backend_volume_availability_zone, tenant=tenant
+                    name=backend_volume_availability_zone, settings=self.settings
                 )
         except models.VolumeAvailabilityZone.DoesNotExist:
             pass
@@ -4667,8 +4667,11 @@ class OpenStackBackend(ServiceBackend):
         Stale zone are removed, missing zones are created.
         If zone state has been changed, it is synchronized.
         """
+        # Availability zones are global per service settings, not per tenant.
+        # Sync using settings-only scope to avoid duplicate records per tenant.
         front_zones_map = {
-            zone.name: zone for zone in frontend_model.objects.filter(tenant=tenant)
+            zone.name: zone
+            for zone in frontend_model.objects.filter(settings=self.settings)
         }
 
         back_zones_map = {
@@ -4681,13 +4684,14 @@ class OpenStackBackend(ServiceBackend):
         for zone in missing_zones:
             frontend_model.objects.get_or_create(
                 settings=self.settings,
-                tenant=tenant,
                 name=zone,
                 defaults={"available": back_zones_map[zone]},
             )
 
         stale_zones = set(front_zones_map.keys()) - set(back_zones_map.keys())
-        frontend_model.objects.filter(name__in=stale_zones, tenant=tenant).delete()
+        frontend_model.objects.filter(
+            name__in=stale_zones, settings=self.settings
+        ).delete()
 
         common_zones = set(front_zones_map.keys()) & set(back_zones_map.keys())
         for zone_name in common_zones:

@@ -871,7 +871,11 @@ class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
 
 class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name="volume_availability_zones"
+        on_delete=models.CASCADE,
+        to=Tenant,
+        related_name="volume_availability_zones",
+        null=True,
+        blank=True,
     )
     settings = models.ForeignKey(
         on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name="+"
@@ -1115,6 +1119,8 @@ class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
         to=Tenant,
         related_name="instance_availability_zones",
         help_text=_("OpenStack tenant this availability zone belongs to"),
+        null=True,
+        blank=True,
     )
     settings = models.ForeignKey(
         on_delete=models.CASCADE,

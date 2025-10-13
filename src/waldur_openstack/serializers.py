@@ -3068,7 +3068,7 @@ class OpenStackInstanceCreateSerializer(OpenStackInstanceSerializer):
                     volume_availability_zone = (
                         models.VolumeAvailabilityZone.objects.get(
                             name=volume_availability_zone_name,
-                            tenant=instance.tenant,
+                            settings=instance.service_settings,
                             available=True,
                         )
                     )
