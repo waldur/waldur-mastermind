@@ -69,6 +69,10 @@ urlpatterns = [
         views.SyncResourceView.as_view(),
     ),
     re_path(
+        r"^api/remote-waldur-api/pull_resource_robot_accounts/(?P<uuid>[a-f0-9]+)/$",
+        views.PullResourceRobotAccountsView.as_view(),
+    ),
+    re_path(
         r"^api/remote-waldur-api/remote_resource_status/(?P<resource_uuid>[a-f0-9]+)/$",
         views.RemoteResourceStatusView.as_view(),
         name="remote-resource-status",

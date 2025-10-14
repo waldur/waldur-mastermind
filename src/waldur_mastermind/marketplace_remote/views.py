@@ -316,7 +316,7 @@ class PullOrderView(GenericAPIView):
     @extend_schema(description="Schedule order pull task")
     def post(self, *args, **kwargs):
         order = self.get_order()
-        tasks.OrderPullTask.apply_async(args=[serialize_instance(order)])
+        tasks.OrderPullTask().apply_async(args=[serialize_instance(order)], kwargs={})
         return Response(status=status.HTTP_200_OK)
 
 
@@ -447,27 +447,51 @@ class SyncResourceView(GenericAPIView):
     def get_resource(self):
         resource_uuid = self.kwargs["uuid"]
         if not is_uuid_like(resource_uuid):
-            return Response(status=status.HTTP_400_BAD_REQUEST, data="UUID is invalid.")
+            raise ValidationError("UUID is invalid.")
         resource = models.Resource.objects.filter(uuid=resource_uuid).first()
         if resource is None:
-            return Response(
-                status=status.HTTP_404_NOT_FOUND, data="A resource is not found"
-            )
+            raise NotFound("A resource is not found")
         if resource.state == ResourceStates.TERMINATED:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data="The resource is terminated"
-            )
+            raise ValidationError("The resource is terminated")
         if resource.state == ResourceStates.UPDATING:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data="The resource is updating"
-            )
+            raise ValidationError("The resource is updating")
         return resource
 
     serializer_class = EmptySerializer
 
     def post(self, *args, **kwargs):
         resource = self.get_resource()
-        tasks.ResourcePullTask.apply_async(args=[serialize_instance(resource)])
+        tasks.ResourcePullTask().apply_async(
+            args=[serialize_instance(resource)], kwargs={}
+        )
+        return Response(status=status.HTTP_200_OK)
+
+
+class PullResourceRobotAccountsView(GenericAPIView):
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+    def get_resource(self):
+        resource_uuid = self.kwargs["uuid"]
+        if not is_uuid_like(resource_uuid):
+            raise ValidationError("UUID is invalid.")
+        resource = models.Resource.objects.filter(uuid=resource_uuid).first()
+        if resource is None:
+            raise NotFound("A resource is not found")
+        if resource.state == ResourceStates.TERMINATED:
+            raise ValidationError("The resource is terminated")
+        if resource.state == ResourceStates.UPDATING:
+            raise ValidationError("The resource is updating")
+        if resource.offering.type != REMOTE_OFFERING:
+            raise ValidationError("The resource offering is not remote")
+        return resource
+
+    serializer_class = EmptySerializer
+
+    def post(self, *args, **kwargs):
+        resource = self.get_resource()
+        tasks.ResourceRobotAccountPullTask().apply_async(
+            args=[serialize_instance(resource)], kwargs={}
+        )
         return Response(status=status.HTTP_200_OK)
 
 
