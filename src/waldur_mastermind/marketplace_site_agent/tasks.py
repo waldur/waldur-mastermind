@@ -14,6 +14,7 @@ from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
     OfferingStates,
     OrderStates,
+    ResourceStates,
 )
 from waldur_mastermind.marketplace_site_agent import enums, models, utils
 
@@ -86,7 +87,9 @@ def sync_resources():
     # Get resources that need updating
     one_hour_ago = timezone.now() - datetime.timedelta(hours=1)
     resources = marketplace_models.Resource.objects.filter(
-        offering__id__in=offering_ids, last_sync__lte=one_hour_ago
+        offering__id__in=offering_ids,
+        last_sync__lte=one_hour_ago,
+        state__in=[ResourceStates.OK, ResourceStates.ERRED],
     ).order_by("last_sync")[:50]
 
     # Push updates in bulk
