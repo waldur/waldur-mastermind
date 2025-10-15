@@ -35,6 +35,7 @@ from waldur_core.structure.managers import (
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
     CourseAccountState,
     OfferingStates,
     OfferingUserStates,
@@ -509,6 +510,12 @@ class ResourceFilter(
     has_terminate_date = django_filters.BooleanFilter(
         method="filter_has_termination_date", label="Has termination date"
     )
+    usage_based = django_filters.BooleanFilter(
+        method="filter_usage_based", label="Filter by usage-based offerings"
+    )
+    limit_based = django_filters.BooleanFilter(
+        method="filter_limit_based", label="Filter by limit-based offerings"
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -587,6 +594,30 @@ class ResourceFilter(
             return queryset.filter_for_service_consumer(user)
         else:
             return queryset
+
+    def filter_usage_based(self, queryset: ResourceQuerySet, name, value):
+        if value is None:
+            return queryset
+        if value:
+            return queryset.filter(
+                offering__components__billing_type=BillingTypes.USAGE
+            ).distinct()
+        else:
+            return queryset.exclude(
+                offering__components__billing_type=BillingTypes.USAGE
+            ).distinct()
+
+    def filter_limit_based(self, queryset: ResourceQuerySet, name, value):
+        if value is None:
+            return queryset
+        if value:
+            return queryset.filter(
+                offering__components__billing_type=BillingTypes.LIMIT
+            ).distinct()
+        else:
+            return queryset.exclude(
+                offering__components__billing_type=BillingTypes.LIMIT
+            ).distinct()
 
 
 class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):

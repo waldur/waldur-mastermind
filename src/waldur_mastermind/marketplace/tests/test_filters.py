@@ -338,3 +338,91 @@ class AccessibleViaCallsFilterTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url, {"accessible_via_calls": "false"})
         self.assertEqual(len(response.json()), 0)
+
+
+class ResourceBillingTypeFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = factories.ResourceFactory.get_list_url()
+
+        # Create offering with usage-based components
+        self.usage_offering = factories.OfferingFactory()
+        factories.OfferingComponentFactory(
+            offering=self.usage_offering, billing_type="usage"
+        )
+        self.usage_resource = factories.ResourceFactory(
+            offering=self.usage_offering, project=self.fixture.project
+        )
+
+        # Create offering with limit-based components
+        self.limit_offering = factories.OfferingFactory()
+        factories.OfferingComponentFactory(
+            offering=self.limit_offering, billing_type="limit"
+        )
+        self.limit_resource = factories.ResourceFactory(
+            offering=self.limit_offering, project=self.fixture.project
+        )
+
+        # Create offering with fixed components
+        self.fixed_offering = factories.OfferingFactory()
+        factories.OfferingComponentFactory(
+            offering=self.fixed_offering, billing_type="fixed"
+        )
+        self.fixed_resource = factories.ResourceFactory(
+            offering=self.fixed_offering, project=self.fixture.project
+        )
+
+    def test_usage_based_filter_true(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"usage_based": "true"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertIn(self.usage_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.limit_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.fixed_resource.uuid.hex, resource_uuids)
+
+    def test_usage_based_filter_false(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"usage_based": "false"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertNotIn(self.usage_resource.uuid.hex, resource_uuids)
+
+    def test_limit_based_filter_true(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"limit_based": "true"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertIn(self.limit_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.usage_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.fixed_resource.uuid.hex, resource_uuids)
+
+    def test_limit_based_filter_false(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"limit_based": "false"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertNotIn(self.limit_resource.uuid.hex, resource_uuids)
+
+    def test_combined_filters(self):
+        # Test that we can combine both filters
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"usage_based": "true", "limit_based": "true"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return empty result since no resource can be both usage-based and limit-based
+        self.assertEqual(len(response.data), 0)
+
+    def test_no_filter_returns_all(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return all resources including the fixture resource
+        self.assertGreaterEqual(len(response.data), 4)
