@@ -815,3 +815,137 @@ class OrderFilterTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.order.uuid.hex)
+
+
+@ddt
+class OrderSetBackendIdTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE, customer=self.fixture.customer
+        )
+        self.order = factories.OrderFactory(
+            project=self.fixture.project,
+            offering=self.offering,
+            created_by=self.fixture.manager,
+        )
+        self.url = factories.OrderFactory.get_url(self.order, "set_backend_id")
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_BACKEND_ID)
+
+    def make_request(self, user, backend_id="new_backend_id"):
+        self.client.force_authenticate(user)
+        payload = {"backend_id": backend_id}
+        return self.client.post(self.url, payload)
+
+    @data("staff", "owner")
+    def test_authorized_user_can_set_backend_id(self, user):
+        """Test that service provider owners and staff can set backend_id."""
+        user_obj = getattr(self.fixture, user)
+        initial_backend_id = self.order.backend_id
+
+        response = self.make_request(user_obj)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("status", response.data)
+        self.assertEqual(response.data["status"], "Order backend_id has been changed.")
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.backend_id, "new_backend_id")
+        self.assertNotEqual(self.order.backend_id, initial_backend_id)
+
+    @data("admin", "manager")
+    def test_unauthorized_user_cannot_set_backend_id(self, user):
+        """Test that project-level users cannot set backend_id."""
+        user_obj = getattr(self.fixture, user)
+
+        response = self.make_request(user_obj)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_user_cannot_set_backend_id(self):
+        """Test that unauthenticated users cannot set backend_id."""
+        payload = {"backend_id": "new_backend_id"}
+        response = self.client.post(self.url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_setting_same_backend_id_returns_not_changed_message(self):
+        """Test that setting the same backend_id returns appropriate message."""
+        self.order.backend_id = "existing_backend_id"
+        self.order.save()
+
+        response = self.make_request(self.fixture.staff, "existing_backend_id")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "Order backend_id is not changed.")
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.backend_id, "existing_backend_id")
+
+    def test_setting_backend_id_to_none_fails(self):
+        """Test that backend_id can be set to None."""
+        self.order.backend_id = "existing_backend_id"
+        self.order.save()
+
+        response = self.make_request(self.fixture.staff, None)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_setting_backend_id_to_empty_string_fails(self):
+        """Test that backend_id can be set to empty string."""
+        self.order.backend_id = "existing_backend_id"
+        self.order.save()
+
+        response = self.make_request(self.fixture.staff, "")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_payload_returns_bad_request(self):
+        """Test that invalid payload returns 400."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(self.url, {})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_order_not_found_returns_404(self):
+        """Test that accessing non-existent order returns 404."""
+        self.client.force_authenticate(self.fixture.staff)
+        non_existent_order = factories.OrderFactory()
+        url = factories.OrderFactory.get_url(non_existent_order, "set_backend_id")
+        non_existent_order.delete()
+
+        payload = {"backend_id": "new_backend_id"}
+        response = self.client.post(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_service_provider_owner_can_set_backend_id_for_different_customer_order(
+        self,
+    ):
+        """Test that service provider owner can set backend_id for orders
+        from different customers.
+        """
+        consumer_fixture = structure_fixtures.ProjectFixture()
+        order = factories.OrderFactory(
+            project=consumer_fixture.project,
+            offering=self.offering,
+            created_by=consumer_fixture.manager,
+        )
+        url = factories.OrderFactory.get_url(order, "set_backend_id")
+        self.client.force_authenticate(self.fixture.owner)
+
+        payload = {"backend_id": "cross_customer_backend_id"}
+        response = self.client.post(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order.refresh_from_db()
+        self.assertEqual(order.backend_id, "cross_customer_backend_id")
+
+    def test_blocked_organization_cannot_set_backend_id(self):
+        """Test that blocked organizations cannot set backend_id."""
+        self.fixture.customer.blocked = True
+        self.fixture.customer.save()
+
+        response = self.make_request(self.fixture.owner)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

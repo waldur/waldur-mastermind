@@ -3742,6 +3742,47 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     update_attachment_validators = attachment_validators
     delete_attachment_validators = attachment_validators
 
+    @action(detail=True, methods=["POST"])
+    def set_backend_id(self, request, uuid=None):
+        order = cast(models.Order, self.get_object())
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_backend_id = serializer.validated_data["backend_id"]
+        old_backend_id = order.backend_id
+        if new_backend_id != old_backend_id:
+            order.backend_id = serializer.validated_data["backend_id"]
+            order.save()
+            logger.info(
+                "%s has changed order %s backend_id from %s to %s",
+                request.user.full_name,
+                order.uuid.hex,
+                old_backend_id,
+                new_backend_id,
+            )
+
+            return Response(
+                {"status": _("Order backend_id has been changed.")},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"status": _("Order backend_id is not changed.")},
+                status=status.HTTP_200_OK,
+            )
+
+    set_backend_id_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_BACKEND_ID,
+            ["offering", "offering.customer"],
+        )
+    ]
+
+    set_backend_id_serializer_class = serializers.OrderBackendIDSerializer
+
+    set_backend_id_validators = [
+        structure_utils.check_customer_blocked_or_archived,
+    ]
+
 
 class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
     queryset = models.Resource.objects.all()
