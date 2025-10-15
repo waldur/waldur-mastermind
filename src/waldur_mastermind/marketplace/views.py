@@ -6345,7 +6345,7 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
 
     def perform_create(self, serializer):
-        username = self.request.user.username
+        owner_username = self.request.user.username
         try:
             data = serializer.validated_data
             scope_type = (
@@ -6382,7 +6382,9 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
                             }
                         )
 
-            response_data = utils.create_service_account(data, username, scope_type)
+            response_data = utils.create_service_account(
+                data, owner_username, scope_type
+            )
             if response_data and "apiKey" in response_data:
                 instance = serializer.save()
                 instance._token = response_data["apiKey"]["apiKey"]
