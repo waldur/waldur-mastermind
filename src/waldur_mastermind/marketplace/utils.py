@@ -1958,7 +1958,7 @@ def rotate_service_account_api_key(service_account: models.ScopedServiceAccount)
 
 
 def post_service_account_to_url(
-    url: str, service_account: dict, username: str = "", scope_type: str = ""
+    url: str, service_account: dict, owner_username: str = "", scope_type: str = ""
 ):
     try:
         api_access_token = get_service_account_api_token()
@@ -1988,9 +1988,9 @@ def post_service_account_to_url(
         scope_offering_slugs = list(offering_slugs)
 
         payload = {
-            "ownerUsername": username,
+            "ownerUsername": owner_username,
             "preferredIdentifier": service_account["preferred_identifier"],
-            "email": customer.email,
+            "email": service_account.get("email", customer.email),
             "description": service_account.get("description", ""),
             "scopeType": scope_type,
             "scopeName": scope_name,
@@ -2008,7 +2008,7 @@ def post_service_account_to_url(
         raise
 
 
-def create_service_account(service_account: dict, username: str, scope_type: str):
+def create_service_account(service_account: dict, owner_username: str, scope_type: str):
     """
     Makes a synchronous call to the webhook URL to create a service account.
     Raises exceptions on failure which should be handled by the viewset.
@@ -2016,7 +2016,7 @@ def create_service_account(service_account: dict, username: str, scope_type: str
     if config.ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND:
         logger.info("Mock mode enabled for create_service_account")
         return generate_mock_service_account_creation_response(
-            service_account, username, scope_type
+            service_account, owner_username, scope_type
         )
 
     if not settings.WALDUR_CORE.get("SERVICE_ACCOUNT_USE_API"):
@@ -2030,7 +2030,7 @@ def create_service_account(service_account: dict, username: str, scope_type: str
 
     try:
         response = post_service_account_to_url(
-            service_account_url, service_account, username, scope_type
+            service_account_url, service_account, owner_username, scope_type
         )
         return response.json()
     except (httpx.HTTPError, ValueError) as exc:
