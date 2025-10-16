@@ -24,11 +24,15 @@ The key components include:
 
 ## Message Types
 
-The system handles three primary types of events:
+The system handles several types of events:
 
 1. **Order Messages**: Notifications about marketplace orders (create, update, terminate)
 2. **User Role Messages**: Changes to user permissions in projects
 3. **Resource Messages**: Updates to resource configuration or status
+4. **Offering User Messages**: Creation, updates, and deletion of offering users
+5. **Service Account Messages**: Service account lifecycle events
+6. **Course Account Messages**: Course account management events
+7. **Importable Resources Messages**: Backend resource discovery events
 
 ## Implementation Details
 
@@ -37,6 +41,34 @@ The system handles three primary types of events:
 When events like order creation occur, Waldur prepares and publishes STOMP messages: [code link](https://github.com/waldur/waldur-mastermind/blob/73f2a0a7df04405b1c9ed5d2512d6213d649d398/src/waldur_mastermind/marketplace_slurm_remote/utils.py#L12)
 
 These messages are then sent via: [publish_stomp_messages](https://github.com/waldur/waldur-mastermind/blob/73f2a0a7df04405b1c9ed5d2512d6213d649d398/src/waldur_core/logging/tasks.py#L83)
+
+### Offering User Event Messages
+
+Offering user events are published when offering users are created, updated, or deleted. These handlers are located in [waldur_mastermind/marketplace/handlers.py](https://github.com/waldur/waldur-mastermind/blob/develop/src/waldur_mastermind/marketplace/handlers.py):
+
+* `send_offering_user_created_message` - Triggers when an OfferingUser is created
+* `send_offering_user_updated_message` - Triggers when an OfferingUser is updated
+* `send_offering_user_deleted_message` - Triggers when an OfferingUser is deleted
+
+**Message Payload Structure for OfferingUser Events:**
+
+```json
+{
+  "offering_user_uuid": "uuid-hex-string",
+  "user_uuid": "user-uuid-hex-string",
+  "username": "generated-username",
+  "state": "OK|Requested|Creating|Pending account linking|Pending additional validation|Requested deletion|Deleting|Deleted|Error creating|Error deleting",
+  "action": "create|update|delete",
+  "offering_uuid": "offering-uuid",
+  "changed_fields": ["field1", "field2"]  // Only present for updates
+}
+```
+
+**Event Triggers:**
+
+* **Create**: When a new offering user account is created for a user in an offering
+* **Update**: When any field of an existing offering user is modified (username, state, etc.)
+* **Delete**: When an offering user account is removed from an offering
 
 ### Subscription Management (Agent Side)
 

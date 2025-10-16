@@ -2362,7 +2362,7 @@ class OfferingUserSignalTest(test.APITransactionTestCase):
         self.assertEqual(payload["offering_user_uuid"], self.offering_user.uuid.hex)
         self.assertEqual(payload["user_uuid"], self.user.uuid.hex)
         self.assertEqual(payload["username"], "updateduser")
-        self.assertEqual(payload["state"], self.offering_user.state)
+        self.assertEqual(payload["state"], self.offering_user.get_state_display())
         self.assertEqual(payload["action"], "update")
         self.assertIn("username", payload["changed_fields"])
         self.assertIn("is_restricted", payload["changed_fields"])
@@ -2385,11 +2385,10 @@ class OfferingUserSignalTest(test.APITransactionTestCase):
         import json
 
         payload = json.loads(message["payload"])
-
         self.assertEqual(payload["offering_user_uuid"], new_offering_user.uuid.hex)
         self.assertEqual(payload["user_uuid"], self.fixture.admin.uuid.hex)
         self.assertEqual(payload["username"], "newuser")
-        self.assertEqual(payload["state"], new_offering_user.state)
+        self.assertEqual(payload["state"], new_offering_user.get_state_display())
         self.assertEqual(payload["action"], "create")
 
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
@@ -2479,4 +2478,4 @@ class OfferingUserSignalTest(test.APITransactionTestCase):
         payload = json.loads(message["payload"])
 
         self.assertIn("state", payload["changed_fields"])
-        self.assertEqual(payload["state"], self.offering_user.state)
+        self.assertEqual(payload["state"], self.offering_user.get_state_display())
