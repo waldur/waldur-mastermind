@@ -2030,7 +2030,7 @@ def send_offering_user_created_message(
         "offering_user_uuid": offering_user.uuid.hex,
         "user_uuid": offering_user.user.uuid.hex,
         "username": offering_user.username,
-        "state": offering_user.state,
+        "state": offering_user.get_state_display(),
         "action": "create",
     }
 
@@ -2063,7 +2063,7 @@ def send_offering_user_updated_message(
         "offering_user_uuid": offering_user.uuid.hex,
         "user_uuid": offering_user.user.uuid.hex,
         "username": offering_user.username,
-        "state": offering_user.state,
+        "state": offering_user.get_state_display(),
         "changed_fields": list(changed_fields.keys()),
         "action": "update",
     }
