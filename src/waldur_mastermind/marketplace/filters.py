@@ -516,6 +516,14 @@ class ResourceFilter(
     limit_based = django_filters.BooleanFilter(
         method="filter_limit_based", label="Filter by limit-based offerings"
     )
+    only_limit_based = django_filters.BooleanFilter(
+        method="filter_only_limit_based",
+        label="Filter out resources with only limit-based components",
+    )
+    only_usage_based = django_filters.BooleanFilter(
+        method="filter_only_usage_based",
+        label="Filter out resources with only usage-based components",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -618,6 +626,72 @@ class ResourceFilter(
             return queryset.exclude(
                 offering__components__billing_type=BillingTypes.LIMIT
             ).distinct()
+
+    def filter_only_limit_based(self, queryset: ResourceQuerySet, name, value):
+        if value is None:
+            return queryset
+        if value:
+            # Filter out resources that have ONLY limit-based components
+            # i.e., exclude resources that don't have any non-limit-based components
+            only_limit_based_offerings = queryset.filter(
+                offering__components__billing_type=BillingTypes.LIMIT
+            ).exclude(
+                offering__components__billing_type__in=[
+                    BillingTypes.USAGE,
+                    BillingTypes.FIXED,
+                    BillingTypes.ONE_TIME,
+                    BillingTypes.ON_PLAN_SWITCH,
+                ]
+            )
+            return queryset.exclude(
+                pk__in=only_limit_based_offerings.values_list("pk", flat=True)
+            )
+        else:
+            # Include only resources that have ONLY limit-based components
+            only_limit_based_offerings = queryset.filter(
+                offering__components__billing_type=BillingTypes.LIMIT
+            ).exclude(
+                offering__components__billing_type__in=[
+                    BillingTypes.USAGE,
+                    BillingTypes.FIXED,
+                    BillingTypes.ONE_TIME,
+                    BillingTypes.ON_PLAN_SWITCH,
+                ]
+            )
+            return only_limit_based_offerings.distinct()
+
+    def filter_only_usage_based(self, queryset: ResourceQuerySet, name, value):
+        if value is None:
+            return queryset
+        if value:
+            # Filter out resources that have ONLY usage-based components
+            # i.e., exclude resources that don't have any non-usage-based components
+            only_usage_based_offerings = queryset.filter(
+                offering__components__billing_type=BillingTypes.USAGE
+            ).exclude(
+                offering__components__billing_type__in=[
+                    BillingTypes.LIMIT,
+                    BillingTypes.FIXED,
+                    BillingTypes.ONE_TIME,
+                    BillingTypes.ON_PLAN_SWITCH,
+                ]
+            )
+            return queryset.exclude(
+                pk__in=only_usage_based_offerings.values_list("pk", flat=True)
+            )
+        else:
+            # Include only resources that have ONLY usage-based components
+            only_usage_based_offerings = queryset.filter(
+                offering__components__billing_type=BillingTypes.USAGE
+            ).exclude(
+                offering__components__billing_type__in=[
+                    BillingTypes.LIMIT,
+                    BillingTypes.FIXED,
+                    BillingTypes.ONE_TIME,
+                    BillingTypes.ON_PLAN_SWITCH,
+                ]
+            )
+            return only_usage_based_offerings.distinct()
 
 
 class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):

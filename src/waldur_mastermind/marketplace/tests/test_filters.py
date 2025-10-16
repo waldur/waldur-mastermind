@@ -426,3 +426,51 @@ class ResourceBillingTypeFilterTest(test.APITransactionTestCase):
 
         # Should return all resources including the fixture resource
         self.assertGreaterEqual(len(response.data), 4)
+
+    def test_only_limit_based_filter_true(self):
+        # Test filter that excludes resources with only limit-based components
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"only_limit_based": "true"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        # Should exclude limit-only resources but include mixed and non-limit resources
+        self.assertNotIn(self.limit_resource.uuid.hex, resource_uuids)
+        self.assertIn(self.usage_resource.uuid.hex, resource_uuids)
+        self.assertIn(self.fixed_resource.uuid.hex, resource_uuids)
+
+    def test_only_limit_based_filter_false(self):
+        # Test filter that includes only resources with only limit-based components
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"only_limit_based": "false"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        # Should include only limit-only resources
+        self.assertIn(self.limit_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.usage_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.fixed_resource.uuid.hex, resource_uuids)
+
+    def test_only_usage_based_filter_true(self):
+        # Test filter that excludes resources with only usage-based components
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"only_usage_based": "true"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        # Should exclude usage-only resources but include mixed and non-usage resources
+        self.assertNotIn(self.usage_resource.uuid.hex, resource_uuids)
+        self.assertIn(self.limit_resource.uuid.hex, resource_uuids)
+        self.assertIn(self.fixed_resource.uuid.hex, resource_uuids)
+
+    def test_only_usage_based_filter_false(self):
+        # Test filter that includes only resources with only usage-based components
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"only_usage_based": "false"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        # Should include only usage-only resources
+        self.assertIn(self.usage_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.limit_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.fixed_resource.uuid.hex, resource_uuids)
