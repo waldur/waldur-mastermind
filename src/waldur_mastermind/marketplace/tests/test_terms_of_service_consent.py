@@ -2706,6 +2706,63 @@ class OfferingTermsOfServiceFilterTest(APITransactionTestCase):
         for offering in response.data:
             self.assertFalse(offering["user_has_consent"])
 
+    def test_filter_offerings_user_has_offering_user_true(self):
+        """Test filtering offerings where user has OfferingUser record."""
+        models.OfferingUser.objects.create(
+            offering=self.offering_with_active_tos,
+            user=self.user,
+            username="testuser",
+        )
+
+        response = self.client.get(self.url, {"user_has_offering_user": "true"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["uuid"], self.offering_with_active_tos.uuid.hex
+        )
+
+    def test_filter_offerings_user_has_offering_user_false(self):
+        """Test filtering offerings where user does NOT have OfferingUser record."""
+        models.OfferingUser.objects.create(
+            offering=self.offering_with_active_tos,
+            user=self.user,
+            username="testuser",
+        )
+
+        response = self.client.get(self.url, {"user_has_offering_user": "false"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        offering_uuids = [offering["uuid"] for offering in response.data]
+        self.assertIn(self.offering_with_inactive_tos.uuid.hex, offering_uuids)
+        self.assertIn(self.offering_with_no_tos.uuid.hex, offering_uuids)
+
+    def test_combined_filters_offering_user_and_tos(self):
+        """Test combining user_has_offering_user with has_active_terms_of_service."""
+        models.OfferingUser.objects.create(
+            offering=self.offering_with_active_tos,
+            user=self.user,
+            username="testuser1",
+        )
+        models.OfferingUser.objects.create(
+            offering=self.offering_with_no_tos,
+            user=self.user,
+            username="testuser2",
+        )
+
+        response = self.client.get(
+            self.url,
+            {
+                "user_has_offering_user": "true",
+                "has_active_terms_of_service": "true",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["uuid"], self.offering_with_active_tos.uuid.hex
+        )
+
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
 class TermsOfServiceConsentEventLoggingTest(APITransactionTestCase):
