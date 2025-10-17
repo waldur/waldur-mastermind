@@ -253,8 +253,9 @@ class ProjectSerializer(
             "resources_count",
             "max_service_accounts",
             "kind",
+            "is_removed",
         )
-        read_only_fields = ("end_date_requested_by",)
+        read_only_fields = ("end_date_requested_by", "is_removed")
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
             "customer": {"lookup_field": "uuid"},
@@ -293,6 +294,12 @@ class ProjectSerializer(
             and not self.context["request"].user.is_staff
         ):
             fields["max_service_accounts"].read_only = True
+
+        # Make all fields read-only for terminated (soft-deleted) projects
+        if isinstance(self.instance, models.Project) and self.instance.is_removed:
+            for field_name, field in fields.items():
+                if field_name not in self.Meta.read_only_fields:
+                    field.read_only = True
 
         return fields
 

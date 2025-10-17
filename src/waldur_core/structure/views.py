@@ -52,6 +52,7 @@ from waldur_core.permissions.utils import (
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters, models, permissions, serializers, utils
 from waldur_core.structure.managers import (
+    filter_queryset_by_user_ip,
     filter_queryset_for_user,
     get_active_tokens,
     get_connected_customers,
@@ -437,6 +438,18 @@ class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.ProjectTypeFilter
 
 
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "include_terminated",
+                OpenApiTypes.BOOL,
+                OpenApiParameter.QUERY,
+                description="Include soft-deleted (terminated) projects. Only available to staff and support users, or users with organizational roles who can see their terminated projects.",
+            )
+        ]
+    )
+)
 class ProjectViewSet(
     checklist_mixins.UserChecklistMixin,
     UserRoleMixin,
@@ -444,6 +457,30 @@ class ProjectViewSet(
     core_views.ActionsViewSet,
 ):
     queryset = models.Project.available_objects.all().order_by("name")
+
+    def get_queryset(self):
+        user = getattr(self.request, "user", None)
+        query_params = getattr(self.request, "query_params", self.request.GET)
+        include_terminated = (
+            query_params.get("include_terminated", "false").lower() == "true"
+        )
+
+        if include_terminated and user and (user.is_staff or user.is_support):
+            # Staff and support users can see ALL terminated projects
+            return models.Project.objects.all().order_by("name")
+        elif include_terminated and user and user.is_authenticated:
+            # Regular users can see terminated projects they would normally have access to
+            # Get the base queryset using normal filtering but include terminated projects
+            base_queryset = models.Project.objects.all().order_by("name")
+            # Apply the same filters that would normally be applied (GenericRoleFilter logic)
+            filtered_queryset = filter_queryset_for_user(base_queryset, user)
+            filtered_queryset = filter_queryset_by_user_ip(
+                filtered_queryset, self.request
+            )
+            return filtered_queryset
+
+        return models.Project.available_objects.all().order_by("name")
+
     serializer_class = serializers.ProjectSerializer
     lookup_field = "uuid"
     filter_backends = (
