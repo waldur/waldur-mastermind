@@ -38,3 +38,13 @@ class CustomerEstimatedCostPolicyFilter(PolicyFilter):
 
     class Meta(PolicyFilter.Meta):
         model = models.CustomerEstimatedCostPolicy
+
+
+class CustomerComponentUsagePolicyFilter(PolicyFilter):
+    customer = core_filters.URLFilter(
+        view_name="customer-detail", field_name="scope__uuid"
+    )
+    customer_uuid = django_filters.UUIDFilter(field_name="scope__uuid")
+
+    class Meta(PolicyFilter.Meta):
+        model = models.CustomerComponentUsagePolicy

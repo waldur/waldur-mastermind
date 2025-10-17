@@ -131,3 +131,31 @@ class OfferingUsageComponentLimitFactory(
     policy = factory.SubFactory(OfferingUsagePolicyFactory)
     limit = 10
     component = factory.SubFactory(marketplace_factories.OfferingFactory)
+
+
+class CustomerComponentUsagePolicyFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CustomerComponentUsagePolicy],
+):
+    class Meta:
+        model = models.CustomerComponentUsagePolicy
+
+    scope = factory.SubFactory(structure_factories.CustomerFactory)
+    actions = "notify_organization_owners"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse(
+            "marketplace-customer-component-usage-policy-list"
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_url(cls, policy=None, action=None):
+        if policy is None:
+            policy = CustomerComponentUsagePolicyFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-customer-component-usage-policy-detail",
+            kwargs={"uuid": policy.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
