@@ -64,6 +64,24 @@ offering_estimated_cost_policy_trigger_handler = get_offering_trigger_handler(
 )
 
 
+def customer_component_usage_policy_trigger_handler(
+    sender, instance, created=False, **kwargs
+):
+    """Evaluate customer component usage policies when component usage records change."""
+    usage = instance
+
+    if not usage:
+        return
+
+    policies = models.CustomerComponentUsagePolicy.objects.filter(
+        scope=usage.resource.project.customer,
+        component_limits_set__component=usage.component,
+    ).distinct()
+
+    if policies.count() > 0:
+        utils.evaluate_policies(policies)
+
+
 def get_estimated_cost_policy_handler_for_observable_class(klass, observable_class):
     def handler(sender, instance, created=False, **kwargs):
         if not isinstance(instance, observable_class):

@@ -22,3 +22,8 @@ def register_in(router):
         views.OfferingUsagePolicyViewSet,
         basename="marketplace-offering-usage-policy",
     )
+    router.register(
+        r"marketplace-customer-component-usage-policies",
+        views.CustomerComponentUsagePolicyViewSet,
+        basename="marketplace-customer-component-usage-policy",
+    )

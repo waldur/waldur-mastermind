@@ -289,26 +289,14 @@ class OfferingUsagePolicy(invoices_models.PeriodMixin, OfferingPolicy):
             resource__project__customer__in=customers
         )
 
-        if self.period in (
-            self.Periods.MONTH_1,
-            self.Periods.MONTH_3,
-            self.Periods.MONTH_12,
-        ):
-            start = core_utils.month_start(datetime.date.today())
+        usages = usages.filter(
+            billing_period__lte=core_utils.month_end(datetime.date.today())
+        )
 
-            if self.period == self.Periods.MONTH_3:
-                start = core_utils.month_start(
-                    datetime.date.today() - relativedelta(months=2)
-                )
-            elif self.period == self.Periods.MONTH_12:
-                start = core_utils.month_start(
-                    datetime.date.today() - relativedelta(months=11)
-                )
+        start = self.get_start_date()
 
-            usages = usages.filter(
-                billing_period__gte=start,
-                billing_period__lte=core_utils.month_end(datetime.date.today()),
-            )
+        if start:
+            usages = usages.filter(billing_period__gte=start)
 
         for component_limit in self.component_limits_set.all():
             total = (
@@ -345,3 +333,55 @@ class OfferingComponentLimit(TimeStampedModel):
             )
 
         return super().save(*args, **kwargs)
+
+
+class CustomerComponentUsagePolicy(CustomerPolicy):
+    component_limits_set: models.Manager["CustomerUsagePolicyComponent"]
+
+    trigger_class = marketplace_models.ComponentUsage
+    component_limit = models.ManyToManyField(
+        marketplace_models.OfferingComponent,
+        through="CustomerUsagePolicyComponent",
+    )
+
+    def is_triggered(self):
+        customer = self.scope
+        usages = marketplace_models.ComponentUsage.objects.filter(
+            resource__project__customer=customer
+        )
+
+        for component_limit in self.component_limits_set.all():
+            component_usages = usages.filter(
+                component=component_limit.component,
+                billing_period__lte=core_utils.month_end(datetime.date.today()),
+            )
+            start = component_limit.get_start_date()
+
+            if start:
+                component_usages = component_usages.filter(billing_period__gte=start)
+
+            total = component_usages.aggregate(usage=Sum("usage"))["usage"] or 0
+
+            if total > component_limit.limit:
+                return True
+
+        return False
+
+    class Meta:
+        verbose_name_plural = "Customer component usage policies"
+
+
+class CustomerUsagePolicyComponent(invoices_models.PeriodMixin, TimeStampedModel):
+    policy = models.ForeignKey(
+        CustomerComponentUsagePolicy,
+        on_delete=models.CASCADE,
+        null=False,
+        related_name="component_limits_set",
+    )
+    component = models.ForeignKey(
+        marketplace_models.OfferingComponent, on_delete=models.CASCADE, null=False
+    )
+    limit = models.IntegerField()
+
+    class Meta:
+        unique_together = (("policy", "component", "period"),)

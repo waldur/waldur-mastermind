@@ -5,6 +5,7 @@ from calendar import monthrange
 from typing import cast
 
 from dateutil.parser import parse as parse_datetime
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -748,6 +749,25 @@ class PeriodMixin(models.Model):
         )
 
     period = FSMIntegerField(default=Periods.MONTH_1, choices=Periods.CHOICES)
+
+    def get_start_date(self):
+        if self.period in (
+            self.Periods.MONTH_1,
+            self.Periods.MONTH_3,
+            self.Periods.MONTH_12,
+        ):
+            start = core_utils.month_start(datetime.date.today())
+
+            if self.period == self.Periods.MONTH_3:
+                start = core_utils.month_start(
+                    datetime.date.today() - relativedelta(months=2)
+                )
+            elif self.period == self.Periods.MONTH_12:
+                start = core_utils.month_start(
+                    datetime.date.today() - relativedelta(months=11)
+                )
+
+            return start
 
     class Meta:
         abstract = True

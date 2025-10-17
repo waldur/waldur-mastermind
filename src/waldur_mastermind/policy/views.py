@@ -92,3 +92,23 @@ class OfferingUsagePolicyViewSet(ActionsViewSet):
     def actions(self, request, *args, **kwargs):
         data = list(models.OfferingUsagePolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)
+
+
+class CustomerComponentUsagePolicyViewSet(ActionsViewSet):
+    queryset = models.CustomerComponentUsagePolicy.objects.all().order_by("-created")
+    serializer_class = serializers.CustomerComponentUsagePolicySerializer
+    filter_backends = [
+        DjangoFilterBackend,
+        structure_filters.GenericRoleFilter,
+    ]
+    filterset_class = filters.CustomerComponentUsagePolicyFilter
+    lookup_field = "uuid"
+    create_permissions = destroy_permissions = update_permissions = (
+        partial_update_permissions
+    ) = [structure_permissions.is_staff]
+
+    @extend_schema(parameters=[])
+    @action(detail=False, methods=["get"])
+    def actions(self, request, *args, **kwargs):
+        data = list(models.CustomerComponentUsagePolicy.available_actions)
+        return Response(data, status=status.HTTP_200_OK)
