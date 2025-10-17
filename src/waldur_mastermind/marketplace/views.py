@@ -7338,11 +7338,15 @@ class ProviderOfferingToSManagementViewset(core_views.ActionsViewSet):
         user = self.request.user
         if user.is_staff or user.is_support:
             return self.queryset
-
+        consented_offerings = models.UserOfferingConsent.objects.filter(
+            user=user, revocation_date__isnull=True
+        ).values_list("offering_id", flat=True)
         customers = get_connected_customers(user)
-        if customers:
-            return self.queryset.filter(offering__customer__in=customers)
-        return self.queryset.filter(is_active=True, offering__shared=True)
+        return self.queryset.filter(
+            Q(offering__customer__in=customers)
+            | Q(offering__id__in=consented_offerings)
+            | Q(is_active=True, offering__shared=True)
+        )
 
     create_permissions = update_permissions = partial_update_permissions = (
         destroy_permissions
