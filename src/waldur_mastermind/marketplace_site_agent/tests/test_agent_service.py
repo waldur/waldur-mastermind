@@ -233,6 +233,7 @@ class AgentServiceListTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user_role)
         self.client.force_login(user)
         url = factories.AgentServiceFactory.get_list_url()
+        agent_processor = factories.AgentProcessorFactory(service=self.agent_service)
 
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.json())
@@ -240,6 +241,8 @@ class AgentServiceListTest(test.APITransactionTestCase):
         results = response.json()
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["name"], self.agent_service.name)
+        self.assertEqual(len(results[0]["processors"]), 1)
+        self.assertEqual(results[0]["processors"][0]["uuid"], agent_processor.uuid.hex)
 
     @data("admin", "manager", "owner")
     def test_consumers_can_not_see_agent_services(self, user_role):

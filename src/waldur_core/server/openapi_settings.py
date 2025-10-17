@@ -13,6 +13,7 @@ from waldur_mastermind.marketplace.enums import (
     RobotAccountStates,
     ServiceAccountState,
 )
+from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
 from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
@@ -68,6 +69,7 @@ SPECTACULAR_SETTINGS = {
         "ServiceAccountState": ServiceAccountState.VALUES,
         "OfferingUserState": OfferingUserStates.VALUES,
         "OnboardingVerificationStatus": VerificationStatus.VALUES,
+        "AgentServiceState": AgentServiceState.VALUES,
     },
     "VERSION": None,
 }

@@ -7,35 +7,6 @@ from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
 from waldur_mastermind.marketplace_site_agent import enums, models
 
 
-class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
-    offering = serializers.SlugRelatedField(
-        slug_field="uuid",
-        queryset=marketplace_models.Offering.objects.filter(type=SITE_AGENT_OFFERING),
-    )
-
-    class Meta:
-        model = models.AgentIdentity
-        fields = (
-            "uuid",
-            "url",
-            "offering",
-            "name",
-            "version",
-            "dependencies",
-            "config_file_path",
-            "config_file_content",
-            "last_restarted",
-            "created",
-            "modified",
-        )
-        extra_kwargs = {
-            "url": {
-                "lookup_field": "uuid",
-                "view_name": "marketplace-site-agent-identity-detail",
-            },
-        }
-
-
 class AgentProcessorSerializer(serializers.HyperlinkedModelSerializer):
     service = serializers.SlugRelatedField(
         slug_field="uuid",
@@ -65,6 +36,33 @@ class AgentProcessorSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class NestedAgentProcessorSerializer(AgentProcessorSerializer):
+    class Meta:
+        model = models.AgentProcessor
+        fields = (
+            "uuid",
+            "url",
+            "name",
+            "last_run",
+            "backend_type",
+            "backend_version",
+            "created",
+            "modified",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-site-agent-processor-detail",
+            },
+        }
+
+
+class AgentProcessorCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.AgentProcessor
+        fields = ("name", "backend_type", "backend_version")
+
+
 class AgentServiceSerializer(serializers.HyperlinkedModelSerializer):
     identity = serializers.SlugRelatedField(
         slug_field="uuid",
@@ -72,6 +70,9 @@ class AgentServiceSerializer(serializers.HyperlinkedModelSerializer):
     )
     identity_name = serializers.CharField(source="identity.name", read_only=True)
     state = serializers.SerializerMethodField()
+    processors = NestedAgentProcessorSerializer(
+        many=True, read_only=True, source="agentprocessor_set"
+    )
 
     class Meta:
         model = models.AgentService
@@ -86,6 +87,7 @@ class AgentServiceSerializer(serializers.HyperlinkedModelSerializer):
             "statistics",
             "created",
             "modified",
+            "processors",
         )
         extra_kwargs = {
             "url": {
@@ -101,10 +103,70 @@ class AgentServiceSerializer(serializers.HyperlinkedModelSerializer):
         return service.get_state_display()
 
 
+class NestedAgentServiceSerializer(AgentServiceSerializer):
+    class Meta:
+        model = models.AgentService
+        fields = (
+            "uuid",
+            "url",
+            "name",
+            "mode",
+            "state",
+            "statistics",
+            "created",
+            "modified",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-site-agent-service-detail",
+            },
+        }
+
+
 class AgentServiceCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.AgentService
         fields = ("name", "mode")
+
+
+class AgentServiceStatisticsSerializer(serializers.Serializer):
+    statistics = serializers.JSONField(
+        help_text="Statistics data to be stored for the service"
+    )
+
+
+class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
+    offering = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=marketplace_models.Offering.objects.filter(type=SITE_AGENT_OFFERING),
+    )
+    services = NestedAgentServiceSerializer(
+        many=True, read_only=True, source="agentservice_set"
+    )
+
+    class Meta:
+        model = models.AgentIdentity
+        fields = (
+            "uuid",
+            "url",
+            "offering",
+            "name",
+            "version",
+            "dependencies",
+            "config_file_path",
+            "config_file_content",
+            "last_restarted",
+            "created",
+            "modified",
+            "services",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-site-agent-identity-detail",
+            },
+        }
 
 
 class AgentEventSubscriptionCreateSerializer(serializers.Serializer):
@@ -120,15 +182,3 @@ class AgentEventSubscriptionCreateSerializer(serializers.Serializer):
         required=False,
         help_text="Optional description for the event subscription",
     )
-
-
-class AgentServiceStatisticsSerializer(serializers.Serializer):
-    statistics = serializers.JSONField(
-        help_text="Statistics data to be stored for the service"
-    )
-
-
-class AgentProcessorCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = models.AgentProcessor
-        fields = ("name", "backend_type", "backend_version")

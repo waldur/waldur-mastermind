@@ -10,6 +10,7 @@ from rest_framework.response import Response
 
 from waldur_core.core.permissions import IsStaff
 from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
+from waldur_core.logging import backend as logging_backend
 from waldur_core.logging import models as logging_models
 from waldur_core.logging import serializers as logging_serializers
 from waldur_core.permissions.enums import PermissionEnum
@@ -131,6 +132,20 @@ class AgentIdentityViewSet(ActionsViewSet):
         This allows the user to receive notifications for events related to the specified object type.
         If a similar subscription already exists, returns the existing one instead of creating a duplicate.
         """
+
+        def validate_event_subscription(
+            rmq_backend, event_subscription: logging_models.EventSubscription
+        ) -> bool:
+            rmq_username = event_subscription.uuid.hex
+            rmq_vhost = event_subscription.user.uuid.hex
+            # Check if user exists
+            rmq_user_info = rmq_backend.get_user(rmq_username)
+            if rmq_user_info is None:
+                return False
+            # Check if user can access the vhost
+            rmq_vhost_users = rmq_backend.list_rabbitmq_vhost_permissions(rmq_vhost)
+            return rmq_username in rmq_vhost_users
+
         agent_identity = self.get_object()
 
         input_serializer = serializers.AgentEventSubscriptionCreateSerializer(
@@ -171,13 +186,25 @@ class AgentIdentityViewSet(ActionsViewSet):
                 observable_object_type,
                 existing_subscription.uuid.hex,
             )
-            serializer = logging_serializers.EventSubscriptionSerializer(
-                existing_subscription, context={"request": request}
-            )
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            rmq_backend = logging_backend.RabbitMQManagementBackend()
+            is_ready = validate_event_subscription(rmq_backend, existing_subscription)
+            if is_ready:
+                serializer = logging_serializers.EventSubscriptionSerializer(
+                    existing_subscription, context={"request": request}
+                )
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                logger.info("The event subscription is not active, removing it")
+                rmq_backend.delete_rabbitmq_user(existing_subscription.uuid.hex)
+                existing_subscription.delete()
 
         # Use the existing EventSubscriptionSerializer to properly create the subscription
         # This ensures RabbitMQ setup is handled correctly
+        logger.info(
+            "Creating a new event subscription for the agent identity %s, object type %s",
+            agent_identity,
+            observable_object_type,
+        )
         subscription_data = {
             "description": description,
             "observable_objects": observable_objects,

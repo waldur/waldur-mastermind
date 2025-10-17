@@ -128,7 +128,7 @@ class RabbitMQManagementBackend:
             vhost_name (str): The name of the virtual host
 
         Returns:
-            List[dict]: List of dictionaries containing permissions for each user
+            List[str]: List of user with access to he vhost
         """
         vhost_name_encoded = requests.utils.quote(vhost_name, safe="")
         url = f"{self.rmq_management_url}/vhosts/{vhost_name_encoded}/permissions/"
