@@ -75,6 +75,9 @@ class ProcessorsTest(test.APITransactionTestCase):
         self.assertEqual(ResourceStates.ERRED, resource.state)
 
     def test_set_resource_options(self):
+        # NOTE: This test verifies that resource options logic has been moved from processor
+        # to OrderCreateSerializer. Since we're using factories (not the API), we manually
+        # set options to simulate what the serializer would do.
         user = structure_factories.UserFactory()
 
         offering_type = manager.get_offering_types()[-1]
@@ -83,17 +86,37 @@ class ProcessorsTest(test.APITransactionTestCase):
             "options": {"cpu": None, "ram": None},
             "order": [],
         }
+        offering.save()
+
         order = factories.OrderFactory(
             offering=offering,
             state=OrderStates.EXECUTING,
             attributes={"cpu": 1, "storage": 10},
         )
+
+        # Manually set resource options as OrderCreateSerializer would do
+        # (since factories don't go through the serializer)
+        resource = order.resource
+        resource.options = {}
+        for resource_option in offering.resource_options.get("options", {}).keys():
+            if resource_option in order.attributes:
+                resource.options[resource_option] = order.attributes[resource_option]
+        resource.save()
+
+        # Verify options are set correctly before processing
+        self.assertTrue(isinstance(order.resource.options, dict))
+        self.assertFalse("storage" in order.resource.options.keys())
+        self.assertTrue("cpu" in order.resource.options.keys())
+        self.assertEqual(order.resource.options["cpu"], 1)
+
+        # Processing the order should not change the options (confirming processor no longer handles this)
         utils.process_order(order, user)
         order.refresh_from_db()
 
         self.assertTrue(isinstance(order.resource.options, dict))
         self.assertFalse("storage" in order.resource.options.keys())
         self.assertTrue("cpu" in order.resource.options.keys())
+        self.assertEqual(order.resource.options["cpu"], 1)
 
 
 class UpdateResourceProcessorTest(test.APITransactionTestCase):
