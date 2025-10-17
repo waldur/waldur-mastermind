@@ -3407,6 +3407,7 @@ class ResourceSuggestNameSerializer(serializers.ModelSerializer):
 class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerializer):
     project_slug = serializers.ReadOnlyField(source="project.slug")
     customer_slug = serializers.ReadOnlyField(source="project.customer.slug")
+    renewal_date = serializers.SerializerMethodField()
 
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
@@ -3462,6 +3463,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "project_slug",
             "customer_slug",
             "user_requires_reconsent",
+            "renewal_date",
         )
         read_only_fields = (
             "backend_metadata",
@@ -3690,6 +3692,83 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             if keys and key not in keys and key in fields:
                 del fields[key]
         return fields
+
+    @extend_schema_field(
+        serializers.DictField(child=serializers.DateField(), allow_null=True)
+    )
+    def get_renewal_date(self, resource: models.Resource):
+        """
+        Calculate renewal dates for all limit-based components in the resource's offering.
+
+        Returns a dictionary mapping component types to their next renewal dates.
+        The renewal date is the first day of the month when the next invoice item
+        for each component would be created by the registrator.
+
+        Returns:
+            dict: Mapping of component_type -> renewal_date for limit-based components
+            None: If no limit-based components exist
+        """
+        # Check if resource has an offering with limit-based components
+        if not resource.offering_id:
+            return None
+
+        # Use values_list to get only the data we need in a single query
+        # This avoids N+1 queries by fetching type and limit_period in bulk
+        limit_components_data = models.OfferingComponent.objects.filter(
+            offering_id=resource.offering_id,
+            billing_type=BillingTypes.LIMIT,
+            limit_period__isnull=False,
+        ).values_list("type", "limit_period")
+
+        if not limit_components_data:
+            return None
+
+        # Calculate renewal date for each component using the fetched data
+        renewal_dates = {}
+
+        for component_type, limit_period in limit_components_data:
+            renewal_date = self._calculate_renewal_date_for_period(limit_period)
+            if renewal_date:
+                renewal_dates[component_type] = renewal_date
+
+        return renewal_dates
+
+    def _calculate_renewal_date_for_period(self, limit_period):
+        """
+        Calculate the next renewal date for a specific limit period.
+
+        Args:
+            limit_period: The billing period (MONTH, QUARTERLY, ANNUAL, TOTAL)
+
+        Returns:
+            date: Next renewal date, or None for TOTAL periods
+        """
+        now = timezone.now().date()
+        if limit_period == LimitPeriods.MONTH:
+            # Monthly billing: next month's first day
+            return (now + relativedelta(months=1)).replace(day=1)
+
+        elif limit_period == LimitPeriods.QUARTERLY:
+            # Quarterly billing: first day of next quarter
+            # Quarters start in January, April, July, October
+            current_quarter = ((now.month - 1) // 3) + 1
+            if current_quarter == 4:
+                # Q4 -> Q1 next year
+                return datetime.date(now.year + 1, 1, 1)
+            else:
+                # Move to next quarter
+                next_quarter_month = current_quarter * 3 + 1
+                return datetime.date(now.year, next_quarter_month, 1)
+
+        elif limit_period == LimitPeriods.ANNUAL:
+            # Annual billing: first day of next year
+            return datetime.date(now.year + 1, 1, 1)
+
+        elif limit_period == LimitPeriods.TOTAL:
+            # No renewal for total limits
+            return None
+        else:
+            return None
 
 
 class OrderUUIDSerializer(serializers.Serializer):
