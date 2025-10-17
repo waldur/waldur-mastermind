@@ -123,9 +123,15 @@ def generate_slug(name, klass):
         "slug", flat=True
     )
 
-    # Find maximum suffix
-    max_num = 0
+    # If base slug is available, return it
+    if base_slug not in existing_slugs:
+        return base_slug
+
+    # Find maximum suffix for numbered slugs
+    max_num = 1  # Start from 1, so next available will be 2
     for slug in existing_slugs:
+        if slug == base_slug:
+            continue  # Skip the base slug itself
         try:
             num = int(slug.split("-")[-1])
             if num > max_num:
