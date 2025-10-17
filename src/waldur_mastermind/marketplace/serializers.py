@@ -3082,6 +3082,14 @@ class OrderCreateSerializer(
                 request.user if attributes.get("end_date") else None
             )
 
+        # Set resource options from offering's resource_options
+        resource.options = {}
+        for resource_option in (
+            validated_data["offering"].resource_options.get("options", {}).keys()
+        ):
+            if resource_option in attributes:
+                resource.options[resource_option] = attributes[resource_option]
+
         resource.save()
 
         order = models.Order(

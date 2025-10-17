@@ -141,6 +141,47 @@ class OrderCreateTest(BaseOrderCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["attributes"], attributes)
 
+    def test_resource_options_are_set_during_order_creation(self):
+        """Test that resource options are populated from offering resource_options during order creation."""
+        attributes = {
+            "cpu": 2,
+            "ram": 1024,
+            "storage": 500,  # This should not be in options
+        }
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        offering.resource_options = {
+            "options": {
+                "cpu": None,
+                "ram": None,
+            },  # Only cpu and ram are resource options
+            "order": [],
+        }
+        offering.save()
+
+        plan = factories.PlanFactory(offering=offering)
+        add_payload = {
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "attributes": attributes,
+        }
+
+        response = self.create_order(
+            self.fixture.staff, offering, add_payload=add_payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Check that the created resource has the correct options
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        resource = order.resource
+
+        # Verify resource options contain only the options defined in offering.resource_options
+        self.assertTrue(isinstance(resource.options, dict))
+        self.assertEqual(resource.options["cpu"], 2)
+        self.assertEqual(resource.options["ram"], 1024)
+        self.assertNotIn(
+            "storage", resource.options
+        )  # storage is not in resource_options
+
     def test_order_creating_is_not_available_for_blocked_organization(self):
         user = self.fixture.owner
         self.fixture.customer.blocked = True
