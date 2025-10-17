@@ -142,15 +142,3 @@ def delete_dangling_event_subscriptions() -> None:
             logger.info("Deleting event subscription %s", event_subscription.uuid)
             event_subscription.delete()
             continue
-
-        try:
-            rmq_user_connections = rmq_backend.get_user_connections(rmq_username)
-        except Exception as exc:
-            logger.exception(
-                "Unable to get user connections from RabbitMQ, reason: %s", exc
-            )
-            continue
-        if not rmq_user_connections:
-            logger.info("Deleting event subscription %s", event_subscription.uuid)
-            rmq_backend.delete_rabbitmq_user(rmq_username)
-            event_subscription.delete()
