@@ -144,6 +144,11 @@ class OfferingFilter(
         label="User Has Consent",
         widget=BooleanWidget,
     )
+    user_has_offering_user = django_filters.BooleanFilter(
+        method="filter_user_has_offering_user",
+        label="User Has Offering User",
+        widget=BooleanWidget,
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -291,6 +296,20 @@ class OfferingFilter(
             return queryset.exclude(
                 user_consents__user=user, user_consents__revocation_date__isnull=True
             ).distinct()
+
+    def filter_user_has_offering_user(self, queryset, name, value):
+        if value is None:
+            return queryset
+
+        request = self.request
+        if not request or not request.user:
+            return queryset.none() if value else queryset
+
+        user = request.user
+        if value:
+            return queryset.filter(offeringuser__user=user).distinct()
+        else:
+            return queryset.exclude(offeringuser__user=user).distinct()
 
 
 class OfferingCustomersFilterBackend(BaseFilterBackend):
