@@ -244,6 +244,11 @@ class RabbitMQVhostStats(generics.GenericAPIView):
     filter_backends = []
     pagination_class = None
 
+    def get_queryset(self):
+        # This view doesn't use a queryset, but we need this method
+        # for the browsable API to work
+        return models.EventSubscription.objects.none()
+
     def get(self, request, *args, **kwargs):
         rmq_backend = backend.RabbitMQManagementBackend()
         vhosts = rmq_backend.list_rabbitmq_virtual_hosts()
@@ -284,6 +289,11 @@ class RabbitMQUserStats(generics.GenericAPIView):
     serializer_class = serializers.RmqUserStatsSerializer
     filter_backends = []
 
+    def get_queryset(self):
+        # This view doesn't use a queryset, but we need this method
+        # for the browsable API to work
+        return models.EventSubscription.objects.none()
+
     def get(self, request, *args, **kwargs):
         rmq_backend = backend.RabbitMQManagementBackend()
         users = rmq_backend.list_rabbitmq_users()
@@ -293,7 +303,7 @@ class RabbitMQUserStats(generics.GenericAPIView):
             connections = rmq_backend.get_user_connections(user)
             user_record = {"username": user, "connections": []}
             for connection in connections:
-                source_ip = connection["name"].split("->")[0]
+                source_ip = connection["name"].split(" ->")[0]
                 vhost = connection["vhost"]
                 user_record["connections"].append(
                     {"source_ip": source_ip, "vhost": vhost}

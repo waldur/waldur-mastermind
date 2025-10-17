@@ -133,7 +133,7 @@ def delete_dangling_event_subscriptions() -> None:
     rmq_backend = backend.RabbitMQManagementBackend()
     for event_subscription in event_subscriptions:
         try:
-            rmq_username = event_subscription.uuid
+            rmq_username = event_subscription.uuid.hex
             rmq_user_info = rmq_backend.get_user(rmq_username)
         except Exception as exc:
             logger.exception("Unable to get user info from RabbitMQ, reason: %s", exc)

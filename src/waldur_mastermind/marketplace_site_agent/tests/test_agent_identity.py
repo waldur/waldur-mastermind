@@ -99,6 +99,9 @@ class AgentIdentityListTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user_role)
         self.client.force_login(user)
         url = factories.AgentIdentityFactory.get_list_url()
+        agent_service = factories.AgentServiceFactory(
+            identity=self.agent_identity,
+        )
 
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.json())
@@ -106,6 +109,8 @@ class AgentIdentityListTest(test.APITransactionTestCase):
         results = response.json()
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["name"], self.agent_identity.name)
+        self.assertEqual(len(results[0]["services"]), 1)
+        self.assertEqual(results[0]["services"][0]["uuid"], agent_service.uuid.hex)
 
     @data("admin", "manager", "owner")
     def test_consumers_can_not_see_agent_identities(self, user_role):
@@ -196,14 +201,20 @@ class AgentIdentityEventSubscriptionTest(test.APITransactionTestCase):
         mock_assign_rabbitmq_vhost_permissions.assert_called_once()
 
     @data("staff", "offering_owner")
+    @mock.patch("waldur_core.logging.backend.RabbitMQManagementBackend.get_user")
+    @mock.patch(
+        "waldur_core.logging.backend.RabbitMQManagementBackend.list_rabbitmq_vhost_permissions"
+    )
     def test_register_event_subscription_existing_returns_200(
         self,
         user_role,
-        mock_create_rabbitmq_virtual_host,
-        mock_create_rabbitmq_user,
+        mock_list_rabbitmq_vhost_permissions,
+        mock_get_user,
         mock_assign_rabbitmq_vhost_permissions,
+        mock_create_rabbitmq_user,
+        mock_create_rabbitmq_virtual_host,
     ):
-        """Test that registering same subscription returns existing one with 200 status."""
+        """Test that registering same subscription returns existing one with 200 status when RabbitMQ is ready."""
         user = getattr(self.fixture, user_role)
         self.client.force_login(user)
 
@@ -219,6 +230,12 @@ class AgentIdentityEventSubscriptionTest(test.APITransactionTestCase):
         self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
         self.assertEqual(logging_models.EventSubscription.objects.count(), 1)
 
+        subscription_uuid = response1.json()["uuid"]
+
+        # Mock RabbitMQ validation to return True (user exists and has permissions)
+        mock_get_user.return_value = {"name": subscription_uuid}
+        mock_list_rabbitmq_vhost_permissions.return_value = [subscription_uuid]
+
         # Attempt to create same subscription again
         response2 = self.client.post(url, payload)
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
@@ -229,9 +246,69 @@ class AgentIdentityEventSubscriptionTest(test.APITransactionTestCase):
         # Verify same subscription data is returned
         self.assertEqual(response1.json()["uuid"], response2.json()["uuid"])
 
+        # RabbitMQ setup methods should only be called once (during first creation)
         mock_create_rabbitmq_virtual_host.assert_called_once()
         mock_create_rabbitmq_user.assert_called_once()
         mock_assign_rabbitmq_vhost_permissions.assert_called_once()
+
+        # Validation methods should be called on second attempt
+        mock_get_user.assert_called_once()
+        mock_list_rabbitmq_vhost_permissions.assert_called_once()
+
+    @data("staff", "offering_owner")
+    @mock.patch("waldur_core.logging.backend.RabbitMQManagementBackend.get_user")
+    @mock.patch(
+        "waldur_core.logging.backend.RabbitMQManagementBackend.delete_rabbitmq_user"
+    )
+    def test_register_event_subscription_recreates_when_not_ready(
+        self,
+        user_role,
+        mock_delete_rabbitmq_user,
+        mock_get_user,
+        mock_assign_rabbitmq_vhost_permissions,
+        mock_create_rabbitmq_user,
+        mock_create_rabbitmq_virtual_host,
+    ):
+        """Test that subscription is recreated when RabbitMQ validation fails."""
+        user = getattr(self.fixture, user_role)
+        self.client.force_login(user)
+
+        agent_identity = self._create_agent_identity()
+        url = self._get_register_event_subscription_url(agent_identity)
+
+        payload = {
+            "observable_object_type": logging_utils.ObservableObjectType.RESOURCE.value,
+        }
+
+        # Create first subscription
+        response1 = self.client.post(url, payload)
+        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(logging_models.EventSubscription.objects.count(), 1)
+
+        first_subscription_uuid = response1.json()["uuid"]
+
+        # Mock RabbitMQ validation to return False (user doesn't exist or no permissions)
+        mock_get_user.return_value = None  # User doesn't exist
+
+        # Attempt to create same subscription again - should delete old and create new
+        response2 = self.client.post(url, payload)
+        self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
+
+        # Verify old subscription was deleted and new one created
+        self.assertEqual(logging_models.EventSubscription.objects.count(), 1)
+        second_subscription_uuid = response2.json()["uuid"]
+        self.assertNotEqual(first_subscription_uuid, second_subscription_uuid)
+
+        # Verify old subscription was deleted from RabbitMQ
+        mock_delete_rabbitmq_user.assert_called_once_with(first_subscription_uuid)
+
+        # RabbitMQ setup methods should be called twice (once for each creation)
+        self.assertEqual(mock_create_rabbitmq_virtual_host.call_count, 2)
+        self.assertEqual(mock_create_rabbitmq_user.call_count, 2)
+        self.assertEqual(mock_assign_rabbitmq_vhost_permissions.call_count, 2)
+
+        # Validation methods should be called on second attempt
+        mock_get_user.assert_called_once()
 
     def test_register_event_subscription_default_description(
         self,
