@@ -43,3 +43,47 @@ class CustomerAccountingStartDateFilterTest(APITransactionTestCase):
             },
         )
         self.assertEqual(len(response.data), 1)
+
+
+class ProjectIsRemovedFilterTest(APITransactionTestCase):
+    def setUp(self):
+        self.active_project = factories.ProjectFactory()
+        self.removed_project = factories.ProjectFactory()
+        self.removed_project.delete()  # Soft delete to set is_removed=True
+
+    def test_is_removed_filter_behaves_properly(self):
+        staff = UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+
+        # Without filter - should only see active projects
+        response = self.client.get(ProjectFactory.get_list_url())
+        self.assertEqual(len(response.data), 1)
+        project_uuids = [project["uuid"] for project in response.data]
+        self.assertIn(str(self.active_project.uuid), project_uuids)
+        self.assertNotIn(str(self.removed_project.uuid), project_uuids)
+
+        # Filter by is_removed=false - should only see active projects
+        response = self.client.get(
+            ProjectFactory.get_list_url(),
+            {
+                "is_removed": "false",
+                "include_terminated": "true",
+            },
+        )
+        self.assertEqual(len(response.data), 1)
+        project_uuids = [project["uuid"] for project in response.data]
+        self.assertIn(str(self.active_project.uuid), project_uuids)
+        self.assertNotIn(str(self.removed_project.uuid), project_uuids)
+
+        # Filter by is_removed=true - should only see removed projects (need include_terminated)
+        response = self.client.get(
+            ProjectFactory.get_list_url(),
+            {
+                "is_removed": "true",
+                "include_terminated": "true",
+            },
+        )
+        self.assertEqual(len(response.data), 1)
+        project_uuids = [project["uuid"] for project in response.data]
+        self.assertNotIn(str(self.active_project.uuid), project_uuids)
+        self.assertIn(str(self.removed_project.uuid), project_uuids)

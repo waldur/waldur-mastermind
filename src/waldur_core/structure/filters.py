@@ -320,6 +320,8 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
         label="Return a list of projects where current user is admin.",
     )
 
+    is_removed = django_filters.BooleanFilter(widget=BooleanWidget)
+
     o = django_filters.OrderingFilter(
         fields=(
             ("name", "name"),
