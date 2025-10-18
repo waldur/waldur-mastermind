@@ -107,6 +107,34 @@ class UserPermissionApiTest(test.APITransactionTestCase):
         self.assertIsNotNone("token", response.data)
         self.assertIsNotNone("token_lifetime", response.data)
 
+    def test_me_endpoint_includes_ip_address_from_x_forwarded_for(self):
+        self.client.force_authenticate(self.users["owner"])
+        response = self.client.get(
+            factories.UserFactory.get_list_url("me"),
+            HTTP_X_FORWARDED_FOR="192.168.1.100, 10.0.0.1",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("ip_address", response.data)
+        self.assertEqual(response.data["ip_address"], "192.168.1.100")
+
+    def test_me_endpoint_includes_ip_address_from_remote_addr(self):
+        self.client.force_authenticate(self.users["owner"])
+        response = self.client.get(
+            factories.UserFactory.get_list_url("me"), REMOTE_ADDR="192.168.1.50"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("ip_address", response.data)
+        self.assertEqual(response.data["ip_address"], "192.168.1.50")
+
+    @mock.patch("waldur_core.structure.views.get_ip_address")
+    def test_me_endpoint_includes_none_ip_address_when_no_headers(self, mock_get_ip):
+        mock_get_ip.return_value = None
+        self.client.force_authenticate(self.users["owner"])
+        response = self.client.get(factories.UserFactory.get_list_url("me"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("ip_address", response.data)
+        self.assertIsNone(response.data["ip_address"])
+
     # Creation tests
     def test_anonymous_user_cannot_create_account(self):
         data = self._get_valid_payload()

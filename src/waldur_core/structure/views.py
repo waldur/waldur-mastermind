@@ -39,7 +39,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.serializers import EmptySerializer
-from waldur_core.core.utils import is_uuid_like
+from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -790,9 +790,11 @@ class UserViewSet(core_views.ActionsViewSet):
     @action(detail=False, methods=["get"])
     def me(self, request):
         serializer = self.get_serializer(request.user)
+        response_data = serializer.data
+        response_data["ip_address"] = get_ip_address(request)
 
         return Response(
-            serializer.data,
+            response_data,
             status=status.HTTP_200_OK,
         )
 
