@@ -25,7 +25,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import F, Subquery
 from django.db.models.fields import PositiveIntegerField
 from django.db.models.sql.query import get_order_dir
-from django.http import QueryDict
+from django.http import HttpRequest, QueryDict
 from django.template import Context
 from django.template.loader import get_template, render_to_string
 from django.urls import resolve
@@ -500,7 +500,7 @@ def get_system_robot():
     return robot_user
 
 
-def get_ip_address(request):
+def get_ip_address(request: HttpRequest) -> str | None:
     """
     Correct IP address is expected as first element of HTTP_X_FORWARDED_FOR or REMOTE_ADDR
     """
@@ -508,6 +508,7 @@ def get_ip_address(request):
         return request.META["HTTP_X_FORWARDED_FOR"].split(",")[0].strip()
     elif "REMOTE_ADDR" in request.META:
         return request.META["REMOTE_ADDR"]
+    return None
 
 
 def get_user_agent(request):
