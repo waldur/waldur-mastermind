@@ -321,6 +321,20 @@ class AgentPluginOptionsSerializer(serializers.Serializer):
     )
 
 
+class OfferingResourceDisplayOptionsSerializer(serializers.Serializer):
+    highlight_backend_id_display = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="Defines if backend_id should be shown more prominently by the UI",
+    )
+    backend_id_display_label = serializers.CharField(
+        required=False,
+        default="Backend ID",
+        allow_blank=True,
+        help_text="Label used by UI for showing value of the backend_id",
+    )
+
+
 class MergedPluginOptionsSerializer(
     LifecyclePluginOptionsSerializer,
     OpenStackPluginOptionsSerializer,
@@ -329,6 +343,7 @@ class MergedPluginOptionsSerializer(
     SupportPluginOptionsSerializer,
     RancherPluginOptionsSerializer,
     AgentPluginOptionsSerializer,
+    OfferingResourceDisplayOptionsSerializer,
 ):
     pass
 
