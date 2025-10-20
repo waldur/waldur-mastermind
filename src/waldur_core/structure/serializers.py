@@ -369,6 +369,16 @@ class ProjectSerializer(
                     {"oecd_fos_2007_code": _("This field is required.")}
                 )
 
+        if config.PROJECT_END_DATE_MANDATORY:
+            if (not self.instance and not attrs.get("end_date")) or (
+                self.instance
+                and not self.instance.end_date
+                and not attrs.get("end_date")
+            ):
+                raise serializers.ValidationError(
+                    {"end_date": _("This field is required.")}
+                )
+
         if attrs.get("kind") == ProjectKind.COURSE.value:
             if not settings.WALDUR_CORE.get("ENABLE_PROJECT_KIND_COURSE", False):
                 raise serializers.ValidationError(

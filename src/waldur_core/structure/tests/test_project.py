@@ -2,6 +2,7 @@ import datetime
 import uuid
 from unittest import mock
 
+from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.test import TransactionTestCase
 from django.urls import reverse
@@ -242,6 +243,35 @@ class ProjectCreateTest(test.APITransactionTestCase):
         payload["name"] = "new"
         response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_config(PROJECT_END_DATE_MANDATORY=True)
+    def test_project_end_date_is_required_when_setting_enabled(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload["name"] = "project_without_end_date"
+        response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("end_date", response.data)
+        self.assertEqual(response.data["end_date"][0], "This field is required.")
+
+    @override_config(PROJECT_END_DATE_MANDATORY=True)
+    def test_project_can_be_created_with_end_date_when_setting_enabled(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload["name"] = "project_with_end_date"
+        payload["end_date"] = "2025-12-31"
+        response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(str(response.data["end_date"]), "2025-12-31")
+
+    @override_config(PROJECT_END_DATE_MANDATORY=False)
+    def test_project_can_be_created_without_end_date_when_setting_disabled(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload["name"] = "project_without_end_date_allowed"
+        response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(response.data["end_date"])
 
     def test_validate_start_date(self):
         self.client.force_authenticate(self.fixture.staff)
