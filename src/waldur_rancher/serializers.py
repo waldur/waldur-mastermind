@@ -487,6 +487,14 @@ class RancherClusterSerializer(
                 )
         return fields
 
+    def validate_vm_project(self, vm_project: Project) -> Project:
+        """Validate that the vm_project is not soft-deleted."""
+        if vm_project and vm_project.is_removed:
+            raise serializers.ValidationError(
+                _("Cannot assign VMs to terminated projects.")
+            )
+        return vm_project
+
     def validate(self, attrs):
         # Skip validation on update
         if self.instance:

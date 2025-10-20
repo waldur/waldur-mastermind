@@ -3057,6 +3057,16 @@ class OrderCreateSerializer(
 
     error_message = serializers.ReadOnlyField()
 
+    def validate_project(
+        self, project: structure_models.Project
+    ) -> structure_models.Project:
+        """Validate that the project is not soft-deleted."""
+        if project.is_removed:
+            raise serializers.ValidationError(
+                _("Cannot create orders for terminated projects.")
+            )
+        return project
+
     @transaction.atomic
     def create(self, validated_data):
         request = self.context["request"]
@@ -3153,6 +3163,7 @@ class OrderCreateSerializer(
         # Execute Validation Blocks
         self._validate_resource_name(attributes)
         self._validate_terms_of_service(user, offering, accepting_tos)
+        self._validate_project_not_terminated(project)
         self._validate_project_policy_constraints(project, offering)
 
         # Prepaid Offering Validation
@@ -3194,6 +3205,14 @@ class OrderCreateSerializer(
                 _("Terms of service for offering '%s' have not been accepted.")
                 % offering
             )
+
+    def _validate_project_not_terminated(self, project):
+        """
+        Validates that the project is not soft-deleted/terminated.
+        Prevents creating new marketplace orders for terminated projects.
+        """
+        if project.is_removed:
+            raise ValidationError(_("Cannot create orders for terminated projects."))
 
     def _validate_project_policy_constraints(self, project, offering):
         """

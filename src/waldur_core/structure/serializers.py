@@ -1396,6 +1396,14 @@ class BaseResourceSerializer(
 
     access_url = serializers.SerializerMethodField()
 
+    def validate_project(self, project: models.Project) -> models.Project:
+        """Validate that the project is not soft-deleted."""
+        if project.is_removed:
+            raise serializers.ValidationError(
+                _("Cannot create resources for terminated projects.")
+            )
+        return project
+
     class Meta:
         model = NotImplemented
         fields = (
