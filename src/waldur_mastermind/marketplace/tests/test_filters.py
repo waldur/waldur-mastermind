@@ -474,3 +474,221 @@ class ResourceBillingTypeFilterTest(test.APITransactionTestCase):
         self.assertIn(self.usage_resource.uuid.hex, resource_uuids)
         self.assertNotIn(self.limit_resource.uuid.hex, resource_uuids)
         self.assertNotIn(self.fixed_resource.uuid.hex, resource_uuids)
+
+
+class ComponentCountFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = factories.ResourceFactory.get_list_url()
+
+        # Create offering with 1 component (limit-based)
+        self.single_component_offering = factories.OfferingFactory()
+        factories.OfferingComponentFactory(
+            offering=self.single_component_offering, billing_type="limit", type="cpu"
+        )
+        self.single_component_resource = factories.ResourceFactory(
+            offering=self.single_component_offering, project=self.fixture.project
+        )
+
+        # Create offering with 2 components (1 limit, 1 usage)
+        self.two_component_offering = factories.OfferingFactory()
+        factories.OfferingComponentFactory(
+            offering=self.two_component_offering, billing_type="limit", type="cpu"
+        )
+        factories.OfferingComponentFactory(
+            offering=self.two_component_offering, billing_type="usage", type="ram"
+        )
+        self.two_component_resource = factories.ResourceFactory(
+            offering=self.two_component_offering, project=self.fixture.project
+        )
+
+        # Create offering with 3 components (2 limit, 1 fixed)
+        self.three_component_offering = factories.OfferingFactory()
+        factories.OfferingComponentFactory(
+            offering=self.three_component_offering, billing_type="limit", type="cpu"
+        )
+        factories.OfferingComponentFactory(
+            offering=self.three_component_offering, billing_type="limit", type="ram"
+        )
+        factories.OfferingComponentFactory(
+            offering=self.three_component_offering, billing_type="fixed", type="storage"
+        )
+        self.three_component_resource = factories.ResourceFactory(
+            offering=self.three_component_offering, project=self.fixture.project
+        )
+
+        # Create offering with no components
+        self.no_component_offering = factories.OfferingFactory()
+        self.no_component_resource = factories.ResourceFactory(
+            offering=self.no_component_offering, project=self.fixture.project
+        )
+
+    def test_component_count_filter_one(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"component_count": "1"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertIn(self.single_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.two_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.three_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.no_component_resource.uuid.hex, resource_uuids)
+
+    def test_component_count_filter_two(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"component_count": "2"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertNotIn(self.single_component_resource.uuid.hex, resource_uuids)
+        self.assertIn(self.two_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.three_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.no_component_resource.uuid.hex, resource_uuids)
+
+    def test_component_count_filter_three(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"component_count": "3"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertNotIn(self.single_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.two_component_resource.uuid.hex, resource_uuids)
+        self.assertIn(self.three_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.no_component_resource.uuid.hex, resource_uuids)
+
+    def test_component_count_filter_zero(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"component_count": "0"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertNotIn(self.single_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.two_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.three_component_resource.uuid.hex, resource_uuids)
+        self.assertIn(self.no_component_resource.uuid.hex, resource_uuids)
+
+    def test_limit_component_count_filter_one(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"limit_component_count": "1"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertIn(self.single_component_resource.uuid.hex, resource_uuids)
+        self.assertIn(self.two_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.three_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.no_component_resource.uuid.hex, resource_uuids)
+
+    def test_limit_component_count_filter_two(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"limit_component_count": "2"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertNotIn(self.single_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.two_component_resource.uuid.hex, resource_uuids)
+        self.assertIn(self.three_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.no_component_resource.uuid.hex, resource_uuids)
+
+    def test_limit_component_count_filter_zero(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"limit_component_count": "0"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertNotIn(self.single_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.two_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.three_component_resource.uuid.hex, resource_uuids)
+        self.assertIn(self.no_component_resource.uuid.hex, resource_uuids)
+
+    def test_combined_component_filters(self):
+        # Test filtering for resources with exactly 2 total components and 1 limit component
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"component_count": "2", "limit_component_count": "1"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertNotIn(self.single_component_resource.uuid.hex, resource_uuids)
+        self.assertIn(self.two_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.three_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.no_component_resource.uuid.hex, resource_uuids)
+
+    def test_combined_with_existing_filters(self):
+        # Test combining new filters with existing limit_based filter
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"component_count": "1", "limit_based": "true"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        self.assertIn(self.single_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.two_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.three_component_resource.uuid.hex, resource_uuids)
+        self.assertNotIn(self.no_component_resource.uuid.hex, resource_uuids)
+
+    def test_invalid_component_count_returns_empty(self):
+        # Test with non-existent component count
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"component_count": "999"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_no_filter_returns_all(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return all resources including the fixture resource
+        self.assertGreaterEqual(len(response.data), 5)
+
+
+class OnlyUsageBasedFilterRealWorldTest(test.APITransactionTestCase):
+    """Test the only_usage_based filter with real-world scenario to ensure the fix works"""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = factories.ResourceFactory.get_list_url()
+
+        # Create offering with ONLY limit-based components (like the user reported)
+        self.limit_only_offering = factories.OfferingFactory()
+        factories.OfferingComponentFactory(
+            offering=self.limit_only_offering, billing_type="limit", type="cpu"
+        )
+        self.limit_only_resource = factories.ResourceFactory(
+            offering=self.limit_only_offering, project=self.fixture.project
+        )
+
+        # Create offering with ONLY usage-based components
+        self.usage_only_offering = factories.OfferingFactory()
+        factories.OfferingComponentFactory(
+            offering=self.usage_only_offering, billing_type="usage", type="ram"
+        )
+        self.usage_only_resource = factories.ResourceFactory(
+            offering=self.usage_only_offering, project=self.fixture.project
+        )
+
+    def test_only_usage_based_true_excludes_limit_only_resources(self):
+        """Test that only_usage_based=true excludes resources with only limit-based components"""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"only_usage_based": "true"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        # Should exclude usage-only resources per the intended behavior
+        self.assertNotIn(self.usage_only_resource.uuid.hex, resource_uuids)
+        # Should include limit-only resources (they are not usage-only)
+        self.assertIn(self.limit_only_resource.uuid.hex, resource_uuids)
+
+    def test_only_usage_based_false_includes_only_usage_only_resources(self):
+        """Test that only_usage_based=false includes only resources with only usage-based components"""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"only_usage_based": "false"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        resource_uuids = [r["uuid"] for r in response.data]
+        # Should include only usage-only resources
+        self.assertIn(self.usage_only_resource.uuid.hex, resource_uuids)
+        # Should exclude limit-only resources
+        self.assertNotIn(self.limit_only_resource.uuid.hex, resource_uuids)

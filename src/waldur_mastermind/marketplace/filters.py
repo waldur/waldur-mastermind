@@ -3,7 +3,7 @@ import json
 import django_filters
 from constance import config
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import F, Q, QuerySet
+from django.db.models import Count, F, Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 from django_filters import DateFromToRangeFilter
 from django_filters.widgets import BooleanWidget
@@ -543,6 +543,14 @@ class ResourceFilter(
         method="filter_only_usage_based",
         label="Filter out resources with only usage-based components",
     )
+    component_count = django_filters.NumberFilter(
+        method="filter_component_count",
+        label="Filter by exact number of components",
+    )
+    limit_component_count = django_filters.NumberFilter(
+        method="filter_limit_component_count",
+        label="Filter by exact number of limit-based components",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -649,68 +657,78 @@ class ResourceFilter(
     def filter_only_limit_based(self, queryset: ResourceQuerySet, name, value):
         if value is None:
             return queryset
+
+        # Get offering IDs that have only limit-based components
+        offering_ids = (
+            models.Offering.objects.annotate(
+                total_components=Count("components"),
+                limit_components=Count(
+                    "components", filter=Q(components__billing_type=BillingTypes.LIMIT)
+                ),
+            )
+            .filter(total_components__gt=0, total_components=F("limit_components"))
+            .values_list("id", flat=True)
+        )
+
         if value:
             # Filter out resources that have ONLY limit-based components
-            # i.e., exclude resources that don't have any non-limit-based components
-            only_limit_based_offerings = queryset.filter(
-                offering__components__billing_type=BillingTypes.LIMIT
-            ).exclude(
-                offering__components__billing_type__in=[
-                    BillingTypes.USAGE,
-                    BillingTypes.FIXED,
-                    BillingTypes.ONE_TIME,
-                    BillingTypes.ON_PLAN_SWITCH,
-                ]
-            )
-            return queryset.exclude(
-                pk__in=only_limit_based_offerings.values_list("pk", flat=True)
-            )
+            return queryset.exclude(offering__id__in=offering_ids)
         else:
             # Include only resources that have ONLY limit-based components
-            only_limit_based_offerings = queryset.filter(
-                offering__components__billing_type=BillingTypes.LIMIT
-            ).exclude(
-                offering__components__billing_type__in=[
-                    BillingTypes.USAGE,
-                    BillingTypes.FIXED,
-                    BillingTypes.ONE_TIME,
-                    BillingTypes.ON_PLAN_SWITCH,
-                ]
-            )
-            return only_limit_based_offerings.distinct()
+            return queryset.filter(offering__id__in=offering_ids)
 
     def filter_only_usage_based(self, queryset: ResourceQuerySet, name, value):
         if value is None:
             return queryset
+
+        # Get offering IDs that have only usage-based components
+        offering_ids = (
+            models.Offering.objects.annotate(
+                total_components=Count("components"),
+                usage_components=Count(
+                    "components", filter=Q(components__billing_type=BillingTypes.USAGE)
+                ),
+            )
+            .filter(total_components__gt=0, total_components=F("usage_components"))
+            .values_list("id", flat=True)
+        )
+
         if value:
             # Filter out resources that have ONLY usage-based components
-            # i.e., exclude resources that don't have any non-usage-based components
-            only_usage_based_offerings = queryset.filter(
-                offering__components__billing_type=BillingTypes.USAGE
-            ).exclude(
-                offering__components__billing_type__in=[
-                    BillingTypes.LIMIT,
-                    BillingTypes.FIXED,
-                    BillingTypes.ONE_TIME,
-                    BillingTypes.ON_PLAN_SWITCH,
-                ]
-            )
-            return queryset.exclude(
-                pk__in=only_usage_based_offerings.values_list("pk", flat=True)
-            )
+            return queryset.exclude(offering__id__in=offering_ids)
         else:
             # Include only resources that have ONLY usage-based components
-            only_usage_based_offerings = queryset.filter(
-                offering__components__billing_type=BillingTypes.USAGE
-            ).exclude(
-                offering__components__billing_type__in=[
-                    BillingTypes.LIMIT,
-                    BillingTypes.FIXED,
-                    BillingTypes.ONE_TIME,
-                    BillingTypes.ON_PLAN_SWITCH,
-                ]
+            return queryset.filter(offering__id__in=offering_ids)
+
+    def filter_component_count(self, queryset: ResourceQuerySet, name, value):
+        if value is None:
+            return queryset
+
+        # Get offering IDs that have exactly 'value' number of components
+        offering_ids = (
+            models.Offering.objects.annotate(component_count=Count("components"))
+            .filter(component_count=value)
+            .values_list("id", flat=True)
+        )
+
+        return queryset.filter(offering__id__in=offering_ids)
+
+    def filter_limit_component_count(self, queryset: ResourceQuerySet, name, value):
+        if value is None:
+            return queryset
+
+        # Get offering IDs that have exactly 'value' number of limit-based components
+        offering_ids = (
+            models.Offering.objects.annotate(
+                limit_component_count=Count(
+                    "components", filter=Q(components__billing_type=BillingTypes.LIMIT)
+                )
             )
-            return only_usage_based_offerings.distinct()
+            .filter(limit_component_count=value)
+            .values_list("id", flat=True)
+        )
+
+        return queryset.filter(offering__id__in=offering_ids)
 
 
 class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
