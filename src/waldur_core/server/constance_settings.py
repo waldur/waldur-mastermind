@@ -146,6 +146,10 @@ CONSTANCE_CONFIG = {
         "Waldur | Cloud Service Management",
         "It is used as default page title if it's not specified explicitly.",
     ),
+    "PROJECT_END_DATE_MANDATORY": (
+        False,
+        "If true, project end date field becomes mandatory when creating or updating projects.",
+    ),
     "BRAND_COLOR": (
         "#307300",
         "Brand color is used for button background.",
