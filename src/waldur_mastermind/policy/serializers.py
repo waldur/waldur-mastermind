@@ -159,6 +159,12 @@ class ProjectEstimatedCostPolicySerializer(
         if not scope:
             return
 
+        # Check if scope is a terminated project
+        if scope._meta.model_name == "project" and getattr(scope, "is_removed", False):
+            raise serializers.ValidationError(
+                _("Cannot create policies for terminated projects.")
+            )
+
         user = self.context["request"].user
         customer = _get_customer(scope)
 

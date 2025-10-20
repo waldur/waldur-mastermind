@@ -177,6 +177,10 @@ def get_scope_link(scope_type, scope_uuid):
 
 
 def can_manage_invitation_with(request, scope):
+    # Check if the scope is a soft-deleted project
+    if scope._meta.model_name == "project" and getattr(scope, "is_removed", False):
+        return False
+
     if request.user.is_staff:
         return True
 

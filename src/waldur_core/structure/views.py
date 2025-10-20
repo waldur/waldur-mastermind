@@ -7,6 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.db.models import Count, Q, QuerySet
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -481,6 +482,50 @@ class ProjectViewSet(
 
         return models.Project.available_objects.all().order_by("name")
 
+    def get_object(self):
+        """
+        Override get_object to allow access to soft-deleted projects by UUID.
+        This enables access to individual project endpoints (like stats) for
+        terminated projects without requiring include_terminated parameter.
+        For active projects, uses default Django behavior.
+        """
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+        lookup_value = self.kwargs[lookup_url_kwarg]
+
+        # First check if the project exists and if it's soft-deleted
+        try:
+            project = models.Project.objects.get(**{self.lookup_field: lookup_value})
+
+            # If project is active, use default Django behavior (preserves existing permission logic)
+            if not project.is_removed:
+                return super().get_object()
+
+            # Only apply custom logic for soft-deleted projects
+            user = getattr(self.request, "user", None)
+
+            if not user or not user.is_authenticated:
+                raise Http404("No Project matches the given query.")
+
+            # Staff and support can access any terminated project
+            if user.is_staff or user.is_support:
+                return project
+
+            # Regular users need to have normal access to the project
+            filtered_queryset = filter_queryset_for_user(
+                models.Project.objects.filter(id=project.id), user
+            )
+            filtered_queryset = filter_queryset_by_user_ip(
+                filtered_queryset, self.request
+            )
+            if not filtered_queryset.exists():
+                raise Http404("No Project matches the given query.")
+
+            return project
+
+        except models.Project.DoesNotExist:
+            # Use default behavior for non-existent projects
+            return super().get_object()
+
     serializer_class = serializers.ProjectSerializer
     lookup_field = "uuid"
     filter_backends = (
@@ -584,6 +629,11 @@ class ProjectViewSet(
     @action(detail=True, methods=["post"])
     def move_project(self, request, uuid=None):
         project = self.get_object()
+
+        # Restrict moving terminated projects
+        if project.is_removed:
+            raise ValidationError("Cannot move terminated projects.")
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
