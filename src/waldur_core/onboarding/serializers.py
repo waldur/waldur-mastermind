@@ -96,6 +96,10 @@ class OnboardingCompanyValidationRequestSerializer(serializers.Serializer):
 class OnboardingJustificationSerializer(serializers.ModelSerializer):
     """Serializer for OnboardingJustification model."""
 
+    legal_person_identifier = serializers.CharField(
+        source="verification.legal_person_identifier", read_only=True
+    )
+    legal_name = serializers.CharField(source="verification.legal_name", read_only=True)
     supporting_documentation = OnboardingJustificationDocumentationSerializer(
         many=True, read_only=True
     )
@@ -106,6 +110,8 @@ class OnboardingJustificationSerializer(serializers.ModelSerializer):
             "uuid",
             "verification",
             "user",
+            "legal_person_identifier",
+            "legal_name",
             "user_justification",
             "validated_by",
             "validated_at",
