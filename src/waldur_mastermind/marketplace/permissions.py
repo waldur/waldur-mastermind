@@ -27,6 +27,13 @@ def has_project_permission(request, permission, project):
 
 
 def order_should_not_be_reviewed_by_consumer(order: models.Order):
+    # Check if purchase order upload is required and attachment is missing
+    if (
+        order.offering.plugin_options.get("require_purchase_order_upload", False)
+        and not order.attachment
+    ):
+        return False
+
     user = order.created_by
     if user.is_staff:
         return True

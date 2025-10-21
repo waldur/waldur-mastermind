@@ -157,9 +157,13 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="Required user role in a project for provisioning of resources",
     )
-    order_supports_comments_and_metadata = serializers.BooleanField(
+    enable_purchase_order_upload = serializers.BooleanField(
         required=False,
-        help_text="If set to True, orders will support comments and metadata",
+        help_text="If set to True, users will be able to upload purchase orders.",
+    )
+    require_purchase_order_upload = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, users will be required to upload purchase orders.",
     )
     conceal_billing_data = serializers.BooleanField(
         required=False,

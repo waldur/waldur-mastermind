@@ -3408,6 +3408,13 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     @action(detail=True, methods=["post"])
     def approve_by_consumer(self, request, uuid=None):
         order: models.Order = self.get_object()
+        if (
+            order.offering.plugin_options.get("require_purchase_order_upload")
+            and not order.attachment
+        ):
+            raise rf_exceptions.ValidationError(
+                _("Purchase order is required for approval.")
+            )
         order.review_by_consumer(request.user)
         if (
             order.project.start_date
