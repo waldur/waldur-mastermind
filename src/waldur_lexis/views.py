@@ -2,10 +2,11 @@ import logging
 
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.exceptions import PermissionDenied
 
 from waldur_core.core import views as core_views
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.utils import permission_factory
+from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_core.structure.managers import (
     get_connected_customers,
     get_connected_projects,
@@ -24,12 +25,26 @@ class LexisLinkViewSet(core_views.ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.LexisLinkFilter
 
-    create_permissions = [
-        permission_factory(
-            PermissionEnum.CREATE_LEXIS_LINK,
-            ["*", "robot_account.resource.offering.customer"],
-        )
-    ]
+    def check_create_permissions(request, view, obj=None):
+        serializer = view.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        resource = serializer.validated_data.get("resource")
+        if not resource:
+            raise PermissionDenied()
+
+        # Check global permission first (like the "*" in original permission factory)
+        if has_permission(request, PermissionEnum.CREATE_LEXIS_LINK, None):
+            return
+
+        # Check permission on resource's offering customer (service provider)
+        if has_permission(
+            request, PermissionEnum.CREATE_LEXIS_LINK, resource.offering.customer
+        ):
+            return
+
+        raise PermissionDenied()
+
+    create_permissions = [check_create_permissions]
     destroy_permissions = [
         permission_factory(
             PermissionEnum.DELETE_LEXIS_LINK,

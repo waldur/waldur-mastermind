@@ -1,11 +1,14 @@
 import datetime
 import uuid
+from datetime import timedelta
 from unittest import mock
 
 from constance.test.unittest import override_config
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
 from django.test import TransactionTestCase
 from django.urls import reverse
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -13,11 +16,14 @@ from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import executors, models, permissions
 from waldur_core.structure.models import Project
 from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests import models as test_models
 from waldur_core.structure.utils import move_project
+from waldur_core.users.enums import InvitationState
+from waldur_core.users.models import Invitation
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
@@ -949,3 +955,636 @@ class ProjectOtherUsersTest(test.APITransactionTestCase):
             user3.uuid.hex,
             [user["uuid"] for user in response.data],
         )
+
+
+class ProjectRecoveryTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.staff_user = self.fixture.staff
+        self.url = factories.ProjectFactory.get_url(self.project, action="recover")
+
+        # Add some team members before deletion
+        self.team_user1 = factories.UserFactory()
+        self.team_user2 = factories.UserFactory()
+        self.project.add_user(self.team_user1, ProjectRole.ADMIN)
+        self.project.add_user(self.team_user2, ProjectRole.MANAGER)
+
+        # Soft delete the project first
+        self.project.delete()
+        self.assertTrue(self.project.is_removed)
+
+    def test_staff_can_recover_soft_deleted_project_without_team_restoration(self):
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(self.url, {"restore_team_members": False})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project.refresh_from_db()
+        self.assertFalse(self.project.is_removed)
+
+        # Check that team members were not restored
+        restored_permissions = get_permissions(self.project)
+        self.assertEqual(restored_permissions.count(), 0)
+
+    def test_staff_can_recover_project_with_team_restoration(self):
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(self.url, {"restore_team_members": True})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project.refresh_from_db()
+        self.assertFalse(self.project.is_removed)
+
+        # Check that team members were restored
+        restored_permissions = get_permissions(self.project)
+        self.assertEqual(restored_permissions.count(), 2)
+
+        # Check response includes recovery info
+        self.assertIn("recovery_info", response.data)
+        self.assertEqual(response.data["recovery_info"]["restored_users_count"], 2)
+
+    def test_non_customer_user_cannot_access_project_recovery(self):
+        # A user not connected to the customer gets 404 because they can't see the project
+        user = factories.UserFactory()
+        self.client.force_authenticate(user)
+
+        response = self.client.post(self.url, {"restore_team_members": False})
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.project.refresh_from_db()
+        self.assertTrue(self.project.is_removed)
+
+    def test_customer_owner_can_recover_project_with_invitations(self):
+        customer_owner = self.fixture.owner
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
+        self.client.force_authenticate(customer_owner)
+
+        response = self.client.post(
+            self.url, {"send_invitations_to_previous_members": True}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project.refresh_from_db()
+        self.assertFalse(self.project.is_removed)
+
+    def test_customer_owner_cannot_restore_team_members_directly(self):
+        customer_owner = self.fixture.owner
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
+        self.client.force_authenticate(customer_owner)
+
+        response = self.client.post(self.url, {"restore_team_members": True})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Only staff users can automatically restore", str(response.data))
+
+    def test_customer_support_user_cannot_recover_project(self):
+        # Customer support users cannot recover projects (they don't have CREATE_PROJECT permission)
+        user = self.fixture.customer_support
+        self.client.force_authenticate(user)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_cannot_recover_active_project(self):
+        # Create a new active project
+        active_project = factories.ProjectFactory()
+        url = factories.ProjectFactory.get_url(active_project, action="recover")
+
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(url, {"restore_team_members": False})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("not deleted", str(response.data))
+
+    def test_recovery_defaults_are_correct(self):
+        self.client.force_authenticate(self.staff_user)
+
+        # Test that restore_team_members defaults to False when not provided
+        response = self.client.post(self.url, {})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project.refresh_from_db()
+        self.assertFalse(self.project.is_removed)
+
+    def test_team_restoration_with_inactive_user(self):
+        # Deactivate one of the team members
+        self.team_user1.is_active = False
+        self.team_user1.save()
+
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(self.url, {"restore_team_members": True})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Only active user should be restored
+        from waldur_core.permissions.utils import get_permissions
+
+        restored_permissions = get_permissions(self.project)
+        self.assertEqual(restored_permissions.count(), 1)
+        self.assertEqual(restored_permissions.first().user, self.team_user2)
+
+    def test_recovery_captures_termination_metadata(self):
+        # Check that termination metadata was captured during deletion
+        self.assertIsNotNone(self.project.termination_metadata)
+        self.assertIn("user_roles", self.project.termination_metadata)
+        self.assertEqual(len(self.project.termination_metadata["user_roles"]), 2)
+
+    def test_multiple_recovery_attempts_dont_duplicate_roles(self):
+        self.client.force_authenticate(self.staff_user)
+
+        # First recovery
+        response1 = self.client.post(self.url, {"restore_team_members": True})
+        self.assertEqual(response1.status_code, status.HTTP_200_OK)
+
+        # Second recovery attempt should fail because project is no longer deleted
+        response2 = self.client.post(self.url, {"restore_team_members": True})
+        self.assertEqual(response2.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("not deleted", str(response2.data))
+
+        # Check that we still have the correct number of roles (no duplicates)
+        restored_permissions = get_permissions(self.project)
+        self.assertEqual(restored_permissions.count(), 2)
+
+    def test_staff_can_send_invitations_to_previous_members(self):
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(
+            self.url, {"send_invitations_to_previous_members": True}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project.refresh_from_db()
+        self.assertFalse(self.project.is_removed)
+
+        # Check that invitations were sent
+        project_ct = ContentType.objects.get_for_model(self.project)
+        invitations = Invitation.objects.filter(
+            content_type=project_ct, object_id=self.project.id
+        )
+        self.assertEqual(invitations.count(), 2)
+
+        # Check response includes invitation info
+        self.assertIn("recovery_info", response.data)
+        self.assertEqual(response.data["recovery_info"]["sent_invitations_count"], 2)
+
+    def test_cannot_both_restore_and_send_invitations(self):
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(
+            self.url,
+            {
+                "restore_team_members": True,
+                "send_invitations_to_previous_members": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Cannot both restore", str(response.data))
+
+    def test_invitations_not_sent_to_inactive_users(self):
+        # Deactivate one of the team members
+        self.team_user1.is_active = False
+        self.team_user1.save()
+
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(
+            self.url, {"send_invitations_to_previous_members": True}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Only active user should get invitation
+        project_ct = ContentType.objects.get_for_model(self.project)
+        invitations = Invitation.objects.filter(
+            content_type=project_ct, object_id=self.project.id
+        )
+        self.assertEqual(invitations.count(), 1)
+        self.assertEqual(invitations.first().email, self.team_user2.email)
+
+    def test_duplicate_invitations_not_sent(self):
+        self.client.force_authenticate(self.staff_user)
+
+        # First invitation sending
+        response1 = self.client.post(
+            self.url, {"send_invitations_to_previous_members": True}
+        )
+        self.assertEqual(response1.status_code, status.HTTP_200_OK)
+
+        # Soft delete and recover again
+        self.project.delete()
+        response2 = self.client.post(
+            self.url, {"send_invitations_to_previous_members": True}
+        )
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+
+        # Should not create duplicate invitations
+        project_ct = ContentType.objects.get_for_model(self.project)
+        invitations = Invitation.objects.filter(
+            content_type=project_ct, object_id=self.project.id
+        )
+        # Should still be 2 invitations, not 4
+        self.assertEqual(invitations.count(), 2)
+
+    def test_legacy_project_basic_recovery_works(self):
+        """Test recovery of project that was deleted before termination metadata feature."""
+        # Create a project without termination metadata (simulating old deletion)
+        old_project = factories.ProjectFactory()
+        old_project.is_removed = True
+        old_project.termination_metadata = None
+        old_project.save()
+
+        url = factories.ProjectFactory.get_url(old_project, action="recover")
+        self.client.force_authenticate(self.staff_user)
+
+        # Basic recovery should work
+        response = self.client.post(url, {})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        old_project.refresh_from_db()
+        self.assertFalse(old_project.is_removed)
+
+    def test_legacy_project_team_restoration_blocked(self):
+        """Test that legacy projects block team restoration with clear error."""
+        # Create a project without termination metadata
+        old_project = factories.ProjectFactory()
+        old_project.is_removed = True
+        old_project.termination_metadata = None
+        old_project.save()
+
+        url = factories.ProjectFactory.get_url(old_project, action="recover")
+        self.client.force_authenticate(self.staff_user)
+
+        # Team restoration should fail with clear error
+        response = self.client.post(url, {"restore_team_members": True})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("deleted before team member metadata", str(response.data))
+        self.assertIn("Only basic project recovery is available", str(response.data))
+
+    def test_legacy_project_invitations_blocked(self):
+        """Test that legacy projects block invitation sending with clear error."""
+        # Create a project without termination metadata
+        old_project = factories.ProjectFactory()
+        old_project.is_removed = True
+        old_project.termination_metadata = None
+        old_project.save()
+
+        url = factories.ProjectFactory.get_url(old_project, action="recover")
+        self.client.force_authenticate(self.staff_user)
+
+        # Invitation sending should fail with clear error
+        response = self.client.post(url, {"send_invitations_to_previous_members": True})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("deleted before team member metadata", str(response.data))
+        self.assertIn("metadata feature was implemented", str(response.data))
+
+    def test_recovery_with_expired_user_roles(self):
+        """Test recovery when some user roles had expired before deletion."""
+
+        # Create project with users having different expiration times
+        test_project = factories.ProjectFactory()
+        expired_user = factories.UserFactory()
+        valid_user = factories.UserFactory()
+
+        # Add users with different expiration times
+        expired_role = test_project.add_user(expired_user, ProjectRole.ADMIN)
+        test_project.add_user(valid_user, ProjectRole.MANAGER)
+
+        # Set one role to expire in the past
+        past_time = timezone.now() - timedelta(days=30)
+        expired_role.expiration_time = past_time
+        expired_role.save()
+
+        # Soft delete the project
+        test_project.delete()
+
+        # Recover with team restoration
+        url = factories.ProjectFactory.get_url(test_project, action="recover")
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(url, {"restore_team_members": True})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Only the non-expired role should be restored
+        restored_permissions = get_permissions(test_project)
+        self.assertEqual(restored_permissions.count(), 1)
+        self.assertEqual(restored_permissions.first().user, valid_user)
+
+    def test_recovery_with_deleted_user_roles(self):
+        """Test recovery when some users have been deleted after project termination."""
+        test_project = factories.ProjectFactory()
+        user_to_delete = factories.UserFactory()
+        active_user = factories.UserFactory()
+
+        test_project.add_user(user_to_delete, ProjectRole.ADMIN)
+        test_project.add_user(active_user, ProjectRole.MANAGER)
+
+        # Soft delete the project first
+        test_project.delete()
+
+        # Then delete one of the users
+        user_to_delete.delete()
+
+        # Recover with team restoration
+        url = factories.ProjectFactory.get_url(test_project, action="recover")
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(url, {"restore_team_members": True})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Only the existing user's role should be restored
+        restored_permissions = get_permissions(test_project)
+        self.assertEqual(restored_permissions.count(), 1)
+        self.assertEqual(restored_permissions.first().user, active_user)
+
+    def test_invitation_with_user_already_having_role(self):
+        """Test invitation sending when user already has the role through other means."""
+        self.client.force_authenticate(self.staff_user)
+
+        # First recover the project
+        response1 = self.client.post(self.url, {"restore_team_members": True})
+        self.assertEqual(response1.status_code, status.HTTP_200_OK)
+
+        # Now try to send invitations (after soft-deleting again)
+        self.project.delete()
+
+        # Manually add one user back
+        self.project.is_removed = False
+        self.project.save()
+        self.project.add_user(self.team_user1, ProjectRole.ADMIN)
+
+        # Delete project again to test invitation logic
+        self.project.delete()
+
+        response2 = self.client.post(
+            self.url, {"send_invitations_to_previous_members": True}
+        )
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+
+    def test_invitation_with_existing_pending_invitation(self):
+        """Test that duplicate invitations aren't created for existing pending invitations."""
+        # Create a pending invitation manually first
+        project_ct = ContentType.objects.get_for_model(self.project)
+        Invitation.objects.create(
+            email=self.team_user1.email,
+            role=ProjectRole.ADMIN,
+            content_type=project_ct,
+            object_id=self.project.id,
+            customer=self.project.customer,
+            created_by=self.staff_user,
+            state=InvitationState.PENDING,
+        )
+
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(
+            self.url, {"send_invitations_to_previous_members": True}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should not create duplicate invitations
+        invitations = Invitation.objects.filter(
+            content_type=project_ct, object_id=self.project.id
+        )
+        # Should have 2 total: existing + 1 new for team_user2
+        self.assertEqual(invitations.count(), 2)
+
+    def test_recovery_response_format_with_team_restoration(self):
+        """Test the response format when team members are restored."""
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(self.url, {"restore_team_members": True})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify response structure
+        self.assertIn("recovery_info", response.data)
+        recovery_info = response.data["recovery_info"]
+
+        self.assertIn("restored_users_count", recovery_info)
+        self.assertIn("restored_users", recovery_info)
+        self.assertEqual(recovery_info["restored_users_count"], 2)
+        self.assertEqual(len(recovery_info["restored_users"]), 2)
+
+        # Check user data structure
+        restored_user = recovery_info["restored_users"][0]
+        self.assertIn("user_uuid", restored_user)
+        self.assertIn("username", restored_user)
+        self.assertIn("role", restored_user)
+
+    def test_recovery_response_format_with_invitations(self):
+        """Test the response format when invitations are sent."""
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(
+            self.url, {"send_invitations_to_previous_members": True}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify response structure
+        self.assertIn("recovery_info", response.data)
+        recovery_info = response.data["recovery_info"]
+
+        self.assertIn("sent_invitations_count", recovery_info)
+        self.assertIn("sent_invitations", recovery_info)
+        self.assertEqual(recovery_info["sent_invitations_count"], 2)
+        self.assertEqual(len(recovery_info["sent_invitations"]), 2)
+
+        # Check invitation data structure
+        invitation = recovery_info["sent_invitations"][0]
+        self.assertIn("invitation_uuid", invitation)
+        self.assertIn("email", invitation)
+        self.assertIn("role", invitation)
+        self.assertIn("state", invitation)
+
+    def test_recovery_without_team_options_has_no_recovery_info(self):
+        """Test that recovery without team options doesn't include recovery_info."""
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(self.url, {})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should not have recovery_info in response
+        self.assertNotIn("recovery_info", response.data)
+
+    def test_termination_metadata_structure(self):
+        """Test that termination metadata has correct structure."""
+        metadata = self.project.termination_metadata
+
+        # Check top-level structure
+        self.assertIn("terminated_at", metadata)
+        self.assertIn("terminated_by", metadata)
+        self.assertIn("user_roles", metadata)
+
+        # Check user roles structure
+        user_roles = metadata["user_roles"]
+        self.assertEqual(len(user_roles), 2)
+
+        for role_data in user_roles:
+            self.assertIn("user_id", role_data)
+            self.assertIn("user_username", role_data)
+            self.assertIn("role_id", role_data)
+            self.assertIn("role_name", role_data)
+            self.assertIn("created_by_id", role_data)
+            self.assertIn("original_created", role_data)
+            self.assertIn("original_expiration_time", role_data)
+            self.assertIn("is_restored", role_data)
+            self.assertIn("restored_at", role_data)
+            self.assertIn("restored_by", role_data)
+
+            # Check initial state
+            self.assertFalse(role_data["is_restored"])
+            self.assertIsNone(role_data["restored_at"])
+            self.assertIsNone(role_data["restored_by"])
+
+    def test_termination_metadata_updates_after_restoration(self):
+        """Test that termination metadata is updated after successful restoration."""
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(self.url, {"restore_team_members": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.project.refresh_from_db()
+        metadata = self.project.termination_metadata
+
+        # Check that all roles are marked as restored
+        for role_data in metadata["user_roles"]:
+            self.assertTrue(role_data["is_restored"])
+            self.assertIsNotNone(role_data["restored_at"])
+            self.assertEqual(role_data["restored_by"], self.staff_user.id)
+
+    def test_termination_metadata_updates_after_invitations(self):
+        """Test that termination metadata is updated after sending invitations."""
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(
+            self.url, {"send_invitations_to_previous_members": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.project.refresh_from_db()
+        metadata = self.project.termination_metadata
+
+        # Check that all roles have invitation tracking
+        for role_data in metadata["user_roles"]:
+            self.assertTrue(role_data["invitation_sent"])
+            self.assertIsNotNone(role_data["invitation_sent_at"])
+            self.assertEqual(role_data["invitation_sent_by"], self.staff_user.id)
+            self.assertIn("invitation_uuid", role_data)
+
+    def test_project_recovery_with_multiple_role_types(self):
+        """Test recovery with different types of project roles."""
+        # Add users with different project roles
+        test_project = factories.ProjectFactory()
+        member_user = factories.UserFactory()
+        admin_user = factories.UserFactory()
+        manager_user = factories.UserFactory()
+
+        test_project.add_user(member_user, ProjectRole.MEMBER)
+        test_project.add_user(admin_user, ProjectRole.ADMIN)
+        test_project.add_user(manager_user, ProjectRole.MANAGER)
+
+        # Soft delete the project
+        test_project.delete()
+
+        # Recover with team restoration
+        url = factories.ProjectFactory.get_url(test_project, action="recover")
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(url, {"restore_team_members": True})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # All role types should be restored
+        restored_permissions = get_permissions(test_project)
+        self.assertEqual(restored_permissions.count(), 3)
+
+        # Verify different roles are present
+        role_names = [p.role.name for p in restored_permissions]
+        expected_roles = [
+            ProjectRole.MEMBER.name,
+            ProjectRole.ADMIN.name,
+            ProjectRole.MANAGER.name,
+        ]
+        for expected_role in expected_roles:
+            self.assertIn(expected_role, role_names)
+
+    def test_invitation_email_content_includes_context(self):
+        """Test that invitation includes context about project recovery."""
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(
+            self.url, {"send_invitations_to_previous_members": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that invitations have the recovery context
+        project_ct = ContentType.objects.get_for_model(self.project)
+        invitations = Invitation.objects.filter(
+            content_type=project_ct, object_id=self.project.id
+        )
+
+        for invitation in invitations:
+            self.assertIn("previously had", invitation.extra_invitation_text)
+            self.assertIn("temporarily removed", invitation.extra_invitation_text)
+
+    def test_termination_metadata_exposed_in_api_response(self):
+        """Test that termination_metadata is included in project API response."""
+        self.client.force_authenticate(self.staff_user)
+
+        # Get project details
+        project_url = factories.ProjectFactory.get_url(self.project)
+        response = self.client.get(project_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should include termination_metadata in response
+        self.assertIn("termination_metadata", response.data)
+        self.assertIsNotNone(response.data["termination_metadata"])
+
+        # Verify the structure is correct
+        metadata = response.data["termination_metadata"]
+        self.assertIn("terminated_at", metadata)
+        self.assertIn("user_roles", metadata)
+        self.assertEqual(len(metadata["user_roles"]), 2)
+
+    def test_termination_metadata_not_exposed_for_regular_users(self):
+        """Test that regular users can see termination_metadata but it's read-only."""
+        # Customer users should be able to see the metadata for audit purposes
+        customer_owner = self.fixture.owner
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
+        self.client.force_authenticate(customer_owner)
+
+        project_url = factories.ProjectFactory.get_url(self.project)
+        response = self.client.get(project_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should include termination_metadata (it's read-only)
+        self.assertIn("termination_metadata", response.data)
+
+    def test_active_project_has_null_termination_metadata(self):
+        """Test that active projects have null termination_metadata."""
+        active_project = factories.ProjectFactory()
+
+        self.client.force_authenticate(self.staff_user)
+
+        project_url = factories.ProjectFactory.get_url(active_project)
+        response = self.client.get(project_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should have null termination_metadata
+        self.assertIn("termination_metadata", response.data)
+        self.assertIsNone(response.data["termination_metadata"])

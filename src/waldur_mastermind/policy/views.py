@@ -3,6 +3,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.serializers import ValidationError
 
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.structure import filters as structure_filters
@@ -23,6 +24,21 @@ class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
     destroy_permissions = update_permissions = partial_update_permissions = [
         structure_permissions.is_owner
     ]
+
+    def _check_terminated_project(self, policy):
+        """Check if policy scope (project) is terminated and raise error if so"""
+        if policy.scope.is_removed:
+            raise ValidationError("Cannot update policies for terminated projects.")
+
+    def update(self, request, *args, **kwargs):
+        policy = self.get_object()
+        self._check_terminated_project(policy)
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        policy = self.get_object()
+        self._check_terminated_project(policy)
+        return super().partial_update(request, *args, **kwargs)
 
     @extend_schema(parameters=[])
     @action(detail=False, methods=["get"])

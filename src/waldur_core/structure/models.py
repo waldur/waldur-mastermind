@@ -796,6 +796,13 @@ class Project(
         choices=ProjectKind.choices,
         verbose_name=_("project type"),
     )
+
+    termination_metadata = JSONField(
+        null=True,
+        blank=True,
+        help_text=_("Metadata captured at project termination for recovery purposes"),
+    )
+
     tracker = cast(FieldInstanceTracker, FieldTracker())
     # Entities returned in manager available_objects are limited to not-deleted instances.
     # Entities returned in manager objects include deleted objects.
@@ -816,8 +823,12 @@ class Project(
         return User.objects.filter(id__in=project_users).order_by("username")
 
     @transaction.atomic()
-    def _soft_delete(self, using=None):
+    def _soft_delete(self, using=None, terminated_by=None):
         """Method for project soft delete. It doesn't delete a project, only mark as 'removed', but it sends signals"""
+        # Store terminating user for handler access
+        if terminated_by:
+            self._terminating_user = terminated_by
+
         # Set flag to indicate this object is being deleted to skip quota aggregation
         self._deleting = True
 

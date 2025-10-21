@@ -6,6 +6,19 @@ from waldur_core.structure.tests import factories, fixtures
 from waldur_core.users.tests import factories as user_factories
 
 
+def extract_error_message(response_data):
+    """Extract error message from DRF response data handling different formats."""
+    if isinstance(response_data, list) and response_data:
+        return str(response_data[0]).lower()
+    elif isinstance(response_data, dict):
+        if "non_field_errors" in response_data:
+            return str(response_data["non_field_errors"][0]).lower()
+        else:
+            return str(response_data.get("detail", response_data)).lower()
+    else:
+        return str(response_data).lower()
+
+
 class SoftDeletedProjectRestrictionsTest(APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -81,11 +94,7 @@ class SoftDeletedProjectRestrictionsTest(APITestCase):
         )
         response = self.client.post(project_url, update_user_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        # Handle both possible response formats
-        if isinstance(response.data, list):
-            error_message = str(response.data[0]).lower()
-        else:
-            error_message = str(response.data.get("detail", "")).lower()
+        error_message = extract_error_message(response.data)
         self.assertIn("terminated projects", error_message)
 
     def test_user_removal_blocked_for_soft_deleted_project(self):
@@ -414,10 +423,7 @@ class SoftDeletedProjectEdgeCasesTest(APITestCase):
 
                 # All should be blocked with the same error
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-                if isinstance(response.data, list):
-                    error_message = str(response.data[0]).lower()
-                else:
-                    error_message = str(response.data.get("detail", "")).lower()
+                error_message = extract_error_message(response.data)
                 self.assertIn("terminated projects", error_message)
 
     def test_invitation_state_transitions_blocked(self):
@@ -611,10 +617,7 @@ class SoftDeletedProjectIntegrationTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Verify it's our error message
-        if isinstance(response.data, list):
-            error_message = str(response.data[0]).lower()
-        else:
-            error_message = str(response.data.get("detail", "")).lower()
+        error_message = extract_error_message(response.data)
         self.assertIn("terminated projects", error_message)
 
     def test_integration_with_permissions_system(self):
@@ -748,9 +751,6 @@ class SoftDeletedProjectIntegrationTest(APITestCase):
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
                 # Check error message consistency
-                if isinstance(response.data, list):
-                    error_message = str(response.data[0]).lower()
-                else:
-                    error_message = str(response.data.get("detail", "")).lower()
+                error_message = extract_error_message(response.data)
                 self.assertIn("terminated projects", error_message)
                 self.assertIn("cannot manage team members", error_message)

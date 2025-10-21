@@ -74,7 +74,32 @@ class ActionsPermission(BasePermission):
             return getattr(view, "unsafe_methods_permissions", []) + extra_permissions
 
     def has_permission(self, request, view):
-        for check in self.get_permission_checks(request, view):
+        checks = self.get_permission_checks(request, view)
+
+        # For detail actions, we need to get the object and pass it to permission checks
+        # that require object-level context (i.e., have 'sources' attribute)
+        if hasattr(view, "get_object") and getattr(view, "action", None):
+            # Check if any permission function requires object scope
+            needs_object = any(
+                hasattr(check, "sources") and check.sources for check in checks
+            )
+
+            if needs_object:
+                try:
+                    obj = view.get_object()
+                    # Call checks with object for those that need it
+                    for check in checks:
+                        if hasattr(check, "sources") and check.sources:
+                            check(request, view, obj)
+                        else:
+                            check(request, view)
+                    return True
+                except Exception:
+                    # Permission check failed, re-raise the exception
+                    raise
+
+        # Regular permission check without object
+        for check in checks:
             check(request, view)
         return True
 

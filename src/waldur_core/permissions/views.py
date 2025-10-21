@@ -49,7 +49,13 @@ def validate_scope_not_soft_deleted(scope):
         and hasattr(scope, "is_removed")
         and scope.is_removed
     ):
-        raise ValidationError("Cannot manage team members for terminated projects.")
+        raise ValidationError(
+            {
+                "non_field_errors": [
+                    "Cannot manage team members for terminated projects."
+                ]
+            }
+        )
 
 
 class RoleViewSet(ActionsViewSet):
@@ -252,7 +258,21 @@ class UserRoleMixin:
 
     @extend_schema(
         request=serializers.UserRoleCreateSerializer,
-        responses={201: serializers.UserRoleExpirationTimeSerializer},
+        responses={
+            201: serializers.UserRoleExpirationTimeSerializer,
+            400: {
+                "type": "object",
+                "properties": {
+                    "non_field_errors": {"type": "array", "items": {"type": "string"}}
+                },
+                "description": "Validation error when trying to add user to terminated project",
+                "example": {
+                    "non_field_errors": [
+                        "Cannot manage team members for terminated projects."
+                    ]
+                },
+            },
+        },
     )
     @action(detail=True, methods=["POST"])
     def add_user(self, request, uuid=None):
