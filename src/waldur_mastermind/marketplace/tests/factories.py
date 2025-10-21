@@ -518,6 +518,11 @@ class ComponentUsageFactory(
         )
     )
 
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-component-usage-list")
+        return url if action is None else url + action + "/"
+
 
 class ResourcePlanPeriodFactory(
     factory.django.DjangoModelFactory,
