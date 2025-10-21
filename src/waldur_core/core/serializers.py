@@ -637,11 +637,14 @@ class SlugSerializerMixin(serializers.Serializer):
 
         return value
 
+    def generate_slug(self, validated_data):
+        klass = self.Meta.model
+        slug_source = validated_data[klass.get_slug_source_field()]
+        return generate_slug(slug_source, klass)
+
     def create(self, validated_data):
         if "slug" not in validated_data:
-            klass = self.Meta.model
-            slug_source = validated_data[klass.get_slug_source_field()]
-            validated_data["slug"] = generate_slug(slug_source, klass)
+            validated_data["slug"] = self.generate_slug(validated_data)
         return super().create(validated_data)
 
 

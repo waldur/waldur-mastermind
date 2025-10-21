@@ -146,7 +146,7 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
     name = sanitize_allocation_name(user.username)
 
     with transaction.atomic():
-        resource: Resource = Resource(
+        resource = Resource(
             project=project,
             offering=offering,
             plan=plan,

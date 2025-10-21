@@ -93,10 +93,13 @@ class SlugMixin(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            slug_source = getattr(self, self.get_slug_source_field())
-            self.slug = generate_slug(slug_source, self.__class__)
+            self.slug = self.generate_slug()
 
         super().save(*args, **kwargs)
+
+    def generate_slug(self):
+        slug_source = getattr(self, self.get_slug_source_field())
+        return generate_slug(slug_source, self.__class__)
 
     @classmethod
     def get_slug_source_field(cls):
