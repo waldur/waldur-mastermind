@@ -402,6 +402,7 @@ class OrderFactory(
     created_by = factory.SubFactory(structure_factories.UserFactory)
     offering = factory.SubFactory(OfferingFactory)
     plan = factory.SubFactory(PlanFactory)
+    slug = factory.Sequence(lambda n: "order-%s" % n)
 
     @factory.lazy_attribute
     def resource(self) -> models.Resource:

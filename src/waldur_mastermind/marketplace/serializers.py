@@ -3005,6 +3005,7 @@ def validate_order(order: models.Order, request):
 
 class OrderCreateSerializer(
     BaseOrderSerializer,
+    core_serializers.SlugSerializerMixin,
     structure_serializers.PermissionFieldFilteringMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -3071,6 +3072,11 @@ class OrderCreateSerializer(
         }
 
     error_message = serializers.ReadOnlyField()
+
+    def generate_slug(self, validated_data):
+        return models.Order(
+            project=validated_data["project"], offering=validated_data["offering"]
+        ).generate_slug()
 
     def validate_project(
         self, project: structure_models.Project

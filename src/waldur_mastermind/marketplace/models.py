@@ -25,7 +25,7 @@ from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
-from waldur_core.core.models import User
+from waldur_core.core.models import User, generate_slug
 from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.media.mixins import get_upload_path
 from waldur_core.media.validators import FileTypeValidator, ImageValidator
@@ -1618,6 +1618,7 @@ class Order(
     core_models.UuidMixin,
     core_models.BackendMixin,
     core_models.ErrorMessageMixin,
+    core_models.SlugMixin,
     CostEstimateMixin,
     structure_models.StructureLoggableMixin,
     SafeAttributesMixin,
@@ -1719,6 +1720,12 @@ class Order(
     @classmethod
     def get_url_name(cls):
         return "marketplace-order"
+
+    def generate_slug(self) -> str:
+        return generate_slug(
+            f"{self.project.customer.slug}-{self.offering.slug}-{timezone.now().date().isoformat()}",
+            self.__class__,
+        )
 
     def review_by_consumer(self, user=None):
         self.consumer_reviewed_by = user
