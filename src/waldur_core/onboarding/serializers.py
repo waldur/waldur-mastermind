@@ -134,7 +134,9 @@ class OnboardingJustificationCreateSerializer(serializers.Serializer):
         help_text="UUID of the OnboardingVerification to justify"
     )
     user_justification = serializers.CharField(
-        help_text="User's explanation for why they should be authorized"
+        required=False,
+        allow_blank=True,
+        help_text="User's explanation for why they should be authorized",
     )
 
     def validate_verification_uuid(self, value):

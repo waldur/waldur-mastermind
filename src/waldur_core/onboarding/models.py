@@ -173,7 +173,9 @@ class OnboardingJustification(UuidMixin, TimeStampedModel):
         User, on_delete=models.CASCADE, related_name="onboarding_justifications"
     )
     user_justification = models.TextField(
-        help_text=_("User's explanation for why they should be authorized")
+        blank=True,
+        null=True,
+        help_text=_("User's explanation for why they should be authorized"),
     )
 
     # Review status
