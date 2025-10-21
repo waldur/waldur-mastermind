@@ -3,8 +3,10 @@ import unittest
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.enums import OfferingStates, OrderTypes
 from waldur_mastermind.marketplace.tests import factories, fixtures
@@ -692,3 +694,67 @@ class OnlyUsageBasedFilterRealWorldTest(test.APITransactionTestCase):
         self.assertIn(self.usage_only_resource.uuid.hex, resource_uuids)
         # Should exclude limit-only resources
         self.assertNotIn(self.limit_only_resource.uuid.hex, resource_uuids)
+
+
+class ComponentUsageFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.url = factories.ComponentUsageFactory.get_list_url()
+
+        # Create component usage for 2019-06
+        self.usage_2019_06 = factories.ComponentUsageFactory(
+            billing_period=core_utils.month_start(parse_datetime("2019-06-15")),
+            date=parse_datetime("2019-06-15"),
+        )
+
+        # Create component usage for 2019-12
+        self.usage_2019_12 = factories.ComponentUsageFactory(
+            billing_period=core_utils.month_start(parse_datetime("2019-12-15")),
+            date=parse_datetime("2019-12-15"),
+        )
+
+        # Create component usage for 2020-06
+        self.usage_2020_06 = factories.ComponentUsageFactory(
+            billing_period=core_utils.month_start(parse_datetime("2020-06-15")),
+            date=parse_datetime("2020-06-15"),
+        )
+
+    def test_billing_period_year_filter(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"billing_period_year": "2019"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        usage_uuids = [u["uuid"] for u in response.data]
+        self.assertIn(self.usage_2019_06.uuid.hex, usage_uuids)
+        self.assertIn(self.usage_2019_12.uuid.hex, usage_uuids)
+        self.assertNotIn(self.usage_2020_06.uuid.hex, usage_uuids)
+
+    def test_billing_period_month_filter(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"billing_period_month": "6"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        usage_uuids = [u["uuid"] for u in response.data]
+        self.assertIn(self.usage_2019_06.uuid.hex, usage_uuids)
+        self.assertNotIn(self.usage_2019_12.uuid.hex, usage_uuids)
+        self.assertIn(self.usage_2020_06.uuid.hex, usage_uuids)
+
+    def test_combined_billing_period_filters(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"billing_period_year": "2019", "billing_period_month": "6"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        usage_uuids = [u["uuid"] for u in response.data]
+        self.assertIn(self.usage_2019_06.uuid.hex, usage_uuids)
+        self.assertNotIn(self.usage_2019_12.uuid.hex, usage_uuids)
+        self.assertNotIn(self.usage_2020_06.uuid.hex, usage_uuids)
+
+    def test_no_billing_period_filter_returns_all(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should return all component usages
+        self.assertGreaterEqual(len(response.data), 3)

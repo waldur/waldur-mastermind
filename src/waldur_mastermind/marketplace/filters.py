@@ -842,6 +842,10 @@ class ComponentUsageFilter(django_filters.FilterSet):
     )
     date_before = django_filters.DateFilter(field_name="date__date", lookup_expr="lte")
     date_after = django_filters.DateFilter(field_name="date__date", lookup_expr="gte")
+    billing_period_year = django_filters.NumberFilter(field_name="billing_period__year")
+    billing_period_month = django_filters.NumberFilter(
+        field_name="billing_period__month"
+    )
     type = django_filters.CharFilter(field_name="component__type")
 
     o = django_filters.OrderingFilter(
