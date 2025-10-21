@@ -4,7 +4,7 @@ from django.urls import reverse
 from rest_framework import test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import ServiceProviderRole
+from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_lexis import models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import RobotAccountStates
@@ -48,6 +48,8 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
         )
 
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.DELETE_LEXIS_LINK)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.CREATE_LEXIS_LINK)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_LEXIS_LINK)
 
     def tearDown(self):
         super().tearDown()

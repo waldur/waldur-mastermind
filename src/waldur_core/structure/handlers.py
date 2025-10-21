@@ -41,11 +41,48 @@ def change_users_quota(sender, instance: UserRole, **kwargs):
 
 def revoke_roles_on_project_deletion(sender, instance: Project | None = None, **kwargs):
     """
-    When project is deleted, all project permissions are cascade deleted
-    by Django without emitting role_revoked signal.
+    When project is deleted, capture user role snapshots before revoking them.
+    All project permissions are cascade deleted by Django without emitting role_revoked signal.
     So in order to invalidate nc_user_count quota we need to emit it manually.
     """
-    for permission in get_permissions(instance):
+
+    # Get current user from request context if available
+    current_user = getattr(instance, "_terminating_user", None)
+
+    # 1. Capture current state of all active project roles
+    active_roles = get_permissions(instance)
+
+    # 2. Build termination metadata
+    user_roles_data = []
+    for role in active_roles:
+        user_roles_data.append(
+            {
+                "user_id": role.user.id,
+                "user_username": role.user.username,
+                "role_id": role.role.id,
+                "role_name": role.role.name,
+                "created_by_id": role.created_by.id if role.created_by else None,
+                "original_created": role.created.isoformat(),
+                "original_expiration_time": role.expiration_time.isoformat()
+                if role.expiration_time
+                else None,
+                "is_restored": False,
+                "restored_at": None,
+                "restored_by": None,
+            }
+        )
+
+    # 3. Store metadata in project if there are roles to capture
+    if user_roles_data:
+        instance.termination_metadata = {
+            "terminated_at": timezone.now().isoformat(),
+            "terminated_by": current_user.id if current_user else None,
+            "user_roles": user_roles_data,
+        }
+        instance.save(update_fields=["termination_metadata"])
+
+    # 4. Revoke roles as before
+    for permission in active_roles:
         permission.revoke(reason="Project deletion cascade")
 
 
@@ -133,6 +170,9 @@ def log_project_save(sender, instance: Project, created=False, **kwargs):
     else:
         changed_fields = instance.tracker.changed().copy()
         changed_fields.pop("modified", None)
+        changed_fields.pop(
+            "termination_metadata", None
+        )  # Exclude JSON field from logging
         if not changed_fields:
             return
 

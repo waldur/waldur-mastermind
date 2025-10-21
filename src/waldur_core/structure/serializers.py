@@ -222,6 +222,7 @@ class ProjectSerializer(
     description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
     start_date = serializers.DateField(required=False, allow_null=True)
     end_date = serializers.DateField(required=False, allow_null=True)
+    termination_metadata = serializers.JSONField(read_only=True, allow_null=True)
 
     class Meta:
         model = models.Project
@@ -254,8 +255,13 @@ class ProjectSerializer(
             "max_service_accounts",
             "kind",
             "is_removed",
+            "termination_metadata",
         )
-        read_only_fields = ("end_date_requested_by", "is_removed")
+        read_only_fields = (
+            "end_date_requested_by",
+            "is_removed",
+            "termination_metadata",
+        )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
             "customer": {"lookup_field": "uuid"},
@@ -1233,6 +1239,44 @@ class MoveProjectSerializer(serializers.Serializer):
         lookup_field="uuid",
     )
     preserve_permissions = serializers.BooleanField(required=True)
+
+
+class ProjectRecoverySerializer(serializers.Serializer):
+    restore_team_members = serializers.BooleanField(
+        default=False,
+        help_text=_(
+            "Whether to automatically restore team members who had access before project deletion (staff only)"
+        ),
+    )
+    send_invitations_to_previous_members = serializers.BooleanField(
+        default=False,
+        help_text=_(
+            "Whether to send invitations to users who had access before project deletion"
+        ),
+    )
+
+    def validate(self, data):
+        request = self.context.get("request")
+
+        # Check mutual exclusion
+        if data.get("restore_team_members") and data.get(
+            "send_invitations_to_previous_members"
+        ):
+            raise serializers.ValidationError(
+                _(
+                    "Cannot both restore team members and send invitations. Choose one approach."
+                )
+            )
+
+        # Check staff-only permission for automatic restoration
+        if data.get("restore_team_members") and request and not request.user.is_staff:
+            raise serializers.ValidationError(
+                _(
+                    "Only staff users can automatically restore team members. Use send_invitations_to_previous_members instead."
+                )
+            )
+
+        return data
 
 
 class ServiceOptionsSerializer(serializers.Serializer):

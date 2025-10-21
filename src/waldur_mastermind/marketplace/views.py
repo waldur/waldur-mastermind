@@ -7348,9 +7348,20 @@ class ProviderOfferingToSManagementViewset(core_views.ActionsViewSet):
             | Q(is_active=True, offering__shared=True)
         )
 
-    create_permissions = update_permissions = partial_update_permissions = (
-        destroy_permissions
-    ) = [
+    def check_create_permissions(request, view, obj=None):
+        serializer = view.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        offering = serializer.validated_data.get("offering")
+        if not offering:
+            raise PermissionDenied()
+        if has_permission(
+            request, PermissionEnum.UPDATE_OFFERING, offering
+        ) or has_permission(request, PermissionEnum.UPDATE_OFFERING, offering.customer):
+            return
+        raise PermissionDenied()
+
+    create_permissions = [check_create_permissions]
+    update_permissions = partial_update_permissions = destroy_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING,
             ["offering.customer"],
