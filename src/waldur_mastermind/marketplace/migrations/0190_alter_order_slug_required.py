@@ -3,13 +3,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0187_alter_categorycomponent_description_and_more"),
+        ("marketplace", "0189_populate_order_slug"),
     ]
 
     operations = [
-        migrations.AddField(
+        migrations.AlterField(
             model_name="order",
             name="slug",
-            field=models.SlugField(blank=True, editable=False),
+            field=models.SlugField(),
         ),
     ]
