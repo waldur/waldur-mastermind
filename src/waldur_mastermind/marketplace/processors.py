@@ -8,7 +8,11 @@ from rest_framework.reverse import reverse
 
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace import models, signals
-from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
+from waldur_mastermind.marketplace.callbacks import (
+    resource_creation_succeeded,
+    resource_update_failed,
+    resource_update_succeeded,
+)
 from waldur_mastermind.marketplace.utils import parse_date, validate_limits
 
 logger = logging.getLogger(__name__)
@@ -175,6 +179,10 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
         """Checks if the order is for renewing a prepaid resource."""
         return self.order.attributes.get("action") == "renew"
 
+    def is_update_options_order(self):
+        """Checks if the order is for updating resource options."""
+        return "new_options" in self.order.attributes
+
     def validate_order(self, request):
         if self.is_update_limit_order() or self.is_renewal_order():
             # For both limit updates and renewals, we must validate the final limits.
@@ -209,6 +217,8 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
             self._process_renewal_or_limit_update(user, is_renewal=True)
         elif self.is_update_limit_order():
             self._process_renewal_or_limit_update(user, is_renewal=False)
+        elif self.is_update_options_order():
+            self._process_options_update(user)
         else:
             # Fallback to the original plan switch logic
             self._process_plan_switch(user)
@@ -306,6 +316,40 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
             with transaction.atomic():
                 self.order.resource.set_state_updating()
                 self.order.resource.save(update_fields=["state"])
+
+    def _process_options_update(self, user):
+        """
+        Process an UPDATE order for resource options.
+        """
+        try:
+            new_options = self.order.attributes.get("new_options", {})
+
+            with transaction.atomic():
+                current_options = self.order.resource.options or {}
+                current_options.update(new_options)
+                self.order.resource.options = current_options
+                self.order.resource.save(update_fields=["options"])
+
+                resource_update_succeeded(self.order.resource)
+
+                logger.info(
+                    f"Updated options for resource {self.order.resource.name} "
+                    f"Order ID: {self.order.pk}"
+                )
+
+        except Exception as e:
+            # Set error message on order before calling callback
+            self.order.error_message = str(e)
+            self.order.save(update_fields=["error_message"])
+
+            # Use the standard callback for failed UPDATE orders
+            resource_update_failed(self.order.resource)
+
+            logger.error(
+                f"Error updating options for resource {self.order.resource.name}. "
+                f"Order ID: {self.order.pk}. "
+                f"Exception: {str(e)}."
+            )
 
     def send_request(self, user):
         """This method should send request to backend for plan switches."""

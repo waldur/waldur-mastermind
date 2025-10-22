@@ -1420,6 +1420,32 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.options["email"], "order@example.com")
 
+    def test_create_order_when_offering_requires_order_for_option_change(self):
+        self.fixture.offering.plugin_options = {
+            "create_orders_on_resource_option_change": True
+        }
+        self.fixture.offering.save()
+        response = self.make_request(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.options, None)
+        self.assertTrue(
+            models.Order.objects.filter(uuid=response.data["order_uuid"]).exists()
+        )
+        order = models.Order.objects.filter(uuid=response.data["order_uuid"]).get()
+        self.assertEqual(
+            order.attributes.get("new_options"), {"email": "order@example.com"}
+        )
+
+        order.set_state_executing()
+        order.save()
+        marketplace_utils.process_order(order, self.fixture.owner)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.options, {"email": "order@example.com"})
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.DONE)
+        self.assertEqual(self.resource.state, models.Resource.States.OK)
+
     @data("admin")
     def test_user_can_not_update_resource_options(self, user):
         response = self.make_request(getattr(self.fixture, user))
