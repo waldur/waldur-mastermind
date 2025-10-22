@@ -169,6 +169,10 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="If set to True, pricing and components tab would be concealed.",
     )
+    create_orders_on_resource_option_change = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, create orders when options of related resources are changed.",
+    )
 
 
 class SupportPluginOptionsSerializer(serializers.Serializer):

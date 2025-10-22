@@ -4339,11 +4339,30 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         resource = cast(models.Resource, self.get_object())
         serializer = self.get_serializer(data=request.data, instance=resource)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
 
-        return Response(
-            {"status": _("Resource options are submitted")}, status=status.HTTP_200_OK
-        )
+        # Check if offering requires order creation for option changes
+        if resource.offering.plugin_options.get(
+            "create_orders_on_resource_option_change"
+        ):
+            # Store old options for comparison
+            old_options = resource.options or {}
+            new_options = serializer.validated_data.get("options", {})
+
+            # Create order for option change
+            return self.create_resource_order(
+                request=request,
+                resource=resource,
+                plan=resource.plan,
+                type=OrderTypes.UPDATE,
+                attributes={"old_options": old_options, "new_options": new_options},
+            )
+        else:
+            # Direct update without order
+            serializer.save()
+            return Response(
+                {"status": _("Resource options are submitted")},
+                status=status.HTTP_200_OK,
+            )
 
     update_options_permissions = [
         permissions.check_tos_consent_permission,
