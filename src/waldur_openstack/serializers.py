@@ -3367,9 +3367,13 @@ class OpenStackBackupRestorationSerializer(serializers.HyperlinkedModelSerialize
         required=False,
         help_text=_("New instance name. Leave blank to use source instance name."),
     )
-    security_groups = OpenStackNestedSecurityGroupSerializer(many=True)
-    ports = OpenStackNestedPortSerializer(many=True)
-    floating_ips = OpenStackNestedFloatingIPSerializer(many=True)
+    security_groups = OpenStackNestedSecurityGroupSerializer(
+        many=True, source="instance.security_groups"
+    )
+    ports = OpenStackNestedPortSerializer(many=True, source="instance.ports")
+    floating_ips = OpenStackNestedFloatingIPSerializer(
+        many=True, source="instance.floating_ips"
+    )
 
     class Meta:
         model = models.BackupRestoration
