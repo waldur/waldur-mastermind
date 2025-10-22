@@ -1,5 +1,6 @@
 import logging
 from datetime import timedelta
+from decimal import Decimal
 from typing import cast
 
 from django.core.exceptions import ObjectDoesNotExist
@@ -349,7 +350,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         end,
     ):
         """
-        Create invoice item for limit-based components.
+        Create invoice item for limit-based components with separate discount item.
 
         Creates invoice items for components with LIMIT billing type based on
         resource limits. Handles different limit periods (MONTH, QUARTERLY, ANNUAL, TOTAL)
@@ -426,6 +427,22 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             details=details,
             measured_unit=offering_component.measured_unit,
         )
+
+        # Check if discount applies and create separate discount item
+        discount_amount, discount_applies = cls.calculate_discount_amount(
+            plan_component, total_quantity, plan_component.price
+        )
+
+        if discount_applies:
+            cls.create_discount_invoice_item(
+                resource=source,
+                plan_component=plan_component,
+                invoice=invoice,
+                discount_amount=discount_amount,
+                quantity=total_quantity,
+                start=start,
+                end=end,
+            )
 
     @classmethod
     def update_component_item(
@@ -703,9 +720,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         cls,
         resource: marketplace_models.Resource,
         invoice: invoice_models.Invoice,
-        component_type,
-        new_quantity,
-        offering_component,
+        component_type: str,
+        new_quantity: int,
+        offering_component: marketplace_models.OfferingComponent,
     ):
         """
         Create invoice item for total limit component changes.
@@ -755,15 +772,21 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         diff = new_quantity - total
         if diff == 0:
             return
+
         plan_component = resource.plan.components.get(component__type=component_type)
         details = cls.get_component_details(resource, plan_component)
+
         start = timezone.now()
         end = cls.get_period_end_for_limit_period(offering_component.limit_period)
+
+        # Create main invoice item for the difference
+        final_unit_price = plan_component.price if diff > 0 else -plan_component.price
+
         invoice_models.InvoiceItem.objects.create(
             name=f"{RegistrationManager.get_name(resource)} / {cls.get_component_name(plan_component)}",
             resource=resource,
             project=resource.project,
-            unit_price=plan_component.price if diff > 0 else -plan_component.price,
+            unit_price=final_unit_price,
             unit=invoice_models.Units.QUANTITY,
             quantity=diff if diff > 0 else -diff,
             article_code=offering_component.article_code or resource.plan.article_code,
@@ -899,6 +922,110 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 plan_period=plan_period,
                 is_overage=True,
             )
+
+    @classmethod
+    def calculate_discount_amount(
+        cls,
+        plan_component: marketplace_models.PlanComponent,
+        quantity: int,
+        unit_price: Decimal,
+    ) -> tuple[Decimal, bool]:
+        """
+        Calculate discount amount based on quantity threshold and discount rate.
+
+        Args:
+            plan_component: Plan component with pricing and discount configuration
+            quantity: Quantity being billed
+            unit_price: Original unit price
+
+        Returns:
+            tuple: (discount_amount, discount_applies)
+                - discount_amount: Total discount amount to subtract
+                - discount_applies: Boolean indicating if discount threshold is met
+        """
+        # Check if discount is configured and threshold is met
+        if (
+            plan_component.discount_threshold is not None
+            and plan_component.discount_rate is not None
+            and quantity >= plan_component.discount_threshold
+        ):
+            # Calculate total discount amount
+            total_before_discount = unit_price * quantity
+            discount_amount = total_before_discount * (
+                Decimal(plan_component.discount_rate) / Decimal(100)
+            )
+
+            logger.info(
+                f"Discount applies for component '{plan_component.component.type}'. "
+                f"Rate: {plan_component.discount_rate}%, Quantity: {quantity}, "
+                f"Total before discount: {total_before_discount}, Discount amount: {discount_amount}"
+            )
+            return discount_amount, True
+
+        return Decimal(0), False
+
+    @classmethod
+    def create_discount_invoice_item(
+        cls,
+        resource: marketplace_models.Resource,
+        plan_component: marketplace_models.PlanComponent,
+        invoice: invoice_models.Invoice,
+        discount_amount: Decimal,
+        quantity: int,
+        start,
+        end,
+        component_name: str | None = None,
+    ):
+        """
+        Create a separate invoice item for discount with negative unit price.
+
+        Args:
+            resource: Marketplace resource
+            plan_component: Plan component with discount configuration
+            invoice: Invoice to add the discount item to
+            discount_amount: Total discount amount (positive value)
+            quantity: Original quantity being discounted
+            start: Billing period start
+            end: Billing period end
+            component_name: Optional custom component name for display
+        """
+        offering_component = plan_component.component
+
+        details = cls.get_component_details(resource, plan_component)
+        details["is_discount"] = True
+        details["discount_threshold"] = plan_component.discount_threshold
+        details["discount_rate"] = plan_component.discount_rate
+        details["original_quantity"] = quantity
+        details["discount_type"] = "volume_discount"
+
+        component_display_name = component_name or cls.get_component_name(
+            plan_component
+        )
+        discount_name = (
+            f"{RegistrationManager.get_name(resource)} / "
+            f"{component_display_name} / "
+            f"Volume Discount ({plan_component.discount_rate}%)"
+        )
+
+        invoice_models.InvoiceItem.objects.create(
+            name=discount_name,
+            resource=resource,
+            project=resource.project,
+            unit_price=-discount_amount,  # Negative to represent discount
+            unit=invoice_models.Units.QUANTITY,
+            quantity=1,  # Quantity of 1 since discount_amount is the total
+            article_code=offering_component.article_code or resource.plan.article_code,
+            invoice=invoice,
+            start=start,
+            end=end,
+            details=details,
+            measured_unit="",  # No measured unit for discount items
+        )
+
+        logger.info(
+            f"Created discount invoice item for resource '{resource.uuid}': "
+            f"Discount amount: {discount_amount}, Rate: {plan_component.discount_rate}%"
+        )
 
     @classmethod
     def _create_or_update_usage_invoice_item(

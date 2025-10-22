@@ -3183,6 +3183,42 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     update_quotas_permissions = update_permissions
     update_quotas_validators = [can_manage_plan]
 
+    @extend_schema(
+        request=serializers.DiscountsUpdateSerializer,
+        responses=None,
+    )
+    @action(detail=True, methods=["post"])
+    def update_discounts(self, request, uuid):
+        """
+        Update volume discount configuration for plan components.
+
+        This endpoint allows updating discount thresholds and rates for multiple
+        plan components in a single request. Discounts are applied automatically
+        when limit quantities meet or exceed the threshold.
+
+        The discount configuration affects future billing:
+        - Creates separate invoice items showing the discount
+        - Can be enabled or disabled per component
+        """
+        plan: models.Plan = self.get_object()
+        serializer = serializers.DiscountsUpdateSerializer(
+            data=request.data, instance=plan
+        )
+        serializer.is_valid(raise_exception=True)
+        updated_components = serializer.save()
+
+        # Log the discount update
+        logger.info(
+            f"Discounts updated for plan {plan.name} (UUID: {plan.uuid}) "
+            f"by user {request.user.username}. "
+            f"Updated {len(updated_components)} component(s)."
+        )
+
+        return Response(status=status.HTTP_200_OK)
+
+    update_discounts_permissions = update_permissions
+    update_discounts_validators = [can_manage_plan]
+
     archive_permissions = [
         permission_factory(
             PermissionEnum.ARCHIVE_OFFERING_PLAN,
