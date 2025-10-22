@@ -156,6 +156,44 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.assertIn("order_in_progress", response.data)
         self.assertIsNotNone(response.data["order_in_progress"])
 
+    def test_order_in_progress_includes_url(self):
+        order = models.Order.objects.create(
+            project=self.project,
+            resource=self.resource,
+            state=OrderStates.EXECUTING,
+            created_by=self.fixture.owner,
+            offering=self.offering,
+        )
+        response = self.get_resource(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        order_in_progress = response.data["order_in_progress"]
+        self.assertIsNotNone(order_in_progress)
+        self.assertIn("url", order_in_progress)
+        self.assertTrue(
+            order_in_progress["url"].endswith(f"marketplace-orders/{order.uuid.hex}/")
+        )
+
+    def test_creation_order_includes_url(self):
+        order = models.Order.objects.create(
+            project=self.project,
+            resource=self.resource,
+            state=OrderStates.ERRED,
+            created_by=self.fixture.owner,
+            offering=self.offering,
+        )
+        self.resource.set_state_erred()
+        self.resource.save()
+        response = self.get_resource(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        creation_order = response.data["creation_order"]
+        self.assertIsNotNone(creation_order)
+        self.assertIn("url", creation_order)
+        self.assertTrue(
+            creation_order["url"].endswith(f"marketplace-orders/{order.uuid.hex}/")
+        )
+
     def test_resource_erred_creation_order_is_exposed(self):
         models.Order.objects.create(
             project=self.project,

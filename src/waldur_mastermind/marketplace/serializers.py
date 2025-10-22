@@ -2766,6 +2766,7 @@ class BaseOrderSerializer(BaseItemSerializer):
 class OrderDetailsSerializer(BaseOrderSerializer):
     class Meta(BaseOrderSerializer.Meta):
         fields = BaseOrderSerializer.Meta.fields + (
+            "url",
             "consumer_reviewed_by",
             "consumer_reviewed_by_full_name",
             "consumer_reviewed_by_username",
@@ -2796,6 +2797,10 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "termination_comment",
             "backend_id",
         )
+        extra_kwargs = {
+            **BaseOrderSerializer.Meta.extra_kwargs,
+            "url": {"lookup_field": "uuid", "view_name": "marketplace-order-detail"},
+        }
 
     consumer_reviewed_by = serializers.ReadOnlyField(
         source="consumer_reviewed_by.username",
