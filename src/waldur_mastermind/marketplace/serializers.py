@@ -1093,6 +1093,128 @@ class QuotasUpdateSerializer(serializers.Serializer):
                 old_component.save(update_fields=["amount"])
 
 
+class DiscountConfigSerializer(serializers.Serializer):
+    """Serializer for individual component discount configuration."""
+
+    discount_threshold = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=1,
+        help_text="Minimum quantity to be eligible for discount.",
+    )
+    discount_rate = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=0,
+        max_value=100,
+        help_text="Discount rate in percentage (0-100).",
+    )
+
+    def validate(self, attrs):
+        """Ensure both threshold and rate are set together or both are None."""
+        threshold = attrs.get("discount_threshold")
+        rate = attrs.get("discount_rate")
+
+        # If one is provided, both must be provided
+        if (threshold is not None and rate is None) or (
+            threshold is None and rate is not None
+        ):
+            raise serializers.ValidationError(
+                "Both discount_threshold and discount_rate must be provided together, "
+                "or both must be null to remove discount."
+            )
+
+        # If both are provided, validate they are reasonable
+        if threshold is not None and rate is not None:
+            if threshold <= 0:
+                raise serializers.ValidationError(
+                    "discount_threshold must be a positive number."
+                )
+            if rate < 0 or rate > 100:
+                raise serializers.ValidationError(
+                    "discount_rate must be between 0 and 100."
+                )
+
+        return attrs
+
+
+class DiscountsUpdateSerializer(serializers.Serializer):
+    """Serializer for updating discounts for multiple plan components."""
+
+    discounts = serializers.DictField(
+        child=DiscountConfigSerializer(),
+        help_text="Dictionary mapping component types to their discount configuration.",
+    )
+
+    def validate_discounts(self, value):
+        """Validate that component types exist in the plan's offering."""
+        plan: models.Plan = self.instance
+
+        new_keys = set(value.keys())
+        valid_types = {component.type for component in plan.offering.components.all()}
+
+        invalid_types = new_keys - valid_types
+        if invalid_types:
+            raise serializers.ValidationError(
+                f"Invalid component types: {', '.join(invalid_types)}. "
+                f"Valid types are: {', '.join(valid_types)}"
+            )
+
+        return value
+
+    def save(self):
+        """Apply discount configuration to plan components."""
+        plan: models.Plan = self.instance
+        discounts_config = self.validated_data["discounts"]
+
+        updated_components = []
+
+        for component_type, discount_data in discounts_config.items():
+            try:
+                plan_component = plan.components.get(component__type=component_type)
+            except models.PlanComponent.DoesNotExist:
+                logger.warning(
+                    f"PlanComponent with type '{component_type}' not found in plan '{plan.uuid}'. "
+                    "Skipping discount update for this component."
+                )
+                continue
+
+            # Get the new values (could be None to clear discount)
+            new_threshold = discount_data.get("discount_threshold")
+            new_rate = discount_data.get("discount_rate")
+
+            # Track if changes were made
+            changed = False
+            update_fields = []
+
+            if plan_component.discount_threshold != new_threshold:
+                plan_component.discount_threshold = new_threshold
+                update_fields.append("discount_threshold")
+                changed = True
+
+            if plan_component.discount_rate != new_rate:
+                plan_component.discount_rate = new_rate
+                update_fields.append("discount_rate")
+                changed = True
+
+            if changed:
+                plan_component.save(update_fields=update_fields)
+                updated_components.append(
+                    {
+                        "component_type": component_type,
+                        "discount_threshold": new_threshold,
+                        "discount_rate": new_rate,
+                    }
+                )
+
+                logger.info(
+                    f"Updated discount for plan component '{component_type}' in plan '{plan.uuid}'. "
+                    f"Threshold: {new_threshold}, Rate: {new_rate}%"
+                )
+
+        return updated_components
+
+
 class BasePlanSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -1730,6 +1852,8 @@ class PlanComponentSerializer(serializers.ModelSerializer):
             "amount",
             "price",
             "future_price",
+            "discount_threshold",
+            "discount_rate",
         )
 
 

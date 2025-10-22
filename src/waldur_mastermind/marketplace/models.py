@@ -1105,6 +1105,16 @@ class PlanComponent(LoggableMixin, models.Model):
         verbose_name=_("Price per unit for future month."),
         null=True,
     )
+    discount_threshold = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=_("Minimum amount to be eligible for discount."),
+    )
+    discount_rate = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=_("Discount rate in percentage."),
+    )
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     @property
