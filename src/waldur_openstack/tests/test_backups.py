@@ -3,10 +3,12 @@ from unittest.mock import patch
 
 from ddt import data, ddt
 from rest_framework import status, test
+from rest_framework.test import APIRequestFactory
 
 from waldur_core.core.enums import CoreStates
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack import models
+from waldur_openstack.serializers import OpenStackBackupRestorationSerializer
 
 from . import factories, fixtures
 
@@ -446,6 +448,100 @@ class BackupRestorationTest(test.APITransactionTestCase):
                 instance__name=payload["name"]
             ).exists
         )
+
+    def test_backup_restoration_serializer_includes_instance_floating_ips(self):
+        """Test that BackupRestoration serializer can access floating_ips from the instance."""
+        # Create a floating IP attached to the instance
+        floating_ip = factories.FloatingIPFactory(
+            tenant=self.backup.instance.tenant,
+            state=CoreStates.OK,
+        )
+        port = factories.PortFactory(
+            instance=self.backup.instance,
+            tenant=self.backup.instance.tenant,
+        )
+        floating_ip.port = port
+        floating_ip.save()
+
+        # Create a backup restoration
+        backup_restoration = models.BackupRestoration.objects.create(
+            backup=self.backup,
+            instance=self.backup.instance,
+            flavor=self.valid_flavor,
+        )
+
+        # Test that the serializer can access floating_ips from the instance
+        request_factory = APIRequestFactory()
+        request = request_factory.get("/")
+        serializer = OpenStackBackupRestorationSerializer(
+            backup_restoration, context={"request": request}
+        )
+        serialized_data = serializer.data
+
+        self.assertIn("floating_ips", serialized_data)
+        self.assertEqual(len(serialized_data["floating_ips"]), 1)
+        self.assertEqual(
+            serialized_data["floating_ips"][0]["uuid"], floating_ip.uuid.hex
+        )
+
+    def test_backup_restoration_serializer_includes_instance_security_groups(self):
+        """Test that BackupRestoration serializer can access security_groups from the instance."""
+        # Create a security group attached to the instance
+        security_group = factories.SecurityGroupFactory(
+            tenant=self.backup.instance.tenant
+        )
+        self.backup.instance.security_groups.add(security_group)
+
+        # Create a backup restoration
+        backup_restoration = models.BackupRestoration.objects.create(
+            backup=self.backup,
+            instance=self.backup.instance,
+            flavor=self.valid_flavor,
+        )
+
+        # Test that the serializer can access security_groups from the instance
+        request_factory = APIRequestFactory()
+        request = request_factory.get("/")
+        serializer = OpenStackBackupRestorationSerializer(
+            backup_restoration, context={"request": request}
+        )
+        serialized_data = serializer.data
+
+        self.assertIn("security_groups", serialized_data)
+        self.assertEqual(len(serialized_data["security_groups"]), 1)
+        self.assertEqual(
+            serialized_data["security_groups"][0]["name"], security_group.name
+        )
+
+    def test_backup_restoration_serializer_includes_instance_ports(self):
+        """Test that BackupRestoration serializer can access ports from the instance."""
+        # Create a port attached to the instance
+        port = factories.PortFactory(
+            instance=self.backup.instance,
+            tenant=self.backup.instance.tenant,
+        )
+
+        # Create a backup restoration
+        backup_restoration = models.BackupRestoration.objects.create(
+            backup=self.backup,
+            instance=self.backup.instance,
+            flavor=self.valid_flavor,
+        )
+
+        # Test that the serializer can access ports from the instance
+        request_factory = APIRequestFactory()
+        request = request_factory.get("/")
+        serializer = OpenStackBackupRestorationSerializer(
+            backup_restoration, context={"request": request}
+        )
+        serialized_data = serializer.data
+
+        self.assertIn("ports", serialized_data)
+        # Instance should have at least one port (the one we created)
+        self.assertGreaterEqual(len(serialized_data["ports"]), 1)
+        # Check that the port URL contains the port UUID since the nested serializer uses URL field
+        port_urls = [p["url"] for p in serialized_data["ports"]]
+        self.assertTrue(any(port.uuid.hex in url for url in port_urls))
 
     def _get_valid_payload(self, **options):
         payload = {
