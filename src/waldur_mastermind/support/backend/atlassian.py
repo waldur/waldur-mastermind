@@ -976,6 +976,9 @@ class ServiceDeskBackend(SupportBackend):
         if reporter:
             issue.reporter = reporter
 
+        # Update resource backend_id if issue is connected to a resource and custom field mapping is enabled
+        self._update_resource_backend_id_from_custom_fields(issue)
+
     def get_or_create_support_user(self, user_id):
         author, _ = models.SupportUser.objects.get_or_create(
             backend_id=user_id,
@@ -1260,3 +1263,78 @@ class ServiceDeskBackend(SupportBackend):
     def delete_old_comments(self, issue):
         customer_request = self.manager.get_customer_request(issue.backend_id)
         CommentSynchronizer(self, issue, customer_request).delete_old_comments()
+
+    def _update_resource_backend_id_from_custom_fields(self, issue):
+        """
+        Update connected resource's backend_id from custom fields if custom field mapping is enabled
+        and the issue is connected to a resource.
+        """
+        # Only proceed if custom field mapping is enabled
+        if not config.ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED:
+            return
+
+        # Check if issue is connected to a resource via generic foreign key
+        if not (issue.resource_content_type and issue.resource_object_id):
+            return
+
+        try:
+            # Get the connected resource
+            resource = issue.resource_content_type.get_object_for_this_type(
+                pk=issue.resource_object_id
+            )
+
+            # Check if resource has a backend_id field (most Waldur resources do)
+            if not hasattr(resource, "backend_id"):
+                logger.debug(
+                    f"Resource {resource} does not have backend_id field, skipping update"
+                )
+                return
+
+            # Get the full Jira issue with all custom fields
+            jira_issue = self.get(f"/rest/api/2/issue/{issue.key}")
+            fields = jira_issue.get("fields", {})
+
+            # Look for waldur_backend_id custom field
+            waldur_backend_id_field = None
+            try:
+                waldur_backend_id_field = self.get_field_id_by_name("waldur_backend_id")
+            except JiraBackendError:
+                # Field doesn't exist, try known field ID
+                waldur_backend_id_field = "customfield_10200"
+
+            if waldur_backend_id_field and waldur_backend_id_field in fields:
+                waldur_backend_id_value = fields[waldur_backend_id_field]
+
+                if waldur_backend_id_value and str(waldur_backend_id_value).strip():
+                    # Update resource's backend_id if it differs
+                    current_backend_id = getattr(resource, "backend_id", "")
+                    new_backend_id = str(waldur_backend_id_value).strip()
+
+                    if current_backend_id != new_backend_id:
+                        logger.info(
+                            f"Updating resource {resource} backend_id from '{current_backend_id}' "
+                            f"to '{new_backend_id}' based on Service Desk custom field"
+                        )
+                        resource.backend_id = new_backend_id
+                        resource.save(update_fields=["backend_id"])
+
+                        logger.debug(
+                            f"Successfully updated resource backend_id for issue {issue.key}"
+                        )
+                    else:
+                        logger.debug(
+                            f"Resource backend_id already matches custom field value: {new_backend_id}"
+                        )
+                else:
+                    logger.debug(
+                        f"waldur_backend_id custom field is empty for issue {issue.key}"
+                    )
+            else:
+                logger.debug(
+                    f"waldur_backend_id custom field ({waldur_backend_id_field}) not found in issue {issue.key}"
+                )
+
+        except Exception as e:
+            logger.warning(
+                f"Error updating resource backend_id from custom fields for issue {issue.key}: {e}"
+            )

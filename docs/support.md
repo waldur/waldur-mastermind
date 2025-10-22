@@ -136,7 +136,38 @@ class SupportUser:
     is_active: bool     # Activity status
 ```
 
-### 5. Template System
+### 5. Custom Field Integration
+
+**Resource Backend ID Synchronization:**
+
+The system supports automatic resource backend_id updates via Service Desk custom fields:
+
+```python
+# Automatic sync flow during issue updates
+def _update_resource_backend_id_from_custom_fields(issue):
+    """
+    Updates connected resource's backend_id from Service Desk custom fields.
+
+    Triggered during: issue synchronization from helpdesk
+    Requirements: ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED = True
+    Custom Field: waldur_backend_id (customfield_10200)
+    """
+```
+
+**Integration Benefits:**
+
+- External systems can update Waldur resource identifiers via Service Desk
+- One-way data synchronization from helpdesk to Waldur resources
+- Automated resource identifier management from external platforms
+- Enhanced integration capabilities for third-party tools
+
+**Supported Resource Types:**
+
+- Marketplace Orders (`marketplace.Order`)
+- Marketplace Resources (`marketplace.Resource`)
+- Any resource with `backend_id` field connected via Issue generic foreign key
+
+### 6. Template System
 
 Templates enable standardized issue creation:
 
@@ -156,7 +187,7 @@ class TemplateStatusNotification:
     html_template: str  # Email template
 ```
 
-### 6. Status Management
+### 7. Status Management
 
 `IssueStatus` maps backend statuses to resolution types:
 
@@ -207,7 +238,7 @@ PATCH /api/support-issue-statuses/{uuid}/
 DELETE /api/support-issue-statuses/{uuid}/
 ```
 
-### 7. Feedback System
+### 8. Feedback System
 
 Customer satisfaction tracking:
 
@@ -230,7 +261,7 @@ Full-featured integration with:
 - Request type management
 - Customer portal integration
 - Webhook support for real-time updates
-- Custom field mapping
+- Custom field mapping with one-way resource synchronization (Service Desk → Waldur)
 
 **Authentication Methods:**
 
@@ -280,6 +311,53 @@ OAuth 2.0 > Personal Access Token > API Token > Basic Authentication
 2. Obtain client_id and access_token from the OAuth flow
 3. Configure the credentials in your environment variables
 4. The system will automatically use OAuth 2.0 when configured
+
+**Custom Field Mapping:**
+
+Waldur supports custom field mapping with Atlassian Service Desk for enhanced integration capabilities:
+
+```bash
+# Enable custom field mapping
+ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED = True
+
+# Standard custom field mappings
+ATLASSIAN_IMPACT_FIELD = "Impact"
+ATLASSIAN_ORGANISATION_FIELD = "Reporter organization"
+ATLASSIAN_PROJECT_FIELD = "Waldur Project"
+ATLASSIAN_AFFECTED_RESOURCE_FIELD = "Affected Resource"
+ATLASSIAN_REPORTER_FIELD = "Original Reporter"
+ATLASSIAN_CALLER_FIELD = "Request participants"
+ATLASSIAN_TEMPLATE_FIELD = "Issue Template"
+```
+
+**Resource Backend ID Synchronization:**
+
+The system automatically synchronizes resource backend IDs using the `waldur_backend_id` custom field:
+
+1. **Jira Setup**: Create a custom field named `waldur_backend_id` (text field, single line)
+2. **Field Mapping**: The system automatically detects field ID `customfield_10200` or uses field lookup
+3. **Service Desk → Waldur Sync**:
+   - Issue synchronization reads `waldur_backend_id` custom field and updates connected resource's `backend_id`
+   - External systems can update Waldur resources by modifying the custom field in Service Desk tickets
+
+**Use Cases:**
+
+- External systems can update Waldur resource identifiers via Service Desk
+- Cross-platform resource synchronization through helpdesk integration
+- Automated data consistency maintenance across integrated systems
+- Third-party tool integration via Service Desk custom field updates
+
+**Configuration Example:**
+
+```python
+# Enable custom field integration
+ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED = True
+
+# The system will automatically:
+# 1. Read waldur_backend_id custom field during issue synchronization
+# 2. Update connected resource's backend_id with the custom field value
+# 3. Enable external systems to update Waldur resources via Service Desk
+```
 
 #### 2. Micro Focus SMAX
 
@@ -453,6 +531,17 @@ WALDUR_SUPPORT_ENABLED = True
 
 # Select active backend
 WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE = 'atlassian'  # or 'zammad', 'smax', 'basic'
+
+# Enable custom field mapping for enhanced integration
+ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED = True
+
+# Configure custom field mappings
+ATLASSIAN_IMPACT_FIELD = "Impact"
+ATLASSIAN_ORGANISATION_FIELD = "Reporter organization"
+ATLASSIAN_PROJECT_FIELD = "Waldur Project"
+ATLASSIAN_AFFECTED_RESOURCE_FIELD = "Affected Resource"
+ATLASSIAN_REPORTER_FIELD = "Original Reporter"
+ATLASSIAN_TEMPLATE_FIELD = "Issue Template"
 ```
 
 ### Backend Configuration
@@ -601,12 +690,23 @@ Scheduled background tasks:
 - Sanitize user input in comments/descriptions
 - Use HTTPS for all backend connections
 
-### 5. Monitoring
+### 5. Custom Field Integration
+
+- **Enable custom field mapping**: Set `ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED = True` for enhanced integration
+- **Create required custom fields**: Ensure `waldur_backend_id` custom field exists in Jira/Service Desk
+- **Test field permissions**: Verify API user can read/write custom fields
+- **Monitor field updates**: Log resource backend_id changes for audit trails
+- **Validate field values**: Ensure custom field values are appropriate for resource backend IDs
+- **Document field usage**: Maintain clear documentation of custom field purposes and expected values
+
+### 6. Monitoring
 
 - Monitor sync task execution
 - Track webhook delivery failures
 - Log backend API errors
 - Set up alerts for SLA breaches
+- Monitor custom field mapping operations
+- Track resource backend_id updates via logs
 
 ## Troubleshooting
 
@@ -640,6 +740,35 @@ Scheduled background tasks:
 - Review storage permissions
 - Monitor backend API limits
 
+#### 5. Custom Field Mapping Issues
+
+- **Field Not Found**: Verify `waldur_backend_id` custom field exists in Jira (should be `customfield_10200`)
+- **Mapping Disabled**: Ensure `ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED = True`
+- **Resource Not Updated**: Check if issue is properly connected to resource via `resource_content_type` and `resource_object_id`
+- **Permission Errors**: Verify Jira user has permission to read/write custom fields
+- **Field Name Mismatch**: Ensure custom field name matches exactly `waldur_backend_id`
+- **API Errors**: Check Jira REST API logs for custom field access issues
+
+**Debugging Custom Field Integration:**
+
+```python
+# Check if custom field exists
+from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+backend = ServiceDeskBackend()
+
+# Test field lookup
+try:
+    field_id = backend.get_field_id_by_name("waldur_backend_id")
+    print(f"Found field ID: {field_id}")
+except Exception as e:
+    print(f"Field lookup failed: {e}")
+
+# Test direct field access
+issue_data = backend.get("/rest/api/2/issue/YOUR-TICKET-KEY")
+waldur_field_value = issue_data["fields"].get("customfield_10200")
+print(f"Custom field value: {waldur_field_value}")
+```
+
 ## Integration with Marketplace
 
 The support module integrates with the marketplace for ticket-based offerings:
@@ -648,6 +777,14 @@ The support module integrates with the marketplace for ticket-based offerings:
 2. Issue status changes trigger order callbacks
 3. Resolution status determines order success/failure
 4. Comments and attachments sync bidirectionally
+5. **Resource backend_id synchronization**: Custom field mapping enables automatic resource identifier updates
+
+**Enhanced Marketplace Integration Features:**
+
+- **Support.OfferingTemplate Integration**: Marketplace orders for support offerings automatically create connected support issues
+- **One-way Resource Sync**: Service Desk custom field updates can automatically update connected marketplace resource backend IDs
+- **Cross-System Data Flow**: External systems can update Waldur resources via Service Desk custom field modifications
+- **Automated Identifier Management**: Maintains consistent resource identifiers across integrated platforms
 
 See [Ticket-Based Offerings Documentation](plugins/ticket-based-offerings.md) for detailed marketplace integration.
 
