@@ -145,6 +145,32 @@ def _optimize_customer_serializer_eager_load(sender):
     if hasattr(sender.eager_load, "_billing_optimized"):
         return
 
+    # If credit optimization is already applied, we need to combine them
+    if hasattr(sender.eager_load, "_credit_optimized"):
+        # Store the credit-optimized method
+        credit_optimized_method = sender.eager_load
+
+        @staticmethod
+        def combined_eager_load(queryset, request=None):
+            # Call the credit-optimized method first
+            queryset = credit_optimized_method(queryset, request)
+
+            # Add billing optimizations
+            if request:
+                fields = request.query_params.getlist("field")
+                if "billing_price_estimate" in fields:
+                    queryset._billing_optimization_enabled = True
+
+            return queryset
+
+        # Mark as optimized for both
+        combined_eager_load._billing_optimized = True
+        combined_eager_load._credit_optimized = True
+
+        # Replace the eager_load method
+        sender.eager_load = combined_eager_load
+        return
+
     # Store the original eager_load method
     original_eager_load = sender.eager_load
 

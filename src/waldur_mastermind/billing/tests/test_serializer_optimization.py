@@ -129,3 +129,95 @@ class SerializerOptimizationTest(TestCase):
 
         # Original should have been called exactly once (no recursion)
         original_eager_load.assert_called_once()
+
+    def test_recursion_fix_with_circular_optimizations(self):
+        """Test that applying optimizations in any order doesn't cause recursion."""
+        # Test case 1: billing first, then credit
+        mock_serializer1 = Mock(spec=structure_serializers.CustomerSerializer)
+        mock_serializer1.__name__ = "CustomerSerializer"
+
+        original_eager_load1 = Mock(return_value=Mock())
+        mock_serializer1.eager_load = original_eager_load1
+
+        # Apply billing first
+        billing_serializers._optimize_customer_serializer_eager_load(mock_serializer1)
+        # Apply credit second
+        invoice_serializers._optimize_customer_serializer_eager_load_for_credit(
+            mock_serializer1
+        )
+
+        # Test case 2: credit first, then billing
+        mock_serializer2 = Mock(spec=structure_serializers.CustomerSerializer)
+        mock_serializer2.__name__ = "CustomerSerializer"
+
+        original_eager_load2 = Mock(return_value=Mock())
+        mock_serializer2.eager_load = original_eager_load2
+
+        # Apply credit first
+        invoice_serializers._optimize_customer_serializer_eager_load_for_credit(
+            mock_serializer2
+        )
+        # Apply billing second
+        billing_serializers._optimize_customer_serializer_eager_load(mock_serializer2)
+
+        # Both final methods should have both optimization flags
+        self.assertTrue(hasattr(mock_serializer1.eager_load, "_billing_optimized"))
+        self.assertTrue(hasattr(mock_serializer1.eager_load, "_credit_optimized"))
+        self.assertTrue(hasattr(mock_serializer2.eager_load, "_billing_optimized"))
+        self.assertTrue(hasattr(mock_serializer2.eager_load, "_credit_optimized"))
+
+        # Test that calling either method works without recursion
+        mock_request = Mock()
+        mock_request.query_params.getlist = Mock(
+            return_value=["billing_price_estimate", "customer_credit"]
+        )
+        mock_queryset = Mock()
+        mock_queryset.select_related = Mock(return_value=mock_queryset)
+
+        # These should not raise RecursionError
+        result1 = mock_serializer1.eager_load(mock_queryset, mock_request)
+        result2 = mock_serializer2.eager_load(mock_queryset, mock_request)
+
+        self.assertIsNotNone(result1)
+        self.assertIsNotNone(result2)
+
+        # Original methods should have been called exactly once each (no recursion)
+        original_eager_load1.assert_called_once()
+        original_eager_load2.assert_called_once()
+
+    def test_combined_optimization_handles_all_fields(self):
+        """Test that combined optimization handles both billing and credit fields correctly."""
+        mock_serializer = Mock(spec=structure_serializers.CustomerSerializer)
+        mock_serializer.__name__ = "CustomerSerializer"
+
+        # Create a queryset mock that returns itself from select_related
+        mock_queryset = Mock()
+        mock_queryset.select_related = Mock(return_value=mock_queryset)
+
+        original_eager_load = Mock(return_value=mock_queryset)
+        mock_serializer.eager_load = original_eager_load
+
+        # Apply both optimizations
+        billing_serializers._optimize_customer_serializer_eager_load(mock_serializer)
+        invoice_serializers._optimize_customer_serializer_eager_load_for_credit(
+            mock_serializer
+        )
+
+        # Verify both optimization flags are present on the final method
+        self.assertTrue(hasattr(mock_serializer.eager_load, "_billing_optimized"))
+        self.assertTrue(hasattr(mock_serializer.eager_load, "_credit_optimized"))
+
+        # Test that the combined method works without errors
+        mock_request = Mock()
+        mock_request.query_params.getlist = Mock(
+            return_value=["billing_price_estimate", "customer_credit"]
+        )
+
+        # This call should not raise any exception (recursion would cause RecursionError)
+        result = mock_serializer.eager_load(mock_queryset, mock_request)
+
+        # Verify the result is a queryset (our mock)
+        self.assertIsNotNone(result)
+
+        # Verify original method was called (proving no infinite recursion)
+        original_eager_load.assert_called_once()
