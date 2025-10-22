@@ -1215,6 +1215,25 @@ class DiscountsUpdateSerializer(serializers.Serializer):
         return updated_components
 
 
+class NestedPlanComponentSerializer(serializers.ModelSerializer):
+    type = serializers.ReadOnlyField(source="component.type")
+    name = serializers.ReadOnlyField(source="component.name")
+    measured_unit = serializers.ReadOnlyField(source="component.measured_unit")
+
+    class Meta:
+        model = models.PlanComponent
+        fields = (
+            "type",
+            "name",
+            "measured_unit",
+            "amount",
+            "price",
+            "future_price",
+            "discount_threshold",
+            "discount_rate",
+        )
+
+
 class BasePlanSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -1224,6 +1243,7 @@ class BasePlanSerializer(
     )
     is_active = serializers.SerializerMethodField()
     description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    components = NestedPlanComponentSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.Plan
@@ -1242,6 +1262,7 @@ class BasePlanSerializer(
             "switch_price",
             "backend_id",
             "organization_groups",
+            "components",
         )
         read_ony_fields = ("unit_price", "archived")
         extra_kwargs = {
