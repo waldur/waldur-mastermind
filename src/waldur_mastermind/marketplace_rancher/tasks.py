@@ -30,7 +30,7 @@ def report_rancher_usage():
                 resource.id,
             )
             continue
-        usage = collector.collect_usage(resource.scope)
+        usage = collector.collect_usage(resource)
         today = datetime.today()
 
         for component_type, quantity in usage.items():
