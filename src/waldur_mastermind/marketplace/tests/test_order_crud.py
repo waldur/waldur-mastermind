@@ -3,6 +3,7 @@ from unittest import mock
 
 from constance.test.unittest import override_config as override_constance_config
 from ddt import data, ddt
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -746,6 +747,113 @@ class OrderNameValidationTest(BaseOrderCreateTest):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Name is too long", str(response.data))
+
+
+@override_constance_config(ENABLE_ORDER_START_DATE=True)
+class OrderStartDateCreateTest(BaseOrderCreateTest):
+    def test_order_creation_succeeds_with_valid_start_date(self):
+        # Arrange
+        future_date = (timezone.now() + datetime.timedelta(days=10)).date()
+        payload = {"start_date": future_date.isoformat()}
+
+        # Act
+        response = self.create_order(self.fixture.owner, add_payload=payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(order.start_date, future_date)
+
+    def test_order_creation_fails_with_past_start_date(self):
+        # Arrange
+        past_date = (timezone.now() - datetime.timedelta(days=1)).date()
+        payload = {"start_date": past_date.isoformat()}
+
+        # Act
+        response = self.create_order(self.fixture.owner, add_payload=payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Start date cannot be in the past", str(response.data))
+
+    def test_order_creation_fails_if_start_date_is_before_project_start_date(self):
+        # Arrange
+        self.project.start_date = (timezone.now() + datetime.timedelta(days=20)).date()
+        self.project.save()
+
+        order_start_date = (timezone.now() + datetime.timedelta(days=10)).date()
+        payload = {"start_date": order_start_date.isoformat()}
+
+        # Act
+        response = self.create_order(self.fixture.owner, add_payload=payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Order start date cannot be earlier than the project start date",
+            str(response.data),
+        )
+
+    def test_order_creation_fails_if_start_date_is_after_project_end_date(self):
+        # Arrange
+        self.project.end_date = (timezone.now() + datetime.timedelta(days=10)).date()
+        self.project.save()
+
+        order_start_date = (timezone.now() + datetime.timedelta(days=20)).date()
+        payload = {"start_date": order_start_date.isoformat()}
+
+        # Act
+        response = self.create_order(self.fixture.owner, add_payload=payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Order start date cannot be later than the project end date",
+            str(response.data),
+        )
+
+    def test_order_creation_succeeds_if_start_date_is_within_project_lifecycle(self):
+        # Arrange
+        self.project.start_date = (timezone.now() + datetime.timedelta(days=5)).date()
+        self.project.end_date = (timezone.now() + datetime.timedelta(days=20)).date()
+        self.project.save()
+
+        order_start_date = (timezone.now() + datetime.timedelta(days=10)).date()
+        payload = {"start_date": order_start_date.isoformat()}
+
+        # Act
+        response = self.create_order(self.fixture.owner, add_payload=payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(order.start_date, order_start_date)
+
+    def test_order_creation_fails_with_invalid_date_format(self):
+        # Arrange
+        payload = {"start_date": "2024/01/15"}  # Invalid format
+
+        # Act
+        response = self.create_order(self.fixture.owner, add_payload=payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Date has wrong format", str(response.data))
+
+    @override_constance_config(ENABLE_ORDER_START_DATE=False)
+    def test_start_date_is_ignored_when_feature_is_disabled(self):
+        # Arrange
+        future_date = (timezone.now() + datetime.timedelta(days=10)).date()
+        payload = {"start_date": future_date.isoformat()}
+
+        # Act
+        response = self.create_order(self.fixture.owner, add_payload=payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        # The serializer should have ignored the field, so it remains None in the model.
+        self.assertIsNone(order.start_date)
 
 
 @ddt

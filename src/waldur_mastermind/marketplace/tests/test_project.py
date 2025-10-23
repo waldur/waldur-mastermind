@@ -2,6 +2,7 @@ import datetime
 from unittest import mock
 
 from django.test import override_settings
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -123,14 +124,22 @@ class ProjectStartDateTest(test.APITransactionTestCase):
         self.order.save()
 
     def test_order_process_when_project_start_date_unset(self):
-        self.project.start_date = None
-        self.project.save()
+        # Arrange
+        # Mocking to simulate an auto-approving offering
+        with mock.patch(
+            "waldur_mastermind.marketplace.utils.order_should_not_be_reviewed_by_provider"
+        ) as mocked_check:
+            mocked_check.return_value = True
+            # Act
+            self.project.start_date = None
+            self.project.save()
 
+        # Assert: The signal handler should have moved the order to EXECUTING
         self.order.refresh_from_db()
-        self.assertEqual(OrderStates.PENDING_PROVIDER, self.order.state)
+        self.assertEqual(OrderStates.EXECUTING, self.order.state)
 
     @override_settings(task_always_eager=True)
-    def test_order_process_when_project_started(self):
+    def test_order_process_when_project_started_and_no_reviews_needed(self):
         with mock.patch(
             "waldur_mastermind.marketplace.utils.order_should_not_be_reviewed_by_provider"
         ) as order_should_not_be_reviewed_by_provider_mock:
@@ -138,6 +147,106 @@ class ProjectStartDateTest(test.APITransactionTestCase):
             tasks.process_pending_project_orders()
 
         self.order.refresh_from_db()
+        self.order.resource.refresh_from_db()
 
         self.assertEqual(OrderStates.DONE, self.order.state)
         self.assertEqual(ResourceStates.OK, self.order.resource.state)
+
+    def test_order_moves_to_pending_start_date_when_project_starts(self):
+        # Arrange: The project is ready, but the order has its own future start date.
+        self.order.start_date = timezone.now().date() + datetime.timedelta(days=5)
+        self.order.save()
+
+        with mock.patch(
+            "waldur_mastermind.marketplace.utils.order_should_not_be_reviewed_by_provider"
+        ) as mocked_check:
+            # Simulate an offering that does NOT require provider review
+            mocked_check.return_value = True
+
+            # Act: Run the task that processes projects that have just started
+            tasks.process_pending_project_orders()
+
+        # Assert: The order should now be waiting for its own start date.
+        self.order.refresh_from_db()
+        self.assertEqual(OrderStates.PENDING_START_DATE, self.order.state)
+
+    def test_order_moves_to_pending_provider_when_project_starts(self):
+        # Arrange: The project is ready, but the offering requires provider review.
+        with mock.patch(
+            "waldur_mastermind.marketplace.utils.order_should_not_be_reviewed_by_provider"
+        ) as mocked_check:
+            # Simulate an offering that REQUIRES provider review
+            mocked_check.return_value = False
+
+            # Act: Run the task
+            tasks.process_pending_project_orders()
+
+        # Assert: The order should have moved to the next step in the approval chain.
+        self.order.refresh_from_db()
+        self.assertEqual(OrderStates.PENDING_PROVIDER, self.order.state)
+
+
+@override_settings(task_always_eager=True)
+class OrderStartDateTaskTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = fixtures.MarketplaceFixture()
+        self.order = self.fixture.order
+        self.order.state = OrderStates.PENDING_START_DATE
+        self.order.save()
+
+    @freeze_time("2024-01-15")
+    def test_order_is_processed_when_start_date_is_reached(self):
+        # Arrange: Set the order's start date to today
+        self.order.start_date = timezone.now().date()
+        self.order.save()
+
+        # Act
+        tasks.process_pending_start_date_orders()
+
+        # Assert
+        self.order.refresh_from_db()
+        self.order.resource.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.DONE)
+        self.assertEqual(self.order.resource.state, ResourceStates.OK)
+
+    @freeze_time("2024-01-15")
+    def test_order_is_processed_when_start_date_is_in_the_past(self):
+        # Arrange: Set the order's start date to a past date
+        self.order.start_date = timezone.now().date() - datetime.timedelta(days=5)
+        self.order.save()
+
+        # Act
+        tasks.process_pending_start_date_orders()
+
+        # Assert
+        self.order.refresh_from_db()
+        self.order.resource.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.DONE)
+        self.assertEqual(self.order.resource.state, ResourceStates.OK)
+
+    @freeze_time("2024-01-15")
+    def test_order_is_not_processed_if_start_date_is_in_future(self):
+        # Arrange: Set the order's start date to a future date
+        self.order.start_date = timezone.now().date() + datetime.timedelta(days=1)
+        self.order.save()
+
+        # Act
+        tasks.process_pending_start_date_orders()
+
+        # Assert
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.PENDING_START_DATE)
+
+    @freeze_time("2024-01-15")
+    def test_order_in_wrong_state_is_not_processed(self):
+        # Arrange: Set the order to a different state but with a past start date
+        self.order.state = OrderStates.PENDING_PROVIDER
+        self.order.start_date = timezone.now().date() - datetime.timedelta(days=1)
+        self.order.save()
+
+        # Act
+        tasks.process_pending_start_date_orders()
+
+        # Assert
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.PENDING_PROVIDER)

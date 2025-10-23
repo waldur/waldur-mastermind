@@ -52,15 +52,23 @@ stateDiagram-v2
     [*] --> PENDING_CONSUMER : Order created
 
     PENDING_CONSUMER --> PENDING_PROVIDER : Consumer approves
+    PENDING_CONSUMER --> PENDING_PROJECT : Consumer approves & project start date is future
+    PENDING_CONSUMER --> PENDING_START_DATE : Consumer approves & no provider review & order start date is future
     PENDING_CONSUMER --> CANCELED : Consumer cancels
     PENDING_CONSUMER --> REJECTED : Consumer rejects
 
-    PENDING_PROVIDER --> PENDING_PROJECT : Provider approves
+    PENDING_PROVIDER --> PENDING_START_DATE : Provider approves & order start date is future
+    PENDING_PROVIDER --> EXECUTING : Provider approves
     PENDING_PROVIDER --> CANCELED : Provider cancels
     PENDING_PROVIDER --> REJECTED : Provider rejects
 
-    PENDING_PROJECT --> EXECUTING : Project activated
+    PENDING_PROJECT --> PENDING_PROVIDER: Project activates & provider review needed
+    PENDING_PROJECT --> PENDING_START_DATE: Project activates & no provider review & order start date is future
+    PENDING_PROJECT --> EXECUTING: Project activates
     PENDING_PROJECT --> CANCELED : Project issues
+
+    PENDING_START_DATE --> EXECUTING : Start date reached
+    PENDING_START_DATE --> CANCELED : User cancels
 
     EXECUTING --> DONE : Processing complete
     EXECUTING --> ERRED : Processing failed
@@ -78,6 +86,7 @@ stateDiagram-v2
 | **PENDING_CONSUMER** | Awaiting customer approval | Order creation |
 | **PENDING_PROVIDER** | Awaiting service provider approval | Consumer approval |
 | **PENDING_PROJECT** | Awaiting project activation | Provider approval |
+| **PENDING_START_DATE** | Awaiting the order's specified start date. | Activation when a future start date is set on the order. |
 | **EXECUTING** | Resource provisioning in progress | Processor execution |
 | **DONE** | Order completed successfully | Resource provisioning success |
 | **ERRED** | Order failed with errors | Processing errors |

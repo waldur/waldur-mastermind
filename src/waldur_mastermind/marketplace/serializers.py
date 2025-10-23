@@ -3197,6 +3197,7 @@ class OrderCreateSerializer(
             "state",
             "cost",
             "type",
+            "start_date",
         )
         read_only_fields = BaseOrderSerializer.Meta.read_only_fields + (
             "created_by",
@@ -3204,7 +3205,7 @@ class OrderCreateSerializer(
             "consumer_reviewed_at",
             "attachment",
         )
-        protected_fields = ("project",)
+        protected_fields = ("project", "start_date")
         related_paths = {
             **BaseOrderSerializer.Meta.related_paths,
             "created_by": ("username", "full_name"),
@@ -3230,6 +3231,17 @@ class OrderCreateSerializer(
         }
 
     error_message = serializers.ReadOnlyField()
+
+    def get_fields(self):
+        fields = super().get_fields()
+        try:
+            if not config.ENABLE_ORDER_START_DATE:
+                fields.pop("start_date", None)
+        except Exception:
+            # During OpenAPI schema generation, database may not be configured
+            # Default to including start_date field in schema
+            pass
+        return fields
 
     def generate_slug(self, validated_data):
         return models.Order(
@@ -3290,6 +3302,7 @@ class OrderCreateSerializer(
             attributes=attributes,
             limits=validated_data.get("limits", {}),
             type=validated_data.get("type"),
+            start_date=validated_data.get("start_date"),
         )
         validate_order(order, request)
         self.quotas_validate(order)
@@ -3349,6 +3362,8 @@ class OrderCreateSerializer(
         prepaid_components = offering.components.filter(is_prepaid=True)
         if prepaid_components.exists():
             self._validate_prepaid_attributes(attributes, prepaid_components)
+
+        self._validate_order_start_date(attrs)
 
         return attrs
 
@@ -3563,6 +3578,40 @@ class OrderCreateSerializer(
                         )
                     }
                 )
+
+    def _validate_order_start_date(self, attrs):
+        start_date = attrs.get("start_date")
+        if not start_date:
+            return
+
+        # Basic validation: must not be in the past
+        if start_date < timezone.now().date():
+            raise serializers.ValidationError(
+                {"start_date": _("Start date cannot be in the past.")}
+            )
+
+        project: structure_models.Project = attrs["project"]
+
+        # Validate against project's lifecycle
+        if project.start_date and start_date < project.start_date:
+            raise serializers.ValidationError(
+                {
+                    "start_date": _(
+                        "Order start date cannot be earlier than the project start date (%(project_start_date)s)."
+                    )
+                    % {"project_start_date": project.start_date}
+                }
+            )
+
+        if project.end_date and start_date > project.end_date:
+            raise serializers.ValidationError(
+                {
+                    "start_date": _(
+                        "Order start date cannot be later than the project end date (%(project_end_date)s)."
+                    )
+                    % {"project_end_date": project.end_date}
+                }
+            )
 
 
 class OrderAttachmentSerializer(serializers.ModelSerializer):
