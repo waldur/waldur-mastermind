@@ -3452,30 +3452,64 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
                 _("Purchase order is required for approval.")
             )
         order.review_by_consumer(request.user)
+
+        # 1. Check if project itself is pending activation
         if (
             order.project.start_date
             and order.project.start_date > timezone.now().date()
         ):
             order.state = OrderStates.PENDING_PROJECT
             order.save(update_fields=["state"])
-            return Response(status=status.HTTP_200_OK)
-        if utils.order_should_not_be_reviewed_by_provider(order):
-            order.set_state_executing()
-            order.save(update_fields=["state"])
-            logger.info(
-                "Processing order %s (%s) after consumer approval, resource %s",
-                order,
-                order.id,
-                order.resource,
+            return Response(
+                "Order is pending project activation.",
+                status=status.HTTP_200_OK,
             )
-            tasks.process_order_on_commit(order, request.user)
-        else:
+
+        # 2. Check if provider review is needed
+        if not utils.order_should_not_be_reviewed_by_provider(order):
             order.state = OrderStates.PENDING_PROVIDER
             order.save(update_fields=["state"])
             transaction.on_commit(
                 lambda: tasks.notify_provider_about_pending_order.delay(order.uuid)
             )
-        return Response(status=status.HTTP_200_OK)
+            return Response(
+                "Order is pending provider approval.",
+                status=status.HTTP_200_OK,
+            )
+
+        # 3. If no provider review, check for order's own start_date
+        if (
+            config.ENABLE_ORDER_START_DATE
+            and order.start_date
+            and order.start_date > timezone.now().date()
+        ):
+            order.state = OrderStates.PENDING_START_DATE
+            order.save(update_fields=["state"])
+            logger.info(
+                "Order %s (%s) is pending start date %s.",
+                order,
+                order.id,
+                order.start_date,
+            )
+            return Response(
+                "Order is pending start date.",
+                status=status.HTTP_200_OK,
+            )
+
+        # 4. If all checks pass, proceed to execution
+        order.set_state_executing()
+        order.save(update_fields=["state"])
+        logger.info(
+            "Processing order %s (%s) after consumer approval, resource %s",
+            order,
+            order.id,
+            order.resource,
+        )
+        tasks.process_order_on_commit(order, request.user)
+        return Response(
+            "Order has been approved and is being processed.",
+            status=status.HTTP_200_OK,
+        )
 
     approve_by_provider_validators = [
         structure_utils.check_customer_blocked_or_archived,
@@ -3499,6 +3533,26 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     def approve_by_provider(self, request, uuid=None):
         order: models.Order = self.get_object()
         order.review_by_provider(request.user)
+
+        # After provider approval, check for the order's own start_date
+        if (
+            config.ENABLE_ORDER_START_DATE
+            and order.start_date
+            and order.start_date > timezone.now().date()
+        ):
+            order.state = OrderStates.PENDING_START_DATE
+            order.save(update_fields=["state"])
+            logger.info(
+                "Order %s (%s) is pending start date %s after provider approval.",
+                order,
+                order.id,
+                order.start_date,
+            )
+            return Response(
+                "Order is pending start date.",
+                status=status.HTTP_200_OK,
+            )
+
         order.set_state_executing()
         order.save(update_fields=["state"])
         logger.info(
@@ -3508,7 +3562,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             order.resource,
         )
         tasks.process_order_on_commit(order, request.user)
-        return Response(status=status.HTTP_200_OK)
+        return Response(
+            "Order has been approved and is being processed.",
+            status=status.HTTP_200_OK,
+        )
 
     reject_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,
@@ -3576,6 +3633,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         core_validators.StateValidator(
             OrderStates.PENDING_CONSUMER,
             OrderStates.PENDING_PROVIDER,
+            OrderStates.PENDING_START_DATE,
             OrderStates.EXECUTING,
             state_enum=OrderStates,
         ),

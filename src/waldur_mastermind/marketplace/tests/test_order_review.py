@@ -5,6 +5,7 @@ from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.core import mail
 from django.test import override_settings
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -121,6 +122,82 @@ class OrderApproveByConsumerTest(test.APITransactionTestCase):
         self.order.refresh_from_db()
         self.assertNotEqual(self.order.state, OrderStates.PENDING_PROJECT)
 
+    def test_project_start_date_has_priority_over_order_start_date(self):
+        """
+        Ensure if both project and order have future start dates,
+        the order waits for the project first.
+        """
+        # Arrange
+        future_project_date = (timezone.now() + datetime.timedelta(days=20)).date()
+        self.project.start_date = future_project_date
+        self.project.save()
+
+        future_order_date = (timezone.now() + datetime.timedelta(days=10)).date()
+        self.order.start_date = future_order_date
+        self.order.save()
+
+        # Act
+        response = self.approve_order(self.fixture.owner)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.PENDING_PROJECT)
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.utils.order_should_not_be_reviewed_by_provider",
+        return_value=True,
+    )
+    @override_config(ENABLE_ORDER_START_DATE=True)
+    def test_order_goes_to_pending_start_date_if_no_provider_review_is_needed(
+        self, mock_should_skip
+    ):
+        """
+        If provider review is skipped, the order should move to PENDING_START_DATE
+        if its own start_date is in the future.
+        """
+        # Arrange
+        future_order_date = (timezone.now() + datetime.timedelta(days=10)).date()
+        self.order.start_date = future_order_date
+        self.order.save()
+
+        # Act
+        response = self.approve_order(self.fixture.owner)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.PENDING_START_DATE)
+        mock_should_skip.assert_called_once_with(self.order)
+
+    def test_order_goes_to_pending_provider_even_if_start_date_is_set(self):
+        """
+        If provider review IS required, the order must go to PENDING_PROVIDER,
+        ignoring its own future start_date for now.
+        """
+        # Arrange
+        # Use an offering that requires provider approval (like BASIC_OFFERING)
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer, type=BASIC_OFFERING
+        )
+        order = factories.OrderFactory(
+            offering=offering,
+            project=self.project,
+            created_by=self.manager,
+            state=OrderStates.PENDING_CONSUMER,
+        )
+        future_order_date = (timezone.now() + datetime.timedelta(days=10)).date()
+        order.start_date = future_order_date
+        order.save()
+
+        # Act
+        response = self.approve_order(self.fixture.owner, order)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.PENDING_PROVIDER)
+
     def approve_order(self, user, order=None):
         order = order or self.order
         self.client.force_authenticate(user)
@@ -147,6 +224,34 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
         self.project = self.fixture.project
         self.manager = self.fixture.manager
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+
+    @override_config(ENABLE_ORDER_START_DATE=True)
+    def test_order_goes_to_pending_start_date_after_provider_approval(self):
+        """
+        If an order has a future start date, after provider approval,
+        it should transition to PENDING_START_DATE.
+        """
+        # Arrange
+        future_order_date = (timezone.now() + datetime.timedelta(days=10)).date()
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            type=BASIC_OFFERING,
+        )
+        order = factories.OrderFactory(
+            offering=offering,
+            project=self.project,
+            created_by=self.manager,
+            state=OrderStates.PENDING_PROVIDER,
+            start_date=future_order_date,
+        )
+
+        # Act
+        response = self.approve_order(self.fixture.owner, order)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.PENDING_START_DATE)
 
     def test_when_update_order_with_basic_offering_is_approved_resource_is_marked_as_ok(
         self,

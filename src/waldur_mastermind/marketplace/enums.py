@@ -159,6 +159,7 @@ class CategoryColumnWidget:
 
 
 class OrderStates:
+    PENDING_START_DATE = 9
     PENDING_PROJECT = 8
     PENDING_CONSUMER = 1
     PENDING_PROVIDER = 7
@@ -172,6 +173,7 @@ class OrderStates:
         (PENDING_CONSUMER, "pending-consumer"),
         (PENDING_PROVIDER, "pending-provider"),
         (PENDING_PROJECT, "pending-project"),
+        (PENDING_START_DATE, "pending-start-date"),
         (EXECUTING, "executing"),
         (DONE, "done"),
         (ERRED, "erred"),
@@ -187,6 +189,7 @@ OrderStatesType = Literal[
     "pending-consumer",
     "pending-provider",
     "pending-project",
+    "pending-start-date",
     "executing",
     "done",
     "erred",

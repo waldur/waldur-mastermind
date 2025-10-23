@@ -1683,7 +1683,11 @@ class Order(
     completed_at = models.DateTimeField(
         _("completion time"), null=True, blank=True, editable=False
     )
-
+    start_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text=_("Enables delayed processing of resource provisioning order."),
+    )
     request_comment = models.CharField(blank=True, null=True, max_length=255)
     attachment = models.FileField(
         upload_to="marketplace_order_attachments",
@@ -1779,6 +1783,8 @@ class Order(
         source=[
             OrderStates.PENDING_CONSUMER,
             OrderStates.PENDING_PROVIDER,
+            OrderStates.PENDING_PROJECT,
+            OrderStates.PENDING_START_DATE,
             OrderStates.ERRED,
         ],
         target=OrderStates.EXECUTING,

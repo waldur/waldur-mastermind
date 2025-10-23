@@ -342,20 +342,7 @@ def process_invitations_and_orders_when_project_start_date_is_unset(
         state=OrderStates.PENDING_PROJECT, project=project
     )
     for order in orders:
-        # Setting the state to PENDING_PROVIDER because direct transition
-        # from PENDING_PROJECT to EXECUTING is not supported
-        order.state = OrderStates.PENDING_PROVIDER
-        order.save(update_fields=["state"])
-        if utils.order_should_not_be_reviewed_by_provider(order):
-            order.set_state_executing()
-            order.save(update_fields=["state"])
-            transaction.on_commit(
-                lambda: tasks.process_order_on_commit(order, order.created_by)
-            )
-        else:
-            transaction.on_commit(
-                lambda: tasks.notify_provider_about_pending_order.delay(order.uuid)
-            )
+        tasks.continue_order_processing(order)
 
 
 def update_resource_when_order_is_rejected_or_erred(

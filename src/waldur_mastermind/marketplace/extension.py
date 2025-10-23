@@ -46,6 +46,11 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
+            "process_pending_start_date_orders": {
+                "task": "waldur_mastermind.marketplace.process_pending_start_date_orders",
+                "schedule": timedelta(hours=2),
+                "args": (),
+            },
             "process_pending_project_orders": {
                 "task": "waldur_mastermind.marketplace.process_pending_project_orders",
                 "schedule": timedelta(hours=2),

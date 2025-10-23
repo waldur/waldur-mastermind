@@ -150,6 +150,10 @@ CONSTANCE_CONFIG = {
         False,
         "If true, project end date field becomes mandatory when creating or updating projects.",
     ),
+    "ENABLE_ORDER_START_DATE": (
+        False,
+        "Allow setting start date to control when resource creation order is processed.",
+    ),
     "BRAND_COLOR": (
         "#307300",
         "Brand color is used for button background.",
@@ -576,6 +580,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND",
         "ENABLE_MOCK_COURSE_ACCOUNT_BACKEND",
         "ENFORCE_USER_CONSENT_FOR_OFFERINGS",
+        "ENABLE_ORDER_START_DATE",
     ),
     "Project": ("PROJECT_END_DATE_MANDATORY",),
     "Telemetry": (
@@ -658,6 +663,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ATLASSIAN_SATISFACTION_FIELD",
         "ATLASSIAN_REQUEST_FEEDBACK_FIELD",
         "ATLASSIAN_TEMPLATE_FIELD",
+        "ATLASSIAN_WALDUR_BACKEND_ID_FIELD",
         "ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED",
         "ATLASSIAN_SHARED_USERNAME",
         "ATLASSIAN_VERIFY_SSL",
@@ -760,6 +766,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "LANGUAGE_CHOICES",
     "DISABLE_DARK_THEME",
     "MARKETPLACE_LANDING_PAGE",
+    "ENABLE_ORDER_START_DATE",
     # Support plugin
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",
