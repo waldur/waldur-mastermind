@@ -127,7 +127,7 @@ class UnifiedRancherUsageCollectorTest(TestCase):
         # Test that passing a Cluster directly would fail (this simulates the original bug)
         with self.assertRaises(AttributeError):
             # This should fail because Cluster doesn't have offering attribute
-            self.collector.collect_usage(cluster)
+            self.collector.collect_usage(cluster)  # type: ignore[arg-type]
 
         # Test that passing a Resource works correctly
         offering = marketplace_factories.OfferingFactory(
