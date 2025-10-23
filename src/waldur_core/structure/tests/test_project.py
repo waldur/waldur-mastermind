@@ -1432,11 +1432,9 @@ class ProjectRecoveryTest(test.APITransactionTestCase):
         self.assertEqual(len(user_roles), 2)
 
         for role_data in user_roles:
-            self.assertIn("user_id", role_data)
             self.assertIn("user_username", role_data)
-            self.assertIn("role_id", role_data)
             self.assertIn("role_name", role_data)
-            self.assertIn("created_by_id", role_data)
+            self.assertIn("created_by_username", role_data)
             self.assertIn("original_created", role_data)
             self.assertIn("original_expiration_time", role_data)
             self.assertIn("is_restored", role_data)
@@ -1462,7 +1460,7 @@ class ProjectRecoveryTest(test.APITransactionTestCase):
         for role_data in metadata["user_roles"]:
             self.assertTrue(role_data["is_restored"])
             self.assertIsNotNone(role_data["restored_at"])
-            self.assertEqual(role_data["restored_by"], self.staff_user.id)
+            self.assertEqual(role_data["restored_by"], self.staff_user.username)
 
     def test_termination_metadata_updates_after_invitations(self):
         """Test that termination metadata is updated after sending invitations."""
@@ -1480,7 +1478,7 @@ class ProjectRecoveryTest(test.APITransactionTestCase):
         for role_data in metadata["user_roles"]:
             self.assertTrue(role_data["invitation_sent"])
             self.assertIsNotNone(role_data["invitation_sent_at"])
-            self.assertEqual(role_data["invitation_sent_by"], self.staff_user.id)
+            self.assertEqual(role_data["invitation_sent_by"], self.staff_user.username)
             self.assertIn("invitation_uuid", role_data)
 
     def test_project_recovery_with_multiple_role_types(self):

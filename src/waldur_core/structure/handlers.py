@@ -57,11 +57,11 @@ def revoke_roles_on_project_deletion(sender, instance: Project | None = None, **
     for role in active_roles:
         user_roles_data.append(
             {
-                "user_id": role.user.id,
                 "user_username": role.user.username,
-                "role_id": role.role.id,
                 "role_name": role.role.name,
-                "created_by_id": role.created_by.id if role.created_by else None,
+                "created_by_username": role.created_by.username
+                if role.created_by
+                else None,
                 "original_created": role.created.isoformat(),
                 "original_expiration_time": role.expiration_time.isoformat()
                 if role.expiration_time
@@ -76,7 +76,7 @@ def revoke_roles_on_project_deletion(sender, instance: Project | None = None, **
     if user_roles_data:
         instance.termination_metadata = {
             "terminated_at": timezone.now().isoformat(),
-            "terminated_by": current_user.id if current_user else None,
+            "terminated_by": current_user.username if current_user else None,
             "user_roles": user_roles_data,
         }
         instance.save(update_fields=["termination_metadata"])

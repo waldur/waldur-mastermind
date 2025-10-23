@@ -627,6 +627,10 @@ class ProjectViewSet(
 
         super().perform_create(serializer)
 
+    def perform_destroy(self, instance):
+        """Override to pass the terminating user to the soft delete method."""
+        instance._soft_delete(terminated_by=self.request.user)
+
     @extend_schema(
         request=serializers.MoveProjectSerializer,
         responses={
@@ -812,12 +816,14 @@ class ProjectViewSet(
                 continue  # Skip already restored roles
 
             try:
-                # Get user and role objects
-                user = User.objects.get(id=role_data["user_id"])
-                role = Role.objects.get(id=role_data["role_id"])
+                # Get user and role objects by username and role name
+                user = User.objects.get(username=role_data["user_username"])
+                role = Role.objects.get(name=role_data["role_name"])
                 created_by = None
-                if role_data.get("created_by_id"):
-                    created_by = User.objects.get(id=role_data["created_by_id"])
+                if role_data.get("created_by_username"):
+                    created_by = User.objects.get(
+                        username=role_data["created_by_username"]
+                    )
 
                 # Check if user is still active
                 if not user.is_active:
@@ -842,7 +848,7 @@ class ProjectViewSet(
                     # Mark as restored but don't create duplicate
                     role_data["is_restored"] = True
                     role_data["restored_at"] = timezone.now().isoformat()
-                    role_data["restored_by"] = restored_by_user.id
+                    role_data["restored_by"] = restored_by_user.username
                     continue
 
                 # Recreate the UserRole
@@ -858,7 +864,7 @@ class ProjectViewSet(
                 # Mark as restored in metadata
                 role_data["is_restored"] = True
                 role_data["restored_at"] = timezone.now().isoformat()
-                role_data["restored_by"] = restored_by_user.id
+                role_data["restored_by"] = restored_by_user.username
 
                 restored_roles.append(user_role)
 
@@ -891,9 +897,9 @@ class ProjectViewSet(
                 continue  # Skip if invitation already sent
 
             try:
-                # Get user and role objects
-                user = User.objects.get(id=role_data["user_id"])
-                role = Role.objects.get(id=role_data["role_id"])
+                # Get user and role objects by username and role name
+                user = User.objects.get(username=role_data["user_username"])
+                role = Role.objects.get(name=role_data["role_name"])
 
                 # Check if user is still active
                 if not user.is_active:
@@ -918,7 +924,7 @@ class ProjectViewSet(
                     # Mark as invitation sent but don't create invitation
                     role_data["invitation_sent"] = True
                     role_data["invitation_sent_at"] = timezone.now().isoformat()
-                    role_data["invitation_sent_by"] = invited_by_user.id
+                    role_data["invitation_sent_by"] = invited_by_user.username
                     continue
 
                 # Check if there's already a pending invitation for this user and role
@@ -934,7 +940,7 @@ class ProjectViewSet(
                     # Mark as already invited
                     role_data["invitation_sent"] = True
                     role_data["invitation_sent_at"] = timezone.now().isoformat()
-                    role_data["invitation_sent_by"] = invited_by_user.id
+                    role_data["invitation_sent_by"] = invited_by_user.username
                     role_data["existing_invitation_uuid"] = str(
                         existing_invitation.uuid
                     )
@@ -960,7 +966,7 @@ class ProjectViewSet(
                 # Mark as invitation sent in metadata
                 role_data["invitation_sent"] = True
                 role_data["invitation_sent_at"] = timezone.now().isoformat()
-                role_data["invitation_sent_by"] = invited_by_user.id
+                role_data["invitation_sent_by"] = invited_by_user.username
                 role_data["invitation_uuid"] = str(invitation.uuid)
 
                 sent_invitations.append(invitation)
