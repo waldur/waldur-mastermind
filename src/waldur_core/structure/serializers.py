@@ -972,6 +972,7 @@ class UserSerializer(
     identity_provider_management_url = serializers.SerializerMethodField()
     identity_provider_fields = serializers.SerializerMethodField()
     has_active_session = serializers.SerializerMethodField()
+    ip_address = serializers.CharField(read_only=True, required=False, allow_null=True)
 
     @extend_schema_field(PermissionSerializer(many=True))
     def get_permissions(self, user: core_models.User):
@@ -1047,6 +1048,7 @@ class UserSerializer(
             "image",
             "identity_source",
             "has_active_session",
+            "ip_address",
         )
         read_only_fields = (
             "uuid",
