@@ -1299,8 +1299,8 @@ class ServiceDeskBackend(SupportBackend):
             try:
                 waldur_backend_id_field = self.get_field_id_by_name("waldur_backend_id")
             except JiraBackendError:
-                # Field doesn't exist, try known field ID
-                waldur_backend_id_field = "customfield_10200"
+                # Field doesn't exist, try configured fallback field ID
+                waldur_backend_id_field = config.ATLASSIAN_WALDUR_BACKEND_ID_FIELD
 
             if waldur_backend_id_field and waldur_backend_id_field in fields:
                 waldur_backend_id_value = fields[waldur_backend_id_field]

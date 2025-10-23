@@ -312,6 +312,10 @@ CONSTANCE_CONFIG = {
         "Request feedback field name",
     ),
     "ATLASSIAN_TEMPLATE_FIELD": ("", "Template field name"),
+    "ATLASSIAN_WALDUR_BACKEND_ID_FIELD": (
+        "customfield_10200",
+        "Waldur backend ID custom field ID (fallback when field lookup by name fails)",
+    ),
     # Zammad settings
     "ZAMMAD_API_URL": (
         "",
