@@ -2852,6 +2852,7 @@ class BaseOrderSerializer(BaseItemSerializer):
             "request_comment",
             "attachment",
             "type",
+            "start_date",
         )
 
         read_only_fields = (
@@ -2868,6 +2869,7 @@ class BaseOrderSerializer(BaseItemSerializer):
             "callback_url",
             "request_comment",
             "attachment",
+            "start_date",
         )
 
     type = NaturalChoiceField(
@@ -3197,7 +3199,6 @@ class OrderCreateSerializer(
             "state",
             "cost",
             "type",
-            "start_date",
         )
         read_only_fields = BaseOrderSerializer.Meta.read_only_fields + (
             "created_by",
@@ -3205,7 +3206,6 @@ class OrderCreateSerializer(
             "consumer_reviewed_at",
             "attachment",
         )
-        protected_fields = ("project", "start_date")
         related_paths = {
             **BaseOrderSerializer.Meta.related_paths,
             "created_by": ("username", "full_name"),
