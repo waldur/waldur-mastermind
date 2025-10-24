@@ -798,6 +798,38 @@ class ProjectViewSet(
 
         return Response(response_data, status=status.HTTP_200_OK)
 
+    def _validate_user_role_data(self, role_data, project):
+        """Validate user role data and return user, role objects if valid."""
+        User = get_user_model()
+
+        # Get user and role objects by username and role name
+        user = User.objects.get(username=role_data["user_username"])
+        role = Role.objects.get(name=role_data["role_name"])
+
+        # Check if user is still active
+        if not user.is_active:
+            return None, None
+
+        # Parse expiration time
+        expiration_time = None
+        if role_data.get("original_expiration_time"):
+            expiration_time = datetime.fromisoformat(
+                role_data["original_expiration_time"]
+            )
+
+        # Check if role hasn't expired
+        if expiration_time and expiration_time < timezone.now():
+            return None, None
+
+        # Check if user already has this role for this project
+        existing_role = UserRole.objects.filter(
+            user=user, role=role, scope=project, is_active=True
+        ).first()
+        if existing_role:
+            return None, None
+
+        return user, role
+
     def _restore_team_members(self, project, restored_by_user):
         """Restore team members from project termination metadata."""
         User = get_user_model()
@@ -816,40 +848,40 @@ class ProjectViewSet(
                 continue  # Skip already restored roles
 
             try:
-                # Get user and role objects by username and role name
-                user = User.objects.get(username=role_data["user_username"])
-                role = Role.objects.get(name=role_data["role_name"])
+                user, role = self._validate_user_role_data(role_data, project)
+                if not user or not role:
+                    # Check if users/roles exist and mark existing role as restored
+                    try:
+                        existing_user = User.objects.get(
+                            username=role_data["user_username"]
+                        )
+                        existing_role = Role.objects.get(name=role_data["role_name"])
+                        existing_user_role = UserRole.objects.filter(
+                            user=existing_user,
+                            role=existing_role,
+                            scope=project,
+                            is_active=True,
+                        ).first()
+                        if existing_user_role:
+                            role_data["is_restored"] = True
+                            role_data["restored_at"] = timezone.now().isoformat()
+                            role_data["restored_by"] = restored_by_user.username
+                    except (User.DoesNotExist, Role.DoesNotExist):
+                        pass  # Skip invalid users/roles
+                    continue
+
                 created_by = None
                 if role_data.get("created_by_username"):
                     created_by = User.objects.get(
                         username=role_data["created_by_username"]
                     )
 
-                # Check if user is still active
-                if not user.is_active:
-                    continue
-
-                # Parse expiration time
+                # Parse expiration time for user role creation
                 expiration_time = None
                 if role_data.get("original_expiration_time"):
                     expiration_time = datetime.fromisoformat(
                         role_data["original_expiration_time"]
                     )
-
-                # Check if role hasn't expired
-                if expiration_time and expiration_time < timezone.now():
-                    continue
-
-                # Check if user already has this role for this project
-                existing_role = UserRole.objects.filter(
-                    user=user, role=role, scope=project, is_active=True
-                ).first()
-                if existing_role:
-                    # Mark as restored but don't create duplicate
-                    role_data["is_restored"] = True
-                    role_data["restored_at"] = timezone.now().isoformat()
-                    role_data["restored_by"] = restored_by_user.username
-                    continue
 
                 # Recreate the UserRole
                 user_role = UserRole.objects.create(
@@ -897,34 +929,26 @@ class ProjectViewSet(
                 continue  # Skip if invitation already sent
 
             try:
-                # Get user and role objects by username and role name
-                user = User.objects.get(username=role_data["user_username"])
-                role = Role.objects.get(name=role_data["role_name"])
-
-                # Check if user is still active
-                if not user.is_active:
-                    continue
-
-                # Parse expiration time
-                expiration_time = None
-                if role_data.get("original_expiration_time"):
-                    expiration_time = datetime.fromisoformat(
-                        role_data["original_expiration_time"]
-                    )
-
-                # Check if role hasn't expired
-                if expiration_time and expiration_time < timezone.now():
-                    continue
-
-                # Check if user already has this role for this project
-                existing_role = UserRole.objects.filter(
-                    user=user, role=role, scope=project, is_active=True
-                ).first()
-                if existing_role:
-                    # Mark as invitation sent but don't create invitation
-                    role_data["invitation_sent"] = True
-                    role_data["invitation_sent_at"] = timezone.now().isoformat()
-                    role_data["invitation_sent_by"] = invited_by_user.username
+                user, role = self._validate_user_role_data(role_data, project)
+                if not user or not role:
+                    # Check if users/roles exist and mark existing role invitation as sent
+                    try:
+                        existing_user = User.objects.get(
+                            username=role_data["user_username"]
+                        )
+                        existing_role = Role.objects.get(name=role_data["role_name"])
+                        existing_user_role = UserRole.objects.filter(
+                            user=existing_user,
+                            role=existing_role,
+                            scope=project,
+                            is_active=True,
+                        ).first()
+                        if existing_user_role:
+                            role_data["invitation_sent"] = True
+                            role_data["invitation_sent_at"] = timezone.now().isoformat()
+                            role_data["invitation_sent_by"] = invited_by_user.username
+                    except (User.DoesNotExist, Role.DoesNotExist):
+                        pass  # Skip invalid users/roles
                     continue
 
                 # Check if there's already a pending invitation for this user and role
