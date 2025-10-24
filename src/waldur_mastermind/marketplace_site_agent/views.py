@@ -8,6 +8,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core.permissions import IsStaff
 from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
 from waldur_core.logging import backend as logging_backend
@@ -215,7 +216,7 @@ class AgentIdentityViewSet(ActionsViewSet):
         )
         subscription_serializer.is_valid(raise_exception=True)
         subscription_serializer.save(
-            user=request.user, source_ip=request.META.get("REMOTE_ADDR")
+            user=request.user, source_ip=core_utils.get_ip_address(request)
         )
 
         return Response(subscription_serializer.data, status=status.HTTP_201_CREATED)
