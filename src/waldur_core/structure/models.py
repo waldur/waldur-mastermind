@@ -803,6 +803,13 @@ class Project(
         help_text=_("Metadata captured at project termination for recovery purposes"),
     )
 
+    staff_notes = models.CharField(
+        _("staff notes"),
+        max_length=core_models.DESCRIPTION_LENGTH,
+        blank=True,
+        help_text=_("Internal notes visible only to staff and support users"),
+    )
+
     tracker = cast(FieldInstanceTracker, FieldTracker())
     # Entities returned in manager available_objects are limited to not-deleted instances.
     # Entities returned in manager objects include deleted objects.

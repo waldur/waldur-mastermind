@@ -223,6 +223,7 @@ class ProjectSerializer(
     start_date = serializers.DateField(required=False, allow_null=True)
     end_date = serializers.DateField(required=False, allow_null=True)
     termination_metadata = serializers.JSONField(read_only=True, allow_null=True)
+    staff_notes = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 
     class Meta:
         model = models.Project
@@ -256,6 +257,7 @@ class ProjectSerializer(
             "kind",
             "is_removed",
             "termination_metadata",
+            "staff_notes",
         )
         read_only_fields = (
             "end_date_requested_by",
@@ -300,6 +302,23 @@ class ProjectSerializer(
             and not self.context["request"].user.is_staff
         ):
             fields["max_service_accounts"].read_only = True
+
+        # Handle staff_notes field visibility and permissions
+        if "staff_notes" in fields:
+            user = self.context["request"].user
+            # Check if this is schema generation context (drf-spectacular)
+            # When generating schema, we want to include all fields
+            is_schema_generation = getattr(
+                self.context.get("view"), "swagger_fake_view", False
+            )
+
+            if not is_schema_generation:
+                if not (user.is_staff or user.is_support):
+                    # Remove field entirely for non-staff/non-support users
+                    del fields["staff_notes"]
+                elif not user.is_staff:
+                    # Support users can see but not edit
+                    fields["staff_notes"].read_only = True
 
         # Make all fields read-only for terminated (soft-deleted) projects
         if isinstance(self.instance, models.Project) and self.instance.is_removed:
