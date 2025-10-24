@@ -329,6 +329,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
 
     @extend_schema(
         request=serializers.SetOfferingsUsernameSerializer,
+        responses={status.HTTP_201_CREATED: None},
     )
     @action(detail=True, methods=["POST"])
     def set_offerings_username(self, request, uuid=None):
@@ -2558,7 +2559,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingComponentSerializer,
-        responses=None,
+        responses={status.HTTP_201_CREATED: None},
     )
     @action(detail=True, methods=["post"])
     def create_offering_component(self, request, uuid=None):
@@ -7118,7 +7119,7 @@ class BackendResourceViewSet(core_views.ActionsViewSet):
 
     @extend_schema(
         request=serializers.BackendResourceImportSerializer,
-        responses={status.HTTP_200_OK: serializers.ResourceSerializer},
+        responses={status.HTTP_201_CREATED: serializers.ResourceSerializer},
     )
     @action(detail=True, methods=["post"])
     def import_resource(self, request, uuid=None):
