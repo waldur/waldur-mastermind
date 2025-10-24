@@ -4,12 +4,48 @@ import factory
 from django.utils.functional import cached_property
 
 from waldur_core.core.enums import CoreStates
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack import models
 from waldur_openstack.tests import factories
 
 
 class OpenStackFixture(ProjectFixture):
+    def __init__(self):
+        # Add OpenStack permissions to roles BEFORE creating users
+        self._add_openstack_permissions()
+        super().__init__()
+
+    def _add_openstack_permissions(self):
+        """Add OpenStack instance permissions to roles"""
+        # Add permissions to customer owner
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.HAS_OPENSTACK_INSTANCE_CONSOLE_ACCESS
+        )
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.CAN_MANAGE_OPENSTACK_INSTANCE_POWER
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.CAN_MANAGE_OPENSTACK_INSTANCE)
+
+        # Add permissions to project admin
+        ProjectRole.ADMIN.add_permission(
+            PermissionEnum.HAS_OPENSTACK_INSTANCE_CONSOLE_ACCESS
+        )
+        ProjectRole.ADMIN.add_permission(
+            PermissionEnum.CAN_MANAGE_OPENSTACK_INSTANCE_POWER
+        )
+        ProjectRole.ADMIN.add_permission(PermissionEnum.CAN_MANAGE_OPENSTACK_INSTANCE)
+
+        # Add permissions to project manager
+        ProjectRole.MANAGER.add_permission(
+            PermissionEnum.HAS_OPENSTACK_INSTANCE_CONSOLE_ACCESS
+        )
+        ProjectRole.MANAGER.add_permission(
+            PermissionEnum.CAN_MANAGE_OPENSTACK_INSTANCE_POWER
+        )
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CAN_MANAGE_OPENSTACK_INSTANCE)
+
     @cached_property
     def settings(self):
         return factories.SettingsFactory(

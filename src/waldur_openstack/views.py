@@ -1,6 +1,5 @@
 import logging
 
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import (
     Count,
@@ -44,6 +43,7 @@ from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.models import Instance, Network, Volume
 
 from . import executors, filters, models, serializers, utils
+from . import permissions as openstack_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -1550,6 +1550,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF),
     ]
+    change_flavor_permissions = [openstack_permissions.can_manage_openstack_instance]
 
     @extend_schema(
         description="Start the instance",
@@ -1578,6 +1579,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF),
     ]
+    start_permissions = [openstack_permissions.can_manage_openstack_instance_power]
     start_serializer_class = EmptySerializer
 
     @extend_schema(
@@ -1607,6 +1609,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE),
     ]
+    stop_permissions = [openstack_permissions.can_manage_openstack_instance_power]
     stop_serializer_class = EmptySerializer
 
     @extend_schema(
@@ -1636,6 +1639,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE),
     ]
+    restart_permissions = [openstack_permissions.can_manage_openstack_instance_power]
     restart_serializer_class = EmptySerializer
 
     @extend_schema(
@@ -1657,6 +1661,9 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         )
 
     update_security_groups_validators = [core_validators.StateValidator(CoreStates.OK)]
+    update_security_groups_permissions = [
+        openstack_permissions.can_manage_openstack_instance
+    ]
     update_security_groups_serializer_class = (
         serializers.OpenStackInstanceSecurityGroupsUpdateSerializer
     )
@@ -1676,6 +1683,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     backup_validators = [core_validators.StateValidator(CoreStates.OK)]
+    backup_permissions = [openstack_permissions.can_manage_openstack_instance]
     backup_serializer_class = serializers.OpenStackBackupSerializer
 
     @extend_schema(
@@ -1717,6 +1725,9 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     update_allowed_address_pairs_validators = [
         core_validators.StateValidator(CoreStates.OK)
     ]
+    update_allowed_address_pairs_permissions = [
+        openstack_permissions.can_manage_openstack_instance
+    ]
     update_allowed_address_pairs_serializer_class = (
         serializers.OpenStackInstanceAllowedAddressPairsUpdateSerializer
     )
@@ -1740,6 +1751,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         )
 
     update_ports_validators = [core_validators.StateValidator(CoreStates.OK)]
+    update_ports_permissions = [openstack_permissions.can_manage_openstack_instance]
     update_ports_serializer_class = serializers.OpenStackInstancePortsUpdateSerializer
 
     @extend_schema(
@@ -1775,6 +1787,9 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         )
 
     update_floating_ips_validators = [core_validators.StateValidator(CoreStates.OK)]
+    update_floating_ips_permissions = [
+        openstack_permissions.can_manage_openstack_instance
+    ]
     update_floating_ips_serializer_class = (
         serializers.OpenStackInstanceFloatingIPsUpdateSerializer
     )
@@ -1814,19 +1829,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     console_validators = [core_validators.StateValidator(CoreStates.OK)]
 
-    def check_permissions_for_console(request, view, instance=None):
-        if not instance:
-            return
-
-        if request.user.is_staff:
-            return
-
-        if settings.WALDUR_OPENSTACK["ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS"]:
-            structure_permissions.is_administrator(request, view, instance)
-        else:
-            raise exceptions.PermissionDenied()
-
-    console_permissions = [check_permissions_for_console]
+    console_permissions = [openstack_permissions.has_permissions_for_console]
 
     @extend_schema(
         description="Get console log for the instance",
@@ -1851,7 +1854,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         return response.Response(log, status=status.HTTP_200_OK)
 
     console_log_serializer_class = serializers.OpenStackConsoleLogSerializer
-    console_log_permissions = [structure_permissions.is_administrator]
+    console_log_permissions = [openstack_permissions.has_permissions_for_console]
 
 
 class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
