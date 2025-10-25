@@ -2919,6 +2919,211 @@ class ProviderOfferingViewSet(
         serializer = serializers.ToSConsentDashboardSerializer(dashboard_data)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        request=serializers.OfferingSoftwareCatalogSerializer,
+        responses={201: serializers.SoftwareCatalogUUIDSerializer},
+        description="Add software catalog to offering.",
+    )
+    @action(detail=True, methods=["post"])
+    def add_software_catalog(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        data = request.data
+        data["offering"] = offering.uuid.hex
+        serializer = serializers.OfferingSoftwareCatalogSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {"uuid": serializer.instance.uuid},
+            status=status.HTTP_201_CREATED,
+        )
+
+    add_software_catalog_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+    add_software_catalog_serializer_class = (
+        serializers.OfferingSoftwareCatalogSerializer
+    )
+
+    @extend_schema(
+        request=serializers.OfferingSoftwareCatalogUpdateSerializer,
+        responses={200: serializers.OfferingSoftwareCatalogSerializer},
+        description="Update software catalog configuration for offering.",
+    )
+    @action(
+        detail=True,
+        methods=["patch"],
+    )
+    def update_software_catalog(self, request, uuid=None):
+        offering = self.get_object()
+        offering_catalog_uuid = request.data.get("offering_catalog_uuid")
+        try:
+            offering_catalog = models.OfferingSoftwareCatalog.objects.get(
+                uuid=offering_catalog_uuid, offering=offering
+            )
+        except models.OfferingSoftwareCatalog.DoesNotExist:
+            return Response(
+                {"error": "Software catalog association not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = serializers.OfferingSoftwareCatalogUpdateSerializer(
+            offering_catalog, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        updated_catalog = serializer.save()
+
+        response_serializer = serializers.OfferingSoftwareCatalogSerializer(
+            updated_catalog, context=self.get_serializer_context()
+        )
+        return Response(response_serializer.data)
+
+    update_software_catalog_serializer_class = (
+        serializers.OfferingSoftwareCatalogUpdateSerializer
+    )
+
+    update_software_catalog_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+
+    @extend_schema(
+        request=serializers.RemoveSoftwareCatalogSerializer,
+        responses=None,
+        description="Remove software catalog from offering.",
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+    )
+    def remove_software_catalog(self, request, uuid=None):
+        self.get_object()
+        offering_catalog_uuid = request.data.get("offering_catalog_uuid")
+        try:
+            offering_catalog = models.OfferingSoftwareCatalog.objects.get(
+                uuid=offering_catalog_uuid
+            )
+        except models.OfferingSoftwareCatalog.DoesNotExist:
+            return Response(
+                {"error": "Software catalog association not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        offering_catalog.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    remove_software_catalog_serializer_class = (
+        serializers.RemoveSoftwareCatalogSerializer
+    )
+
+    remove_software_catalog_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+
+    @extend_schema(
+        request=serializers.OfferingPartitionSerializer,
+        responses={201: serializers.OfferingPartitionSerializer},
+        description="Add SLURM partition configuration to offering.",
+    )
+    @action(detail=True, methods=["post"])
+    def add_partition(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        data = request.data
+        data["offering"] = offering.uuid.hex
+        serializer = serializers.OfferingPartitionSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {"uuid": serializer.instance.uuid},
+            status=status.HTTP_201_CREATED,
+        )
+
+    add_partition_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+    add_partition_serializer_class = serializers.OfferingPartitionSerializer
+
+    @extend_schema(
+        request=serializers.OfferingPartitionSerializer,
+        responses={200: serializers.OfferingPartitionSerializer},
+        description="Update partition configuration for offering.",
+    )
+    @action(
+        detail=True,
+        methods=["patch"],
+    )
+    def update_partition(self, request, uuid=None):
+        self.get_object()
+        partition_uuid = request.data.get("partition_uuid")
+        try:
+            partition = models.OfferingPartition.objects.get(uuid=partition_uuid)
+        except models.OfferingPartition.DoesNotExist:
+            return Response(
+                {"error": "Partition not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = serializers.OfferingPartitionSerializer(
+            partition, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(serializer.data)
+
+    update_partition_serializer_class = serializers.OfferingPartitionSerializer
+
+    update_partition_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+
+    @extend_schema(
+        request=serializers.RemovePartitionSerializer,
+        responses=None,
+        description="Remove partition from offering.",
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+    )
+    def remove_partition(self, request, uuid=None):
+        self.get_object()
+        partition_uuid = request.data.get("partition_uuid")
+        try:
+            partition = models.OfferingPartition.objects.get(uuid=partition_uuid)
+        except models.OfferingPartition.DoesNotExist:
+            return Response(
+                {"error": "Partition not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        partition.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    remove_partition_serializer_class = serializers.RemovePartitionSerializer
+
+    remove_partition_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+
 
 class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
     queryset = models.Offering.objects.filter()
@@ -7706,3 +7911,63 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
 
     create_bulk_permissions = [check_create_permissions]
     create_bulk_serializer_class = serializers.CourseAccountsBulkCreateSerializer
+
+
+class SoftwareCatalogViewSet(
+    PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet
+):
+    """ViewSet for SoftwareCatalog model with standard DRF patterns."""
+
+    queryset = models.SoftwareCatalog.objects.all()
+    serializer_class = serializers.SoftwareCatalogSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.SoftwareCatalogFilter
+
+    unsafe_methods_permissions = [structure_permissions.is_staff]
+
+
+class SoftwarePackageViewSet(
+    PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet
+):
+    """ViewSet for SoftwarePackage model with standard DRF patterns."""
+
+    queryset = models.SoftwarePackage.objects.select_related(
+        "catalog"
+    ).prefetch_related("versions__targets")
+    serializer_class = serializers.SoftwarePackageSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.SoftwarePackageFilter
+
+    unsafe_methods_permissions = [structure_permissions.is_staff]
+
+
+class SoftwareVersionViewSet(
+    PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet
+):
+    """ViewSet for SoftwareVersion model with standard DRF patterns."""
+
+    queryset = models.SoftwareVersion.objects.select_related(
+        "package__catalog"
+    ).prefetch_related("targets")
+    serializer_class = serializers.SoftwareVersionSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.SoftwareVersionFilter
+
+    unsafe_methods_permissions = [structure_permissions.is_staff]
+
+
+class SoftwareTargetViewSet(
+    PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet
+):
+    """ViewSet for SoftwareTarget model with standard DRF patterns."""
+
+    queryset = models.SoftwareTarget.objects.select_related("version__package__catalog")
+    serializer_class = serializers.SoftwareTargetSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.SoftwareTargetFilter
+
+    unsafe_methods_permissions = [structure_permissions.is_staff]

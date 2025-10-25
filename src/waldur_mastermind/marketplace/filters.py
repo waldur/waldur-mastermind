@@ -395,6 +395,278 @@ class OfferingPermissionFilter(UserPermissionFilter):
         return queryset.filter(object_id__in=offerings.values_list("id", flat=True))
 
 
+class SoftwareCatalogFilter(django_filters.FilterSet):
+    """Filter for SoftwareCatalog model."""
+
+    name = django_filters.CharFilter(lookup_expr="icontains")
+    version = django_filters.CharFilter(lookup_expr="icontains")
+
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("name", "name"),
+            ("version", "version"),
+            ("created", "created"),
+            ("modified", "modified"),
+        ),
+        field_labels={
+            "name": "Catalog name",
+            "version": "Version",
+            "created": "Created date",
+            "modified": "Modified date",
+        },
+    )
+
+    class Meta:
+        model = models.SoftwareCatalog
+        fields = ["name", "version"]
+
+
+class SoftwarePackageFilter(django_filters.FilterSet):
+    """Filter for SoftwarePackage model."""
+
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="query",
+        help_text="Query packages by name, description, or version (case-insensitive partial match)",
+    )
+    offering_uuid = django_filters.UUIDFilter(
+        method="filter_offering_uuid",
+        label="Offering UUID",
+        help_text="Filter packages available for a specific offering",
+    )
+    catalog_uuid = django_filters.UUIDFilter(
+        field_name="catalog__uuid",
+        label="Catalog UUID",
+        help_text="Filter packages from a specific software catalog",
+    )
+    catalog_name = django_filters.CharFilter(
+        field_name="catalog__name",
+        lookup_expr="icontains",
+        label="Catalog name",
+        help_text="Filter packages by catalog name (case-insensitive partial match)",
+    )
+    catalog_version = django_filters.CharFilter(
+        field_name="catalog__version",
+        lookup_expr="icontains",
+        label="Catalog version",
+        help_text="Filter packages by catalog version (case-insensitive partial match)",
+    )
+    name = django_filters.CharFilter(
+        lookup_expr="icontains",
+        label="Package name",
+        help_text="Filter packages by name (case-insensitive partial match)",
+    )
+    description = django_filters.CharFilter(
+        lookup_expr="icontains",
+        label="Description",
+        help_text="Filter packages by description (case-insensitive partial match)",
+    )
+    cpu_family = django_filters.CharFilter(
+        method="filter_cpu_family",
+        label="CPU Family",
+        help_text="Filter packages available for specific CPU family (e.g., x86_64, aarch64)",
+    )
+    cpu_microarchitecture = django_filters.CharFilter(
+        method="filter_cpu_microarchitecture",
+        label="CPU Microarchitecture",
+        help_text="Filter packages available for specific CPU microarchitecture (e.g., generic, zen2, haswell)",
+    )
+    has_version = django_filters.CharFilter(
+        method="filter_has_version",
+        label="Has version",
+        help_text="Filter packages that have a specific version",
+    )
+
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("name", "name"),
+            ("catalog__name", "catalog_name"),
+            ("catalog__version", "catalog_version"),
+            ("created", "created"),
+            ("modified", "modified"),
+        ),
+        field_labels={
+            "name": "Package name",
+            "catalog_name": "Catalog name",
+            "catalog_version": "Catalog version",
+            "created": "Created date",
+            "modified": "Modified date",
+        },
+    )
+
+    class Meta:
+        model = models.SoftwarePackage
+        fields = ["catalog_uuid", "name", "description"]
+
+    def filter_offering_uuid(self, queryset, name, value):
+        """Filter packages available for specific offering."""
+        return queryset.filter(catalog__offerings__offering__uuid=value).distinct()
+
+    def filter_cpu_family(self, queryset, name, value):
+        """Filter packages with versions available for CPU family."""
+        return queryset.filter(versions__targets__cpu_family=value).distinct()
+
+    def filter_cpu_microarchitecture(self, queryset, name, value):
+        """Filter packages with versions available for CPU microarchitecture."""
+        return queryset.filter(
+            versions__targets__cpu_microarchitecture=value
+        ).distinct()
+
+    def filter_has_version(self, queryset, name, value):
+        """Filter packages that have a specific version."""
+        return queryset.filter(versions__version=value).distinct()
+
+    def filter_query(self, queryset, name, value):
+        """Search packages by name, description, or version."""
+        if not value:
+            return queryset
+
+        return queryset.filter(
+            Q(name__icontains=value)
+            | Q(description__icontains=value)
+            | Q(versions__version__icontains=value)
+        ).distinct()
+
+
+class SoftwareVersionFilter(django_filters.FilterSet):
+    """Filter for SoftwareVersion model."""
+
+    package_uuid = django_filters.UUIDFilter(field_name="package__uuid")
+    catalog_uuid = django_filters.UUIDFilter(field_name="package__catalog__uuid")
+    offering_uuid = django_filters.UUIDFilter(method="filter_offering_uuid")
+    package_name = django_filters.CharFilter(
+        field_name="package__name", lookup_expr="icontains"
+    )
+    version = django_filters.CharFilter(lookup_expr="icontains")
+    cpu_family = django_filters.CharFilter(field_name="targets__cpu_family")
+    cpu_microarchitecture = django_filters.CharFilter(
+        field_name="targets__cpu_microarchitecture"
+    )
+
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("version", "version"),
+            ("package__name", "package_name"),
+            ("release_date", "release_date"),
+            ("created", "created"),
+        ),
+        field_labels={
+            "version": "Version",
+            "package_name": "Package name",
+            "release_date": "Release date",
+            "created": "Created date",
+        },
+    )
+
+    class Meta:
+        model = models.SoftwareVersion
+        fields = ["package_uuid", "version"]
+
+    def filter_offering_uuid(self, queryset, name, value):
+        return queryset.filter(
+            package__catalog__offerings__offering__uuid=value
+        ).distinct()
+
+
+class SoftwareTargetFilter(django_filters.FilterSet):
+    """Filter for SoftwareTarget model."""
+
+    version_uuid = django_filters.UUIDFilter(field_name="version__uuid")
+    package_uuid = django_filters.UUIDFilter(field_name="version__package__uuid")
+    catalog_uuid = django_filters.UUIDFilter(
+        field_name="version__package__catalog__uuid"
+    )
+    offering_uuid = django_filters.UUIDFilter(method="filter_offering_uuid")
+    cpu_family = django_filters.CharFilter(lookup_expr="icontains")
+    cpu_microarchitecture = django_filters.CharFilter(lookup_expr="icontains")
+    path = django_filters.CharFilter(lookup_expr="icontains")
+
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("cpu_family", "cpu_family"),
+            ("cpu_microarchitecture", "cpu_microarchitecture"),
+            ("version__package__name", "package_name"),
+            ("created", "created"),
+        ),
+        field_labels={
+            "cpu_family": "CPU Family",
+            "cpu_microarchitecture": "CPU Microarchitecture",
+            "package_name": "Package name",
+            "created": "Created date",
+        },
+    )
+
+    class Meta:
+        model = models.SoftwareTarget
+        fields = ["cpu_family", "cpu_microarchitecture"]
+
+    def filter_offering_uuid(self, queryset, name, value):
+        return queryset.filter(
+            version__package__catalog__offerings__offering__uuid=value
+        ).distinct()
+
+
+class OfferingSoftwareCatalogFilter(django_filters.FilterSet):
+    """Filter for OfferingSoftwareCatalog model."""
+
+    offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+    catalog_uuid = django_filters.UUIDFilter(field_name="catalog__uuid")
+    catalog_name = django_filters.CharFilter(
+        field_name="catalog__name", lookup_expr="icontains"
+    )
+    offering_name = django_filters.CharFilter(
+        field_name="offering__name", lookup_expr="icontains"
+    )
+    partition_uuid = django_filters.UUIDFilter(field_name="partition__uuid")
+    partition_name = django_filters.CharFilter(
+        field_name="partition__partition_name", lookup_expr="icontains"
+    )
+    has_partition = django_filters.BooleanFilter(method="filter_has_partition")
+    cpu_family = django_filters.CharFilter(method="filter_cpu_family")
+
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("offering__name", "offering_name"),
+            ("catalog__name", "catalog_name"),
+            ("catalog__version", "catalog_version"),
+            ("partition__partition_name", "partition_name"),
+            ("partition__priority_tier", "partition_priority"),
+            ("created", "created"),
+        ),
+        field_labels={
+            "offering_name": "Offering name",
+            "catalog_name": "Catalog name",
+            "catalog_version": "Catalog version",
+            "partition_name": "Partition name",
+            "partition_priority": "Partition priority",
+            "created": "Created date",
+        },
+    )
+
+    class Meta:
+        model = models.OfferingSoftwareCatalog
+        fields = ["offering_uuid", "catalog_uuid", "partition_uuid", "partition_name"]
+
+    def filter_has_partition(self, queryset, name, value):
+        """Filter by whether the catalog has an associated partition."""
+        if value:
+            return queryset.filter(partition__isnull=False)
+        else:
+            return queryset.filter(partition__isnull=True)
+
+    def filter_cpu_family(self, queryset, name, value):
+        """Filter by enabled CPU family."""
+        return queryset.filter(enabled_architectures__contains=[value])
+
+    def filter_by_customer(self, queryset, name, value):
+        try:
+            customer = structure_models.Customer.objects.get(uuid=value)
+        except structure_models.Customer.DoesNotExist:
+            return queryset.none()
+        offerings = models.Offering.objects.filter(customer=customer)
+        return queryset.filter(object_id__in=offerings.values_list("id", flat=True))
+
+
 class ScreenshotFilter(OfferingFilterMixin, django_filters.FilterSet):
     o = django_filters.OrderingFilter(fields=("name", "created"))
 
@@ -1517,4 +1789,60 @@ class CourseAccountFilter(django_filters.FilterSet):
             "project_start_date",
             "project_end_date",
             "o",
+        ]
+
+
+class OfferingPartitionFilter(django_filters.FilterSet):
+    """Filter for OfferingPartition model."""
+
+    offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+    offering_name = django_filters.CharFilter(
+        field_name="offering__name", lookup_expr="icontains"
+    )
+    partition_name = django_filters.CharFilter(lookup_expr="icontains")
+    qos = django_filters.CharFilter(lookup_expr="icontains")
+    priority_tier = django_filters.NumberFilter()
+    exclusive_user = django_filters.BooleanFilter()
+    exclusive_topo = django_filters.BooleanFilter()
+    req_resv = django_filters.BooleanFilter()
+
+    # Resource limit filters
+    max_cpus_per_node = django_filters.NumberFilter()
+    max_nodes = django_filters.NumberFilter()
+    min_nodes = django_filters.NumberFilter()
+    max_time = django_filters.NumberFilter()
+    default_time = django_filters.NumberFilter()
+
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("partition_name", "partition_name"),
+            ("offering__name", "offering_name"),
+            ("priority_tier", "priority_tier"),
+            ("max_nodes", "max_nodes"),
+            ("max_time", "max_time"),
+            ("created", "created"),
+            ("modified", "modified"),
+        ),
+        field_labels={
+            "partition_name": "Partition Name",
+            "offering_name": "Offering Name",
+            "priority_tier": "Priority Tier",
+            "max_nodes": "Max Nodes",
+            "max_time": "Max Time",
+            "created": "Created Date",
+            "modified": "Modified Date",
+        },
+    )
+
+    class Meta:
+        model = models.OfferingPartition
+        fields = [
+            "offering_uuid",
+            "offering_name",
+            "partition_name",
+            "qos",
+            "priority_tier",
+            "exclusive_user",
+            "exclusive_topo",
+            "req_resv",
         ]

@@ -1890,6 +1890,10 @@ class EndpointUUIDSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
 
 
+class SoftwareCatalogUUIDSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+
+
 class NestedRoleSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.OfferingUserRole
@@ -1900,6 +1904,98 @@ class NestedRoleSerializer(serializers.HyperlinkedModelSerializer):
                 "view_name": "marketplace-offering-user-role-detail",
             },
         }
+
+
+class NestedSoftwareCatalogSerializer(serializers.ModelSerializer):
+    catalog = serializers.SerializerMethodField()
+    partition = serializers.SerializerMethodField()
+    package_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.OfferingSoftwareCatalog
+        fields = (
+            "uuid",
+            "catalog",
+            "enabled_cpu_family",
+            "enabled_cpu_microarchitectures",
+            "package_count",
+            "partition",
+        )
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_package_count(self, obj):
+        """Get total number of packages in this catalog."""
+        return obj.catalog.packages.count()
+
+    @extend_schema_field(
+        {
+            "type": "object",
+            "properties": {
+                "uuid": {"type": "string"},
+                "name": {"type": "string"},
+                "version": {"type": "string"},
+                "description": {"type": "string"},
+            },
+        }
+    )
+    def get_catalog(self, obj):
+        return {
+            "uuid": obj.catalog.uuid.hex,
+            "name": obj.catalog.name,
+            "version": obj.catalog.version,
+            "description": obj.catalog.description,
+        }
+
+    @extend_schema_field(
+        {
+            "type": "object",
+            "properties": {
+                "uuid": {"type": "string"},
+                "partition_name": {"type": "string"},
+                "priority_tier": {"type": "integer"},
+                "qos": {"type": "string"},
+            },
+        }
+    )
+    def get_partition(self, obj):
+        if not obj.partition:
+            return None
+        return {
+            "uuid": obj.partition.uuid.hex,
+            "partition_name": obj.partition.partition_name,
+            "priority_tier": obj.partition.priority_tier,
+            "qos": obj.partition.qos,
+        }
+
+
+class NestedPartitionSerializer(serializers.ModelSerializer):
+    """Nested serializer for OfferingPartition model."""
+
+    class Meta:
+        model = models.OfferingPartition
+        fields = (
+            "uuid",
+            "partition_name",
+            "cpu_bind",
+            "def_cpu_per_gpu",
+            "max_cpus_per_node",
+            "max_cpus_per_socket",
+            "def_mem_per_cpu",
+            "def_mem_per_gpu",
+            "def_mem_per_node",
+            "max_mem_per_cpu",
+            "max_mem_per_node",
+            "default_time",
+            "max_time",
+            "grace_time",
+            "max_nodes",
+            "min_nodes",
+            "exclusive_topo",
+            "exclusive_user",
+            "priority_tier",
+            "qos",
+            "req_resv",
+        )
 
 
 class OfferingBackendMetadataSerializer(serializers.ModelSerializer):
@@ -1949,6 +2045,8 @@ class ProviderOfferingDetailsSerializer(
     total_cost = serializers.SerializerMethodField()
     total_cost_estimated = serializers.SerializerMethodField()
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
+    software_catalogs = NestedSoftwareCatalogSerializer(many=True, read_only=True)
+    partitions = NestedPartitionSerializer(many=True, read_only=True)
     roles = NestedRoleSerializer(many=True, read_only=True)
     has_compliance_requirements = serializers.SerializerMethodField()
     compliance_checklist = serializers.HyperlinkedRelatedField(
@@ -1974,6 +2072,8 @@ class ProviderOfferingDetailsSerializer(
             "privacy_policy_link",
             "access_url",
             "endpoints",
+            "software_catalogs",
+            "partitions",
             "roles",
             "customer",
             "customer_uuid",
@@ -6654,6 +6754,10 @@ class RemoveOfferingComponentSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
 
 
+class RemoveSoftwareCatalogSerializer(serializers.Serializer):
+    offering_catalog_uuid = serializers.UUIDField()
+
+
 class RuntimeStatesSerializer(serializers.Serializer):
     value = serializers.CharField(read_only=True)
     label = serializers.CharField(read_only=True)
@@ -7483,3 +7587,288 @@ class ToSConsentDashboardSerializer(serializers.Serializer):
     active_users_over_time = serializers.ListField(
         child=TimeSeriesToSDataSerializer(), read_only=True
     )
+
+
+class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):
+    """Serializer for SoftwareCatalog model."""
+
+    package_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.SoftwareCatalog
+        fields = (
+            "url",
+            "uuid",
+            "created",
+            "modified",
+            "name",
+            "version",
+            "source_url",
+            "description",
+            "package_count",
+        )
+        read_only_fields = ("url", "uuid", "created", "modified", "package_count")
+        extra_kwargs = {
+            "url": {
+                "view_name": "marketplace-software-catalog-detail",
+                "lookup_field": "uuid",
+            }
+        }
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_package_count(self, obj):
+        """Get total number of packages in this catalog."""
+        return obj.packages.count()
+
+
+class NestedSoftwareTargetSerializer(serializers.ModelSerializer):
+    """Nested serializer for SoftwareTarget model."""
+
+    class Meta:
+        model = models.SoftwareTarget
+        fields = (
+            "uuid",
+            "cpu_family",
+            "cpu_microarchitecture",
+            "path",
+        )
+
+
+class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
+    """Nested serializer for SoftwareVersion model."""
+
+    targets = NestedSoftwareTargetSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = models.SoftwareVersion
+        fields = (
+            "uuid",
+            "version",
+            "release_date",
+            "targets",
+        )
+
+
+class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
+    """Serializer for SoftwarePackage model."""
+
+    catalog_name = serializers.CharField(source="catalog.name", read_only=True)
+    catalog_version = serializers.CharField(source="catalog.version", read_only=True)
+    version_count = serializers.SerializerMethodField()
+    versions = NestedSoftwareVersionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = models.SoftwarePackage
+        fields = (
+            "url",
+            "uuid",
+            "created",
+            "modified",
+            "catalog",
+            "name",
+            "description",
+            "homepage",
+            "catalog_name",
+            "catalog_version",
+            "version_count",
+            "versions",
+        )
+        read_only_fields = (
+            "url",
+            "uuid",
+            "created",
+            "modified",
+            "catalog_name",
+            "catalog_version",
+            "version_count",
+            "versions",
+        )
+        extra_kwargs = {
+            "url": {
+                "view_name": "marketplace-software-package-detail",
+                "lookup_field": "uuid",
+            },
+            "catalog": {
+                "view_name": "marketplace-software-catalog-detail",
+                "lookup_field": "uuid",
+            },
+        }
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_version_count(self, obj):
+        """Get number of versions for this package."""
+        return obj.versions.count()
+
+
+class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
+    """Serializer for SoftwareVersion model."""
+
+    package_name = serializers.CharField(source="package.name", read_only=True)
+    target_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.SoftwareVersion
+        fields = (
+            "url",
+            "uuid",
+            "created",
+            "modified",
+            "version",
+            "release_date",
+            "package_name",
+            "target_count",
+        )
+        read_only_fields = fields
+        extra_kwargs = {
+            "url": {
+                "view_name": "marketplace-software-version-detail",
+                "lookup_field": "uuid",
+            }
+        }
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_target_count(self, obj):
+        """Get number of targets for this version."""
+        return obj.targets.count()
+
+
+class SoftwareTargetSerializer(serializers.HyperlinkedModelSerializer):
+    """Serializer for SoftwareTarget model."""
+
+    class Meta:
+        model = models.SoftwareTarget
+        fields = (
+            "url",
+            "uuid",
+            "created",
+            "modified",
+            "cpu_family",
+            "cpu_microarchitecture",
+            "path",
+        )
+        read_only_fields = fields
+        extra_kwargs = {
+            "url": {
+                "view_name": "marketplace-software-target-detail",
+                "lookup_field": "uuid",
+            }
+        }
+
+
+class OfferingSoftwareCatalogSerializer(serializers.ModelSerializer):
+    """Serializer for OfferingSoftwareCatalog model."""
+
+    offering_name = serializers.CharField(source="offering.name", read_only=True)
+    catalog_name = serializers.CharField(source="catalog.name", read_only=True)
+    catalog_version = serializers.CharField(source="catalog.version", read_only=True)
+    offering = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.Offering.objects.all()
+    )
+    catalog = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.SoftwareCatalog.objects.all()
+    )
+    partition = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.OfferingPartition.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    partition_name = serializers.CharField(
+        source="partition.partition_name", read_only=True
+    )
+
+    class Meta:
+        model = models.OfferingSoftwareCatalog
+        fields = (
+            "uuid",
+            "created",
+            "modified",
+            "offering",
+            "catalog",
+            "offering_name",
+            "catalog_name",
+            "catalog_version",
+            "enabled_cpu_family",
+            "enabled_cpu_microarchitectures",
+            "partition",
+            "partition_name",
+        )
+
+
+class OfferingSoftwareCatalogUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating OfferingSoftwareCatalog model."""
+
+    offering_catalog_uuid = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.OfferingSoftwareCatalog.objects.all(),
+        write_only=True,
+    )
+    catalog = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.SoftwareCatalog.objects.all()
+    )
+    partition = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.OfferingPartition.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = models.OfferingSoftwareCatalog
+        fields = (
+            "offering_catalog_uuid",
+            "catalog",
+            "enabled_cpu_family",
+            "enabled_cpu_microarchitectures",
+            "partition",
+        )
+
+
+class OfferingPartitionSerializer(serializers.ModelSerializer):
+    """Serializer for OfferingPartition model."""
+
+    offering_name = serializers.CharField(source="offering.name", read_only=True)
+    offering = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.Offering.objects.all()
+    )
+
+    class Meta:
+        model = models.OfferingPartition
+        fields = (
+            "uuid",
+            "created",
+            "modified",
+            "offering",
+            "offering_name",
+            "partition_name",
+            "cpu_bind",
+            "def_cpu_per_gpu",
+            "max_cpus_per_node",
+            "max_cpus_per_socket",
+            "def_mem_per_cpu",
+            "def_mem_per_gpu",
+            "def_mem_per_node",
+            "max_mem_per_cpu",
+            "max_mem_per_node",
+            "default_time",
+            "max_time",
+            "grace_time",
+            "max_nodes",
+            "min_nodes",
+            "exclusive_topo",
+            "exclusive_user",
+            "priority_tier",
+            "qos",
+            "req_resv",
+        )
+        read_only_fields = ("uuid", "created", "modified")
+        extra_kwargs = {
+            "url": {
+                "view_name": "marketplace-offering-partition-detail",
+                "lookup_field": "uuid",
+            }
+        }
+
+
+class RemovePartitionSerializer(serializers.Serializer):
+    partition_uuid = serializers.UUIDField()

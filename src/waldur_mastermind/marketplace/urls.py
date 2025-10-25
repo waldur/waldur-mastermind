@@ -222,6 +222,26 @@ def register_in(router):
         views.CourseAccountViewSet,
         basename="marketplace-course-account",
     )
+    router.register(
+        r"marketplace-software-catalogs",
+        views.SoftwareCatalogViewSet,
+        basename="marketplace-software-catalog",
+    )
+    router.register(
+        r"marketplace-software-packages",
+        views.SoftwarePackageViewSet,
+        basename="marketplace-software-package",
+    )
+    router.register(
+        r"marketplace-software-versions",
+        views.SoftwareVersionViewSet,
+        basename="marketplace-software-version",
+    )
+    router.register(
+        r"marketplace-software-targets",
+        views.SoftwareTargetViewSet,
+        basename="marketplace-software-target",
+    )
 
 
 urlpatterns = [
