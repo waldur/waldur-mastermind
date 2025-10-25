@@ -1425,6 +1425,9 @@ class ProjectRecoveryTest(test.APITransactionTestCase):
         # Check top-level structure
         self.assertIn("terminated_at", metadata)
         self.assertIn("terminated_by", metadata)
+        self.assertIn("terminated_by_first_name", metadata)
+        self.assertIn("terminated_by_last_name", metadata)
+        self.assertIn("terminated_by_email", metadata)
         self.assertIn("user_roles", metadata)
 
         # Check user roles structure
@@ -1433,6 +1436,9 @@ class ProjectRecoveryTest(test.APITransactionTestCase):
 
         for role_data in user_roles:
             self.assertIn("user_username", role_data)
+            self.assertIn("user_first_name", role_data)
+            self.assertIn("user_last_name", role_data)
+            self.assertIn("user_email", role_data)
             self.assertIn("role_name", role_data)
             self.assertIn("created_by_username", role_data)
             self.assertIn("original_created", role_data)
