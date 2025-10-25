@@ -4,6 +4,7 @@ from unittest import mock
 # Mock objects for testing - will be replaced with proper mocks
 from unittest.mock import MagicMock
 
+from constance import config
 from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.conf import settings
@@ -182,7 +183,10 @@ class IssueCreateBaseTest(base.BaseTest):
     def _get_valid_payload(self, **additional):
         is_reported_manually = additional.get("is_reported_manually")
         issue_type = utils.get_atlassian_issue_type()
-        factories.RequestTypeFactory(issue_type_name=issue_type)
+        # Map frontend type to backend type using configuration
+        type_mapping = config.ATLASSIAN_SUPPORT_TYPE_MAPPING or {}
+        backend_type = type_mapping.get(issue_type, issue_type)
+        factories.RequestTypeFactory(name=backend_type, issue_type_name=issue_type)
         payload = {
             "summary": "test_issue",
             "type": issue_type,

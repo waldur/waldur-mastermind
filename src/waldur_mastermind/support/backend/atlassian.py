@@ -631,7 +631,9 @@ class ServiceDeskBackend(SupportBackend):
 
         def set_custom_field(field_name, value):
             if value and getattr(config, field_name):
-                args[self.get_field_id_by_name(getattr(config, field_name))] = value
+                field_id = self.get_field_id_by_name(getattr(config, field_name))
+                if field_id:
+                    args[field_id] = value
 
         if issue.customer:
             set_custom_field("ATLASSIAN_ORGANISATION_FIELD", issue.customer.name)
@@ -658,7 +660,10 @@ class ServiceDeskBackend(SupportBackend):
         try:
             return next(f["id"] for f in fields if field_name in f["clauseNames"])
         except StopIteration:
-            raise JiraBackendError("Can't find custom field %s" % field_name)
+            logger.warning(
+                "Can't find custom field '%s' in JIRA. Skipping field.", field_name
+            )
+            return None
 
     @reraise_exceptions
     def create_user(self, user: User):
@@ -752,21 +757,55 @@ class ServiceDeskBackend(SupportBackend):
 
         try:
             with transaction.atomic():
+                # Collect current backend IDs from the API response
+                current_backend_ids = set()
+
                 for request_type in request_types:
+                    backend_id = str(request_type.get("id", ""))
+                    name = request_type.get("name", "")
+                    current_backend_ids.add(backend_id)
+
                     # Simplified approach: Only fetch request type fields if absolutely necessary
                     # This optimization removes the extra API call per request type for better performance
                     # Fields can be fetched later when actually needed for issue creation
                     request_type_fields = []
 
+                    # Check for existing request types with the same name but different backend_id
+                    # Remove stale duplicates before creating/updating
+                    existing_with_same_name = models.RequestType.objects.filter(
+                        name=name
+                    ).exclude(backend_id=backend_id)
+
+                    if existing_with_same_name.exists():
+                        stale_count = existing_with_same_name.count()
+                        logger.info(
+                            f"Removing {stale_count} stale request type(s) with name '{name}' "
+                            f"(keeping backend_id={backend_id})"
+                        )
+                        existing_with_same_name.delete()
+
                     models.RequestType.objects.update_or_create(
-                        backend_id=str(request_type.get("id", "")),
+                        backend_id=backend_id,
                         defaults={
-                            "name": request_type.get("name", ""),
-                            "backend_name": request_type.get("name", ""),
+                            "name": name,
+                            "backend_name": name,
                             "fields": request_type_fields,
                             # "issue_type_name": request_type.get("name", "Task"),
                         },
                     )
+
+                # Remove orphaned request types that are no longer in JIRA
+                # (only for this backend to avoid cross-backend conflicts)
+                orphaned_types = models.RequestType.objects.exclude(
+                    backend_id__in=current_backend_ids
+                )
+                if orphaned_types.exists():
+                    orphaned_count = orphaned_types.count()
+                    logger.info(
+                        f"Removing {orphaned_count} orphaned request type(s) no longer in JIRA"
+                    )
+                    orphaned_types.delete()
+
                 logger.info(
                     "Successfully pulled %d request types from JIRA", len(request_types)
                 )

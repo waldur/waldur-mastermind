@@ -25,6 +25,7 @@ from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.enums import SupportWebhookEvent
 
 from . import backend, models, utils
+from .backend import SupportBackendType
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +231,39 @@ class IssueSerializer(
             )
         if not issue_type:
             issue_type = allowed_types[0]
-        return issue_type
+
+        active_backend = backend.get_active_backend()
+
+        # Different backends handle issue types differently
+        if active_backend.backend_name == SupportBackendType.ATLASSIAN:
+            # Atlassian uses type mapping from frontend types to backend types
+            type_mapping = config.ATLASSIAN_SUPPORT_TYPE_MAPPING or {}
+            backend_type = type_mapping.get(issue_type, issue_type)
+
+            # Check if mapped type exists in backend, try to pull if not
+            if not models.RequestType.objects.filter(name=backend_type).exists():
+                try:
+                    active_backend.pull_request_types()
+                except Exception as e:
+                    logger.warning(f"Failed to pull request types: {e}")
+
+            # Validate the mapped type exists in backend
+            if not models.RequestType.objects.filter(name=backend_type).exists():
+                raise serializers.ValidationError(
+                    _(
+                        "Issue type '%(frontend_type)s' maps to '%(backend_type)s' which is not available."
+                    )
+                    % {
+                        "frontend_type": issue_type,
+                        "backend_type": backend_type,
+                    }
+                )
+            return backend_type
+        else:
+            # Other backends (SMAX, Zammad) use issue type directly
+            # For SMAX, the validation will happen in the backend when creating the issue
+            # Return the original issue type without mapping
+            return issue_type
 
     def get_resource_type(self, obj: models.Issue) -> str:
         if (
