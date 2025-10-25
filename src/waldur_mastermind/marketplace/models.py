@@ -520,6 +520,7 @@ class Offering(
     files: models.Manager["OfferingFile"]
     endpoints: models.Manager["OfferingAccessEndpoint"]
     roles: models.Manager["OfferingUserRole"]
+    software_catalogs: models.Manager["OfferingSoftwareCatalog"]
     user_consents: models.Manager["UserOfferingConsent"]
     terms_of_service_configs: models.Manager["OfferingTermsOfService"]
     get_state_display: Callable[[], Literal["Draft", "Active", "Paused", "Archived"]]
@@ -2482,6 +2483,233 @@ class OfferingUserRole(core_models.UuidMixin, core_models.NameMixin):
 
     class Meta:
         ordering = ["name"]
+
+
+class SoftwareCatalog(core_models.UuidMixin, TimeStampedModel):
+    """
+    Software catalog metadata (like EESSI, Spack, etc.)
+    """
+
+    name = models.CharField(max_length=100, help_text=_("Catalog name (e.g., EESSI)"))
+    version = models.CharField(
+        max_length=50, help_text=_("Catalog version (e.g., 2023.06)")
+    )
+    source_url = models.URLField(blank=True, help_text=_("Catalog source URL"))
+    description = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ("name", "version")
+        ordering = ["name", "version"]
+
+    def __str__(self):
+        return f"{self.name} {self.version}"
+
+
+class SoftwarePackage(core_models.UuidMixin, TimeStampedModel):
+    """
+    Individual software package within a catalog.
+    """
+
+    catalog = models.ForeignKey(
+        SoftwareCatalog, on_delete=models.CASCADE, related_name="packages"
+    )
+    name = models.CharField(max_length=200, db_index=True)
+    description = models.TextField(blank=True)
+    homepage = models.URLField(blank=True)
+
+    class Meta:
+        unique_together = ("catalog", "name")
+        ordering = ["name"]
+        indexes = [
+            models.Index(fields=["catalog", "name"]),
+            models.Index(fields=["name"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.catalog})"
+
+
+class SoftwareVersion(core_models.UuidMixin, TimeStampedModel):
+    """
+    Specific version of a software package.
+    """
+
+    package = models.ForeignKey(
+        SoftwarePackage, on_delete=models.CASCADE, related_name="versions"
+    )
+    version = models.CharField(max_length=100)
+    release_date = models.DateField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        unique_together = ("package", "version")
+        ordering = ["package", "version"]
+
+    def __str__(self):
+        return f"{self.package.name} {self.version}"
+
+
+class SoftwareTarget(core_models.UuidMixin, TimeStampedModel):
+    """
+    Target architecture/platform for software versions.
+    """
+
+    version = models.ForeignKey(
+        SoftwareVersion, on_delete=models.CASCADE, related_name="targets"
+    )
+    cpu_family = models.CharField(max_length=50, db_index=True)  # x86_64, aarch64
+    cpu_microarchitecture = models.CharField(
+        max_length=50, db_index=True
+    )  # generic, zen3, etc.
+    path = models.CharField(max_length=500)  # Full CVMFS path
+
+    class Meta:
+        unique_together = ("version", "cpu_family", "cpu_microarchitecture")
+        indexes = [
+            models.Index(fields=["cpu_family", "cpu_microarchitecture"]),
+            models.Index(fields=["version", "cpu_family"]),
+        ]
+
+    def __str__(self):
+        return f"{self.version} - {self.cpu_family}/{self.cpu_microarchitecture}"
+
+
+class OfferingSoftwareCatalog(core_models.UuidMixin, TimeStampedModel):
+    """
+    Link between offerings and software catalogs with enabled targets.
+    """
+
+    offering = models.ForeignKey(
+        "Offering", on_delete=models.CASCADE, related_name="software_catalogs"
+    )
+    catalog = models.ForeignKey(
+        SoftwareCatalog, on_delete=models.CASCADE, related_name="offerings"
+    )
+    enabled_cpu_family = models.JSONField(
+        default=list,
+        help_text=_("List of enabled CPU families: ['x86_64', 'aarch64']"),
+    )
+    enabled_cpu_microarchitectures = models.JSONField(
+        default=list,
+        help_text=_("List of enabled CPU microarchitectures: ['generic', 'zen3']"),
+    )
+    partition = models.ForeignKey(
+        "OfferingPartition",
+        on_delete=models.CASCADE,
+        related_name="software_catalogs",
+        null=True,
+        blank=True,
+        help_text=_(
+            "Optional SLURM partition this software catalog is associated with"
+        ),
+    )
+
+    class Meta:
+        unique_together = ("offering", "catalog")
+
+    def __str__(self):
+        return f"{self.offering.name} - {self.catalog}"
+
+
+class OfferingPartition(core_models.UuidMixin, TimeStampedModel):
+    """
+    SLURM partition configuration for offerings.
+
+    Stores SLURM partition information when an offering represents a SLURM cluster.
+    Maps to SLURM partition_info_t struct fields.
+    """
+
+    offering = models.ForeignKey(
+        Offering, on_delete=models.CASCADE, related_name="partitions"
+    )
+
+    # Basic partition info
+    partition_name = models.CharField(
+        max_length=255, help_text=_("Name of the SLURM partition")
+    )
+
+    # CPU configuration
+    cpu_bind = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=_("Default task binding policy (SLURM cpu_bind)"),
+    )
+    def_cpu_per_gpu = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Default CPUs allocated per GPU")
+    )
+    max_cpus_per_node = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Maximum allocated CPUs per node")
+    )
+    max_cpus_per_socket = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Maximum allocated CPUs per socket")
+    )
+
+    # Memory configuration (in MB)
+    def_mem_per_cpu = models.PositiveBigIntegerField(
+        null=True, blank=True, help_text=_("Default memory per CPU in MB")
+    )
+    def_mem_per_gpu = models.PositiveBigIntegerField(
+        null=True, blank=True, help_text=_("Default memory per GPU in MB")
+    )
+    def_mem_per_node = models.PositiveBigIntegerField(
+        null=True, blank=True, help_text=_("Default memory per node in MB")
+    )
+    max_mem_per_cpu = models.PositiveBigIntegerField(
+        null=True, blank=True, help_text=_("Maximum memory per CPU in MB")
+    )
+    max_mem_per_node = models.PositiveBigIntegerField(
+        null=True, blank=True, help_text=_("Maximum memory per node in MB")
+    )
+
+    # Time limits (in minutes)
+    default_time = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Default time limit in minutes")
+    )
+    max_time = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Maximum time limit in minutes")
+    )
+    grace_time = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Preemption grace time in seconds")
+    )
+
+    # Node configuration
+    max_nodes = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Maximum nodes per job")
+    )
+    min_nodes = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Minimum nodes per job")
+    )
+
+    # Resource exclusivity
+    exclusive_topo = models.BooleanField(
+        default=False, help_text=_("Exclusive topology access required")
+    )
+    exclusive_user = models.BooleanField(
+        default=False, help_text=_("Exclusive user access required")
+    )
+
+    # Scheduling configuration
+    priority_tier = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text=_("Priority tier for scheduling and preemption"),
+    )
+    qos = models.CharField(
+        max_length=255, blank=True, help_text=_("Quality of Service (QOS) name")
+    )
+    req_resv = models.BooleanField(
+        default=False, help_text=_("Require reservation for job allocation")
+    )
+
+    class Meta:
+        unique_together = ("offering", "partition_name")
+        indexes = [
+            models.Index(fields=["offering", "partition_name"]),
+            models.Index(fields=["priority_tier"]),
+        ]
+
+    def __str__(self):
+        return f"{self.offering.name} - {self.partition_name}"
 
 
 class ResourceUser(TimeStampedModel, core_models.UuidMixin):

@@ -38,6 +38,7 @@ class CustomerFixture(UserFixture):
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_RESOURCES)
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_INVITATIONS)
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_CUSTOMER_USERS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         return user
 
     @cached_property

@@ -141,6 +141,12 @@ class MarketplaceSection(FeatureSection):
     )
     display_user_tos = Feature("Enable display of user terms of service in UI.")
 
+    display_software_catalog = Feature("Enable display of software catalog in UI.")
+
+    display_offering_partitions = Feature(
+        "Enable display of offering partitions in UI."
+    )
+
 
 class SupportSection(FeatureSection):
     class Meta:

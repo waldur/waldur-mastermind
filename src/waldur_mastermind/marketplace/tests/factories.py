@@ -886,3 +886,199 @@ class CourseAccountFactory(
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("marketplace-course-account-list")
+
+
+class SoftwareCatalogFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.SoftwareCatalog]
+):
+    class Meta:
+        model = models.SoftwareCatalog
+
+    name = factory.Sequence(lambda n: f"Software Catalog {n}")
+    version = factory.Sequence(lambda n: f"1.{n}")
+    source_url = factory.Faker("url")
+    description = factory.Faker("text", max_nb_chars=200)
+
+    @classmethod
+    def get_url(cls, catalog=None, action=None):
+        if catalog is None:
+            catalog = SoftwareCatalogFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-software-catalog-detail",
+            kwargs={"uuid": catalog.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-software-catalog-list")
+        return url if action is None else url + action + "/"
+
+
+class SoftwarePackageFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.SoftwarePackage]
+):
+    class Meta:
+        model = models.SoftwarePackage
+
+    catalog = factory.SubFactory(SoftwareCatalogFactory)
+    name = factory.Sequence(lambda n: f"Package{n}")
+    description = factory.Faker("text", max_nb_chars=200)
+    homepage = factory.Faker("url")
+
+    @classmethod
+    def get_url(cls, package=None, action=None):
+        if package is None:
+            package = SoftwarePackageFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-software-package-detail",
+            kwargs={"uuid": package.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-software-package-list")
+        return url if action is None else url + action + "/"
+
+
+class SoftwareVersionFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.SoftwareVersion]
+):
+    class Meta:
+        model = models.SoftwareVersion
+
+    package = factory.SubFactory(SoftwarePackageFactory)
+    version = factory.Sequence(lambda n: f"1.{n}.0")
+    release_date = None
+
+    @classmethod
+    def get_url(cls, version=None, action=None):
+        if version is None:
+            version = SoftwareVersionFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-software-version-detail",
+            kwargs={"uuid": version.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-software-version-list")
+        return url if action is None else url + action + "/"
+
+
+class SoftwareTargetFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.SoftwareTarget]
+):
+    class Meta:
+        model = models.SoftwareTarget
+
+    version = factory.SubFactory(SoftwareVersionFactory)
+    cpu_family = factory.Iterator(["x86_64", "aarch64", "ppc64le"])
+    cpu_microarchitecture = "generic"
+    path = factory.LazyAttribute(
+        lambda obj: f"/cvmfs/software.eessi.io/versions/2023.06/software/linux/{obj.cpu_family}/{obj.cpu_microarchitecture}"
+    )
+
+    @classmethod
+    def get_url(cls, target=None, action=None):
+        if target is None:
+            target = SoftwareTargetFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-software-target-detail",
+            kwargs={"uuid": target.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-software-target-list")
+        return url if action is None else url + action + "/"
+
+
+class OfferingSoftwareCatalogFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.OfferingSoftwareCatalog],
+):
+    class Meta:
+        model = models.OfferingSoftwareCatalog
+
+    offering = factory.SubFactory(OfferingFactory)
+    catalog = factory.SubFactory(SoftwareCatalogFactory)
+    enabled_cpu_family = factory.LazyFunction(lambda: ["x86_64", "aarch64"])
+    enabled_cpu_microarchitectures = factory.LazyFunction(lambda: ["generic"])
+    partition = None  # Optional - can be set when needed
+
+    @classmethod
+    def get_url(cls, offering_catalog=None, action=None):
+        if offering_catalog is None:
+            offering_catalog = OfferingSoftwareCatalogFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-offering-software-catalog-detail",
+            kwargs={"uuid": offering_catalog.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse(
+            "marketplace-offering-software-catalog-list"
+        )
+        return url if action is None else url + action + "/"
+
+
+class OfferingPartitionFactory(factory.django.DjangoModelFactory):
+    """Factory for OfferingPartition model."""
+
+    class Meta:
+        model = models.OfferingPartition
+
+    offering = factory.SubFactory(OfferingFactory)
+    partition_name = factory.Sequence(lambda n: f"partition-{n}")
+
+    # CPU configuration
+    cpu_bind = 1
+    def_cpu_per_gpu = 2
+    max_cpus_per_node = 64
+    max_cpus_per_socket = 32
+
+    # Memory configuration (in MB)
+    def_mem_per_cpu = 4096
+    def_mem_per_gpu = 16384
+    def_mem_per_node = 262144
+    max_mem_per_cpu = 8192
+    max_mem_per_node = 524288
+
+    # Time limits (in minutes)
+    default_time = 60
+    max_time = 1440  # 24 hours
+    grace_time = 300  # 5 minutes (in seconds)
+
+    # Node configuration
+    max_nodes = 100
+    min_nodes = 1
+
+    # Resource exclusivity
+    exclusive_topo = False
+    exclusive_user = False
+
+    # Scheduling configuration
+    priority_tier = 50
+    qos = "normal"
+    req_resv = False
+
+    @classmethod
+    def get_url(cls, partition=None, action=None):
+        if partition is None:
+            partition = OfferingPartitionFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-offering-partition-detail",
+            kwargs={"uuid": partition.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-offering-partition-list")
+        return url if action is None else url + action + "/"
