@@ -147,10 +147,12 @@ class UnifiedRancherUsageCollector:
         total_storage = 0
 
         for tenant_id in cluster.linked_tenant_ids:
-            for instance in Instance.objects.filter(tenant_id=tenant_id, state="OK"):
+            for instance in Instance.objects.filter(
+                tenant_id=tenant_id, state=CoreStates.OK
+            ):
                 total_cpu += instance.cores
                 total_ram += instance.ram / 1024
-                for volume in instance.volumes.filter(state="OK"):
+                for volume in instance.volumes.filter(state=CoreStates.OK):
                     total_storage += volume.size / 1024
 
         return {
@@ -165,15 +167,15 @@ class UnifiedRancherUsageCollector:
         total_ram = 0
         total_storage = 0
 
-        for node in cluster.node_set.filter(state="OK"):
+        for node in cluster.node_set.filter(state=CoreStates.OK):
             instance = node.instance
             if not instance:
                 continue
-            if instance.state != "OK":
+            if instance.state != CoreStates.OK:
                 continue
             total_cpu += instance.cores
             total_ram += instance.ram / 1024
-            for volume in instance.volumes.filter(state="OK"):
+            for volume in instance.volumes.filter(state=CoreStates.OK):
                 total_storage += volume.size / 1024
 
         return {

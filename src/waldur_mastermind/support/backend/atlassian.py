@@ -1178,8 +1178,11 @@ class ServiceDeskBackend(SupportBackend):
             start_at += max_results
 
         return [
-            models.SupportUser(name=user["displayName"], backend_id=user["accountId"])
+            models.SupportUser(
+                name=user.get("displayName", ""), backend_id=user.get("accountId", "")
+            )
             for user in all_users
+            if user.get("accountId")  # Only include users with accountId
         ]
 
     def pull_support_users(self):

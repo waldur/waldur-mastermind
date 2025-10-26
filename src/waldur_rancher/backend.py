@@ -975,7 +975,7 @@ class RancherBackend(ServiceBackend):
         return models.Project(
             backend_id=remote_project["id"],
             name=remote_project["name"],
-            description=remote_project["description"],
+            description=remote_project.get("description", ""),
             created=parse_datetime(remote_project["created"]),
             runtime_state=remote_project["state"],
             cluster=local_cluster_map.get(remote_project["clusterId"]),
