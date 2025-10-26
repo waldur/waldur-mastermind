@@ -87,3 +87,60 @@ class ProjectIsRemovedFilterTest(APITransactionTestCase):
         project_uuids = [project["uuid"] for project in response.data]
         self.assertNotIn(str(self.active_project.uuid), project_uuids)
         self.assertIn(str(self.removed_project.uuid), project_uuids)
+
+
+class ProjectQueryFilterTest(APITransactionTestCase):
+    def setUp(self):
+        self.project1 = factories.ProjectFactory(name="Test Project Alpha")
+        self.project2 = factories.ProjectFactory(name="Beta Project")
+        self.project3 = factories.ProjectFactory(name="Gamma Research")
+        # Manually set specific slugs for predictable testing
+        self.project1.slug = "test-project-alpha"
+        self.project1.save()
+        self.project2.slug = "beta-project"
+        self.project2.save()
+        self.project3.slug = "gamma-research"
+        self.project3.save()
+
+    def test_query_filter_by_name(self):
+        staff = UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+
+        response = self.client.get(ProjectFactory.get_list_url(), {"query": "Alpha"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.project1.uuid))
+
+    def test_query_filter_by_slug(self):
+        staff = UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+
+        # Test exact slug match
+        response = self.client.get(
+            ProjectFactory.get_list_url(), {"query": "beta-project"}
+        )
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.project2.uuid))
+
+        # Test partial slug match
+        response = self.client.get(ProjectFactory.get_list_url(), {"query": "gamma"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.project3.uuid))
+
+    def test_query_filter_by_uuid(self):
+        staff = UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+
+        response = self.client.get(
+            ProjectFactory.get_list_url(), {"query": str(self.project1.uuid)}
+        )
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.project1.uuid))
+
+    def test_query_filter_no_matches(self):
+        staff = UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+
+        response = self.client.get(
+            ProjectFactory.get_list_url(), {"query": "nonexistent"}
+        )
+        self.assertEqual(len(response.data), 0)

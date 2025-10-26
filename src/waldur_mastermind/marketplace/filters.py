@@ -149,6 +149,10 @@ class OfferingFilter(
         label="User Has Offering User",
         widget=BooleanWidget,
     )
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="Search by offering name, slug or description",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -311,6 +315,18 @@ class OfferingFilter(
         else:
             return queryset.exclude(offeringuser__user=user).distinct()
 
+    def filter_query(self, queryset, name, value):
+        if is_uuid_like(value):
+            if queryset.filter(uuid=value).exists():
+                return queryset.filter(uuid=value)
+
+        query = queryset.filter(
+            Q(name__icontains=value)
+            | Q(slug__icontains=value)
+            | Q(description__icontains=value)
+        )
+        return query
+
 
 class OfferingCustomersFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
@@ -408,7 +424,7 @@ class OrderFilter(
 ):
     query = django_filters.CharFilter(
         method="filter_query",
-        label="Search by order UUID, project name or resource name",
+        label="Search by order UUID, slug, project name or resource name",
     )
     project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
     offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
@@ -446,7 +462,9 @@ class OrderFilter(
                 return queryset.filter(uuid=value)
 
         query = queryset.filter(
-            Q(project__name__icontains=value) | Q(attributes__name__icontains=value)
+            Q(project__name__icontains=value)
+            | Q(attributes__name__icontains=value)
+            | Q(slug__icontains=value)
         )
         return query
 
@@ -490,7 +508,7 @@ class ResourceFilter(
 ):
     query = django_filters.CharFilter(
         method="filter_query",
-        label="Search by resource UUID, name, backend ID, effective ID, IPs or hypervisor",
+        label="Search by resource UUID, name, slug, backend ID, effective ID, IPs or hypervisor",
     )
 
     offering_type = django_filters.CharFilter(field_name="offering__type")
@@ -575,6 +593,7 @@ class ResourceFilter(
 
         query = queryset.filter(
             Q(name__icontains=value)
+            | Q(slug__icontains=value)
             | Q(backend_id__iexact=value)
             | Q(effective_id__iexact=value)
             | Q(backend_metadata__external_ips__icontains=value)
