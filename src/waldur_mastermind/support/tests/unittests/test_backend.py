@@ -261,3 +261,39 @@ class CommentUpdateTest(BaseBackendTest):
         # Assert
         comment.refresh_from_db()
         self.assertFalse(comment.is_public)
+
+
+class GetUsersTest(BaseBackendTest):
+    def test_get_users_handles_missing_account_id(self):
+        """Test that get_users method handles users without accountId gracefully."""
+        # Mock user data with missing accountId
+        mock_users = [
+            {"displayName": "User With Account", "accountId": "user-123"},
+            {"displayName": "User Without Account"},  # Missing accountId
+            {"displayName": "Another Valid User", "accountId": "user-456"},
+        ]
+
+        # Override the get method mock specifically for the user assignable search endpoint
+        def get_side_effect(path, **kwargs):
+            if "/user/assignable/search" in path:
+                return mock_users
+            elif "/rest/api/2/field" in path:
+                return load_json_resource(
+                    "jira_fields.json", "waldur_mastermind.support.tests"
+                )
+            elif "/rest/api/3/issue/" in path and "fields=resolution" in path:
+                return {"fields": {"resolution": None}}
+            else:
+                return {}
+
+        self.mocked_jira.get.side_effect = get_side_effect
+
+        # Call get_users
+        users = self.backend.get_users()
+
+        # Should only return users with accountId
+        self.assertEqual(len(users), 2)
+        self.assertEqual(users[0].name, "User With Account")
+        self.assertEqual(users[0].backend_id, "user-123")
+        self.assertEqual(users[1].name, "Another Valid User")
+        self.assertEqual(users[1].backend_id, "user-456")
