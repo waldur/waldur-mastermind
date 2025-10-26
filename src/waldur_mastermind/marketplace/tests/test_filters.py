@@ -758,3 +758,156 @@ class ComponentUsageFilterTest(test.APITransactionTestCase):
 
         # Should return all component usages
         self.assertGreaterEqual(len(response.data), 3)
+
+
+class OfferingQueryFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering1 = factories.OfferingFactory(
+            name="Alpha Cloud Service", description="Premium cloud hosting"
+        )
+        self.offering2 = factories.OfferingFactory(
+            name="Beta Analytics", description="Data processing service"
+        )
+        self.offering3 = factories.OfferingFactory(
+            name="Gamma Storage", description="Reliable data storage"
+        )
+        # Manually set specific slugs for predictable testing
+        self.offering1.slug = "alpha-cloud-service"
+        self.offering1.save()
+        self.offering2.slug = "beta-analytics"
+        self.offering2.save()
+        self.offering3.slug = "gamma-storage"
+        self.offering3.save()
+
+        self.url = factories.OfferingFactory.get_list_url()
+
+    def test_query_filter_by_name(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"query": "Alpha"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.offering1.uuid.hex)
+
+    def test_query_filter_by_slug(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Test exact slug match
+        response = self.client.get(self.url, {"query": "beta-analytics"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.offering2.uuid.hex)
+
+        # Test partial slug match
+        response = self.client.get(self.url, {"query": "gamma"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.offering3.uuid.hex)
+
+    def test_query_filter_by_description(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"query": "Premium"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.offering1.uuid.hex)
+
+    def test_query_filter_by_uuid(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"query": self.offering1.uuid.hex})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.offering1.uuid.hex)
+
+
+class OrderQueryFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.order1 = factories.OrderFactory(project=self.fixture.project)
+        self.order2 = factories.OrderFactory(project=self.fixture.project)
+        # Manually set specific slugs for predictable testing
+        self.order1.slug = "order-alpha-123"
+        self.order1.save()
+        self.order2.slug = "order-beta-456"
+        self.order2.save()
+        # Also create a resource with a specific name
+        self.order1.attributes = {"name": "Test Resource Alpha"}
+        self.order1.save()
+
+        self.url = factories.OrderFactory.get_list_url()
+
+    def test_query_filter_by_slug(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Test exact slug match
+        response = self.client.get(self.url, {"query": "order-alpha-123"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.order1.uuid.hex)
+
+        # Test partial slug match
+        response = self.client.get(self.url, {"query": "beta"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.order2.uuid.hex)
+
+    def test_query_filter_by_project_name(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"query": self.fixture.project.name})
+        # Should return all orders from this project
+        self.assertGreaterEqual(len(response.data), 2)
+
+    def test_query_filter_by_resource_name(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"query": "Test Resource Alpha"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.order1.uuid.hex)
+
+    def test_query_filter_by_uuid(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"query": self.order1.uuid.hex})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.order1.uuid.hex)
+
+
+class ResourceQueryFilterSlugTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource1 = factories.ResourceFactory(
+            name="Alpha Database",
+            backend_id="alpha-db-001",
+            project=self.fixture.project,
+        )
+        self.resource2 = factories.ResourceFactory(
+            name="Beta Cache", backend_id="beta-cache-002", project=self.fixture.project
+        )
+        # Manually set specific slugs for predictable testing
+        self.resource1.slug = "alpha-database"
+        self.resource1.save()
+        self.resource2.slug = "beta-cache"
+        self.resource2.save()
+
+        self.url = factories.ResourceFactory.get_list_url()
+
+    def test_query_filter_by_slug(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Test exact slug match
+        response = self.client.get(self.url, {"query": "alpha-database"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.resource1.uuid.hex)
+
+        # Test partial slug match
+        response = self.client.get(self.url, {"query": "beta"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.resource2.uuid.hex)
+
+    def test_query_filter_by_name(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"query": "Alpha Database"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.resource1.uuid.hex)
+
+    def test_query_filter_by_backend_id(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"query": "alpha-db-001"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.resource1.uuid.hex)
+
+    def test_query_filter_by_uuid(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"query": self.resource1.uuid.hex})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.resource1.uuid.hex)

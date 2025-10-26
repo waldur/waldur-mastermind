@@ -303,7 +303,7 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
 
     query = django_filters.CharFilter(
         method="filter_query",
-        label="Filter by name, UUID, backend ID or resource effective ID",
+        label="Filter by name, slug, UUID, backend ID or resource effective ID",
     )
 
     can_manage = django_filters.BooleanFilter(
@@ -380,6 +380,7 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
             queryset = queryset.filter(
                 Q(resource__name=value)
                 | Q(name__icontains=value)
+                | Q(slug__icontains=value)
                 | Q(resource__backend_id__iexact=value)
                 | Q(resource__effective_id__iexact=value)
             )
