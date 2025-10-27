@@ -7824,6 +7824,42 @@ class OfferingSoftwareCatalogUpdateSerializer(serializers.ModelSerializer):
         )
 
 
+class OfferingPartitionUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating OfferingPartition model."""
+
+    partition_uuid = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.OfferingPartition.objects.all(),
+        write_only=True,
+    )
+
+    class Meta:
+        model = models.OfferingPartition
+        fields = (
+            "partition_uuid",
+            "partition_name",
+            "cpu_bind",
+            "def_cpu_per_gpu",
+            "max_cpus_per_node",
+            "max_cpus_per_socket",
+            "def_mem_per_cpu",
+            "def_mem_per_gpu",
+            "def_mem_per_node",
+            "max_mem_per_cpu",
+            "max_mem_per_node",
+            "default_time",
+            "max_time",
+            "grace_time",
+            "max_nodes",
+            "min_nodes",
+            "exclusive_topo",
+            "exclusive_user",
+            "priority_tier",
+            "qos",
+            "req_resv",
+        )
+
+
 class OfferingPartitionSerializer(serializers.ModelSerializer):
     """Serializer for OfferingPartition model."""
 

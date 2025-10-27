@@ -3056,7 +3056,7 @@ class ProviderOfferingViewSet(
     add_partition_serializer_class = serializers.OfferingPartitionSerializer
 
     @extend_schema(
-        request=serializers.OfferingPartitionSerializer,
+        request=serializers.OfferingPartitionUpdateSerializer,
         responses={200: serializers.OfferingPartitionSerializer},
         description="Update partition configuration for offering.",
     )
@@ -3065,25 +3065,28 @@ class ProviderOfferingViewSet(
         methods=["patch"],
     )
     def update_partition(self, request, uuid=None):
-        self.get_object()
+        offering = self.get_object()
         partition_uuid = request.data.get("partition_uuid")
         try:
-            partition = models.OfferingPartition.objects.get(uuid=partition_uuid)
+            partition = models.OfferingPartition.objects.get(
+                uuid=partition_uuid, offering=offering
+            )
         except models.OfferingPartition.DoesNotExist:
             return Response(
                 {"error": "Partition not found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-
-        serializer = serializers.OfferingPartitionSerializer(
+        serializer = serializers.OfferingPartitionUpdateSerializer(
             partition, data=request.data, partial=True
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        updated_partition = serializer.save()
+        response_serializer = serializers.OfferingPartitionSerializer(
+            updated_partition, context=self.get_serializer_context()
+        )
+        return Response(response_serializer.data)
 
-        return Response(serializer.data)
-
-    update_partition_serializer_class = serializers.OfferingPartitionSerializer
+    update_partition_serializer_class = serializers.OfferingPartitionUpdateSerializer
 
     update_partition_permissions = [
         permission_factory(
