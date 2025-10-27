@@ -1,5 +1,6 @@
 import uuid
 from datetime import timedelta
+from unittest import mock
 from uuid import uuid4
 
 from constance.test.unittest import override_config as override_constance_config
@@ -25,7 +26,7 @@ from waldur_core.structure.tests.factories import (
     UserFactory,
 )
 from waldur_mastermind.analytics import models as analytics_models
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
@@ -3355,3 +3356,330 @@ class ToSConsentStatsTest(APITransactionTestCase):
 
         response = self.client.get(other_stats_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+@override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+class ToSConsentNotificationTest(APITransactionTestCase):
+    """Test cases for ToS consent notification tasks and handlers."""
+
+    def setUp(self):
+        self.user = UserFactory()
+        self.customer = CustomerFactory()
+        self.project = ProjectFactory(customer=self.customer)
+        self.category = CategoryFactory()
+
+        self.offering = OfferingFactory(
+            category=self.category,
+            customer=self.customer,
+            type="Marketplace.Basic",
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "waldur_username",
+            },
+        )
+
+        self.tos_config = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            terms_of_service_link="https://example.com/tos",
+            version="1.0",
+            is_active=True,
+        )
+
+        self.plan = PlanFactory(offering=self.offering)
+        self.resource = ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+        )
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+
+        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
+    def test_send_tos_consent_notification_task(self, mock_broadcast_mail):
+        """Test that send_tos_consent_notification task sends email with correct context."""
+
+        tasks.send_tos_consent_notification(self.offering.uuid, self.user.uuid)
+
+        mock_broadcast_mail.assert_called_once()
+
+        self.assertEqual(
+            mock_broadcast_mail.call_args[0][0],
+            "marketplace",
+        )
+        self.assertEqual(
+            mock_broadcast_mail.call_args[0][1],
+            "tos_consent_required",
+        )
+
+        recipients = mock_broadcast_mail.call_args[0][3]
+        self.assertEqual(len(recipients), 1)
+        self.assertEqual(recipients[0], self.user.email)
+
+        context = mock_broadcast_mail.call_args[0][2]
+        self.assertIn("user", context)
+        self.assertEqual(context["user"], self.user)
+        self.assertIn("offering", context)
+        self.assertEqual(context["offering"], self.offering)
+        self.assertIn("terms_of_service_link", context)
+        self.assertIn("tos_management_url", context)
+        self.assertIn("version", context)
+        self.assertEqual(context["version"], "1.0")
+        self.assertIn("site_name", context)
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
+    def test_send_tos_consent_notification_not_sent_when_user_has_consent(
+        self, mock_broadcast_mail
+    ):
+        """Test that notification is not sent when user already has consent."""
+
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        tasks.send_tos_consent_notification(self.offering.uuid, self.user.uuid)
+
+        mock_broadcast_mail.assert_not_called()
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
+    def test_send_tos_consent_notification_not_sent_when_no_active_tos(
+        self, mock_broadcast_mail
+    ):
+        """Test that notification is not sent when offering has no active ToS."""
+
+        # Deactivate ToS
+        self.tos_config.is_active = False
+        self.tos_config.save()
+
+        tasks.send_tos_consent_notification(self.offering.uuid, self.user.uuid)
+
+        mock_broadcast_mail.assert_not_called()
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_consent_notification.delay"
+    )
+    def test_offering_user_creation_triggers_notification(self, mock_task):
+        """Test that creating OfferingUser triggers ToS consent notification."""
+        # Ensure OfferingUser doesn't exist so we can test the creation signal
+        models.OfferingUser.objects.filter(
+            user=self.user, offering=self.offering
+        ).delete()
+
+        # Create OfferingUser - this should trigger the signal handler
+        models.OfferingUser.objects.create(
+            user=self.user,
+            offering=self.offering,
+        )
+
+        mock_task.assert_called_once()
+        self.assertEqual(mock_task.call_args[0][0], self.offering.uuid)
+        self.assertEqual(mock_task.call_args[0][1], self.user.uuid)
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_consent_notification.delay"
+    )
+    def test_offering_user_creation_not_triggering_when_consent_disabled(
+        self, mock_task
+    ):
+        """Test that notification is not triggered when ENFORCE_USER_CONSENT_FOR_OFFERINGS is disabled."""
+        with override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False):
+            models.OfferingUser.objects.get_or_create(
+                user=self.user,
+                offering=self.offering,
+            )
+
+            mock_task.assert_not_called()
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_consent_notification.delay"
+    )
+    def test_offering_user_creation_not_triggering_for_staff_user(self, mock_task):
+        """Test that notification is not sent to staff users."""
+        staff_user = UserFactory(is_staff=True)
+
+        models.OfferingUser.objects.get_or_create(
+            user=staff_user,
+            offering=self.offering,
+        )
+
+        mock_task.assert_not_called()
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_consent_notification.delay"
+    )
+    def test_offering_user_creation_not_triggering_when_user_has_consent(
+        self, mock_task
+    ):
+        """Test that notification is not sent when user already has consent."""
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        models.OfferingUser.objects.get_or_create(
+            user=self.user,
+            offering=self.offering,
+        )
+
+        mock_task.assert_not_called()
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
+    def test_send_tos_reconsent_notification_task(self, mock_broadcast_mail):
+        """Test that send_tos_reconsent_notification task sends email to all offering users."""
+
+        # Set requires_reconsent to True
+        self.tos_config.requires_reconsent = True
+        self.tos_config.save()
+
+        # Ensure OfferingUser exists (may already exist from setUp)
+        models.OfferingUser.objects.get_or_create(
+            user=self.user,
+            offering=self.offering,
+        )
+
+        tasks.send_tos_reconsent_notification(self.offering.uuid, "1.0", "2.0")
+
+        mock_broadcast_mail.assert_called_once()
+
+        self.assertEqual(mock_broadcast_mail.call_args[0][0], "marketplace")
+        self.assertEqual(mock_broadcast_mail.call_args[0][1], "tos_reconsent_required")
+
+        recipients = mock_broadcast_mail.call_args[0][3]
+        self.assertEqual(len(recipients), 1)
+        self.assertEqual(recipients[0], self.user.email)
+
+        context = mock_broadcast_mail.call_args[0][2]
+        self.assertIn("user", context)
+        self.assertEqual(context["user"], self.user)
+        self.assertIn("offering", context)
+        self.assertEqual(context["offering"], self.offering)
+        self.assertIn("old_version", context)
+        self.assertEqual(context["old_version"], "1.0")
+        self.assertIn("new_version", context)
+        self.assertEqual(context["new_version"], "2.0")
+        self.assertIn("terms_of_service_link", context)
+        self.assertIn("tos_management_url", context)
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
+    def test_send_tos_reconsent_notification_to_multiple_users(
+        self, mock_broadcast_mail
+    ):
+        """Test that re-consent notification is sent to all users with access."""
+
+        self.tos_config.requires_reconsent = True
+        self.tos_config.save()
+
+        # Create multiple users
+        user2 = UserFactory()
+        user3 = UserFactory()
+
+        # Ensure OfferingUsers exist
+        models.OfferingUser.objects.get_or_create(
+            user=self.user, offering=self.offering
+        )
+        models.OfferingUser.objects.get_or_create(user=user2, offering=self.offering)
+        models.OfferingUser.objects.get_or_create(user=user3, offering=self.offering)
+
+        tasks.send_tos_reconsent_notification(self.offering.uuid, "1.0", "2.0")
+
+        self.assertEqual(mock_broadcast_mail.call_count, 3)
+
+        sent_emails = [call[0][3][0] for call in mock_broadcast_mail.call_args_list]
+        self.assertIn(self.user.email, sent_emails)
+        self.assertIn(user2.email, sent_emails)
+        self.assertIn(user3.email, sent_emails)
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
+    def test_send_tos_reconsent_notification_not_sent_to_users_with_current_version(
+        self, mock_broadcast_mail
+    ):
+        """Test that re-consent notification is not sent to users who already have current version."""
+
+        # Update ToS to version 2.0
+        self.tos_config.version = "2.0"
+        self.tos_config.requires_reconsent = True
+        self.tos_config.save()
+
+        # Ensure OfferingUser exists
+        models.OfferingUser.objects.get_or_create(
+            user=self.user, offering=self.offering
+        )
+
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="2.0",
+        )
+
+        tasks.send_tos_reconsent_notification(self.offering.uuid, "1.0", "2.0")
+
+        mock_broadcast_mail.assert_not_called()
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
+    def test_send_tos_reconsent_notification_not_sent_to_staff_users(
+        self, mock_broadcast_mail
+    ):
+        """Test that re-consent notification is not sent to staff users."""
+
+        self.tos_config.requires_reconsent = True
+        self.tos_config.save()
+
+        staff_user = UserFactory(is_staff=True)
+
+        models.OfferingUser.objects.get_or_create(
+            user=self.user, offering=self.offering
+        )
+        models.OfferingUser.objects.get_or_create(
+            user=staff_user, offering=self.offering
+        )
+
+        tasks.send_tos_reconsent_notification(self.offering.uuid, "1.0", "2.0")
+
+        mock_broadcast_mail.assert_called_once()
+        recipients = mock_broadcast_mail.call_args[0][3]
+        self.assertEqual(recipients[0], self.user.email)
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_reconsent_notification.delay"
+    )
+    def test_tos_update_triggers_reconsent_notification(self, mock_task):
+        """Test that updating ToS version triggers re-consent notification."""
+        # Update ToS version with requires_reconsent=True
+        self.tos_config.version = "2.0"
+        self.tos_config.requires_reconsent = True
+        self.tos_config.save()
+
+        mock_task.assert_called_once()
+        self.assertEqual(mock_task.call_args[0][0], self.offering.uuid)
+        self.assertEqual(mock_task.call_args[0][1], "1.0")  # old version
+        self.assertEqual(mock_task.call_args[0][2], "2.0")  # new version
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_reconsent_notification.delay"
+    )
+    def test_tos_update_not_triggering_when_reconsent_not_required(self, mock_task):
+        """Test that updating ToS without requires_reconsent doesn't trigger notification."""
+        # Update ToS version without requires_reconsent
+        self.tos_config.version = "2.0"
+        self.tos_config.requires_reconsent = False
+        self.tos_config.save()
+
+        mock_task.assert_not_called()
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_reconsent_notification.delay"
+    )
+    def test_tos_update_not_triggering_when_consent_disabled(self, mock_task):
+        """Test that ToS update doesn't trigger notification when consent enforcement is disabled."""
+        with override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False):
+            # Update ToS version with requires_reconsent=True
+            self.tos_config.version = "2.0"
+            self.tos_config.requires_reconsent = True
+            self.tos_config.save()
+
+            mock_task.assert_not_called()

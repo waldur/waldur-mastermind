@@ -1,0 +1,14 @@
+Hello {{ user.full_name }},
+
+The Terms of Service for {{ offering.name }} have been updated from version {{ old_version }} to version {{ new_version }}.
+
+You need to review and re-accept the updated Terms of Service to continue accessing this offering.
+
+View updated Terms of Service: {{ terms_of_service_link }}
+
+To manage your consents, please visit your profile:
+{{ tos_management_url }}
+
+Thank you for your attention to this matter.
+
+{{ site_name }} Team

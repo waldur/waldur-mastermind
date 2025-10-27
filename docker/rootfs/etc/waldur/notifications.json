@@ -34,5 +34,7 @@
   "support.notification_comment_added": true,
   "support.notification_comment_updated": true,
   "support.notification_issue_feedback": true,
-  "support.notification_issue_updated": true
+  "support.notification_issue_updated": true,
+  "marketplace.tos_consent_required": true,
+  "marketplace.tos_reconsent_required": true
 }
