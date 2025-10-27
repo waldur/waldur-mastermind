@@ -2927,7 +2927,7 @@ class ProviderOfferingViewSet(
     @action(detail=True, methods=["post"])
     def add_software_catalog(self, request, uuid=None):
         offering: models.Offering = self.get_object()
-        data = request.data
+        data = request.data.copy()
         data["offering"] = offering.uuid.hex
         serializer = serializers.OfferingSoftwareCatalogSerializer(data=data)
         serializer.is_valid(raise_exception=True)
@@ -3036,7 +3036,7 @@ class ProviderOfferingViewSet(
     @action(detail=True, methods=["post"])
     def add_partition(self, request, uuid=None):
         offering: models.Offering = self.get_object()
-        data = request.data
+        data = request.data.copy()
         data["offering"] = offering.uuid.hex
         serializer = serializers.OfferingPartitionSerializer(data=data)
         serializer.is_valid(raise_exception=True)
