@@ -1445,6 +1445,9 @@ class BaseResourceSerializer(
         read_only=True,
         lookup_field="uuid",
     )
+    customer_uuid = serializers.UUIDField(
+        source="project.customer.uuid", read_only=True
+    )
 
     customer_name = serializers.CharField(
         read_only=True, source="project.customer.name"
@@ -1485,6 +1488,7 @@ class BaseResourceSerializer(
             "project_name",
             "project_uuid",
             "customer",
+            "customer_uuid",
             "customer_name",
             "customer_native_name",
             "customer_abbreviation",
