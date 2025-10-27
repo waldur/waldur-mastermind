@@ -421,6 +421,39 @@ class ResourceEndingContext(BaseModel):
     delta: int = Field(description="The number of days until the resource's end date.")
 
 
+class ToSConsentRequiredContext(BaseModel):
+    user: Any = Field(
+        description="The User model instance who needs to provide consent."
+    )
+    offering: Any = Field(
+        description="The Offering model instance. Provides offering.name."
+    )
+    terms_of_service_link: str = Field(
+        description="Direct link to the Terms of Service document."
+    )
+    tos_management_url: str = Field(
+        description="URL to the ToS management page where user can manage all consents."
+    )
+    version: str = Field(description="Version of the ToS requiring consent.")
+    site_name: str = Field(description="Name of the site from settings.")
+
+
+class ToSReconsentRequiredContext(BaseModel):
+    user: Any = Field(description="The User model instance whose consent expired.")
+    offering: Any = Field(
+        description="The Offering model instance. Provides offering.name."
+    )
+    terms_of_service_link: str = Field(
+        description="Direct link to the updated Terms of Service."
+    )
+    tos_management_url: str = Field(
+        description="URL to the ToS management page where user can consent or revoke consent."
+    )
+    old_version: str = Field(description="Previous ToS version.")
+    new_version: str = Field(description="New ToS version requiring re-consent.")
+    site_name: str = Field(description="Name of the site from settings.")
+
+
 class MarketplaceSection(NotificationSection):
     class Meta:
         key = "marketplace"
@@ -509,6 +542,16 @@ class MarketplaceSection(NotificationSection):
         key="notify_provider_about_pending_order",
         description="Notifies service provider owners about a pending order for their offering.",
         context_model=NotifyProviderAboutPendingOrderContext,
+    )
+    tos_consent_required = Notification(
+        key="tos_consent_required",
+        description="Notifies user that ToS consent is required to access a resource.",
+        context_model=ToSConsentRequiredContext,
+    )
+    tos_reconsent_required = Notification(
+        key="tos_reconsent_required",
+        description="Notifies user that ToS has been updated and re-consent is required.",
+        context_model=ToSReconsentRequiredContext,
     )
 
 

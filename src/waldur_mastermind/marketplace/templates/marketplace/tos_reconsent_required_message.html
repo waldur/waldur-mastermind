@@ -1,0 +1,26 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <p>Hello {{ user.full_name }},</p>
+
+    <p>The Terms of Service for <strong>{{ offering.name }}</strong> have been updated from version <strong>{{ old_version }}</strong> to version <strong>{{ new_version }}</strong>.</p>
+
+    <p>You need to review and re-accept the updated Terms of Service to continue accessing this offering.</p>
+
+    <p><a href="{{ terms_of_service_link }}" style="color: #007bff;">View Updated Terms of Service</a></p>
+
+    <p>
+        <a href="{{ tos_management_url }}" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px;">
+            Manage ToS Consents
+        </a>
+    </p>
+
+    <p>Thank you for your attention to this matter.</p>
+
+    <p>
+        {{ site_name }} Team
+    </p>
+</body>
+</html>

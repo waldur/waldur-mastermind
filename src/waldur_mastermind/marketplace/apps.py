@@ -418,3 +418,14 @@ class MarketplaceConfig(AppConfig):
             sender=models.UserOfferingConsent,
             dispatch_uid="waldur_mastermind.marketplace.log_terms_of_service_consent_revoked",
         )
+
+        signals.post_save.connect(
+            handlers.notify_users_about_tos_update_signal,
+            sender=models.OfferingTermsOfService,
+            dispatch_uid="waldur_mastermind.marketplace.notify_users_about_tos_update_signal",
+        )
+        signals.post_save.connect(
+            handlers.notify_offering_user_about_tos_requirement,
+            sender=models.OfferingUser,
+            dispatch_uid="waldur_mastermind.marketplace.notify_offering_user_about_tos_requirement",
+        )

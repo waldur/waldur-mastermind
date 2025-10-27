@@ -834,6 +834,8 @@ class OfferingTermsOfService(TimeStampedModel, core_models.UuidMixin):
         help_text="If True, user will be asked to re-consent to the terms of service when the terms of service are updated.",
     )
 
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+
     class Meta:
         ordering = ["-created"]
         constraints = [

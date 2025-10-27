@@ -2087,3 +2087,64 @@ def send_offering_user_deleted_message(sender, instance: models.OfferingUser, **
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
+
+
+def notify_users_about_tos_update_signal(sender, instance, created, **kwargs):
+    """Notify users when ToS is updated and requires re-consent."""
+
+    if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+        return
+
+    if created:
+        return
+
+    tos_config = instance
+
+    if not tos_config.is_active or not tos_config.requires_reconsent:
+        return
+
+    if "version" not in tos_config.tracker.changed():
+        return
+
+    old_version = tos_config.tracker.previous("version") or ""
+    new_version = tos_config.version
+
+    transaction.on_commit(
+        lambda: tasks.send_tos_reconsent_notification.delay(
+            tos_config.offering.uuid, old_version, new_version
+        )
+    )
+
+
+def notify_offering_user_about_tos_requirement(sender, instance, created, **kwargs):
+    """Notify user about ToS requirement when OfferingUser is created."""
+
+    if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+        return
+
+    if not created:
+        return
+
+    offering_user = instance
+    user = offering_user.user
+    offering = offering_user.offering
+
+    if user.is_staff or user.is_support:
+        return
+
+    if not offering.has_terms_of_service():
+        return
+
+    if not offering.plugin_options.get(
+        "service_provider_can_create_offering_user", False
+    ):
+        return
+
+    if offering.check_user_consent(user):
+        return
+
+    transaction.on_commit(
+        lambda u=user.uuid, o=offering.uuid: tasks.send_tos_consent_notification.delay(
+            o, u
+        )
+    )

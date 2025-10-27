@@ -1,0 +1,15 @@
+Hello {{ user.full_name }},
+
+You have been granted access to {{ offering.name }}, which requires you to accept the Terms of Service.
+
+Before you can use this offering, please review and accept the Terms of Service:
+
+Terms of Service: {{ terms_of_service_link }}
+
+To manage your ToS consents, please visit your profile:
+{{ tos_management_url }}
+
+Once you've accepted, you can access all resources from this offering through your project dashboard.
+
+Thank you,
+{{ site_name }} Team

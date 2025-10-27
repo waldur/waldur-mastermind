@@ -1,0 +1,25 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <p>Hello {{ user.full_name }},</p>
+
+    <p>You have been granted access to <strong>{{ offering.name }}</strong>, which requires you to accept the <a href="{{ terms_of_service_link }}" style="color: #007bff; text-decoration: underline;">Terms of Service</a>.</p>
+
+    <p>Before you can use this offering, please review and accept the Terms of Service.</p>
+
+    <p>
+        <a href="{{ tos_management_url }}" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px;">
+            Manage ToS Consents
+        </a>
+    </p>
+
+    <p>Once you've accepted, you can access all resources from this offering through your project dashboard.</p>
+
+    <p>
+        Thank you,<br>
+        {{ site_name }} Team
+    </p>
+</body>
+</html>
