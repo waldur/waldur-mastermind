@@ -51,7 +51,7 @@ class ExportRolesCommandTest(TestCase):
             is_active=False,
         )
         RolePermission.objects.create(
-            role=self.inactive_role, permission="CUSTOMER.DELETE"
+            role=self.inactive_role, permission="CUSTOMER.DELETE_PERMISSION"
         )
 
         # Role without description

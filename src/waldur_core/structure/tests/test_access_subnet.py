@@ -155,3 +155,44 @@ class AccessSubnetGetTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 0)
+
+
+class AccessSubnetOrderingTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+
+    def test_access_subnet_ordering_by_inet(self):
+        # Create access subnets with different inet values to test ordering
+        subnet1 = factories.AccessSubnetFactory(
+            customer=self.fixture.customer, inet="192.168.3.0/24"
+        )
+        subnet2 = factories.AccessSubnetFactory(
+            customer=self.fixture.customer, inet="192.168.1.0/24"
+        )
+        subnet3 = factories.AccessSubnetFactory(
+            customer=self.fixture.customer, inet="192.168.2.0/24"
+        )
+
+        # Test model ordering
+        from waldur_core.structure.models import AccessSubnet
+
+        subnets = list(AccessSubnet.objects.filter(customer=self.fixture.customer))
+
+        # Should be ordered by inet field
+        expected_order = [
+            subnet2,
+            subnet3,
+            subnet1,
+        ]  # 192.168.1.0, 192.168.2.0, 192.168.3.0
+        self.assertEqual(subnets, expected_order)
+
+        # Test API ordering
+        self.client.force_authenticate(user=self.fixture.staff)
+        url = factories.AccessSubnetFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+        # Verify API response is ordered by inet
+        inets = [item["inet"] for item in response.data]
+        expected_inets = ["192.168.1.0/24", "192.168.2.0/24", "192.168.3.0/24"]
+        self.assertEqual(inets, expected_inets)

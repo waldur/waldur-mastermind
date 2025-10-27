@@ -341,6 +341,7 @@ class AccessSubnet(core_models.UuidMixin, core_models.DescribableMixin, Loggable
 
     class Meta:
         unique_together = ("customer", "inet")
+        ordering = ["inet"]
 
     def __str__(self):
         return self.customer.name + " | " + str(self.inet)
