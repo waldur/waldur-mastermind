@@ -724,6 +724,7 @@ class ProjectViewSet(
         send_invitations = serializer.validated_data[
             "send_invitations_to_previous_members"
         ]
+        end_date = serializer.validated_data.get("end_date")
 
         # Validate that team recovery options are only used when metadata is available
         if (
@@ -737,7 +738,11 @@ class ProjectViewSet(
 
         # Recover the project
         project.is_removed = False
-        project.save(update_fields=["is_removed"])
+        if end_date is not None:
+            project.end_date = end_date
+            project.save(update_fields=["is_removed", "end_date"])
+        else:
+            project.save(update_fields=["is_removed"])
 
         # Handle team recovery options
         restored_users = []
@@ -751,16 +756,20 @@ class ProjectViewSet(
             )
 
         # Log the recovery action
+        event_context = {
+            "project": project,
+            "restore_team_members": restore_team_members,
+            "send_invitations": send_invitations,
+            "restored_users_count": len(restored_users),
+            "sent_invitations_count": len(sent_invitations),
+        }
+        if end_date is not None:
+            event_context["end_date"] = end_date.isoformat()
+
         event_logger.emit(
             "Project {project_name} has been recovered.",
             event_type=EventType.PROJECT_UPDATE_SUCCEEDED,
-            event_context={
-                "project": project,
-                "restore_team_members": restore_team_members,
-                "send_invitations": send_invitations,
-                "restored_users_count": len(restored_users),
-                "sent_invitations_count": len(sent_invitations),
-            },
+            event_context=event_context,
             scopes=[project, project.customer],
         )
 
