@@ -14,7 +14,7 @@ from django.db.models import Count, F
 
 import waldur_core.core.fields
 import waldur_core.core.validators
-from waldur_mastermind.marketplace_slurm import registrators as slurm_registrators
+from waldur_mastermind.marketplace.utils import convert_slurm_usage
 
 logger = logging.getLogger(__name__)
 
@@ -219,11 +219,7 @@ def fix_limits_of_slurm_offering_components(apps, schema_editor):
         if component.type == "cpu":
             old_limit_amount = component.limit_amount
             old_limit_period = component.limit_period
-            component.limit_amount = (
-                slurm_registrators.SlurmRegistrator.convert_quantity(
-                    default_limits["CPU"], "cpu"
-                )
-            )
+            component.limit_amount = convert_slurm_usage(default_limits["CPU"], "cpu")
             component.limit_period = TOTAL
             component.save(update_fields=["limit_amount", "limit_period"])
             logger.info(
@@ -233,11 +229,7 @@ def fix_limits_of_slurm_offering_components(apps, schema_editor):
         elif component.type == "gpu":
             old_limit_amount = component.limit_amount
             old_limit_period = component.limit_period
-            component.limit_amount = (
-                slurm_registrators.SlurmRegistrator.convert_quantity(
-                    default_limits["GPU"], "gpu"
-                )
-            )
+            component.limit_amount = convert_slurm_usage(default_limits["GPU"], "gpu")
             component.limit_period = TOTAL
             component.save(update_fields=["limit_amount", "limit_period"])
             logger.info(
@@ -247,11 +239,7 @@ def fix_limits_of_slurm_offering_components(apps, schema_editor):
         elif component.type == "ram":
             old_limit_amount = component.limit_amount
             old_limit_period = component.limit_period
-            component.limit_amount = (
-                slurm_registrators.SlurmRegistrator.convert_quantity(
-                    default_limits["RAM"], "ram"
-                )
-            )
+            component.limit_amount = convert_slurm_usage(default_limits["RAM"], "ram")
             component.limit_period = TOTAL
             component.save(update_fields=["limit_amount", "limit_period"])
             logger.info(

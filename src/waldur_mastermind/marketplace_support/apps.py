@@ -15,9 +15,7 @@ class MarketplaceSupportConfig(AppConfig):
         from waldur_mastermind.marketplace_support.serializers import add_issue
         from waldur_mastermind.support import models as support_models
 
-        from . import handlers, processor, registrators
-
-        registrators.SupportRegistrator.connect()
+        from . import handlers, processor
 
         signals.post_save.connect(
             handlers.update_order_if_issue_was_complete,

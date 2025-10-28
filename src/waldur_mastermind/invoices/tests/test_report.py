@@ -6,6 +6,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.invoices import utils as invoices_utils
 from waldur_mastermind.invoices.tasks import format_invoice_csv
@@ -87,7 +88,7 @@ class SafReportFormatterTest(BaseReportFormatterTest):
 
     def test_usage_based_item_is_skipped_if_quantity_is_zero(self):
         item = self.invoice.items.first()
-        item.unit = models.InvoiceItem.Units.QUANTITY
+        item.unit = Units.QUANTITY
         item.quantity = 0
         item.save()
 
@@ -97,7 +98,7 @@ class SafReportFormatterTest(BaseReportFormatterTest):
 
     def test_usage_based_item_is_skipped_if_unit_price_is_zero(self):
         item = self.invoice.items.first()
-        item.unit = models.InvoiceItem.Units.QUANTITY
+        item.unit = Units.QUANTITY
         item.quantity = 10
         item.unit_price = 0
         item.save()

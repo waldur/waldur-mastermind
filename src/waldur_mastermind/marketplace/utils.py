@@ -62,10 +62,10 @@ from waldur_core.structure.managers import (
 from waldur_freeipa import models as freeipa_models
 from waldur_mastermind.common.utils import create_request, mb_to_gb
 from waldur_mastermind.invoices import models as invoice_models
-from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.structures import InvoiceResourceLimitPeriodDict
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import REMOTE_OFFERING as REMOTE_PLUGIN_NAME
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING as SITE_AGENT_PLUGIN_NAME,
@@ -740,7 +740,7 @@ def move_resource(resource: models.Resource, project):
     ):
         start_invoice = invoice_item.invoice
 
-        target_invoice, _ = registrators.RegistrationManager.get_or_create_invoice(
+        target_invoice, _ = MarketplaceBillingService.get_or_create_invoice(
             project.customer,
             date=datetime.date(
                 year=start_invoice.year, month=start_invoice.month, day=1

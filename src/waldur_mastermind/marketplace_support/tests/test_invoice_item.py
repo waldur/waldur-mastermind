@@ -9,9 +9,11 @@ from freezegun.api import freeze_time
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.common.utils import quantize_price
-from waldur_mastermind.invoices import models, registrators, utils
+from waldur_mastermind.invoices import models
 from waldur_mastermind.invoices.tests import factories
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import SUPPORT_OFFERING
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
@@ -120,7 +122,7 @@ class ResourceDeletionInvoiceTest(BaseSupportInvoiceTest):
             self.assertEqual(self.get_invoice_items(invoice).count(), 1)
 
         with freeze_time(next_month):
-            new_invoice, _ = registrators.RegistrationManager.get_or_create_invoice(
+            new_invoice, _ = MarketplaceBillingService.get_or_create_invoice(
                 self.resource.project.customer, next_month
             )
             self.resource.set_state_terminating()

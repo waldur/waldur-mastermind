@@ -36,9 +36,6 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace_openstack.const import TENANT_COMPONENTS
-        from waldur_mastermind.marketplace_openstack.registrators import (
-            OpenStackTenantRegistrator,
-        )
         from waldur_openstack import executors as openstack_executors
         from waldur_openstack import models as openstack_models
         from waldur_openstack import signals as openstack_signals
@@ -209,8 +206,6 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace_openstack."
             "update_openstack_tenant_usages",
         )
-
-        OpenStackTenantRegistrator.connect()
 
         signals.post_save.connect(
             handlers.create_offering_component_for_volume_type,

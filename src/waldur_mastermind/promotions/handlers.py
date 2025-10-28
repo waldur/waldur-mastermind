@@ -41,7 +41,7 @@ def apply_campaign_to_pending_invoices(
 
     # We discount the price if the campaign has already started,
     # otherwise we only create an object of the DiscountedResource model,
-    # and the discount will be created in the MarketplaceRegistrator
+    # and the discount will be created in the MarketplaceBillingService
     # when the invoice is created.
     for invoice_item in invoices_models.InvoiceItem.objects.filter(
         invoice__state=invoices_models.Invoice.States.PENDING,

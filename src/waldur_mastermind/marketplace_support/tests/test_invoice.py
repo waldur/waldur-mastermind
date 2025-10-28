@@ -12,11 +12,11 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import month_end
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import BillingTypes, OrderStates, OrderTypes
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support import models as support_models
@@ -346,7 +346,7 @@ class OneTimeTest(InvoicesBaseTest):
     def test_do_not_calculate_one_time_component_if_resource_started_not_in_current_period(
         self,
     ):
-        registrators.RegistrationManager.register(self.resource)
+        MarketplaceBillingService.register(self.resource)
         self.invoice = self.get_invoice()
         expected = (
             self.fixture.plan_component_ram.price
@@ -370,7 +370,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
     def test_do_not_calculate_on_plan_switch_component_if_resource_started_not_in_current_period(
         self,
     ):
-        registrators.RegistrationManager.register(self.resource)
+        MarketplaceBillingService.register(self.resource)
         self.invoice = self.get_invoice()
         expected = (
             self.fixture.plan_component_ram.price
@@ -390,7 +390,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
         order.set_state_executing()
         order.complete()
         order.save()
-        registrators.RegistrationManager.register(
+        MarketplaceBillingService.register(
             self.resource,
             timezone.now(),
             order_type=OrderTypes.UPDATE,

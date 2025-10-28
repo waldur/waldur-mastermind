@@ -5,14 +5,14 @@ from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_mastermind.invoices import models as invoice_models
-from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import OrderTypes
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 
 
-class PrepaidBillingRegistratorTestBase(test.APITransactionTestCase):
+class PrepaidBillingTestBase(test.APITransactionTestCase):
     """Base class for prepaid billing tests with a complete offering setup."""
 
     def setUp(self):
@@ -78,7 +78,7 @@ class PrepaidBillingRegistratorTestBase(test.APITransactionTestCase):
 
 
 @freeze_time("2024-06-15")
-class TestPrepaidCreationBilling(PrepaidBillingRegistratorTestBase):
+class TestPrepaidCreationBilling(PrepaidBillingTestBase):
     def test_upfront_fee_is_billed_on_resource_creation(self):
         # Arrange
         self.resource.delete()
@@ -105,13 +105,13 @@ class TestPrepaidCreationBilling(PrepaidBillingRegistratorTestBase):
         self.assertEqual(item.quantity, 1)
 
     def test_upfront_fee_is_not_billed_on_resource_update(self):
-        RegistrationManager.register(
+        MarketplaceBillingService.register(
             self.resource, timezone.now(), order_type=OrderTypes.UPDATE
         )
         self.assertFalse(invoice_models.InvoiceItem.objects.exists())
 
 
-class TestPrepaidTotalUsageBilling(PrepaidBillingRegistratorTestBase):
+class TestPrepaidTotalUsageBilling(PrepaidBillingTestBase):
     def setUp(self):
         super().setUp()
         self.resource.created = timezone.make_aware(timezone.datetime(2024, 1, 1))
@@ -151,7 +151,7 @@ class TestPrepaidTotalUsageBilling(PrepaidBillingRegistratorTestBase):
         self.assertIn("(Overage)", item.name)
 
 
-class TestPrepaidPeriodicUsageBilling(PrepaidBillingRegistratorTestBase):
+class TestPrepaidPeriodicUsageBilling(PrepaidBillingTestBase):
     @freeze_time("2024-06-15")
     def test_monthly_subscription_period_ignores_past_usage(self):
         # Arrange

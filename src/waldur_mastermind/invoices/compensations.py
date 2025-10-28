@@ -6,6 +6,7 @@ from django.db.models import Sum
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Project
+from waldur_mastermind.common.enums import Units
 
 from . import log, models
 
@@ -116,7 +117,7 @@ class MonthlyCompensation:
                         invoice=self.invoice,
                         unit_price=credit_compensation * -1,
                         quantity=1,
-                        unit=models.InvoiceItem.Units.QUANTITY,
+                        unit=Units.QUANTITY,
                         credit=self.credit,
                         name=f"Credit compensation. {item}",
                         resource=item.resource,

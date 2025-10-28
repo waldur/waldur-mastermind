@@ -16,9 +16,10 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.tasks import copy_future_price_to_current_price
 
-from . import compensations, models, registrators, serializers, utils
+from ..invoices import compensations, models, serializers, utils
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def create_monthly_invoices():
 
     for customer in customers.iterator():
         try:
-            registrators.RegistrationManager.get_or_create_invoice(
+            MarketplaceBillingService.get_or_create_invoice(
                 customer, core_utils.month_start(local_date)
             )
         except Exception:
