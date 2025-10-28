@@ -1275,6 +1275,23 @@ class ProjectRecoverySerializer(serializers.Serializer):
             "Whether to send invitations to users who had access before project deletion"
         ),
     )
+    end_date = serializers.DateField(
+        required=False,
+        allow_null=True,
+        help_text=_("End date for the recovered project"),
+    )
+
+    def validate_end_date(self, end_date):
+        # Allow None to clear the field
+        if end_date is None:
+            return end_date
+
+        # Only validate non-None values
+        if end_date < timezone.datetime.today().date():
+            raise serializers.ValidationError(
+                {"end_date": _("Cannot be earlier than the current date.")}
+            )
+        return end_date
 
     def validate(self, data):
         request = self.context.get("request")

@@ -55,24 +55,15 @@ Link the loaded software catalogs to your marketplace offerings:
 
 ```bash
 # Find your offering and catalog UUIDs
-DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run python manage.py shell -c "
-from waldur_mastermind.marketplace.models import Offering, SoftwareCatalog
+# List offerings and catalogs using REST API
+curl "https://your-waldur.example.com/api/marketplace-provider-offerings/"
+curl "https://your-waldur.example.com/api/marketplace-software-catalogs/"
 
-print('Available Offerings:')
-for offering in Offering.objects.all()[:10]:
-    print(f'{offering.uuid} - {offering.name}')
-
-print('\nAvailable Software Catalogs:')
-for catalog in SoftwareCatalog.objects.all():
-    print(f'{catalog.uuid} - {catalog.name} {catalog.version}')
-"
-
-# Create offering-catalog association via API
-curl -X POST "https://your-waldur.example.com/api/marketplace-offering-software-catalogs/" \
+# Associate catalog with offering via API
+curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings/<offering_uuid>/add_software_catalog/" \
   -H "Authorization: Token your-token" \
   -H "Content-Type: application/json" \
   -d '{
-    "offering": "<offering_uuid>",
     "catalog": "<catalog_uuid>",
     "enabled_cpu_family": ["x86_64", "aarch64"],
     "enabled_cpu_microarchitectures": ["generic"]
@@ -99,6 +90,25 @@ EESSI provides software optimized for different CPU architectures and microarchi
 2. **Compatibility**: Ensures software runs on target hardware
 3. **Instruction Sets**: Leverages specific CPU features (AVX, NEON, etc.)
 4. **HPC Requirements**: Critical for scientific computing workloads
+
+## Available API Endpoints
+
+The software catalog system provides the following API endpoints:
+
+- **marketplace-software-catalogs**: View and manage software catalogs
+- **marketplace-software-packages**: Browse software packages within catalogs
+- **marketplace-software-versions**: View software versions for packages
+- **marketplace-software-targets**: View architecture-specific installations
+
+### Software Catalog Management Actions
+
+Offering-software catalog associations are managed through offering actions:
+
+- `add_software_catalog`: Associate a catalog with an offering
+- `update_software_catalog`: Update catalog configuration for an offering
+- `remove_software_catalog`: Remove catalog association from offering
+
+These actions are available on the `marketplace-provider-offerings` endpoint.
 
 ## API Usage
 
@@ -137,11 +147,17 @@ Example response:
 # List packages in a catalog
 curl "https://your-waldur.example.com/api/marketplace-software-packages/?catalog_uuid=abc-123-def-456"
 
-# Search for specific software
-curl "https://your-waldur.example.com/api/marketplace-software-packages/?search=python"
+# Search for specific software by name
+curl "https://your-waldur.example.com/api/marketplace-software-packages/?name=sampleapp"
 
-# Filter by offering and architecture
-curl "https://your-waldur.example.com/api/marketplace-software-packages/?offering_uuid=def-456&architecture=x86_64"
+# Search across name, description, and versions
+curl "https://your-waldur.example.com/api/marketplace-software-packages/?query=computing"
+
+# Filter by offering and catalog version
+curl "https://your-waldur.example.com/api/marketplace-software-packages/?offering_uuid=def-456&catalog_version=2023.06"
+
+# Order by catalog version
+curl "https://your-waldur.example.com/api/marketplace-software-packages/?o=catalog_version"
 ```
 
 Example response:
@@ -153,11 +169,69 @@ Example response:
     {
       "url": "https://your-waldur.example.com/api/marketplace-software-packages/package-uuid/",
       "uuid": "package-uuid",
-      "name": "Python",
-      "description": "Python is a programming language...",
-      "homepage": "https://www.python.org/",
+      "name": "SampleApp",
+      "description": "Scientific computing application...",
+      "homepage": "https://example.com/sampleapp",
       "catalog": "abc-123-def-456",
       "version_count": 12
+    }
+  ]
+}
+```
+
+### Package Detail with Nested Versions and Targets
+
+When viewing package details, the response includes nested versions with their targets:
+
+```bash
+# Get package detail with nested versions and targets
+curl "https://your-waldur.example.com/api/marketplace-software-packages/package-uuid/"
+```
+
+Example detailed response:
+
+```json
+{
+  "uuid": "package-uuid",
+  "name": "SampleApp",
+  "description": "Scientific computing application...",
+  "homepage": "https://example.com/sampleapp",
+  "catalog": "abc-123-def-456",
+  "version_count": 2,
+  "versions": [
+    {
+      "uuid": "version-uuid-1",
+      "version": "1.2.0",
+      "release_date": "2023-06-15",
+      "metadata": {},
+      "targets": [
+        {
+          "uuid": "target-uuid-1",
+          "cpu_family": "x86_64",
+          "cpu_microarchitecture": "generic",
+          "path": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic"
+        },
+        {
+          "uuid": "target-uuid-2",
+          "cpu_family": "aarch64",
+          "cpu_microarchitecture": "generic",
+          "path": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/aarch64/generic"
+        }
+      ]
+    },
+    {
+      "uuid": "version-uuid-2",
+      "version": "1.3.0",
+      "release_date": "2023-08-20",
+      "metadata": {},
+      "targets": [
+        {
+          "uuid": "target-uuid-3",
+          "cpu_family": "x86_64",
+          "cpu_microarchitecture": "generic",
+          "path": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic"
+        }
+      ]
     }
   ]
 }
@@ -169,8 +243,8 @@ Example response:
 # Get versions for a package
 curl "https://your-waldur.example.com/api/marketplace-software-versions/?package_uuid=package-uuid"
 
-# Filter by architecture
-curl "https://your-waldur.example.com/api/marketplace-software-versions/?package_uuid=package-uuid&architecture=x86_64"
+# Filter by CPU family
+curl "https://your-waldur.example.com/api/marketplace-software-versions/?package_uuid=package-uuid&cpu_family=x86_64"
 ```
 
 ### Browse Installation Targets
@@ -179,36 +253,65 @@ curl "https://your-waldur.example.com/api/marketplace-software-versions/?package
 # Get available targets for a version
 curl "https://your-waldur.example.com/api/marketplace-software-targets/?version_uuid=version-uuid"
 
-# Filter by architecture pattern
-curl "https://your-waldur.example.com/api/marketplace-software-targets/?architecture=x86_64"
+# Filter by CPU family
+curl "https://your-waldur.example.com/api/marketplace-software-targets/?cpu_family=x86_64"
+
+# Filter by CPU microarchitecture
+curl "https://your-waldur.example.com/api/marketplace-software-targets/?cpu_microarchitecture=generic"
 ```
 
 ## Linking Catalogs to Offerings
 
 ### Associate Catalog with Offering
 
+Offering-software catalog associations are managed through offering actions, not a separate endpoint:
+
 ```bash
-# Create offering-catalog association
-curl -X POST "https://your-waldur.example.com/api/marketplace-offering-software-catalogs/" \
+# Add software catalog to offering
+curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings/{offering_uuid}/add_software_catalog/" \
   -H "Authorization: Token your-token" \
   -H "Content-Type: application/json" \
   -d '{
-    "offering": "offering-uuid",
     "catalog": "catalog-uuid",
     "enabled_cpu_family": ["x86_64", "aarch64"],
     "enabled_cpu_microarchitectures": ["generic"]
   }'
 ```
 
+### Update Offering Software Catalog Configuration
+
+```bash
+# Update software catalog configuration for an offering
+curl -X PATCH "https://your-waldur.example.com/api/marketplace-provider-offerings/{offering_uuid}/update_software_catalog/" \
+  -H "Authorization: Token your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "offering_catalog_uuid": "offering-catalog-uuid",
+    "enabled_cpu_family": ["x86_64", "aarch64"],
+    "enabled_cpu_microarchitectures": ["generic", "zen3"]
+  }'
+```
+
+### Remove Software Catalog from Offering
+
+```bash
+# Remove software catalog from offering
+curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings/{offering_uuid}/remove_software_catalog/" \
+  -H "Authorization: Token your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "offering_catalog_uuid": "offering-catalog-uuid"
+  }'
+```
+
 ### Query Offering Software
 
 ```bash
-# Get catalogs available for an offering
-curl "https://your-waldur.example.com/api/marketplace-offering-software-catalogs/?offering_uuid=offering-uuid"
+# Get offering details with associated software catalogs
+curl "https://your-waldur.example.com/api/marketplace-provider-offerings/{offering_uuid}/"
 
 # Get software packages available for an offering
 curl "https://your-waldur.example.com/api/marketplace-software-packages/?offering_uuid=offering-uuid"
-```
 
 ## Command Options
 
@@ -242,7 +345,7 @@ Use `--no-sync` to disable removal of missing records and only add new data.
 
 ### Offering Integration (Offering Managers)
 
-- **OfferingSoftwareCatalog**: Offering managers can associate catalogs with their offerings
+- **OfferingSoftwareCatalog**: Offering managers can associate catalogs with their offerings through offering actions (`add_software_catalog`, `update_software_catalog`, `remove_software_catalog`)
 
 ## EESSI Integration Details
 
@@ -251,6 +354,7 @@ Use `--no-sync` to disable removal of missing records and only add new data.
 EESSI provides software in a structured format:
 
 ```json
+
 {
   "targets": [
     "/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic",
@@ -269,29 +373,18 @@ EESSI provides software in a structured format:
     }
   }
 }
+
 ```
 
 ## Offering Partitions
 
+**Note**: The partition management APIs referenced in this section are documented but the actual implementation may vary. The OfferingPartition model exists in the codebase but may not have corresponding ViewSets exposed via API endpoints. Please verify the current API availability.
+
 Offering partitions represent SLURM partitions associated with marketplace offerings. They define resource limits, scheduling policies, and access controls for different compute partitions.
 
-### Partition Configuration
+### Partition Model Fields
 
-```bash
-# Create a partition for an offering
-curl -X POST "https://your-waldur.example.com/api/marketplace-offering-partitions/" \
-  -H "Authorization: Token your-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "offering": "offering-uuid",
-    "partition_name": "gpu-partition",
-    "max_cpus_per_node": 64,
-    "def_mem_per_cpu": 4096,
-    "max_time": 1440,
-    "priority_tier": 50,
-    "qos": "normal"
-  }'
-```
+The OfferingPartition model includes the following key fields for SLURM partition configuration:
 
 ### Partition Parameters
 
@@ -329,59 +422,34 @@ curl -X POST "https://your-waldur.example.com/api/marketplace-offering-partition
 - `qos`: Quality of Service (QOS) name
 - `req_resv`: Require reservation for job allocation
 
-### Linking Software Catalogs to Partitions
+### Partition Software Catalog Associations
 
-Software catalogs can be associated with specific partitions to control software availability:
+Software catalogs can optionally be associated with specific partitions through the `partition` field in OfferingSoftwareCatalog:
 
 ```bash
-# Associate catalog with a specific partition
-curl -X POST "https://your-waldur.example.com/api/marketplace-offering-software-catalogs/" \
+
+# Add software catalog to specific partition
+curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings/{offering_uuid}/add_software_catalog/" \
   -H "Authorization: Token your-token" \
   -H "Content-Type: application/json" \
   -d '{
-    "offering": "offering-uuid",
     "catalog": "catalog-uuid",
     "enabled_cpu_family": ["x86_64"],
-    "enabled_cpu_microarchitectures": ["generic", "zen3"],
+    "enabled_cpu_microarchitectures": ["generic"],
     "partition": "partition-uuid"
   }'
+
 ```
 
-### Query Partitions
+### API Examples
 
 ```bash
-# List all partitions for an offering
-curl "https://your-waldur.example.com/api/marketplace-offering-partitions/?offering_uuid=offering-uuid"
 
-# Get partition details
-curl "https://your-waldur.example.com/api/marketplace-offering-partitions/partition-uuid/"
-
-# List software catalogs for a specific partition
-curl "https://your-waldur.example.com/api/marketplace-offering-software-catalogs/?partition_uuid=partition-uuid"
-```
-
-## Updated Field Names
-
-**Important**: The field names have been updated to use more precise terminology:
-
-### Old vs New Field Names
-
-| Old Field Name | New Field Name | Description |
-|---|---|---|
-| `enabled_architectures` | `enabled_cpu_family` | CPU architecture families (x86_64, aarch64) |
-| `enabled_platforms` | `enabled_cpu_microarchitectures` | CPU microarchitectures (generic, zen3, neoverse_n1) |
-| `architecture` | `cpu_family` | In SoftwareTarget model |
-| `platform` | `cpu_microarchitecture` | In SoftwareTarget model |
-
-### API Examples with Updated Fields
-
-```bash
-# Create offering-catalog association with new field names
-curl -X POST "https://your-waldur.example.com/api/marketplace-offering-software-catalogs/" \
+# Add software catalog to offering with updated field names
+curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings/{offering_uuid}/add_software_catalog/" \
   -H "Authorization: Token your-token" \
   -H "Content-Type: application/json" \
   -d '{
-    "offering": "offering-uuid",
     "catalog": "catalog-uuid",
     "enabled_cpu_family": ["x86_64", "aarch64"],
     "enabled_cpu_microarchitectures": ["generic", "zen3", "neoverse_n1"]
@@ -392,4 +460,5 @@ curl "https://your-waldur.example.com/api/marketplace-software-targets/?cpu_fami
 
 # Filter by CPU microarchitecture
 curl "https://your-waldur.example.com/api/marketplace-software-targets/?cpu_microarchitecture=zen3"
+
 ```
