@@ -13,7 +13,7 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.enums import (
@@ -311,7 +311,7 @@ class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
         item = invoices_factories.InvoiceItemFactory(resource=self.resource)
         item.unit_price = 10
         item.quantity = 10
-        item.unit = invoices_models.InvoiceItem.Units.QUANTITY
+        item.unit = Units.QUANTITY
         item.save()
 
         self.assertTrue(item.price)

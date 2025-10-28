@@ -7,8 +7,10 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.utils import move_project
-from waldur_mastermind.invoices import models, registrators
+from waldur_mastermind.common.enums import Units
+from waldur_mastermind.invoices import models
 from waldur_mastermind.invoices.tests import factories, fixtures
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 
 
 class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
@@ -42,7 +44,7 @@ class UpdateInvoiceTotalCostTest(TransactionTestCase):
             project=self.project,
             unit_price=100,
             quantity=1,
-            unit=models.InvoiceItem.Units.QUANTITY,
+            unit=Units.QUANTITY,
         )
 
     def test_when_invoice_item_is_created_total_cost_is_updated(self):
@@ -85,7 +87,7 @@ class MoveProjectInvoiceTest(TransactionTestCase):
         (
             new_customer_invoice,
             create,
-        ) = registrators.RegistrationManager.get_or_create_invoice(new_customer, date)
+        ) = MarketplaceBillingService.get_or_create_invoice(new_customer, date)
         self.assertFalse(
             new_customer_invoice.items.filter(resource=fixture.resource).exists()
         )

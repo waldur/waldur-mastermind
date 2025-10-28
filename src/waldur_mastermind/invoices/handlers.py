@@ -12,11 +12,12 @@ from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Project
+from waldur_mastermind.invoices import models
 from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import ResourceStates
 
-from . import models, registrators
 from .models import CustomerCredit, Invoice, InvoiceItem
 
 logger = logging.getLogger(__name__)
@@ -160,7 +161,7 @@ def projects_customer_has_been_changed(
     except models.Invoice.DoesNotExist:
         return
 
-    new_invoice, create = registrators.RegistrationManager.get_or_create_invoice(
+    new_invoice, create = MarketplaceBillingService.get_or_create_invoice(
         new_customer, date
     )
 

@@ -13,7 +13,6 @@ class BookingConfig(AppConfig):
         from waldur_mastermind.marketplace.plugins import manager
 
         from . import handlers, processors, utils
-        from . import registrators as booking_registrators
 
         manager.register(
             offering_type=BOOKING_OFFERING,
@@ -22,8 +21,6 @@ class BookingConfig(AppConfig):
             change_attributes_for_view=utils.change_attributes_for_view,
             enable_usage_notifications=True,
         )
-
-        booking_registrators.BookingRegistrator.connect()
 
         signals.post_save.connect(
             handlers.update_google_calendar_name_if_offering_name_has_been_changed,

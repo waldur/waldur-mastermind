@@ -5,7 +5,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.billing.tests.utils import get_financial_report_url
-from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.invoices.tests import fixtures as invoice_fixtures
 
@@ -23,14 +23,14 @@ class BillingOptimizationCorrectnessTest(test.APITransactionTestCase):
         self.item1 = invoice_factories.InvoiceItemFactory(
             invoice=self.fixture.invoice,
             project=self.fixture.project,
-            unit=invoice_models.InvoiceItem.Units.QUANTITY,
+            unit=Units.QUANTITY,
             unit_price=Decimal("15.50"),
             quantity=4,  # total = 62.00
         )
         self.item2 = invoice_factories.InvoiceItemFactory(
             invoice=self.fixture.invoice,
             project=self.fixture.project,
-            unit=invoice_models.InvoiceItem.Units.QUANTITY,
+            unit=Units.QUANTITY,
             unit_price=Decimal("25.75"),
             quantity=2,  # total = 51.50
         )

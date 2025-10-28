@@ -9,7 +9,7 @@ from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.billing import models
-from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
@@ -70,7 +70,7 @@ class CustomerTotalCostFilterTest(test.APITransactionTestCase):
                 project=project,
                 unit_price=price,
                 quantity=1,
-                unit=invoice_models.InvoiceItem.Units.QUANTITY,
+                unit=Units.QUANTITY,
             )
 
     def execute_request(self, ordering_param=None):
@@ -153,14 +153,14 @@ class FinancialReportProviderFilterTest(test.APITransactionTestCase):
             resource=self.provider_resource,
             unit_price=100,
             quantity=2,
-            unit=invoice_models.InvoiceItem.Units.QUANTITY,
+            unit=Units.QUANTITY,
         )
         invoice_factories.InvoiceItemFactory(
             invoice=self.invoice,
             resource=self.provider_resource,
             unit_price=50,
             quantity=3,
-            unit=invoice_models.InvoiceItem.Units.QUANTITY,
+            unit=Units.QUANTITY,
         )
 
         invoice_factories.InvoiceItemFactory(
@@ -168,7 +168,7 @@ class FinancialReportProviderFilterTest(test.APITransactionTestCase):
             resource=self.another_provider_resource,
             unit_price=30,
             quantity=4,
-            unit=invoice_models.InvoiceItem.Units.QUANTITY,
+            unit=Units.QUANTITY,
         )
 
     def get_billing_price_estimate(self, provider_uuid: str) -> dict:

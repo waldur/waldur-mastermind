@@ -4057,7 +4057,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
 
         Returns a dictionary mapping component types to their next renewal dates.
         The renewal date is the first day of the month when the next invoice item
-        for each component would be created by the registrator.
+        for each component would be created by the billing service.
 
         Returns:
             dict: Mapping of component_type -> renewal_date for limit-based components

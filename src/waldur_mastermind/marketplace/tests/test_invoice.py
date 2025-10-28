@@ -9,6 +9,10 @@ from rest_framework.reverse import reverse
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.billing import (
+    LimitPeriodProcessor,
+    MarketplaceBillingService,
+)
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
@@ -16,7 +20,6 @@ from waldur_mastermind.marketplace.enums import (
     OrderTypes,
 )
 from waldur_mastermind.marketplace.models import Order
-from waldur_mastermind.marketplace.registrators import MarketplaceRegistrator
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests.factories import ResourceFactory
 
@@ -626,24 +629,23 @@ class QuarterlyBillingMonthDetectionTest(test.APITransactionTestCase):
         """Test that quarterly billing only happens in months 1, 4, 7, 10."""
         month, expected = month_and_expected
 
-        # Import the registrator to test the method
-        from waldur_mastermind.marketplace.registrators import MarketplaceRegistrator
-
         # Create a test date for the given month
         test_date = timezone.datetime(2020, month, 15)
 
-        result = MarketplaceRegistrator.should_process_quarterly_billing(test_date)
+        result = LimitPeriodProcessor.should_process_billing(
+            LimitPeriods.QUARTERLY, test_date
+        )
         self.assertEqual(
             result, expected, f"Month {month} quarterly billing detection failed"
         )
 
     def test_quarterly_billing_period_calculation(self):
         """Test quarterly billing period calculation for each quarter."""
-        from waldur_mastermind.marketplace.registrators import MarketplaceRegistrator
-
         # Test Q1 (January)
         q1_date = timezone.datetime(2020, 1, 15)
-        q1_start, q1_end = MarketplaceRegistrator.get_quarterly_billing_period(q1_date)
+        q1_start, q1_end = LimitPeriodProcessor.get_billing_period(
+            LimitPeriods.QUARTERLY, q1_date
+        )
         self.assertEqual(q1_start.month, 1)
         self.assertEqual(q1_start.day, 1)
         self.assertEqual(q1_end.month, 3)
@@ -651,7 +653,9 @@ class QuarterlyBillingMonthDetectionTest(test.APITransactionTestCase):
 
         # Test Q2 (April)
         q2_date = timezone.datetime(2020, 4, 15)
-        q2_start, q2_end = MarketplaceRegistrator.get_quarterly_billing_period(q2_date)
+        q2_start, q2_end = LimitPeriodProcessor.get_billing_period(
+            LimitPeriods.QUARTERLY, q2_date
+        )
         self.assertEqual(q2_start.month, 4)
         self.assertEqual(q2_start.day, 1)
         self.assertEqual(q2_end.month, 6)
@@ -659,7 +663,9 @@ class QuarterlyBillingMonthDetectionTest(test.APITransactionTestCase):
 
         # Test Q3 (July)
         q3_date = timezone.datetime(2020, 7, 15)
-        q3_start, q3_end = MarketplaceRegistrator.get_quarterly_billing_period(q3_date)
+        q3_start, q3_end = LimitPeriodProcessor.get_billing_period(
+            LimitPeriods.QUARTERLY, q3_date
+        )
         self.assertEqual(q3_start.month, 7)
         self.assertEqual(q3_start.day, 1)
         self.assertEqual(q3_end.month, 9)
@@ -667,7 +673,9 @@ class QuarterlyBillingMonthDetectionTest(test.APITransactionTestCase):
 
         # Test Q4 (October)
         q4_date = timezone.datetime(2020, 10, 15)
-        q4_start, q4_end = MarketplaceRegistrator.get_quarterly_billing_period(q4_date)
+        q4_start, q4_end = LimitPeriodProcessor.get_billing_period(
+            LimitPeriods.QUARTERLY, q4_date
+        )
         self.assertEqual(q4_start.month, 10)
         self.assertEqual(q4_start.day, 1)
         self.assertEqual(q4_end.month, 12)
@@ -1102,7 +1110,7 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
             )
 
             # This should be prevented by the safeguard
-            MarketplaceRegistrator.create_component_item(
+            MarketplaceBillingService.create_component_item(
                 source=self.resource,
                 plan_component=self.cpu_plan_component,
                 invoice=september_invoice,
@@ -1172,7 +1180,7 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
         october_15th = timezone.datetime(2025, 10, 15, tzinfo=timezone.utc)
         october_31st = timezone.datetime(2025, 10, 31, tzinfo=timezone.utc)
 
-        MarketplaceRegistrator.create_component_item(
+        MarketplaceBillingService.create_component_item(
             source=test_resource,
             plan_component=old_plan_component,
             invoice=october_invoice,
@@ -1183,7 +1191,7 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
         test_resource.plan = new_plan
         test_resource.save()
 
-        MarketplaceRegistrator.create_component_item(
+        MarketplaceBillingService.create_component_item(
             source=test_resource,
             plan_component=new_plan_component,
             invoice=october_invoice,
@@ -1201,8 +1209,8 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
             items.count(), 2, "Should have 2 invoice items due to plan switch"
         )
 
-        MarketplaceRegistrator.update_component_item(
-            source=test_resource,
+        MarketplaceBillingService.update_component_item(
+            resource=test_resource,
             component_type=offering_component.type,
             invoice=october_invoice,
             new_quantity=150,

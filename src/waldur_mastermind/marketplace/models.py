@@ -1282,9 +1282,7 @@ class Resource(
     Represents provisioned services with state management, usage tracking,
     and backend integration. Provides comprehensive resource lifecycle
     management including billing, quotas, and access control.
-    """
 
-    """
     Core resource is abstract model, marketplace resource is not abstract,
     therefore we don't need to compromise database query efficiency when
     we are getting a list of all resources.
@@ -1299,6 +1297,7 @@ class Resource(
     """
 
     id: int
+    offering_id: int
     children: models.Manager["Resource"]
     quotas: models.Manager["ComponentQuota"]
     usages: models.Manager["ComponentUsage"]
@@ -1415,10 +1414,6 @@ class Resource(
             "effective_id",
             "slug",
         )
-
-    @property
-    def invoice_registrator_key(self) -> str:
-        return self.offering.type
 
     @classmethod
     def get_scope_type(cls):

@@ -18,11 +18,6 @@ class MarketplaceSlurmConfig(AppConfig):
             handlers,
             processor,
         )
-        from waldur_mastermind.marketplace_site_agent import (
-            registrators as slurm_registrators,
-        )
-
-        slurm_registrators.RemoteSlurmRegistrator.connect()
 
         manager.register(
             SITE_AGENT_OFFERING,

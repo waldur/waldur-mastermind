@@ -2,6 +2,8 @@ import logging
 
 from django.db import migrations
 
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,7 +22,7 @@ def safe_create_monthly_invoices(apps, schema_editor):
 
         from waldur_core.core import utils as core_utils
         from waldur_core.structure import models as structure_models
-        from waldur_mastermind.invoices import models, registrators
+        from waldur_mastermind.marketplace import models
         from waldur_mastermind.marketplace.tasks import (
             copy_future_price_to_current_price,
         )
@@ -78,10 +80,8 @@ def safe_create_monthly_invoices(apps, schema_editor):
         created_count = 0
         for customer in customers.iterator():
             try:
-                invoice, created = (
-                    registrators.RegistrationManager.get_or_create_invoice(
-                        customer, core_utils.month_start(date)
-                    )
+                invoice, created = MarketplaceBillingService.get_or_create_invoice(
+                    customer, core_utils.month_start(date)
                 )
                 if created:
                     created_count += 1

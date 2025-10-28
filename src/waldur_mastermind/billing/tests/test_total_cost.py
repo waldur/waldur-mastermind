@@ -1,6 +1,6 @@
 from rest_framework import status, test
 
-from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.invoices.tests import fixtures as invoice_fixtures
 
@@ -13,14 +13,14 @@ class TotalCostTest(test.APITransactionTestCase):
         invoice_factories.InvoiceItemFactory(
             invoice=self.fixture1.invoice,
             project=self.fixture1.project,
-            unit=invoice_models.InvoiceItem.Units.QUANTITY,
+            unit=Units.QUANTITY,
             unit_price=10,
             quantity=10,
         )
         invoice_factories.InvoiceItemFactory(
             invoice=self.fixture2.invoice,
             project=self.fixture2.project,
-            unit=invoice_models.InvoiceItem.Units.QUANTITY,
+            unit=Units.QUANTITY,
             unit_price=20,
             quantity=5,
         )

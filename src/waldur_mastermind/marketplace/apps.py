@@ -17,9 +17,9 @@ class MarketplaceConfig(AppConfig):
         from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.serializers import BaseResourceSerializer
         from waldur_freeipa import models as freeipa_models
+        from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 
         from . import handlers, models, processors, utils
-        from . import registrators as marketplace_registrators
         from . import signals as marketplace_signals
         from .plugins import manager
 
@@ -215,7 +215,7 @@ class MarketplaceConfig(AppConfig):
             can_terminate_order=True,
         )
 
-        marketplace_registrators.MarketplaceRegistrator.connect()
+        MarketplaceBillingService.connect()
 
         structure_signals.project_moved.connect(
             handlers.update_customer_of_offering_if_project_has_been_moved,

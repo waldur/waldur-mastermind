@@ -1,5 +1,5 @@
+import datetime
 import logging
-from datetime import timedelta
 from decimal import Decimal
 from typing import cast
 
@@ -9,34 +9,139 @@ from django.db.models import Q, signals
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.models import Customer
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoice_models
-from waldur_mastermind.invoices import registrators
-from waldur_mastermind.invoices.registrators import RegistrationManager
-from waldur_mastermind.invoices.utils import (
-    get_current_month_end,
-    get_full_days,
-)
+from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils
 from waldur_mastermind.marketplace.enums import (
-    BASIC_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    SLURM_OFFERING,
     BillingTypes,
     LimitPeriods,
     OrderTypes,
     ResourceStates,
 )
+from waldur_mastermind.marketplace_openstack import CORES_TYPE, RAM_TYPE, STORAGE_TYPE
 from waldur_mastermind.promotions import models as promotions_models
+from waldur_openstack.utils import is_valid_volume_type_name
 
 logger = logging.getLogger(__name__)
 
 
-class MarketplaceRegistrator(registrators.BaseRegistrator):
+class LimitPeriodProcessor:
     """
-    Marketplace invoice registrator handling billing for different component types.
+    Encapsulates the business logic for handling different limit periods
+    (e.g., MONTH, QUARTERLY, ANNUAL, TOTAL) for limit-based components.
+    """
 
-    This registrator manages invoice generation for marketplace resources based on
+    @classmethod
+    def process_creation(
+        cls,
+        resource: marketplace_models.Resource,
+        plan_component: marketplace_models.PlanComponent,
+        invoice: invoice_models.Invoice,
+        start,
+        end,
+        order_type,
+    ):
+        """
+        Processes the creation of invoice items for limit-based components,
+        handling different limit periods.
+        """
+        offering_component = plan_component.component
+        limit_period = offering_component.limit_period
+
+        if limit_period == LimitPeriods.TOTAL:
+            # For TOTAL, only bill on resource creation.
+            if order_type == OrderTypes.CREATE:
+                MarketplaceBillingService.create_component_item(
+                    resource, plan_component, invoice, start, end
+                )
+            return
+
+        if not cls.should_process_billing(limit_period, start):
+            # Skip billing for this period (e.g., non-quarterly month for a quarterly component)
+            return
+
+        # Use the appropriate billing period instead of the default monthly one
+        if limit_period == LimitPeriods.QUARTERLY:
+            billing_start, billing_end = (
+                core_utils.get_quarter_start(start),
+                core_utils.get_quarter_end(start),
+            )
+        else:
+            # For MONTH, ANNUAL, etc., use the period provided by the caller.
+            billing_start, billing_end = start, end
+
+        MarketplaceBillingService.create_component_item(
+            resource,
+            plan_component,
+            invoice,
+            billing_start,
+            billing_end,
+        )
+
+    @classmethod
+    def process_update(
+        cls,
+        resource: marketplace_models.Resource,
+        invoice: invoice_models.Invoice,
+        component_type: str,
+        new_quantity: int,
+    ):
+        """
+        Processes the update of invoice items when resource limits change,
+        dispatching to the correct handler based on the limit period.
+        """
+        offering_component = resource.offering.components.get(type=component_type)
+        if offering_component.limit_period == LimitPeriods.TOTAL:
+            MarketplaceBillingService.create_invoice_item_for_total_limit(
+                resource,
+                invoice,
+                component_type,
+                new_quantity,
+                offering_component,
+            )
+        else:
+            MarketplaceBillingService.create_or_update_component_item(
+                resource, invoice, component_type, new_quantity
+            )
+
+    @classmethod
+    def get_billing_period(
+        cls, limit_period: str, date: datetime.date
+    ) -> tuple[datetime.datetime, datetime.datetime]:
+        """
+        Get the full billing period (start, end) for a given limit period
+        containing the given date.
+        """
+        if limit_period == LimitPeriods.QUARTERLY:
+            return core_utils.get_quarter_start(date), core_utils.get_quarter_end(date)
+        # Default to monthly boundaries for other recurring limit types (MONTH, ANNUAL)
+        # when creating a new item mid-cycle.
+        return core_utils.month_start(date), core_utils.month_end(date)
+
+    @classmethod
+    def should_process_billing(cls, limit_period: str, date: datetime.date) -> bool:
+        """
+        Check if billing should be processed for the given date based on the limit period.
+        """
+        if limit_period == LimitPeriods.QUARTERLY:
+            # Quarterly billing should only happen in the first month of each quarter:
+            # January (Q1), April (Q2), July (Q3), October (Q4)
+            return date.month in [1, 4, 7, 10]
+        # MONTH, ANNUAL, TOTAL are processed every month.
+        return True
+
+
+class MarketplaceBillingService:
+    """
+    It handles billing for different component types.
+
+    This service manages invoice generation for marketplace resources based on
     their offering components' billing types:
 
     - FIXED: Fixed-price components billed monthly with prorated quantities
@@ -45,7 +150,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
     - ONE_TIME: One-time components billed once during resource creation
     - ON_PLAN_SWITCH: Components billed when switching between plans
 
-    The registrator handles different billing scenarios:
+    The service handles different billing scenarios:
     - Monthly billing for fixed components
     - Usage reporting for dynamic components
     - Limit updates with prorated billing periods
@@ -59,73 +164,75 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
     - TOTAL: One-time billing for total limit amount
     """
 
-    plugin_name = BASIC_OFFERING
+    @classmethod
+    def get_or_create_invoice(cls, customer: Customer, date: datetime.date, **kwargs):
+        invoice, created = invoice_models.Invoice.objects.get_or_create(
+            customer=customer,
+            month=date.month,
+            year=date.year,
+        )
 
-    def _find_item(self, source: marketplace_models.Resource, now):
+        if created:
+            sources = (
+                marketplace_models.Resource.objects.filter(project__customer=customer)
+                .exclude(state__in=[ResourceStates.CREATING, ResourceStates.TERMINATED])
+                .distinct()
+            )
+            end = core_utils.month_end(date)
+            for source in sources:
+                MarketplaceBillingService()._create_item(
+                    source, invoice=invoice, start=date, end=end, **kwargs
+                )
+
+        return invoice, created
+
+    @classmethod
+    def register(cls, resource: marketplace_models.Resource, now=None, **kwargs):
         """
-        Find invoice items for a marketplace resource by source and date.
+        Create new invoice item from source and register it into invoice.
 
-        Searches for existing invoice items for the given resource within the
-        specified billing period. Used to avoid duplicate billing and to update
-        existing items when needed.
-
-        Args:
-            source: Marketplace resource that was purchased by customer
-            now: Date of invoice with invoice items
-
-        Returns:
-            List of invoice items for the resource in the specified period
+        If invoice does not exist new one will be created.
         """
+        if now is None:
+            now = timezone.now()
 
-        return list(
-            invoice_models.InvoiceItem.objects.filter(
-                resource=source,
-                invoice__customer=self.get_customer(source),
+        with transaction.atomic():
+            invoice, created = cls.get_or_create_invoice(
+                resource.project.customer, now, **kwargs
+            )
+            if not created:
+                end = core_utils.month_end(now)
+                MarketplaceBillingService()._create_item(
+                    resource, invoice=invoice, start=now, end=end, **kwargs
+                )
+
+    @classmethod
+    def terminate(cls, resource: marketplace_models.Resource, now=None):
+        """
+        Terminate invoice item that corresponds to given source.
+
+        :param source: invoice item to terminate.
+        :param now: time to set as end of item usage.
+        """
+        if now is None:
+            now = timezone.now()
+
+        with transaction.atomic():
+            cls.get_or_create_invoice(resource.project.customer, now)
+            items = invoice_models.InvoiceItem.objects.filter(
+                resource=resource,
+                invoice__customer=resource.project.customer,
                 invoice__state=invoice_models.Invoice.States.PENDING,
                 invoice__year=now.year,
                 invoice__month=now.month,
                 end=core_utils.month_end(now),
             )
-        )
-
-    def get_sources(self, customer):
-        """
-        Get billable marketplace resources for a customer.
-
-        Returns all marketplace resources for the customer that are in billable
-        states (excluding CREATING and TERMINATED states). These resources will
-        be processed for invoice generation.
-
-        Args:
-            customer: Customer object to get resources for
-
-        Returns:
-            QuerySet of marketplace resources ready for billing
-        """
-        return (
-            marketplace_models.Resource.objects.filter(
-                offering__type=self.plugin_name,
-                project__customer=customer,
-            )
-            .exclude(state__in=[ResourceStates.CREATING, ResourceStates.TERMINATED])
-            .distinct()
-        )
-
-    def get_customer(self, source):
-        """
-        Get customer for a marketplace resource.
-
-        Args:
-            source: Marketplace resource
-
-        Returns:
-            Customer object that owns the resource
-        """
-        return source.project.customer
+            for item in items:
+                item.terminate(end=now)
 
     def _create_item(
         self,
-        source: marketplace_models.Resource,
+        resource: marketplace_models.Resource,
         invoice: invoice_models.Invoice,
         start,
         end,
@@ -153,7 +260,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             end: Billing period end date
             **kwargs: Additional arguments including order_type
         """
-        resource = source
+        resource = resource
         plan = resource.plan
 
         if not plan:
@@ -183,33 +290,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             is_limit = offering_component.billing_type == BillingTypes.LIMIT
 
             if is_limit:
-                # Avoid creating invoice item for limit-based components
-                # if limit period is total and resource is not being created
-                if offering_component.limit_period == LimitPeriods.TOTAL:
-                    if order_type == OrderTypes.CREATE:
-                        self.create_component_item(
-                            source, plan_component, invoice, start, end
-                        )
-                        continue
-                    else:
-                        continue
-
-                # For quarterly components, only process billing in quarterly months
-                if offering_component.limit_period == LimitPeriods.QUARTERLY:
-                    if not self.should_process_quarterly_billing(start):
-                        # Skip quarterly billing in non-quarterly months
-                        continue
-                    # Use quarterly billing period instead of monthly
-                    quarterly_start, quarterly_end = self.get_quarterly_billing_period(
-                        start
-                    )
-                    self.create_component_item(
-                        source, plan_component, invoice, quarterly_start, quarterly_end
-                    )
-                    continue
-
-                # Process monthly, annual, and other limit periods normally
-                self.create_component_item(source, plan_component, invoice, start, end)
+                LimitPeriodProcessor.process_creation(
+                    resource, plan_component, invoice, start, end, order_type
+                )
                 continue
 
             if (
@@ -238,7 +321,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                     month=invoice.month,
                     unit_price=unit_price,
                 )
-                name = f"{self.get_name(resource)} / {self.get_component_name(plan_component)}"
+                name = f"{MarketplaceBillingService.get_name(resource)} / {self.get_component_name(plan_component)}"
                 details = self.get_component_details(resource, plan_component)
 
                 if campaign:
@@ -301,7 +384,8 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             "offering_component_name": plan_component.component.name,
         }
 
-    def get_name(self, resource: marketplace_models.Resource):
+    @classmethod
+    def get_name(cls, resource: marketplace_models.Resource):
         """
         Generate display name for invoice items.
 
@@ -398,7 +482,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         if not limit or limit == -1:
             return
         details = cls.get_component_details(source, plan_component)
-        quantity = cls.convert_quantity(limit, offering_component.type)
+        quantity = cls.convert_quantity(
+            limit, source.offering.type, offering_component.type
+        )
         details["resource_limit_periods"] = [
             utils.serialize_resource_limit_period(start, end, quantity)
         ]
@@ -414,7 +500,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             unit = invoice_models.Units.QUANTITY
 
         invoice_models.InvoiceItem.objects.create(
-            name=f"{RegistrationManager.get_name(source)} / {cls.get_component_name(plan_component)}",
+            name=f"{cls.get_name(source)} / {cls.get_component_name(plan_component)}",
             resource=source,
             project=source.project,
             unit_price=plan_component.price,
@@ -446,7 +532,11 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
     @classmethod
     def update_component_item(
-        cls, source: marketplace_models.Resource, component_type, invoice, new_quantity
+        cls,
+        resource: marketplace_models.Resource,
+        component_type,
+        invoice,
+        new_quantity,
     ):
         """
         Update existing invoice item when resource limits change.
@@ -461,13 +551,13 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             invoice: Invoice containing the item to update
             new_quantity: New limit quantity
         """
-        if not source.plan:
+        if not resource.plan:
             return
 
         invoice_item = invoice_models.InvoiceItem.objects.get(
-            resource=source,
+            resource=resource,
             details__offering_component_type=component_type,
-            details__plan_uuid=str(source.plan.uuid),
+            details__plan_uuid=str(resource.plan.uuid),
             invoice=invoice,
             unit_price__gte=0,  # exclude compensation items
         )
@@ -476,30 +566,32 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         old_quantity = int(old_period["quantity"])
         old_start = parse_datetime(old_period["start"])
         today = timezone.now()
-        new_quantity = cls.convert_quantity(new_quantity, component_type)
+        new_quantity = cls.convert_quantity(
+            new_quantity, resource.offering.type, component_type
+        )
         if old_quantity == new_quantity:
             # Skip update if limit is the same
             return
         if old_quantity > new_quantity:
             old_end = today.replace(hour=23, minute=59, second=59)
-            new_start = old_end + timedelta(seconds=1)
+            new_start = old_end + datetime.timedelta(seconds=1)
         else:
             new_start = today.replace(hour=0, minute=0, second=0)
-            old_end = new_start - timedelta(seconds=1)
+            old_end = new_start - datetime.timedelta(seconds=1)
         old_period = utils.serialize_resource_limit_period(
             old_start, old_end, old_quantity
         )
         # Get the offering component to determine appropriate period end
-        offering_component = source.offering.components.get(type=component_type)
-        period_end = cls.get_period_end_for_limit_period(
-            offering_component.limit_period
+        offering_component = resource.offering.components.get(type=component_type)
+        _, period_end = LimitPeriodProcessor.get_billing_period(
+            offering_component.limit_period, timezone.now()
         )
 
         new_period = utils.serialize_resource_limit_period(
             new_start, period_end, new_quantity
         )
         resource_limit_periods.extend([old_period, new_period])
-        plan_component = source.plan.components.get(component__type=component_type)
+        plan_component = resource.plan.components.get(component__type=component_type)
         invoice_item.quantity = sum(
             cls.get_total_quantity(
                 plan_component.plan.unit,
@@ -515,7 +607,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
     @transaction.atomic
     def create_or_update_component_item(
         cls,
-        source: marketplace_models.Resource,
+        resource: marketplace_models.Resource,
         invoice: invoice_models.Invoice,
         component_type,
         quantity,
@@ -533,7 +625,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             component_type: Type of component being processed
             quantity: Limit quantity for the component
         """
-        if not source.plan:
+        if not resource.plan:
             logger.warning(
                 "Skipping processing of invoice item %s because "
                 "billing is not enabled for resource.",
@@ -541,31 +633,23 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             )
             return
         if invoice_models.InvoiceItem.objects.filter(
-            resource=source,
+            resource=resource,
             details__offering_component_type=component_type,
             invoice=invoice,
         ).exists():
-            cls.update_component_item(source, component_type, invoice, quantity)
+            cls.update_component_item(resource, component_type, invoice, quantity)
         else:
-            start = timezone.now()
+            now = timezone.now()
             try:
-                plan_component = source.plan.components.get(
+                plan_component = resource.plan.components.get(
                     component__type=component_type
                 )
                 # Get the offering component to determine appropriate period end
                 offering_component = plan_component.component
 
-                # Handle quarterly components with proper billing periods
-                if offering_component.limit_period == LimitPeriods.QUARTERLY:
-                    quarterly_start, quarterly_end = cls.get_quarterly_billing_period(
-                        start
-                    )
-                    end = quarterly_end
-                    start = quarterly_start
-                else:
-                    end = cls.get_period_end_for_limit_period(
-                        offering_component.limit_period
-                    )
+                start, end = LimitPeriodProcessor.get_billing_period(
+                    offering_component.limit_period, now
+                )
 
             except ObjectDoesNotExist:
                 logger.warning(
@@ -575,7 +659,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 )
                 return
             else:
-                cls.create_component_item(source, plan_component, invoice, start, end)
+                cls.create_component_item(resource, plan_component, invoice, start, end)
 
     @classmethod
     def create_discounted_resource(
@@ -649,9 +733,6 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             **kwargs: Additional signal arguments
         """
         resource = instance
-        if resource.offering.type != cls.plugin_name:
-            return
-
         if created:
             return
 
@@ -663,7 +744,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             and resource_tracker.previous("state") == ResourceStates.CREATING
         ):
             cls.create_discounted_resource(sender, instance, created)
-            registrators.RegistrationManager.register(
+            MarketplaceBillingService.register(
                 resource, timezone.now(), order_type=OrderTypes.CREATE
             )
 
@@ -671,13 +752,13 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             resource.state == ResourceStates.TERMINATED
             and instance_tracker.previous("state") == ResourceStates.TERMINATING
         ):
-            registrators.RegistrationManager.terminate(resource, timezone.now())
+            MarketplaceBillingService.terminate(resource, timezone.now())
 
         if resource.state != ResourceStates.CREATING and resource_tracker.has_changed(
             "plan_id"
         ):
-            registrators.RegistrationManager.terminate(resource, timezone.now())
-            registrators.RegistrationManager.register(
+            MarketplaceBillingService.terminate(resource, timezone.now())
+            MarketplaceBillingService.register(
                 resource, timezone.now(), order_type=OrderTypes.UPDATE
             )
 
@@ -685,7 +766,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             "limits"
         ):
             today = timezone.now()
-            invoice, _ = registrators.RegistrationManager.get_or_create_invoice(
+            invoice, _ = MarketplaceBillingService.get_or_create_invoice(
                 resource.project.customer, core_utils.month_start(today)
             )
             valid_limits = set(
@@ -696,24 +777,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             for component_type, new_quantity in resource.limits.items():
                 if component_type not in valid_limits:
                     continue
-                offering_component = resource.offering.components.get(
-                    type=component_type
+                LimitPeriodProcessor.process_update(
+                    resource, invoice, component_type, new_quantity
                 )
-                if (
-                    offering_component.billing_type == BillingTypes.LIMIT
-                    and offering_component.limit_period == LimitPeriods.TOTAL
-                ):
-                    cls.create_invoice_item_for_total_limit(
-                        resource,
-                        invoice,
-                        component_type,
-                        new_quantity,
-                        offering_component,
-                    )
-                else:
-                    cls.create_or_update_component_item(
-                        resource, invoice, component_type, new_quantity
-                    )
 
     @classmethod
     def create_invoice_item_for_total_limit(
@@ -777,13 +843,15 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         details = cls.get_component_details(resource, plan_component)
 
         start = timezone.now()
-        end = cls.get_period_end_for_limit_period(offering_component.limit_period)
+        _, end = LimitPeriodProcessor.get_billing_period(
+            offering_component.limit_period, start
+        )
 
         # Create main invoice item for the difference
         final_unit_price = plan_component.price if diff > 0 else -plan_component.price
 
         invoice_models.InvoiceItem.objects.create(
-            name=f"{RegistrationManager.get_name(resource)} / {cls.get_component_name(plan_component)}",
+            name=f"{cls.get_name(resource)} / {cls.get_component_name(plan_component)}",
             resource=resource,
             project=resource.project,
             unit_price=final_unit_price,
@@ -839,9 +907,6 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         component_usage = instance
         resource = component_usage.resource
         offering_component = component_usage.component
-
-        if resource.offering.type != cls.plugin_name:
-            return
 
         # Ignore signal if usage value has not changed
         if not created and not component_usage.tracker.has_changed("usage"):
@@ -1002,7 +1067,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             plan_component
         )
         discount_name = (
-            f"{RegistrationManager.get_name(resource)} / "
+            f"{cls.get_name(resource)} / "
             f"{component_display_name} / "
             f"Volume Discount ({plan_component.discount_rate}%)"
         )
@@ -1044,9 +1109,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
         plan = plan_period.plan
         customer = resource.project.customer
-        invoice, _ = registrators.RegistrationManager.get_or_create_invoice(
-            customer, date
-        )
+        invoice, _ = MarketplaceBillingService.get_or_create_invoice(customer, date)
 
         # Try to find an existing invoice item for this component in the current period
         item = invoice.items.filter(
@@ -1063,7 +1126,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             )
             return
 
-        converted_usage = cls.convert_quantity(usage_to_bill, offering_component.type)
+        converted_usage = cls.convert_quantity(
+            usage_to_bill, resource.offering.type, offering_component.type
+        )
 
         if item:
             item.quantity = converted_usage
@@ -1111,57 +1176,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             )
 
     @classmethod
-    def get_period_end_for_limit_period(cls, limit_period):
-        """
-        Get appropriate period end based on limit period.
-
-        Args:
-            limit_period: The limit period (MONTH, QUARTERLY, ANNUAL, TOTAL)
-
-        Returns:
-            Period end datetime for the given limit period
-        """
-        if limit_period == LimitPeriods.QUARTERLY:
-            return core_utils.get_current_quarter_end()
-        else:
-            # Default to monthly for MONTH, ANNUAL, and TOTAL
-            # ANNUAL and TOTAL periods still use monthly billing boundaries
-            # but track usage over longer periods
-            return get_current_month_end()
-
-    @classmethod
-    def should_process_quarterly_billing(cls, date):
-        """
-        Check if quarterly billing should be processed for the given date.
-
-        Quarterly billing should only happen in the first month of each quarter:
-        - January (Q1), April (Q2), July (Q3), October (Q4)
-
-        Args:
-            date: Date to check (datetime object)
-
-        Returns:
-            bool: True if quarterly billing should be processed
-        """
-        return date.month in [1, 4, 7, 10]
-
-    @classmethod
-    def get_quarterly_billing_period(cls, date):
-        """
-        Get the quarterly billing period for the given date.
-
-        Args:
-            date: Date within the quarter (datetime object)
-
-        Returns:
-            tuple: (quarter_start, quarter_end) datetime objects
-        """
-        quarter_start = core_utils.get_quarter_start(date)
-        quarter_end = core_utils.get_quarter_end(date)
-        return quarter_start, quarter_end
-
-    @classmethod
-    def convert_quantity(cls, usage, component_type: str):
+    def convert_quantity(cls, usage, offering_type, component_type: str):
         """
         Convert usage quantity for billing purposes.
 
@@ -1175,10 +1190,18 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         Returns:
             Converted quantity for billing
         """
+        if offering_type == SLURM_OFFERING:
+            return utils.convert_slurm_usage(usage, component_type)
+        if offering_type == OPENSTACK_TENANT_OFFERING:
+            if component_type in (STORAGE_TYPE, RAM_TYPE):
+                return int(usage / 1024)
+            return int(usage)
         return usage
 
     @classmethod
-    def get_component_name(cls, plan_component):
+    def get_component_name(
+        cls, plan_component: marketplace_models.PlanComponent
+    ) -> str:
         """
         Get display name for a plan component.
 
@@ -1188,22 +1211,30 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         Returns:
             Component name for display purposes
         """
+        if plan_component.component.offering.type == OPENSTACK_TENANT_OFFERING:
+            component_type = plan_component.component.type
+            if component_type == CORES_TYPE:
+                return "CPU"
+            elif component_type == RAM_TYPE:
+                return "RAM"
+            elif component_type == STORAGE_TYPE:
+                return "storage"
+            elif is_valid_volume_type_name(component_type):
+                return f"{component_type.replace('gigabytes_', '')} storage"
         return plan_component.component.name
 
     @classmethod
     def connect(cls):
         """
-        Connect the registrator to the billing system and Django signals.
+        Connect the service to the billing system and Django signals.
 
-        Registers the marketplace registrator with the billing system and
+        Registers the marketplace service with the billing system and
         connects signal handlers for resource lifecycle events and usage reporting.
 
         Signal connections:
         - Resource post_save: Handles billing for resource state changes
         - ComponentUsage post_save: Handles usage-based billing
         """
-        registrators.RegistrationManager.add_registrator(cls.plugin_name, cls)
-
         signals.post_save.connect(
             cls.on_resource_post_save,
             sender=marketplace_models.Resource,

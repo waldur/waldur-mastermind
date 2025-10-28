@@ -13,15 +13,13 @@ class MarketplaceSlurmConfig(AppConfig):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace.enums import SLURM_OFFERING
         from waldur_mastermind.marketplace.plugins import Component, manager
+        from waldur_mastermind.marketplace.utils import convert_slurm_usage
         from waldur_slurm import executors as slurm_executors
         from waldur_slurm import models as slurm_models
         from waldur_slurm import signals as slurm_signals
         from waldur_slurm.apps import SlurmConfig
 
         from . import handlers, processor
-        from . import registrators as slurm_registrators
-
-        slurm_registrators.SlurmRegistrator.connect()
 
         signals.post_save.connect(
             handlers.update_component_quota,
@@ -46,9 +44,7 @@ class MarketplaceSlurmConfig(AppConfig):
                     measured_unit="hours",
                     billing_type=USAGE,
                     limit_period=TOTAL,
-                    limit_amount=slurm_registrators.SlurmRegistrator.convert_quantity(
-                        default_limits["CPU"], "cpu"
-                    ),
+                    limit_amount=convert_slurm_usage(default_limits["CPU"], "cpu"),
                 ),
                 Component(
                     type="gpu",
@@ -56,9 +52,7 @@ class MarketplaceSlurmConfig(AppConfig):
                     measured_unit="hours",
                     billing_type=USAGE,
                     limit_period=TOTAL,
-                    limit_amount=slurm_registrators.SlurmRegistrator.convert_quantity(
-                        default_limits["GPU"], "gpu"
-                    ),
+                    limit_amount=convert_slurm_usage(default_limits["GPU"], "gpu"),
                 ),
                 Component(
                     type="ram",
@@ -66,9 +60,7 @@ class MarketplaceSlurmConfig(AppConfig):
                     measured_unit="GB-hours",
                     billing_type=USAGE,
                     limit_period=TOTAL,
-                    limit_amount=slurm_registrators.SlurmRegistrator.convert_quantity(
-                        default_limits["RAM"], "ram"
-                    ),
+                    limit_amount=convert_slurm_usage(default_limits["RAM"], "ram"),
                 ),
             ),
             service_type=SlurmConfig.service_name,

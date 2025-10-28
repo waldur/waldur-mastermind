@@ -20,9 +20,7 @@ class MarketplaceRancherConfig(AppConfig):
         from waldur_rancher import models as rancher_models
         from waldur_rancher.apps import RancherConfig
 
-        from . import handlers, processors, registrators
-
-        registrators.RancherRegistrator.connect()
+        from . import handlers, processors
 
         manager.register(
             offering_type=RANCHER_OFFERING,

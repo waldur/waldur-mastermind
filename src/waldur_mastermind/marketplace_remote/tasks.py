@@ -85,9 +85,9 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
 from waldur_mastermind.invoices import models as invoice_models
-from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.callbacks import sync_order_state
 from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
@@ -906,7 +906,7 @@ class ResourceInvoicePullTask(BackgroundPullTask):
             )
             return
 
-        local_invoice, _ = RegistrationManager.get_or_create_invoice(
+        local_invoice, _ = MarketplaceBillingService.get_or_create_invoice(
             local_customer, date
         )
         local_invoice_items = local_invoice.items.filter(resource=local_resource)

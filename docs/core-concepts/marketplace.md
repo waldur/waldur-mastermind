@@ -227,27 +227,7 @@ The QUARTERLY limit period provides specialized billing logic for resources that
 # Quantity calculated using PER_QUARTER unit
 ```
 
-#### MarketplaceRegistrator QUARTERLY Logic
-
-The `MarketplaceRegistrator` class implements sophisticated quarterly billing logic in the following methods:
-
-**`should_process_quarterly_billing(date)`**: Determines when quarterly billing should be processed
-
-```python
-def should_process_quarterly_billing(cls, date):
-    """Only process quarterly billing in Q1 (Jan), Q2 (Apr), Q3 (Jul), Q4 (Oct)"""
-    return date.month in [1, 4, 7, 10]
-```
-
-**`get_quarterly_billing_period(date)`**: Calculates the complete quarterly period
-
-```python
-def get_quarterly_billing_period(cls, date):
-    """Returns (quarter_start, quarter_end) for the quarter containing date"""
-    quarter_start = core_utils.get_quarter_start(date)
-    quarter_end = core_utils.get_quarter_end(date)
-    return quarter_start, quarter_end
-```
+#### MarketplaceBillingService QUARTERLY Logic
 
 **`get_period_end_for_limit_period(limit_period)`**: Returns appropriate period end
 
@@ -259,7 +239,7 @@ def get_period_end_for_limit_period(cls, limit_period):
         return get_current_month_end()  # Default for MONTH, ANNUAL, TOTAL
 ```
 
-**Invoice Item Creation**: The registrator handles quarterly components differently:
+**Invoice Item Creation**: Quarterly components are processed differently:
 
 1. **During `_create_item()`**:
   - Skips processing in non-quarterly months for QUARTERLY components
@@ -405,20 +385,6 @@ class CreateAllocationProcessor(CreateResourceProcessor):
 
 **Service Type**: Enterprise software with quarterly billing cycles
 **Billing Pattern**: Quarterly licensing with flexible user limits
-
-```python
-class EnterpriseLicenseProcessor(CreateResourceProcessor):
-    def validate_order(self, request):
-        # Validate license capacity and quarterly billing alignment
-        if not self.should_process_quarterly_billing(timezone.now()):
-            raise ValidationError("Enterprise licenses can only be ordered in quarterly periods")
-
-    def create_component_item(self, source, plan_component, invoice, start, end):
-        # Override to use quarterly periods for all license components
-        quarterly_start, quarterly_end = self.get_quarterly_billing_period(start)
-        super().create_component_item(source, plan_component, invoice,
-                                    quarterly_start, quarterly_end)
-```
 
 **Components**:
 

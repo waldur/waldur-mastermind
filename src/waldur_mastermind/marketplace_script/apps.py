@@ -13,7 +13,6 @@ class MarketplaceScriptConfig(AppConfig):
         from waldur_mastermind.marketplace.plugins import manager
 
         from . import handlers, processors
-        from . import registrators as script_registrators
 
         manager.register(
             offering_type=SCRIPT_OFFERING,
@@ -23,8 +22,6 @@ class MarketplaceScriptConfig(AppConfig):
             can_update_limits=True,
             is_interruptible=True,
         )
-
-        script_registrators.ScriptRegistrator.connect()
 
         signals.post_save.connect(
             handlers.resource_options_have_been_changed,
