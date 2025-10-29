@@ -412,7 +412,7 @@ Upload configuration guide:
   stage: postdeploy
   interruptible: true
   rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "schedule"'
   image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
@@ -424,75 +424,54 @@ Upload configuration guide:
 
     # 2. Generate ALL required documentation files and store them in /tmp
     - echo "Generating documentation files..."
-    - uv run waldur print_settings > /tmp/configuration-guide.md
-    - uv run waldur print_features_docs > /tmp/features.md
-    - uv run waldur print_notifications > /tmp/notifications.md
-    - uv run waldur print_commands > /tmp/cli-guide.md
-    - uv run waldur print_events > /tmp/events.md
-    - uv run waldur print_templates > /tmp/templates.md
-    - uv run waldur print_scheduled_jobs > /tmp/scheduled.md
-    - uv run waldur print_mixins > /tmp/mixins.md
-    - uv run waldur print_registered_handlers > /tmp/handlers.md
+    - uv run waldur print_settings > ${CI_PROJECT_DIR}/docs/admin/configuration-guide.md
+    - uv run waldur print_features_docs > ${CI_PROJECT_DIR}/docs/admin/features.md
+    - uv run waldur print_notifications > ${CI_PROJECT_DIR}/docs/admin/notifications.md
+    - uv run waldur print_commands > ${CI_PROJECT_DIR}/docs/admin/cli-guide.md
+    - uv run waldur print_events > ${CI_PROJECT_DIR}/docs/events.md
+    - uv run waldur print_templates > ${CI_PROJECT_DIR}/docs/admin/templates.md
+    - uv run waldur print_scheduled_jobs > ${CI_PROJECT_DIR}/docs/admin/scheduled.md
+    - uv run waldur print_mixins > ${CI_PROJECT_DIR}/docs/mixins.md
+    - uv run waldur print_registered_handlers > ${CI_PROJECT_DIR}/docs/handlers.md
 
     # Generate Mermaid diagrams, outputting them to /tmp
     - >
       uv run waldur generate_mermaid structure
       -i "Customer,Project,OrganizationGroup,ProjectType,User"
       --exclude-field-types="TranslationCharField,TranslationTextField"
-      -o /tmp/core_structure.mmd
+      -o ${CI_PROJECT_DIR}/docs/core_structure.mmd
     - >
       uv run waldur generate_mermaid permissions
       -i "User,Role,UserRole,RolePermission"
       --exclude-field-types="TranslationCharField,TranslationTextField"
-      -o /tmp/core_permissions.mmd
+      -o ${CI_PROJECT_DIR}/docs/core_permissions.mmd
     - >
       uv run waldur generate_mermaid marketplace
       -i "CategoryGroup,Category,CategoryColumn,CategoryComponent,CategoryComponentUsage"
       --exclude-field-types="TranslationCharField,TranslationTextField"
-      -o /tmp/marketplace_category.mmd
+      -o ${CI_PROJECT_DIR}/docs/marketplace_category.mmd
     - >
       uv run waldur generate_mermaid marketplace
       -i "Section,Attribute,AttributeOption,Offering,OfferingComponent"
       --exclude-field-types="TranslationCharField,TranslationTextField"
-      -o /tmp/marketplace_catalog.mmd
+      -o ${CI_PROJECT_DIR}/docs/marketplace_catalog.mmd
     - >
       uv run waldur generate_mermaid marketplace
       -i "Plan,PlanComponent,Resource,Order"
       --exclude-field-types="TranslationCharField,TranslationTextField"
-      -o /tmp/marketplace_provision.mmd
-    - echo "Generation complete. All files are in /tmp."
+      -o ${CI_PROJECT_DIR}/docs/marketplace_provision.mmd
+    - echo "Generation complete. All files are in docs/."
 
-    # 3. Clone the waldur-docs repository
-    - cd /tmp/
-    - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
-    - cd waldur-docs
+    # 3. Commit and push the changes
+    - git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
-
-    # 4. Move the pre-generated files into place
-    - mv /tmp/configuration-guide.md docs/admin-guide/mastermind-configuration/configuration-guide.md
-    - mv /tmp/features.md docs/admin-guide/mastermind-configuration/features.md
-    - mv /tmp/notifications.md docs/admin-guide/mastermind-configuration/notifications.md
-    - mv /tmp/cli-guide.md docs/admin-guide/mastermind-configuration/cli-guide.md
-    - mv /tmp/templates.md docs/admin-guide/mastermind-configuration/templates.md
-    - mv /tmp/scheduled.md docs/admin-guide/mastermind-configuration/scheduled.md
-    - mv /tmp/mixins.md docs/developer-guide/mixins.md
-    - mv /tmp/handlers.md docs/developer-guide/handlers.md
-    - mv /tmp/core_structure.mmd docs/developer-guide/core_structure.mmd
-    - mv /tmp/core_permissions.mmd docs/developer-guide/core_permissions.mmd
-    - mv /tmp/marketplace_category.mmd docs/developer-guide/marketplace_category.mmd
-    - mv /tmp/marketplace_catalog.mmd docs/developer-guide/marketplace_catalog.mmd
-    - mv /tmp/marketplace_provision.mmd docs/developer-guide/marketplace_provision.mmd
-
-    # 5. Copy over static documentation files and move the generated events.md
-    - cp -rv $CI_PROJECT_DIR/docs/* docs/developer-guide/
-    - mv /tmp/events.md docs/developer-guide/events.md
-
-    # 6. Commit and push the changes
+    - git status
+    - git fetch
+    - git status
     - git add docs/
-    - git commit -m "Update configuration, CLI and developer guide" || exit 0
-    - git branch new-configuration-guide
-    - git push --set-upstream origin new-configuration-guide:master
+    - git commit -m "Update configuration, CLI and developer guide"
+    - git push origin HEAD:${CI_COMMIT_BRANCH}
   before_script: []
 
 Upload HomePort enums:
