@@ -1790,6 +1790,7 @@ def add_maintenance_fields_to_admin_announcement_serializer(sender, fields, **kw
     fields["maintenance_scheduled_end"] = serializers.SerializerMethodField()
     fields["maintenance_service_provider"] = serializers.SerializerMethodField()
     fields["maintenance_affected_offerings"] = serializers.SerializerMethodField()
+    fields["maintenance_external_reference_url"] = serializers.SerializerMethodField()
 
     # Add methods to the sender class (AdminAnnouncementSerializer)
     @extend_schema_field(OpenApiTypes.STR)
@@ -1917,6 +1918,18 @@ def add_maintenance_fields_to_admin_announcement_serializer(sender, fields, **kw
         except AttributeError:
             return []
 
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_maintenance_external_reference_url(self, obj) -> str | None:
+        try:
+            return (
+                obj.maintenance_announcement.external_reference_url
+                if hasattr(obj, "maintenance_announcement")
+                and obj.maintenance_announcement
+                else None
+            )
+        except AttributeError:
+            return None
+
     # Add the methods to the serializer class
     sender.get_maintenance_uuid = get_maintenance_uuid
     sender.get_maintenance_name = get_maintenance_name
@@ -1926,6 +1939,9 @@ def add_maintenance_fields_to_admin_announcement_serializer(sender, fields, **kw
     sender.get_maintenance_scheduled_end = get_maintenance_scheduled_end
     sender.get_maintenance_service_provider = get_maintenance_service_provider
     sender.get_maintenance_affected_offerings = get_maintenance_affected_offerings
+    sender.get_maintenance_external_reference_url = (
+        get_maintenance_external_reference_url
+    )
 
 
 def close_course_accounts_after_project_removal(

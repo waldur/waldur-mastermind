@@ -827,11 +827,11 @@ class ResourceFilter(
     )
     only_limit_based = django_filters.BooleanFilter(
         method="filter_only_limit_based",
-        label="Filter out resources with only limit-based components",
+        label="Filter resources with only limit-based components",
     )
     only_usage_based = django_filters.BooleanFilter(
         method="filter_only_usage_based",
-        label="Filter out resources with only usage-based components",
+        label="Filter resources with only usage-based components",
     )
     component_count = django_filters.NumberFilter(
         method="filter_component_count",
@@ -962,11 +962,11 @@ class ResourceFilter(
         )
 
         if value:
-            # Filter out resources that have ONLY limit-based components
-            return queryset.exclude(offering__id__in=offering_ids)
-        else:
             # Include only resources that have ONLY limit-based components
             return queryset.filter(offering__id__in=offering_ids)
+        else:
+            # Filter out resources that have ONLY limit-based components
+            return queryset.exclude(offering__id__in=offering_ids)
 
     def filter_only_usage_based(self, queryset: ResourceQuerySet, name, value):
         if value is None:
@@ -985,11 +985,11 @@ class ResourceFilter(
         )
 
         if value:
-            # Filter out resources that have ONLY usage-based components
-            return queryset.exclude(offering__id__in=offering_ids)
-        else:
             # Include only resources that have ONLY usage-based components
             return queryset.filter(offering__id__in=offering_ids)
+        else:
+            # Filter out resources that have ONLY usage-based components
+            return queryset.exclude(offering__id__in=offering_ids)
 
     def filter_component_count(self, queryset: ResourceQuerySet, name, value):
         if value is None:
