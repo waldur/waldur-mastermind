@@ -1,0 +1,83 @@
+classDiagram
+    direction TB
+    class OrganizationGroup {
+        +int id [PK]
+        +string name
+        +string uuid
+        +OrganizationGroup parent [FK]
+    }
+    class Customer {
+        +int id [PK]
+        +AutoCreatedField created
+        +AutoLastModifiedField modified
+        +image image
+        +string description
+        +string name
+        +string slug
+        +string uuid
+        +float latitude
+        +float longitude
+        +string vat_code
+        +string vat_name
+        +string vat_address
+        +string country
+        +string native_name
+        +string abbreviation
+        +string contact_details
+        +string agreement_number
+        +int sponsor_number
+        +string email
+        +string phone_number
+        +string access_subnets
+        +string backend_id
+        +string registration_code
+        +string homepage
+        +string domain
+        +string address
+        +string postal
+        +string bank_name
+        +string bank_account
+        +string notification_emails
+        +int max_service_accounts
+        +datetime accounting_start_date
+        +decimal default_tax_percent
+        +bool blocked
+        +bool archived
+        +bool display_billing_info_in_projects
+        +Checklist project_metadata_checklist [FK]
+        +OrganizationGroup organization_groups
+    }
+    class ProjectType {
+        +int id [PK]
+        +string description
+        +string name
+        +string uuid
+    }
+    class Project {
+        +int id [PK]
+        +AutoCreatedField created
+        +AutoLastModifiedField modified
+        +bool is_removed
+        +image image
+        +string description
+        +string slug
+        +string uuid
+        +string backend_id
+        +int max_service_accounts
+        +string oecd_fos_2007_code
+        +string name
+        +date start_date
+        +date end_date
+        +User end_date_requested_by [FK]
+        +ProjectType type [FK]
+        +bool is_industry
+        +Customer customer [FK]
+        +string kind
+        +JSONField termination_metadata
+        +string staff_notes
+    }
+    Customer "*" -- "*" OrganizationGroup : organization_groups
+    OrganizationGroup "*" -- "1" OrganizationGroup : parent
+    Project "*" -- "1" Customer : customer
+    Project "*" -- "1" ProjectType : type
+    Project "*" -- "1" User : end_date_requested_by

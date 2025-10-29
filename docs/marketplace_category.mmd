@@ -1,0 +1,56 @@
+classDiagram
+    direction TB
+    class CategoryGroup {
+        +int id [PK]
+        +AutoCreatedField created
+        +AutoLastModifiedField modified
+        +string uuid
+        +string title
+        +file icon
+        +string description
+    }
+    class Category {
+        +int id [PK]
+        +AutoCreatedField created
+        +AutoLastModifiedField modified
+        +string uuid
+        +string backend_id
+        +string title
+        +file icon
+        +string description
+        +bool default_vm_category
+        +bool default_volume_category
+        +bool default_tenant_category
+        +CategoryGroup group [FK]
+    }
+    class CategoryColumn {
+        +int id [PK]
+        +string uuid
+        +Category category [FK]
+        +int index
+        +string title
+        +string attribute
+        +string widget
+    }
+    class CategoryComponent {
+        +int id [PK]
+        +string description
+        +string uuid
+        +string name
+        +string type
+        +string measured_unit
+        +Category category [FK]
+    }
+    class CategoryComponentUsage {
+        +int id [PK]
+        +ContentType content_type [FK]
+        +int object_id
+        +CategoryComponent component [FK]
+        +date date
+        +BigIntegerField reported_usage
+        +BigIntegerField fixed_usage
+    }
+    Category "*" -- "1" CategoryGroup : group
+    CategoryColumn "*" -- "1" Category : category
+    CategoryComponent "*" -- "1" Category : category
+    CategoryComponentUsage "*" -- "1" CategoryComponent : component

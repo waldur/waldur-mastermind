@@ -1,0 +1,103 @@
+classDiagram
+    direction TB
+    class Section {
+        +AutoCreatedField created
+        +AutoLastModifiedField modified
+        +string key [PK]
+        +string title
+        +Category category [FK]
+        +bool is_standalone
+    }
+    class Attribute {
+        +AutoCreatedField created
+        +AutoLastModifiedField modified
+        +string key [PK]
+        +string title
+        +Section section [FK]
+        +string type
+        +bool required
+        +JSONField default
+    }
+    class AttributeOption {
+        +int id [PK]
+        +Attribute attribute [FK]
+        +string key
+        +string title
+    }
+    class Offering {
+        +int id [PK]
+        +AutoCreatedField created
+        +AutoLastModifiedField modified
+        +image image
+        +string description
+        +string name
+        +string slug
+        +string uuid
+        +string backend_id
+        +ContentType content_type [FK]
+        +int object_id
+        +JSONField backend_metadata
+        +float latitude
+        +float longitude
+        +string datacite_doi
+        +int citation_count
+        +string error_message
+        +file thumbnail
+        +string remote_image_uuid
+        +string full_description
+        +string vendor_details
+        +string getting_started
+        +string integration_guide
+        +Category category [FK]
+        +Checklist compliance_checklist [FK]
+        +Customer customer [FK]
+        +Project project [FK]
+        +Offering parent [FK]
+        +JSONField attributes
+        +JSONField options
+        +JSONField resource_options
+        +JSONField plugin_options
+        +JSONField secret_options
+        +string privacy_policy_link
+        +string country
+        +string type
+        +FSMIntegerField state
+        +string paused_reason
+        +bool shared
+        +bool billable
+        +bool support_per_user_consumption_limitation
+        +string access_url
+        +OrganizationGroup organization_groups
+    }
+    class OfferingComponent {
+        +int id [PK]
+        +string description
+        +string uuid
+        +string backend_id
+        +ContentType content_type [FK]
+        +int object_id
+        +string article_code
+        +string name
+        +string type
+        +string measured_unit
+        +Offering offering [FK]
+        +CategoryComponent parent [FK]
+        +string billing_type
+        +string limit_period
+        +int limit_amount
+        +int unit_factor
+        +int max_value
+        +int min_value
+        +int max_available_limit
+        +bool is_boolean
+        +int default_limit
+        +bool is_prepaid
+        +OfferingComponent overage_component [FK]
+        +int min_prepaid_duration
+        +int max_prepaid_duration
+    }
+    Attribute "*" -- "1" Section : section
+    AttributeOption "*" -- "1" Attribute : attribute
+    Offering "*" -- "1" Offering : parent
+    OfferingComponent "*" -- "1" Offering : offering
+    OfferingComponent "*" -- "1" OfferingComponent : overage_component

@@ -1,0 +1,101 @@
+classDiagram
+    direction TB
+    class Plan {
+        +int id [PK]
+        +AutoCreatedField created
+        +AutoLastModifiedField modified
+        +string description
+        +string name
+        +string uuid
+        +string backend_id
+        +ContentType content_type [FK]
+        +int object_id
+        +decimal unit_price
+        +string unit
+        +string article_code
+        +Offering offering [FK]
+        +bool archived
+        +int max_amount
+        +OrganizationGroup organization_groups
+    }
+    class PlanComponent {
+        +int id [PK]
+        +Plan plan [FK]
+        +OfferingComponent component [FK]
+        +int amount
+        +decimal price
+        +decimal future_price
+        +int discount_threshold
+        +int discount_rate
+    }
+    class Resource {
+        +int id [PK]
+        +AutoCreatedField created
+        +AutoLastModifiedField modified
+        +string description
+        +string name
+        +string slug
+        +string uuid
+        +string error_message
+        +string error_traceback
+        +datetime last_sync
+        +string backend_id
+        +ContentType content_type [FK]
+        +int object_id
+        +JSONField backend_metadata
+        +decimal cost
+        +Plan plan [FK]
+        +JSONField limits
+        +Offering offering [FK]
+        +JSONField attributes
+        +date end_date
+        +User end_date_requested_by [FK]
+        +FSMIntegerField state
+        +Project project [FK]
+        +Resource parent [FK]
+        +JSONField report
+        +JSONField options
+        +JSONField current_usages
+        +string effective_id
+        +bool downscaled
+        +bool restrict_member_access
+        +bool paused
+    }
+    class Order {
+        +int id [PK]
+        +AutoCreatedField created
+        +AutoLastModifiedField modified
+        +string slug
+        +string uuid
+        +string error_message
+        +string error_traceback
+        +string backend_id
+        +decimal cost
+        +Plan plan [FK]
+        +JSONField limits
+        +Offering offering [FK]
+        +JSONField attributes
+        +int type
+        +Plan old_plan [FK]
+        +Project project [FK]
+        +Resource resource [FK]
+        +FSMIntegerField state
+        +string output
+        +User created_by [FK]
+        +User consumer_reviewed_by [FK]
+        +datetime consumer_reviewed_at
+        +User provider_reviewed_by [FK]
+        +datetime provider_reviewed_at
+        +string callback_url
+        +string termination_comment
+        +datetime completed_at
+        +date start_date
+        +string request_comment
+        +file attachment
+    }
+    Order "*" -- "1" Plan : old_plan
+    Order "*" -- "1" Plan : plan
+    Order "*" -- "1" Resource : resource
+    PlanComponent "*" -- "1" Plan : plan
+    Resource "*" -- "1" Plan : plan
+    Resource "*" -- "1" Resource : parent

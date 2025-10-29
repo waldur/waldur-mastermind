@@ -1,0 +1,33 @@
+classDiagram
+    direction TB
+    class Role {
+        +int id [PK]
+        +string description
+        +string uuid
+        +string name
+        +bool is_system_role
+        +bool is_active
+        +ContentType content_type [FK]
+    }
+    class UserRole {
+        +int id [PK]
+        +AutoCreatedField created
+        +AutoLastModifiedField modified
+        +string uuid
+        +ContentType content_type [FK]
+        +int object_id
+        +User user [FK]
+        +Role role [FK]
+        +User created_by [FK]
+        +datetime expiration_time
+        +bool is_active
+    }
+    class RolePermission {
+        +int id [PK]
+        +Role role [FK]
+        +string permission
+    }
+    RolePermission "*" -- "1" Role : role
+    UserRole "*" -- "1" Role : role
+    UserRole "*" -- "1" User : created_by
+    UserRole "*" -- "1" User : user
