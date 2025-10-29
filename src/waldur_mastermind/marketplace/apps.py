@@ -17,11 +17,27 @@ class MarketplaceConfig(AppConfig):
         from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.serializers import BaseResourceSerializer
         from waldur_freeipa import models as freeipa_models
-        from waldur_mastermind.marketplace.billing import MarketplaceBillingService
+        from waldur_mastermind.marketplace.billing_usage import BillingUsageProcessor
+        from waldur_mastermind.marketplace.handlers import (
+            process_billing_on_resource_save,
+        )
 
         from . import handlers, models, processors, utils
         from . import signals as marketplace_signals
         from .plugins import manager
+
+        signals.post_save.connect(
+            process_billing_on_resource_save,
+            sender=models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace.process_billing_on_resource_save",
+        )
+
+        signals.post_save.connect(
+            BillingUsageProcessor.update_invoice_when_usage_is_reported,
+            sender=models.ComponentUsage,
+            dispatch_uid="waldur_mastermind.marketplace."
+            "update_invoice_when_usage_is_reported",
+        )
 
         signals.post_save.connect(
             handlers.create_screenshot_thumbnail,
@@ -214,8 +230,6 @@ class MarketplaceConfig(AppConfig):
             can_update_limits=True,
             can_terminate_order=True,
         )
-
-        MarketplaceBillingService.connect()
 
         structure_signals.project_moved.connect(
             handlers.update_customer_of_offering_if_project_has_been_moved,

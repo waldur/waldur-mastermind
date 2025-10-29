@@ -14,7 +14,7 @@ from django.db.models import Count, F
 
 import waldur_core.core.fields
 import waldur_core.core.validators
-from waldur_mastermind.marketplace.utils import convert_slurm_usage
+from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
 
 logger = logging.getLogger(__name__)
 

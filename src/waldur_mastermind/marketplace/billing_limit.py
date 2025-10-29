@@ -1,0 +1,578 @@
+import datetime
+import logging
+from decimal import Decimal
+
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
+from django.utils import timezone
+
+from waldur_core.core import utils as core_utils
+from waldur_mastermind.common.utils import parse_datetime
+from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices.utils import get_full_days
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils
+from waldur_mastermind.marketplace.billing_utils import (
+    convert_quantity,
+    get_component_details,
+    get_component_name,
+    get_invoice_item_name,
+)
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    LimitPeriods,
+    OrderTypes,
+    ResourceStates,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class LimitPeriodProcessor:
+    """
+    Billing behavior varies by limit period for limit-based components:
+    - MONTH: Billed monthly based on limits
+    - QUARTERLY: Billed quarterly based on limits
+    - ANNUAL: Billed annually based on limits
+    - TOTAL: One-time billing for total limit amount
+    """
+
+    @classmethod
+    def process_creation(
+        cls,
+        resource: marketplace_models.Resource,
+        plan_component: marketplace_models.PlanComponent,
+        invoice: invoice_models.Invoice,
+        start,
+        end,
+        order_type,
+    ):
+        """
+        Processes the creation of invoice items for limit-based components,
+        handling different limit periods.
+        """
+        offering_component = plan_component.component
+        limit_period = offering_component.limit_period
+
+        if limit_period == LimitPeriods.TOTAL:
+            # For TOTAL, only bill on resource creation.
+            if order_type == OrderTypes.CREATE:
+                cls._create_invoice_item(resource, plan_component, invoice, start, end)
+            return
+
+        if not cls._should_process_billing(limit_period, start):
+            # Skip billing for this period (e.g., non-quarterly month for a quarterly component)
+            return
+
+        # Use the appropriate billing period instead of the default monthly one
+        if limit_period == LimitPeriods.QUARTERLY:
+            billing_start, billing_end = (
+                core_utils.get_quarter_start(start),
+                core_utils.get_quarter_end(start),
+            )
+        else:
+            # For MONTH, ANNUAL, etc., use the period provided by the caller.
+            billing_start, billing_end = start, end
+
+        cls._create_invoice_item(
+            resource,
+            plan_component,
+            invoice,
+            billing_start,
+            billing_end,
+        )
+
+    @classmethod
+    def process_update(
+        cls,
+        resource: marketplace_models.Resource,
+        invoice: invoice_models.Invoice,
+        component_type: str,
+        new_quantity: int,
+    ):
+        """
+        Processes the update of invoice items when resource limits change,
+        dispatching to the correct handler based on the limit period.
+        """
+        offering_component = resource.offering.components.get(type=component_type)
+        if offering_component.limit_period == LimitPeriods.TOTAL:
+            cls._create_invoice_item_for_total_limit(
+                resource,
+                invoice,
+                component_type,
+                new_quantity,
+                offering_component,
+            )
+        else:
+            cls._create_or_update_invoice_item(
+                resource, invoice, component_type, new_quantity
+            )
+
+    # -- Private methods --
+
+    @classmethod
+    def _get_billing_period(
+        cls, limit_period: str, date: datetime.date
+    ) -> tuple[datetime.datetime, datetime.datetime]:
+        """
+        Get the full billing period (start, end) for a given limit period
+        containing the given date.
+        """
+        if limit_period == LimitPeriods.QUARTERLY:
+            return core_utils.get_quarter_start(date), core_utils.get_quarter_end(date)
+        # Default to monthly boundaries for other recurring limit types (MONTH, ANNUAL)
+        # when creating a new item mid-cycle.
+        return core_utils.month_start(date), core_utils.month_end(date)
+
+    @classmethod
+    def _should_process_billing(cls, limit_period: str, date: datetime.date) -> bool:
+        """
+        Check if billing should be processed for the given date based on the limit period.
+        """
+        if limit_period == LimitPeriods.QUARTERLY:
+            # Quarterly billing should only happen in the first month of each quarter:
+            # January (Q1), April (Q2), July (Q3), October (Q4)
+            return date.month in [1, 4, 7, 10]
+        # MONTH, ANNUAL, TOTAL are processed every month.
+        return True
+
+    @classmethod
+    def _create_invoice_item_for_total_limit(
+        cls,
+        resource: marketplace_models.Resource,
+        invoice: invoice_models.Invoice,
+        component_type: str,
+        new_quantity: int,
+        offering_component: marketplace_models.OfferingComponent,
+    ):
+        """
+        Create invoice item for total limit component changes.
+
+        Handles billing for limit-based components with TOTAL limit period.
+        Creates incremental charges (positive or negative) based on the
+        difference between new quantity and previously billed quantities.
+
+        Uses QUANTITY unit for billing and creates compensation items
+        (negative unit_price) for limit decreases.
+
+        Args:
+            resource: Marketplace resource being processed
+            invoice: Invoice to create item in
+            component_type: Type of component being processed
+            new_quantity: New total limit quantity
+            offering_component: Offering component configuration
+        """
+        if resource.state != ResourceStates.OK:
+            return
+        if not resource.plan:
+            return
+        related_invoice_items = invoice_models.InvoiceItem.objects.filter(
+            resource=resource,
+            details__offering_component_type=component_type,
+        )
+        if not related_invoice_items.exists():
+            # For TOTAL period components, if no previous billing exists,
+            # this is likely due to missing CREATE order billing.
+            # In this case, bill the full amount to recover proper billing state.
+            logger.info(
+                "No existing invoice items found for TOTAL period component %s "
+                "on resource %s. Billing full amount (%s) to recover from missing CREATE billing.",
+                component_type,
+                resource.id,
+                new_quantity,
+            )
+            total = 0  # Start from 0 since no previous billing exists
+        else:
+            total = 0
+            for invoice_item in related_invoice_items:
+                if invoice_item.unit_price < 0:
+                    total -= invoice_item.quantity
+                else:
+                    total += invoice_item.quantity
+
+        diff = new_quantity - total
+        if diff == 0:
+            return
+
+        plan_component = resource.plan.components.get(component__type=component_type)
+        details = get_component_details(resource, plan_component)
+
+        start = timezone.now()
+        _, end = cls._get_billing_period(offering_component.limit_period, start)
+
+        # Create main invoice item for the difference
+        final_unit_price = plan_component.price if diff > 0 else -plan_component.price
+
+        invoice_models.InvoiceItem.objects.create(
+            name=f"{get_invoice_item_name(resource)} / {get_component_name(plan_component)}",
+            resource=resource,
+            project=resource.project,
+            unit_price=final_unit_price,
+            unit=invoice_models.Units.QUANTITY,
+            quantity=diff if diff > 0 else -diff,
+            article_code=offering_component.article_code or resource.plan.article_code,
+            invoice=invoice,
+            start=start,
+            end=end,
+            details=details,
+            measured_unit=offering_component.measured_unit,
+        )
+
+    @classmethod
+    @transaction.atomic
+    def _create_or_update_invoice_item(
+        cls,
+        resource: marketplace_models.Resource,
+        invoice: invoice_models.Invoice,
+        component_type,
+        quantity,
+    ):
+        """
+        Create or update invoice item for limit-based components.
+
+        Determines whether to create a new invoice item or update an existing
+        one based on whether an item already exists for the component type.
+        Used when resource limits change during billing periods.
+
+        Args:
+            source: Marketplace resource being processed
+            invoice: Invoice to create/update item in
+            component_type: Type of component being processed
+            quantity: Limit quantity for the component
+        """
+        if not resource.plan:
+            logger.warning(
+                "Skipping processing of invoice item %s because "
+                "billing is not enabled for resource.",
+                component_type,
+            )
+            return
+        if invoice_models.InvoiceItem.objects.filter(
+            resource=resource,
+            details__offering_component_type=component_type,
+            invoice=invoice,
+        ).exists():
+            cls._update_invoice_item(resource, component_type, invoice, quantity)
+        else:
+            now = timezone.now()
+            try:
+                plan_component = resource.plan.components.get(
+                    component__type=component_type
+                )
+                # Get the offering component to determine appropriate period end
+                offering_component = plan_component.component
+
+                start, end = cls._get_billing_period(
+                    offering_component.limit_period, now
+                )
+
+            except ObjectDoesNotExist:
+                logger.warning(
+                    "Skipping processing of invoice item %s because "
+                    "plan component is not defined.",
+                    component_type,
+                )
+                return
+            else:
+                cls._create_invoice_item(resource, plan_component, invoice, start, end)
+
+    @classmethod
+    def _update_invoice_item(
+        cls,
+        resource: marketplace_models.Resource,
+        component_type: str,
+        invoice: invoice_models.Invoice,
+        new_quantity,
+    ):
+        """
+        Update existing invoice item when resource limits change.
+
+        Updates invoice items for limit-based components when resource limits
+        are modified. Creates time-based billing periods to handle limit changes
+        during the billing period with appropriate prorating.
+
+        Args:
+            source: Marketplace resource being updated
+            component_type: Type of component being updated
+            invoice: Invoice containing the item to update
+            new_quantity: New limit quantity
+        """
+        if not resource.plan:
+            return
+
+        invoice_item = invoice_models.InvoiceItem.objects.get(
+            resource=resource,
+            details__offering_component_type=component_type,
+            details__plan_uuid=str(resource.plan.uuid),
+            invoice=invoice,
+            unit_price__gte=0,  # exclude compensation items
+        )
+        resource_limit_periods = invoice_item.details["resource_limit_periods"]
+        old_period = resource_limit_periods.pop()
+        old_quantity = int(old_period["quantity"])
+        old_start = parse_datetime(old_period["start"])
+        today = timezone.now()
+        new_quantity = convert_quantity(
+            new_quantity, resource.offering.type, component_type
+        )
+        if old_quantity == new_quantity:
+            # Skip update if limit is the same
+            return
+        if old_quantity > new_quantity:
+            old_end = today.replace(hour=23, minute=59, second=59)
+            new_start = old_end + datetime.timedelta(seconds=1)
+        else:
+            new_start = today.replace(hour=0, minute=0, second=0)
+            old_end = new_start - datetime.timedelta(seconds=1)
+        old_period = utils.serialize_resource_limit_period(
+            old_start, old_end, old_quantity
+        )
+        # Get the offering component to determine appropriate period end
+        offering_component = resource.offering.components.get(type=component_type)
+        _, period_end = cls._get_billing_period(
+            offering_component.limit_period, timezone.now()
+        )
+
+        new_period = utils.serialize_resource_limit_period(
+            new_start, period_end, new_quantity
+        )
+        resource_limit_periods.extend([old_period, new_period])
+        plan_component = resource.plan.components.get(component__type=component_type)
+        invoice_item.quantity = sum(
+            cls._get_total_quantity(
+                plan_component.plan.unit,
+                period["quantity"],
+                parse_datetime(period["start"]),
+                parse_datetime(period["end"]),
+            )
+            for period in resource_limit_periods
+        )
+        invoice_item.save(update_fields=["details", "quantity"])
+
+    @classmethod
+    def _create_invoice_item(
+        cls,
+        source: marketplace_models.Resource,
+        plan_component: marketplace_models.PlanComponent,
+        invoice: invoice_models.Invoice,
+        start,
+        end,
+    ):
+        """
+        Create invoice item for limit-based components with separate discount item.
+
+        Creates invoice items for components with LIMIT billing type based on
+        resource limits. Handles different limit periods (MONTH, QUARTERLY, ANNUAL, TOTAL)
+        and calculates appropriate quantities and units.
+
+        For TOTAL limit period, uses QUANTITY unit instead of plan unit.
+        Includes resource limit periods in details for tracking.
+
+        Args:
+            source: Marketplace resource being billed
+            plan_component: Plan component to create item for
+            invoice: Invoice to add item to
+            start: Billing period start date
+            end: Billing period end date
+        """
+        offering_component = plan_component.component
+        if not offering_component:
+            logger.warning(
+                "Skipping invoice item creation for resource %s because "
+                "offering component is not set.",
+                source,
+            )
+            return
+
+        # Additional safeguard: TOTAL period components should only be billed once
+        # This prevents the bug where TOTAL components get billed multiple times
+        if (
+            offering_component.billing_type == BillingTypes.LIMIT
+            and offering_component.limit_period == LimitPeriods.TOTAL
+        ):
+            # Check if this component has already been billed for this resource
+            existing_items = invoice_models.InvoiceItem.objects.filter(
+                resource=source,
+                details__offering_component_type=offering_component.type,
+            )
+            if existing_items.exists():
+                logger.warning(
+                    "Prevented duplicate billing: TOTAL period component %s on resource %s "
+                    "already has existing invoice items. TOTAL components should only be billed once.",
+                    offering_component.type,
+                    source.id,
+                )
+                return
+        limit = source.limits.get(offering_component.type, 0)
+        if not limit or limit == -1:
+            return
+        details = get_component_details(source, plan_component)
+        quantity = convert_quantity(
+            limit, source.offering.type, offering_component.type
+        )
+        details["resource_limit_periods"] = [
+            utils.serialize_resource_limit_period(start, end, quantity)
+        ]
+        total_quantity = cls._get_total_quantity(
+            plan_component.plan.unit, quantity, start, end
+        )
+
+        unit = plan_component.plan.unit
+        if (
+            offering_component.billing_type == BillingTypes.LIMIT
+            and offering_component.limit_period == LimitPeriods.TOTAL
+        ):
+            unit = invoice_models.Units.QUANTITY
+
+        invoice_models.InvoiceItem.objects.create(
+            name=f"{get_invoice_item_name(source)} / {get_component_name(plan_component)}",
+            resource=source,
+            project=source.project,
+            unit_price=plan_component.price,
+            unit=unit,
+            quantity=total_quantity,
+            article_code=offering_component.article_code or source.plan.article_code,
+            invoice=invoice,
+            start=start,
+            end=end,
+            details=details,
+            measured_unit=offering_component.measured_unit,
+        )
+
+        # Check if discount applies and create separate discount item
+        discount_amount, discount_applies = cls._calculate_discount_amount(
+            plan_component, total_quantity, plan_component.price
+        )
+
+        if discount_applies:
+            cls._create_discount_invoice_item(
+                resource=source,
+                plan_component=plan_component,
+                invoice=invoice,
+                discount_amount=discount_amount,
+                quantity=total_quantity,
+                start=start,
+                end=end,
+            )
+
+    @classmethod
+    def _create_discount_invoice_item(
+        cls,
+        resource: marketplace_models.Resource,
+        plan_component: marketplace_models.PlanComponent,
+        invoice: invoice_models.Invoice,
+        discount_amount: Decimal,
+        quantity: int,
+        start,
+        end,
+        component_name: str | None = None,
+    ):
+        """
+        Create a separate invoice item for discount with negative unit price.
+
+        Args:
+            resource: Marketplace resource
+            plan_component: Plan component with discount configuration
+            invoice: Invoice to add the discount item to
+            discount_amount: Total discount amount (positive value)
+            quantity: Original quantity being discounted
+            start: Billing period start
+            end: Billing period end
+            component_name: Optional custom component name for display
+        """
+        offering_component = plan_component.component
+
+        details = get_component_details(resource, plan_component)
+        details["is_discount"] = True
+        details["discount_threshold"] = plan_component.discount_threshold
+        details["discount_rate"] = plan_component.discount_rate
+        details["original_quantity"] = quantity
+        details["discount_type"] = "volume_discount"
+
+        component_display_name = component_name or get_component_name(plan_component)
+        discount_name = (
+            f"{get_invoice_item_name(resource)} / {component_display_name} / "
+            f"Volume Discount ({plan_component.discount_rate}%)"
+        )
+
+        invoice_models.InvoiceItem.objects.create(
+            name=discount_name,
+            resource=resource,
+            project=resource.project,
+            unit_price=-discount_amount,  # Negative to represent discount
+            unit=invoice_models.Units.QUANTITY,
+            quantity=1,  # Quantity of 1 since discount_amount is the total
+            article_code=offering_component.article_code or resource.plan.article_code,
+            invoice=invoice,
+            start=start,
+            end=end,
+            details=details,
+            measured_unit="",  # No measured unit for discount items
+        )
+
+        logger.info(
+            f"Created discount invoice item for resource '{resource.uuid}': "
+            f"Discount amount: {discount_amount}, Rate: {plan_component.discount_rate}%"
+        )
+
+    @classmethod
+    def _calculate_discount_amount(
+        cls,
+        plan_component: marketplace_models.PlanComponent,
+        quantity: int,
+        unit_price: Decimal,
+    ) -> tuple[Decimal, bool]:
+        """
+        Calculate discount amount based on quantity threshold and discount rate.
+
+        Args:
+            plan_component: Plan component with pricing and discount configuration
+            quantity: Quantity being billed
+            unit_price: Original unit price
+
+        Returns:
+            tuple: (discount_amount, discount_applies)
+                - discount_amount: Total discount amount to subtract
+                - discount_applies: Boolean indicating if discount threshold is met
+        """
+        # Check if discount is configured and threshold is met
+        if (
+            plan_component.discount_threshold is not None
+            and plan_component.discount_rate is not None
+            and quantity >= plan_component.discount_threshold
+        ):
+            # Calculate total discount amount
+            total_before_discount = unit_price * quantity
+            discount_amount = total_before_discount * (
+                Decimal(plan_component.discount_rate) / Decimal(100)
+            )
+
+            logger.info(
+                f"Discount applies for component '{plan_component.component.type}'. "
+                f"Rate: {plan_component.discount_rate}%, Quantity: {quantity}, "
+                f"Total before discount: {total_before_discount}, Discount amount: {discount_amount}"
+            )
+            return discount_amount, True
+
+        return Decimal(0), False
+
+    @classmethod
+    def _get_total_quantity(cls, unit, value, start, end):
+        """
+        Calculate total quantity for billing period based on unit type.
+
+        For per-day billing, multiplies value by number of days in period.
+        For other units, returns value as-is.
+
+        Args:
+            unit: Billing unit type (PER_DAY, etc.)
+            value: Base value to calculate from
+            start: Period start date
+            end: Period end date
+
+        Returns:
+            Total quantity for the billing period
+        """
+        if unit == invoice_models.InvoiceItem.Units.PER_DAY:
+            return value * get_full_days(start, end)
+        return value

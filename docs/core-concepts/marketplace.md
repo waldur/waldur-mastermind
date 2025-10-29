@@ -40,6 +40,7 @@ graph TB
 - **`Plan`**: Service packages with specific pricing and resource allocations
 - **`Order`**: Purchase requests that trigger resource provisioning
 - **`Resource`**: Provisioned service instances with lifecycle management
+- **`ComponentUsage`**: Records of consumption for usage-based components.
 
 ## Order Lifecycle and State Management
 
@@ -133,17 +134,37 @@ stateDiagram-v2
 
 ## Billing System
 
+The billing system is designed to be flexible and event-driven, reacting to changes in a resource's lifecycle and usage.
+
+### Billing Workflow and Core Components
+
+The entire billing process is initiated by Django signals, ensuring that billing logic is decoupled from the core resource management code.
+
+1. **Signal-Driven Architecture**: Billing events are triggered by `post_save` signals on two key models:
+    - `marketplace.Resource`: Changes to a resource's state, plan, or limits trigger billing actions.
+    - `marketplace.ComponentUsage`: Reporting new usage data triggers invoicing for usage-based components.
+
+2. **`MarketplaceBillingService`**: This is the central orchestrator for billing. It handles major resource lifecycle events and delegates the creation of invoice items to specialized logic.
+    - `handle_resource_creation()`: Called when a resource becomes `OK` after `CREATING`.
+    - `handle_resource_termination()`: Called when a resource becomes `TERMINATED`.
+    - `handle_plan_change()`: Called when the `plan_id` on a resource changes.
+    - `handle_limits_change()`: Called when the `limits` on a resource change.
+
+3. **`LimitPeriodProcessor`**: This class is responsible for the complex logic of `LIMIT` type components. It determines how and when to bill based on the component's `limit_period` (e.g., `MONTH`, `QUARTERLY`, `TOTAL`).
+
+4. **`BillingUsageProcessor`**: This class handles invoicing for `USAGE` type components. Its logic is triggered exclusively by the creation or update of `ComponentUsage` records. It also manages prepaid balances and overage billing.
+
 ### Billing Types
 
-The marketplace supports five distinct billing patterns:
+The marketplace supports five distinct billing patterns, each handled by different parts of the system.
 
-| Type | Use Case | Example | Billing Trigger |
-|------|----------|---------|----------------|
-| **FIXED** | Monthly subscriptions, SaaS plans | $50/month hosting | Service provider sets price |
-| **USAGE** | Pay-as-you-consume | $0.10/GB storage used | Usage reports submitted |
-| **LIMIT** | Resource quotas with different periods | $5/CPU core allocated monthly<br/>$150/500GB quarterly storage | User specifies limits |
-| **ONE_TIME** | Setup fees, licenses | $100 installation | Resource activation |
-| **ON_PLAN_SWITCH** | Plan change fees | $25 upgrade fee | Plan modifications |
+| Type             | Use Case                                  | Example                           | Billing Trigger                                      |
+| ---------------- | ----------------------------------------- | --------------------------------- | ---------------------------------------------------- |
+| **FIXED**        | Monthly subscriptions, SaaS plans         | $50/month for a software license  | Resource activation and monthly invoice generation.  |
+| **USAGE**        | Pay-as-you-consume services               | $0.10/GB of storage used          | `ComponentUsage` reports are submitted.              |
+| **LIMIT**        | Pre-allocated resource quotas             | $5/CPU core allocated per month   | Resource activation, limit changes, and monthly invoice generation. |
+| **ONE_TIME**     | Setup fees, licenses                      | $100 one-time installation fee    | Resource activation (`CREATE` order).                |
+| **ON_PLAN_SWITCH** | Fees for changing service plans           | $25 fee to upgrade to a premium plan | Plan modification (`UPDATE` order).                  |
 
 ### Component Architecture
 
@@ -174,99 +195,166 @@ graph LR
     C5 --> L5
 ```
 
-### Limit Periods
+### Limit-Based Billing (`LimitPeriodProcessor`)
 
-For USAGE and LIMIT billing types, components can have consumption limits with different billing cycles:
+Limit-based components are billed based on the quantity of a resource a user has allocated, not their actual consumption. The billing behavior varies significantly depending on the `limit_period`. The `LimitPeriodProcessor` class is responsible for handling this logic.
 
-- **MONTHLY**: Reset limits every month (e.g., 100 GB storage/month)
-- **QUARTERLY**: Reset limits every quarter (e.g., 300 GB storage/quarter)
-- **ANNUAL**: Reset limits yearly (e.g., 1000 CPU hours/year)
-- **TOTAL**: Lifetime limits (e.g., 10 TB total storage)
+- **`MONTH` & `ANNUAL`**: These are treated as standard recurring monthly charges. An invoice item is created for each month the resource is active, prorated for the first and last months. The price is based on the allocated limit.
+
+- **`TOTAL`**: This period represents a one-time charge for a lifetime allocation.
+  - **Initial Charge**: A single invoice item is created when the resource is first provisioned (`CREATE` order).
+  - **Limit Updates**: If the limit for a `TOTAL` component is changed later, the system calculates the difference between the new limit and the sum of all previously billed quantities for that component. It then creates a new invoice item (positive or negative) to bill for only the increment or credit the decrement. This prevents double-billing and correctly handles upgrades/downgrades.
+
+- **`QUARTERLY`**: This period has specialized logic for billing every three months, ensuring charges align with standard financial quarters.
 
 #### Quarterly Billing Implementation
 
-The QUARTERLY limit period provides specialized billing logic for resources that need to be billed on a quarterly cycle:
+The implementation for `QUARTERLY` components ensures they are billed on a strict three-month cycle.
 
-**Billing Schedule**: Quarterly components are only processed during the first month of each quarter:
+**1. Billing Schedule**: The system will only generate charges for quarterly components during the first month of each quarter. This is controlled by the `LimitPeriodProcessor._should_process_billing` method.
 
-- **Q1**: January (months 1-3)
-- **Q2**: April (months 4-6)
-- **Q3**: July (months 7-9)
-- **Q4**: October (months 10-12)
+- **Q1**: Billing occurs in **January** (for Jan, Feb, Mar)
+- **Q2**: Billing occurs in **April** (for Apr, May, Jun)
+- **Q3**: Billing occurs in **July** (for Jul, Aug, Sep)
+- **Q4**: Billing occurs in **October** (for Oct, Nov, Dec)
 
-**Billing Period Calculation**: When quarterly billing is triggered, the system:
+If the monthly invoice generation runs in a non-billing month (e.g., February), this method returns `False`, and no invoice item is created for quarterly components.
 
-1. Calculates the full quarter period (e.g., Q2: April 1 - June 30)
-2. Creates invoice items with quarterly billing periods instead of monthly
-3. Uses `PER_QUARTER` unit for quantity calculations
-4. Applies prorated billing for partial quarters when limits change
+**2. Billing Period Calculation**: When a quarterly component is processed on a valid billing month, the `LimitPeriodProcessor.process_creation` method determines the full quarter's start and end dates using `core_utils.get_quarter_start()` and `core_utils.get_quarter_end()`. The resulting invoice item will have its `start` and `end` dates set to span the entire quarter (e.g., `2023-04-01` to `2023-06-30`).
 
-**Quarter Period Utilities**: The system provides utility functions for quarter calculations:
+**3. Quantity Calculation**: The quantity is calculated based on the **plan's unit**, not a special "per quarter" unit. For example, if the plan unit is `PER_DAY`, the total quantity for the invoice item is `limit * number_of_days_in_the_quarter`.
 
-- `get_current_quarter()`: Returns current quarter (1-4)
-- `get_current_quarter_start()`: Start of current quarter
-- `get_current_quarter_end()`: End of current quarter
-- `get_quarter_start(date)`: Start of quarter for given date
-- `get_quarter_end(date)`: End of quarter for given date
-- `get_full_quarters(start, end)`: Calculate quarters between dates
+**4. Limit Update Handling**: If a user changes the limit for a quarterly component mid-quarter, the system does not create a new "compensation" item. Instead, the `LimitPeriodProcessor._update_invoice_item` method modifies the **single existing invoice item** for that quarter:
 
-**Usage Examples**:
+- The internal `resource_limit_periods` list within the invoice item's `details` is updated. It records the old limit with its effective period (from the quarter start until the change) and the new limit with its effective period (from the change until the quarter end).
+- The item's total `quantity` is then recalculated. It becomes the sum of the prorated quantities from each sub-period. For a `PER_DAY` unit, this would be:
+    `(old_limit * days_in_old_period) + (new_limit * days_in_new_period)`
+- This ensures that a single line item on the invoice accurately reflects the total cost for the quarter, even with mid-period changes.
 
-```python
-# Quarterly storage component
-{
-    "type": "storage",
-    "billing_type": "LIMIT",
-    "limit_period": "QUARTERLY",
-    "price": 150.00  # $150 per quarter for allocated storage
-}
+**Example Flow**:
 
-# User sets 500GB quarterly limit
-# Only billed in January, April, July, October
-# Invoice period: Q2 (April 1 - June 30)
-# Quantity calculated using PER_QUARTER unit
+1. A resource with a quarterly "storage" component (limit: 100 GB, unit: `PER_DAY`) is active.
+2. The monthly billing task runs on **April 5th**.
+3. `_should_process_billing` returns `True` because April is the start of Q2.
+4. An `InvoiceItem` is created with:
+    - `start`: April 1st
+    - `end`: June 30th
+    - `quantity`: `100 * 91` (days in Q2)
+5. On **May 10th**, the user increases the limit to 150 GB.
+6. `MarketplaceBillingService.handle_limits_change` is triggered, calling `LimitPeriodProcessor.process_update`.
+7. The existing `InvoiceItem` for Q2 is updated:
+    - Its `details` now reflect two periods: 100 GB from Apr 1 to May 9, and 150 GB from May 10 to Jun 30.
+    - Its `quantity` is recalculated to `(100 * 39) + (150 * 52)`.
+    - The `unit_price` remains the same. The total price adjusts automatically based on the new total quantity.
+
+### Usage-Based Billing (`BillingUsageProcessor`)
+
+This model is for services where the cost is directly tied to consumption.
+
+- **Trigger**: The process begins when a `ComponentUsage` record is saved, which contains the total usage for a component within a specific period (usually a month).
+
+- **Invoice Item Management**: The processor finds or creates an invoice item for that resource, component, and billing month. It updates the item's quantity to reflect the latest reported usage. This ensures the invoice always shows the most up-to-date consumption data.
+
+- **Prepaid and Overage Billing**: Offerings can feature prepaid components, where a certain amount of usage is included (e.g., in a `FIXED` fee) before extra charges apply.
+  - When usage is reported, the `BillingUsageProcessor` first checks if the component is marked as `is_prepaid`.
+  - It calculates the available prepaid balance for the resource.
+  - If the reported usage is within the balance, no invoice item is generated. The usage is consumed from the balance.
+  - If usage exceeds the balance, the overage amount is calculated. The system then looks for a linked `overage_component` on the offering component.
+  - An invoice item is created for the overage amount, billed against the `overage_component` at its specific (often higher) price. If no overage component is configured, the excess usage is not billed.
+
+### Billing Processing Flow Diagram
+
+```mermaid
+graph TD
+    subgraph "1. Triggers (User/System Actions)"
+        TR_Action[Update Resource state, plan, or limits] --> TR_SaveResource(Save `marketplace.Resource`)
+        TR_Usage[Report component usage] --> TR_SaveUsage(Save `marketplace.ComponentUsage`)
+    end
+
+    subgraph "2. Signal Handling"
+        TR_SaveResource -- emits `post_save` signal --> SH_ResourceHandler(`process_billing_on_resource_save`)
+        TR_SaveUsage -- emits `post_save` signal --> SH_UsageHandler(`BillingUsageProcessor.update_invoice_when_usage_is_reported`)
+    end
+
+    subgraph "3. Billing Orchestration & Logic"
+        MBS[MarketplaceBillingService]
+
+        SH_ResourceHandler -- calls appropriate method based on change --> MBS
+
+        MBS -- `_process_resource()` loops through plan components --> Decision_BillingType{What is component.billing_type?}
+
+        Decision_BillingType -- FIXED, ONE_TIME, ON_PLAN_SWITCH --> Logic_Simple(Handled directly by MarketplaceBillingService)
+        Decision_BillingType -- LIMIT --> Logic_Limit(LimitPeriodProcessor)
+
+        SH_UsageHandler -- Processes usage directly --> Logic_Usage(BillingUsageProcessor)
+    end
+
+    subgraph "4. Final Outcome"
+        Invoice(invoice.Invoice)
+        InvoiceItem(invoice.InvoiceItem)
+        Invoice --> InvoiceItem
+    end
+
+    Logic_Simple --> Action_CreateItem(Create New `InvoiceItem`)
+    Logic_Limit -- process_creation/process_update --> Action_CreateOrUpdateItem(Create or Update `InvoiceItem`)
+    Logic_Usage -- _create_or_update_usage_invoice_item --> Action_CreateOrUpdateItem
+
+    Action_CreateItem --> InvoiceItem
+    Action_CreateOrUpdateItem --> InvoiceItem
+
+    %% Styling
+    classDef trigger fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
+    classDef handler fill:#fff2e6,stroke:#ff8c1a,stroke-width:2px;
+    classDef service fill:#e6fffa,stroke:#00997a,stroke-width:2px;
+    classDef outcome fill:#f0f0f0,stroke:#666,stroke-width:2px;
+
+    class TR_Action,TR_Usage,TR_SaveResource,TR_SaveUsage trigger;
+    class SH_ResourceHandler,SH_UsageHandler handler;
+    class MBS,Decision_BillingType,Logic_Simple,Logic_Limit,Logic_Usage service;
+    class Invoice,InvoiceItem,Action_CreateItem,Action_CreateOrUpdateItem outcome;
 ```
 
-#### MarketplaceBillingService QUARTERLY Logic
+---
 
-**`get_period_end_for_limit_period(limit_period)`**: Returns appropriate period end
+### Explanation of the Flow
 
-```python
-def get_period_end_for_limit_period(cls, limit_period):
-    if limit_period == LimitPeriods.QUARTERLY:
-        return core_utils.get_current_quarter_end()
-    else:
-        return get_current_month_end()  # Default for MONTH, ANNUAL, TOTAL
-```
+This diagram illustrates how billing events are triggered and processed within the Waldur marketplace. The flow is divided into two main, parallel paths: one for resource lifecycle events and another for usage reporting.
 
-**Invoice Item Creation**: Quarterly components are processed differently:
+#### 1. Triggers
 
-1. **During `_create_item()`**:
-  - Skips processing in non-quarterly months for QUARTERLY components
-  - Uses full quarterly periods instead of monthly periods
-  - Creates invoice items spanning entire quarters
+The entire process begins with a user or system action that results in a database write. There are two primary triggers:
 
-2. **During `create_or_update_component_item()`**:
-  - Uses quarterly billing periods for new QUARTERLY components
-  - Handles limit changes with appropriate quarter calculations
+- **Resource Lifecycle Event**: A user or an automated process modifies a `marketplace.Resource`. This includes activating a new resource (`CREATING` -> `OK`), changing its plan, updating its limits, or terminating it. This action saves the `Resource` model.
+- **Usage Reporting**: A monitoring system or a user reports consumption for a component. This action creates or updates a `marketplace.ComponentUsage` model instance.
 
-3. **Quantity Calculation**:
-  - Uses `PER_QUARTER` unit from `common.enums.Units`
-  - Leverages `get_full_quarters(start, end)` for period calculations
-  - Supports prorated billing for partial quarterly periods
+#### 2. Signal Handling
 
-**Limit Update Handling**: When resource limits change for quarterly components:
+Waldur uses Django's signal system to decouple the billing logic from the models themselves. When a model is saved, it emits a `post_save` signal.
 
-- Updates existing invoice items with new quarterly periods
-- Creates compensation items for limit decreases (negative unit_price)
-- Maintains detailed `resource_limit_periods` in invoice item details
+- **`process_billing_on_resource_save`**: This function listens for signals from the `Resource` model. It inspects what has changed (the `tracker`) to determine which billing action to initiate (e.g., creation, termination, plan change).
+- **`BillingUsageProcessor.update_invoice_when_usage_is_reported`**: This method acts as both a signal handler and a processor. It listens for signals specifically from the `ComponentUsage` model.
 
-This implementation ensures that quarterly billing:
+#### 3. Billing Orchestration & Logic
 
-- Only occurs during appropriate months (January, April, July, October)
-- Covers full quarterly periods for accurate billing
-- Handles mid-quarter limit changes with proper prorating
-- Integrates seamlessly with the existing monthly billing infrastructure
+This is the core of the system where decisions are made.
+
+- **Path A: Resource Lifecycle Events**
+    1. The `process_billing_on_resource_save` handler calls the appropriate method on the central **`MarketplaceBillingService`**.
+    2. The `MarketplaceBillingService` then iterates through all the billable components associated with the resource's plan.
+    3. For each component, it checks the **`billing_type`** and delegates to the correct logic:
+        - **`FIXED`**, **`ONE_TIME`**, **`ON_PLAN_SWITCH`**: These have simple, predictable billing logic that is handled directly within the `MarketplaceBillingService`. It creates a new invoice item.
+        - **`LIMIT`**: The logic for limit-based components is complex, involving periods and prorating. `MarketplaceBillingService` delegates this to the specialized **`LimitPeriodProcessor`**, which then calculates and creates or updates the invoice item.
+
+- **Path B: Usage Reporting Events**
+    1. The `update_invoice_when_usage_is_reported` method is called directly by the signal.
+    2. The **`BillingUsageProcessor`** handles the entire flow for `USAGE` components. It checks for prepaid balances, calculates overages, and creates or updates the corresponding invoice item. This path operates independently of the `MarketplaceBillingService`.
+
+#### 4. Final Outcome
+
+Both processing paths ultimately converge on the same goal: creating or modifying records in the invoicing system.
+
+- An **`invoice.Invoice`** is retrieved or created for the customer for the current billing period (e.g., the current month).
+- An **`invoice.InvoiceItem`** is either created new (for `FIXED` or `ONE_TIME` components) or created/updated (for `LIMIT` and `USAGE` components) and linked to the invoice. This item contains all the details of the charge: name, quantity, unit price, and metadata.
 
 ## Processor Architecture
 

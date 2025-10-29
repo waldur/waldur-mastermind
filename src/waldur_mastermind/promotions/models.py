@@ -132,7 +132,7 @@ class Campaign(UuidMixin, DescribableMixin, NameMixin):
             self.offerings.filter(id=resource.offering.id).exists()
             and (
                 not self.required_offerings.count()
-                or not self.required_offerings.excude(id__in=other_offerings).exists()
+                or not self.required_offerings.exclude(id__in=other_offerings).exists()
             )
             and (
                 not self.stock

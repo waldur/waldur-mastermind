@@ -11,9 +11,9 @@ class MarketplaceSlurmConfig(AppConfig):
 
     def ready(self):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
+        from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
         from waldur_mastermind.marketplace.enums import SLURM_OFFERING
         from waldur_mastermind.marketplace.plugins import Component, manager
-        from waldur_mastermind.marketplace.utils import convert_slurm_usage
         from waldur_slurm import executors as slurm_executors
         from waldur_slurm import models as slurm_models
         from waldur_slurm import signals as slurm_signals

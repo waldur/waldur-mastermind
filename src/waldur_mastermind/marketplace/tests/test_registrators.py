@@ -105,7 +105,7 @@ class TestPrepaidCreationBilling(PrepaidBillingTestBase):
         self.assertEqual(item.quantity, 1)
 
     def test_upfront_fee_is_not_billed_on_resource_update(self):
-        MarketplaceBillingService.register(
+        MarketplaceBillingService._register(
             self.resource, timezone.now(), order_type=OrderTypes.UPDATE
         )
         self.assertFalse(invoice_models.InvoiceItem.objects.exists())
