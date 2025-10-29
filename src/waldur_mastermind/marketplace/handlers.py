@@ -30,6 +30,7 @@ from waldur_core.users.enums import InvitationState
 from waldur_core.users.tasks import process_invitation
 from waldur_freeipa.models import Profile
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     MaintenanceState,
@@ -2148,3 +2149,34 @@ def notify_offering_user_about_tos_requirement(sender, instance, created, **kwar
             o, u
         )
     )
+
+
+def process_billing_on_resource_save(
+    sender, instance: models.Resource, created=False, **kwargs
+):
+    """
+    Handle resource state changes and billing events.
+    """
+    resource = instance
+    if created:
+        return
+
+    tracker = resource.tracker
+
+    if (
+        resource.state == ResourceStates.OK
+        and tracker.previous("state") == ResourceStates.CREATING
+    ):
+        MarketplaceBillingService.handle_resource_creation(resource)
+
+    if (
+        resource.state == ResourceStates.TERMINATED
+        and tracker.previous("state") == ResourceStates.TERMINATING
+    ):
+        MarketplaceBillingService.handle_resource_termination(resource)
+
+    if resource.state != ResourceStates.CREATING and tracker.has_changed("plan_id"):
+        MarketplaceBillingService.handle_plan_change(resource)
+
+    if resource.state != ResourceStates.CREATING and tracker.has_changed("limits"):
+        MarketplaceBillingService.handle_limits_change(resource)

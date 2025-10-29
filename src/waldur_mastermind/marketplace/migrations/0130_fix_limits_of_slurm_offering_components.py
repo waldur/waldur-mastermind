@@ -4,7 +4,7 @@ import logging
 from django.conf import settings as django_settings
 from django.db import migrations
 
-from waldur_mastermind.marketplace.utils import convert_slurm_usage
+from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
 
 logger = logging.getLogger(__name__)
 

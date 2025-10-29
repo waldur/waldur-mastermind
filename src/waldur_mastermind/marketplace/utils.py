@@ -11,7 +11,6 @@ import traceback
 import unicodedata
 import uuid
 from collections import defaultdict
-from decimal import Decimal
 from enum import Enum
 from functools import lru_cache
 from io import BytesIO
@@ -2361,18 +2360,6 @@ def publish_backend_resource_request(request: models.BackendResourceRequest):
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
-
-
-def convert_slurm_usage(usage: int | float | Decimal, component_type: str) -> int:
-    # This is temporarily uplifted to marketplace in order to avoid circular dependency
-    minutes_in_hour = 60
-    usage_float = float(usage)
-    if component_type in ["ram", "mem"]:
-        mb_in_gb = 1024
-        quantity = int(math.ceil(usage_float / mb_in_gb / minutes_in_hour))
-    else:
-        quantity = int(math.ceil(usage_float / minutes_in_hour))
-    return quantity
 
 
 def post_course_account_to_url(

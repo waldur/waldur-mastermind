@@ -1,6 +1,9 @@
 import logging
 
+from django.db.models import Q
+
 from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.promotions import models
 from waldur_mastermind.promotions.models import Campaign
 
@@ -41,8 +44,7 @@ def apply_campaign_to_pending_invoices(
 
     # We discount the price if the campaign has already started,
     # otherwise we only create an object of the DiscountedResource model,
-    # and the discount will be created in the MarketplaceBillingService
-    # when the invoice is created.
+    # and the discount will be created when the invoice is created.
     for invoice_item in invoices_models.InvoiceItem.objects.filter(
         invoice__state=invoices_models.Invoice.States.PENDING,
         invoice__year=campaign.start_date.year,
@@ -63,3 +65,35 @@ def apply_campaign_to_pending_invoices(
                     invoice_item.details["campaign_uuid"] = campaign.uuid.hex
                     invoice_item.details["unit_price"] = float(unit_price)
                     invoice_item.save()
+
+
+def create_discounted_resource_on_activation(instance: Resource):
+    """
+    Signal handler to check for and apply campaign discounts when a resource
+    becomes active.
+    """
+    order = instance.creation_order
+    if not order:
+        return
+
+    coupon_code = order.attributes.get("coupon", "")
+
+    # Find all active campaigns that could potentially apply
+    applicable_campaigns = models.Campaign.objects.filter(
+        state=models.Campaign.States.ACTIVE,
+        start_date__lte=instance.created,
+        end_date__gte=instance.created,
+    ).filter(Q(coupon__isnull=True) | Q(coupon="") | Q(coupon=coupon_code))
+
+    for campaign in applicable_campaigns:
+        if campaign.check_resource_on_conditions_of_campaign(instance):
+            discounted_resource, created = (
+                models.DiscountedResource.objects.get_or_create(
+                    campaign=campaign,
+                    resource=instance,
+                )
+            )
+            if created:
+                logger.info(
+                    f"Resource {instance.uuid} has been linked to campaign '{campaign.name}'."
+                )

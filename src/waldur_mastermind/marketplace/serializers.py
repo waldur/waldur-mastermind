@@ -62,6 +62,7 @@ from waldur_mastermind.common.utils import prices_are_equal
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
+from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
     BillingTypes,
@@ -85,7 +86,6 @@ from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.marketplace.utils import (
     UsernameGenerationPolicy,
-    convert_slurm_usage,
     get_service_provider_resources,
     get_service_provider_user_ids,
     parse_date,

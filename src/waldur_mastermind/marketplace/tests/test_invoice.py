@@ -11,7 +11,6 @@ from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing import (
     LimitPeriodProcessor,
-    MarketplaceBillingService,
 )
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
@@ -632,7 +631,7 @@ class QuarterlyBillingMonthDetectionTest(test.APITransactionTestCase):
         # Create a test date for the given month
         test_date = timezone.datetime(2020, month, 15)
 
-        result = LimitPeriodProcessor.should_process_billing(
+        result = LimitPeriodProcessor._should_process_billing(
             LimitPeriods.QUARTERLY, test_date
         )
         self.assertEqual(
@@ -643,7 +642,7 @@ class QuarterlyBillingMonthDetectionTest(test.APITransactionTestCase):
         """Test quarterly billing period calculation for each quarter."""
         # Test Q1 (January)
         q1_date = timezone.datetime(2020, 1, 15)
-        q1_start, q1_end = LimitPeriodProcessor.get_billing_period(
+        q1_start, q1_end = LimitPeriodProcessor._get_billing_period(
             LimitPeriods.QUARTERLY, q1_date
         )
         self.assertEqual(q1_start.month, 1)
@@ -653,7 +652,7 @@ class QuarterlyBillingMonthDetectionTest(test.APITransactionTestCase):
 
         # Test Q2 (April)
         q2_date = timezone.datetime(2020, 4, 15)
-        q2_start, q2_end = LimitPeriodProcessor.get_billing_period(
+        q2_start, q2_end = LimitPeriodProcessor._get_billing_period(
             LimitPeriods.QUARTERLY, q2_date
         )
         self.assertEqual(q2_start.month, 4)
@@ -663,7 +662,7 @@ class QuarterlyBillingMonthDetectionTest(test.APITransactionTestCase):
 
         # Test Q3 (July)
         q3_date = timezone.datetime(2020, 7, 15)
-        q3_start, q3_end = LimitPeriodProcessor.get_billing_period(
+        q3_start, q3_end = LimitPeriodProcessor._get_billing_period(
             LimitPeriods.QUARTERLY, q3_date
         )
         self.assertEqual(q3_start.month, 7)
@@ -673,7 +672,7 @@ class QuarterlyBillingMonthDetectionTest(test.APITransactionTestCase):
 
         # Test Q4 (October)
         q4_date = timezone.datetime(2020, 10, 15)
-        q4_start, q4_end = LimitPeriodProcessor.get_billing_period(
+        q4_start, q4_end = LimitPeriodProcessor._get_billing_period(
             LimitPeriods.QUARTERLY, q4_date
         )
         self.assertEqual(q4_start.month, 10)
@@ -1110,7 +1109,7 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
             )
 
             # This should be prevented by the safeguard
-            MarketplaceBillingService.create_component_item(
+            LimitPeriodProcessor._create_invoice_item(
                 source=self.resource,
                 plan_component=self.cpu_plan_component,
                 invoice=september_invoice,
@@ -1180,7 +1179,7 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
         october_15th = timezone.datetime(2025, 10, 15, tzinfo=timezone.utc)
         october_31st = timezone.datetime(2025, 10, 31, tzinfo=timezone.utc)
 
-        MarketplaceBillingService.create_component_item(
+        LimitPeriodProcessor._create_invoice_item(
             source=test_resource,
             plan_component=old_plan_component,
             invoice=october_invoice,
@@ -1191,7 +1190,7 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
         test_resource.plan = new_plan
         test_resource.save()
 
-        MarketplaceBillingService.create_component_item(
+        LimitPeriodProcessor._create_invoice_item(
             source=test_resource,
             plan_component=new_plan_component,
             invoice=october_invoice,
@@ -1209,7 +1208,7 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
             items.count(), 2, "Should have 2 invoice items due to plan switch"
         )
 
-        MarketplaceBillingService.update_component_item(
+        LimitPeriodProcessor._update_invoice_item(
             resource=test_resource,
             component_type=offering_component.type,
             invoice=october_invoice,

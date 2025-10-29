@@ -346,7 +346,7 @@ class OneTimeTest(InvoicesBaseTest):
     def test_do_not_calculate_one_time_component_if_resource_started_not_in_current_period(
         self,
     ):
-        MarketplaceBillingService.register(self.resource)
+        MarketplaceBillingService._register(self.resource)
         self.invoice = self.get_invoice()
         expected = (
             self.fixture.plan_component_ram.price
@@ -370,7 +370,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
     def test_do_not_calculate_on_plan_switch_component_if_resource_started_not_in_current_period(
         self,
     ):
-        MarketplaceBillingService.register(self.resource)
+        MarketplaceBillingService._register(self.resource)
         self.invoice = self.get_invoice()
         expected = (
             self.fixture.plan_component_ram.price
@@ -390,7 +390,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
         order.set_state_executing()
         order.complete()
         order.save()
-        MarketplaceBillingService.register(
+        MarketplaceBillingService._register(
             self.resource,
             timezone.now(),
             order_type=OrderTypes.UPDATE,
