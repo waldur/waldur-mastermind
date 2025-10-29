@@ -7,7 +7,6 @@ easy extension to additional countries.
 """
 
 from datetime import timedelta
-from typing import Any
 
 from constance import config
 from django.utils import timezone
@@ -25,8 +24,8 @@ class OnboardingValidator:
         user: User,
         country: str,
         legal_person_identifier: str,
-        customer_data: dict[str, Any],
         legal_name: str = "",
+        existing_verification: OnboardingVerification | None = None,
     ) -> OnboardingVerification:
         """
         Validate that a user is authorized to represent a company.
@@ -35,23 +34,31 @@ class OnboardingValidator:
             user: User requesting validation
             country: ISO country code (e.g., "EE")
             legal_person_identifier: Official company registration code
-            customer_data: Data for creating customer after validation
             legal_name: Company name (optional, for reference)
+            existing_verification: Optional existing verification to update instead of creating new
 
         Returns:
             OnboardingVerification record with results
         """
         expire_delta = config.ONBOARDING_VERIFICATION_EXPIRY_HOURS
-        # Create verification record
-        verification = OnboardingVerification.objects.create(
-            user=user,
-            country=country,
-            legal_person_identifier=legal_person_identifier,
-            legal_name=legal_name,
-            user_submitted_customer_metadata=customer_data,
-            status=VerificationStatus.PENDING,
-            expires_at=timezone.now() + timedelta(hours=expire_delta),
-        )
+
+        if existing_verification:
+            verification = existing_verification
+            verification.legal_person_identifier = legal_person_identifier
+            verification.legal_name = legal_name
+            verification.status = VerificationStatus.PENDING
+            if not verification.expires_at:
+                verification.expires_at = timezone.now() + timedelta(hours=expire_delta)
+            verification.save()
+        else:
+            verification = OnboardingVerification.objects.create(
+                user=user,
+                country=country,
+                legal_person_identifier=legal_person_identifier,
+                legal_name=legal_name,
+                status=VerificationStatus.PENDING,
+                expires_at=timezone.now() + timedelta(hours=expire_delta),
+            )
 
         try:
             # Step 1: Validate user has required identity information

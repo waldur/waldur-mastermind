@@ -14,6 +14,16 @@ def register_in(router):
         views.OnboardingJustificationViewSet,
         basename="onboarding-justification",
     )
+    router.register(
+        r"onboarding-country-configs",
+        views.OnboardingCountryChecklistConfigurationViewSet,
+        basename="onboarding-country-config",
+    )
+    router.register(
+        r"onboarding-question-metadata",
+        views.OnboardingQuestionMetadataViewSet,
+        basename="onboarding-question-metadata",
+    )
 
 
 urlpatterns = [

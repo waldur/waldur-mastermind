@@ -5,26 +5,37 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from waldur_core.checklist.mixins import UserChecklistMixin
 from waldur_core.core import filters as core_filters
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
 from waldur_core.structure import serializers as structure_serializers
 
-from .models import OnboardingJustification, OnboardingVerification
+from .models import (
+    OnboardingCountryChecklistConfiguration,
+    OnboardingJustification,
+    OnboardingQuestionMetadata,
+    OnboardingVerification,
+)
 from .serializers import (
     OnboardingCompanyValidationRequestSerializer,
+    OnboardingCountryChecklistConfigurationSerializer,
     OnboardingJustificationCreateSerializer,
     OnboardingJustificationDocumentationSerializer,
     OnboardingJustificationReviewSerializer,
     OnboardingJustificationSerializer,
+    OnboardingQuestionMetadataSerializer,
     OnboardingVerificationSerializer,
 )
 from .validators import onboarding_validator
 
 
-class OnboardingVerificationViewSet(core_views.ActionsViewSet):
+class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSet):
     """
     ViewSet for managing company onboarding verifications.
+
+    Supports automatic validation with required fields (legal_person_identifier, person_identifier).
+    Optionally integrates with checklist system for flexible, country-specific additional data collection.
     """
 
     queryset = OnboardingVerification.objects.all()
@@ -32,35 +43,101 @@ class OnboardingVerificationViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     filter_backends = (core_filters.StaffOrUserFilter, DjangoFilterBackend)
 
+    # Override later with correct permissions per action
+    checklist_permissions = [permissions.IsAuthenticated]
+    completion_status_permissions = [permissions.IsAuthenticated]
+    submit_answers_permissions = [permissions.IsAuthenticated]
+
+    def get_checklist_completion(self, obj):
+        return obj.get_or_create_checklist_completion()
+
+    def get_permissions(self):
+        """Get permissions based on action."""
+        # Map actions to their permission attributes
+        permission_map = {
+            "checklist": "checklist_permissions",
+            "completion_status": "completion_status_permissions",
+            "submit_answers": "submit_answers_permissions",
+        }
+
+        # If this is a checklist-related action, use its specific permissions
+        if self.action in permission_map:
+            permission_attr = permission_map[self.action]
+            permission_classes = getattr(self, permission_attr, [])
+            return [permission() for permission in permission_classes]
+
+        # Otherwise, use default permissions from parent class
+        return super().get_permissions()
+
     @extend_schema(
-        description="Start company validation process.",
+        description="Start company validation process by creating a verification record. "
+        "If a checklist is configured for the country, use checklist endpoints to submit additional answers. "
+        "Then call run_validation to perform automatic validation.",
         request=OnboardingCompanyValidationRequestSerializer,
         responses=OnboardingVerificationSerializer,
     )
     @action(detail=False, methods=["post"])
-    def validate_company(self, request):
+    def start_verification(self, request):
         """
-        Start company validation process.
+        Start company validation process by creating a verification record.
 
-        Creates a new OnboardingVerification and runs validation.
+        Creates OnboardingVerification with required fields for automatic validation.
+        If a checklist is configured for the country, it will be created for additional data collection.
+        User can then proceed to run_validation directly or submit checklist answers first.
         """
         serializer = OnboardingCompanyValidationRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Start validation
-        verification = onboarding_validator.validate_company(
+        # Create verification record
+        verification = OnboardingVerification.objects.create(
             user=request.user,
             country=serializer.validated_data["country"],
-            legal_person_identifier=serializer.validated_data[
-                "legal_person_identifier"
-            ],
-            customer_data=serializer.validated_data["user_submitted_customer_metadata"],
+            legal_person_identifier=serializer.validated_data.get(
+                "legal_person_identifier", ""
+            ),
             legal_name=serializer.validated_data.get("legal_name", ""),
         )
+
+        # Create checklist completion if available (optional)
+        # This allows collecting additional country-specific data
+        verification.get_or_create_checklist_completion()
+        # If no checklist is configured, user can still proceed with automatic validation
 
         # Return the verification result
         response_serializer = OnboardingVerificationSerializer(verification)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+    start_verification_serializer_class = OnboardingCompanyValidationRequestSerializer
+
+    @extend_schema(
+        description="Run automatic validation using the required fields provided during verification creation. "
+        "Checklist answers (if any) are only used for supplemental customer/intent data.",
+        request=None,
+        responses=OnboardingVerificationSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def run_validation(self, request, uuid=None):
+        """
+        Run automatic validation using verification data.
+
+        Uses the required fields (legal_person_identifier, legal_name) provided during verification creation.
+        Checklist answers are only used for supplemental customer data, not for verification fields.
+        Runs validation backend and updates verification status.
+        """
+        verification = self.get_object()
+
+        verification = onboarding_validator.validate_company(
+            user=request.user,
+            country=verification.country,
+            legal_person_identifier=verification.legal_person_identifier,
+            legal_name=verification.legal_name,
+            existing_verification=verification,
+        )
+
+        response_serializer = OnboardingVerificationSerializer(verification)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    run_validation_serializer_class = OnboardingVerificationSerializer
 
     @extend_schema(
         description="Create customer from successful verification.",
@@ -75,11 +152,6 @@ class OnboardingVerificationViewSet(core_views.ActionsViewSet):
         Returns the serialized customer details.
         """
         verification = self.get_object()
-
-        if not verification.can_create_customer():
-            raise exceptions.ValidationError(
-                "Cannot create customer: verification not valid or customer already exists"
-            )
 
         try:
             customer = verification.create_customer_if_verified()
@@ -234,3 +306,19 @@ class SupportedCountriesView(APIView):
         """Return list of supported countries."""
         countries = onboarding_validator.get_supported_countries()
         return Response({"supported_countries": countries})
+
+
+class OnboardingCountryChecklistConfigurationViewSet(core_views.ActionsViewSet):
+    queryset = OnboardingCountryChecklistConfiguration.objects.all()
+    serializer_class = OnboardingCountryChecklistConfigurationSerializer
+    filter_backends = [DjangoFilterBackend]
+    lookup_field = "uuid"
+    permission_classes = (core_permissions.IsStaff,)
+
+
+class OnboardingQuestionMetadataViewSet(core_views.ActionsViewSet):
+    queryset = OnboardingQuestionMetadata.objects.all()
+    serializer_class = OnboardingQuestionMetadataSerializer
+    filter_backends = [DjangoFilterBackend]
+    lookup_field = "uuid"
+    permission_classes = (core_permissions.IsStaff,)

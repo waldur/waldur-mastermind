@@ -19,7 +19,6 @@ class OnboardingVerificationFactory(
     country = "EE"
     legal_person_identifier = factory.Sequence(lambda n: f"7000031{n}")
     legal_name = factory.Sequence(lambda n: f"Test Company {n}")
-    user_submitted_customer_metadata = factory.Dict({})
     status = VerificationStatus.PENDING
     validation_method = ""
     verified_user_roles = factory.List([])
