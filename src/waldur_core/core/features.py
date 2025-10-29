@@ -44,6 +44,8 @@ class CustomerSection(FeatureSection):
         "Allows to show permission reviews tab and popups for organisations."
     )
 
+    show_banking_data = Feature("Display banking related data under customer profile.")
+
 
 class ProjectSection(FeatureSection):
     class Meta:
