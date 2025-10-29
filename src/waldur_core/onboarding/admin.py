@@ -67,7 +67,7 @@ class OnboardingVerificationAdmin(admin.ModelAdmin):
         ("Raw Response", {"fields": ["raw_response"], "classes": ["collapse"]}),
         (
             "Customer Creation",
-            {"fields": ["user_submitted_customer_metadata", "customer"]},
+            {"fields": ["customer"]},
         ),
         (
             "Timeline",
@@ -157,3 +157,76 @@ admin.site.register(
     models.OnboardingJustificationDocumentation,
     OnboardingJustificationDocumentationAdmin,
 )
+
+
+class OnboardingCountryChecklistConfigurationAdmin(admin.ModelAdmin):
+    list_display = [
+        "country",
+        "checklist",
+        "is_active",
+        "created",
+    ]
+    list_filter = ["is_active", "country", "created"]
+    search_fields = ["country", "checklist__name"]
+    readonly_fields = ["uuid", "created", "modified"]
+
+    fieldsets = [
+        (
+            "Configuration",
+            {"fields": ["uuid", "country", "checklist", "is_active"]},
+        ),
+        ("Timeline", {"fields": ["created", "modified"], "classes": ["collapse"]}),
+    ]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("checklist")
+
+
+admin.site.register(
+    models.OnboardingCountryChecklistConfiguration,
+    OnboardingCountryChecklistConfigurationAdmin,
+)
+
+
+class OnboardingQuestionMetadataAdmin(admin.ModelAdmin):
+    list_display = [
+        "question_description",
+        "maps_to_customer_field",
+        "intent_field",
+        "created",
+    ]
+    list_filter = ["created"]
+    search_fields = ["question__description", "maps_to_customer_field", "intent_field"]
+    readonly_fields = ["uuid", "created", "modified"]
+    autocomplete_fields = ["question"]
+
+    fieldsets = [
+        (
+            "Question",
+            {"fields": ["uuid", "question"]},
+        ),
+        (
+            "Mapping Configuration",
+            {
+                "fields": [
+                    "maps_to_customer_field",
+                    "intent_field",
+                ],
+                "description": "Configure how this question's answer should be mapped. "
+                "Use maps_to_customer_field for Customer model fields, "
+                "intent_field for intent/purpose data that stays with verification.",
+            },
+        ),
+        ("Timeline", {"fields": ["created", "modified"], "classes": ["collapse"]}),
+    ]
+
+    def question_description(self, obj):
+        return obj.question.description[:80]
+
+    question_description.short_description = "Question"
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("question__checklist")
+
+
+admin.site.register(models.OnboardingQuestionMetadata, OnboardingQuestionMetadataAdmin)

@@ -251,7 +251,3 @@ class JustificationDecisionTest(APITestCase):
         response = self.client.post(url, {}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Verify that customer can now be created
-        self.escalated_verification.refresh_from_db()
-        self.assertTrue(self.escalated_verification.can_create_customer())

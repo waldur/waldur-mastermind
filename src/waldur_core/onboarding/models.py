@@ -1,9 +1,12 @@
 import logging
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from waldur_core.checklist import enums as checklist_enums
+from waldur_core.checklist import models as checklist_models
 from waldur_core.core.models import ErrorMessageMixin, TimeStampedModel, User, UuidMixin
 from waldur_core.structure import models as structure_models
 
@@ -12,12 +15,96 @@ from . import enums
 logger = logging.getLogger(__name__)
 
 
+class OnboardingCountryChecklistConfiguration(UuidMixin, TimeStampedModel):
+    """
+    Maps countries to their onboarding checklists.
+
+    This allows flexible configuration of which checklist to use for each country.
+    """
+
+    country = models.CharField(
+        max_length=2,
+        unique=True,
+        help_text=_("ISO country code (e.g., 'EE' for Estonia)"),
+    )
+    checklist = models.ForeignKey(
+        checklist_models.Checklist,
+        on_delete=models.CASCADE,
+        related_name="country_configurations",
+        help_text=_("Checklist to use for this country's onboarding"),
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text=_("Whether this country configuration is active"),
+    )
+
+    class Meta:
+        ordering = ["country"]
+        verbose_name = _("Onboarding country checklist configuration")
+        verbose_name_plural = _("Onboarding country checklist configurations")
+
+    def __str__(self):
+        return f"{self.country} → {self.checklist.name}"
+
+
+class OnboardingQuestionMetadata(UuidMixin, TimeStampedModel):
+    """
+    Stores onboarding-specific metadata for checklist questions.
+
+    Defines how question answers should be mapped to:
+    - Customer model fields (registration_code, name, email, etc.) - saved to Customer
+    - Intent fields (intent, purpose, etc.) - stays with verification as metadata
+    """
+
+    question = models.OneToOneField(
+        checklist_models.Question,
+        on_delete=models.CASCADE,
+        related_name="onboarding_metadata",
+        help_text=_("Question this metadata applies to"),
+    )
+
+    # Customer field mapping (saved to Customer model)
+    maps_to_customer_field = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text=_(
+            "Customer model field name to map this answer to (e.g., 'registration_code', 'email', 'vat_code')"
+        ),
+    )
+
+    # Intent field (stays with verification as onboarding metadata)
+    intent_field = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text=_(
+            "Type of intent/purpose field (e.g., 'intent', 'registration_purpose') - stays with verification"
+        ),
+    )
+
+    class Meta:
+        verbose_name = _("Onboarding Question Metadata")
+        verbose_name_plural = _("Onboarding Question Metadata")
+
+    def __str__(self):
+        parts = []
+        if self.maps_to_customer_field:
+            parts.append(f"customer:{self.maps_to_customer_field}")
+        if self.intent_field:
+            parts.append(f"intent:{self.intent_field}")
+
+        metadata_str = ", ".join(parts) if parts else "no mapping"
+        return f"{self.question.description[:50]} → {metadata_str}"
+
+
 class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
     """
     Tracks company onboarding validation attempts.
 
     This model records the validation process from request to completion,
     supporting future extension to multiple validation methods.
+
+    Required fields (legal_person_identifier) are provided during creation.
+    Optionally uses checklist system for flexible, country-specific additional data collection.
     """
 
     user = models.ForeignKey(
@@ -27,33 +114,22 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
         help_text=_("User requesting company onboarding"),
     )
 
-    # Company details for validation
+    # Country determines which checklist to use
     country = models.CharField(
         max_length=2, help_text=_("ISO country code (e.g., 'EE' for Estonia)")
     )
+
     legal_person_identifier = models.CharField(
-        max_length=50, help_text=_("Official company registration code")
+        max_length=50,
+        blank=True,
+        help_text=_(
+            "Official company registration code (required for automatic validation)"
+        ),
     )
     legal_name = models.CharField(
         max_length=255,
         blank=True,
-        help_text=_("Claimed company name (optional, for reference)"),
-    )
-
-    # Customer creation metadata
-    # Format: dict with Customer model fields, e.g.:
-    # {
-    #     "name": "Company Name",
-    #     "country": "EE",
-    #     "registration_code": "12345678",
-    # }
-    user_submitted_customer_metadata = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text=_(
-            "Additional customer metadata submitted by user for manual verification cases. "
-            "Should contain valid Customer model fields."
-        ),
+        help_text=_("Company name(optional, for reference)"),
     )
 
     status = models.CharField(
@@ -100,48 +176,165 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
         ordering = ["-created"]
 
     def __str__(self):
-        return f"Verification {self.uuid} - {self.country}/{self.legal_person_identifier} - {self.status}"
+        return f"Verification {self.uuid} - {self.country}/{self.legal_person_identifier or 'pending'} - {self.status}"
 
-    def can_create_customer(self):
-        """Check if customer can be created from this verification."""
-        if not self.status == enums.VerificationStatus.VERIFIED:
-            return False
+    def get_or_create_checklist_completion(self):
+        """Get or create checklist completion for this verification."""
+        # Find country-specific onboarding checklist via CountryChecklistConfiguration
+        try:
+            config = OnboardingCountryChecklistConfiguration.objects.get(
+                country=self.country, is_active=True
+            )
+            checklist = config.checklist
+        except OnboardingCountryChecklistConfiguration.DoesNotExist:
+            logger.warning(
+                f"No onboarding checklist configuration found for country {self.country}. "
+                "Staff should create a CountryChecklistConfiguration via admin."
+            )
+            return None
 
-        if self.customer is not None:
-            return False
+        # Validate checklist type
+        if (
+            checklist.checklist_type
+            != checklist_enums.ChecklistTypes.CUSTOMER_ONBOARDING
+        ):
+            logger.error(
+                f"Checklist {checklist.name} is not of type CUSTOMER_ONBOARDING. "
+                f"Current type: {checklist.checklist_type}"
+            )
+            return None
 
-        customer_exists = structure_models.Customer.objects.filter(
-            registration_code=self.legal_person_identifier, country=self.country
-        ).exists()
+        # Get or create completion linked to this verification via generic foreign key
+        content_type = ContentType.objects.get_for_model(OnboardingVerification)
+        completion, created = (
+            checklist_models.ChecklistCompletion.objects.get_or_create(
+                checklist=checklist,
+                scope_content_type=content_type,
+                scope_object_id=self.id,
+            )
+        )
 
-        if customer_exists:
-            return False
+        if created:
+            logger.info(
+                f"Created checklist completion for verification {self.uuid} with checklist {checklist.name}"
+            )
 
-        return True
+        completion.update_completion_status()
+
+        return completion
+
+    def extract_data_from_checklist(self):
+        """
+        Extract company data from checklist answers.
+
+        Returns dict with keys 'customer_data' and 'onboarding_metadata'.
+        Note: Verification fields (e.g legal_person_identifier) are provided during creation, not extracted from checklist.
+        """
+        completion = self.get_or_create_checklist_completion()
+        if not completion:
+            return {}
+
+        answers = completion.answers.select_related("question").all()
+
+        extracted_data = {
+            "customer_data": {},
+            "onboarding_metadata": {},  # Intents, purposes, etc. - not mapped to Customer
+        }
+
+        for answer in answers:
+            question = answer.question
+            answer_value = answer.answer_data
+
+            # Get onboarding-specific metadata from OnboardingQuestionMetadata model
+            try:
+                metadata = OnboardingQuestionMetadata.objects.get(question=question)
+            except OnboardingQuestionMetadata.DoesNotExist:
+                # No metadata defined for this question, skip mapping
+                continue
+
+            # Map to customer fields (will be saved to Customer model)
+            if metadata.maps_to_customer_field:
+                extracted_data["customer_data"][metadata.maps_to_customer_field] = (
+                    answer_value
+                )
+
+            # Store intent fields (intents, purposes, etc.) - stays with verification
+            if metadata.intent_field and not metadata.maps_to_customer_field:
+                extracted_data["onboarding_metadata"][metadata.intent_field] = (
+                    answer_value
+                )
+
+        return extracted_data
+
+    def get_onboarding_metadata(self) -> dict:
+        """
+        Get onboarding-specific metadata like intents, purposes, etc.
+
+        Returns:
+            dict: Onboarding metadata, e.g., {'intent': ['Research', 'Commercial'], 'purpose': 'Education'}
+        """
+        extracted = self.extract_data_from_checklist()
+        return extracted.get("onboarding_metadata", {})
+
+    def get_user_submitted_customer_data(self) -> dict:
+        """
+        Get customer-related data submitted by the user via checklist answers.
+
+        Returns:
+            dict: Customer-related data, e.g., {'email': 'john@example.com', 'vat_code': 'EE123456789'}
+        """
+        extracted = self.extract_data_from_checklist()
+        return extracted.get("customer_data", {})
 
     def create_customer_if_verified(self):
         """Create customer if verification is successful and no customer exists."""
-        if not self.can_create_customer():
+        if self.status != enums.VerificationStatus.VERIFIED:
             raise ValueError(
-                "Cannot create customer: verification not valid or customer with same registration code already exists"
+                "Cannot create customer: verification status must be 'verified'"
             )
 
-        # Prioritize API data from verified_company_data, fallback to user_submitted_customer_metadata for manual cases
+        if self.customer is not None:
+            raise ValueError(
+                "Cannot create customer: customer already exists for this verification"
+            )
+
+        completion = self.get_or_create_checklist_completion()
+        if completion and not completion.is_completed:
+            raise ValueError(
+                "Cannot create customer: checklist has required fields that are not completed. "
+                "Please complete all required checklist questions before creating a customer."
+            )
+
+        if self.legal_person_identifier:
+            customer_exists = structure_models.Customer.objects.filter(
+                registration_code=self.legal_person_identifier, country=self.country
+            ).exists()
+
+            if customer_exists:
+                raise ValueError(
+                    f"Cannot create customer: customer with registration code "
+                    f"{self.legal_person_identifier} already exists for country {self.country}"
+                )
+
+        # Extract data from checklist
+        extracted = self.extract_data_from_checklist()
+
+        # Prioritize API data from verified_company_data, fallback to checklist answers
         customer_data = {
             "name": (
                 self.verified_company_data.get("name")  # First priority: API data
-                or self.user_submitted_customer_metadata.get(
+                or extracted["customer_data"].get(
                     "name"
-                )  # Second priority: manual input
-                or self.legal_name  # Third priority: reference name from request
+                )  # Second priority: checklist answer
+                or self.legal_name  # Third priority: stored legal_name
                 or f"Company {self.legal_person_identifier}"  # Fallback: generated name
             ),
             "country": self.country,
             "registration_code": self.legal_person_identifier,
         }
 
-        # Add any additional fields from user_submitted_customer_metadata that aren't overridden
-        for key, value in self.user_submitted_customer_metadata.items():
+        # Add any additional fields from checklist answers
+        for key, value in extracted["customer_data"].items():
             if key not in customer_data and value:  # Don't override existing fields
                 customer_data[key] = value
 
