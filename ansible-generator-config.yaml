@@ -9,6 +9,10 @@ definitions:
     project:
       base: "projects"
       check_filter_key: "project_uuid"
+      filter_by:
+        - source_param: "customer"
+          source_key: "uuid"
+          target_key: "customer"
 
   customer_context_resolver: &customer_context_resolver
     customer:
@@ -142,43 +146,36 @@ collections:
       - name: security_group_facts
         plugin: facts
         base_operation_id: "openstack_security_groups"
-        many: true
         resolvers:
           <<: *base_openstack_resolvers
 
       - name: subnet_facts
         plugin: facts
         base_operation_id: "openstack_subnets"
-        many: true
         resolvers:
           <<: *base_openstack_resolvers
 
       - name: network_facts
         plugin: facts
         base_operation_id: "openstack_networks"
-        many: true
         resolvers:
           <<: *base_openstack_resolvers
 
       - name: flavor_facts
         plugin: facts
         base_operation_id: "openstack_flavors"
-        many: true
 
       - name: image_facts
         plugin: facts
         base_operation_id: "openstack_images"
-        many: true
 
       - name: volume_type_facts
         plugin: facts
         base_operation_id: "openstack_volume_types"
-        many: true
 
       - name: port_facts
         plugin: facts
         base_operation_id: "openstack_ports"
-        many: true
 
       # --- Order Modules (Marketplace Resources) ---
       - name: vpc
@@ -187,7 +184,7 @@ collections:
         base_operation_id: "openstack_tenants"
         has_limits: true
         resolvers:
-          <<: *project_context_resolver
+          <<: *project_customer_resolvers
 
       - name: volume
         plugin: order
@@ -196,7 +193,7 @@ collections:
         transformations:
           size: "gb_to_mb"
         resolvers:
-          <<: *project_context_resolver
+          <<: *project_customer_resolvers
           type: *volume_type_resolver
           image: *image_resolver
           availability_zone:
@@ -242,7 +239,7 @@ collections:
                 description: "If true, release associated floating IPs on termination."
         wait_config: *default_wait_config
         resolvers:
-          <<: *project_context_resolver
+          <<: *project_customer_resolvers
           flavor:
             base: "openstack_flavors"
             filter_by: *filter_by_offering_tenant
