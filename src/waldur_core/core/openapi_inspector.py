@@ -128,7 +128,7 @@ class WaldurOpenApiInspector(AutoSchema):
                 name=RestrictedSerializerMixin.FIELDS_PARAM_NAME,
                 type=build_array_type(build_basic_type(OpenApiTypes.STR)),
                 location=OpenApiParameter.QUERY,
-                enum=sorted(fields),
+                enum=sorted(set(fields)),
             )
         ]
 
