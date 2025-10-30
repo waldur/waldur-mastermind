@@ -921,6 +921,26 @@ class OfferingCreateTest(test.APITransactionTestCase):
         )
         self.assertEqual(offering.plugin_options["heappe_username"], "test_user")
 
+    def test_update_offering_plugin_options_with_openstack_max_security_groups(self):
+        """Test that offering plugin options can be updated with max_security_groups"""
+        offering = factories.OfferingFactory(customer=self.customer)
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = factories.OfferingFactory.get_url(offering, "update_integration")
+        plugin_options = {
+            "max_instances": 10,
+            "max_volumes": 20,
+            "max_security_groups": 15,
+        }
+
+        response = self.client.post(url, {"plugin_options": plugin_options})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        offering.refresh_from_db()
+        self.assertEqual(offering.plugin_options["max_instances"], 10)
+        self.assertEqual(offering.plugin_options["max_volumes"], 20)
+        self.assertEqual(offering.plugin_options["max_security_groups"], 15)
+
     def test_create_offering_with_minimal_information_in_draft_state(self):
         user = self.fixture.staff
         self.client.force_authenticate(user)

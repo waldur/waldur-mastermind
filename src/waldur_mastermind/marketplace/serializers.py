@@ -199,6 +199,11 @@ class OpenStackPluginOptionsSerializer(serializers.Serializer):
         min_value=1,
         help_text="Default limit for number of volumes in OpenStack tenant",
     )
+    max_security_groups = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        help_text="Default limit for number of security groups in OpenStack tenant",
+    )
     storage_mode = serializers.ChoiceField(
         required=False,
         choices=["fixed", "dynamic"],
