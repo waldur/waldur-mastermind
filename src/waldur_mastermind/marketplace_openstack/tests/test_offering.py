@@ -709,3 +709,53 @@ class UpdateSecretOptionsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.secret_options, self.secret_options)
+
+
+class OfferingPluginOptionsMaxSecurityGroupsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_TENANT_OFFERING,
+            customer=self.fixture.customer,
+        )
+        self.url = marketplace_factories.OfferingFactory.get_url(
+            self.offering, "update_integration"
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_offering_max_security_groups_integration(self):
+        """Test that max_security_groups can be set and retrieved through plugin_options"""
+        plugin_options = {
+            "max_instances": 5,
+            "max_volumes": 10,
+            "max_security_groups": 20,
+        }
+
+        response = self.client.post(self.url, data={"plugin_options": plugin_options})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.plugin_options["max_instances"], 5)
+        self.assertEqual(self.offering.plugin_options["max_volumes"], 10)
+        self.assertEqual(self.offering.plugin_options["max_security_groups"], 20)
+
+    def test_offering_max_security_groups_serializer_validation(self):
+        """Test that max_security_groups is properly validated by the serializer"""
+        # Test with invalid (negative) value
+        plugin_options = {
+            "max_security_groups": -1,
+        }
+
+        response = self.client.post(self.url, data={"plugin_options": plugin_options})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test with valid value
+        plugin_options = {
+            "max_security_groups": 25,
+        }
+
+        response = self.client.post(self.url, data={"plugin_options": plugin_options})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.plugin_options["max_security_groups"], 25)

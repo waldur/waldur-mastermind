@@ -211,6 +211,9 @@ def map_limits_to_quotas(limits, offering: marketplace_models.Offering, is_creat
                     "max_instances"
                 ),
                 TenantQuotas.volumes.name: offering.plugin_options.get("max_volumes"),
+                TenantQuotas.security_group_count.name: offering.plugin_options.get(
+                    "max_security_groups"
+                ),
             }
         )
 
