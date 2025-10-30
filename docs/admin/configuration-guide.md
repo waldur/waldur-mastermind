@@ -2104,5 +2104,3 @@ Password for Estonian Äriregister API authentication.
 **Default value**: 30
 
 Timeout in seconds for Estonian Äriregister API requests.
-
-

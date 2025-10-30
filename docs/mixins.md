@@ -1350,4 +1350,3 @@ Make subclasses preserve the alters_data attribute on overridden methods.
 Make subclasses preserve the alters_data attribute on overridden methods.
 
 **Base classes:** `Model`
-

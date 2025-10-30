@@ -755,4 +755,3 @@ Backend data update if a server was switched.
 ## sync_saml2_providers
 
 Synchronize SAML2 identity providers.
-
