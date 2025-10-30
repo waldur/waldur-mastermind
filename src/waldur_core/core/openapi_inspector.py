@@ -88,18 +88,41 @@ class WaldurOpenApiInspector(AutoSchema):
     def get_override_parameters(self):
         if self.method != "GET":
             return []
+
         serializer = self.get_response_serializers()
         if not isinstance(serializer, RestrictedSerializerMixin):
             return []
+
         if isinstance(serializer, ListSerializer):
             serializer = serializer.child
 
+        # Get the serializer class, not the instance
+        serializer_class = serializer.__class__
+
         try:
-            fields = serializer.fields.keys()
-        except (KeyError, AttributeError):
-            return []
+            # Instantiate the serializer with minimal context to get base fields
+            # This bypasses the RestrictedSerializerMixin logic during schema generation
+            temp_serializer = serializer_class(context={"swagger_fake_view": True})
+            fields = list(temp_serializer.get_fields().keys())
+        except Exception:
+            # Fallback: try to get fields from the Meta class directly
+            try:
+                if hasattr(serializer_class, "Meta") and hasattr(
+                    serializer_class.Meta, "fields"
+                ):
+                    meta_fields = serializer_class.Meta.fields
+                    if meta_fields == "__all__":
+                        # Can't determine fields for __all__, skip parameter generation
+                        return []
+                    fields = list(meta_fields)
+                else:
+                    return []
+            except (KeyError, AttributeError):
+                return []
+
         if not fields or len(fields) == 1:
             return []
+
         return [
             OpenApiParameter(
                 name=RestrictedSerializerMixin.FIELDS_PARAM_NAME,
