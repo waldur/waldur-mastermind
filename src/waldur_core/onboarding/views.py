@@ -1,6 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema
-from rest_framework import exceptions, permissions, status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import exceptions, permissions, serializers, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -300,7 +300,16 @@ class SupportedCountriesView(APIView):
 
     @extend_schema(
         description="Return list of supported countries for validation.",
-        responses={"supported_countries": list[str]},
+        responses={
+            200: inline_serializer(
+                name="SupportedCountriesResponse",
+                fields={
+                    "supported_countries": serializers.ListField(
+                        child=serializers.CharField()
+                    ),
+                },
+            )
+        },
     )
     def get(self, request):
         """Return list of supported countries."""
