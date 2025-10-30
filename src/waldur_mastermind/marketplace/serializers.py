@@ -2176,10 +2176,8 @@ class ProviderOfferingDetailsSerializer(
     def get_fields(self):
         fields = super().get_fields()
         if self.instance and not self.can_see_secret_options():
-            if "secret_options" in fields:
-                fields.pop("secret_options")
-            if "service_attributes" in fields:
-                fields.pop("service_attributes")
+            fields.pop("secret_options", None)
+            fields.pop("service_attributes", None)
         method = self.context["view"].request.method
         if method == "GET":
             if "components" in fields:
@@ -2313,6 +2311,13 @@ class ProviderOfferingDetailsSerializer(
         return offering.compliance_checklist is not None
 
 
+set_override(
+    ProviderOfferingDetailsSerializer,
+    "optional_fields",
+    ["secret_options", "service_attributes"],
+)
+
+
 class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
     class Meta(ProviderOfferingDetailsSerializer.Meta):
         view_name = "marketplace-public-offering-detail"
@@ -2343,10 +2348,8 @@ class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        if "secret_options" in fields:
-            fields.pop("secret_options")
-        if "service_attributes" in fields:
-            fields.pop("service_attributes")
+        fields.pop("secret_options", None)
+        fields.pop("service_attributes", None)
         return fields
 
 
@@ -3148,6 +3151,9 @@ class OrderDetailsSerializer(BaseOrderSerializer):
         return True
 
 
+set_override(OrderDetailsSerializer, "optional_fields", ["error_traceback"])
+
+
 class OrderSetStateErredSerializer(
     serializers.ModelSerializer, core_serializers.AugmentedSerializerMixin
 ):
@@ -3334,13 +3340,14 @@ class OrderCreateSerializer(
 
     def get_fields(self):
         fields = super().get_fields()
-        try:
-            if not config.ENABLE_ORDER_START_DATE:
-                fields.pop("start_date", None)
-        except Exception:
-            # During OpenAPI schema generation, database may not be configured
-            # Default to including start_date field in schema
-            pass
+
+        # Check if this is schema generation context (drf-spectacular)
+        # When generating schema, we want to include all fields
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
+            return fields
+
+        if not config.ENABLE_ORDER_START_DATE:
+            fields.pop("start_date", None)
         return fields
 
     def generate_slug(self, validated_data):
@@ -3712,6 +3719,11 @@ class OrderCreateSerializer(
                     % {"project_end_date": project.end_date}
                 }
             )
+
+
+set_override(
+    OrderCreateSerializer, "optional_fields", ["start_date", "error_traceback"]
+)
 
 
 class OrderAttachmentSerializer(serializers.ModelSerializer):

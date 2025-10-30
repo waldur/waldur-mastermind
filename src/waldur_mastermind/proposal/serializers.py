@@ -6,6 +6,7 @@ from django.db.models import Q
 from django.db.models.query import QuerySet
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.drainage import set_override
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -398,6 +399,19 @@ class ProposalReviewSerializer(
             )
 
         return super().create(validated_data)
+
+
+set_override(
+    ProposalReviewSerializer,
+    "optional_fields",
+    [
+        "anonymous_reviewer_name",
+        "reviewer",
+        "reviewer_full_name",
+        "reviewer_uuid",
+        "summary_private_comment",
+    ],
+)
 
 
 class ReviewSubmitSerializer(serializers.ModelSerializer):
