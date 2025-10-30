@@ -630,6 +630,7 @@ Generate Go SDK:
   script: |
     go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
     oapi-codegen --package client --generate types,client -o client.go waldur-openapi-schema.yaml
+    go build .
     ls -l client.go
   artifacts:
     paths:
