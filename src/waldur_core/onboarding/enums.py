@@ -43,7 +43,11 @@ class ValidationMethod:
     """Automatic validation method choices for onboarding verification."""
 
     ARIREGISTER = "ariregister"
+    WIRTSCHAFTSCOMPASS = "wirtschaftscompass"
 
-    CHOICES = ((ARIREGISTER, "Estonian Business Register (ariregister)"),)
+    CHOICES = (
+        (ARIREGISTER, "Estonian Business Register (ariregister)"),
+        (WIRTSCHAFTSCOMPASS, "Austrian Business Register (WirtschaftsCompass)"),
+    )
 
     VALUES = [val for (val, _) in CHOICES]

@@ -117,3 +117,96 @@ def get_estonian_ariregister_person_without_authority(civil_number="88888888888"
 AUTHORIZED_CIVIL_NUMBER = "37906094930"  # Has JAH (yes) for representation
 UNAUTHORIZED_CIVIL_NUMBER = "70000898"  # Has EI (no) for representation
 NONEXISTENT_CIVIL_NUMBER = "99999999999"  # Not in the list
+
+# Austrian WirtschaftsCompass test constants
+AUTHORIZED_PERSON_IDENTIFIER = {
+    "first_name": "John",
+    "last_name": "Bull",
+    "birth_date": "1970-01-01",
+}
+LEGAL_NAME = "Waldur GmbH"
+LEGAL_PERSON_IDENTIFIER = "12345t"
+
+
+def wico_resolve_register_number():
+    """
+    Get a successful response from Austrian WirtschaftsCompass API.
+
+    This represents the response format from:
+    https://api.wirtschaftscompass.at/organisation/v1/{wico-id}/company-report?load-option=BODIES_INVESTMENTS
+
+    Args:
+        legal_person_identifier: Company registration code (default: 56247t)
+
+    Returns:
+        dict: Mock API response with company and management data
+    """
+    return {
+        "meta": {},
+        "reference": {"wicoId": "076d39c4-a5f2-44ea-8540-50c9fb9c6132"},
+        "status": {"registrationStatus": "ACTIVE"},
+        "data": {
+            "basicData": {
+                "masterData": {
+                    "registerNumber": {
+                        "currentValue": {
+                            "validFrom": "2025-10-15",
+                            "registerNumber": {
+                                "value": LEGAL_PERSON_IDENTIFIER,
+                                "register": "AT_FB",
+                            },
+                        }
+                    },
+                },
+                "communicationData": {
+                    "name": {
+                        "currentValue": {
+                            "validFrom": "2002-11-16",
+                            "content": LEGAL_NAME,
+                        }
+                    },
+                },
+            },
+            "bodiesInvestments": {
+                "management": {"management": []},
+                "owners": {
+                    "owner": [
+                        {
+                            "type": "GESCHÄFTSFÜHRER",
+                            "entityReference": {
+                                "structuredName": {
+                                    "givenName": AUTHORIZED_PERSON_IDENTIFIER[
+                                        "first_name"
+                                    ],
+                                    "surname": AUTHORIZED_PERSON_IDENTIFIER[
+                                        "last_name"
+                                    ],
+                                },
+                                "dateOfBirth": AUTHORIZED_PERSON_IDENTIFIER[
+                                    "birth_date"
+                                ],
+                                "objectType": "NATURAL_PERSON",
+                            },
+                        }
+                    ]
+                },
+                "derivedLastBeneficialOwners": {"derivedLastBenificialOwner": []},
+            },
+        },
+    }
+
+
+def wico_fetch_company_profile():
+    """
+    Get a successful resolve response from Austrian WirtschaftsCompass API.
+
+    This represents the response format from:
+    https://api.wirtschaftscompass.at/organisation/v1/resolve?register-number=56247t&register-number-type=FN
+
+    Args:
+        legal_person_identifier: Company registration code (for example: 56247t)
+
+    Returns:
+        dict: Mock API response with wico-id
+    """
+    return {"meta": {}, "data": {"wicoId": "076d39c4-a5f2-44ea-8540-50c9fb9c6132"}}

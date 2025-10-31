@@ -94,7 +94,7 @@ class OnboardingValidator:
             # Step 2: Create validation request
             request = ValidationRequest(
                 country=country,
-                person_identifier=getattr(user, "civil_number", ""),
+                person_identifier=backend.get_person_identifier_from_user(user),
                 legal_person_identifier=legal_person_identifier,
                 legal_name=legal_name,
             )

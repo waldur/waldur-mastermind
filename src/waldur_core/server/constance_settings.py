@@ -560,6 +560,12 @@ CONSTANCE_CONFIG = {
         30,
         "Timeout in seconds for Estonian Äriregister API requests.",
     ),
+    "ONBOARDING_WICO_API_URL": (
+        "https://api.wirtschaftscompass.at/",
+        "WirtschaftsCompass API server URL",
+        "url_field",
+    ),
+    "ONBOARDING_WICO_TOKEN": ("", "WirtschaftsCompass API token", "secret_field"),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -741,6 +747,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ONBOARDING_ARIREGISTER_USERNAME",
         "ONBOARDING_ARIREGISTER_PASSWORD",
         "ONBOARDING_ARIREGISTER_TIMEOUT",
+        "ONBOARDING_WICO_API_URL",
+        "ONBOARDING_WICO_TOKEN",
     ),
 }
 
