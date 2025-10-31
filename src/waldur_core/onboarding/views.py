@@ -11,6 +11,7 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
 from waldur_core.structure import serializers as structure_serializers
 
+from . import filters
 from .models import (
     OnboardingCountryChecklistConfiguration,
     OnboardingJustification,
@@ -321,6 +322,7 @@ class OnboardingCountryChecklistConfigurationViewSet(core_views.ActionsViewSet):
     queryset = OnboardingCountryChecklistConfiguration.objects.all()
     serializer_class = OnboardingCountryChecklistConfigurationSerializer
     filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.OnboardingCountryChecklistConfigurationFilter
     lookup_field = "uuid"
     permission_classes = (core_permissions.IsStaff,)
 
@@ -329,5 +331,6 @@ class OnboardingQuestionMetadataViewSet(core_views.ActionsViewSet):
     queryset = OnboardingQuestionMetadata.objects.all()
     serializer_class = OnboardingQuestionMetadataSerializer
     filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.OnboardingQuestionMetadataFilter
     lookup_field = "uuid"
     permission_classes = (core_permissions.IsStaff,)
