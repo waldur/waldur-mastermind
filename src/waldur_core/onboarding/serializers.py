@@ -10,7 +10,9 @@ from .models import (
 )
 
 
-class OnboardingCountryChecklistConfigurationSerializer(serializers.ModelSerializer):
+class OnboardingCountryChecklistConfigurationSerializer(
+    serializers.HyperlinkedModelSerializer
+):
     """Serializer for CountryChecklistConfiguration model."""
 
     checklist_name = serializers.CharField(source="checklist.name", read_only=True)
@@ -19,6 +21,7 @@ class OnboardingCountryChecklistConfigurationSerializer(serializers.ModelSeriali
     class Meta:
         model = OnboardingCountryChecklistConfiguration
         fields = [
+            "url",
             "uuid",
             "country",
             "checklist",
@@ -28,10 +31,20 @@ class OnboardingCountryChecklistConfigurationSerializer(serializers.ModelSeriali
             "created",
             "modified",
         ]
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "onboarding-country-config-detail",
+            },
+            "checklist": {
+                "lookup_field": "uuid",
+                "view_name": "checklists-admin-detail",
+            },
+        }
         read_only_fields = ["uuid", "created", "modified"]
 
 
-class OnboardingQuestionMetadataSerializer(serializers.ModelSerializer):
+class OnboardingQuestionMetadataSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for OnboardingQuestionMetadata model."""
 
     question_description = serializers.CharField(
@@ -43,6 +56,7 @@ class OnboardingQuestionMetadataSerializer(serializers.ModelSerializer):
         model = OnboardingQuestionMetadata
         fields = [
             "uuid",
+            "url",
             "question",
             "question_uuid",
             "question_description",
@@ -51,6 +65,16 @@ class OnboardingQuestionMetadataSerializer(serializers.ModelSerializer):
             "created",
             "modified",
         ]
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "onboarding-question-metadata-detail",
+            },
+            "question": {
+                "lookup_field": "uuid",
+                "view_name": "checklists-admin-questions-detail",
+            },
+        }
         read_only_fields = ["uuid", "created", "modified"]
 
 
