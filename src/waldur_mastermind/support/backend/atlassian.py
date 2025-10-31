@@ -562,14 +562,18 @@ class ServiceDeskBackend(SupportBackend):
                 "Issue is not created because caller user does not have email."
             )
 
-        if not models.RequestType.objects.filter(name=issue.type).count():
+        # Apply type mapping from frontend types to backend types
+        type_mapping = config.ATLASSIAN_SUPPORT_TYPE_MAPPING or {}
+        backend_type = type_mapping.get(issue.type, issue.type)
+
+        if not models.RequestType.objects.filter(name=backend_type).count():
             self.pull_request_types()
 
-        request_type = models.RequestType.objects.filter(name=issue.type).first()
+        request_type = models.RequestType.objects.filter(name=backend_type).first()
 
         if not request_type:
             raise ServiceBackendError(
-                f"Issue is not created because request type is not found for issue type {issue.type}."
+                f"Issue is not created because request type is not found for issue type {issue.type} (mapped to {backend_type})."
             )
 
         logger.info("Creating customer request in JIRA")
@@ -788,9 +792,9 @@ class ServiceDeskBackend(SupportBackend):
                         backend_id=backend_id,
                         defaults={
                             "name": name,
-                            "backend_name": name,
+                            "backend_name": config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE,
                             "fields": request_type_fields,
-                            # "issue_type_name": request_type.get("name", "Task"),
+                            "issue_type_name": request_type.get("name", "Task"),
                         },
                     )
 
