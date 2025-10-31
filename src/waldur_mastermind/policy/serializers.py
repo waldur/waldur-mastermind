@@ -291,27 +291,29 @@ class OfferingUsagePolicySerializer(OfferingPolicySerializerMixin, PolicySeriali
         if component_limits is None:
             return
 
+        # Validate duplicates within payload: only one limit per component type
+        keys = [cl.get("component", {}).get("type") for cl in component_limits]
+        if len(keys) != len(set(keys)):
+            raise serializers.ValidationError(
+                _("Duplicate component limits for the same component.")
+            )
+
         offering = policy.scope
-        components = []
+        models.OfferingComponentLimit.objects.filter(policy=policy).delete()
 
         for component_limit in component_limits:
             component_type = component_limit["component"]["type"]
             limit = component_limit["limit"]
             component = offering.components.filter(type=component_type).first()
-            components.append(component)
 
             if not component:
                 raise ValidationError(
                     f"Offering has not component with type {component_type}."
                 )
 
-            models.OfferingComponentLimit.objects.update_or_create(
-                policy=policy, defaults={"component": component, "limit": limit}
+            models.OfferingComponentLimit.objects.create(
+                policy=policy, component=component, limit=limit
             )
-
-        models.OfferingComponentLimit.objects.filter(policy=policy).exclude(
-            component__in=components
-        ).delete()
 
     @transaction.atomic
     def create(self, validated_data):
@@ -356,7 +358,17 @@ class CustomerComponentUsagePolicySerializer(PolicySerializer):
         if component_limits is None:
             return
 
-        components = []
+        # Validate duplicates within incoming payload before DB operations
+        keys = [
+            (cl.get("component", {}).get("uuid"), cl.get("period"))
+            for cl in component_limits
+        ]
+        if len(keys) != len(set(keys)):
+            raise serializers.ValidationError(
+                _("Duplicate component limits for the same component and period.")
+            )
+
+        models.CustomerUsagePolicyComponent.objects.filter(policy=policy).delete()
 
         for component_limit in component_limits:
             component_uuid = component_limit["component"]["uuid"]
@@ -377,18 +389,9 @@ class CustomerComponentUsagePolicySerializer(PolicySerializer):
                     _("The selected component must be usage or limit billing type.")
                 )
 
-            components.append(component)
-
-            models.CustomerUsagePolicyComponent.objects.update_or_create(
-                policy=policy,
-                component=component,
-                period=period,
-                defaults={"limit": limit},
+            models.CustomerUsagePolicyComponent.objects.create(
+                policy=policy, component=component, limit=limit, period=period
             )
-
-        models.CustomerUsagePolicyComponent.objects.filter(policy=policy).exclude(
-            component__in=components
-        ).delete()
 
     @transaction.atomic
     def create(self, validated_data):
