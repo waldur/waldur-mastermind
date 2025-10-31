@@ -1,3 +1,4 @@
+from .austria import AustriaRegisterBackend
 from .base import (
     ValidationRequest,
     ValidationResult,
@@ -10,4 +11,5 @@ __all__ = [
     "ValidationResult",
     "backend_registry",
     "EstonianAriregisterBackend",
+    "AustriaRegisterBackend",
 ]

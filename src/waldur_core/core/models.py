@@ -379,6 +379,7 @@ class User(
     backend_id = models.CharField(max_length=255, blank=True)
     first_name = models.CharField(_("first name"), max_length=100, blank=True)
     last_name = models.CharField(_("last name"), max_length=100, blank=True)
+    birth_date = models.DateField(_("birth date"), null=True, blank=True)
     query_field = models.CharField(max_length=300, blank=True)
     WHITELIST_FIELDS = [
         "is_superuser",

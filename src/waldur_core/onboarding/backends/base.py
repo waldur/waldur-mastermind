@@ -9,6 +9,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
+from waldur_core.core.models import User
+
 
 @dataclass
 class ValidationRequest:
@@ -20,10 +22,10 @@ class ValidationRequest:
     """
 
     country: str
-    person_identifier: str  # Personal ID
+    person_identifier: str | dict  # Personal ID
 
-    legal_person_identifier: str | None = None
-    legal_name: str | None = None
+    legal_person_identifier: str | None = None  # Company registration code
+    legal_name: str | None = None  # Company name
 
     # Additional context for future extensibility
     additional_params: dict[str, Any] = field(default_factory=dict)
@@ -127,6 +129,10 @@ class CompanyRegistryBackend(ABC):
                 return False
 
         return True
+
+    @staticmethod
+    def get_person_identifier_from_user(user: User) -> str | dict:
+        pass
 
 
 class BackendRegistry:

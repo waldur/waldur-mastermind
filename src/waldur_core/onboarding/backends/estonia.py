@@ -38,6 +38,10 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
     business register API.
     """
 
+    @staticmethod
+    def get_person_identifier_from_user(user):
+        return getattr(user, "civil_number", "")
+
     @classmethod
     def get_supported_countries(cls) -> set[str]:
         return {"EE"}  # Only Estonia
