@@ -416,10 +416,8 @@ class IssueCreateTest(IssueCreateBaseTest):
 
     def test_fill_custom_fields(self):
         self._mock_jira()
-        # Create the RequestType for Informational type
-        factories.RequestTypeFactory(
-            name="Informational", issue_type_name="Informational"
-        )
+        # Create RequestType for the mapped backend type (Informational -> Get IT help)
+        factories.RequestTypeFactory(name="Get IT help", issue_type_name="Get IT help")
 
         user = self.fixture.staff
         factories.SupportUserFactory(user=user)
@@ -449,9 +447,8 @@ class IssueCreateTest(IssueCreateBaseTest):
             reporter=None, backend_id=None, type="Informational"
         )
         factories.SupportCustomerFactory(user=issue.caller)
-        factories.RequestTypeFactory(
-            name="Informational", issue_type_name="Informational"
-        )
+        # Create RequestType for the mapped backend type (Informational -> Get IT help)
+        factories.RequestTypeFactory(name="Get IT help", issue_type_name="Get IT help")
         ServiceDeskBackend().create_issue(issue)
         # Check that create_customer_request was called without Original Reporter field
         call_args = self.mock_service_desk_instance.create_customer_request.call_args
@@ -463,14 +460,15 @@ class IssueCreateTest(IssueCreateBaseTest):
         self._mock_jira()
         # Mock the get_request_types method to return proper structure
         self.mock_service_desk_instance.get_request_types.return_value = {
-            "values": [{"name": "Informational", "id": "1", "issueTypeId": "10101"}]
+            "values": [{"name": "Get IT help", "id": "1", "issueTypeId": "10101"}]
         }
         self.mock_service_desk_instance.issue_type.return_value = {
             "name": "Service Request",
             "id": "1",
         }
-        issue_type = utils.get_atlassian_issue_type()
-        factories.RequestTypeFactory(name=issue_type, issue_type_name=issue_type)
+        issue_type = utils.get_atlassian_issue_type()  # Returns "Informational"
+        # Create RequestType for the mapped backend type (Informational -> Get IT help)
+        factories.RequestTypeFactory(name="Get IT help", issue_type_name="Get IT help")
         issue = factories.IssueFactory(reporter=None, backend_id=None, type=issue_type)
         factories.SupportCustomerFactory(user=issue.caller)
         ServiceDeskBackend().create_issue(issue)
@@ -478,10 +476,8 @@ class IssueCreateTest(IssueCreateBaseTest):
 
     def test_create_issue_if_exist_several_backend_users_with_same_email(self):
         self._mock_jira()
-        # Create the RequestType for Informational type
-        factories.RequestTypeFactory(
-            name="Informational", issue_type_name="Informational"
-        )
+        # Create RequestType for the mapped backend type (Informational -> Get IT help)
+        factories.RequestTypeFactory(name="Get IT help", issue_type_name="Get IT help")
         factories.SupportUserFactory(user=self.fixture.staff)
         self.client.force_authenticate(self.fixture.staff)
         mock_backend_users = [

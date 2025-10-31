@@ -1,10 +1,10 @@
 from unittest import mock, skip
 
-# Mock User class for testing
-# Remove jira import - using atlassian-python-api instead
+from constance.test.unittest import override_config
 from django.test import TestCase
 
 from waldur_core.core.tests.helpers import load_json_resource
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import factories, fixtures
@@ -297,3 +297,134 @@ class GetUsersTest(BaseBackendTest):
         self.assertEqual(users[0].backend_id, "user-123")
         self.assertEqual(users[1].name, "Another Valid User")
         self.assertEqual(users[1].backend_id, "user-456")
+
+
+class TypeMappingTest(BaseBackendTest):
+    """Test type mapping functionality for ATLASSIAN_SUPPORT_TYPE_MAPPING."""
+
+    def setUp(self):
+        super().setUp()
+        # Mock get_request_types for pull_request_types
+        self.mocked_jira.get_request_types.return_value = {"values": []}
+
+        # Mock create_customer_request to return Service Desk API format
+        self.mocked_jira.create_customer_request.return_value = {
+            "issueKey": "TST-101",
+            "issueId": "12345",
+            "requestFieldValues": [],
+            "currentStatus": {"status": "Open"},
+            "_links": {"agent": "http://example.com/TST-101"},
+        }
+
+    @override_config(ATLASSIAN_SUPPORT_TYPE_MAPPING={"Informational": "Get IT help"})
+    def test_create_issue_uses_type_mapping(self):
+        """Test that create_issue maps frontend types to backend types using ATLASSIAN_SUPPORT_TYPE_MAPPING."""
+        # Create RequestType for the mapped backend type
+        factories.RequestTypeFactory(name="Get IT help", issue_type_name="Get IT help")
+
+        # Create issue with frontend type
+        issue = self.fixture.issue
+        issue.type = "Informational"  # Frontend type
+        issue.save()
+
+        # Call create_issue
+        self.backend.create_issue(issue)
+
+        # Verify create_customer_request was called
+        self.mocked_jira.create_customer_request.assert_called_once()
+
+        # Verify the correct RequestType was used (backend type should be "Get IT help")
+        call_args = self.mocked_jira.create_customer_request.call_args
+        request_type_id = call_args[0][1]  # Second argument is request_type.backend_id
+
+        # Find the RequestType that was used
+        used_request_type = models.RequestType.objects.get(backend_id=request_type_id)
+        self.assertEqual(used_request_type.name, "Get IT help")
+
+    @override_config(ATLASSIAN_SUPPORT_TYPE_MAPPING={})
+    def test_create_issue_without_mapping_uses_original_type(self):
+        """Test that create_issue uses original type when no mapping is configured."""
+        # Create RequestType for the original type
+        factories.RequestTypeFactory(
+            name="Informational", issue_type_name="Informational"
+        )
+
+        # Create issue with frontend type
+        issue = self.fixture.issue
+        issue.type = "Informational"
+        issue.save()
+
+        # Call create_issue
+        self.backend.create_issue(issue)
+
+        # Verify create_customer_request was called
+        self.mocked_jira.create_customer_request.assert_called_once()
+
+        # Verify the original type was used
+        call_args = self.mocked_jira.create_customer_request.call_args
+        request_type_id = call_args[0][1]
+
+        used_request_type = models.RequestType.objects.get(backend_id=request_type_id)
+        self.assertEqual(used_request_type.name, "Informational")
+
+    @override_config(ATLASSIAN_SUPPORT_TYPE_MAPPING={"Informational": "Get IT help"})
+    def test_create_issue_fails_when_mapped_type_not_found(self):
+        """Test that create_issue raises error when mapped type doesn't exist in DB."""
+        # Don't create the mapped RequestType - should fail
+
+        # Create issue with frontend type
+        issue = self.fixture.issue
+        issue.type = "Informational"
+        issue.save()
+
+        # Call create_issue and expect error
+        with self.assertRaises(ServiceBackendError) as cm:
+            self.backend.create_issue(issue)
+
+        # Verify the error message mentions both types
+        error_message = str(cm.exception)
+        self.assertIn("Informational", error_message)
+        self.assertIn("Get IT help", error_message)
+
+
+class PullRequestTypesTest(BaseBackendTest):
+    """Test pull_request_types functionality."""
+
+    def test_pull_request_types_sets_issue_type_name(self):
+        """Test that pull_request_types correctly sets issue_type_name field."""
+        # Mock request types response from Atlassian
+        mock_request_types = [
+            {"id": "125", "name": "Get IT help"},
+            {"id": "128", "name": "Request a new account"},
+        ]
+        self.mocked_jira.get_request_types.return_value = {"values": mock_request_types}
+
+        # Call pull_request_types
+        self.backend.pull_request_types()
+
+        # Verify RequestTypes were created with correct issue_type_name
+        request_types = models.RequestType.objects.all()
+
+        self.assertEqual(request_types.count(), 2)
+
+        rt1 = models.RequestType.objects.get(backend_id="125")
+        self.assertEqual(rt1.name, "Get IT help")
+        self.assertEqual(rt1.issue_type_name, "Get IT help")
+
+        rt2 = models.RequestType.objects.get(backend_id="128")
+        self.assertEqual(rt2.name, "Request a new account")
+        self.assertEqual(rt2.issue_type_name, "Request a new account")
+
+    @override_config(WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="atlassian")
+    def test_pull_request_types_sets_backend_name(self):
+        """Test that pull_request_types correctly sets backend_name from config."""
+        # Mock request types response
+        mock_request_types = [{"id": "125", "name": "Get IT help"}]
+        self.mocked_jira.get_request_types.return_value = {"values": mock_request_types}
+
+        # Call pull_request_types
+        self.backend.pull_request_types()
+
+        # Verify backend_name is set correctly
+        request_type = models.RequestType.objects.get(backend_id="125")
+        self.assertEqual(request_type.backend_name, "atlassian")
