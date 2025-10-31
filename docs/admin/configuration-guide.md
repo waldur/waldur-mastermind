@@ -2105,4 +2105,18 @@ Password for Estonian Äriregister API authentication.
 
 Timeout in seconds for Estonian Äriregister API requests.
 
+#### ONBOARDING_WICO_API_URL
+
+**Type:** url_field
+
+**Default value**: https://api.wirtschaftscompass.at/
+
+WirtschaftsCompass API server URL
+
+#### ONBOARDING_WICO_TOKEN
+
+**Type:** secret_field
+
+WirtschaftsCompass API token
+
 
