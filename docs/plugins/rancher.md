@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The `waldur_rancher` application is a sophisticated Kubernetes cluster management system that integrates Rancher with Waldur's multi-tenant cloud orchestration platform. This integration provides enterprise-grade features including role-based access control (RBAC), secure cluster bootstrapping, multi-cloud support, and comprehensive lifecycle management for Kubernetes resources.
+The `waldur_rancher` application is a Kubernetes cluster management system that integrates Rancher with Waldur's multi-tenant cloud orchestration platform. This integration provides role-based access control (RBAC), secure cluster bootstrapping, multi-cloud support, and lifecycle management for Kubernetes resources.
 
 ## High-Level System Design
 
@@ -157,7 +157,7 @@ The `RancherCreateProcessor` serves as the critical bridge between marketplace a
 
 #### Key Responsibilities
 
-1. **Order Validation**: Comprehensive validation of user requests including:
+1. **Order Validation**: Validation of user requests including:
 
    - OpenStack offering availability and limits
    - Flavor and volume type compatibility across availability zones
@@ -220,7 +220,7 @@ graph TD
 
 - **Plugin Architecture**: Extends `WaldurExtension` following Waldur's modular design
 - **Multi-Backend Integration**: Seamlessly integrates with Rancher, OpenStack, Keycloak, and Vault
-- **Enterprise Security**: Implements comprehensive RBAC with secure credential management
+- **Enterprise Security**: Implements RBAC with secure credential management
 - **Asynchronous Processing**: Sophisticated task orchestration with error recovery
 
 ### Supported Capabilities
@@ -230,7 +230,7 @@ graph TD
 - Helm application deployment and management
 - Automated user onboarding with Keycloak integration
 - Infrastructure-as-Code through YAML import/export
-- Comprehensive monitoring and scaling (HPA support)
+- Monitoring and scaling (HPA support)
 
 ## Data Model Architecture
 
@@ -326,7 +326,7 @@ Customer → Project → Cluster → Nodes/Applications
 **Core Capabilities**:
 
 - Complete cluster lifecycle management (create, update, delete, scale)
-- Comprehensive resource synchronization (projects, namespaces, workloads, applications)
+- Resource synchronization (projects, namespaces, workloads, applications)
 - YAML-based Infrastructure-as-Code operations
 - Real-time state management and error handling
 - Integration with OpenStack for VM provisioning and project isolation
@@ -539,63 +539,14 @@ task_chain = chain(
 - **Project-Level Isolation**: Resources scoped to specific projects
 - **Tenant Separation**: OpenStack tenant isolation for infrastructure
 - **Permission Filtering**: Users only see resources they can manage
-- **Audit Trail**: Comprehensive logging and state tracking
+- **Audit Trail**: Logging and state tracking
 
 ### Infrastructure Security Features
 
 - **Network Security Groups**: Granular firewall rule management
 - **SSH Key Management**: Secure key injection with optional disable
 - **Private Registry Support**: Secure container image distribution
-- **TLS Configuration**: Comprehensive certificate management
-
-## Testing and Quality Assurance
-
-### Comprehensive Test Suite
-
-**Location**: `src/waldur_rancher/tests/`
-
-#### **Test Coverage Areas**
-
-- **API Endpoint Testing**: All CRUD operations with proper status codes
-- **Permission Testing**: Role-based access control validation
-- **Integration Testing**: Backend and OpenStack integration scenarios
-- **Error Handling**: Edge cases and failure recovery testing
-- **Configuration Testing**: Plugin settings and feature toggles
-
-#### **Testing Patterns**
-
-- **Factory Boy Integration**: Consistent test data generation (13 factory classes)
-- **Permission Isolation**: Data-driven testing for different user roles
-- **Read-Only Mode**: Comprehensive testing of maintenance mode
-- **Backend Mocking**: Realistic JSON fixtures for integration tests
-
-#### **Quality Metrics**
-
-- **882 lines** for cluster testing alone
-- **7 dedicated test modules** covering all major components
-- **Excellent coverage** with transaction isolation and proper cleanup
-
-### Test Architecture Highlights
-
-```python
-
-# Example: Permission testing with DDT
-
-@ddt.data(
-    "staff", "owner", "admin", "manager"
-)
-def test_user_can_access_cluster(self, role):
-
-    # Test access patterns for different roles
-
-# Example: Read-only mode testing
-
-@utils.override_plugin_settings(READ_ONLY_MODE=True)
-def test_cluster_creation_disabled_in_readonly_mode(self):
-
-    # Ensure operations properly disabled
-
-```
+- **TLS Configuration**: Certificate management
 
 ## Configuration and Deployment
 
@@ -626,43 +577,6 @@ WALDUR_RANCHER = {
 - `READ_ONLY_MODE`: Maintenance mode configuration
 - `DISABLE_SSH_KEY_INJECTION`: Security feature toggle
 - `DISABLE_DATA_VOLUME_CREATION`: Storage feature control
-
-### Django Integration
-
-- **Standard App Configuration**: Follows Django best practices
-- **Signal Registration**: Comprehensive signal handler setup
-- **URL Registration**: Automatic REST API endpoint discovery
-- **Service Registration**: Backend service registration with Waldur core
-
-## Key Architectural Strengths
-
-### 1. **Enterprise-Grade Design**
-
-- **Multi-tenant Architecture**: Customer isolation with project-level scoping
-- **Scalable Processing**: Asynchronous task processing with error recovery
-- **Comprehensive Security**: Multiple security layers with secure credential management
-- **Production-Ready**: Extensive testing, logging, and monitoring capabilities
-
-### 2. **Integration Excellence**
-
-- **Multi-System Integration**: Seamless integration across 4+ external systems
-- **State Synchronization**: Automated consistency maintenance across systems
-- **Event-Driven Architecture**: Signal-based automation reducing manual overhead
-- **API-First Design**: Complete REST API with filtering and permission integration
-
-### 3. **Operational Excellence**
-
-- **Self-Healing Systems**: Automated cleanup and error recovery
-- **Comprehensive Monitoring**: Resource state tracking and alerting
-- **Background Maintenance**: Scheduled tasks for system health
-- **Audit Trail**: Complete operation logging and state tracking
-
-### 4. **Developer Experience**
-
-- **Consistent Patterns**: Follows established Waldur architectural patterns
-- **Comprehensive Documentation**: Well-documented API endpoints and models
-- **Testing Infrastructure**: Mature test suite with excellent coverage
-- **Configuration Management**: Flexible feature toggles and environment-specific settings
 
 ## Cluster Provisioning Sequence Diagrams
 
@@ -921,59 +835,6 @@ sequenceDiagram
     WaldurAPI-->>User: Application deployment complete
 ```
 
-## Recent Changes and Improvements
-
-### Recent Executors.py Changes (2024-2025)
-
-Based on git history analysis, recent improvements include:
-
-1. **Enhanced Node Deletion Safety** (WAL-9144)
-
-   - Skip deletion of nodes without backend_id to prevent errors
-   - Improved validation in ClusterDeleteExecutor
-   - Better handling of partially created resources
-2. **Parallel Server Node Creation**
-
-   - Optimized cluster provisioning by creating server nodes in parallel
-   - Reduced overall cluster creation time significantly
-   - Maintained proper sequencing for agent nodes
-3. **ArgoCD Integration** (WAL-8712)
-
-   - Integrated Longhorn installation via ArgoCD instead of direct installation
-   - Enhanced GitOps workflow for cluster components
-   - Improved security and auditability of cluster modifications
-4. **RKE2 Migration** (WAL-8672, WAL-8615)
-
-   - Complete migration from RKE1 to RKE2 clusters
-   - Updated role mappings and node configuration
-   - Enhanced security and performance characteristics
-5. **Vault Security Enhancements** (WAL-8471)
-
-   - Dynamic secret sharing via Vault during cluster provisioning
-   - Improved credential lifecycle management
-   - Enhanced security for cluster bootstrap process
-6. **Managed Cluster Improvements** (WAL-8729)
-
-   - Better cleanup of managed Rancher resources
-   - Improved termination flow for complex cluster configurations
-   - Enhanced error handling and recovery mechanisms
-
-### Application Management Merge
-
-The application management functionality has been streamlined and simplified through recent development work:
-
-- **Simplified Application Model**: The `Application` model now cleanly inherits from `BaseResource` with focused functionality
-- **Streamlined ViewSet**: `ApplicationViewSet` provides essential CRUD operations with proper permission handling
-- **Integrated External URLs**: Applications now include `external_url` property for direct Rancher UI access
-- **Enhanced Error Handling**: Improved error responses and validation in application operations
-
-### Key Improvements
-
-- **VM Project Isolation**: Enhanced cluster security through dedicated VM projects (`vm_project` field)
-- **External URL Support**: Direct links to Rancher UI for applications and clusters
-- **Simplified Resource Management**: Cleaner inheritance hierarchy and reduced complexity
-- **Enhanced Console Access**: Node console access through OpenStack integration
-
 ## Offering and Order Attributes Configuration
 
 ### Overview
@@ -1151,10 +1012,12 @@ Rancher service settings are configured via `RancherServiceSettingsSerializer`:
    - Must select odd number of offerings (1, 3, 5) for HA
    - Selected offerings must be in the allowed list
    - All offerings must have required flavors and volume types
+
 2. **Resource Limit Validation**:
 
    - Aggregated CPU/RAM/Storage across tenants must not exceed limits
    - Validates against `managed_rancher_tenant_max_*` settings
+
 3. **Flavor and Volume Type Validation**:
 
    - All required flavors must exist in all selected OpenStack offerings
@@ -1232,7 +1095,7 @@ The Waldur Rancher integration deploys significantly different OpenStack infrast
 
 ### Managed Mode Infrastructure Deployment
 
-Managed mode implements a comprehensive multi-tenant infrastructure deployment across multiple OpenStack availability zones with automatic load balancing and networking.
+Managed mode implements a multi-tenant infrastructure deployment across multiple OpenStack availability zones with automatic load balancing and networking.
 
 #### **Infrastructure Components**
 
@@ -1306,6 +1169,7 @@ graph TB
 - **Dedicated VM Project**: Isolated project created specifically for cluster VMs
   - Name format: `{consumer_customer}/{consumer_project}/{cluster_name}`
   - Purpose: VM isolation and permission boundaries
+
 - **Multiple OpenStack Tenants**: One per selected availability zone
   - Name format: `os-tenant-{vm_project_slug}-{openstack_offering_slug}`
   - Each tenant gets full networking stack
@@ -1520,7 +1384,7 @@ Subnet CIDR: 10.x.y.0/24
 
 ### Overview
 
-The Waldur Rancher integration provides comprehensive node management capabilities through dedicated APIs and automated lifecycle management. Node operations include scaling, monitoring, maintenance, and advanced operations like console access and graceful node drainage.
+The Waldur Rancher integration provides node management capabilities through dedicated APIs and automated lifecycle management. Node operations include scaling, monitoring, maintenance, and advanced operations like console access and graceful node drainage.
 
 ### Node Lifecycle Management
 
@@ -1831,87 +1695,3 @@ Customer Admin → Project Manager → Project User
      ↓               ↓              ↓
   All nodes      Project nodes   Read-only
 ```
-
-#### **Security Considerations**
-
-**Network Security:**
-
-- Nodes inherit cluster security groups
-- Automatic firewall rule application
-- Isolated tenant networking (managed mode)
-
-**Access Security:**
-
-- SSH key injection for secure access
-- Console access through authenticated sessions
-- Audit logging for all node operations
-
-### Error Handling and Recovery
-
-#### **Common Node Issues**
-
-**Creation Failures:**
-
-- OpenStack resource exhaustion
-- Network connectivity problems
-- Image/flavor availability issues
-- Cluster token expiration
-
-**Runtime Failures:**
-
-- Node becomes unresponsive
-- Kubernetes component failures
-- Storage or network issues
-- Resource exhaustion
-
-#### **Recovery Procedures**
-
-**Automatic Recovery:**
-
-- Node state synchronization (pull operations)
-- Cluster capacity recalculation
-- Failed node detection and marking
-
-**Manual Recovery:**
-
-- Node recreation with same configuration
-- Manual OpenStack instance linking
-- Cluster resynchronization
-
-### Node Management Best Practices
-
-#### **Capacity Planning**
-
-**Node Sizing Guidelines:**
-
-- **Server Nodes**: Higher CPU/RAM for control plane workloads
-- **Agent Nodes**: Balanced resources for application workloads
-- **Storage Considerations**: Adequate space for container images and data
-
-**Scaling Strategies:**
-
-- **Vertical**: Increase node sizes for resource-intensive workloads
-- **Horizontal**: Add more nodes for distributed applications
-- **Mixed**: Combine both approaches based on workload patterns
-
-#### **Maintenance Planning**
-
-**Scheduled Maintenance:**
-
-- Plan node updates during low-traffic periods
-- Use rolling updates to maintain service availability
-- Pre-validate new configurations in staging
-
-**Monitoring Integration:**
-
-- Set up alerts for node resource exhaustion
-- Monitor cluster-wide resource distribution
-- Track node performance trends over time
-
-## Conclusion
-
-The Waldur Rancher integration represents a sophisticated example of enterprise cloud orchestration software, demonstrating advanced Django patterns, comprehensive external system integration, and production-ready operational features. The architecture successfully addresses the complex requirements of multi-tenant Kubernetes cluster management while maintaining security, scalability, and maintainability at scale.
-
-The dual deployment mode architecture provides flexibility for different use cases, from fully managed infrastructure provisioning to self-managed cluster deployments. The comprehensive attribute validation system ensures reliable cluster provisioning while maintaining the flexibility needed for diverse deployment scenarios.
-
-This integration serves as a reference implementation for building complex cloud orchestration plugins within the Waldur ecosystem, showcasing best practices for API design, asynchronous processing, security integration, and comprehensive testing strategies.
