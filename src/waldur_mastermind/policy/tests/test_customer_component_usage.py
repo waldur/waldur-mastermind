@@ -61,29 +61,129 @@ class CustomerComponentUsagePolicyUpdateTest(test.APITransactionTestCase):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer
         self.staff = self.fixture.staff
-        self.owner = self.fixture.owner
-        self.user = self.fixture.user
+        self.policy = policy_factories.CustomerComponentUsagePolicyFactory(
+            scope=self.customer
+        )
+        self.component = marketplace_factories.OfferingComponentFactory(
+            offering=self.fixture.offering,
+            billing_type=BillingTypes.USAGE,
+            type="cores",
+            name="CPU cores",
+        )
+        CustomerUsagePolicyComponent.objects.create(
+            policy=self.policy, component=self.component, limit=100, period=1
+        )
+        self.policy_url = policy_factories.CustomerComponentUsagePolicyFactory.get_url(
+            self.policy
+        )
 
     @data("owner", "user")
     def test_update_is_forbidden_for_non_staff(self, role):
-        policy = policy_factories.CustomerComponentUsagePolicyFactory(
-            scope=self.customer
-        )
-        url = policy_factories.CustomerComponentUsagePolicyFactory.get_url(policy)
-
         self.client.force_authenticate(getattr(self.fixture, role))
-        response = self.client.patch(url, {"actions": "notify_external_user"})
+        response = self.client.patch(
+            self.policy_url, {"actions": "notify_external_user"}
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_update_is_allowed_for_staff(self):
-        policy = policy_factories.CustomerComponentUsagePolicyFactory(
-            scope=self.customer
-        )
-        url = policy_factories.CustomerComponentUsagePolicyFactory.get_url(policy)
-
         self.client.force_authenticate(self.staff)
-        response = self.client.patch(url, {"actions": "notify_external_user"})
+        response = self.client.patch(
+            self.policy_url, {"actions": "notify_external_user"}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_create_update_and_add_component_limits(self):
+        self.client.force_authenticate(self.staff)
+
+        # Initially, the policy has one limit (cores, period=1, limit=100)
+        self.assertEqual(self.policy.component_limits_set.count(), 1)
+
+        # Update the existing limit: change period to 2 and verify period_name
+        update_payload = {
+            "component_limits_set": [
+                {
+                    "component": self.component.uuid.hex,
+                    "limit": 10,
+                    "period": 2,
+                }
+            ]
+        }
+        update_response = self.client.patch(self.policy_url, update_payload)
+        self.assertEqual(update_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(update_response.data["component_limits_set"]), 1)
+        updated_limit = update_response.data["component_limits_set"][0]
+        self.assertEqual(updated_limit.get("period"), 2)
+        self.assertEqual(updated_limit.get("period_name"), "1 month")
+
+        # Add a second limit for the same component with a different period (3)
+        # Expect two limits in the response and correct periods and limits
+        add_payload = {
+            "component_limits_set": [
+                {
+                    "component": self.component.uuid.hex,
+                    "limit": 2,
+                    "period": 2,
+                },
+                {
+                    "component": self.component.uuid.hex,
+                    "limit": 5,
+                    "period": 3,
+                },
+            ]
+        }
+        add_response = self.client.patch(self.policy_url, add_payload)
+        self.assertEqual(add_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(add_response.data["component_limits_set"]), 2)
+        periods = sorted(
+            [i.get("period") for i in add_response.data["component_limits_set"]]
+        )
+        limits = sorted(
+            [i.get("limit") for i in add_response.data["component_limits_set"]]
+        )
+        self.assertEqual(periods, [2, 3])
+        self.assertEqual(limits, [2, 5])
+
+        # Try adding a limit for a component with invalid billing type (FIXED)
+        # Expect 400 and no changes to the existing policy limits
+        fixed_component = marketplace_factories.OfferingComponentFactory(
+            offering=self.fixture.offering,
+            billing_type=BillingTypes.FIXED,
+            type="ram",
+            name="RAM",
+        )
+
+        add_payload = {
+            "component_limits_set": [
+                {
+                    "component": fixed_component.uuid.hex,
+                    "limit": 2,
+                    "period": 2,
+                },
+            ]
+        }
+        add_response = self.client.patch(self.policy_url, add_payload)
+        self.assertEqual(add_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.component_limits_set.count(), 2)
+
+        # Attempt to send duplicate limits for the same component and period
+        # Expect 400 due to uniqueness constraint and no changes to limits
+        dup_payload = {
+            "component_limits_set": [
+                {
+                    "component": self.component.uuid.hex,
+                    "limit": 10,
+                    "period": 1,
+                },
+                {
+                    "component": self.component.uuid.hex,
+                    "limit": 10,
+                    "period": 1,
+                },
+            ]
+        }
+        dup_response = self.client.patch(self.policy_url, dup_payload)
+        self.assertEqual(dup_response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 @ddt

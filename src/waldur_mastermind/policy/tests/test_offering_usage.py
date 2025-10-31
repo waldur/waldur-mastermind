@@ -131,6 +131,17 @@ class UpdatePolicyTest(test.APITransactionTestCase):
         response = self._update_policy(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_update_rejects_duplicate_component_limits(self):
+        self.client.force_authenticate(self.fixture.staff)
+        duplicate_payload = {
+            "component_limits_set": [
+                {"type": self.fixture.offering_usage_component.type, "limit": 10},
+                {"type": self.fixture.offering_usage_component.type, "limit": 20},
+            ]
+        }
+        response = self.client.patch(self.url, duplicate_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class OfferingUsagePolicyTriggerTest(test.APITransactionTestCase):
     def setUp(self):
