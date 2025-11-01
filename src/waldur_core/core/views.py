@@ -57,6 +57,13 @@ from waldur_core.core.serializers import (
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
+from waldur_core.logging.event_logger import get_event_groups
+from waldur_core.permissions.enums import (
+    CREATE_PERMISSIONS,
+    PERMISSION_DESCRIPTION,
+    PermissionEnum,
+    RoleEnum,
+)
 from waldur_core.structure.permissions import IsStaffOrSupportUser
 
 logger = logging.getLogger(__name__)
@@ -977,3 +984,150 @@ def optimized_head_list(cls, request, *args, **kwargs):
 
 # Monkey-patching
 mixins.ListModelMixin.list = optimized_head_list  # type: ignore
+
+
+class PermissionMetadataView(APIView):
+    """Provides permission metadata including roles, permissions, and descriptions."""
+
+    permission_classes = []
+    authentication_classes = []
+
+    @extend_schema(
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "roles": {"type": "object"},
+                    "permissions": {"type": "object"},
+                    "permission_map": {"type": "object"},
+                    "permission_descriptions": {"type": "array"},
+                },
+            }
+        },
+        description="Get permission metadata including roles, permissions, and descriptions",
+    )
+    def get(self, request):
+        return Response(
+            {
+                "roles": {
+                    key: value.value for key, value in RoleEnum._member_map_.items()
+                },
+                "permissions": {
+                    key: value.value
+                    for key, value in PermissionEnum._member_map_.items()
+                },
+                "permission_map": {
+                    key: value.value for key, value in CREATE_PERMISSIONS.items()
+                },
+                "permission_descriptions": PERMISSION_DESCRIPTION,
+            }
+        )
+
+
+class EventMetadataView(APIView):
+    """Provides event metadata grouped by event categories."""
+
+    permission_classes = []
+    authentication_classes = []
+
+    @extend_schema(
+        responses={
+            200: {"type": "object", "properties": {"event_groups": {"type": "object"}}}
+        },
+        description="Get event metadata grouped by categories",
+    )
+    def get(self, request):
+        return Response({"event_groups": get_event_groups()})
+
+
+class FeatureMetadataView(APIView):
+    """Provides feature toggle metadata including enums and descriptions."""
+
+    permission_classes = []
+    authentication_classes = []
+
+    @extend_schema(
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "features": {"type": "array"},
+                    "feature_enums": {"type": "object"},
+                },
+            }
+        },
+        description="Get feature metadata including toggles and descriptions",
+    )
+    def get(self, request):
+        feature_enums = {}
+        for section in FEATURES:
+            section_key = section["key"]
+            section_enums = {}
+            for feature in section["items"]:
+                enum_key = feature["key"]
+                enum_value = f"{section_key}.{enum_key}"
+                section_enums[enum_key] = enum_value
+            feature_enums[section_key] = section_enums
+
+        return Response({"features": FEATURES, "feature_enums": feature_enums})
+
+
+class SettingsMetadataView(APIView):
+    """Provides settings metadata from Django Constance configuration."""
+
+    permission_classes = []
+    authentication_classes = []
+
+    @extend_schema(
+        responses={
+            200: {"type": "object", "properties": {"settings": {"type": "array"}}}
+        },
+        description="Get settings metadata from Constance configuration",
+    )
+    def get(self, request):
+        settings_data = []
+        for title, keys in settings.CONSTANCE_CONFIG_FIELDSETS.items():
+            section = {"description": title, "items": []}
+
+            for key in keys:
+                if key in settings.CONSTANCE_CONFIG:
+                    default = settings.CONSTANCE_CONFIG[key][0]
+                    description = settings.CONSTANCE_CONFIG[key][1].replace("'", "\\'")
+                    value_type = (
+                        len(settings.CONSTANCE_CONFIG[key]) == 3
+                        and settings.CONSTANCE_CONFIG[key][2]
+                        or None
+                    )
+
+                    if isinstance(default, str):
+                        formatted_default = default
+                    elif default is True:
+                        formatted_default = True
+                    elif default is False:
+                        formatted_default = False
+                    else:
+                        formatted_default = default
+
+                    if value_type:
+                        formatted_type = value_type
+                    elif isinstance(default, str):
+                        formatted_type = "string"
+                    elif isinstance(default, bool):
+                        formatted_type = "boolean"
+                    elif isinstance(default, int):
+                        formatted_type = "integer"
+                    else:
+                        formatted_type = "string"
+
+                    section["items"].append(
+                        {
+                            "key": key,
+                            "description": description,
+                            "default": formatted_default,
+                            "type": formatted_type,
+                        }
+                    )
+
+            settings_data.append(section)
+
+        return Response({"settings": settings_data})

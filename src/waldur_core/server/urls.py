@@ -171,6 +171,10 @@ urlpatterns += [
     re_path(r"^api/override-settings/", core_views.override_db_settings),
     re_path(r"^api/version/", core_views.version_detail),
     re_path(r"^api/feature-values/", core_views.feature_values),
+    re_path(r"^api/metadata/permissions/", core_views.PermissionMetadataView.as_view()),
+    re_path(r"^api/metadata/events/", core_views.EventMetadataView.as_view()),
+    re_path(r"^api/metadata/features/", core_views.FeatureMetadataView.as_view()),
+    re_path(r"^api/metadata/settings/", core_views.SettingsMetadataView.as_view()),
     re_path(
         r"^api-auth/password/",
         core_views.ObtainAuthToken.as_view(),

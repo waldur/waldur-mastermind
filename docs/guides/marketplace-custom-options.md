@@ -419,4 +419,23 @@ Create tests covering:
 4. **Data Format Mismatches** - Handle format differences between config/display/submission
 5. **Validation Bypass** - Don't forget to add your type to `FIELD_CLASSES` mapping
 
+### Update Frontend Type Handlers
+
+Add your new type to the `OptionValueRenders` object in the frontend:
+
+**File**: `src/marketplace/resources/options/OptionValue.tsx`
+
+```typescript
+const OptionValueRenders: Record<OptionFieldTypeEnum, (value) => ReactNode> = {
+  // ... existing handlers ...
+  your_custom_type: (value) => value, // Add appropriate renderer
+};
+```
+
+**Important**: If this step is missed, TypeScript compilation will fail with:
+
+```text
+Property 'your_custom_type' is missing in type {...} but required in type 'Record<OptionFieldTypeEnum, (value: any) => ReactNode>'
+```
+
 Following this guide ensures your custom option type integrates seamlessly with Waldur's marketplace system and provides a consistent user experience.
