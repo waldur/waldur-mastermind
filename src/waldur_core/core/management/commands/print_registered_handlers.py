@@ -75,7 +75,7 @@ class Command(BaseCommand):
             markdown += "\n"
 
         if not handlers:
-            markdown += "No handlers found.\n"
+            markdown += "No handlers found."
 
         markdown += self._get_summary(handlers_by_app)
         return markdown
@@ -237,7 +237,7 @@ td:nth-child(4) {
     def _get_summary(self, handlers_by_app):
         """Generate a summary of the collected handlers."""
         total_handlers = sum(len(h) for h in handlers_by_app.values())
-        summary = "\n## Summary\n\n"
+        summary = "## Summary\n\n"
         summary += f"Total unique handlers found: {total_handlers}\n\n"
         for app_name, handlers in sorted(handlers_by_app.items()):
             summary += f"- **{app_name}**: {len(handlers)} handlers\n"

@@ -9,6 +9,15 @@ class EmailListSerializer(serializers.ListField):
     child = serializers.EmailField()
 
 
+class ConditionalCascadeField(serializers.DictField):
+    """Field for conditional cascade selections that stores step-value mappings"""
+
+    def to_internal_value(self, data):
+        if not isinstance(data, dict):
+            self.fail("not_a_dict", input=type(data).__name__)
+        return super().to_internal_value(data)
+
+
 FIELD_CLASSES = {
     "integer": serializers.IntegerField,
     "date": serializers.DateField,
@@ -22,6 +31,7 @@ FIELD_CLASSES = {
     "select_openstack_instance": serializers.CharField,
     "select_multiple_openstack_instances": StringListSerializer,
     "select_multiple_emails": EmailListSerializer,
+    "conditional_cascade": ConditionalCascadeField,
 }
 
 

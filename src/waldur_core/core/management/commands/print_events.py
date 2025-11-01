@@ -11,8 +11,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         print("# Events", end=BLANK_LINE)
         groups = sorted([(k, v) for k, v in get_event_groups().items()])
-        for event_group, events in groups:
+        for i, (event_group, events) in enumerate(groups):
             print(f"## {str(event_group).capitalize()}", end=BLANK_LINE)
             for event in sorted(events):
                 print(f"- {event}")
-            print()
+            # Add blank line after each section except the last one
+            if i < len(groups) - 1:
+                print()

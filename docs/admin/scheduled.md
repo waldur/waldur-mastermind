@@ -120,4 +120,3 @@ td:nth-child(4) {
 | `waldur-sync-daily-quotas` | `analytics.sync_daily_quotas` | 1 day | Task not found in registry |
 | `waldur-update-all-pid` | `waldur_pid.update_all_pid` | 1 day | Update all PID (Persistent Identifier) information for referrable objects with DataCite DOIs. |
 | `waldur_mastermind.marketplace_rancher.report_rancher_usage` | `waldur_mastermind.marketplace_rancher.report_rancher_usage` | 1 hour | No description available |
-

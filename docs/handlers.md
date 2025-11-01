@@ -718,7 +718,6 @@ td:nth-child(4) {
 | `update_vm_total_disk_when_disk_is_created_or_updated` | `Django Signal (post_save)` | `waldur_vmware.Disk` | Update VM total disk size when a disk is created or updated. |
 | `update_vm_total_disk_when_disk_is_deleted` | `Django Signal (post_delete)` | `waldur_vmware.Disk` | Update VM total disk size when a disk is deleted. |
 
-
 ## Summary
 
 Total unique handlers found: 646

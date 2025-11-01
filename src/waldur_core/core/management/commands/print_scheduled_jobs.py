@@ -157,6 +157,4 @@ td:nth-child(4) {
         else:
             markdown += "No jobs found.\n"
 
-        markdown += "\n"
-
         return markdown
