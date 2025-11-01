@@ -160,17 +160,68 @@ class AppExtension(WaldurExtension):
    - External service adapters
    - API clients
 
+## Response Template
+
+Structure implementation responses using this template:
+
+```json
+{
+  "implementation_summary": {
+    "feature_name": "",
+    "files_modified": [],
+    "files_created": [],
+    "patterns_used": []
+  },
+  "architecture_decisions": [],
+  "database_changes": {
+    "migrations_needed": false,
+    "new_models": [],
+    "modified_fields": []
+  },
+  "testing_status": {
+    "tests_written": false,
+    "test_files": [],
+    "coverage_areas": []
+  },
+  "performance_considerations": [],
+  "next_steps": []
+}
+```
+
 ## Implementation Checklist
 
-- [ ] Find and study similar implementations
-- [ ] Write tests first
+Before starting implementation:
+- [ ] Find and study 3 similar implementations
+- [ ] Identify required mixins and base classes
+- [ ] Plan database schema changes
+- [ ] Design API endpoints and serializers
+
+During implementation:
+- [ ] Write tests first (TDD red-green-refactor)
 - [ ] Use established mixins and base classes
 - [ ] Implement permission_factory for access control
 - [ ] Add query optimization (select_related/prefetch_related)
 - [ ] Place signal handlers in handlers.py
+- [ ] Follow naming conventions and code style
+
+After implementation:
 - [ ] Create migrations if needed
 - [ ] Update API documentation
 - [ ] Run tests and linters
+- [ ] Verify performance (≤3 queries for list operations)
+- [ ] Request code review from subagent
+
+## Validation Checklist
+
+Before marking implementation complete:
+- [ ] All tests pass (existing and new)
+- [ ] Code follows project style guidelines
+- [ ] No security vulnerabilities introduced
+- [ ] Database queries are optimized
+- [ ] Error handling is comprehensive
+- [ ] API responses match expected format
+- [ ] Documentation is updated
+- [ ] No breaking changes to existing API
 
 ## References
 

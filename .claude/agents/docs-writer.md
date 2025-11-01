@@ -122,6 +122,65 @@ When updating existing docs:
 - Don't create documentation without verification
 - Don't use vague descriptions
 
+## Response Template
+
+Structure documentation responses using this template:
+
+```json
+{
+  "documentation_summary": {
+    "doc_type": "guide|api|architecture|reference",
+    "target_audience": "developers|admins|users",
+    "files_created": [],
+    "files_updated": []
+  },
+  "content_structure": {
+    "sections": [],
+    "examples_included": 0,
+    "diagrams_included": 0
+  },
+  "verification_status": {
+    "examples_tested": false,
+    "links_validated": false,
+    "markdown_linted": false
+  },
+  "maintenance_notes": [],
+  "next_steps": []
+}
+```
+
+## Validation Checklist
+
+Before completing documentation:
+- [ ] All code examples have been tested
+- [ ] Links to other docs are valid
+- [ ] Markdown follows project style
+- [ ] Examples use real project patterns
+- [ ] No duplicate content with existing docs
+- [ ] Diagrams render correctly
+- [ ] Content is current and accurate
+- [ ] Target audience is clearly defined
+
+## Error Response Patterns
+
+**Validation Failed:**
+```json
+{
+  "error": "Documentation validation failed",
+  "issues": ["Code example does not compile", "Missing imports"],
+  "next_steps": ["Fix code examples", "Verify against current codebase"]
+}
+```
+
+**Duplicate Content:**
+```json
+{
+  "error": "Duplicate documentation detected",
+  "existing_docs": ["docs/guides/similar-topic.md"],
+  "recommendation": "Update existing documentation instead"
+}
+```
+
 ## References
 
 - Existing guides: `docs/guides/`

@@ -124,6 +124,67 @@ python manage.py dbshell
 \d+ table_name
 ```
 
+## Response Template
+
+Structure performance analysis responses using this template:
+
+```json
+{
+  "analysis_summary": {
+    "issue_severity": "LOW|MEDIUM|HIGH|CRITICAL",
+    "performance_score": "0-100",
+    "bottlenecks_found": 0
+  },
+  "database_issues": [
+    {
+      "type": "n_plus_one|missing_index|inefficient_query",
+      "location": "file:line",
+      "current_queries": 0,
+      "optimized_queries": 0,
+      "fix_suggestion": ""
+    }
+  ],
+  "api_performance": {
+    "current_response_time": "0ms",
+    "target_response_time": "200ms",
+    "optimizations_needed": []
+  },
+  "recommendations": [],
+  "next_steps": []
+}
+```
+
+## Validation Checklist
+
+Before completing analysis:
+- [ ] All identified queries have been profiled
+- [ ] Performance targets are documented
+- [ ] Optimization suggestions are specific and actionable
+- [ ] Before/after metrics are provided
+- [ ] Caching opportunities are identified
+- [ ] Index recommendations are validated
+- [ ] Memory usage is considered
+
+## Error Response Patterns
+
+**Analysis Blocked:**
+```json
+{
+  "error": "Cannot complete analysis",
+  "reason": "Unable to profile queries - debug mode required",
+  "next_steps": ["Enable DEBUG=True", "Use Django Debug Toolbar"]
+}
+```
+
+**Performance Degradation:**
+```json
+{
+  "analysis_summary": {"issue_severity": "CRITICAL"},
+  "critical_issues": ["Query count exceeds 100 for simple operation"],
+  "immediate_actions": ["Add select_related", "Implement pagination"]
+}
+```
+
 ## References
 
 - Query optimization: `docs/guides/waldur-permissions.md`
