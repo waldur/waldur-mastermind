@@ -550,19 +550,6 @@ options:
 
 ```
 
-## load_maintenance_mocks
-
-Load mock maintenance announcements and admin announcements
-
-```bash
-
-usage: waldur load_maintenance_mocks [--clear]
-
-options:
-  --clear  Clear existing maintenance and admin announcements before loading
-
-```
-
 ## load_notifications
 
 Import notifications to DB
