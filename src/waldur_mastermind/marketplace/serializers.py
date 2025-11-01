@@ -1516,7 +1516,170 @@ FIELD_TYPES = (
     "select_multiple_openstack_instances",
     "date",
     "time",
+    "conditional_cascade",
 )
+
+
+class CascadeStepSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    label = serializers.CharField()
+    type = serializers.ChoiceField(choices=["select_string", "select_string_multi"])
+    depends_on = serializers.CharField(required=False)
+    choices = serializers.JSONField(required=False)  # JSON string or parsed data
+    choices_map = serializers.JSONField(required=False)  # JSON string or parsed data
+
+    def validate(self, attrs):
+        import json
+
+        errors = {}
+
+        # Parse and validate choices if provided
+        if attrs.get("choices"):
+            choices_raw = attrs["choices"]
+            # Handle both JSON string and already parsed data
+            if isinstance(choices_raw, str):
+                try:
+                    choices_data = json.loads(choices_raw)
+                except json.JSONDecodeError:
+                    errors["choices"] = "choices must be valid JSON"
+                    choices_data = None
+            else:
+                # Already parsed (from JSONField)
+                choices_data = choices_raw
+
+            if choices_data is not None:
+                if not isinstance(choices_data, list):
+                    errors["choices"] = "choices must be a JSON array"
+                else:
+                    for i, choice in enumerate(choices_data):
+                        if (
+                            not isinstance(choice, dict)
+                            or "value" not in choice
+                            or "label" not in choice
+                        ):
+                            errors["choices"] = (
+                                f"Choice {i + 1} must be an object with 'value' and 'label' properties"
+                            )
+                            break
+                        # Convert value to string for JSON serialization consistency
+                        choice["value"] = str(choice["value"])
+                    if "choices" not in errors:
+                        attrs["choices"] = choices_data
+
+        # Parse and validate choices_map if provided
+        if attrs.get("choices_map"):
+            choices_map_raw = attrs["choices_map"]
+            # Handle both JSON string and already parsed data
+            if isinstance(choices_map_raw, str):
+                try:
+                    choices_map_data = json.loads(choices_map_raw)
+                except json.JSONDecodeError:
+                    errors["choices_map"] = "choices_map must be valid JSON"
+                    choices_map_data = None
+            else:
+                # Already parsed (from JSONField)
+                choices_map_data = choices_map_raw
+
+            if choices_map_data is not None:
+                if not isinstance(choices_map_data, dict):
+                    errors["choices_map"] = (
+                        'choices_map must be a JSON object mapping parent values to choice arrays, e.g. {"parent1": [{"value": "child1", "label": "Child 1"}]}'
+                    )
+                else:
+                    for key, value in choices_map_data.items():
+                        if not isinstance(value, list):
+                            errors["choices_map"] = (
+                                f"choices_map['{key}'] must be an array"
+                            )
+                            break
+                        for j, choice in enumerate(value):
+                            if (
+                                not isinstance(choice, dict)
+                                or "value" not in choice
+                                or "label" not in choice
+                            ):
+                                errors["choices_map"] = (
+                                    f"Choice {j + 1} in choices_map['{key}'] must be an object with 'value' and 'label' properties"
+                                )
+                                break
+                            # Convert value to string for JSON serialization consistency
+                            choice["value"] = str(choice["value"])
+                        if "choices_map" in errors:
+                            break
+                    if "choices_map" not in errors:
+                        attrs["choices_map"] = choices_map_data
+
+        # Validate required fields
+        if attrs.get("depends_on") and not attrs.get("choices_map"):
+            errors["choices_map"] = (
+                "choices_map is required when depends_on is specified"
+            )
+        if not attrs.get("depends_on") and not attrs.get("choices"):
+            errors["choices"] = "choices is required when depends_on is not specified"
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return attrs
+
+
+class StringKeyListField(serializers.ListField):
+    """ListField that converts integer error keys to strings for JSON serialization"""
+
+    def run_validation(self, data=serializers.empty):
+        try:
+            return super().run_validation(data)
+        except serializers.ValidationError as exc:
+            # Convert any integer keys in error details to strings
+            if hasattr(exc, "detail") and isinstance(exc.detail, dict):
+                detail = {}
+                for key, value in exc.detail.items():
+                    detail[str(key)] = value
+                raise serializers.ValidationError(detail)
+            raise
+
+
+class CascadeConfigSerializer(serializers.Serializer):
+    steps = StringKeyListField(child=CascadeStepSerializer())
+
+    def validate(self, attrs):
+        steps = attrs.get("steps", [])
+
+        if not steps:
+            raise serializers.ValidationError(
+                {"steps": "At least one step is required"}
+            )
+
+        # Collect all validation errors for better error reporting
+        errors = {}
+
+        step_names = []
+        for i, step in enumerate(steps):
+            step_name = step.get("name")
+            if step_name:
+                step_names.append(step_name)
+
+        # Check for unique step names
+        if len(step_names) != len(set(step_names)):
+            errors["steps"] = "Step names must be unique"
+
+        # Validate dependencies exist and are not circular
+        for i, step in enumerate(steps):
+            depends_on = step.get("depends_on")
+            if depends_on:
+                # Check if dependency exists in previous steps
+                if depends_on not in [
+                    s.get("name") for s in steps[:i] if s.get("name")
+                ]:
+                    errors["steps"] = (
+                        f"Step '{step.get('name', f'step_{i}')}' depends on '{depends_on}' which must be defined earlier"
+                    )
+                    break
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return attrs
 
 
 class OptionFieldSerializer(serializers.Serializer):
@@ -1528,6 +1691,18 @@ class OptionFieldSerializer(serializers.Serializer):
     default = serializers.CharField(required=False)
     min = serializers.IntegerField(required=False)
     max = serializers.IntegerField(required=False)
+    cascade_config = CascadeConfigSerializer(required=False)
+
+    def validate(self, attrs):
+        field_type = attrs.get("type")
+
+        if field_type == "conditional_cascade":
+            if not attrs.get("cascade_config"):
+                raise serializers.ValidationError(
+                    "cascade_config is required for conditional_cascade type"
+                )
+
+        return attrs
 
 
 class OfferingOptionsSerializer(serializers.Serializer):

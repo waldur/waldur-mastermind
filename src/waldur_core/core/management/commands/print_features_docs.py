@@ -8,9 +8,11 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         print("# Features", end="\n\n")
+        features_output = []
         for section in sorted(FEATURES, key=lambda section: section["key"]):
             for feature in sorted(section["items"], key=lambda section: section["key"]):
-                print(f"## {section['key']}.{feature['key']}")
-                print()
-                print(feature["description"])
-                print()
+                feature_block = f"## {section['key']}.{feature['key']}\n\n{feature['description']}\n"
+                features_output.append(feature_block)
+
+        # Join all features and remove trailing whitespace to avoid multiple consecutive blank lines
+        print("\n".join(features_output).rstrip())

@@ -3,14 +3,13 @@ import os
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from .print_events import BLANK_LINE
-
 
 class Command(BaseCommand):
     help = """Prints all Waldur templates in markdown format."""
 
     def handle(self, *args, **options):
-        print("# Message templates", end=BLANK_LINE)
+        output = ["# Message templates\n"]
+
         possible_dirs = [
             (
                 os.path.join(
@@ -25,18 +24,23 @@ class Command(BaseCommand):
             for app in settings.INSTALLED_APPS
             if "waldur" in app and "landing" not in app
         ]
+
         for templates_dir, app in possible_dirs:
             if os.path.isdir(templates_dir):
-                print(f"## {app}", end=BLANK_LINE)
+                output.append(f"## {app}\n")
                 for fname in os.listdir(templates_dir):
                     full_path = os.path.join(templates_dir, fname)
                     if os.path.isfile(full_path) and (
                         full_path.endswith(".html") or full_path.endswith(".txt")
                     ):
                         _, extension = os.path.splitext(fname)
-                        print(f"### {fname} ({app})", end=BLANK_LINE)
-                        print(f"``` {extension[1:]}")
+                        output.append(f"### {fname} ({app})\n")
+                        output.append(f"```{extension[1:]}\n")
                         with open(full_path) as template_file:
-                            for line in template_file.readlines():
-                                print(line, end="")
-                        print("```", end=BLANK_LINE)
+                            content = template_file.read()
+                            output.append(content)
+                        output.append("```\n")
+
+        # Join all output and remove trailing whitespace to avoid multiple consecutive blank lines
+        result = "\n".join(output).rstrip()
+        print(result)

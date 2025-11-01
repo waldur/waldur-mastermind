@@ -10,13 +10,26 @@ from waldur_core.core.metadata import WaldurConfiguration
 def print_section(section, section_name, print_default=False):
     print(f"#### {section_name}")
     print()
+    type_display = section._type_display()
+    # Wrap type annotations in code blocks to avoid markdown table parsing issues with pipe characters
+    if "|" in type_display:
+        type_display = f"`{type_display}`"
+
     if print_default and section.default is not None and section.default != "":
         default_value = section.default
         if isinstance(default_value, timedelta):
             default_value = repr(default_value)
-        print(f"Type: {section._type_display()}, default value: {default_value}")
+        # Wrap URLs in angle brackets to avoid bare URL linting error
+        if isinstance(default_value, str) and (
+            default_value.startswith("http://") or default_value.startswith("https://")
+        ):
+            default_value = f"<{default_value}>"
+        # Wrap values with pipe characters in code blocks to avoid markdown table parsing issues
+        elif isinstance(default_value, str) and "|" in str(default_value):
+            default_value = f"`{default_value}`"
+        print(f"**Type:** {type_display}, **default value:** {default_value}")
     else:
-        print(f"Type: {section._type_display()}")
+        print(f"**Type:** {type_display}")
     if section.field_info.description:
         print()
         print(section.field_info.description)
@@ -35,7 +48,16 @@ def generate_markdown(config, fieldsets):
                 markdown += f"#### {variable}\n\n"
                 markdown += f"**Type:** {var_type}\n\n"
                 if default_value:
-                    markdown += f"**Default value**: {default_value}\n\n"
+                    # Wrap URLs in angle brackets to avoid bare URL linting error
+                    if isinstance(default_value, str) and (
+                        default_value.startswith("http://")
+                        or default_value.startswith("https://")
+                    ):
+                        default_value = f"<{default_value}>"
+                    # Wrap values with pipe characters in code blocks to avoid markdown table parsing issues
+                    elif isinstance(default_value, str) and "|" in str(default_value):
+                        default_value = f"`{default_value}`"
+                    markdown += f"**Default value:** {default_value}\n\n"
                 markdown += f"{description}\n\n"
 
     return markdown
@@ -77,8 +99,8 @@ class Command(BaseCommand):
             print_section(section, section_name, print_default=True)
 
         print("## Dynamic options", end="\n\n")
-        print(
-            generate_markdown(
-                settings.CONSTANCE_CONFIG, settings.CONSTANCE_CONFIG_FIELDSETS
-            )
+        dynamic_markdown = generate_markdown(
+            settings.CONSTANCE_CONFIG, settings.CONSTANCE_CONFIG_FIELDSETS
         )
+        # Remove trailing whitespace to avoid multiple consecutive blank lines
+        print(dynamic_markdown.rstrip())

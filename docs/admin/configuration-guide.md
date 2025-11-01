@@ -45,191 +45,191 @@ WALDUR_AUTH_SAML2 = {'ALLOW_TO_SELECT_IDENTITY_PROVIDER': True,
 
 #### ALLOW_TO_SELECT_IDENTITY_PROVIDER
 
-Type: bool
+**Type:** bool
 
 #### ATTRIBUTE_MAP_DIR
 
-Type: str
+**Type:** str
 
 Directory with attribute mapping
 
 #### AUTHN_REQUESTS_SIGNED
 
-Type: str
+**Type:** str
 
 Indicates if the authentication requests sent should be signed by default
 
 #### CATEGORIES
 
-Type: List[str]
+**Type:** List[str]
 
 Links to the entity categories
 
 #### CERT_FILE
 
-Type: str
+**Type:** str
 
 PEM formatted certificate chain file
 
 #### DEBUG
 
-Type: bool
+**Type:** bool
 
 Set to True to output debugging information
 
 #### DEFAULT_BINDING
 
-Type: str
+**Type:** str
 
 #### DESCRIPTION
 
-Type: str
+**Type:** str
 
 Service provider description (required by CoC)
 
 #### DIGEST_ALGORITHM
 
-Type: Optional[str]
+**Type:** Optional[str]
 
 Identifies the Message Digest algorithm URL according to the XML Signature specification (SHA1 is used by default)
 
 #### DISCOVERY_SERVICE_LABEL
 
-Type: Optional[str]
+**Type:** Optional[str]
 
 #### DISCOVERY_SERVICE_URL
 
-Type: Optional[str]
+**Type:** Optional[str]
 
 #### DISPLAY_NAME
 
-Type: str
+**Type:** str
 
 Service provider display name (required by CoC)
 
 #### ENABLE_SINGLE_LOGOUT
 
-Type: bool
+**Type:** bool
 
 #### IDENTITY_PROVIDER_LABEL
 
-Type: Optional[str]
+**Type:** Optional[str]
 
 #### IDENTITY_PROVIDER_URL
 
-Type: Optional[str]
+**Type:** Optional[str]
 
 #### IDP_METADATA_LOCAL
 
-Type: List[str]
+**Type:** List[str]
 
 IdPs metadata XML files stored locally
 
 #### IDP_METADATA_REMOTE
 
-Type: List[str]
+**Type:** List[str]
 
 IdPs metadata XML files stored remotely
 
 #### KEY_FILE
 
-Type: str
+**Type:** str
 
 PEM formatted certificate key file
 
 #### LOGOUT_REQUESTS_SIGNED
 
-Type: str
+**Type:** str
 
 Indicates if the entity will sign the logout requests
 
 #### LOG_FILE
 
-Type: str
+**Type:** str
 
 Empty to disable logging SAML2-related stuff to file
 
 #### LOG_LEVEL
 
-Type: str
+**Type:** str
 
 Log level for SAML2
 
 #### MANAGEMENT_URL
 
-Type: str
+**Type:** str
 
 The endpoint for user details management.
 
 #### NAME
 
-Type: str
+**Type:** str
 
 Name used for assigning the registration method to the user
 
 #### NAMEID_FORMAT
 
-Type: Optional[str]
+**Type:** Optional[str]
 
 Identified NameID format to use. None means default, empty string ("") disables addition of entity
 
 #### OPTIONAL_ATTRIBUTES
 
-Type: List[str]
+**Type:** List[str]
 
 SAML attributes that may be useful to have but not required
 
 #### ORGANIZATION
 
-Type: Mapping[str, Any]
+**Type:** Mapping[str, Any]
 
 Organization responsible for the service (you can set multilanguage information here)
 
 #### PRIVACY_STATEMENT_URL
 
-Type: str
+**Type:** str
 
 URL with privacy statement (required by CoC)
 
 #### REGISTRATION_AUTHORITY
 
-Type: str
+**Type:** str
 
 Registration authority required by mdpi
 
 #### REGISTRATION_INSTANT
 
-Type: str
+**Type:** str
 
 Registration instant time required by mdpi
 
 #### REGISTRATION_POLICY
 
-Type: str
+**Type:** str
 
 Registration policy required by mdpi
 
 #### REQUIRED_ATTRIBUTES
 
-Type: List[str]
+**Type:** List[str]
 
 SAML attributes that are required to identify a user
 
 #### SAML_ATTRIBUTE_MAPPING
 
-Type: Mapping[str, str]
+**Type:** Mapping[str, str]
 
 Mapping between SAML attributes and User fields
 
 #### SIGNATURE_ALGORITHM
 
-Type: Optional[str]
+**Type:** Optional[str]
 
 Identifies the Signature algorithm URL according to the XML Signature specification (SHA1 is used by default)
 
 #### XMLSEC_BINARY
 
-Type: str
+**Type:** str
 
 Full path to the xmlsec1 binary program
 
@@ -252,61 +252,61 @@ WALDUR_AUTH_SOCIAL = {'ENABLE_EDUTEAMS_SYNC': False,
 
 #### ENABLE_EDUTEAMS_SYNC
 
-Type: bool
+**Type:** bool
 
 Enable eduTEAMS synchronization with remote Waldur.
 
 #### REMOTE_EDUTEAMS_CLIENT_ID
 
-Type: str
+**Type:** str
 
 ID of application used for OAuth authentication.
 
 #### REMOTE_EDUTEAMS_ENABLED
 
-Type: bool
+**Type:** bool
 
 Enable remote eduTEAMS extension.
 
 #### REMOTE_EDUTEAMS_REFRESH_TOKEN
 
-Type: str
+**Type:** str
 
 Token is used to authenticate against user info endpoint.
 
 #### REMOTE_EDUTEAMS_SECRET
 
-Type: str
+**Type:** str
 
 Application secret key.
 
 #### REMOTE_EDUTEAMS_SSH_API_PASSWORD
 
-Type: str
+**Type:** str
 
 Password for SSH API URL
 
 #### REMOTE_EDUTEAMS_SSH_API_URL
 
-Type: str
+**Type:** str
 
 API URL SSH keys
 
 #### REMOTE_EDUTEAMS_SSH_API_USERNAME
 
-Type: str
+**Type:** str
 
 Username for SSH API URL
 
 #### REMOTE_EDUTEAMS_TOKEN_URL
 
-Type: str
+**Type:** str
 
 The token endpoint is used to obtain tokens.
 
 #### REMOTE_EDUTEAMS_USERINFO_URL
 
-Type: str
+**Type:** str
 
 It allows to get user data based on userid aka CUID.
 
@@ -393,361 +393,361 @@ WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
 
 #### ATTACHMENT_LINK_MAX_AGE
 
-Type: timedelta
+**Type:** timedelta
 
 Max age of secure token for media download.
 
 #### AUTHENTICATION_METHODS
 
-Type: List[str]
+**Type:** List[str]
 
 List of enabled authentication methods.
 
 #### BACKEND_FIELDS_EDITABLE
 
-Type: bool
+**Type:** bool
 
 Allows to control /admin writable fields. If this flag is disabled it is impossible to edit any field that corresponds to backend value via /admin. Such restriction allows to save information from corruption.
 
 #### COURSE_ACCOUNT_TOKEN_CLIENT_ID
 
-Type: str
+**Type:** str
 
 Client ID to get access token for course account.
 
 #### COURSE_ACCOUNT_TOKEN_SECRET
 
-Type: str
+**Type:** str
 
 Client secret to get access for course account.
 
 #### COURSE_ACCOUNT_TOKEN_URL
 
-Type: str
+**Type:** str
 
 Webhook URL for getting token for further course account management.
 
 #### COURSE_ACCOUNT_URL
 
-Type: str
+**Type:** str
 
 Webhook URL for course account management.
 
 #### COURSE_ACCOUNT_USE_API
 
-Type: bool
+**Type:** bool
 
 Send course account creation and deletion requests to API.
 
 #### CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION
 
-Type: bool
+**Type:** bool
 
 Enables generation of the first project on organization creation.
 
 #### EMAIL_CHANGE_MAX_AGE
 
-Type: timedelta
+**Type:** timedelta
 
 Max age of change email request.
 
 #### ENABLE_ACCOUNTING_START_DATE
 
-Type: bool
+**Type:** bool
 
 Allows to enable accounting for organizations using value of accounting_start_date field.
 
 #### ENABLE_PROJECT_KIND_COURSE
 
-Type: bool
+**Type:** bool
 
 Enable course kind for projects.
 
 #### EXTENSIONS_AUTOREGISTER
 
-Type: bool
+**Type:** bool
 
 Defines whether extensions should be automatically registered.
 
 #### EXTERNAL_LINKS
 
-Type: List[ExternalLink]
+**Type:** List[ExternalLink]
 
 Render external links in dropdown in header. Each item should be object with label and url fields. For example: {"label": "Helpdesk", "url": "`https://example.com/`"}
 
 #### GROUP_INVITATION_LIFETIME
 
-Type: timedelta
+**Type:** timedelta
 
 Defines for how long group invitation remains valid.
 
 #### HOMEPORT_SENTRY_DSN
 
-Type: Optional[str]
+**Type:** Optional[str]
 
 Sentry Data Source Name for Waldur HomePort project.
 
 #### HOMEPORT_SENTRY_ENVIRONMENT
 
-Type: str
+**Type:** str
 
 Sentry environment name for Waldur Homeport.
 
 #### HOMEPORT_SENTRY_TRACES_SAMPLE_RATE
 
-Type: float
+**Type:** float
 
 Percentage of transactions sent to Sentry for tracing.
 
 #### HTTP_CHUNK_SIZE
 
-Type: int
+**Type:** int
 
 Chunk size for resource fetching from backend API. It is needed in order to avoid too long HTTP request error.
 
 #### INVITATIONS_ENABLED
 
-Type: bool
+**Type:** bool
 
 Allows to disable invitations feature.
 
 #### INVITATION_CIVIL_NUMBER_LABEL
 
-Type: str
+**Type:** str
 
 Custom label for civil number field in invitation creation dialog.
 
 #### INVITATION_CREATE_MISSING_USER
 
-Type: bool
+**Type:** bool
 
 Allow to create FreeIPA user using details specified in invitation if user does not exist yet.
 
 #### INVITATION_LIFETIME
 
-Type: timedelta
+**Type:** timedelta
 
 Defines for how long invitation remains valid.
 
 #### INVITATION_MAX_AGE
 
-Type: Optional[timedelta]
+**Type:** Optional[timedelta]
 
 Max age of invitation token. It is used in approve and reject actions.
 
 #### INVITATION_USE_WEBHOOKS
 
-Type: bool
+**Type:** bool
 
 Allow sending of webhooks instead of sending of emails.
 
 #### INVITATION_WEBHOOK_TOKEN_CLIENT_ID
 
-Type: str
+**Type:** str
 
 Client ID to get access token from Keycloak.
 
 #### INVITATION_WEBHOOK_TOKEN_SECRET
 
-Type: str
+**Type:** str
 
 Client secret to get access token from Keycloak.
 
 #### INVITATION_WEBHOOK_TOKEN_URL
 
-Type: str
+**Type:** str
 
 Keycloak URL to get access token.
 
 #### INVITATION_WEBHOOK_URL
 
-Type: str
+**Type:** str
 
 Webhook URL for sending invitations.
 
 #### LOCAL_IDP_LABEL
 
-Type: str
+**Type:** str
 
 The label of local auth.
 
 #### LOCAL_IDP_MANAGEMENT_URL
 
-Type: str
+**Type:** str
 
 The URL for management of local user details.
 
 #### LOCAL_IDP_NAME
 
-Type: str
+**Type:** str
 
 The name of local auth.
 
 #### LOCAL_IDP_PROTECTED_FIELDS
 
-Type: List[str]
+**Type:** List[str]
 
 The list of protected fields for local IdP.
 
 #### LOGGING_REPORT_DIRECTORY
 
-Type: str
+**Type:** str
 
 Directory where log files are located.
 
 #### LOGGING_REPORT_INTERVAL
 
-Type: timedelta
+**Type:** timedelta
 
 Files older that specified interval are filtered out.
 
 #### MASTERMIND_URL
 
-Type: str
+**Type:** str
 
 It is used for rendering callback URL in MasterMind.
 
 #### MATOMO_SITE_ID
 
-Type: Optional[int]
+**Type:** Optional[int]
 
 Site ID is used by Matomo analytics application.
 
 #### MATOMO_URL_BASE
 
-Type: Optional[str]
+**Type:** Optional[str]
 
 URL base is used by Matomo analytics application.
 
 #### NATIVE_NAME_ENABLED
 
-Type: bool
+**Type:** bool
 
 Allows to render native name field in customer and user forms.
 
 #### NOTIFICATIONS_PROFILE_CHANGES
 
-Type: Mapping[str, Any]
+**Type:** Mapping[str, Any]
 
 Configure notifications about profile changes of organization owners.
 
 #### NOTIFICATION_SUBJECT
 
-Type: str
+**Type:** str
 
 It is used as a subject of email emitted by event logging hook.
 
 #### OECD_FOS_2007_CODE_MANDATORY
 
-Type: bool
+**Type:** bool
 
 Field oecd_fos_2007_code must be required for project.
 
 #### ONLY_STAFF_CAN_INVITE_USERS
 
-Type: bool
+**Type:** bool
 
 Allow to limit invitation management to staff only.
 
 #### PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS
 
-Type: List[str]
+**Type:** List[str]
 
 List of authentication methods for which a manual update of user details is not allowed.
 
 #### REQUEST_HEADER_IMPERSONATED_USER_UUID
 
-Type: str
+**Type:** str
 
 The request header, which contains the user UUID of the user to be impersonated.
 
 #### RESPONSE_HEADER_IMPERSONATOR_UUID
 
-Type: str
+**Type:** str
 
 The response header, which contains the UUID of the user who requested the impersonation.
 
 #### SELLER_COUNTRY_CODE
 
-Type: Optional[str]
+**Type:** Optional[str]
 
 Specifies seller legal or effective country of registration or residence as an ISO 3166-1 alpha-2 country code. It is used for computing VAT charge rate.
 
 #### SERVICE_ACCOUNT_TOKEN_CLIENT_ID
 
-Type: str
+**Type:** str
 
 Client ID to get access token for service account.
 
 #### SERVICE_ACCOUNT_TOKEN_SECRET
 
-Type: str
+**Type:** str
 
 Client secret to get access for service account.
 
 #### SERVICE_ACCOUNT_TOKEN_URL
 
-Type: str
+**Type:** str
 
 Webhook URL for getting token for further service account management.
 
 #### SERVICE_ACCOUNT_URL
 
-Type: str
+**Type:** str
 
 Webhook URL for service account management.
 
 #### SERVICE_ACCOUNT_USE_API
 
-Type: bool
+**Type:** bool
 
 Send service account creation and deletion requests to API.
 
 #### SUBNET_BLACKLIST
 
-Type: List[str]
+**Type:** List[str]
 
 List of IP ranges that are blocked for the SDK client.
 
 #### SUPPORT_PORTAL_URL
 
-Type: str
+**Type:** str
 
 Support portal URL is rendered as a shortcut on dashboard
 
 #### TOKEN_LIFETIME
 
-Type: timedelta
+**Type:** timedelta
 
 Defines for how long user token should remain valid if there was no action from user.
 
 #### TRANSLATION_DOMAIN
 
-Type: str
+**Type:** str
 
 Identifier of translation domain applied to current deployment.
 
 #### USER_MANDATORY_FIELDS
 
-Type: List[str]
+**Type:** List[str]
 
 List of user profile attributes that would be required for filling in HomePort. Note that backend will not be affected. If a mandatory field is missing in profile, a profile edit view will be forced upon user on any HomePort logged in action. Possible values are: description, email, full_name, job_title, organization, phone_number
 
 #### USER_REGISTRATION_HIDDEN_FIELDS
 
-Type: List[str]
+**Type:** List[str]
 
 List of user profile attributes that would be concealed on registration form in HomePort. Possible values are: job_title, registration_method, phone_number
 
 #### USE_ATOMIC_TRANSACTION
 
-Type: bool
+**Type:** bool
 
 Wrap action views in atomic transaction.
 
 #### VALIDATE_INVITATION_EMAIL
 
-Type: bool
+**Type:** bool
 
 Ensure that invitation and user emails match.
 
@@ -771,67 +771,67 @@ WALDUR_HPC = {'ENABLED': False,
 
 #### ENABLED
 
-Type: bool
+**Type:** bool
 
 Enable HPC-specific hooks in Waldur deployment
 
 #### EXTERNAL_AFFILIATIONS
 
-Type: List[str]
+**Type:** List[str]
 
 List of user affiliations (eduPersonScopedAffiliation fields) that define if the user belongs to external organization.
 
 #### EXTERNAL_CUSTOMER_UUID
 
-Type: str
+**Type:** str
 
 UUID of a Waldur organization (aka customer) where new external users would be added
 
 #### EXTERNAL_EMAIL_PATTERNS
 
-Type: List[str]
+**Type:** List[str]
 
 List of user email patterns (as regex) that define if the user belongs to external organization.
 
 #### EXTERNAL_LIMITS
 
-Type: Mapping[str, Any]
+**Type:** Mapping[str, Any]
 
 Overrided default values for SLURM offering to be created for users belonging to external organization.
 
 #### INTERNAL_AFFILIATIONS
 
-Type: List[str]
+**Type:** List[str]
 
 List of user affiliations (eduPersonScopedAffiliation fields) that define if the user belongs to internal organization.
 
 #### INTERNAL_CUSTOMER_UUID
 
-Type: str
+**Type:** str
 
 UUID of a Waldur organization (aka customer) where new internal users would be added
 
 #### INTERNAL_EMAIL_PATTERNS
 
-Type: List[str]
+**Type:** List[str]
 
 List of user email patterns (as regex) that define if the user belongs to internal organization.
 
 #### INTERNAL_LIMITS
 
-Type: Mapping[str, Any]
+**Type:** Mapping[str, Any]
 
 Overrided default values for SLURM offering to be created for users belonging to internal organization.
 
 #### OFFERING_UUID
 
-Type: str
+**Type:** str
 
 UUID of a Waldur SLURM offering, which will be used for creating allocations for users
 
 #### PLAN_UUID
 
-Type: str
+**Type:** str
 
 UUID of a Waldur SLURM offering plan, which will be used for creating allocations for users
 
@@ -885,49 +885,49 @@ WALDUR_OPENSTACK = {'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS': True,
 
 #### ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS
 
-Type: bool
+**Type:** bool
 
 If true, customer users would be offered actions for accessing OpenStack console
 
 #### ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION
 
-Type: bool
+**Type:** bool
 
 If true, allow connecting of instances directly to external networks
 
 #### DEFAULT_BLACKLISTED_USERNAMES
 
-Type: List[str]
+**Type:** List[str]
 
 Usernames that cannot be created by Waldur in OpenStack
 
 #### DEFAULT_SECURITY_GROUPS
 
-Type: Tuple[dict[str, str | tuple[dict[str, str | int], ...]], ...]
+**Type:** `Tuple[dict[str, str | tuple[dict[str, str | int], ...]], ...]`
 
 Default security groups and rules created in each of the provisioned OpenStack tenants
 
 #### MAX_CONCURRENT_PROVISION
 
-Type: Mapping[str, int]
+**Type:** Mapping[str, int]
 
 Maximum parallel executions of provisioning operations for OpenStack resources
 
 #### REQUIRE_AVAILABILITY_ZONE
 
-Type: bool
+**Type:** bool
 
 If true, specification of availability zone during provisioning will become mandatory
 
 #### SUBNET
 
-Type: Mapping[str, str]
+**Type:** Mapping[str, str]
 
 Default allocation pool for auto-created internal network
 
 #### TENANT_CREDENTIALS_VISIBLE
 
-Type: bool
+**Type:** bool
 
 If true, generated credentials of a tenant are exposed to project users
 
@@ -946,7 +946,7 @@ WALDUR_PID = {'DATACITE': {'API_URL': 'https://example.com',
 
 #### DATACITE
 
-Type: Mapping[str, str]
+**Type:** Mapping[str, str]
 
 Settings for integration of Waldur with Datacite PID service. Collection DOI is used to aggregate generated DOIs.
 
@@ -965,37 +965,37 @@ WALDUR_SLURM = {'ALLOCATION_PREFIX': 'waldur_allocation_',
 
 #### ALLOCATION_PREFIX
 
-Type: str
+**Type:** str
 
 Prefix for SLURM account name corresponding to Waldur allocation
 
 #### CUSTOMER_PREFIX
 
-Type: str
+**Type:** str
 
 Prefix for SLURM account name corresponding to Waldur organization.
 
 #### DEFAULT_LIMITS
 
-Type: Mapping[str, int]
+**Type:** Mapping[str, int]
 
 Default limits of account that are set when SLURM account is provisioned.
 
 #### ENABLED
 
-Type: bool
+**Type:** bool
 
 Enable support for SLURM plugin in a deployment
 
 #### PRIVATE_KEY_PATH
 
-Type: str
+**Type:** str
 
 Path to private key file used as SSH identity file for accessing SLURM master.
 
 #### PROJECT_PREFIX
 
-Type: str
+**Type:** str
 
 Prefix for SLURM account name corresponding to Waldur project.
 
@@ -1003,49 +1003,49 @@ Prefix for SLURM account name corresponding to Waldur project.
 
 #### DEFAULT_FROM_EMAIL
 
-Type: str, default value: webmaster@localhost
+**Type:** str, **default value:** webmaster@localhost
 
 Default email address to use for automated correspondence from Waldur.
 
 #### DEFAULT_REPLY_TO_EMAIL
 
-Type: str
+**Type:** str
 
 Default email address to use for email replies.
 
 #### EMAIL_HOOK_FROM_EMAIL
 
-Type: str
+**Type:** str
 
 Alternative email address to use for email hooks.
 
 #### IMPORT_EXPORT_USE_TRANSACTIONS
 
-Type: bool, default value: True
+**Type:** bool, **default value:** True
 
 Controls if resource importing should use database transactions. Using transactions makes imports safer as a failure during import won't import only part of the data set.
 
 #### IPSTACK_ACCESS_KEY
 
-Type: Optional[str]
+**Type:** Optional[str]
 
 Unique authentication key used to gain access to the ipstack API.
 
 #### LANGUAGES
 
-Type: List[tuple[str, str]], default value: [('en', 'English'), ('et', 'Eesti')]
+**Type:** List[tuple[str, str]], **default value:** [('en', 'English'), ('et', 'Eesti')]
 
 The list is a list of two-tuples in the format (language code, language name) – for example, ('ja', 'Japanese').
 
 #### LANGUAGE_CODE
 
-Type: str, default value: en
+**Type:** str, **default value:** en
 
 Represents the name of a default language.
 
 #### VERIFY_WEBHOOK_REQUESTS
 
-Type: bool, default value: True
+**Type:** bool, **default value:** True
 
 When webook is processed, requests verifies SSL certificates for HTTPS requests, just like a web browser.
 
@@ -1057,7 +1057,7 @@ When webook is processed, requests verifies SSL certificates for HTTPS requests,
 
 **Type:** str
 
-**Default value**: Waldur
+**Default value:** Waldur
 
 Human-friendly name of the Waldur deployment.
 
@@ -1065,7 +1065,7 @@ Human-friendly name of the Waldur deployment.
 
 **Type:** str
 
-**Default value**: Waldur
+**Default value:** Waldur
 
 It is used as prefix for page title.
 
@@ -1073,7 +1073,7 @@ It is used as prefix for page title.
 
 **Type:** str
 
-**Default value**: Waldur | Cloud Service Management
+**Default value:** `Waldur | Cloud Service Management`
 
 It is used as default page title if it's not specified explicitly.
 
@@ -1081,7 +1081,7 @@ It is used as default page title if it's not specified explicitly.
 
 **Type:** str
 
-**Default value**: Your single pane of control for managing projects, teams and resources in a self-service manner.
+**Default value:** Your single pane of control for managing projects, teams and resources in a self-service manner.
 
 Description of the Waldur deployment.
 
@@ -1089,7 +1089,7 @@ Description of the Waldur deployment.
 
 **Type:** str
 
-**Default value**: https://example.com/
+**Default value:** <https://example.com/>
 
 It is used for rendering callback URL in HomePort
 
@@ -1097,7 +1097,7 @@ It is used for rendering callback URL in HomePort
 
 **Type:** str
 
-**Default value**: Username
+**Default value:** Username
 
 Label for the username field in Rancher external user resource access management.
 
@@ -1125,7 +1125,7 @@ It is used in marketplace order header and UI footer.
 
 **Type:** str
 
-**Default value**: EUR
+**Default value:** EUR
 
 It is used in marketplace order details and invoices for currency formatting.
 
@@ -1133,7 +1133,7 @@ It is used in marketplace order details and invoices for currency formatting.
 
 **Type:** str
 
-**Default value**: Marketplace
+**Default value:** Marketplace
 
 Marketplace landing page title.
 
@@ -1141,7 +1141,7 @@ Marketplace landing page title.
 
 **Type:** country_list_field
 
-**Default value**: ['AL', 'AT', 'BA', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'EU', 'FI', 'FR', 'GB', 'GE', 'GR', 'HR', 'HU', 'IE', 'IS', 'IT', 'LT', 'LU', 'LV', 'MC', 'MK', 'MT', 'NL', 'NO', 'PL', 'PT', 'RO', 'RS', 'SE', 'SI', 'SK', 'UA']
+**Default value:** ['AL', 'AT', 'BA', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'EU', 'FI', 'FR', 'GB', 'GE', 'GR', 'HR', 'HU', 'IE', 'IS', 'IT', 'LT', 'LU', 'LV', 'MC', 'MK', 'MT', 'NL', 'NO', 'PL', 'PT', 'RO', 'RS', 'SE', 'SI', 'SK', 'UA']
 
 It is used in organization creation dialog in order to limit country choices to predefined set.
 
@@ -1151,7 +1151,7 @@ It is used in organization creation dialog in order to limit country choices to 
 
 **Type:** str
 
-**Default value**: 120x120
+**Default value:** 120x120
 
 Size of the thumbnail to generate when screenshot is uploaded for an offering.
 
@@ -1159,7 +1159,7 @@ Size of the thumbnail to generate when screenshot is uploaded for an offering.
 
 **Type:** bool
 
-**Default value**: True
+**Default value:** True
 
 Allow anonymous users to see shared offerings in active, paused and archived states
 
@@ -1167,7 +1167,7 @@ Allow anonymous users to see shared offerings in active, paused and archived sta
 
 **Type:** bool
 
-**Default value**: True
+**Default value:** True
 
 Allow anonymous users to see plans
 
@@ -1181,7 +1181,7 @@ If true, users with staff role are notified when request for order approval is g
 
 **Type:** bool
 
-**Default value**: True
+**Default value:** True
 
 If true, notify users about resource changes from Marketplace perspective. Can generate duplicate events if plugins also log
 
@@ -1189,7 +1189,7 @@ If true, notify users about resource changes from Marketplace perspective. Can g
 
 **Type:** bool
 
-**Default value**: True
+**Default value:** True
 
 Disable only resource update events.
 
@@ -1237,7 +1237,7 @@ If true, project end date field becomes mandatory when creating or updating proj
 
 **Type:** str
 
-**Default value**: https://telemetry.waldur.com/
+**Default value:** <https://telemetry.waldur.com/>
 
 URL for sending telemetry data.
 
@@ -1245,7 +1245,7 @@ URL for sending telemetry data.
 
 **Type:** int
 
-**Default value**: 1
+**Default value:** 1
 
 Telemetry service version.
 
@@ -1255,7 +1255,7 @@ Telemetry service version.
 
 **Type:** str
 
-**Default value**: docker
+**Default value:** docker
 
 Type of jobs deployment. Valid values: "docker" for simple docker deployment, "k8s" for Kubernetes-based one
 
@@ -1263,7 +1263,7 @@ Type of jobs deployment. Valid values: "docker" for simple docker deployment, "k
 
 **Type:** dict_field
 
-**Default value**: {'base_url': 'unix:///var/run/docker.sock'}
+**Default value:** {'base_url': 'unix:///var/run/docker.sock'}
 
 Options for docker client. See also: <https://docker-py.readthedocs.io/en/stable/client.html#docker.client.DockerClient>
 
@@ -1271,7 +1271,7 @@ Options for docker client. See also: <https://docker-py.readthedocs.io/en/stable
 
 **Type:** dict_field
 
-**Default value**: {'mem_limit': '512m'}
+**Default value:** {'mem_limit': '512m'}
 
 Options for docker runtime. See also: <https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run>
 
@@ -1285,7 +1285,7 @@ Path to folder on executor machine where to create temporary submission scripts.
 
 **Type:** bool
 
-**Default value**: True
+**Default value:** True
 
 Remove Docker container after script execution
 
@@ -1293,7 +1293,7 @@ Remove Docker container after script execution
 
 **Type:** dict_field
 
-**Default value**: {'python': {'image': 'python:3.11-alpine', 'command': 'python'}, 'shell': {'image': 'alpine:3', 'command': 'sh'}, 'ansible': {'image': 'alpine/ansible:2.18.6', 'command': 'ansible-playbook'}}
+**Default value:** {'python': {'image': 'python:3.11-alpine', 'command': 'python'}, 'shell': {'image': 'alpine:3', 'command': 'sh'}, 'ansible': {'image': 'alpine/ansible:2.18.6', 'command': 'ansible-playbook'}}
 
 Key is command to execute script, value is a dictionary of image name and command.
 
@@ -1301,7 +1301,7 @@ Key is command to execute script, value is a dictionary of image name and comman
 
 **Type:** str
 
-**Default value**: waldur-docker-compose_waldur_script_launchzone
+**Default value:** waldur-docker-compose_waldur_script_launchzone
 
 A name of the shared volume to store scripts
 
@@ -1309,7 +1309,7 @@ A name of the shared volume to store scripts
 
 **Type:** str
 
-**Default value**: default
+**Default value:** default
 
 Kubernetes namespace where jobs will be executed
 
@@ -1317,7 +1317,7 @@ Kubernetes namespace where jobs will be executed
 
 **Type:** str
 
-**Default value**: ~/.kube/config
+**Default value:** ~/.kube/config
 
 Path to Kubernetes configuration file
 
@@ -1325,7 +1325,7 @@ Path to Kubernetes configuration file
 
 **Type:** int
 
-**Default value**: 1800
+**Default value:** 1800
 
 Timeout for execution of one Kubernetes job in seconds
 
@@ -1347,7 +1347,7 @@ Common footer in html format for all emails.
 
 **Type:** int
 
-**Default value**: 60
+**Default value:** 60
 
 How many minutes before scheduled maintenance users should be notified.
 
@@ -1355,7 +1355,7 @@ How many minutes before scheduled maintenance users should be notified.
 
 **Type:** list_field
 
-**Default value**: ['AdminAnnouncement']
+**Default value:** ['AdminAnnouncement']
 
 How maintenance notifications are delivered. Choices: AdminAnnouncement or BroadcastMessage.
 
@@ -1391,7 +1391,7 @@ Link URL to support portal. Rendered as a shortcut on dashboard
 
 **Type:** str
 
-**Default value**: dark
+**Default value:** dark
 
 Style of sidebar. Possible values: dark, light, accent.
 
@@ -1399,7 +1399,7 @@ Style of sidebar. Possible values: dark, light, accent.
 
 **Type:** color_field
 
-**Default value**: #307300
+**Default value:** #307300
 
 Brand color is used for button background.
 
@@ -1489,7 +1489,7 @@ A custom PNG icon for Keycloak login button
 
 **Type:** bool
 
-**Default value**: True
+**Default value:** True
 
 Toggler for support plugin.
 
@@ -1497,7 +1497,7 @@ Toggler for support plugin.
 
 **Type:** str
 
-**Default value**: atlassian
+**Default value:** atlassian
 
 Type of support backend. Possible values: atlassian, zammad, smax.
 
@@ -1505,7 +1505,7 @@ Type of support backend. Possible values: atlassian, zammad, smax.
 
 **Type:** bool
 
-**Default value**: True
+**Default value:** True
 
 Toggler for request type displaying
 
@@ -1515,7 +1515,7 @@ Toggler for request type displaying
 
 **Type:** url_field
 
-**Default value**: https://example.com/
+**Default value:** <https://example.com/>
 
 Atlassian API server URL
 
@@ -1523,7 +1523,7 @@ Atlassian API server URL
 
 **Type:** str
 
-**Default value**: USERNAME
+**Default value:** USERNAME
 
 Username for access user
 
@@ -1531,7 +1531,7 @@ Username for access user
 
 **Type:** secret_field
 
-**Default value**: PASSWORD
+**Default value:** PASSWORD
 
 Password for access user
 
@@ -1569,7 +1569,7 @@ OAuth 2.0 Access Token
 
 **Type:** str
 
-**Default value**: Bearer
+**Default value:** Bearer
 
 OAuth 2.0 Token Type
 
@@ -1583,7 +1583,7 @@ Service desk ID or key
 
 **Type:** str
 
-**Default value**: Service Request
+**Default value:** Service Request
 
 Issue type used for request-based item processing.
 
@@ -1597,7 +1597,7 @@ Comma-separated list of file extenstions not allowed for attachment.
 
 **Type:** str
 
-**Default value**: Informational, Service Request, Change Request, Incident
+**Default value:** Informational, Service Request, Change Request, Incident
 
 Comma-separated list of enabled issue types. First type is the default one.
 
@@ -1605,7 +1605,7 @@ Comma-separated list of enabled issue types. First type is the default one.
 
 **Type:** dict_field
 
-**Default value**: {'Informational': 'Get IT help', 'Service Request': 'Request new software', 'Change Request': 'Change Request', 'Incident': 'Report a system problem'}
+**Default value:** {'Informational': 'Get IT help', 'Service Request': 'Request new software', 'Change Request': 'Change Request', 'Incident': 'Report a system problem'}
 
 Mapping from frontend issue types to backend request types
 
@@ -1631,7 +1631,7 @@ Template for issue summary
 
 **Type:** str
 
-**Default value**: Impact
+**Default value:** Impact
 
 Impact field name
 
@@ -1657,7 +1657,7 @@ Project field name
 
 **Type:** str
 
-**Default value**: Original Reporter
+**Default value:** Original Reporter
 
 Reporter field name
 
@@ -1665,7 +1665,7 @@ Reporter field name
 
 **Type:** str
 
-**Default value**: Caller
+**Default value:** Caller
 
 Caller field name
 
@@ -1673,7 +1673,7 @@ Caller field name
 
 **Type:** str
 
-**Default value**: Time to first response
+**Default value:** Time to first response
 
 SLA field name
 
@@ -1681,7 +1681,7 @@ SLA field name
 
 **Type:** str
 
-**Default value**: Relates
+**Default value:** Relates
 
 Type of linked issue field name
 
@@ -1689,7 +1689,7 @@ Type of linked issue field name
 
 **Type:** str
 
-**Default value**: Customer satisfaction
+**Default value:** Customer satisfaction
 
 Customer satisfaction field name
 
@@ -1697,7 +1697,7 @@ Customer satisfaction field name
 
 **Type:** str
 
-**Default value**: Request feedback
+**Default value:** Request feedback
 
 Request feedback field name
 
@@ -1711,7 +1711,7 @@ Template field name
 
 **Type:** str
 
-**Default value**: customfield_10200
+**Default value:** customfield_10200
 
 Waldur backend ID custom field ID (fallback when field lookup by name fails)
 
@@ -1719,7 +1719,7 @@ Waldur backend ID custom field ID (fallback when field lookup by name fails)
 
 **Type:** bool
 
-**Default value**: True
+**Default value:** True
 
 Should extra issue field mappings be applied
 
@@ -1733,7 +1733,7 @@ Is Service Desk username the same as in Waldur
 
 **Type:** bool
 
-**Default value**: True
+**Default value:** True
 
 Toggler for SSL verification
 
@@ -1773,7 +1773,7 @@ The name of the group to which the ticket will be added. If not specified, the f
 
 **Type:** str
 
-**Default value**: email
+**Default value:** email
 
 Type of a comment. Default is email because it allows support to reply to tickets directly in Zammad<https://docs.zammad.org/en/latest/api/ticket/articles.html#articles/>
 
@@ -1781,7 +1781,7 @@ Type of a comment. Default is email because it allows support to reply to ticket
 
 **Type:** str
 
-**Default value**: Created by Waldur
+**Default value:** Created by Waldur
 
 Marker for comment. Used for separating comments made via Waldur from natively added comments.
 
@@ -1789,7 +1789,7 @@ Marker for comment. Used for separating comments made via Waldur from natively a
 
 **Type:** str
 
-**Default value**: User: {name}
+**Default value:** User: {name}
 
 Comment prefix with user info.
 
@@ -1797,7 +1797,7 @@ Comment prefix with user info.
 
 **Type:** int
 
-**Default value**: 5
+**Default value:** 5
 
 Time in minutes. Time in minutes while comment deletion is available <https://github.com/zammad/zammad/issues/2687/>, <https://github.com/zammad/zammad/issues/3086/>
 
@@ -1855,7 +1855,7 @@ Requests offering code for all issues.
 
 **Type:** int
 
-**Default value**: 1
+**Default value:** 1
 
 Duration in seconds of delay between pull user attempts.
 
@@ -1863,7 +1863,7 @@ Duration in seconds of delay between pull user attempts.
 
 **Type:** int
 
-**Default value**: 10
+**Default value:** 10
 
 The maximum number of attempts to pull user from backend.
 
@@ -1877,7 +1877,7 @@ Creation source name.
 
 **Type:** bool
 
-**Default value**: True
+**Default value:** True
 
 Toggler for SSL verification
 
@@ -1887,7 +1887,7 @@ Toggler for SSL verification
 
 **Type:** int
 
-**Default value**: 7
+**Default value:** 7
 
 Review duration in days.
 
@@ -1905,7 +1905,7 @@ Comma-separated list of columns for users table.
 
 **Type:** str
 
-**Default value**: en,et,lt,lv,ru,it,de,da,sv,es,fr,nb,ar,cs
+**Default value:** en,et,lt,lv,ru,it,de,da,sv,es,fr,nb,ar,cs
 
 List of enabled languages
 
@@ -1965,7 +1965,7 @@ Enable integration of identity provisioning in configured FreeIPA.
 
 **Type:** str
 
-**Default value**: ipa.example.com
+**Default value:** ipa.example.com
 
 Hostname of FreeIPA server.
 
@@ -1973,7 +1973,7 @@ Hostname of FreeIPA server.
 
 **Type:** str
 
-**Default value**: admin
+**Default value:** admin
 
 Username of FreeIPA user with administrative privileges.
 
@@ -1981,7 +1981,7 @@ Username of FreeIPA user with administrative privileges.
 
 **Type:** secret_field
 
-**Default value**: secret
+**Default value:** secret
 
 Password of FreeIPA user with administrative privileges
 
@@ -1989,7 +1989,7 @@ Password of FreeIPA user with administrative privileges
 
 **Type:** bool
 
-**Default value**: True
+**Default value:** True
 
 Validate TLS certificate of FreeIPA web interface / REST API
 
@@ -1997,7 +1997,7 @@ Validate TLS certificate of FreeIPA web interface / REST API
 
 **Type:** str
 
-**Default value**: waldur_
+**Default value:** waldur_
 
 Prefix to be appended to all usernames created in FreeIPA by Waldur
 
@@ -2005,7 +2005,7 @@ Prefix to be appended to all usernames created in FreeIPA by Waldur
 
 **Type:** str
 
-**Default value**: waldur_
+**Default value:** waldur_
 
 Prefix to be appended to all group names created in FreeIPA by Waldur
 
@@ -2013,7 +2013,7 @@ Prefix to be appended to all group names created in FreeIPA by Waldur
 
 **Type:** list_field
 
-**Default value**: ['root']
+**Default value:** ['root']
 
 List of username that users are not allowed to select
 
@@ -2021,7 +2021,7 @@ List of username that users are not allowed to select
 
 **Type:** bool
 
-**Default value**: True
+**Default value:** True
 
 Optionally disable creation of user groups in FreeIPA matching Waldur structure
 
@@ -2055,7 +2055,7 @@ Client secret for authenticating against the introspection endpoint.
 
 **Type:** str
 
-**Default value**: username
+**Default value:** username
 
 Field name from the introspection response to identify the user (e.g., 'username', 'email', 'client_id').
 
@@ -2063,7 +2063,7 @@ Field name from the introspection response to identify the user (e.g., 'username
 
 **Type:** int
 
-**Default value**: 300
+**Default value:** 300
 
 Number of seconds to cache token introspection results.
 
@@ -2073,7 +2073,7 @@ Number of seconds to cache token introspection results.
 
 **Type:** int
 
-**Default value**: 48
+**Default value:** 48
 
 Number of hours after which onboarding verifications expire.
 
@@ -2081,7 +2081,7 @@ Number of hours after which onboarding verifications expire.
 
 **Type:** url_field
 
-**Default value**: https://demo-ariregxmlv6.rik.ee/
+**Default value:** <https://demo-ariregxmlv6.rik.ee/>
 
 Base URL for Estonian Äriregister API endpoint.
 
@@ -2101,7 +2101,7 @@ Password for Estonian Äriregister API authentication.
 
 **Type:** int
 
-**Default value**: 30
+**Default value:** 30
 
 Timeout in seconds for Estonian Äriregister API requests.
 
@@ -2109,7 +2109,7 @@ Timeout in seconds for Estonian Äriregister API requests.
 
 **Type:** url_field
 
-**Default value**: https://api.wirtschaftscompass.at/
+**Default value:** <https://api.wirtschaftscompass.at/>
 
 WirtschaftsCompass API server URL
 
@@ -2118,5 +2118,3 @@ WirtschaftsCompass API server URL
 **Type:** secret_field
 
 WirtschaftsCompass API token
-
-

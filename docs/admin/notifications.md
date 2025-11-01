@@ -11,6 +11,7 @@ A notification sent out when an email change is requested. Recipient is the old 
 === "structure/change_email_request_subject.txt"
 
 ```txt
+
     Verify new email address.
 
 ```
@@ -18,6 +19,7 @@ A notification sent out when an email change is requested. Recipient is the old 
 === "structure/change_email_request_message.txt"
 
 ```txt
+
     To confirm the change of email address from {{ request.user.email }} to {{ request.email }}, follow the {{ link }}.
 
 ```
@@ -25,6 +27,7 @@ A notification sent out when an email change is requested. Recipient is the old 
 === "structure/change_email_request_message.html"
 
 ```txt
+
     <p>To confirm the change of email address from {{ request.user.email }} to {{ request.email }}, follow the <a href="{{ link }}">link</a>.</p>
 
 ```
@@ -38,6 +41,7 @@ A notification sent to Waldur operators when a user's profile is updated.
 === "structure/notifications_profile_changes_operator_subject.txt"
 
 ```txt
+
     Owner details have been updated
 
 ```
@@ -45,6 +49,7 @@ A notification sent to Waldur operators when a user's profile is updated.
 === "structure/notifications_profile_changes_operator_message.txt"
 
 ```txt
+
     Owner of
     {% for o in organizations %}
         {{ o.name }} {% if o.abbreviation %} ({{ o.abbreviation }}){% endif %}{% if not forloop.last %}, {% endif %}
@@ -61,6 +66,7 @@ A notification sent to Waldur operators when a user's profile is updated.
 === "structure/notifications_profile_changes_operator_message.html"
 
 ```txt
+
     Owner of
     {% for o in organizations %}
         {{ o.name }} {% if o.abbreviation %} ({{ o.abbreviation }}){% endif %}{% if not forloop.last %}, {% endif %}
@@ -83,6 +89,7 @@ A notification sent out when a role is granted. The recipient is the user who re
 === "structure/structure_role_granted_subject.txt"
 
 ```txt
+
     Role granted.
 
 ```
@@ -90,6 +97,7 @@ A notification sent out when a role is granted. The recipient is the user who re
 === "structure/structure_role_granted_message.txt"
 
 ```txt
+
     Role {{ permission.role }}  for {{ structure }} has been granted.
 
 ```
@@ -97,6 +105,7 @@ A notification sent out when a role is granted. The recipient is the user who re
 === "structure/structure_role_granted_message.html"
 
 ```txt
+
     <p>Role {{ permission.role }}  for {{ structure }} has been granted.</p>
 
 ```
@@ -112,6 +121,7 @@ Sent to a new user after their invitation is approved and a new account is creat
 === "users/invitation_approved_subject.txt"
 
 ```txt
+
     Account has been created
 
 ```
@@ -119,6 +129,7 @@ Sent to a new user after their invitation is approved and a new account is creat
 === "users/invitation_approved_message.txt"
 
 ```txt
+
     Hello!
 
     {{ sender }} has invited you to join {{ name }} {{ type }} in {{ role }} role.
@@ -136,6 +147,7 @@ Sent to a new user after their invitation is approved and a new account is creat
 === "users/invitation_approved_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -172,6 +184,7 @@ Sent to an invited user so they can accept the invitation.
 === "users/invitation_created_subject.txt"
 
 ```txt
+
     {% if reminder %}
     REMINDER: Invitation to {{ name }} {{ type }}
     {% else %}
@@ -183,6 +196,7 @@ Sent to an invited user so they can accept the invitation.
 === "users/invitation_created_message.txt"
 
 ```txt
+
     Hello!
 
     {{ sender }} has invited you to join {{ name }} {{ type }} in {{ role }} role.
@@ -195,6 +209,7 @@ Sent to an invited user so they can accept the invitation.
 === "users/invitation_created_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -226,6 +241,7 @@ Sent to the invitation creator to inform them that an invitation has expired.
 === "users/invitation_expired_subject.txt"
 
 ```txt
+
     Invitation has expired
 
 ```
@@ -233,6 +249,7 @@ Sent to the invitation creator to inform them that an invitation has expired.
 === "users/invitation_expired_message.txt"
 
 ```txt
+
     Hello!
 
     An invitation to {{ invitation.email }} has expired.
@@ -243,6 +260,7 @@ Sent to the invitation creator to inform them that an invitation has expired.
 === "users/invitation_expired_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -271,6 +289,7 @@ Sent to the invitation creator to inform them that their invitation has been rej
 === "users/invitation_rejected_subject.txt"
 
 ```txt
+
     Invitation has been rejected
 
 ```
@@ -278,6 +297,7 @@ Sent to the invitation creator to inform them that their invitation has been rej
 === "users/invitation_rejected_message.txt"
 
 ```txt
+
     Hello!
 
     The following invitation has been rejected.
@@ -293,6 +313,7 @@ Sent to the invitation creator to inform them that their invitation has been rej
 === "users/invitation_rejected_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -331,6 +352,7 @@ Sent to staff users so they can approve or reject a pending invitation.
 === "users/invitation_requested_subject.txt"
 
 ```txt
+
     Invitation request
 
 ```
@@ -338,6 +360,7 @@ Sent to staff users so they can approve or reject a pending invitation.
 === "users/invitation_requested_message.txt"
 
 ```txt
+
     Hello!
 
     {{ sender }} has created invitation request for the following user
@@ -378,6 +401,7 @@ Sent to staff users so they can approve or reject a pending invitation.
 === "users/invitation_requested_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
       <meta charset="UTF-8">
@@ -449,6 +473,7 @@ Sent to staff or customer owners about a submitted permission request.
 === "users/permission_request_submitted_subject.txt"
 
 ```txt
+
     Permission request has been submitted.
 
 ```
@@ -456,6 +481,7 @@ Sent to staff or customer owners about a submitted permission request.
 === "users/permission_request_submitted_message.txt"
 
 ```txt
+
     Hello!
 
     User {{ permission_request.created_by }} with email {{ permission_request.created_by.email }} created permission request for {{ permission_request.invitation }}.
@@ -467,6 +493,7 @@ Sent to staff or customer owners about a submitted permission request.
 === "users/permission_request_submitted_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
       <meta charset="UTF-8">
@@ -498,6 +525,7 @@ Sent to users to notify them about their upcoming bookings.
 === "booking/notification_subject.txt"
 
 ```txt
+
     Reminder about upcoming booking.
 
 ```
@@ -505,6 +533,7 @@ Sent to users to notify them about their upcoming bookings.
 === "booking/notification_message.txt"
 
 ```txt
+
     Hello!
 
     Please do not forget about upcoming booking:
@@ -517,6 +546,7 @@ Sent to users to notify them about their upcoming bookings.
 === "booking/notification_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -551,6 +581,7 @@ Sent to organization owners with a new invoice. Includes the invoice as an HTML 
 === "invoices/notification_subject.txt"
 
 ```txt
+
     {{ customer }}'s invoice for {{ month }}/{{ year }}
 
 ```
@@ -558,6 +589,7 @@ Sent to organization owners with a new invoice. Includes the invoice as an HTML 
 === "invoices/notification_message.txt"
 
 ```txt
+
     Hello,
 
     Please follow the link below to see {{ customer }}'s accounting information for {{ month }}/{{ year }}:
@@ -568,6 +600,7 @@ Sent to organization owners with a new invoice. Includes the invoice as an HTML 
 === "invoices/notification_message.html"
 
 ```txt
+
     <html xmlns="http://www.w3.org/1999/html">
     <head lang="en">
         <meta charset="UTF-8">
@@ -594,6 +627,7 @@ Notifies organization owners about an upcoming fixed-price contract ending.
 === "invoices/upcoming_ends_notification_subject.txt"
 
 ```txt
+
     {{ organization_name }}'s fixed price contract {{ contract_number }} is coming to an end
 
 ```
@@ -601,6 +635,7 @@ Notifies organization owners about an upcoming fixed-price contract ending.
 === "invoices/upcoming_ends_notification_message.txt"
 
 ```txt
+
     Hello,
 
     this is a reminder that {{ organization_name }}'s fixed price contract {{ contract_number }} is ending on {{ end }}.
@@ -610,6 +645,7 @@ Notifies organization owners about an upcoming fixed-price contract ending.
 === "invoices/upcoming_ends_notification_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -637,6 +673,7 @@ A notification of a failed resource creation
 === "marketplace/marketplace_resource_create_failed_subject.txt"
 
 ```txt
+
     Resource {{ resource_name }} creation has failed.
 
 ```
@@ -644,6 +681,7 @@ A notification of a failed resource creation
 === "marketplace/marketplace_resource_create_failed_message.txt"
 
 ```txt
+
     Hello!
 
     Resource {{ resource_name }} creation has failed.
@@ -653,6 +691,7 @@ A notification of a failed resource creation
 === "marketplace/marketplace_resource_create_failed_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -679,6 +718,7 @@ A notification of a successful resource creation
 === "marketplace/marketplace_resource_create_succeeded_subject.txt"
 
 ```txt
+
     Resource {{ resource_name }} has been created.
 
 ```
@@ -686,6 +726,7 @@ A notification of a successful resource creation
 === "marketplace/marketplace_resource_create_succeeded_message.txt"
 
 ```txt
+
     Hello!
 
     Resource {{ resource_name }} has been created.
@@ -695,6 +736,7 @@ A notification of a successful resource creation
 === "marketplace/marketplace_resource_create_succeeded_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -721,6 +763,7 @@ A notification of a failed resource termination
 === "marketplace/marketplace_resource_terminate_failed_subject.txt"
 
 ```txt
+
     Resource {{ resource_name }} deletion has failed.
 
 ```
@@ -728,6 +771,7 @@ A notification of a failed resource termination
 === "marketplace/marketplace_resource_terminate_failed_message.txt"
 
 ```txt
+
     Hello!
 
     Resource {{ resource_name }} deletion has failed.
@@ -737,6 +781,7 @@ A notification of a failed resource termination
 === "marketplace/marketplace_resource_terminate_failed_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -763,6 +808,7 @@ A notification of a successful resource termination
 === "marketplace/marketplace_resource_terminate_succeeded_subject.txt"
 
 ```txt
+
     Resource {{ resource_name }} has been deleted.
 
 ```
@@ -770,6 +816,7 @@ A notification of a successful resource termination
 === "marketplace/marketplace_resource_terminate_succeeded_message.txt"
 
 ```txt
+
     Hello!
 
     Resource {{ resource_name }} has been deleted.
@@ -779,6 +826,7 @@ A notification of a successful resource termination
 === "marketplace/marketplace_resource_terminate_succeeded_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -805,6 +853,7 @@ Notifies project admins/managers that a resource termination was scheduled.
 === "marketplace/marketplace_resource_termination_scheduled_subject.txt"
 
 ```txt
+
     Resource {{ resource.name }} termination has been scheduled.
 
 ```
@@ -812,6 +861,7 @@ Notifies project admins/managers that a resource termination was scheduled.
 === "marketplace/marketplace_resource_termination_scheduled_message.txt"
 
 ```txt
+
     Hello!
 
     The resource you have - {{ resource.name }} has not been used for the past 3 months. {{ user.full_name }} has scheduled termination of that resource on {{ resource.end_date|date:"SHORT_DATE_FORMAT" }}. If you feel that you still want to keep it, please remove the resource end date {{ resource_url }}.
@@ -821,6 +871,7 @@ Notifies project admins/managers that a resource termination was scheduled.
 === "marketplace/marketplace_resource_termination_scheduled_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -848,6 +899,7 @@ A notification of a resource termination. The recipients are project administrat
 === "marketplace/marketplace_resource_termination_scheduled_staff_subject.txt"
 
 ```txt
+
     Resource {{ resource.name }} termination has been scheduled.
 
 ```
@@ -855,6 +907,7 @@ A notification of a resource termination. The recipients are project administrat
 === "marketplace/marketplace_resource_termination_scheduled_staff_message.txt"
 
 ```txt
+
     Hello!
 
     The resource you have - {{ resource.name }} has not been used for the past 3 months. {{ user.full_name }} has scheduled termination of that resource on {{ resource.end_date|date:"SHORT_DATE_FORMAT" }}. If you feel that you still want to keep it, please remove the resource end date {{ resource_url }}.
@@ -864,6 +917,7 @@ A notification of a resource termination. The recipients are project administrat
 === "marketplace/marketplace_resource_termination_scheduled_staff_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -891,6 +945,7 @@ A notification of failed resource update
 === "marketplace/marketplace_resource_update_failed_subject.txt"
 
 ```txt
+
     Resource {{ resource_name }} update has failed.
 
 ```
@@ -898,6 +953,7 @@ A notification of failed resource update
 === "marketplace/marketplace_resource_update_failed_message.txt"
 
 ```txt
+
     Hello!
 
     Resource {{ resource_name }} update has failed.
@@ -907,6 +963,7 @@ A notification of failed resource update
 === "marketplace/marketplace_resource_update_failed_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -933,6 +990,7 @@ A notification of failed resource limits update
 === "marketplace/marketplace_resource_update_limits_failed_subject.txt"
 
 ```txt
+
     Resource {{ resource_name }} limits update has failed.
 
 ```
@@ -940,6 +998,7 @@ A notification of failed resource limits update
 === "marketplace/marketplace_resource_update_limits_failed_message.txt"
 
 ```txt
+
     Hello!
 
     Resource {{ resource_name }} limits update has failed.
@@ -949,6 +1008,7 @@ A notification of failed resource limits update
 === "marketplace/marketplace_resource_update_limits_failed_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -975,6 +1035,7 @@ A notification of a successful resource limit update. The recipients are all the
 === "marketplace/marketplace_resource_update_limits_succeeded_subject.txt"
 
 ```txt
+
     Resource {{ resource_name }} limits have been updated.
 
 ```
@@ -982,6 +1043,7 @@ A notification of a successful resource limit update. The recipients are all the
 === "marketplace/marketplace_resource_update_limits_succeeded_message.txt"
 
 ```txt
+
     Hello!
 
     Following request from {{ order_user }}, resource {{ resource_name }} limits have been updated from:
@@ -1004,6 +1066,7 @@ A notification of a successful resource limit update. The recipients are all the
 === "marketplace/marketplace_resource_update_limits_succeeded_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1052,6 +1115,7 @@ A notification of a successful resource plan update. The recipients are all the 
 === "marketplace/marketplace_resource_update_succeeded_subject.txt"
 
 ```txt
+
     Resource {{ resource_name }} has been updated.
 
 ```
@@ -1059,6 +1123,7 @@ A notification of a successful resource plan update. The recipients are all the 
 === "marketplace/marketplace_resource_update_succeeded_message.txt"
 
 ```txt
+
     Hello!
 
     Following request from {{ order_user }}, resource {{ resource_name }} has been updated.
@@ -1082,6 +1147,7 @@ A notification of a successful resource plan update. The recipients are all the 
 === "marketplace/marketplace_resource_update_succeeded_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1128,6 +1194,7 @@ Notifies project users about a resource that is nearing its end date.
 === "marketplace/notification_about_project_ending_subject.txt"
 
 ```txt
+
     {% if count_projects > 1 %}Your {{ count_projects }} projects{% else %} Project{% endif %} will be deleted on {{ end_date|date:'d/m/Y' }}.
 
 ```
@@ -1135,6 +1202,7 @@ Notifies project users about a resource that is nearing its end date.
 === "marketplace/notification_about_project_ending_message.txt"
 
 ```txt
+
     Hello {{ user.full_name }}!
 
     The following projects are ending {% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %}:
@@ -1154,6 +1222,7 @@ Notifies project users about a resource that is nearing its end date.
 === "marketplace/notification_about_project_ending_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1187,6 +1256,7 @@ A notification about resource ending. The recipients are project managers and cu
 === "marketplace/notification_about_resource_ending_subject.txt"
 
 ```txt
+
     Resource {{ resource.name }} will be deleted.
 
 ```
@@ -1194,6 +1264,7 @@ A notification about resource ending. The recipients are project managers and cu
 === "marketplace/notification_about_resource_ending_message.txt"
 
 ```txt
+
     Dear {{ user.full_name }},
 
     Termination date of your {{ resource.name }} is approaching and it will be deleted{% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %}.
@@ -1207,6 +1278,7 @@ A notification about resource ending. The recipients are project managers and cu
 === "marketplace/notification_about_resource_ending_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1237,6 +1309,7 @@ Notifies organization owners about active resources that have not generated cost
 === "marketplace/notification_about_stale_resources_subject.txt"
 
 ```txt
+
     Reminder about stale resources.
 
 ```
@@ -1244,6 +1317,7 @@ Notifies organization owners about active resources that have not generated cost
 === "marketplace/notification_about_stale_resources_message.txt"
 
 ```txt
+
     Hello!
 
     We noticed that you have stale resources that have not cost you anything for the last 3 months.
@@ -1260,6 +1334,7 @@ Notifies organization owners about active resources that have not generated cost
 === "marketplace/notification_about_stale_resources_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1295,6 +1370,7 @@ Notification to user whose order been rejected.
 === "marketplace/notification_to_user_that_order_been_rejected_subject.txt"
 
 ```txt
+
     Your order to {{ order_type }} a resource {{ order.resource.name }} has been rejected.
 
 ```
@@ -1302,6 +1378,7 @@ Notification to user whose order been rejected.
 === "marketplace/notification_to_user_that_order_been_rejected_message.txt"
 
 ```txt
+
     Hello!
 
     Your order {{ link }} to {{ order_type }} a resource {{ order.resource.name }} has been rejected.
@@ -1311,6 +1388,7 @@ Notification to user whose order been rejected.
 === "marketplace/notification_to_user_that_order_been_rejected_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1337,6 +1415,7 @@ A notification about usages. The recipients are organization owners.
 === "marketplace/notification_usages_subject.txt"
 
 ```txt
+
     Reminder about missing usage reports.
 
 ```
@@ -1344,6 +1423,7 @@ A notification about usages. The recipients are organization owners.
 === "marketplace/notification_usages_message.txt"
 
 ```txt
+
     Hello!
 
     Please do not forget to add usage for the resources you provide:
@@ -1358,6 +1438,7 @@ A notification about usages. The recipients are organization owners.
 === "marketplace/notification_usages_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1400,6 +1481,7 @@ Notifies project members with approval permissions about a pending order.
 === "marketplace/notify_consumer_about_pending_order_subject.txt"
 
 ```txt
+
     A new order by {{ order.created_by.get_full_name }} is waiting for approval.
 
 ```
@@ -1407,6 +1489,7 @@ Notifies project members with approval permissions about a pending order.
 === "marketplace/notify_consumer_about_pending_order_message.txt"
 
 ```txt
+
     Hello!
 
     A new order by {{ order.created_by.get_full_name }} is waiting for approval.
@@ -1416,6 +1499,7 @@ Notifies project members with approval permissions about a pending order.
 === "marketplace/notify_consumer_about_pending_order_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1442,6 +1526,7 @@ Notifies service provider owners about a pending order for their offering.
 === "marketplace/notify_provider_about_pending_order_subject.txt"
 
 ```txt
+
     A new order by {{ order.created_by.get_full_name }} is waiting for approval.
 
 ```
@@ -1449,6 +1534,7 @@ Notifies service provider owners about a pending order for their offering.
 === "marketplace/notify_provider_about_pending_order_message.txt"
 
 ```txt
+
     Hello!
 
     A new order by {{ order.created_by.get_full_name }} is waiting for approval.
@@ -1458,6 +1544,7 @@ Notifies service provider owners about a pending order for their offering.
 === "marketplace/notify_provider_about_pending_order_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1484,6 +1571,7 @@ Notifies user that ToS consent is required to access a resource.
 === "marketplace/tos_consent_required_subject.txt"
 
 ```txt
+
     Action required: Accept Terms of Service for {{ offering.name }}
 
 ```
@@ -1491,6 +1579,7 @@ Notifies user that ToS consent is required to access a resource.
 === "marketplace/tos_consent_required_message.txt"
 
 ```txt
+
     Hello {{ user.full_name }},
 
     You have been granted access to {{ offering.name }}, which requires you to accept the Terms of Service.
@@ -1512,6 +1601,7 @@ Notifies user that ToS consent is required to access a resource.
 === "marketplace/tos_consent_required_message.html"
 
 ```txt
+
     <html>
     <head>
         <meta charset="UTF-8">
@@ -1549,6 +1639,7 @@ Notifies user that ToS has been updated and re-consent is required.
 === "marketplace/tos_reconsent_required_subject.txt"
 
 ```txt
+
     Action required: Updated Terms of Service for {{ offering.name }}
 
 ```
@@ -1556,6 +1647,7 @@ Notifies user that ToS has been updated and re-consent is required.
 === "marketplace/tos_reconsent_required_message.txt"
 
 ```txt
+
     Hello {{ user.full_name }},
 
     The Terms of Service for {{ offering.name }} have been updated from version {{ old_version }} to version {{ new_version }}.
@@ -1576,6 +1668,7 @@ Notifies user that ToS has been updated and re-consent is required.
 === "marketplace/tos_reconsent_required_message.html"
 
 ```txt
+
     <html>
     <head>
         <meta charset="UTF-8">
@@ -1616,6 +1709,7 @@ A notification about pending project updates. The recipients are customer owners
 === "marketplace_remote/notification_about_pending_project_updates_subject.txt"
 
 ```txt
+
     Reminder about pending project updates.
 
 ```
@@ -1623,6 +1717,7 @@ A notification about pending project updates. The recipients are customer owners
 === "marketplace_remote/notification_about_pending_project_updates_message.txt"
 
 ```txt
+
     Hello!
 
     We noticed that you have pending project update requests.
@@ -1637,6 +1732,7 @@ A notification about pending project updates. The recipients are customer owners
 === "marketplace_remote/notification_about_pending_project_updates_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1670,6 +1766,7 @@ Notifies users about a completed project update request, detailing the changes.
 === "marketplace_remote/notification_about_project_details_update_subject.txt"
 
 ```txt
+
     A notification about project details update.
 
 ```
@@ -1677,6 +1774,7 @@ Notifies users about a completed project update request, detailing the changes.
 === "marketplace_remote/notification_about_project_details_update_message.txt"
 
 ```txt
+
     Hello!
 
     We would like to notify you about recent updates in project details.
@@ -1719,6 +1817,7 @@ Notifies users about a completed project update request, detailing the changes.
 === "marketplace_remote/notification_about_project_details_update_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1784,6 +1883,7 @@ Notification about project cost exceeded limit. The recipients are all customer 
 === "marketplace_policy/notification_about_project_cost_exceeded_limit_subject.txt"
 
 ```txt
+
     {{ scope_class }} {{ scope_name }} cost has exceeded the limit.
 
 ```
@@ -1791,6 +1891,7 @@ Notification about project cost exceeded limit. The recipients are all customer 
 === "marketplace_policy/notification_about_project_cost_exceeded_limit_message.txt"
 
 ```txt
+
     Hello!
     {{ scope_class }} {{ scope_name }} ({{ scope_url }}) cost has exceeded the limit of {{ limit }}.
 
@@ -1799,6 +1900,7 @@ Notification about project cost exceeded limit. The recipients are all customer 
 === "marketplace_policy/notification_about_project_cost_exceeded_limit_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1827,6 +1929,7 @@ A template used for generating the issue description field during issue creation
 === "support/description.txt"
 
 ```txt
+
     {{issue.description}}
 
     Additional Info:
@@ -1855,6 +1958,7 @@ Notification about a new comment in the issue. The recipient is issue caller.
 === "support/notification_comment_added_subject.txt"
 
 ```txt
+
     The issue ({{ issue.key }}) you have created has a new comment
 
 ```
@@ -1862,6 +1966,7 @@ Notification about a new comment in the issue. The recipient is issue caller.
 === "support/notification_comment_added_message.txt"
 
 ```txt
+
     Hello!
 
     The issue you have created has a new comment. Please go to {{issue_url}} to see it.
@@ -1871,6 +1976,7 @@ Notification about a new comment in the issue. The recipient is issue caller.
 === "support/notification_comment_added_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1904,6 +2010,7 @@ Notification about an update in the issue comment. The recipient is issue caller
 === "support/notification_comment_updated_subject.txt"
 
 ```txt
+
     Issue {{ issue.key }}. The comment has been updated
 
 ```
@@ -1911,6 +2018,7 @@ Notification about an update in the issue comment. The recipient is issue caller
 === "support/notification_comment_updated_message.txt"
 
 ```txt
+
     Hello!
 
     The comment has been updated. Please go to {{issue_url}} to see it.
@@ -1920,6 +2028,7 @@ Notification about an update in the issue comment. The recipient is issue caller
 === "support/notification_comment_updated_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -1958,6 +2067,7 @@ Notification about a feedback related to the issue. The recipient is issue calle
 === "support/notification_issue_feedback_subject.txt"
 
 ```txt
+
     Please share your feedback: {{issue.key}} {{issue.summary}}
 
 ```
@@ -1965,6 +2075,7 @@ Notification about a feedback related to the issue. The recipient is issue calle
 === "support/notification_issue_feedback_message.txt"
 
 ```txt
+
     Hello, {{issue.caller.full_name}}!
 
     We would like to hear your feedback regarding your recent experience with support for {{issue_url}}.
@@ -1980,6 +2091,7 @@ Notification about a feedback related to the issue. The recipient is issue calle
 === "support/notification_issue_feedback_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -2036,6 +2148,7 @@ Notification about an update in the issue. The recipient is issue caller.
 === "support/notification_issue_updated_subject.txt"
 
 ```txt
+
     Updated issue: {{issue.key}} {{issue.summary}}
 
 ```
@@ -2043,6 +2156,7 @@ Notification about an update in the issue. The recipient is issue caller.
 === "support/notification_issue_updated_message.txt"
 
 ```txt
+
     Hello!
 
     The issue you have has been updated.
@@ -2067,6 +2181,7 @@ Notification about an update in the issue. The recipient is issue caller.
 === "support/notification_issue_updated_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -2113,6 +2228,7 @@ A template used for generating the issue summary field during issue creation.
 === "support/summary.txt"
 
 ```txt
+
     {% if issue.customer.abbreviation %}{{issue.customer.abbreviation}}: {% endif %}{{issue.summary}}
 
 ```
@@ -2128,6 +2244,7 @@ Notifies call managers about a new proposal submission.
 === "proposal/new_proposal_submitted_subject.txt"
 
 ```txt
+
     New proposal submitted: {{ proposal_name }}
 
 ```
@@ -2135,6 +2252,7 @@ Notifies call managers about a new proposal submission.
 === "proposal/new_proposal_submitted_message.txt"
 
 ```txt
+
     Dear call manager,
 
     A new proposal has been submitted to the call "{{ call_name }}".
@@ -2155,6 +2273,7 @@ Notifies call managers about a new proposal submission.
 === "proposal/new_proposal_submitted_message.html"
 
 ```txt
+
     <html>
     <head>
         <meta charset="UTF-8">
@@ -2194,6 +2313,7 @@ A notification to the call manager about a new review submission.
 === "proposal/new_review_submitted_subject.txt"
 
 ```txt
+
     Review submitted for proposal: {{ proposal_name }}
 
 ```
@@ -2201,6 +2321,7 @@ A notification to the call manager about a new review submission.
 === "proposal/new_review_submitted_message.txt"
 
 ```txt
+
     Dear call manager,
 
     A review has been submitted for proposal "{{ proposal_name }}" in call "{{ call_name }}".
@@ -2225,6 +2346,7 @@ A notification to the call manager about a new review submission.
 === "proposal/new_review_submitted_message.html"
 
 ```txt
+
     <html>
     <head>
         <meta charset="UTF-8">
@@ -2271,6 +2393,7 @@ A notification to proposal creator about the proposal cancellation.
 === "proposal/proposal_cancelled_subject.txt"
 
 ```txt
+
     Proposal canceled: {{ proposal_name }}
 
 ```
@@ -2278,6 +2401,7 @@ A notification to proposal creator about the proposal cancellation.
 === "proposal/proposal_cancelled_message.txt"
 
 ```txt
+
     Dear {{ proposal_creator_name }},
 
     Your proposal "{{ proposal_name }}" in call "{{ call_name }}" has been canceled.
@@ -2301,6 +2425,7 @@ A notification to proposal creator about the proposal cancellation.
 === "proposal/proposal_cancelled_message.html"
 
 ```txt
+
     <html>
     <head>
         <meta charset="UTF-8">
@@ -2344,6 +2469,7 @@ A notification to the reviewer about the proposal decision (approved/rejected) w
 === "proposal/proposal_decision_for_reviewer_subject.txt"
 
 ```txt
+
     Decision made: Proposal {{ proposal_state }} - {{ proposal_name }}
 
 ```
@@ -2351,6 +2477,7 @@ A notification to the reviewer about the proposal decision (approved/rejected) w
 === "proposal/proposal_decision_for_reviewer_message.txt"
 
 ```txt
+
     Dear {{ reviewer_name }},
 
     A decision has been made on the proposal "{{ proposal_name }}" in call "{{ call_name }}" that you reviewed.
@@ -2373,6 +2500,7 @@ A notification to the reviewer about the proposal decision (approved/rejected) w
 === "proposal/proposal_decision_for_reviewer_message.html"
 
 ```txt
+
     <html>
     <head>
         <meta charset="UTF-8">
@@ -2413,6 +2541,7 @@ A notification about the proposal state changes (submitted → in review → acc
 === "proposal/proposal_state_changed_subject.txt"
 
 ```txt
+
     Proposal state update: {{ proposal_name }} - {{ new_state }}
 
 ```
@@ -2420,6 +2549,7 @@ A notification about the proposal state changes (submitted → in review → acc
 === "proposal/proposal_state_changed_message.txt"
 
 ```txt
+
     Dear {{ proposal_creator_name }},
 
     The state of your proposal "{{ proposal_name }}" in call "{{ call_name }}" has been updated.
@@ -2474,6 +2604,7 @@ A notification about the proposal state changes (submitted → in review → acc
 === "proposal/proposal_state_changed_message.html"
 
 ```txt
+
     <html>
     <head>
         <meta charset="UTF-8">
@@ -2584,6 +2715,7 @@ A notification to call manager about the decision on requested offering (accepte
 === "proposal/requested_offering_decision_subject.txt"
 
 ```txt
+
     Offering request {{ decision }}: {{ offering_name }}
 
 ```
@@ -2591,6 +2723,7 @@ A notification to call manager about the decision on requested offering (accepte
 === "proposal/requested_offering_decision_message.txt"
 
 ```txt
+
     Dear call manager,
 
     The provider has {{ decision }} the request to include offering "{{ offering_name }}" in call "{{ call_name }}".
@@ -2615,6 +2748,7 @@ A notification to call manager about the decision on requested offering (accepte
 === "proposal/requested_offering_decision_message.html"
 
 ```txt
+
     <html>
     <head>
         <meta charset="UTF-8">
@@ -2659,6 +2793,7 @@ A notification to a reviewer about a new review assignment.
 === "proposal/review_assigned_subject.txt"
 
 ```txt
+
     New review assignment: {{ proposal_name }}
 
 ```
@@ -2666,6 +2801,7 @@ A notification to a reviewer about a new review assignment.
 === "proposal/review_assigned_message.txt"
 
 ```txt
+
     Dear {{ reviewer_name }},
 
     You have been assigned to review a proposal in call "{{ call_name }}".
@@ -2689,6 +2825,7 @@ A notification to a reviewer about a new review assignment.
 === "proposal/review_assigned_message.html"
 
 ```txt
+
     <html>
     <head>
         <meta charset="UTF-8">
@@ -2727,6 +2864,7 @@ A notification to the call managers about a rejected review.
 === "proposal/review_rejected_subject.txt"
 
 ```txt
+
     Alert: review assignment rejected for {{ proposal_name }}
 
 ```
@@ -2734,6 +2872,7 @@ A notification to the call managers about a rejected review.
 === "proposal/review_rejected_message.txt"
 
 ```txt
+
     Dear call manager,
 
     A reviewer has rejected their assignment to review proposal "{{ proposal_name }}" in call "{{ call_name }}".
@@ -2760,6 +2899,7 @@ A notification to the call managers about a rejected review.
 === "proposal/review_rejected_message.html"
 
 ```txt
+
     <html>
     <head>
         <meta charset="UTF-8">
@@ -2810,6 +2950,7 @@ Notifies call managers when all required reviews for a proposal have been submit
 === "proposal/reviews_complete_subject.txt"
 
 ```txt
+
     All reviews complete for proposal: {{ proposal_name }}
 
 ```
@@ -2817,6 +2958,7 @@ Notifies call managers when all required reviews for a proposal have been submit
 === "proposal/reviews_complete_message.txt"
 
 ```txt
+
     Dear call manager,
 
     All required reviews have been completed for proposal "{{ proposal_name }}" in call "{{ call_name }}".
@@ -2842,6 +2984,7 @@ Notifies call managers when all required reviews for a proposal have been submit
 === "proposal/reviews_complete_message.html"
 
 ```txt
+
     <html lang="en">
       <head>
         <meta charset="utf-8" />
@@ -2904,6 +3047,7 @@ Notifies call managers that a round has ended, with a summary of proposals and r
 === "proposal/round_closing_for_managers_subject.txt"
 
 ```txt
+
     Round closed: {{ round_name }} - {{ call_name }}
 
 ```
@@ -2911,6 +3055,7 @@ Notifies call managers that a round has ended, with a summary of proposals and r
 === "proposal/round_closing_for_managers_message.txt"
 
 ```txt
+
     Dear call manager,
 
     The round "{{ round_name }}" for call "{{ call_name }}" has now closed.
@@ -2935,6 +3080,7 @@ Notifies call managers that a round has ended, with a summary of proposals and r
 === "proposal/round_closing_for_managers_message.html"
 
 ```txt
+
     <html>
     <head lang="en">
         <meta charset="UTF-8">
@@ -2978,6 +3124,7 @@ A notification to reviewers about a new call round opening.
 === "proposal/round_opening_for_reviewers_subject.txt"
 
 ```txt
+
     New review round opening: {{ call_name }}
 
 ```
@@ -2985,6 +3132,7 @@ A notification to reviewers about a new call round opening.
 === "proposal/round_opening_for_reviewers_message.txt"
 
 ```txt
+
     Dear {{ reviewer_name }},
 
     A new review round is opening for call "{{ call_name }}" where you are registered as a reviewer.
@@ -3006,6 +3154,7 @@ A notification to reviewers about a new call round opening.
 === "proposal/round_opening_for_reviewers_message.html"
 
 ```txt
+
     <html>
     <head>
         <meta charset="UTF-8">
@@ -3033,4 +3182,3 @@ A notification to reviewers about a new call round opening.
     </html>
 
 ```
-
