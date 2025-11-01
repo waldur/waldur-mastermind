@@ -85,6 +85,64 @@ mock_resource.project.customer = self.customer
 4. Include both positive and negative test cases
 5. Test error conditions explicitly
 
+## Response Template
+
+Structure test generation responses using this template:
+
+```json
+{
+  "test_summary": {
+    "total_tests": 0,
+    "test_types": ["unit", "integration", "performance"],
+    "coverage_areas": []
+  },
+  "generated_tests": [
+    {
+      "file_path": "path/to/test_file.py",
+      "test_class": "TestClassName",
+      "test_methods": [],
+      "assertions_count": 0
+    }
+  ],
+  "edge_cases_covered": [],
+  "performance_tests": [],
+  "missing_coverage": [],
+  "next_steps": []
+}
+```
+
+## Validation Checklist
+
+Before completing test generation:
+- [ ] Tests cover positive and negative scenarios
+- [ ] Edge cases are included (None, empty, expired)
+- [ ] Performance tests verify query counts
+- [ ] All new functionality has test coverage
+- [ ] Tests use established fixtures and factories
+- [ ] Test names follow `test_<action>_<condition>_<result>` pattern
+- [ ] Tests are independent and can run in any order
+- [ ] Mock objects are used appropriately
+
+## Error Response Patterns
+
+**Missing Fixtures:**
+```json
+{
+  "error": "Cannot generate tests",
+  "reason": "Required fixtures not found",
+  "next_steps": ["Identify available fixtures", "Create custom fixtures if needed"]
+}
+```
+
+**Insufficient Coverage:**
+```json
+{
+  "test_summary": {"total_tests": 5},
+  "missing_coverage": ["error_handling", "edge_cases"],
+  "next_steps": ["Add error condition tests", "Include boundary value tests"]
+}
+```
+
 ## References
 
 - Testing guide: `docs/guides/waldur-testing-guide.md`

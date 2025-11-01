@@ -74,6 +74,62 @@ uv run pre-commit run --all-files
 mdl --style markdownlint-style.rb docs/
 ```
 
+## Development Workflows
+
+### Extended Thinking Mode
+
+Use the word "think" to trigger Claude's extended reasoning for complex problems:
+
+- "Think about the best approach to implement user notifications"
+- "Think through the database schema changes needed"
+- "Think about potential performance implications"
+
+### Test-Driven Development Workflow
+
+1. **Red Phase**: Write failing tests first
+2. **Green Phase**: Implement minimal code to pass
+3. **Refactor Phase**: Improve code while tests pass
+4. **Verify**: Use independent subagent review
+
+### Visual Development (UI Changes)
+
+1. **Provide Context**: Share screenshots or design mockups using drag & drop
+2. **Implement Changes**: Use implementation agent for UI modifications
+3. **Visual Validation**: Take screenshots of results using browser tools
+4. **Iterate**: Compare before/after, iterate 2-3 times for refinement
+
+#### Screenshot Integration Best Practices
+
+- **Before Changes**: Capture current state with `mcp__playwright__browser_take_screenshot`
+- **After Changes**: Take new screenshots to compare results
+- **Specific Elements**: Screenshot individual components when relevant
+- **Multiple Viewports**: Test responsive design with different browser sizes
+- **Error States**: Capture error conditions and edge cases
+
+#### Browser Tool Usage
+
+```bash
+# Navigate to page
+mcp__playwright__browser_navigate --url "http://localhost:8000/admin"
+
+# Take full page screenshot
+mcp__playwright__browser_take_screenshot --fullPage true
+
+# Take element screenshot
+mcp__playwright__browser_take_screenshot --element "Submit button"
+
+# Resize for responsive testing
+mcp__playwright__browser_resize --width 375 --height 667
+```
+
+### Multi-Agent Coordination
+
+- **Planning**: implementation agent creates feature plan
+- **Development**: implementation agent builds code
+- **Testing**: test-generator agent creates comprehensive tests
+- **Review**: code-reviewer agent validates quality
+- **Documentation**: docs-writer agent updates documentation
+
 ## Subagents
 
 Specialized subagents are defined in `.claude/agents/` following Claude Code conventions:
