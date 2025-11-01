@@ -1850,6 +1850,32 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
 class UpdateOfferingComponent(OfferingComponentSerializer):
     uuid = serializers.UUIDField()
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        # Check for type uniqueness within the offering when type is being updated
+        if "type" in attrs and self.instance:
+            new_type = attrs["type"]
+            current_type = self.instance.type
+
+            # Only check uniqueness if type is actually changing
+            if new_type != current_type:
+                offering = self.instance.offering
+                existing_component = (
+                    offering.components.filter(type=new_type)
+                    .exclude(uuid=self.instance.uuid)
+                    .first()
+                )
+
+                if existing_component:
+                    raise serializers.ValidationError(
+                        {
+                            "type": f"Component with type '{new_type}' already exists in this offering."
+                        }
+                    )
+
+        return attrs
+
 
 class ExportImportOfferingComponentSerializer(OfferingComponentSerializer):
     offering_id = serializers.IntegerField(write_only=True, required=False)

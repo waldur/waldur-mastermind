@@ -2472,11 +2472,52 @@ class ProviderOfferingViewSet(
             ).first()
 
             if offering_component:
+                # Store original component type to detect changes
+                original_type = offering_component.type
+                new_type = request.data.get("type")
+
                 serializer = self.get_serializer(
                     instance=offering_component, data=request.data, partial=True
                 )
                 serializer.is_valid(raise_exception=True)
-                serializer.save()
+
+                # If component type is being changed, migrate connected objects
+                if new_type and new_type != original_type:
+                    logger.info(
+                        f"Component type change detected: {original_type} -> {new_type}"
+                    )
+
+                    try:
+                        with transaction.atomic():
+                            # Save the component with new type first
+                            serializer.save()
+
+                            # Migrate connected objects
+                            self._migrate_component_connected_objects(
+                                offering=offering,
+                                old_component_type=original_type,
+                                new_component_type=new_type,
+                                logger=logger,
+                            )
+
+                            logger.info(
+                                f"Successfully migrated component {original_type} -> {new_type}"
+                            )
+                    except Exception as e:
+                        logger.error(f"Error during component migration: {e}")
+                        return Response(
+                            {
+                                "details": _(
+                                    "An error occurred during component migration."
+                                )
+                            },
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        )
+
+                else:
+                    # Normal update without type change
+                    serializer.save()
+
                 return Response(status=status.HTTP_200_OK)
             else:
                 return Response(status=status.HTTP_404_NOT_FOUND)
@@ -2486,7 +2527,49 @@ class ProviderOfferingViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    update_offering_component_serializer_class = serializers.OfferingComponentSerializer
+    def _migrate_component_connected_objects(
+        self, offering, old_component_type, new_component_type, logger
+    ):
+        """
+        Migrate connected objects when component type changes.
+        Updates Resource limits and InvoiceItem details.
+        """
+        from waldur_mastermind.invoices import models as invoice_models
+
+        # 1. Update Resource limits for resources of this offering
+        resources_updated = 0
+        for resource in models.Resource.objects.filter(offering=offering):
+            if old_component_type in resource.limits:
+                old_value = resource.limits[old_component_type]
+                resource.limits[new_component_type] = resource.limits.pop(
+                    old_component_type
+                )
+                resource.save(update_fields=["limits"])
+                resources_updated += 1
+                logger.info(
+                    f"Updated Resource {resource.uuid}: {old_component_type}={old_value} -> {new_component_type}={old_value}"
+                )
+
+        # 2. Update InvoiceItem details for historical billing data
+        invoice_items_updated = 0
+        invoice_items = invoice_models.InvoiceItem.objects.filter(
+            resource__offering=offering,
+            details__offering_component_type=old_component_type,
+        )
+
+        for item in invoice_items:
+            item.details["offering_component_type"] = new_component_type
+            item.save(update_fields=["details"])
+            invoice_items_updated += 1
+            logger.info(
+                f"Updated InvoiceItem {item.uuid}: offering_component_type {old_component_type} -> {new_component_type}"
+            )
+
+        logger.info(
+            f"Migration summary: Updated {resources_updated} resource limits, {invoice_items_updated} invoice items"
+        )
+
+    update_offering_component_serializer_class = serializers.UpdateOfferingComponent
     update_offering_component_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_COMPONENTS,
