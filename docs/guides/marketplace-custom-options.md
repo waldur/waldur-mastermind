@@ -439,3 +439,67 @@ Property 'your_custom_type' is missing in type {...} but required in type 'Recor
 ```
 
 Following this guide ensures your custom option type integrates seamlessly with Waldur's marketplace system and provides a consistent user experience.
+
+## Built-in Option Types
+
+### Component Multiplier
+
+The `component_multiplier` option type allows users to input a value that gets automatically multiplied by a configurable factor to set limits for limit-based offering components.
+
+#### Use Case
+
+Perfect for scenarios where users need to specify resources in user-friendly units that need conversion:
+
+- **Storage**: User enters "2 TB", automatically sets 100,000 inodes (2 × 50,000)
+- **Compute**: User enters "4 cores", automatically sets 16 GB RAM (4 × 4)
+- **Network**: User enters "100 Mbps", automatically sets bandwidth limits in bytes
+
+#### Configuration
+
+**Backend Configuration** (`component_multiplier_config`):
+
+```json
+{
+  "component_type": "storage_inodes",
+  "factor": 50000,
+  "min_limit": 1,
+  "max_limit": 100
+}
+```
+
+**Option Definition**:
+
+```json
+{
+  "storage_size": {
+    "type": "component_multiplier",
+    "label": "Storage Size (TB)",
+    "help_text": "Enter storage size in terabytes",
+    "required": true,
+    "component_multiplier_config": {
+      "component_type": "storage_inodes",
+      "factor": 50000,
+      "min_limit": 1,
+      "max_limit": 100
+    }
+  }
+}
+```
+
+#### Behavior
+
+1. **User Input**: User enters a value (e.g., "2" for 2 TB)
+2. **Frontend Multiplication**: Value is multiplied by factor (2 × 50,000 = 100,000)
+3. **Automatic Limit Setting**: The calculated value (100,000) is automatically set as the limit for the specified component (`storage_inodes`)
+4. **Validation**: Frontend validates user input against `min_limit` and `max_limit` before multiplication
+
+#### Requirements
+
+- **Component Dependency**: Must reference an existing limit-based component (`billing_type: "limit"`)
+- **Factor**: Must be a positive integer ≥ 1
+- **Limits**: `min_limit` and `max_limit` apply to user input, not the calculated result
+
+#### Implementation Components
+
+- **Configuration**: `ComponentMultiplierConfiguration.tsx` - Admin interface for setting up the multiplier
+- **User Field**: `ComponentMultiplierField.tsx` - User input field that handles multiplication and limit updates

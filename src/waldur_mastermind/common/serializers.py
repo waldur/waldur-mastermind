@@ -32,6 +32,7 @@ FIELD_CLASSES = {
     "select_multiple_openstack_instances": StringListSerializer,
     "select_multiple_emails": EmailListSerializer,
     "conditional_cascade": ConditionalCascadeField,
+    "component_multiplier": serializers.IntegerField,
 }
 
 

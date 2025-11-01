@@ -1517,6 +1517,7 @@ FIELD_TYPES = (
     "date",
     "time",
     "conditional_cascade",
+    "component_multiplier",
 )
 
 
@@ -1682,6 +1683,24 @@ class CascadeConfigSerializer(serializers.Serializer):
         return attrs
 
 
+class ComponentMultiplierConfigSerializer(serializers.Serializer):
+    component_type = serializers.CharField()
+    factor = serializers.IntegerField(min_value=1)
+    min_limit = serializers.IntegerField(min_value=0, required=False)
+    max_limit = serializers.IntegerField(min_value=0, required=False)
+
+    def validate(self, attrs):
+        min_limit = attrs.get("min_limit")
+        max_limit = attrs.get("max_limit")
+
+        if min_limit is not None and max_limit is not None and min_limit > max_limit:
+            raise serializers.ValidationError(
+                "min_limit cannot be greater than max_limit"
+            )
+
+        return attrs
+
+
 class OptionFieldSerializer(serializers.Serializer):
     type = serializers.ChoiceField(choices=FIELD_TYPES)
     label = serializers.CharField()
@@ -1692,6 +1711,7 @@ class OptionFieldSerializer(serializers.Serializer):
     min = serializers.IntegerField(required=False)
     max = serializers.IntegerField(required=False)
     cascade_config = CascadeConfigSerializer(required=False)
+    component_multiplier_config = ComponentMultiplierConfigSerializer(required=False)
 
     def validate(self, attrs):
         field_type = attrs.get("type")
@@ -1700,6 +1720,12 @@ class OptionFieldSerializer(serializers.Serializer):
             if not attrs.get("cascade_config"):
                 raise serializers.ValidationError(
                     "cascade_config is required for conditional_cascade type"
+                )
+
+        if field_type == "component_multiplier":
+            if not attrs.get("component_multiplier_config"):
+                raise serializers.ValidationError(
+                    "component_multiplier_config is required for component_multiplier type"
                 )
 
         return attrs
