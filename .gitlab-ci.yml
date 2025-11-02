@@ -470,8 +470,8 @@ Upload configuration guide:
     - git fetch
     - git status
     - git add docs/
-    - git commit -m "Update configuration, CLI and developer guide"
-    - git push origin HEAD:${CI_COMMIT_BRANCH}
+    - git commit -m "Update configuration, CLI and developer guide" || exit 0
+    - git push origin HEAD:${CI_COMMIT_BRANCH} || exit 0
   before_script: []
 
 Upload MCP metadata:
