@@ -474,52 +474,6 @@ Upload configuration guide:
     - git push origin HEAD:${CI_COMMIT_BRANCH}
   before_script: []
 
-Upload HomePort enums:
-  stage: postdeploy
-  interruptible: true
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
-  variables:
-    DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
-  script:
-    # 1. Install dependencies in the main project
-    - pip install uv
-    - uv sync --extra dev
-
-    # 2. Generate ALL required files from the main project context and store them in /tmp
-    # This is the most robust approach, as we are in the correct directory with the virtual env.
-    - echo "Generating enums and descriptions..."
-    - python src/waldur_core/permissions/print_permission_enums.py > /tmp/permission_enums.ts
-    - uv run waldur print_events_enums > /tmp/EventsEnums.ts
-    - uv run waldur print_features_enums > /tmp/FeaturesEnums.ts
-    - uv run waldur print_features_description > /tmp/FeaturesDescription.ts
-    - uv run waldur print_settings_description > /tmp/SettingsDescription.ts
-    - uv run waldur print_permissions_description > /tmp/PermissionOptions.tsx
-
-    # 3. Clone the HomePort repository and move the generated files into it
-    - cd /tmp/
-    - git clone "https://homeport-updates:$HOMEPORT_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-homeport.git"
-    - cd waldur-homeport
-    - git config --global user.name "$GITLAB_USER_NAME"
-    - git config --global user.email "$GITLAB_USER_EMAIL"
-    - git checkout develop
-
-    # 4. Move the pre-generated files to their final destinations
-    - mv /tmp/permission_enums.ts src/permissions/enums.ts
-    - mv /tmp/EventsEnums.ts src/EventsEnums.ts
-    - mv /tmp/FeaturesEnums.ts src/FeaturesEnums.ts
-    - mv /tmp/FeaturesDescription.ts src/features/FeaturesDescription.ts
-    - mv /tmp/SettingsDescription.ts src/SettingsDescription.ts
-    - mv /tmp/PermissionOptions.tsx src/administration/roles/PermissionOptions.tsx
-
-    # 5. Commit and push the changes
-    - git add src/
-    - git commit -m "Update enums and descriptions from Waldur Mastermind" || exit 0
-    - git branch new-enums
-    - git push --set-upstream origin new-enums:develop
-  before_script: []
-
 Upload MCP metadata:
   stage: postdeploy
   interruptible: true
