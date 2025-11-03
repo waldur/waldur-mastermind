@@ -43,6 +43,12 @@ from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateExcepti
 from waldur_core.core.features import FEATURES
 from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP
 from waldur_core.core.metadata import WaldurConfiguration
+from waldur_core.core.metadata_schemas import (
+    EventMetadataResponseSerializer,
+    FeatureMetadataResponseSerializer,
+    PermissionMetadataResponseSerializer,
+    SettingsMetadataResponseSerializer,
+)
 from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.serializers import (
     ConstanceSettingsSerializer,
@@ -993,17 +999,7 @@ class PermissionMetadataView(APIView):
     authentication_classes = []
 
     @extend_schema(
-        responses={
-            200: {
-                "type": "object",
-                "properties": {
-                    "roles": {"type": "object"},
-                    "permissions": {"type": "object"},
-                    "permission_map": {"type": "object"},
-                    "permission_descriptions": {"type": "array"},
-                },
-            }
-        },
+        responses={200: PermissionMetadataResponseSerializer},
         description="Get permission metadata including roles, permissions, and descriptions",
     )
     def get(self, request):
@@ -1031,9 +1027,7 @@ class EventMetadataView(APIView):
     authentication_classes = []
 
     @extend_schema(
-        responses={
-            200: {"type": "object", "properties": {"event_groups": {"type": "object"}}}
-        },
+        responses={200: EventMetadataResponseSerializer},
         description="Get event metadata grouped by categories",
     )
     def get(self, request):
@@ -1047,15 +1041,7 @@ class FeatureMetadataView(APIView):
     authentication_classes = []
 
     @extend_schema(
-        responses={
-            200: {
-                "type": "object",
-                "properties": {
-                    "features": {"type": "array"},
-                    "feature_enums": {"type": "object"},
-                },
-            }
-        },
+        responses={200: FeatureMetadataResponseSerializer},
         description="Get feature metadata including toggles and descriptions",
     )
     def get(self, request):
@@ -1079,9 +1065,7 @@ class SettingsMetadataView(APIView):
     authentication_classes = []
 
     @extend_schema(
-        responses={
-            200: {"type": "object", "properties": {"settings": {"type": "array"}}}
-        },
+        responses={200: SettingsMetadataResponseSerializer},
         description="Get settings metadata from Constance configuration",
     )
     def get(self, request):
