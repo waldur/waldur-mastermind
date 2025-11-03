@@ -287,6 +287,7 @@ td:nth-child(4) {
 | `preserve_fields_before_update` | `Django Signal (pre_save)` | `core.User` | Preserve fields of a user instance before it is updated. |
 | `process_hook` | `Django Signal (post_save)` | `logging.Event` | Process a hook for a given event. |
 | `projects_customer_has_been_changed` | `Custom Signal (project_moved)` | `structure.Project` | Recalculate quotas when a project's customer has been changed. |
+| `reactivate_user_if_gaining_roles` | `Custom Signal (role_granted)` | `—` | Reactivate a user if they were previously deactivated and are now gaining roles. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `structure.Project` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `waldur_aws.Instance` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `waldur_aws.Volume` | Recalculate count quota when an instance is created or deleted. |
@@ -720,11 +721,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 646
+Total unique handlers found: 647
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 333 handlers
+- **waldur_core**: 334 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 265 handlers
