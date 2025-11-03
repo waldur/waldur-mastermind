@@ -17,10 +17,15 @@ class OnboardingQuestionMetadataFilter(django_filters.FilterSet):
         field_name="question__checklist__uuid", label="Checklist uuid"
     )
     question_uuid = django_filters.UUIDFilter(field_name="question__uuid")
-    maps_to_customer_field = django_filters.CharFilter(
-        field_name="maps_to_customer_field"
+    question_description = django_filters.CharFilter(
+        field_name="question__description", lookup_expr="icontains"
     )
-    intent_field = django_filters.CharFilter(field_name="intent_field")
+    maps_to_customer_field = django_filters.CharFilter(
+        field_name="maps_to_customer_field", lookup_expr="icontains"
+    )
+    intent_field = django_filters.CharFilter(
+        field_name="intent_field", lookup_expr="icontains"
+    )
 
     class Meta:
         model = models.OnboardingQuestionMetadata

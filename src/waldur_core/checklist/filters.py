@@ -21,6 +21,10 @@ class ChecklistFilter(django_filters.FilterSet):
 
 class QuestionFilter(django_filters.FilterSet):
     checklist_uuid = django_filters.UUIDFilter(field_name="checklist__uuid")
+    checklist_type = django_filters.ChoiceFilter(
+        field_name="checklist__checklist_type",
+        choices=enums.ChecklistTypes.CHOICES,
+    )
 
     class Meta:
         model = models.Question

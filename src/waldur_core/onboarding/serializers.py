@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from waldur_core.checklist import models as checklist_models
+
 from . import enums
 from .models import (
     OnboardingCountryChecklistConfiguration,
@@ -47,16 +49,25 @@ class OnboardingCountryChecklistConfigurationSerializer(
 class OnboardingQuestionMetadataSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for OnboardingQuestionMetadata model."""
 
+    question = serializers.HyperlinkedRelatedField(
+        queryset=checklist_models.Question.objects.all(),
+        lookup_field="uuid",
+        view_name="checklists-admin-questions-detail",
+    )
     question_description = serializers.CharField(
         source="question.description", read_only=True
     )
     question_uuid = serializers.UUIDField(source="question.uuid", read_only=True)
+    checklist_name = serializers.CharField(
+        source="question.checklist.name", read_only=True
+    )
 
     class Meta:
         model = OnboardingQuestionMetadata
         fields = [
             "uuid",
             "url",
+            "checklist_name",
             "question",
             "question_uuid",
             "question_description",
@@ -69,10 +80,6 @@ class OnboardingQuestionMetadataSerializer(serializers.HyperlinkedModelSerialize
             "url": {
                 "lookup_field": "uuid",
                 "view_name": "onboarding-question-metadata-detail",
-            },
-            "question": {
-                "lookup_field": "uuid",
-                "view_name": "checklists-admin-questions-detail",
             },
         }
         read_only_fields = ["uuid", "created", "modified"]
