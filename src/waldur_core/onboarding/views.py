@@ -206,7 +206,9 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
         justification = OnboardingJustification.objects.create(
             verification=verification,
             user=request.user,
-            user_justification=serializer.validated_data["user_justification"],
+            user_justification=serializer.validated_data.get(
+                "user_justification", None
+            ),
         )
 
         response_serializer = OnboardingJustificationSerializer(justification)
