@@ -265,3 +265,48 @@ class UserDeactivationTest(test.APITransactionTestCase):
         staff_role.revoke()
         staff.refresh_from_db()
         self.assertTrue(staff.is_active)
+
+    def test_user_reactivated_when_granted_new_role(self):
+        # First, deactivate the user by revoking their role
+        self.role.revoke()
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+
+        # Then grant a new role and verify reactivation
+        self.customer.add_user(self.user, ServiceProviderRole.MANAGER)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_active)
+        self.assertTrue(
+            logging_models.Event.objects.filter(event_type="user_activated").exists()
+        )
+
+    def test_staff_not_reactivated_by_role_grant(self):
+        # Create inactive staff user
+        staff = structure_factories.UserFactory(is_active=False, is_staff=True)
+
+        # Grant role to staff - should not reactivate because they're staff
+        self.customer.add_user(staff, CustomerRole.OWNER)
+        staff.refresh_from_db()
+        self.assertFalse(staff.is_active)
+
+    def test_support_not_reactivated_by_role_grant(self):
+        # Create inactive support user
+        support = structure_factories.UserFactory(is_active=False, is_support=True)
+
+        # Grant role to support - should not reactivate because they're support
+        self.customer.add_user(support, CustomerRole.OWNER)
+        support.refresh_from_db()
+        self.assertFalse(support.is_active)
+
+    def test_reactivation_disabled_when_setting_false(self):
+        # Deactivate user first
+        self.role.revoke()
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+
+        # Disable the setting and grant role
+        with override_config(DEACTIVATE_USER_IF_NO_ROLES=False):
+            self.customer.add_user(self.user, ServiceProviderRole.MANAGER)
+            self.user.refresh_from_db()
+            # Should remain inactive because setting is disabled
+            self.assertFalse(self.user.is_active)

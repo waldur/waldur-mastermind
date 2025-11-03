@@ -13,6 +13,11 @@ class PermissionsConfig(AppConfig):
             dispatch_uid="waldur_core.permissions.log_role_granted",
         )
 
+        signals.role_granted.connect(
+            handlers.reactivate_user_if_gaining_roles,
+            dispatch_uid="waldur_core.permissions.reactivate_user_if_gaining_roles",
+        )
+
         signals.role_revoked.connect(
             handlers.log_role_revoked,
             dispatch_uid="waldur_core.permissions.log_role_revoked",

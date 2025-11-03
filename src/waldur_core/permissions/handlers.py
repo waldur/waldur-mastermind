@@ -165,3 +165,29 @@ def deactivate_user_if_no_roles(sender, instance, current_user=None, **kwargs):
             event_context={"affected_user": user},
             scopes=[user],
         )
+
+
+def reactivate_user_if_gaining_roles(sender, instance, current_user=None, **kwargs):
+    """Reactivate a user if they were previously deactivated and are now gaining roles."""
+    if not config.DEACTIVATE_USER_IF_NO_ROLES:
+        return
+    user = instance.user
+    if (
+        not user.is_active
+        and not user.is_staff
+        and not user.is_support
+        and UserRole.objects.filter(user=user, is_active=True).exists()
+    ):
+        user.is_active = True
+        user.save(update_fields=["is_active"])
+
+        logger.info(
+            f"User {user} (uuid={user.uuid}) has been reactivated automatically as they gained a new role."
+        )
+
+        event_logger.emit(
+            "User {affected_user_username} has been reactivated automatically as they gained a new role.",
+            event_type=EventType.USER_ACTIVATED,
+            event_context={"affected_user": user},
+            scopes=[user],
+        )
