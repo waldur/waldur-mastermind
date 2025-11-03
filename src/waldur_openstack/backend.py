@@ -4942,6 +4942,7 @@ class OpenStackBackend(ServiceBackend):
             "name": port.name,
             "description": port.description,
             "network_id": port.subnet.network.backend_id,
+            "tenant_id": port.tenant.backend_id,
             "fixed_ips": [
                 {
                     "subnet_id": port.subnet.backend_id,
