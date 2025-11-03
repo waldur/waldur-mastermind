@@ -3340,6 +3340,14 @@ class OpenStackBackend(ServiceBackend):
     def parse_backend_port(self, remote_port, **kwargs):
         fixed_ips = remote_port["fixed_ips"]
 
+        logger.debug(
+            "Parsing backend port %s: fixed_ips=%s, mac_address=%s, device_id=%s",
+            remote_port["id"],
+            fixed_ips,
+            remote_port["mac_address"],
+            remote_port.get("device_id"),
+        )
+
         local_port = models.Port(
             backend_id=remote_port["id"],
             mac_address=remote_port["mac_address"],
@@ -3994,10 +4002,28 @@ class OpenStackBackend(ServiceBackend):
 
             nics = []
 
+            logger.info(
+                "Processing %d ports for instance %s creation",
+                instance.ports.count(),
+                instance.name,
+            )
+
             for port in instance.ports.all():
                 if port.network.tenant != instance.tenant:
+                    logger.info(
+                        "Port %s: Different tenant network - using net-id %s (port fixed_ips: %s)",
+                        port.uuid,
+                        port.network.backend_id,
+                        port.fixed_ips,
+                    )
                     nics.append({"net-id": port.network.backend_id})
                 else:
+                    logger.info(
+                        "Port %s: Same tenant network - using port-id %s (port fixed_ips: %s)",
+                        port.uuid,
+                        port.backend_id,
+                        port.fixed_ips,
+                    )
                     nics.append({"port-id": port.backend_id})
 
             if (
@@ -4065,6 +4091,13 @@ class OpenStackBackend(ServiceBackend):
             server = nova.servers.create(**server_create_parameters)
             instance.backend_id = server.id
             instance.save()
+
+            logger.info(
+                "Instance %s created successfully with backend_id %s. NICs used: %s",
+                instance.name,
+                server.id,
+                nics,
+            )
         except nova_exceptions.ClientException as e:
             logger.exception("Failed to provision instance %s", instance.uuid)
             raise OpenStackBackendError(e)
@@ -4762,8 +4795,23 @@ class OpenStackBackend(ServiceBackend):
 
         subnet_mappings = {subnet.backend_id: subnet for subnet in subnets}
 
+        logger.info(
+            "Pulling %d ports from OpenStack for instance %s (backend_id: %s)",
+            len(backend_ports),
+            instance.name,
+            instance.backend_id,
+        )
+
         with transaction.atomic():
             for backend_port in backend_ports:
+                logger.info(
+                    "Processing backend port %s: fixed_ips=%s, mac_address=%s, status=%s",
+                    backend_port["id"],
+                    backend_port.get("fixed_ips", []),
+                    backend_port.get("mac_address"),
+                    backend_port.get("status"),
+                )
+
                 imported_port = self.parse_backend_port(backend_port, instance=instance)
                 subnet = subnet_mappings.get(imported_port._subnet_backend_id)
                 if subnet is None:
@@ -4777,6 +4825,13 @@ class OpenStackBackend(ServiceBackend):
 
                 if imported_port._subnet_backend_id in pending_ips:
                     port = pending_ips[imported_port._subnet_backend_id]
+                    logger.info(
+                        "Updating pending port %s: old_fixed_ips=%s, new_fixed_ips=%s, new_backend_id=%s",
+                        port.uuid,
+                        port.fixed_ips,
+                        imported_port.fixed_ips,
+                        imported_port.backend_id,
+                    )
                     # Update backend ID for pending port
                     update_pulled_fields(
                         port,
@@ -4786,6 +4841,12 @@ class OpenStackBackend(ServiceBackend):
 
                 elif imported_port.backend_id in existing_ips:
                     port = existing_ips[imported_port.backend_id]
+                    logger.info(
+                        "Updating existing port %s: old_fixed_ips=%s, new_fixed_ips=%s",
+                        port.uuid,
+                        port.fixed_ips,
+                        imported_port.fixed_ips,
+                    )
                     update_pulled_fields(
                         port,
                         imported_port,
@@ -4807,10 +4868,13 @@ class OpenStackBackend(ServiceBackend):
                         port.save()
 
                 else:
-                    logger.debug(
-                        "About to create port. Instance ID: %s, subnet ID: %s",
+                    logger.info(
+                        "Creating new port from OpenStack data. Instance ID: %s, subnet ID: %s, "
+                        "backend_port_id: %s, fixed_ips: %s",
                         instance.backend_id,
                         subnet.backend_id,
+                        imported_port.backend_id,
+                        imported_port.fixed_ips,
                     )
                     port = imported_port
                     port.subnet = subnet
@@ -4820,6 +4884,11 @@ class OpenStackBackend(ServiceBackend):
                     port.service_settings = subnet.service_settings
                     port.instance = instance
                     port.save()
+                    logger.info(
+                        "New port created and saved: %s with fixed_ips: %s",
+                        port.uuid,
+                        port.fixed_ips,
+                    )
 
             # remove stale ports
             frontend_ids = set(existing_ips.keys())
@@ -4906,14 +4975,45 @@ class OpenStackBackend(ServiceBackend):
                 self.create_instance_port(port, security_groups)
 
     def create_instance_port(self, port: models.Port, instance_security_groups):
-        session = get_tenant_session(port.tenant)
+        # Use admin session for shared networks to ensure proper authorization
+        # For same-tenant networks, use the tenant session as before
+        if port.instance and (port.network.tenant != port.instance.tenant):
+            # Network is shared - use admin session for full access
+            session = self.admin_session
+            logger.info(
+                "Using admin session for shared network port creation. "
+                "Network tenant: %s, Instance tenant: %s",
+                port.network.tenant.uuid,
+                port.instance.tenant.uuid,
+            )
+        else:
+            # Same tenant - use port's tenant session as before
+            session = get_tenant_session(port.tenant)
+            logger.info(
+                "Using tenant session for same-tenant network port creation. "
+                "Tenant: %s",
+                port.tenant.uuid,
+            )
+
         neutron = get_neutron_client(session)
         security_groups = []
 
-        logger.debug(
-            "About to create network port. Network ID: %s. Subnet ID: %s.",
+        logger.info(
+            "About to create network port. Network ID: %s. Subnet ID: %s. Port name: %s. "
+            "Network tenant: %s, Instance tenant: %s",
             port.subnet.network.backend_id,
             port.subnet.backend_id,
+            port.name,
+            port.network.tenant.backend_id,
+            port.tenant.backend_id,
+        )
+
+        # Log initial port state
+        logger.info(
+            "Initial port state - fixed_ips: %s, mac_address: %s, port_tenant_id: %s",
+            port.fixed_ips,
+            port.mac_address,
+            port.tenant.backend_id,
         )
 
         if port.instance and (port.network.tenant != port.instance.tenant):
@@ -4938,11 +5038,15 @@ class OpenStackBackend(ServiceBackend):
         else:
             security_groups = instance_security_groups
 
+        # For shared networks, we need to ensure the port is created in the correct tenant context
+        # The tenant_id should be the instance's tenant (where the port logically belongs)
+        # but the session should be from the network owner for authorization
         port_payload = {
             "name": port.name,
             "description": port.description,
             "network_id": port.subnet.network.backend_id,
-            "tenant_id": port.tenant.backend_id,
+            "tenant_id": port.tenant.backend_id,  # Instance tenant (where port belongs)
+            "project_id": port.tenant.backend_id,  # Instance tenant (where port belongs)
             "fixed_ips": [
                 {
                     "subnet_id": port.subnet.backend_id,
@@ -4951,21 +5055,74 @@ class OpenStackBackend(ServiceBackend):
             "security_groups": security_groups,
         }
 
+        session_type = (
+            "admin"
+            if (port.instance and port.network.tenant != port.instance.tenant)
+            else "tenant"
+        )
+        logger.info(
+            "Port payload tenant context - tenant_id: %s, network_owner: %s, session_type: %s",
+            port.tenant.backend_id,
+            port.network.tenant.backend_id,
+            session_type,
+        )
+
         if port.mac_address:
             port_payload["mac_address"] = port.mac_address
 
         if port.fixed_ips:
             port_payload["fixed_ips"] = port.fixed_ips
+            logger.info(
+                "Using pre-defined fixed_ips from port model: %s",
+                port.fixed_ips,
+            )
+        else:
+            logger.info(
+                "No pre-defined fixed_ips, letting OpenStack auto-assign from subnet %s",
+                port.subnet.backend_id,
+            )
+
+        logger.info(
+            "Port creation payload: %s",
+            port_payload,
+        )
 
         try:
             backend_port = neutron.create_port({"port": port_payload})["port"]
         except neutron_exceptions.NeutronClientException as e:
+            logger.error(
+                "Failed to create port. Payload was: %s. Error: %s",
+                port_payload,
+                e,
+            )
             raise OpenStackBackendError(e)
+
+        logger.info(
+            "OpenStack returned port data - id: %s, mac_address: %s, fixed_ips: %s, status: %s",
+            backend_port["id"],
+            backend_port["mac_address"],
+            backend_port["fixed_ips"],
+            backend_port.get("status", "unknown"),
+        )
+
+        # Log before saving to Waldur
+        logger.info(
+            "Before saving to Waldur - port.fixed_ips was: %s, will be set to: %s",
+            port.fixed_ips,
+            backend_port["fixed_ips"],
+        )
 
         port.mac_address = backend_port["mac_address"]
         port.fixed_ips = backend_port["fixed_ips"]
         port.backend_id = backend_port["id"]
         port.save()
+
+        logger.info(
+            "Port successfully created and saved. Waldur port ID: %s, Backend ID: %s, Final fixed_ips: %s",
+            port.uuid,
+            port.backend_id,
+            port.fixed_ips,
+        )
 
     @log_backend_action()
     def update_port_name_and_description(self, port: models.Port):
