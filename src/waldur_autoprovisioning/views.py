@@ -9,9 +9,7 @@ from waldur_core.structure import permissions as structure_permissions
 from . import serializers
 
 
-@extend_schema(
-    tags=["Autoprovisioning Rules"], description="Manage autoprovisioning rules."
-)
+@extend_schema(description="Manage autoprovisioning rules.")
 class RuleViewSet(ActionsViewSet):
     queryset = models.Rule.objects.all().order_by("-customer")
     serializer_class = serializers.RuleSerializer
