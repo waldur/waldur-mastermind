@@ -3076,7 +3076,9 @@ class OpenStackBackend(ServiceBackend):
 
     @log_backend_action()
     def create_port(self, port: models.Port):
-        session = get_tenant_session(port.tenant)
+        # Use admin session for all port creation to ensure consistent behavior
+        # and avoid authorization issues with shared networks
+        session = self.admin_session
         neutron = get_neutron_client(session)
         network = port.network
 
@@ -3086,6 +3088,13 @@ class OpenStackBackend(ServiceBackend):
             "network_id": network.backend_id,
             "tenant_id": port.tenant.backend_id,
         }
+
+        logger.info(
+            "Port creation payload - network_id: %s, tenant_id: %s, network_tenant: %s, session_type: admin",
+            network.backend_id,
+            port.tenant.backend_id,
+            port.network.tenant.backend_id,
+        )
         if port.fixed_ips:
             port_payload["fixed_ips"] = port.fixed_ips
 
@@ -4975,26 +4984,9 @@ class OpenStackBackend(ServiceBackend):
                 self.create_instance_port(port, security_groups)
 
     def create_instance_port(self, port: models.Port, instance_security_groups):
-        # Use admin session for shared networks to ensure proper authorization
-        # For same-tenant networks, use the tenant session as before
-        if port.instance and (port.network.tenant != port.instance.tenant):
-            # Network is shared - use admin session for full access
-            session = self.admin_session
-            logger.info(
-                "Using admin session for shared network port creation. "
-                "Network tenant: %s, Instance tenant: %s",
-                port.network.tenant.uuid,
-                port.instance.tenant.uuid,
-            )
-        else:
-            # Same tenant - use port's tenant session as before
-            session = get_tenant_session(port.tenant)
-            logger.info(
-                "Using tenant session for same-tenant network port creation. "
-                "Tenant: %s",
-                port.tenant.uuid,
-            )
-
+        # Use admin session for all port creation to ensure consistent behavior
+        # and avoid authorization issues with shared networks
+        session = self.admin_session
         neutron = get_neutron_client(session)
         security_groups = []
 
@@ -5055,16 +5047,10 @@ class OpenStackBackend(ServiceBackend):
             "security_groups": security_groups,
         }
 
-        session_type = (
-            "admin"
-            if (port.instance and port.network.tenant != port.instance.tenant)
-            else "tenant"
-        )
         logger.info(
-            "Port payload tenant context - tenant_id: %s, network_owner: %s, session_type: %s",
+            "Port payload tenant context - tenant_id: %s, network_owner: %s, session_type: admin",
             port.tenant.backend_id,
             port.network.tenant.backend_id,
-            session_type,
         )
 
         if port.mac_address:
