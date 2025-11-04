@@ -6,6 +6,7 @@ from uuid import UUID
 
 from django.apps import apps
 from django.conf import settings
+from django.conf import settings as django_settings
 from django.contrib.auth.models import PermissionsMixin, UserManager
 from django.core import validators
 from django.db import models, transaction
@@ -424,6 +425,17 @@ class User(
         verbose_name = _("user")
         verbose_name_plural = _("users")
         ordering = ["username"]
+
+    @property
+    def should_protect_user_details(self) -> bool:
+        """Return True if user profile fields (like organization) must be read-only."""
+
+        protected_methods = django_settings.WALDUR_CORE[
+            "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS"
+        ]
+        return bool(
+            self.registration_method and self.registration_method in protected_methods
+        )
 
     def save(self, *args, **kwargs):
         if "update_fields" in kwargs and "query_field" not in kwargs["update_fields"]:

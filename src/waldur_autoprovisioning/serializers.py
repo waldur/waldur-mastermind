@@ -83,6 +83,7 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
             "customer",
             "customer_name",
             "customer_uuid",
+            "use_user_organization_as_customer_name",
             "project_role",
             "project_role_name",  # used for accepting role name to set
             "project_role_display_name",  # used for displaying the role name
@@ -119,6 +120,13 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
     def validate(self, attrs):
         project_role = attrs.get("project_role")
         project_role_name = attrs.get("project_role_name")
+        # Compose values considering update vs create
+        instance = getattr(self, "instance", None)
+        customer = attrs.get("customer", getattr(instance, "customer", None))
+        use_org_as_customer = attrs.get(
+            "use_user_organization_as_customer_name",
+            getattr(instance, "use_user_organization_as_customer_name", False),
+        )
 
         # Treat empty string as None for project_role_name
         if project_role_name == "":
@@ -135,6 +143,12 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
         if not project_role and not project_role_name:
             raise serializers.ValidationError(
                 "Either project_role or project_role_name must be provided."
+            )
+
+        # Either explicit customer must be set or we must take customer from user's organization
+        if not customer and not use_org_as_customer:
+            raise serializers.ValidationError(
+                "Either customer must be specified or use_user_organization_as_customer_name must be true."
             )
 
         if (

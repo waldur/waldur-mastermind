@@ -284,3 +284,29 @@ class RuleSerializerPlanFieldTest(TestCase):
 
         serializer = RuleSerializer(data=data, context={"request": self.request})
         self.assertFalse(serializer.is_valid())
+
+
+class RuleSerializerNoCustomerTest(TestCase):
+    def setUp(self):
+        self.project_admin = ProjectRole.ADMIN
+        self.valid_data = {
+            "name": "test_rule",
+            "user_email_patterns": [".*@example.com", "test@.*"],
+            "user_affiliations": ["staff"],
+            "project_role_name": "PROJECT.ADMIN",
+        }
+
+    def test_rule_creation_without_customer_is_invalid_if_flag_false(self):
+        serializer = RuleSerializer(data=self.valid_data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("non_field_errors", serializer.errors)
+        self.assertIn(
+            "Either customer must be specified or use_user_organization_as_customer_name must be true.",
+            str(serializer.errors["non_field_errors"]),
+        )
+
+    def test_rule_creation_without_customer_is_valid_if_flag_true(self):
+        data = self.valid_data.copy()
+        data["use_user_organization_as_customer_name"] = True
+        serializer = RuleSerializer(data=data)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
