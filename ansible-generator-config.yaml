@@ -386,6 +386,8 @@ collections:
           security_groups:
             base: "openstack_security_groups"
             filter_by: *tenant_filter
+          target_tenant:
+            base: "openstack_tenants"
 
       # --- Action Modules ---
       - name: subnet_action
