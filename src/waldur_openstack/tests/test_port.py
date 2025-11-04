@@ -69,12 +69,16 @@ class PortCreateTest(BasePortTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         create_port_executor_mock.assert_not_called()
 
-    @mock.patch("waldur_openstack.session.neutron_client.Client")
-    @mock.patch("waldur_openstack.backend.get_tenant_session")
+    @mock.patch("neutronclient.v2_0.client.Client")
+    @mock.patch("waldur_openstack.backend.get_keystone_session")
     def test_port_creation_passes_fixed_ips_to_backend(
-        self, mock_get_tenant_session, mock_get_neutron_client
+        self, mock_get_keystone_session, mock_neutron_client
     ):
-        mock_neutron_instance = mock_get_neutron_client.return_value
+        # Mock the session to avoid OpenStack authentication
+        mock_session = mock.MagicMock()
+        mock_get_keystone_session.return_value = mock_session
+
+        mock_neutron_instance = mock_neutron_client.return_value
 
         mock_neutron_instance.create_port.return_value = {
             "port": {

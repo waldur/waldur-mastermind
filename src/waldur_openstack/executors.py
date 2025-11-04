@@ -295,9 +295,7 @@ class TenantImportExecutor(core_executors.ActionExecutor):
                 serialized_tenant, state_transition="set_ok"
             ),
             tasks.SendSignalTenantPullSucceeded().si(serialized_tenant),
-            core_tasks.BackendMethodTask().si(
-                serialized_tenant, "create_offerings_for_volume_and_instance"
-            ),
+            tasks.create_offerings_task.si(serialized_tenant),
         )
 
 
