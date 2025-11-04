@@ -1201,6 +1201,14 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
     security_groups = OpenStackPortNestedSecurityGroupSerializer(
         many=True, required=False
     )
+    target_tenant = serializers.HyperlinkedRelatedField(
+        view_name="openstack-tenant-detail",
+        lookup_field="uuid",
+        queryset=models.Tenant.objects.filter(state=CoreStates.OK).all(),
+        write_only=True,
+        required=False,
+        help_text="Target tenant for shared network port creation. If not specified, defaults to network's tenant.",
+    )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Port
@@ -1211,6 +1219,7 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
             "tenant",
             "tenant_name",
             "tenant_uuid",
+            "target_tenant",
             "network",
             "network_name",
             "network_uuid",
@@ -1308,7 +1317,37 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
         attrs["service_settings"] = network.service_settings
         attrs["project"] = network.project
         attrs["network"] = network
-        attrs["tenant"] = network.tenant
+
+        # Use target_tenant if provided for shared networks, otherwise default to network.tenant
+        target_tenant = attrs.get("target_tenant")
+        if target_tenant:
+            # Validate that the target tenant can access this network via RBAC
+            if target_tenant != network.tenant:
+                # Check if network is shared with target_tenant via RBAC policy
+                rbac_exists = models.NetworkRBACPolicy.objects.filter(
+                    network=network,
+                    target_tenant=target_tenant,
+                    policy_type__in=["access_as_shared", "access_as_external"],
+                ).exists()
+
+                if not rbac_exists:
+                    raise serializers.ValidationError(
+                        {
+                            "target_tenant": _(
+                                "Target tenant %(tenant)s does not have access to network %(network)s. "
+                                "Network must be shared via RBAC policy."
+                            )
+                            % {
+                                "tenant": target_tenant.uuid,
+                                "network": network.name,
+                            }
+                        }
+                    )
+
+            attrs["tenant"] = target_tenant
+            attrs["project"] = target_tenant.project
+        else:
+            attrs["tenant"] = network.tenant
 
         return super().validate(attrs)
 
@@ -1755,6 +1794,81 @@ class OpenStackCreatePortSerializer(serializers.HyperlinkedModelSerializer):
         queryset=models.Port.objects.filter(status="DOWN"),
         required=False,
     )
+    tenant = serializers.HyperlinkedRelatedField(
+        view_name="openstack-tenant-detail",
+        lookup_field="uuid",
+        queryset=models.Tenant.objects.filter(state=CoreStates.OK).all(),
+        write_only=True,
+        required=False,
+        help_text="Target tenant for port creation. If not specified, uses subnet's tenant.",
+    )
+
+    class Meta:
+        model = models.Port
+        fields = (
+            "fixed_ips",
+            "subnet",
+            "port",
+            "tenant",
+        )
+        extra_kwargs = {
+            "subnet": {
+                "lookup_field": "uuid",
+                "view_name": "openstack-subnet-detail",
+            },
+        }
+
+    def validate_fixed_ips(self, value):
+        OpenStackFixedIpSerializer(data=value, many=True).is_valid(raise_exception=True)
+        return value
+
+    def to_internal_value(self, data):
+        internal_value = super().to_internal_value(data)
+        port: models.Port | None = internal_value.get("port")
+
+        if port:
+            return port
+
+        subnet: models.SubNet = internal_value.get("subnet")
+        fixed_ips = internal_value.get("fixed_ips")
+
+        # For instance creation, we need to determine the correct tenant
+        # The tenant should be set by the parent instance serializer context
+        # If not available, fall back to subnet.tenant (original behavior)
+        instance_tenant = None
+        if hasattr(self, "context") and self.context:
+            # Try to get instance tenant from parent serializer context
+            parent_serializer = self.context.get("parent_serializer")
+            if parent_serializer and hasattr(parent_serializer, "validated_data"):
+                instance_tenant = parent_serializer.validated_data.get("tenant")
+
+        # Use instance tenant if available, otherwise fall back to subnet tenant
+        port_tenant = instance_tenant if instance_tenant else subnet.tenant
+        port_project = instance_tenant.project if instance_tenant else subnet.project
+
+        return models.Port(
+            subnet=subnet,
+            network=subnet.network,
+            tenant=port_tenant,
+            project=port_project,
+            service_settings=subnet.service_settings,
+            fixed_ips=fixed_ips,
+        )
+
+
+class OpenStackCreateInstancePortSerializer(serializers.HyperlinkedModelSerializer):
+    """
+    Port serializer specifically for instance creation that handles shared networks correctly.
+    Always assigns ports to the instance's tenant, not the network's tenant.
+    """
+
+    fixed_ips = OpenStackFixedIpField(required=False)
+    port = serializers.HyperlinkedRelatedField(
+        view_name="openstack-port-detail",
+        lookup_field="uuid",
+        queryset=models.Port.objects.filter(status="DOWN"),
+        required=False,
+    )
 
     class Meta:
         model = models.Port
@@ -1783,11 +1897,14 @@ class OpenStackCreatePortSerializer(serializers.HyperlinkedModelSerializer):
 
         subnet: models.SubNet = internal_value.get("subnet")
         fixed_ips = internal_value.get("fixed_ips")
+
+        # For instance creation, initially set to subnet's tenant
+        # This will be corrected to instance's tenant during instance creation
         return models.Port(
             subnet=subnet,
             network=subnet.network,
-            tenant=subnet.tenant,
-            project=subnet.project,
+            tenant=subnet.tenant,  # Initially use subnet's tenant (will be corrected later)
+            project=subnet.project,  # Initially use subnet's project (will be corrected later)
             service_settings=subnet.service_settings,
             fixed_ips=fixed_ips,
         )
@@ -2843,7 +2960,7 @@ class OpenStackInstanceCreateSerializer(OpenStackInstanceSerializer):
         write_only=True,
         help_text=_("Server group for instance scheduling policy"),
     )
-    ports = OpenStackCreatePortSerializer(
+    ports = OpenStackCreateInstancePortSerializer(
         many=True,
         required=True,
         help_text=_("Network ports to attach to the instance"),
@@ -3128,6 +3245,17 @@ class OpenStackInstanceCreateSerializer(OpenStackInstanceSerializer):
         for port in ports:
             port.backend_id = None
             port.instance = instance
+            # For shared networks: always assign port to instance's tenant
+            # This ensures ports belong to the instance tenant, not the network owner
+            try:
+                # Check if network is shared (different from instance tenant)
+                if port.network.tenant != tenant:
+                    port.tenant = tenant
+                    port.project = project
+            except Exception:
+                # If there's any issue accessing port.tenant, set it to instance tenant
+                port.tenant = tenant
+                port.project = project
             port.save()
         for floating_ip, subnet in floating_ips_with_subnets:
             _connect_floating_ip_to_instance(floating_ip, subnet, instance)

@@ -1069,9 +1069,25 @@ class OpenStackBackend(ServiceBackend):
         neutron = get_neutron_client(self.admin_session)
 
         for port in instance.ports.all():
-            status = neutron.show_port(port.backend_id)["port"]["status"]
-            port.status = status
-            port.save(update_fields=["status"])
+            backend_port = neutron.show_port(port.backend_id)["port"]
+
+            # Update all relevant port status fields
+            port.status = backend_port["status"]
+            port.device_id = backend_port.get("device_id")
+            port.device_owner = backend_port.get("device_owner", "")
+            port.admin_state_up = backend_port.get("admin_state_up")
+            port.save(
+                update_fields=["status", "device_id", "device_owner", "admin_state_up"]
+            )
+
+            logger.info(
+                "Updated port %s status: %s, device_id: %s, device_owner: %s, admin_state_up: %s",
+                port.uuid,
+                port.status,
+                port.device_id,
+                port.device_owner,
+                port.admin_state_up,
+            )
 
     def pull_tenant_ports(self, tenant: models.Tenant):
         session = get_tenant_session(tenant)
@@ -5101,13 +5117,23 @@ class OpenStackBackend(ServiceBackend):
         port.mac_address = backend_port["mac_address"]
         port.fixed_ips = backend_port["fixed_ips"]
         port.backend_id = backend_port["id"]
+        port.admin_state_up = backend_port["admin_state_up"]
+        port.port_security_enabled = backend_port["port_security_enabled"]
+        port.device_owner = backend_port["device_owner"]
+        port.status = backend_port["status"]
+        port.state = CoreStates.OK  # Set port state to OK after successful creation
         port.save()
 
         logger.info(
-            "Port successfully created and saved. Waldur port ID: %s, Backend ID: %s, Final fixed_ips: %s",
+            "Port successfully created and saved. Waldur port ID: %s, Backend ID: %s, "
+            "Fixed IPs: %s, State: %s, Admin State: %s, Status: %s, Device Owner: %s",
             port.uuid,
             port.backend_id,
             port.fixed_ips,
+            port.state,
+            port.admin_state_up,
+            port.status,
+            port.device_owner,
         )
 
     @log_backend_action()
