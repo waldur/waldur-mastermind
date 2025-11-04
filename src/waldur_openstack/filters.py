@@ -129,6 +129,15 @@ class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
         method="filter_exclude_subnet_uuids",
         label="Exclude Subnet UUIDs (comma-separated)",
     )
+    network_name = django_filters.CharFilter(
+        label="Search by network name", field_name="network__name"
+    )
+    network_uuid = django_filters.UUIDFilter(
+        label="Search by network UUID", field_name="network__uuid"
+    )
+    fixed_ips = django_filters.CharFilter(
+        label="Search by fixed IP", lookup_expr="icontains"
+    )
 
     def filter_has_device_owner(self, queryset, name, value):
         if value:
