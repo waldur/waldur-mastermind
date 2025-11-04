@@ -6,6 +6,7 @@ from django.test import TestCase
 from waldur_autoprovisioning import handlers, models
 from waldur_autoprovisioning.tests import factories as autoprovisioning_factories
 from waldur_core.core.models import User
+from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -211,3 +212,42 @@ class GetOrCreateProjectWithTemplateTest(TestCase):
         self.assertIsNotNone(project)
         self.assertTrue(project.has_user(self.user, ProjectRole.MANAGER))
         self.assertFalse(project.has_user(self.user, ProjectRole.ADMIN))
+
+
+class ProjectProvisionByOrganizationTest(TestCase):
+    def setUp(self):
+        self.organization_name = "OrgFromIdP"
+        self.customer = structure_models.Customer.objects.create(
+            name=self.organization_name
+        )
+        self.plan = marketplace_factories.PlanFactory()
+        self.plan.offering.type = MARKETPLACE_BASIC
+        self.plan.offering.save()
+        self.rule = autoprovisioning_factories.RuleFactory(
+            plan=self.plan, user_email_patterns=[".+@example.com"], customer=None
+        )
+        # Enable taking customer from user's organization
+        self.rule.use_user_organization_as_customer_name = True
+        self.rule.save()
+
+    @override_waldur_core_settings(
+        PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS=["PROTECTED"]
+    )
+    @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
+    def test_project_created_for_user_organization(self, mock_process_order):
+        user = User.objects.create(
+            username="orguser",
+            email="orguser@example.com",
+            organization=self.organization_name,
+            registration_method="PROTECTED",
+        )
+        project = structure_models.Project.available_objects.filter(
+            name=user.username, customer=self.customer
+        ).first()
+        self.assertIsNotNone(
+            project, "Project should be created for user's organization"
+        )
+        self.assertTrue(
+            project.has_user(user, ProjectRole.ADMIN),
+            "User should have ADMIN role in the project",
+        )

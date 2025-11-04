@@ -18,7 +18,9 @@ class Rule(
     class Permissions:
         customer_path = "customer"
 
-    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
+    customer = models.ForeignKey(
+        structure_models.Customer, on_delete=models.CASCADE, null=True
+    )
     plan = models.ForeignKey(
         marketplace_models.Plan,
         on_delete=models.CASCADE,
@@ -33,6 +35,7 @@ class Rule(
         null=True,
         blank=True,
     )
+    use_user_organization_as_customer_name = models.BooleanField(default=False)
 
     @classmethod
     def get_url_name(cls):
