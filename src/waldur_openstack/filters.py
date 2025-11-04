@@ -118,7 +118,19 @@ class RouterFilter(TenantFilterSet, structure_filters.NameFilterSet):
 
 
 class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
-    o = django_filters.OrderingFilter(fields=(("network__name", "network_name"),))
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("name", "name"),
+            ("created", "created"),
+            ("mac_address", "mac_address"),
+            ("device_owner", "device_owner"),
+            ("admin_state_up", "admin_state_up"),
+            ("status", "status"),
+            ("network__name", "network_name"),
+            ("subnet__name", "subnet_name"),
+            ("instance__name", "instance_name"),
+        )
+    )
     query = django_filters.CharFilter(
         method="filter_query", label="Search by name, MAC address or backend ID"
     )

@@ -4034,22 +4034,7 @@ class OpenStackBackend(ServiceBackend):
             )
 
             for port in instance.ports.all():
-                if port.network.tenant != instance.tenant:
-                    logger.info(
-                        "Port %s: Different tenant network - using net-id %s (port fixed_ips: %s)",
-                        port.uuid,
-                        port.network.backend_id,
-                        port.fixed_ips,
-                    )
-                    nics.append({"net-id": port.network.backend_id})
-                else:
-                    logger.info(
-                        "Port %s: Same tenant network - using port-id %s (port fixed_ips: %s)",
-                        port.uuid,
-                        port.backend_id,
-                        port.fixed_ips,
-                    )
-                    nics.append({"port-id": port.backend_id})
+                nics.append({"port-id": port.backend_id})
 
             if (
                 settings.WALDUR_OPENSTACK["ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION"]
@@ -4595,6 +4580,11 @@ class OpenStackBackend(ServiceBackend):
                     instance.image_name = str(
                         backend_image.name
                     )  # Ensure string conversion
+                else:
+                    # Don't clear image_name if image is not found in backend
+                    # This preserves the original image name that was set during creation
+                    # Only leave unchanged if we have no existing value
+                    pass  # Leave instance.image_name unchanged (will remain empty for new instances)
         elif backend_image_name:
             # Use the provided image name directly (from volume metadata fallback)
             instance.image_name = str(backend_image_name)  # Ensure string conversion
@@ -4816,6 +4806,37 @@ class OpenStackBackend(ServiceBackend):
             )
         }
 
+        # Enhanced logging for debugging shared network port issues
+        logger.debug(
+            "Port matching sets for instance %s (tenant: %s):",
+            instance.name,
+            instance.tenant.uuid,
+        )
+        logger.debug(
+            "- existing_ips (%d ports): %s",
+            len(existing_ips),
+            {
+                k: f"port_{str(v.uuid)[:8]}(tenant_{str(v.tenant.uuid)[:8]})"
+                for k, v in existing_ips.items()
+            },
+        )
+        logger.debug(
+            "- pending_ips (%d ports): %s",
+            len(pending_ips),
+            {
+                k: f"port_{str(v.uuid)[:8]}(tenant_{str(v.tenant.uuid)[:8]})"
+                for k, v in pending_ips.items()
+            },
+        )
+        logger.debug(
+            "- local_ips (%d ports): %s",
+            len(local_ips),
+            {
+                k: f"port_{str(v.uuid)[:8]}(tenant_{str(v.tenant.uuid)[:8]})"
+                for k, v in local_ips.items()
+            },
+        )
+
         subnets = instance.tenant.available_subnets
 
         subnet_mappings = {subnet.backend_id: subnet for subnet in subnets}
@@ -4839,6 +4860,45 @@ class OpenStackBackend(ServiceBackend):
 
                 imported_port = self.parse_backend_port(backend_port, instance=instance)
                 subnet = subnet_mappings.get(imported_port._subnet_backend_id)
+
+                # Enhanced logging for port matching decisions
+                logger.debug(
+                    "Port matching analysis for backend_port %s:",
+                    imported_port.backend_id,
+                )
+                logger.debug(
+                    "  - subnet_backend_id: %s (mapped to subnet: %s)",
+                    imported_port._subnet_backend_id,
+                    str(subnet.uuid)[:8] if subnet else "None",
+                )
+                logger.debug(
+                    "  - in pending_ips: %s",
+                    imported_port._subnet_backend_id in pending_ips,
+                )
+                logger.debug(
+                    "  - in existing_ips: %s",
+                    imported_port.backend_id in existing_ips,
+                )
+                logger.debug(
+                    "  - in local_ips: %s",
+                    imported_port.backend_id in local_ips,
+                )
+                if imported_port.backend_id in local_ips:
+                    existing_port = local_ips[imported_port.backend_id]
+                    logger.debug(
+                        "  - local_ips port details: port_%s (instance: %s, tenant: %s)",
+                        str(existing_port.uuid)[:8],
+                        str(existing_port.instance.uuid)[:8]
+                        if existing_port.instance
+                        else "None",
+                        str(existing_port.tenant.uuid)[:8],
+                    )
+                    logger.debug(
+                        "  - current instance: %s (tenant: %s)",
+                        str(instance.uuid)[:8],
+                        str(instance.tenant.uuid)[:8],
+                    )
+
                 if subnet is None:
                     logger.warning(
                         "Skipping Neutron port synchronization process because "
@@ -4850,8 +4910,8 @@ class OpenStackBackend(ServiceBackend):
 
                 if imported_port._subnet_backend_id in pending_ips:
                     port = pending_ips[imported_port._subnet_backend_id]
-                    logger.info(
-                        "Updating pending port %s: old_fixed_ips=%s, new_fixed_ips=%s, new_backend_id=%s",
+                    logger.debug(
+                        "[PATH: PENDING] Updating pending port %s: old_fixed_ips=%s, new_fixed_ips=%s, new_backend_id=%s",
                         port.uuid,
                         port.fixed_ips,
                         imported_port.fixed_ips,
@@ -4866,8 +4926,8 @@ class OpenStackBackend(ServiceBackend):
 
                 elif imported_port.backend_id in existing_ips:
                     port = existing_ips[imported_port.backend_id]
-                    logger.info(
-                        "Updating existing port %s: old_fixed_ips=%s, new_fixed_ips=%s",
+                    logger.debug(
+                        "[PATH: EXISTING] Updating existing port %s: old_fixed_ips=%s, new_fixed_ips=%s",
                         port.uuid,
                         port.fixed_ips,
                         imported_port.fixed_ips,
@@ -4884,17 +4944,26 @@ class OpenStackBackend(ServiceBackend):
                 elif imported_port.backend_id in local_ips:
                     port = local_ips[imported_port.backend_id]
                     if port.instance != instance:
-                        logger.info(
-                            "About to reassign shared port from instance %s to instance %s",
-                            port.instance,
-                            instance,
+                        logger.warning(
+                            "[PATH: LOCAL-REASSIGN] *** POTENTIAL ISSUE *** About to reassign shared port %s from instance %s (tenant %s) to instance %s (tenant %s). "
+                            "This might be the cause of the wrong port assignment!",
+                            str(port.uuid)[:8],
+                            str(port.instance.uuid)[:8] if port.instance else "None",
+                            str(port.tenant.uuid)[:8],
+                            str(instance.uuid)[:8],
+                            str(instance.tenant.uuid)[:8],
                         )
                         port.instance = instance
                         port.save()
+                    else:
+                        logger.debug(
+                            "[PATH: LOCAL-UPDATE] Port %s already assigned to correct instance",
+                            str(port.uuid)[:8],
+                        )
 
                 else:
-                    logger.info(
-                        "Creating new port from OpenStack data. Instance ID: %s, subnet ID: %s, "
+                    logger.debug(
+                        "[PATH: NEW] Creating new port from OpenStack data. Instance ID: %s, subnet ID: %s, "
                         "backend_port_id: %s, fixed_ips: %s",
                         instance.backend_id,
                         subnet.backend_id,
@@ -5024,26 +5093,33 @@ class OpenStackBackend(ServiceBackend):
             port.tenant.backend_id,
         )
 
+        # Enhanced logging for security group assignment
+        logger.debug("Security group assignment analysis:")
+        logger.debug(
+            "  - Instance security groups: %s",
+            [f"{sg_id}" for sg_id in instance_security_groups],
+        )
+        logger.debug(
+            "  - Network tenant != Instance tenant: %s (network: %s, instance: %s)",
+            port.instance and (port.network.tenant != port.instance.tenant),
+            port.network.tenant.uuid,
+            port.instance.tenant.uuid if port.instance else "None",
+        )
+
         if port.instance and (port.network.tenant != port.instance.tenant):
-            for s in instance_security_groups:
-                group_name = models.SecurityGroup.objects.get(backend_id=s).name
-                network_group = models.SecurityGroup.objects.filter(
-                    tenant=port.network.tenant, name=group_name
-                ).first()
-                if network_group:
-                    logger.info(
-                        "Found matching security group %s (backend_id: %s) in network tenant.",
-                        network_group.name,
-                        network_group.backend_id,
-                    )
-                    security_groups.append(network_group.backend_id)
-                else:
-                    logger.warning(
-                        "Security group %s not found in network tenant %s.",
-                        group_name,
-                        port.network.tenant.uuid,
-                    )
+            # RBAC shared network scenario: security groups from instance tenant should be used directly
+            # The original logic tried to find matching security groups in the network tenant,
+            # but this is incorrect - security groups belong to the instance tenant
+            logger.debug(
+                "[SHARED NETWORK] Using instance security groups directly for RBAC shared network: %s",
+                instance_security_groups,
+            )
+            security_groups = instance_security_groups
         else:
+            logger.debug(
+                "[NON-SHARED NETWORK] Using instance security groups directly: %s",
+                instance_security_groups,
+            )
             security_groups = instance_security_groups
 
         # For shared networks, we need to ensure the port is created in the correct tenant context
@@ -5062,6 +5138,12 @@ class OpenStackBackend(ServiceBackend):
             ],
             "security_groups": security_groups,
         }
+
+        logger.debug(
+            "Final port payload security_groups: %s (count: %d)",
+            security_groups,
+            len(security_groups),
+        )
 
         logger.info(
             "Port payload tenant context - tenant_id: %s, network_owner: %s, session_type: admin",
