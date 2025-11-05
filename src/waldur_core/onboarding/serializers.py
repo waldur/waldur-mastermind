@@ -183,11 +183,18 @@ class OnboardingCompanyValidationRequestSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="Company name (optional)",
     )
+    is_manual_validation = serializers.BooleanField(
+        default=False,
+        help_text="Indicates if the validation is to be performed manually",
+    )
 
 
-class OnboardingJustificationSerializer(serializers.ModelSerializer):
+class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for OnboardingJustification model."""
 
+    verification_uuid = serializers.UUIDField(
+        source="verification.uuid", read_only=True
+    )
     legal_person_identifier = serializers.CharField(
         source="verification.legal_person_identifier", read_only=True
     )
@@ -208,6 +215,7 @@ class OnboardingJustificationSerializer(serializers.ModelSerializer):
         fields = [
             "uuid",
             "verification",
+            "verification_uuid",
             "country",
             "user",
             "legal_person_identifier",
@@ -233,6 +241,22 @@ class OnboardingJustificationSerializer(serializers.ModelSerializer):
             "created",
             "modified",
         ]
+        extra_kwargs = {
+            "verification": {
+                "lookup_field": "uuid",
+                "view_name": "onboarding-verification-detail",
+            },
+            "user": {
+                "view_name": "user-detail",
+                "lookup_field": "uuid",
+                "read_only": True,
+            },
+            "validated_by": {
+                "view_name": "user-detail",
+                "lookup_field": "uuid",
+                "read_only": True,
+            },
+        }
 
 
 class OnboardingJustificationCreateSerializer(serializers.Serializer):

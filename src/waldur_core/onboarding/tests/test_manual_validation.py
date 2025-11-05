@@ -8,6 +8,7 @@ from waldur_core.onboarding import enums
 from waldur_core.onboarding.models import (
     OnboardingJustification,
     OnboardingJustificationDocumentation,
+    OnboardingVerification,
 )
 from waldur_core.structure.tests import factories as structure_factories
 
@@ -19,12 +20,23 @@ class CreateJustificationTest(APITestCase):
         self.user = structure_factories.UserFactory()
         self.client.force_authenticate(user=self.user)
 
-        # An escalated verification (automatic validation failed)
-        self.escalated_verification = factories.OnboardingVerificationFactory(
-            user=self.user,
-            status=enums.VerificationStatus.ESCALATED,
-            country="EE",
-            legal_person_identifier="12345678",
+        # Create an escalated verification using start_verification action
+        start_url = factories.OnboardingVerificationFactory.get_list_url(
+            action="start_verification"
+        )
+        verification_data = {
+            "country": "EE",
+            "legal_person_identifier": "12345678",
+            "legal_name": "Test Company OÜ",
+            "is_manual_validation": True,
+        }
+        response = self.client.post(start_url, verification_data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.escalated_verification = OnboardingVerification.objects.get(
+            uuid=response.data["uuid"]
+        )
+        self.assertEqual(
+            self.escalated_verification.status, enums.VerificationStatus.ESCALATED
         )
 
         self.url = factories.OnboardingJustificationFactory.get_list_url(
