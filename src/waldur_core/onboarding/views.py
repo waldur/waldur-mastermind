@@ -326,7 +326,10 @@ class OnboardingCountryChecklistConfigurationViewSet(core_views.ActionsViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.OnboardingCountryChecklistConfigurationFilter
     lookup_field = "uuid"
-    permission_classes = (core_permissions.IsStaff,)
+    permission_classes = [permissions.IsAuthenticated]
+    create_permissions = update_permissions = partial_update_permissions = (
+        delete_permissions
+    ) = [core_permissions.IsStaff]
 
 
 class OnboardingQuestionMetadataViewSet(core_views.ActionsViewSet):
@@ -335,4 +338,7 @@ class OnboardingQuestionMetadataViewSet(core_views.ActionsViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.OnboardingQuestionMetadataFilter
     lookup_field = "uuid"
-    permission_classes = (core_permissions.IsStaff,)
+    permission_classes = [permissions.IsAuthenticated]
+    create_permissions = update_permissions = partial_update_permissions = (
+        delete_permissions
+    ) = [core_permissions.IsStaff]

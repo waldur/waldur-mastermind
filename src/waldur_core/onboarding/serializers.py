@@ -1,6 +1,8 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.checklist import models as checklist_models
+from waldur_core.checklist import serializers as checklist_serializers
 
 from . import enums
 from .models import (
@@ -19,6 +21,7 @@ class OnboardingCountryChecklistConfigurationSerializer(
 
     checklist_name = serializers.CharField(source="checklist.name", read_only=True)
     checklist_uuid = serializers.UUIDField(source="checklist.uuid", read_only=True)
+    questions = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = OnboardingCountryChecklistConfiguration
@@ -29,6 +32,7 @@ class OnboardingCountryChecklistConfigurationSerializer(
             "checklist",
             "checklist_name",
             "checklist_uuid",
+            "questions",
             "is_active",
             "created",
             "modified",
@@ -44,6 +48,13 @@ class OnboardingCountryChecklistConfigurationSerializer(
             },
         }
         read_only_fields = ["uuid", "created", "modified"]
+
+    @extend_schema_field(checklist_serializers.QuestionAdminSerializer(many=True))
+    def get_questions(self, obj):
+        questions = obj.checklist.questions.all()
+        return checklist_serializers.QuestionAdminSerializer(
+            questions, many=True, context=self.context
+        ).data
 
 
 class OnboardingQuestionMetadataSerializer(serializers.HyperlinkedModelSerializer):
