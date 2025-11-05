@@ -98,4 +98,9 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
+            "revoke_outdated_consents": {
+                "task": "waldur_mastermind.marketplace.revoke_outdated_consents",
+                "schedule": timedelta(days=1),
+                "args": (),
+            },
         }

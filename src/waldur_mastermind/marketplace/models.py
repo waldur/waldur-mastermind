@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any, Literal, cast
 
@@ -833,6 +834,10 @@ class OfferingTermsOfService(TimeStampedModel, core_models.UuidMixin):
         default=False,
         help_text="If True, user will be asked to re-consent to the terms of service when the terms of service are updated.",
     )
+    grace_period_days = models.PositiveIntegerField(
+        default=60,
+        help_text="Number of days before outdated consents are automatically revoked. Only applies when requires_reconsent=True.",
+    )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
@@ -845,6 +850,18 @@ class OfferingTermsOfService(TimeStampedModel, core_models.UuidMixin):
                 name="unique_active_terms_per_offering",
             )
         ]
+
+    @property
+    def grace_period_end(self):
+        if not self.requires_reconsent or not self.is_active:
+            return None
+        return self.created + timedelta(days=self.grace_period_days)
+
+    def is_grace_period_active(self):
+        end_date = self.grace_period_end
+        if not end_date:
+            return False
+        return timezone.now() < end_date
 
 
 class OfferingComponent(

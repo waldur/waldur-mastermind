@@ -33,7 +33,10 @@ from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     ResourceStates,
 )
-from waldur_mastermind.marketplace.tasks import update_daily_consent_history
+from waldur_mastermind.marketplace.tasks import (
+    revoke_outdated_consents,
+    update_daily_consent_history,
+)
 from waldur_mastermind.marketplace.tests.factories import (
     CategoryFactory,
     OfferingComponentFactory,
@@ -128,7 +131,6 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Verify consent was revoked
         consent.refresh_from_db()
         self.assertIsNotNone(consent.revocation_date)
 
@@ -3683,3 +3685,373 @@ class ToSConsentNotificationTest(APITransactionTestCase):
             self.tos_config.save()
 
             mock_task.assert_not_called()
+
+
+@override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+class GracePeriodRevokeConsentsTest(APITransactionTestCase):
+    """Test cases for grace period and automatic consent revocation."""
+
+    def setUp(self):
+        self.user = UserFactory()
+        self.user2 = UserFactory()
+        self.customer = CustomerFactory()
+        self.project = ProjectFactory(customer=self.customer)
+        self.category = CategoryFactory()
+
+        self.offering = OfferingFactory(
+            category=self.category,
+            customer=self.customer,
+            type="Marketplace.Basic",
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "waldur_username",
+            },
+        )
+
+        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        self.project.add_user(self.user2, role=ProjectRole.MEMBER)
+
+    def test_grace_period_not_expired_consents_not_revoked(self):
+        """Test that consents are not revoked when grace period is still active."""
+        # Create ToS with grace period (14 days default)
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=14,
+        )
+
+        # Create consent with old version
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        revoke_outdated_consents()
+
+        consent.refresh_from_db()
+        self.assertIsNone(consent.revocation_date)
+
+    def test_grace_period_expired_consents_revoked(self):
+        """Test that consents are revoked after grace period expires."""
+        tos = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=14,
+        )
+
+        # Manually set created date to simulate expired grace period
+        tos.created = timezone.now() - timedelta(days=15)
+        tos.save()
+
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        revoke_outdated_consents()
+
+        consent.refresh_from_db()
+        self.assertIsNotNone(consent.revocation_date)
+
+    def test_consents_with_current_version_not_revoked(self):
+        """Test that consents with current version are not revoked even after grace period."""
+
+        tos = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=14,
+        )
+
+        # Manually set created date to simulate expired grace period
+        tos.created = timezone.now() - timedelta(days=15)
+        tos.save()
+
+        consent_current = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="2.0",
+        )
+
+        consent_old = models.UserOfferingConsent.objects.create(
+            user=self.user2,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        revoke_outdated_consents()
+
+        consent_current.refresh_from_db()
+        self.assertIsNone(consent_current.revocation_date)
+
+        consent_old.refresh_from_db()
+        self.assertIsNotNone(consent_old.revocation_date)
+
+    def test_grace_period_only_applies_to_requires_reconsent(self):
+        """Test that grace period only applies when requires_reconsent=True."""
+        # Create ToS without requires_reconsent
+        tos = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=False,
+            grace_period_days=14,
+        )
+
+        tos.created = timezone.now() - timedelta(days=15)
+        tos.save()
+
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        revoke_outdated_consents()
+
+        # Verify consent was not revoked (requires_reconsent=False)
+        consent.refresh_from_db()
+        self.assertIsNone(consent.revocation_date)
+
+    def test_only_active_tos_checked_for_grace_period(self):
+        """Test that only active ToS are checked for grace period expiration."""
+        tos_inactive = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="2.0",
+            is_active=False,
+            requires_reconsent=True,
+            grace_period_days=14,
+        )
+
+        tos_inactive.created = timezone.now() - timedelta(days=15)
+        tos_inactive.save()
+
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        revoke_outdated_consents()
+
+        consent.refresh_from_db()
+        self.assertIsNone(consent.revocation_date)
+
+    def test_multiple_offerings_grace_period(self):
+        """Test grace period revocation with multiple offerings."""
+        # Create second offering
+        offering2 = OfferingFactory(
+            category=self.category,
+            customer=self.customer,
+            type="Marketplace.Basic",
+        )
+
+        # Create ToS for both offerings with expired grace period
+        tos1 = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms 1",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=14,
+        )
+        tos1.created = timezone.now() - timedelta(days=15)
+        tos1.save()
+
+        tos2 = models.OfferingTermsOfService.objects.create(
+            offering=offering2,
+            terms_of_service="Test Terms 2",
+            version="3.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=14,
+        )
+        tos2.created = timezone.now() - timedelta(days=15)
+        tos2.save()
+
+        consent1 = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        consent2 = models.UserOfferingConsent.objects.create(
+            user=self.user2,
+            offering=offering2,
+            version="2.0",
+        )
+
+        revoke_outdated_consents()
+
+        consent1.refresh_from_db()
+        consent2.refresh_from_db()
+        self.assertIsNotNone(consent1.revocation_date)
+        self.assertIsNotNone(consent2.revocation_date)
+
+    def test_revoke_outdated_consents_events_logged(self):
+        """Test that events are logged when consents are revoked."""
+
+        Event.objects.all().delete()
+
+        tos = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=14,
+        )
+
+        tos.created = timezone.now() - timedelta(days=15)
+        tos.save()
+
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        revoke_outdated_consents()
+
+        events = Event.objects.filter(event_type="terms_of_service_consent_revoked")
+        self.assertEqual(events.count(), 1)
+
+        event = events.first()
+        self.assertIn("user_name", event.context)
+        self.assertIn("offering_name", event.context)
+        self.assertIn("old_version", event.context)
+        self.assertIn("new_version", event.context)
+        self.assertIn("grace_period_end", event.context)
+        self.assertEqual(event.context["old_version"], "1.0")
+        self.assertEqual(event.context["new_version"], "2.0")
+
+    def test_revoke_outdated_consents_no_expired_tos(self):
+        """Test that task returns early when no expired ToS are found."""
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=14,
+        )
+
+        revoke_outdated_consents()
+
+        self.assertFalse(
+            models.UserOfferingConsent.objects.filter(
+                offering=self.offering, revocation_date__isnull=True
+            ).exists()
+        )
+
+    def test_revoke_outdated_consents_no_outdated_consents(self):
+        """Test that task returns early when no outdated consents are found."""
+
+        tos = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=14,
+        )
+
+        tos.created = timezone.now() - timedelta(days=15)
+        tos.save()
+
+        revoke_outdated_consents()
+
+        self.assertFalse(
+            models.UserOfferingConsent.objects.filter(offering=self.offering).exists()
+        )
+
+    def test_revoke_outdated_consents_already_revoked_ignored(self):
+        """Test that already revoked consents are ignored."""
+
+        tos = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=14,
+        )
+
+        tos.created = timezone.now() - timedelta(days=15)
+        tos.save()
+
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+        consent.revoke()
+
+        revoke_outdated_consents()
+
+        consent.refresh_from_db()
+        self.assertIsNotNone(consent.revocation_date)
+
+    def test_grace_period_custom_days(self):
+        """Test that custom grace period days are respected."""
+        # Create ToS with custom grace period (7 days)
+        tos = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=7,
+        )
+
+        tos.created = timezone.now() - timedelta(days=8)
+        tos.save()
+
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        revoke_outdated_consents()
+
+        consent.refresh_from_db()
+        self.assertIsNotNone(consent.revocation_date)
+
+    def test_grace_period_exactly_at_expiration(self):
+        """Test behavior exactly at grace period expiration time."""
+        tos = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test Terms of Service",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=14,
+        )
+
+        # Set created to exactly 14 days ago (at expiration)
+        tos.created = timezone.now() - timedelta(days=14)
+        tos.save()
+
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        revoke_outdated_consents()
+
+        consent.refresh_from_db()
+        self.assertIsNotNone(consent.revocation_date)
