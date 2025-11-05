@@ -7516,9 +7516,10 @@ class UserOfferingConsentCreateSerializer(serializers.Serializer):
             ).first()
 
             if existing_consent:
-                raise serializers.ValidationError(
-                    "You have already consented to the Terms of Service for this offering."
-                )
+                if existing_consent.version == active_tos.version:
+                    raise serializers.ValidationError(
+                        "You have already consented to the current Terms of Service for this offering."
+                    )
 
         return attrs
 
@@ -7568,6 +7569,7 @@ class OfferingTermsOfServiceSerializer(
             "version",
             "is_active",
             "requires_reconsent",
+            "grace_period_days",
             "user_consent",
             "has_user_consent",
             "created",
@@ -7609,14 +7611,30 @@ class OfferingTermsOfServiceSerializer(
 
     @extend_schema_field(serializers.BooleanField())
     def get_has_user_consent(self, obj):
+        """
+        Check if user has valid consent for this specific ToS version.
+
+        If requires_reconsent=True, only returns True if consent version matches
+        this ToS version. Otherwise, returns True if any active consent exists.
+        """
         request = self.context.get("request")
         if not request or not request.user:
             return False
+
         user = request.user
         offering = obj.offering
-        return models.UserOfferingConsent.objects.filter(
+
+        consent = models.UserOfferingConsent.objects.filter(
             user=user, offering=offering, revocation_date__isnull=True
-        ).exists()
+        ).first()
+
+        if not consent:
+            return False
+
+        if obj.requires_reconsent:
+            return consent.version == obj.version
+
+        return True
 
 
 class OfferingTermsOfServiceCreateSerializer(serializers.ModelSerializer):
@@ -7638,6 +7656,7 @@ class OfferingTermsOfServiceCreateSerializer(serializers.ModelSerializer):
             "version",
             "is_active",
             "requires_reconsent",
+            "grace_period_days",
         )
 
     def validate(self, attrs):

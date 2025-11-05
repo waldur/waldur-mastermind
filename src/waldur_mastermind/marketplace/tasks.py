@@ -903,3 +903,102 @@ def send_tos_reconsent_notification(offering_uuid, old_version, new_version):
         core_utils.broadcast_mail(
             "marketplace", "tos_reconsent_required", context, [user.email]
         )
+
+
+@shared_task(name="waldur_mastermind.marketplace.revoke_outdated_consents")
+def revoke_outdated_consents():
+    """
+    Revoke consents for users who haven't re-consented within grace period.
+
+    Finds all active ToS with requires_reconsent=True where grace period has expired,
+    and revokes all consents that don't match the current active ToS version.
+    """
+    now = timezone.now()
+    tos_with_expired_grace_period = [
+        tos
+        for tos in models.OfferingTermsOfService.objects.filter(
+            is_active=True,
+            requires_reconsent=True,
+        ).select_related("offering")
+        if tos.grace_period_end and tos.grace_period_end <= now
+    ]
+    if not tos_with_expired_grace_period:
+        logger.info("No expired ToS found")
+        return
+
+    tos_with_expired_grace_period_by_offering = {
+        tos.offering.id: tos for tos in tos_with_expired_grace_period
+    }
+    outdated_consents = list(
+        models.UserOfferingConsent.objects.filter(
+            offering__id__in=tos_with_expired_grace_period_by_offering.keys(),
+            revocation_date__isnull=True,
+        ).select_related("user", "offering", "offering__customer")
+    )
+    if not outdated_consents:
+        logger.info("No outdated consents found to revoke")
+        return
+
+    consents_to_revoke = []
+    for consent in outdated_consents:
+        tos = tos_with_expired_grace_period_by_offering[consent.offering.id]
+        if consent.version != tos.version:
+            consents_to_revoke.append((consent, tos))
+
+    if not consents_to_revoke:
+        logger.info("All consents are up to date nothing to revoke")
+        return
+
+    # Add consents by offering for better logging
+    consents_by_offering = {}
+    for consent, tos in consents_to_revoke:
+        if tos.offering.id not in consents_by_offering:
+            consents_by_offering[tos.offering.id] = {
+                "tos": tos,
+                "consents": [],
+            }
+        consents_by_offering[tos.offering.id]["consents"].append(consent)
+
+    consents_ids = [consent.id for consent, _ in consents_to_revoke]
+    models.UserOfferingConsent.objects.filter(id__in=consents_ids).update(
+        revocation_date=now
+    )
+
+    revoked_count = len(consents_to_revoke)
+
+    for offering_id, data in consents_by_offering.items():
+        tos = data["tos"]
+        count = len(data["consents"])
+        logger.info(
+            "Revoked %d outdated consents for offering %s "
+            "(ToS version %s, grace period expired on %s)",
+            count,
+            tos.offering.name,
+            tos.version,
+            tos.grace_period_end.isoformat(),
+        )
+
+    for consent, tos in consents_to_revoke:
+        event_logger.emit(
+            "User {user_name} consent for offering {offering_name} has been revoked "
+            "due to expired grace period. Grace period ended on {grace_end}.",
+            event_type=EventType.TERMS_OF_SERVICE_CONSENT_REVOKED,
+            event_context={
+                "user": consent.user,
+                "offering": consent.offering,
+                "consent": consent,
+                "version": consent.version,
+                "old_version": consent.version,
+                "new_version": tos.version,
+                "grace_period_end": tos.grace_period_end.isoformat(),
+                "user_name": consent.user.full_name or consent.user.username,
+                "offering_name": consent.offering.name,
+                "revocation_date": now,
+                "grace_end": tos.grace_period_end.isoformat(),
+            },
+            scopes=[consent.offering, consent.offering.customer],
+        )
+
+    logger.info(
+        f"Total of {revoked_count} outdated consents revoked across all offerings"
+    )

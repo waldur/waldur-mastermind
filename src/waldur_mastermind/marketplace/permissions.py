@@ -212,13 +212,27 @@ def check_tos_consent_permission(request, view, obj=None):
     if not offering.has_terms_of_service():
         return
 
-    consent_exists = models.UserOfferingConsent.objects.filter(
+    consent = models.UserOfferingConsent.objects.filter(
         user=user,
         offering=offering,
         revocation_date__isnull=True,
-    ).exists()
-    if not consent_exists:
+    ).first()
+
+    if not consent:
         raise exceptions.PermissionDenied(
             f"Terms of Service consent required for offering '{offering.name}'. "
             f"Please accept the Terms of Service before accessing this resource."
+        )
+
+    # If grace period has expired and consent version doesn't match,
+    active_tos = offering.terms_of_service_configs.filter(is_active=True).first()
+    if (
+        active_tos
+        and active_tos.requires_reconsent
+        and not active_tos.is_grace_period_active()
+        and consent.version != active_tos.version
+    ):
+        raise exceptions.PermissionDenied(
+            f"Your Terms of Service consent for '{offering.name}' has expired. "
+            f"Please accept the updated Terms of Service (version {active_tos.version}) "
         )
