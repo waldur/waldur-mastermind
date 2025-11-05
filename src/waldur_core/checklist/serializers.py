@@ -167,6 +167,7 @@ class QuestionSerializer(
         model = models.Question
         fields = [
             "uuid",
+            "required",
             "description",
             "user_guidance",
             "question_options",
