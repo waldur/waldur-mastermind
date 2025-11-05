@@ -3686,6 +3686,85 @@ class ToSConsentNotificationTest(APITransactionTestCase):
 
             mock_task.assert_not_called()
 
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_reconsent_notification.delay"
+    )
+    def test_tos_creation_triggers_reconsent_notification(self, mock_task):
+        """Test that creating a new ToS with requires_reconsent=True triggers notification."""
+        self.tos_config.is_active = False
+        self.tos_config.save()
+
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="New Terms of Service",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=33,
+        )
+
+        mock_task.assert_called_once()
+        self.assertEqual(mock_task.call_args[0][0], self.offering.uuid)
+        self.assertEqual(mock_task.call_args[0][1], "1.0")
+        self.assertEqual(mock_task.call_args[0][2], "2.0")
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_reconsent_notification.delay"
+    )
+    def test_tos_creation_without_previous_tos_triggers_notification(self, mock_task):
+        """Test that creating a new ToS triggers notification even when no previous ToS exists."""
+        self.tos_config.delete()
+
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="First Terms of Service",
+            version="1.0",
+            is_active=True,
+            requires_reconsent=True,
+            grace_period_days=66,
+        )
+
+        mock_task.assert_called_once()
+        self.assertEqual(mock_task.call_args[0][0], self.offering.uuid)
+        self.assertEqual(mock_task.call_args[0][1], "")
+        self.assertEqual(mock_task.call_args[0][2], "1.0")
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_reconsent_notification.delay"
+    )
+    def test_tos_creation_not_triggering_when_reconsent_not_required(self, mock_task):
+        """Test that creating a new ToS without requires_reconsent doesn't trigger notification."""
+        self.tos_config.is_active = False
+        self.tos_config.save()
+
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="New Terms of Service",
+            version="2.0",
+            is_active=True,
+            requires_reconsent=False,
+        )
+
+        mock_task.assert_not_called()
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_tos_reconsent_notification.delay"
+    )
+    def test_tos_creation_not_triggering_when_inactive(self, mock_task):
+        """Test that creating an inactive ToS doesn't trigger notification."""
+        self.tos_config.is_active = False
+        self.tos_config.save()
+
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="New Terms of Service",
+            version="2.0",
+            is_active=False,
+            requires_reconsent=True,
+        )
+
+        mock_task.assert_not_called()
+
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
 class GracePeriodRevokeConsentsTest(APITransactionTestCase):
