@@ -544,102 +544,14 @@ Generate TypeScript SDK:
   interruptible: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image: registry.hpc.ut.ee/mirror/library/python:3.11-bullseye
+  image: registry.hpc.ut.ee/mirror/library/node:lts-alpine
   needs:
     - Generate OpenAPI schema
-  before_script:
-    - |
-      echo "[+] Installing Node.js and project dependencies..."
-      curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
-      apt-get install -y nodejs
-      pip install uv
-      uv sync --extra dev
-  variables:
-    UV_CACHE_DIR: .uv-cache
-    UV_SYSTEM_PYTHON: 1
-    UV_LINK_MODE: copy
-  cache:
-    - key:
-        files:
-          - uv.lock
-      paths:
-        - $UV_CACHE_DIR
   script: |
-    echo "[+] Generating TypeScript SDK from OpenAPI schema..."
     npx --yes @hey-api/openapi-ts@0.77.0
-
-    echo "[+] Generating static enums and metadata using existing management commands..."
-    # Generate all enum and metadata files using existing proven commands
-    DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings uv run waldur print_events_enums > ./waldur-typescript-sdk/EventsEnums.ts
-    DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings uv run waldur print_features_enums > ./waldur-typescript-sdk/FeaturesEnums.ts
-    DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings uv run python src/waldur_core/permissions/print_permission_enums.py > ./waldur-typescript-sdk/permissions-enums.ts
-    DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings uv run waldur print_features_description > ./waldur-typescript-sdk/FeaturesDescription.ts
-    DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings uv run waldur print_settings_description > ./waldur-typescript-sdk/SettingsDescription.ts
-    DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings uv run waldur print_permissions_description > ./waldur-typescript-sdk/PermissionOptions.tsx
-
-    # Create a combined static-enums.ts file with all enum constants
-    cat > ./waldur-typescript-sdk/static-enums.ts << 'EOF'
-    // Auto-generated static enums from Waldur management commands
-    // This provides convenient access to all enum constants
-
-    // Re-export all enums from individual files
-    EOF
-
-    # Extract enum exports and re-export them
-    grep "^export const.*Enum" ./waldur-typescript-sdk/EventsEnums.ts | sed 's/export const/export {/' | sed 's/ = {.*/,/' >> ./waldur-typescript-sdk/static-enums.ts
-    grep "^export enum.*Features" ./waldur-typescript-sdk/FeaturesEnums.ts | sed 's/export enum \([^{]*\).*/export { \1,/' >> ./waldur-typescript-sdk/static-enums.ts
-    grep "^export const.*Enum" ./waldur-typescript-sdk/permissions-enums.ts | sed 's/export const/export {/' | sed 's/ = {.*/,/' >> ./waldur-typescript-sdk/static-enums.ts
-
-    # Complete the export block and add from clauses
-    echo "} from './EventsEnums';" >> ./waldur-typescript-sdk/static-enums.ts
-    echo "} from './FeaturesEnums';" >> ./waldur-typescript-sdk/static-enums.ts
-    echo "} from './permissions-enums';" >> ./waldur-typescript-sdk/static-enums.ts
-
-    # Add compatibility type
-    echo "export type FeaturesEnum = string;" >> ./waldur-typescript-sdk/static-enums.ts
-
-    echo "[+] Applying SDK customizations..."
     # drop querySerializer because it is producing explode: false for multiple choice filter
     sed -i '/querySerializer: {/,/},/d' waldur-typescript-sdk/sdk.gen.ts
-
-    # Add static enums export to the main index file
     sed -i '1i export { formDataBodySerializer, RequestResult } from "./client";' waldur-typescript-sdk/index.ts
-    sed -i '2i export * from "./static-enums";' waldur-typescript-sdk/index.ts
-
-    echo "[+] Validating generated static enums..."
-    # Check that static enums were generated with expected content
-    if [ ! -f "waldur-typescript-sdk/static-enums.ts" ]; then
-      echo "❌ ERROR: static-enums.ts was not generated!"
-      exit 1
-    fi
-
-    # Validate that key enums are present
-    if ! grep -q "export const AuthEnum" waldur-typescript-sdk/static-enums.ts; then
-      echo "❌ ERROR: AuthEnum not found in static-enums.ts!"
-      exit 1
-    fi
-
-    if ! grep -q "export const ProposalEnum" waldur-typescript-sdk/static-enums.ts; then
-      echo "❌ ERROR: ProposalEnum not found in static-enums.ts!"
-      exit 1
-    fi
-
-    if ! grep -q "export const RoleEnum" waldur-typescript-sdk/static-enums.ts; then
-      echo "❌ ERROR: RoleEnum not found in static-enums.ts!"
-      exit 1
-    fi
-
-    # Count the number of enum exports to ensure we have a reasonable number
-    enum_count=$(grep -c "export const.*Enum" waldur-typescript-sdk/static-enums.ts || echo "0")
-    if [ "$enum_count" -lt "10" ]; then
-      echo "❌ ERROR: Expected at least 10 enum exports, found only $enum_count!"
-      exit 1
-    fi
-
-    echo "✅ Validation passed: Found $enum_count enum exports in static-enums.ts"
-    echo "[+] TypeScript SDK generation completed successfully!"
-    echo "Generated files:"
-    ls -la waldur-typescript-sdk/
   artifacts:
     paths:
       - waldur-typescript-sdk/
@@ -850,6 +762,52 @@ Upload OpenAPI schema and schema diff to docs:
     - git commit -m "Add Waldur OpenAPI schema and diff for ${CI_COMMIT_TAG}" || exit 0
     - git branch new-api-schema-${CI_COMMIT_TAG}
     - git push --set-upstream origin new-api-schema-${CI_COMMIT_TAG}:master
+  before_script: []
+
+Upload HomePort enums:
+  stage: postdeploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
+  variables:
+    DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
+  script:
+    # 1. Install dependencies in the main project
+    - pip install uv
+    - uv sync --extra dev
+
+    # 2. Generate ALL required files from the main project context and store them in /tmp
+    # This is the most robust approach, as we are in the correct directory with the virtual env.
+    - echo "Generating enums and descriptions..."
+    - python src/waldur_core/permissions/print_permission_enums.py > /tmp/permission_enums.ts
+    - uv run waldur print_events_enums > /tmp/EventsEnums.ts
+    - uv run waldur print_features_enums > /tmp/FeaturesEnums.ts
+    - uv run waldur print_features_description > /tmp/FeaturesDescription.ts
+    - uv run waldur print_settings_description > /tmp/SettingsDescription.ts
+    - uv run waldur print_permissions_description > /tmp/PermissionOptions.tsx
+
+    # 3. Clone the HomePort repository and move the generated files into it
+    - cd /tmp/
+    - git clone "https://homeport-updates:$HOMEPORT_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-homeport.git"
+    - cd waldur-homeport
+    - git config --global user.name "$GITLAB_USER_NAME"
+    - git config --global user.email "$GITLAB_USER_EMAIL"
+    - git checkout develop
+
+    # 4. Move the pre-generated files to their final destinations
+    - mv /tmp/permission_enums.ts src/permissions/enums.ts
+    - mv /tmp/EventsEnums.ts src/EventsEnums.ts
+    - mv /tmp/FeaturesEnums.ts src/FeaturesEnums.ts
+    - mv /tmp/FeaturesDescription.ts src/features/FeaturesDescription.ts
+    - mv /tmp/SettingsDescription.ts src/SettingsDescription.ts
+    - mv /tmp/PermissionOptions.tsx src/administration/roles/PermissionOptions.tsx
+
+    # 5. Commit and push the changes
+    - git add src/
+    - git commit -m "Update enums and descriptions from Waldur Mastermind" || exit 0
+    - git branch new-enums
+    - git push --set-upstream origin new-enums:develop
   before_script: []
 
 Upload TypeScript SDK:
