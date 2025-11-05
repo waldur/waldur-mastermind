@@ -1,3 +1,7 @@
+from datetime import timedelta
+
+from constance import config
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import exceptions, permissions, serializers, status
@@ -11,7 +15,7 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
 from waldur_core.structure import serializers as structure_serializers
 
-from . import filters
+from . import enums, filters
 from .models import (
     OnboardingCountryChecklistConfiguration,
     OnboardingJustification,
@@ -98,6 +102,15 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
             ),
             legal_name=serializer.validated_data.get("legal_name", ""),
         )
+
+        is_manual_validation = serializer.validated_data.get(
+            "is_manual_validation", False
+        )
+        if is_manual_validation:
+            verification.status = enums.VerificationStatus.ESCALATED
+            expire_delta = config.ONBOARDING_VERIFICATION_EXPIRY_HOURS
+            verification.expires_at = timezone.now() + timedelta(hours=expire_delta)
+            verification.save()
 
         # Create checklist completion if available (optional)
         # This allows collecting additional country-specific data
@@ -211,7 +224,9 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
             ),
         )
 
-        response_serializer = OnboardingJustificationSerializer(justification)
+        response_serializer = OnboardingJustificationSerializer(
+            justification, context=self.get_serializer_context()
+        )
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
@@ -263,7 +278,9 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
 
         justification.approve_justification(request.user, staff_notes)
 
-        response_serializer = OnboardingJustificationSerializer(justification)
+        response_serializer = OnboardingJustificationSerializer(
+            justification, context=self.get_serializer_context()
+        )
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
     approve_serializer_class = OnboardingJustificationReviewSerializer
@@ -288,7 +305,9 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
 
         justification.reject_justification(request.user, staff_notes)
 
-        response_serializer = OnboardingJustificationSerializer(justification)
+        response_serializer = OnboardingJustificationSerializer(
+            justification, context=self.get_serializer_context()
+        )
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
     reject_serializer_class = OnboardingJustificationReviewSerializer
