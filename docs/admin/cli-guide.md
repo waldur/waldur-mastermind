@@ -332,19 +332,6 @@ options:
 
 ```
 
-## generate_static_enums
-
-Generate TypeScript static enum constants file
-
-```bash
-
-usage: waldur generate_static_enums [--output OUTPUT]
-
-options:
-  --output OUTPUT  Output file path for TypeScript enums
-
-```
-
 ## import_ami_catalog
 
 Import catalog of Amazon images.
