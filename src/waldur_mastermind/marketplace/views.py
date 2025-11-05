@@ -60,7 +60,7 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.models import User
 from waldur_core.core.renderers import PlainTextRenderer
-from waldur_core.core.serializers import EmptySerializer
+from waldur_core.core.serializers import EmptySerializer, RestrictedSerializerMixin
 from waldur_core.core.utils import (
     SubqueryCount,
     is_uuid_like,
@@ -8000,7 +8000,10 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
 
 
 class SoftwareCatalogViewSet(
-    PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet
+    PublicViewsetMixin,
+    EagerLoadMixin,
+    RestrictedSerializerMixin,
+    core_views.ActionsViewSet,
 ):
     """ViewSet for SoftwareCatalog model with standard DRF patterns."""
 
