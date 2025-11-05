@@ -22,6 +22,7 @@ from waldur_mastermind.proposal.enums import (
 )
 from waldur_rancher.enums import (
     RANCHER_TEMPLATE_QUESTION_TYPE,
+    ROLE_CHOICES,
     CatalogScopeTypeChoices,
     KeycloakUserGroupMembershipState,
     RoleScopeType,
@@ -70,6 +71,8 @@ SPECTACULAR_SETTINGS = {
         "OfferingUserState": OfferingUserStates.VALUES,
         "OnboardingVerificationStatus": VerificationStatus.VALUES,
         "AgentServiceState": AgentServiceState.VALUES,
+        # Rename Rancher role enum to avoid conflict with permissions RoleEnum
+        "RancherNodeRoleEnum": ROLE_CHOICES,
     },
     "VERSION": None,
 }
