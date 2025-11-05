@@ -579,11 +579,11 @@ Generate TypeScript SDK:
 
     # Create a combined static-enums.ts file with all enum constants
     cat > ./waldur-typescript-sdk/static-enums.ts << 'EOF'
-// Auto-generated static enums from Waldur management commands
-// This provides convenient access to all enum constants
+    // Auto-generated static enums from Waldur management commands
+    // This provides convenient access to all enum constants
 
-// Re-export all enums from individual files
-EOF
+    // Re-export all enums from individual files
+    EOF
 
     # Extract enum exports and re-export them
     grep "^export const.*Enum" ./waldur-typescript-sdk/EventsEnums.ts | sed 's/export const/export {/' | sed 's/ = {.*/,/' >> ./waldur-typescript-sdk/static-enums.ts
