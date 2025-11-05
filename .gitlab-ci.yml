@@ -544,14 +544,75 @@ Generate TypeScript SDK:
   interruptible: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image: registry.hpc.ut.ee/mirror/library/node:lts-alpine
+  image: registry.hpc.ut.ee/mirror/library/python:3.11-bullseye
   needs:
     - Generate OpenAPI schema
+  before_script:
+    - |
+      echo "[+] Installing Node.js and project dependencies..."
+      curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+      apt-get install -y nodejs
+      pip install uv
+      uv sync --extra dev
+  variables:
+    UV_CACHE_DIR: .uv-cache
+    UV_SYSTEM_PYTHON: 1
+    UV_LINK_MODE: copy
+  cache:
+    - key:
+        files:
+          - uv.lock
+      paths:
+        - $UV_CACHE_DIR
   script: |
+    echo "[+] Generating TypeScript SDK from OpenAPI schema..."
     npx --yes @hey-api/openapi-ts@0.77.0
+
+    echo "[+] Generating static enum constants..."
+    DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings uv run python src/waldur_core/server/manage.py generate_static_enums --output ./waldur-typescript-sdk/static-enums.ts
+
+    echo "[+] Applying SDK customizations..."
     # drop querySerializer because it is producing explode: false for multiple choice filter
     sed -i '/querySerializer: {/,/},/d' waldur-typescript-sdk/sdk.gen.ts
+
+    # Add static enums export to the main index file
     sed -i '1i export { formDataBodySerializer, RequestResult } from "./client";' waldur-typescript-sdk/index.ts
+    sed -i '2i export * from "./static-enums";' waldur-typescript-sdk/index.ts
+
+    echo "[+] Validating generated static enums..."
+    # Check that static enums were generated with expected content
+    if [ ! -f "waldur-typescript-sdk/static-enums.ts" ]; then
+      echo "❌ ERROR: static-enums.ts was not generated!"
+      exit 1
+    fi
+
+    # Validate that key enums are present
+    if ! grep -q "export const AuthEnum" waldur-typescript-sdk/static-enums.ts; then
+      echo "❌ ERROR: AuthEnum not found in static-enums.ts!"
+      exit 1
+    fi
+
+    if ! grep -q "export const ProposalEnum" waldur-typescript-sdk/static-enums.ts; then
+      echo "❌ ERROR: ProposalEnum not found in static-enums.ts!"
+      exit 1
+    fi
+
+    if ! grep -q "export const RoleEnum" waldur-typescript-sdk/static-enums.ts; then
+      echo "❌ ERROR: RoleEnum not found in static-enums.ts!"
+      exit 1
+    fi
+
+    # Count the number of enum exports to ensure we have a reasonable number
+    enum_count=$(grep -c "export const.*Enum" waldur-typescript-sdk/static-enums.ts || echo "0")
+    if [ "$enum_count" -lt "10" ]; then
+      echo "❌ ERROR: Expected at least 10 enum exports, found only $enum_count!"
+      exit 1
+    fi
+
+    echo "✅ Validation passed: Found $enum_count enum exports in static-enums.ts"
+    echo "[+] TypeScript SDK generation completed successfully!"
+    echo "Generated files:"
+    ls -la waldur-typescript-sdk/
   artifacts:
     paths:
       - waldur-typescript-sdk/
