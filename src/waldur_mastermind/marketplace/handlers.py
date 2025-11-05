@@ -2112,19 +2112,25 @@ def notify_users_about_tos_update_signal(sender, instance, created, **kwargs):
     if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
         return
 
-    if created:
-        return
-
     tos_config = instance
 
     if not tos_config.is_active or not tos_config.requires_reconsent:
         return
 
-    if "version" not in tos_config.tracker.changed():
-        return
-
-    old_version = tos_config.tracker.previous("version") or ""
-    new_version = tos_config.version
+    if created:
+        previous_tos = (
+            models.OfferingTermsOfService.objects.filter(offering=tos_config.offering)
+            .exclude(uuid=tos_config.uuid)
+            .order_by("-created")
+            .first()
+        )
+        old_version = previous_tos.version if previous_tos else ""
+        new_version = tos_config.version
+    else:
+        if "version" not in tos_config.tracker.changed():
+            return
+        old_version = tos_config.tracker.previous("version") or ""
+        new_version = tos_config.version
 
     transaction.on_commit(
         lambda: tasks.send_tos_reconsent_notification.delay(
