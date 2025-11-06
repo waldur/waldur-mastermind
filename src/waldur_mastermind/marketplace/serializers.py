@@ -7576,6 +7576,10 @@ class OfferingTermsOfServiceSerializer(
             "modified",
         )
         read_only_fields = ("created", "modified")
+        protected_fields = (
+            "version",
+            "requires_reconsent",
+        )
 
     def validate(self, attrs):
         if attrs.get("is_active", False):
