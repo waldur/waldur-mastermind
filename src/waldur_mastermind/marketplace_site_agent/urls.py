@@ -23,7 +23,7 @@ def register_in(router):
 
 urlpatterns = [
     re_path(
-        r"^projects/(?P<uuid>[a-f0-9]+)/sync_user_roles/$",
+        r"^api/projects/(?P<uuid>[a-f0-9]+)/sync_user_roles/$",
         views.ProjectSyncUserRolesView.as_view(),
         name="project-sync-user-roles",
     ),
