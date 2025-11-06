@@ -4974,6 +4974,30 @@ class ProviderResourceViewSet(BaseResourceViewSet):
 
     @extend_schema(
         responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        description="Update resource options directly without creating orders.",
+    )
+    @action(detail=True, methods=["post"])
+    def update_options_direct(self, request, uuid=None):
+        resource = cast(models.Resource, self.get_object())
+        serializer = self.get_serializer(data=request.data, instance=resource)
+        serializer.is_valid(raise_exception=True)
+        # Always update options directly without creating orders
+        serializer.save()
+        return Response(
+            {"status": _("Resource options have been updated directly.")},
+            status=status.HTTP_200_OK,
+        )
+
+    update_options_direct_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE_OPTIONS,
+            ["offering.customer"],
+        )
+    ]
+    update_options_direct_serializer_class = serializers.ResourceOptionsSerializer
+
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
         description="Submit resource report.",
     )
     @action(detail=True, methods=["post"])

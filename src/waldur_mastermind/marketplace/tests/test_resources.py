@@ -1562,3 +1562,70 @@ class ProviderResourceLimitsSetTest(test.APITransactionTestCase):
                 message__contains="cpu",
             ).exists()
         )
+
+
+@ddt
+class ProviderUpdateOptionsDirectTest(test.APITransactionTestCase):
+    def setUp(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_OPTIONS)
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.CREATING
+        self.resource.options = {"storage": 10}
+        self.resource.save()
+
+        # Set up offering with resource options metadata
+        self.resource.offering.resource_options = {
+            "options": {
+                "storage": {"type": "integer", "label": "Storage"},
+                "ram": {"type": "integer", "label": "RAM"},
+            }
+        }
+        self.resource.offering.save()
+
+        self.url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, action="update_options_direct"
+        )
+
+    @data("offering_owner")
+    def test_service_provider_can_update_options_directly(self, user_type):
+        user = getattr(self.fixture, user_type)
+        self.client.force_authenticate(user)
+
+        new_options = {"storage": 20, "ram": 4}
+        response = self.client.post(self.url, {"options": new_options})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["status"], "Resource options have been updated directly."
+        )
+
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.options, new_options)
+
+    def test_update_options_direct_works_during_transitional_states(self):
+        # Test that update works even during CREATING state
+        self.client.force_authenticate(self.fixture.offering_owner)
+
+        new_options = {"storage": 15, "ram": 8}
+        response = self.client.post(self.url, {"options": new_options})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.options, new_options)
+
+    def test_consumer_users_cannot_access_provider_endpoint(self):
+        # Project admin should not be able to access provider endpoint
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.post(self.url, {"options": {"storage": 20}})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_invalid_options_are_rejected(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+
+        # Missing required metadata should cause validation error
+        self.resource.offering.resource_options = {}
+        self.resource.offering.save()
+
+        response = self.client.post(self.url, {"options": {"storage": 20}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
