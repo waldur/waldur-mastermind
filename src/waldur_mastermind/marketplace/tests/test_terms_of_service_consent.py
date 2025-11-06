@@ -1677,8 +1677,7 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
 
         data = {
             "terms_of_service": "Updated terms of service",
-            "version": "1.1",
-            "requires_reconsent": True,
+            "requires_reconsent": True,  # Cannot be changed protected field
         }
 
         response = self.client.patch(self.detail_url, data)
@@ -1687,8 +1686,18 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
         # Verify the ToS config was updated
         self.tos_config.refresh_from_db()
         self.assertEqual(self.tos_config.terms_of_service, "Updated terms of service")
-        self.assertEqual(self.tos_config.version, "1.1")
-        self.assertTrue(self.tos_config.requires_reconsent)
+        self.assertEqual(self.tos_config.version, "1.0")
+        self.assertFalse(self.tos_config.requires_reconsent)
+
+    def test_update_terms_of_service_version_cannot_be_changed(self):
+        """Test that the version cannot be changed."""
+        self.client.force_authenticate(user=self.user)
+
+        data = {"version": "1.1"}
+        response = self.client.patch(self.detail_url, data)
+        self.tos_config.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.tos_config.version, "1.0")
 
     def test_update_terms_of_service_config_duplicate_active_validation(self):
         """Test that updating ToS config to active fails when another active exists."""
