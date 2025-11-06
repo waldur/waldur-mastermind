@@ -24,7 +24,7 @@ end_date = models.DateField(
 
 ### Project Start Date Impact on Orders
 
-Orders can be blocked by future project start dates. This also affects [invitation processing](./invitations.md#background-processing) where pending invitations wait for project activation:
+Orders can be blocked by future project start dates. This also affects [invitation processing](./core-concepts/invitations.md#background-processing) where pending invitations wait for project activation:
 
 ```mermaid
 sequenceDiagram
