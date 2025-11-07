@@ -199,7 +199,13 @@ collections:
           availability_zone:
             base: "openstack_volume_availability_zones"
             filter_by: *filter_by_offering_tenant
-
+        operations:
+          update:
+            actions:
+              retype:
+                operation: "openstack_volumes_retype"
+                param: "type"
+                compare_key: "type"
       - name: instance
         plugin: order
         offering_type: OpenStack.Instance
@@ -493,3 +499,15 @@ collections:
           volume:
             base: "openstack_volumes"
             filter_by: *tenant_filter
+
+      - name: volume_action
+        plugin: actions
+        resource_type: "OpenStack volume"
+        description: "Perform actions on an OpenStack volume."
+        wait_config: *default_wait_config
+        base_operation_id: "openstack_volumes"
+        actions:
+          - pull
+          - unlink
+        resolvers:
+          <<: *tenant_context_resolver
