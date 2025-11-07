@@ -1,6 +1,11 @@
 import logging
 from dataclasses import dataclass
 
+from constance import config
+from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
+from django.db import utils as db_utils
+
 
 @dataclass
 class Component:
@@ -72,9 +77,21 @@ class PluginManager:
 
     def get_offering_types(self) -> list[str]:
         """
-        Return list of offering types.
+        Return list of offering types filtered by configuration.
+        If WALDUR_MARKETPLACE.DISABLED_OFFERING_TYPES is set, these types are excluded.
         """
-        return list(self.backends.keys())
+
+        all_types = list(self.backends.keys())
+        try:
+            # Constance reads values from DB; during schema generation or other non-DB contexts
+            # (e.g., Spectacular OpenAPI), accessing it may raise ImproperlyConfigured or DB errors.
+            disabled = set(config.DISABLED_OFFERING_TYPES or [])
+        except (ImproperlyConfigured, db_utils.Error):
+            default = settings.CONSTANCE_CONFIG.get("DISABLED_OFFERING_TYPES", ([],))
+            disabled = set(default[0] if default else [])
+        if not disabled:
+            return all_types
+        return [t for t in all_types if t not in disabled]
 
     def get_service_type(self, offering_type):
         """

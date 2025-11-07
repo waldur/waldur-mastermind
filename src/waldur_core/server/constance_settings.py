@@ -537,6 +537,11 @@ CONSTANCE_CONFIG = {
         False,
         "If True, users must have active consent to access offerings that have active Terms of Service.",
     ),
+    "DISABLED_OFFERING_TYPES": (
+        [],
+        "List of offering types disabled for creation and selection.",
+        "list_field",
+    ),
     "ONBOARDING_VERIFICATION_EXPIRY_HOURS": (
         48,
         "Number of hours after which onboarding verifications expire.",
@@ -596,6 +601,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND",
         "ENABLE_MOCK_COURSE_ACCOUNT_BACKEND",
         "ENFORCE_USER_CONSENT_FOR_OFFERINGS",
+        "DISABLED_OFFERING_TYPES",
         "ENABLE_ORDER_START_DATE",
     ),
     "Project": ("PROJECT_END_DATE_MANDATORY",),

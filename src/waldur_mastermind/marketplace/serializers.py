@@ -2637,7 +2637,8 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         return attrs
 
     def validate_type(self, offering_type):
-        if offering_type not in plugins.manager.backends.keys():
+        # Validate against registered and enabled offering types
+        if offering_type not in plugins.manager.get_offering_types():
             raise rf_exceptions.ValidationError(_("Invalid value."))
         return offering_type
 
