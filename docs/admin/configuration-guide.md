@@ -1217,6 +1217,12 @@ Enable mock returns for the course account service
 
 If True, users must have active consent to access offerings that have active Terms of Service.
 
+#### DISABLED_OFFERING_TYPES
+
+**Type:** list_field
+
+List of offering types disabled for creation and selection.
+
 #### ENABLE_ORDER_START_DATE
 
 **Type:** bool
