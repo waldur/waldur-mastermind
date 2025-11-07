@@ -206,6 +206,11 @@ collections:
                 operation: "openstack_volumes_retype"
                 param: "type"
                 compare_key: "type"
+              extend:
+                operation: "openstack_volumes_extend"
+                compare_key: "size"
+                param: "size"
+                maps_to: "disk_size"
       - name: instance
         plugin: order
         offering_type: OpenStack.Instance
