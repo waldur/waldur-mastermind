@@ -169,6 +169,8 @@ class JustificationDecisionTest(APITestCase):
         self.escalated_verification = factories.OnboardingVerificationFactory(
             user=self.regular_user,
             status=enums.VerificationStatus.ESCALATED,
+            legal_person_identifier="12345678",
+            country="EE",
         )
 
         self.justification = factories.OnboardingJustificationFactory(
@@ -263,3 +265,33 @@ class JustificationDecisionTest(APITestCase):
         response = self.client.post(url, {}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_cannot_approve_justification_if_customer_already_exists(self):
+        existing_customer = structure_factories.CustomerFactory(
+            registration_code=self.escalated_verification.legal_person_identifier,
+            name="Existing Customer",
+        )
+
+        self.client.force_authenticate(user=self.staff_user)
+        url = factories.OnboardingJustificationFactory.get_url(
+            self.justification, action="approve"
+        )
+        data = {
+            "staff_notes": "Trying to approve even though customer exists.",
+        }
+
+        response = self.client.post(url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("already exists", str(response.data))
+        self.assertIn(existing_customer.name, str(response.data))
+
+        self.justification.refresh_from_db()
+        self.assertEqual(
+            self.justification.validation_decision, enums.ReviewDecision.PENDING
+        )
+
+        self.escalated_verification.refresh_from_db()
+        self.assertEqual(
+            self.escalated_verification.status, enums.VerificationStatus.ESCALATED
+        )

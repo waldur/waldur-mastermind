@@ -13,6 +13,7 @@ from waldur_core.checklist.mixins import UserChecklistMixin
 from waldur_core.core import filters as core_filters
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 
 from . import enums, filters
@@ -33,6 +34,28 @@ from .serializers import (
     OnboardingVerificationSerializer,
 )
 from .validators import onboarding_validator
+
+
+def check_legal_person_identifier_not_exists(justification):
+    """
+    Validator to check if requested customer already exists in Customer objects.
+
+    Raises ValidationError if a customer with the same registration_code exists.
+    """
+    legal_person_identifier = justification.verification.legal_person_identifier
+
+    if not legal_person_identifier:
+        return
+
+    existing_customer = structure_models.Customer.objects.filter(
+        registration_code=legal_person_identifier
+    ).first()
+
+    if existing_customer:
+        raise exceptions.ValidationError(
+            f"A customer with registration code '{legal_person_identifier}' already exists. "
+            f"Customer name: '{existing_customer.name}'. Cannot approve this justification."
+        )
 
 
 class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSet):
@@ -284,6 +307,7 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
     approve_serializer_class = OnboardingJustificationReviewSerializer
+    approve_validators = [check_legal_person_identifier_not_exists]
 
     @extend_schema(
         description="Reject justification and mark verification as FAILED.",
