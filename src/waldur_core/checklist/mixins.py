@@ -25,7 +25,8 @@ class ReviewerDashboardViewSet(ReviewerChecklistMixin, ReadOnlyActionsViewSet):
 # - get_checklist_for_object(obj) -> Checklist or None
 """
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.plumbing import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import decorators, response, status
 from rest_framework import permissions as rf_permissions
 
@@ -231,9 +232,19 @@ class UserChecklistMixin(BaseChecklistMixin):
 
     @extend_schema(
         description="Get checklist template for creating new objects.",
+        parameters=[
+            OpenApiParameter(
+                name="parent_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="UUID of the parent object (e.g., customer UUID for new projects)",
+            )
+        ],
         responses={
             200: checklist_serializers.ChecklistTemplateSerializer,
             400: {"description": "No checklist configured"},
+            404: {"description": "Parent object not found"},
         },
     )
     @decorators.action(detail=False, methods=["get"], url_path="checklist-template")
