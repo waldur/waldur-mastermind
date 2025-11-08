@@ -8,7 +8,7 @@ related API endpoints.
 
 from unittest.mock import patch
 
-from ddt import data, ddt
+from ddt import ddt
 from rest_framework import status, test
 
 from waldur_core.checklist import enums as checklist_enums
@@ -330,18 +330,27 @@ class ProposalComplianceAPITest(
         self.assertFalse(data["is_completed"])
         self.assertEqual(data["completion_percentage"], 0.0)
 
-    @data("call_manager", "reviewer_1")
-    def test_compliance_checklist_access_permissions(self, user_role):
-        """Test that non-proposal managers can also access compliance checklist."""
+    def test_call_manager_cannot_access_proposal_checklist_directly(self):
+        """Test that call managers cannot access proposal checklist directly (they use compliance_overview instead)."""
         url = (
             proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
             + "checklist/"
         )
-        user = getattr(self.fixture, user_role)
-        self.client.force_authenticate(user)
+        self.client.force_authenticate(self.fixture.call_manager)
 
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_reviewer_cannot_access_compliance_checklist(self):
+        """Test that reviewers cannot access compliance checklist."""
+        url = (
+            proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
+            + "checklist/"
+        )
+        self.client.force_authenticate(self.fixture.reviewer_1)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_unauthorized_answer_submission(self):
         """Test that unauthorized users cannot submit answers."""
@@ -523,20 +532,20 @@ class ProposalSubmissionWithComplianceTest(
 ):
     """Test proposal submission with compliance requirements."""
 
-    def test_cannot_submit_incomplete_compliance(self):
-        """Test that proposals cannot be submitted with incomplete compliance."""
+    def test_can_submit_regardless_of_compliance_completion(self):
+        """Test that proposals can be submitted regardless of compliance completion (non-blocking)."""
         # Try to submit proposal without completing checklist
         can_submit, error = self.fixture.proposal.can_submit()
-        self.assertFalse(can_submit)
-        self.assertIn("Compliance checklist must be completed", error)
+        self.assertTrue(can_submit)  # Compliance doesn't block submission
+        self.assertIsNone(error)
 
     def test_can_submit_with_completed_compliance(self):
-        """Test that proposals can be submitted with completed compliance."""
+        """Test that proposals can be submitted with completed compliance (same as incomplete)."""
         # Complete the compliance checklist
         self._complete_compliance_checklist()
 
         can_submit, error = self.fixture.proposal.can_submit()
-        self.assertTrue(can_submit)
+        self.assertTrue(can_submit)  # Still submittable - compliance doesn't block
         self.assertIsNone(error)
 
     def test_proposal_submission_validation_in_serializer(self):
@@ -551,13 +560,15 @@ class ProposalSubmissionWithComplianceTest(
         self.assertIn("compliance_status", data)
         self.assertIn("can_submit", data)
 
-        # Initially should not be able to submit
+        # Compliance status shows completion but doesn't block submission
         compliance_status = data["compliance_status"]
         can_submit = data["can_submit"]
 
         self.assertFalse(compliance_status["is_completed"])
-        self.assertFalse(can_submit["can_submit"])
-        self.assertIn("Compliance checklist must be completed", can_submit["error"])
+        self.assertTrue(
+            can_submit["can_submit"]
+        )  # Can always submit - compliance is for evaluation
+        self.assertIsNone(can_submit["error"])
 
     def test_proposal_without_checklist_can_submit(self):
         """Test that proposals without compliance checklist can be submitted normally."""
@@ -606,9 +617,17 @@ class CallComplianceConfigurationTest(
 
     def test_assign_compliance_checklist_to_call(self):
         """Test assigning compliance checklist to call."""
-        # Create call without checklist
+        # Create call without checklist and without any proposals
         call = proposal_factories.CallFactory(
             manager=self.fixture.call.manager, compliance_checklist=None
+        )
+        # Add the call manager as a manager of this call
+        from waldur_core.permissions.fixtures import CallRole
+
+        call.add_user(
+            self.fixture.call_manager,
+            CallRole.MANAGER,
+            created_by=self.fixture.call_manager,
         )
 
         url = proposal_factories.CallFactory.get_protected_url(call)

@@ -1459,9 +1459,14 @@ ProposalChecklistCompletionSerializer = (
     checklist_serializers.ChecklistCompletionSerializer
 )
 ProposalChecklistAnswerSubmitSerializer = checklist_serializers.AnswerSubmitSerializer
-ProposalChecklistAnswerSubmitResponseSerializer = (
-    checklist_serializers.AnswerSubmitResponseSerializer
-)
+
+
+class ProposalChecklistAnswerSubmitResponseSerializer(serializers.Serializer):
+    """Custom response serializer for proposal answer submission that includes review status."""
+
+    detail = serializers.CharField()
+    completion = checklist_serializers.ChecklistCompletionReviewerSerializer()
+
 
 # Response serializer is now handled generically by ChecklistResponseSerializer
 # Keep this for backward compatibility in call manager views
@@ -1514,17 +1519,18 @@ class CallComplianceOverviewSerializer(serializers.Serializer):
             # Add compliance information if exists
             if hasattr(proposal, "checklist_completion"):
                 completion = proposal.checklist_completion
-                proposal_data["compliance"] = {
-                    "is_completed": completion.is_completed,
-                    "requires_review": completion.requires_review,
-                    "completion_percentage": completion.get_completion_percentage(),
-                    "reviewed_by": completion.reviewed_by.full_name
-                    if completion.reviewed_by
-                    else None,
-                    "reviewed_at": completion.reviewed_at,
-                    "review_triggers": completion.get_review_trigger_summary(),
-                    "unanswered_required_count": completion.get_unanswered_required_questions().count(),
-                }
+                if completion:
+                    proposal_data["compliance"] = {
+                        "is_completed": completion.is_completed,
+                        "requires_review": completion.requires_review,
+                        "completion_percentage": completion.get_completion_percentage(),
+                        "reviewed_by": completion.reviewed_by.full_name
+                        if completion.reviewed_by
+                        else None,
+                        "reviewed_at": completion.reviewed_at,
+                        "review_triggers": completion.get_review_trigger_summary(),
+                        "unanswered_required_count": completion.get_unanswered_required_questions().count(),
+                    }
 
             proposals_data.append(proposal_data)
 

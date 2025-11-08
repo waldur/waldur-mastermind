@@ -558,24 +558,8 @@ class Proposal(
 
     def can_submit(self):
         """Check if proposal can be submitted."""
-        # Check if call requires compliance checklist
-        if self.round.call.compliance_checklist:
-            completion = self.checklist_completion
-            if not completion:
-                return (
-                    False,
-                    "Compliance checklist completion object missing - please contact support",
-                )
-
-            if not completion.is_completed:
-                completion_pct = completion.get_completion_percentage()
-                unanswered = completion.get_unanswered_required_questions()
-                unanswered_count = unanswered.count()
-                return (
-                    False,
-                    f"Compliance checklist must be completed before submission ({completion_pct}% complete, {unanswered_count} required questions remaining)",
-                )
-
+        # Compliance checklists are for evaluation only, not submission blocking
+        # Only basic validation - proposals can always be submitted
         return True, None
 
     def save(self, *args, **kwargs):
