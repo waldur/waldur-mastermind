@@ -665,9 +665,12 @@ class ProposalViewSet(
 
     # Both mixins use the default implementation (obj.checklist_completion)
 
-    # UserChecklistMixin permissions - for proposal managers
+    # UserChecklistMixin permissions - for proposal managers only
+    # Only proposal managers can access proposal checklists directly
+    # Call managers use compliance_overview endpoint for oversight
     checklist_permissions = [permission_factory(PermissionEnum.MANAGE_PROPOSAL)]
     completion_status_permissions = [permission_factory(PermissionEnum.MANAGE_PROPOSAL)]
+    # Only proposal managers can submit answers
     submit_answers_permissions = [permission_factory(PermissionEnum.MANAGE_PROPOSAL)]
 
     # ReviewerChecklistMixin permissions - for proposal reviewers
@@ -891,8 +894,78 @@ class ProposalViewSet(
     # Checklist Integration Endpoints
     # Checklist methods are now provided by ChecklistViewSetMixin
     # - checklist: Get checklist with questions and existing answers
-    # - submit_answers: Submit checklist answers
+    # - submit_answers: Submit checklist answers (overridden below)
     # - completion_status: Get completion status
+
+    @extend_schema(
+        description="Submit checklist answers.",
+        request=checklist_serializers.AnswerSubmitSerializer(many=True),
+        responses={
+            200: serializers.ProposalChecklistAnswerSubmitResponseSerializer,
+            400: {"description": "Validation error or no checklist configured"},
+            404: {"description": "Object not found"},
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def submit_answers(self, request, uuid=None):
+        """Submit checklist answers with proposal-specific response that includes review status."""
+        obj = self.get_object()
+
+        completion = self.get_checklist_completion(obj)
+        if not completion:
+            return response.Response(
+                {"detail": "No checklist configured for this object"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate input data
+        submit_serializer = checklist_serializers.AnswerSubmitSerializer(
+            data=request.data,
+            many=True,
+            context={"completion": completion, "request": request},
+        )
+        submit_serializer.is_valid(raise_exception=True)
+
+        # Process each answer
+        for answer_data in submit_serializer.validated_data:
+            question = answer_data["question"]
+            answer_value = answer_data["answer_data"]
+
+            if answer_value is None:
+                # Remove answer (hard delete)
+                checklist_models.Answer.objects.filter(
+                    completion=completion,
+                    question=question,
+                    user=request.user,
+                ).delete()
+            else:
+                # Create or update answer using direct foreign key
+                checklist_models.Answer.objects.update_or_create(
+                    completion=completion,
+                    question=question,
+                    user=request.user,
+                    defaults={"answer_data": answer_value},
+                )
+
+        # Update completion status to reflect any changes from additions/removals
+        completion.update_completion_status()
+
+        # Return updated completion status
+        completion.refresh_from_db()
+
+        # Create response data with proposal-specific serializer that includes review status
+        response_data = {
+            "detail": "Answers submitted successfully",
+            "completion": completion,
+        }
+
+        response_serializer = (
+            serializers.ProposalChecklistAnswerSubmitResponseSerializer(
+                response_data, context={"request": request}
+            )
+        )
+
+        return response.Response(response_serializer.data)
 
 
 class ReviewViewSet(ActionsViewSet):
