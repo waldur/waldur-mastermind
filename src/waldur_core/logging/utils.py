@@ -21,6 +21,7 @@ class ObservableObjectType(Enum):
     IMPORTABLE_RESOURCES = "importable_resources"
     SERVICE_ACCOUNT = "service_account"
     COURSE_ACCOUNT = "course_account"
+    RESOURCE_PERIODIC_LIMITS = "resource_periodic_limits"
 
 
 def get_loggable_models():
