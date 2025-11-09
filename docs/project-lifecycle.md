@@ -24,7 +24,7 @@ end_date = models.DateField(
 
 ### Project Start Date Impact on Orders
 
-Orders can be blocked by future project start dates. This also affects [invitation processing](./core-concepts/invitations.md#background-processing) where pending invitations wait for project activation:
+Orders can be blocked by future project start dates. This also affects [invitation processing](./core-concepts/invitations.md) where pending invitations wait for project activation:
 
 ```mermaid
 sequenceDiagram
@@ -94,7 +94,7 @@ stateDiagram-v2
 
 | State | Description | Next Actions |
 |-------|-------------|--------------|
-| **PENDING_PROJECT** | Waiting for project activation | Project `start_date` must be cleared/reached. Also blocks [invitation processing](./core-concepts/invitations.md#background-processing) |
+| **PENDING_PROJECT** | Waiting for project activation | Project `start_date` must be cleared/reached. Also blocks [invitation processing](./core-concepts/invitations.md) |
 | **PENDING_START_DATE** | Waiting for order start date | Order `start_date` must be reached |
 | **EXECUTING** | Resource provisioning active | Processor creates/updates/terminates resource |
 | **DONE** | Order completed successfully | Resource state updated, billing triggered |
@@ -240,7 +240,7 @@ sequenceDiagram
 
 1. **Resource creation blocked** if project is expired (`project.end_date` reached)
 2. **Project end date triggers** termination of all project resources
-3. **Project start date blocks** order processing and [invitation processing](./core-concepts/invitations.md#background-processing) until project activates
+3. **Project start date blocks** order processing and [invitation processing](./core-concepts/invitations.md) until project activates
 
 ### Order-Resource Coordination
 

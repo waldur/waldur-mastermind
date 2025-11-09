@@ -75,7 +75,7 @@ Step by step guide:
     moment from to the same menu.
 
     4.3 Configure a URL to send a POST request to. For instance:
-    <http://waldur.example.com/api/support-jira-webhook/> It is not needed
+    <https://waldur.example.com/api/support-jira-webhook/> It is not needed
     to add any additional fields to request.
 
     *Note: In case of VirtualBox localhost usually is 10.0.2.2. So the
