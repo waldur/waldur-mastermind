@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -297,6 +298,112 @@ class TestSlurmPeriodicUsagePolicyCore(TestCase):
         self.assertEqual(policy.tres_billing_weights, custom_weights)
 
         print(f"✅ TRES weights JSON storage: {policy.tres_billing_weights}")
+
+
+class TestSlurmPeriodicUsagePolicyConstraints(TestCase):
+    """Test unique constraints on SLURM periodic usage policy."""
+
+    def test_unique_constraint_per_offering(self):
+        """Test that only one SlurmPeriodicUsagePolicy can exist per offering."""
+        offering = marketplace_factories.OfferingFactory()
+
+        # Create first policy - should work
+        policy1 = SlurmPeriodicUsagePolicy.objects.create(
+            scope=offering,
+            grace_ratio=0.2,
+            carryover_enabled=True,
+        )
+
+        self.assertIsNotNone(policy1.pk)
+        print("✅ First policy created successfully")
+
+        # Try to create second policy for same offering - should fail
+        with self.assertRaises(ValidationError) as cm:
+            SlurmPeriodicUsagePolicy.objects.create(
+                scope=offering,
+                grace_ratio=0.3,
+                carryover_enabled=False,
+            )
+
+        # Verify the error message
+        error_msg = str(cm.exception)
+        self.assertIn("already exists for this offering", error_msg.lower())
+        print(f"✅ Second policy correctly blocked: {error_msg}")
+
+    def test_multiple_policies_different_offerings(self):
+        """Test that multiple policies can exist for different offerings."""
+        offering1 = marketplace_factories.OfferingFactory()
+        offering2 = marketplace_factories.OfferingFactory()
+
+        # Create policies for different offerings - should work
+        policy1 = SlurmPeriodicUsagePolicy.objects.create(
+            scope=offering1,
+            grace_ratio=0.2,
+        )
+
+        policy2 = SlurmPeriodicUsagePolicy.objects.create(
+            scope=offering2,
+            grace_ratio=0.3,
+        )
+
+        self.assertIsNotNone(policy1.pk)
+        self.assertIsNotNone(policy2.pk)
+        self.assertNotEqual(policy1.scope, policy2.scope)
+
+        # Verify both policies exist
+        self.assertEqual(SlurmPeriodicUsagePolicy.objects.count(), 2)
+        print("✅ Multiple policies for different offerings allowed")
+
+    def test_policy_update_preserves_constraint(self):
+        """Test that updating a policy doesn't violate the constraint."""
+        offering = marketplace_factories.OfferingFactory()
+
+        policy = SlurmPeriodicUsagePolicy.objects.create(
+            scope=offering,
+            grace_ratio=0.2,
+        )
+
+        # Update the policy - should work
+        policy.grace_ratio = 0.4
+        policy.carryover_enabled = False
+        policy.fairshare_decay_half_life = 30
+        policy.save()
+
+        # Reload and verify
+        policy.refresh_from_db()
+        self.assertEqual(policy.grace_ratio, 0.4)
+        self.assertFalse(policy.carryover_enabled)
+        self.assertEqual(policy.fairshare_decay_half_life, 30)
+
+        print("✅ Policy updates work correctly")
+
+    def test_policy_deletion_allows_recreation(self):
+        """Test that deleting a policy allows creating a new one for the same offering."""
+        offering = marketplace_factories.OfferingFactory()
+
+        # Create policy
+        policy1 = SlurmPeriodicUsagePolicy.objects.create(
+            scope=offering,
+            grace_ratio=0.2,
+        )
+        policy1_id = policy1.pk
+
+        # Delete policy
+        policy1.delete()
+        self.assertFalse(
+            SlurmPeriodicUsagePolicy.objects.filter(pk=policy1_id).exists()
+        )
+
+        # Create new policy for same offering - should work
+        policy2 = SlurmPeriodicUsagePolicy.objects.create(
+            scope=offering,
+            grace_ratio=0.3,
+        )
+
+        self.assertIsNotNone(policy2.pk)
+        self.assertNotEqual(policy1_id, policy2.pk)
+
+        print("✅ Policy deletion and recreation works")
 
 
 if __name__ == "__main__":

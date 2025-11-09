@@ -455,6 +455,25 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         verbose_name = _("SLURM Periodic Usage Policy")
         verbose_name_plural = _("SLURM Periodic Usage Policies")
 
+    def clean(self):
+        """Validate that only one SlurmPeriodicUsagePolicy exists per offering."""
+        super().clean()
+        if self.scope:
+            existing = SlurmPeriodicUsagePolicy.objects.filter(scope=self.scope)
+            if self.pk:
+                existing = existing.exclude(pk=self.pk)
+            if existing.exists():
+                from django.core.exceptions import ValidationError
+
+                raise ValidationError(
+                    _("A SLURM Periodic Usage Policy already exists for this offering.")
+                )
+
+    def save(self, *args, **kwargs):
+        """Save with validation."""
+        self.clean()
+        super().save(*args, **kwargs)
+
     def calculate_slurm_settings(self, resource, config_override=None):
         """Calculate SLURM settings with configurable behavior and decay logic."""
 
