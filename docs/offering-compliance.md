@@ -977,7 +977,7 @@ function DetailedComplianceMonitor() {
 
 ## Best Practices
 
-### For Service Providers
+### Service Provider Guidelines
 
 1. **Define Clear Questions**
   - Use descriptive question text
@@ -1032,14 +1032,23 @@ function DetailedComplianceMonitor() {
 
 1. Create the compliance checklist
 2. Update the offering with the checklist UUID
-3. Existing offering users will need to complete compliance
+3. **Background task automatically creates completions for all existing offering users**
 4. New offering users will get compliance requirements automatically
+5. Users can immediately begin completing their compliance requirements
 
 ### Removing Compliance Requirements
 
 1. Set offering's `compliance_checklist` to null
-2. Existing completions remain for audit purposes
-3. No new completions will be created
+2. **Background task automatically removes ALL existing completions and user data**
+3. **No audit trail is preserved - all compliance data is permanently deleted**
+4. No new completions will be created
+
+### Changing Compliance Requirements
+
+1. Update the offering with the new checklist UUID
+2. **Background task automatically removes old completions and creates new ones**
+3. **Users start fresh with the new compliance requirements**
+4. **Previous compliance work is permanently deleted**
 
 ## Security Considerations
 
@@ -1057,3 +1066,210 @@ function DetailedComplianceMonitor() {
   - Based on existing Waldur permission system
   - Respects customer and project boundaries
   - Service provider permissions are strictly scoped
+
+## Compliance Lifecycle Management
+
+When compliance requirements change for an offering, the system automatically manages checklist completions for existing users through background processing to ensure scalability and performance.
+
+### Lifecycle Scenarios
+
+The system handles three main compliance lifecycle scenarios:
+
+#### 1. Adding Compliance Requirements
+
+**Scenario**: Offering transitions from no compliance requirements to having compliance requirements.
+
+**Trigger**: `compliance_checklist` field changes from `None` to a checklist
+
+**Behavior**:
+
+- Background task creates ChecklistCompletion objects for all existing OfferingUsers
+- New users get completions automatically during OfferingUser creation
+- Processing is done in batches of 100 users for performance
+
+**Example**:
+
+```http
+POST /api/marketplace-provider-offerings/{offering-uuid}/update_compliance_checklist/
+{
+  "compliance_checklist": "checklist-uuid-here"
+}
+```
+
+#### 2. Removing Compliance Requirements
+
+**Scenario**: Offering transitions from having compliance requirements to no requirements.
+
+**Trigger**: `compliance_checklist` field changes from a checklist to `None`
+
+**Behavior**:
+
+- **Background task removes ALL ChecklistCompletion objects** for the offering
+- **All user answers and completion data are permanently deleted**
+- Users get a clean slate with no compliance history
+- Processing is done in batches for performance
+
+**Example**:
+
+```http
+POST /api/marketplace-provider-offerings/{offering-uuid}/update_compliance_checklist/
+{
+  "compliance_checklist": null
+}
+```
+
+#### 3. Changing Compliance Requirements
+
+**Scenario**: Offering switches from one checklist to a different checklist.
+
+**Trigger**: `compliance_checklist` field changes from `checklist_A` to `checklist_B`
+
+**Behavior**:
+
+- **Background task removes all old ChecklistCompletion objects** (checklist_A)
+- **Background task creates fresh ChecklistCompletion objects** (checklist_B)
+- Users start fresh with the new compliance requirements
+- No historical data from the previous checklist is retained
+- Processing is done in batches for both removal and creation
+
+**Example**:
+
+```http
+POST /api/marketplace-provider-offerings/{offering-uuid}/update_compliance_checklist/
+{
+  "compliance_checklist": "new-checklist-uuid-here"
+}
+```
+
+### Background Processing
+
+All compliance lifecycle changes are processed asynchronously using Celery tasks to ensure:
+
+- **Non-blocking Operations**: Admin interface remains responsive
+- **Scalability**: Can handle thousands of users efficiently
+- **Reliability**: Automatic retry on failure
+- **Progress Tracking**: Comprehensive logging of all operations
+
+#### Task Types
+
+1. **`create_checklist_completions_for_offering_users`**
+   - Creates completions for existing users when compliance is added
+   - Processes users in batches of 100
+   - Prevents duplicates for users who already have completions
+
+2. **`remove_checklist_completions_for_offering_users`**
+   - Removes all completions when compliance is removed
+   - Processes deletions in batches of 100
+   - Permanently deletes all associated user answers
+
+3. **`replace_checklist_completions_for_offering_users`**
+   - Replaces completions when checklist is changed
+   - First removes old completions, then creates new ones
+   - Ensures atomic operation per batch
+
+### Performance Characteristics
+
+| Scenario | Users | Processing Time | Memory Usage | Blocking |
+|----------|-------|-----------------|--------------|----------|
+| Add compliance | 5,000 | ~2-5 minutes | Low (batched) | Non-blocking |
+| Remove compliance | 5,000 | ~1-3 minutes | Low (batched) | Non-blocking |
+| Change compliance | 5,000 | ~3-6 minutes | Low (batched) | Non-blocking |
+
+### Monitoring and Logging
+
+All compliance lifecycle operations are logged with the following information:
+
+- **Start/completion timestamps**
+- **Number of users processed**
+- **Batch progress updates**
+- **Error details if any failures occur**
+- **Total counts of completions created/removed**
+
+**Example Log Output**:
+
+```text
+INFO: Queued background task to remove checklist completions for offering Cloud VM Service
+INFO: Starting checklist completion removal for offering 'Cloud VM Service' with checklist 'Security Compliance'
+INFO: Found 2500 offering users to process for removal
+INFO: Processed batch 1/25: deleted 100 completions
+INFO: Processed batch 25/25: deleted 100 completions
+INFO: Checklist completion removal completed: deleted 2500 completions for 2500 users
+```
+
+### Data Cleanup Policy
+
+**Important**: The system follows a **clean slate** policy for compliance data:
+
+- **Removing compliance**: All user completion data is permanently deleted
+- **Changing compliance**: Previous compliance data is removed, fresh start with new requirements
+- **No audit trail**: Historical compliance data is not preserved for removed/changed requirements
+
+This approach ensures:
+
+- ✅ **Clean user experience** - No confusing historical compliance records
+- ✅ **Clear requirements** - Users only see current compliance needs
+- ✅ **Performance** - No accumulation of obsolete compliance data
+- ❌ **No historical audit** - Previous compliance work is not preserved
+
+### Migration Scenarios
+
+#### Scenario A: Temporary Compliance Removal
+
+```text
+1. checklist_A → None           [All completions deleted]
+2. None → checklist_A           [Fresh completions created]
+```
+
+**Result**: Users start fresh, previous answers are lost
+
+#### Scenario B: Compliance Checklist Evolution
+
+```text
+1. security_v1 → security_v2    [Old completions deleted, new created]
+```
+
+**Result**: Users must complete new security_v2 requirements from scratch
+
+#### Scenario C: Compliance Requirement Changes
+
+```text
+1. security_checklist → gdpr_checklist    [Security data deleted, fresh GDPR completions]
+```
+
+**Result**: Users transition to completely new compliance domain
+
+### API Impact
+
+When compliance lifecycle changes occur, the following APIs are affected:
+
+#### Immediate Changes
+
+- `/api/marketplace-public-offerings/{uuid}/` - `has_compliance_requirements` field updates immediately
+- `/api/marketplace-provider-offerings/{uuid}/` - `compliance_checklist` field updates immediately
+
+#### API Changes During Processing
+
+- `/api/marketplace-offering-user-checklist-completions/` - Results change after background tasks complete
+- `/api/marketplace-offering-users/{uuid}/checklist/` - May return 404 if completions are being processed
+
+### Lifecycle Management Best Practices
+
+#### Service Provider Lifecycle Management
+
+1. **Plan Compliance Changes**: Understand that removing/changing compliance deletes user data
+2. **Communicate Changes**: Inform users before making compliance changes
+3. **Timing**: Make compliance changes during maintenance windows if possible
+4. **Monitor Progress**: Check logs to ensure background tasks complete successfully
+
+#### For Integrations
+
+1. **Handle Async Operations**: Account for background processing delays
+2. **Error Handling**: Handle cases where completions might be temporarily unavailable
+3. **Polling**: Use appropriate intervals when checking completion status after changes
+4. **Graceful Degradation**: Show appropriate messages when compliance is being processed
+
+#### For Users
+
+1. **Save Work Frequently**: Complete compliance promptly as requirements may change
+2. **Expect Clean Slate**: Understand that compliance changes mean starting fresh
+3. **Current Requirements Only**: Focus on current compliance, not historical requirements

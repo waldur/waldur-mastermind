@@ -630,7 +630,18 @@ class Offering(
     )
 
     objects = managers.OfferingManager()
-    tracker = cast(FieldInstanceTracker, FieldTracker())
+    tracker = cast(
+        FieldInstanceTracker,
+        FieldTracker(
+            fields=[
+                "compliance_checklist",
+                "state",
+                "plugin_options",
+                "secret_options",
+                "name",
+            ]
+        ),
+    )
 
     class Permissions:
         customer_path = "customer"

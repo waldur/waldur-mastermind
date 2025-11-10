@@ -220,6 +220,12 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.plan_has_been_created_or_updated",
         )
 
+        signals.post_save.connect(
+            handlers.create_checklist_completions_for_existing_users,
+            sender=models.Offering,
+            dispatch_uid="waldur_mastermind.marketplace.create_checklist_completions_for_existing_users",
+        )
+
         manager.register(
             offering_type=BASIC_OFFERING,
             create_resource_processor=processors.BasicCreateResourceProcessor,

@@ -2479,3 +2479,86 @@ class OfferingUserSignalTest(test.APITransactionTestCase):
 
         self.assertIn("state", payload["changed_fields"])
         self.assertEqual(payload["state"], self.offering_user.get_state_display())
+
+
+class OfferingUserComplianceFieldTest(test.APITransactionTestCase):
+    """Test the has_compliance_checklist field in OfferingUserSerializer."""
+
+    def setUp(self):
+        # Create test fixtures following established pattern from ListOfferingUsersTest
+        self.fixture = structure_fixtures.ProjectFixture()
+
+        # Create checklist
+        self.checklist = ChecklistFactory(
+            name="Test Compliance Checklist",
+            checklist_type="offering_compliance",
+        )
+
+        # Create offerings with proper plugin options (following working pattern)
+        self.offering_with_compliance = OfferingFactory(
+            shared=True,
+            customer=self.fixture.customer,
+            compliance_checklist=self.checklist,
+        )
+        self.offering_with_compliance.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering_with_compliance.save()
+
+        self.offering_without_compliance = OfferingFactory(
+            shared=True, customer=self.fixture.customer, compliance_checklist=None
+        )
+        self.offering_without_compliance.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering_without_compliance.save()
+
+    def test_has_compliance_checklist_field_true_when_compliance_exists(self):
+        """Test that has_compliance_checklist returns True when offering user has compliance."""
+        # Create test user following the exact working pattern
+        sample_user = UserFactory()
+        self.fixture.project.add_user(sample_user, ProjectRole.ADMIN)
+        OfferingUser.objects.create(
+            offering=self.offering_with_compliance,
+            user=sample_user,
+            username="compliance_user",
+        )
+        models.UserOfferingConsent.objects.create(
+            user=sample_user,
+            offering=self.offering_with_compliance,
+            version="1.0",
+        )
+
+        # Authenticate as the offering user themselves
+        self.client.force_authenticate(sample_user)
+        response = self.client.get(OfferingUserFactory.get_list_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(1, len(response.data))
+        self.assertIn("has_compliance_checklist", response.data[0])
+        self.assertTrue(response.data[0]["has_compliance_checklist"])
+
+    def test_has_compliance_checklist_field_false_when_no_compliance(self):
+        """Test that has_compliance_checklist returns False when offering has no compliance."""
+        # Create test user following the exact working pattern
+        sample_user = UserFactory()
+        self.fixture.project.add_user(sample_user, ProjectRole.ADMIN)
+        OfferingUser.objects.create(
+            offering=self.offering_without_compliance,
+            user=sample_user,
+            username="no_compliance_user",
+        )
+        models.UserOfferingConsent.objects.create(
+            user=sample_user,
+            offering=self.offering_without_compliance,
+            version="1.0",
+        )
+
+        # Authenticate as the offering user themselves
+        self.client.force_authenticate(sample_user)
+        response = self.client.get(OfferingUserFactory.get_list_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(1, len(response.data))
+        self.assertIn("has_compliance_checklist", response.data[0])
+        self.assertFalse(response.data[0]["has_compliance_checklist"])

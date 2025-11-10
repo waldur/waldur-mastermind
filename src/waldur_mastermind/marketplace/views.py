@@ -5540,11 +5540,25 @@ class OfferingUsersViewSet(
         current_user = self.request.user
         if current_user.is_staff or current_user.is_support:
             # Staff and support users see all OfferingUsers without any filtering
-            return super().get_queryset()
+            # Apply performance optimizations for compliance data
+            return (
+                super()
+                .get_queryset()
+                .select_related(
+                    "offering__compliance_checklist", "user", "offering__customer"
+                )
+                .prefetch_related("offering__user_consents")
+            )
 
-        return get_allowed_offering_users_for_user(
+        # For non-staff users, apply both filtering and optimization
+        filtered_queryset = get_allowed_offering_users_for_user(
             self.request.user, include_consent_filtering=True, action=self.action
         )
+
+        # Apply performance optimizations to filtered queryset
+        return filtered_queryset.select_related(
+            "offering__compliance_checklist", "user", "offering__customer"
+        ).prefetch_related("offering__user_consents")
 
     @extend_schema(
         request=serializers.OfferingUserUpdateRestrictionSerializer,
