@@ -181,3 +181,116 @@ class OfferingComplianceChecklistUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.compliance_checklist, self.checklist1)
+
+    @data("staff", "owner")
+    def test_adding_compliance_checklist_triggers_background_task_for_existing_users(
+        self, user
+    ):
+        """Test that adding compliance checklist to offering with existing users triggers background task."""
+        # Create some existing offering users
+        from waldur_mastermind.marketplace.tests.factories import OfferingUserFactory
+
+        OfferingUserFactory(offering=self.offering)
+        OfferingUserFactory(offering=self.offering)
+
+        # Mock the task to verify it gets called
+        from unittest.mock import patch
+
+        with patch(
+            "waldur_mastermind.marketplace.tasks.create_checklist_completions_for_offering_users.delay"
+        ) as mock_task:
+            url = factories.OfferingFactory.get_url(
+                self.offering, "update_compliance_checklist"
+            )
+            self.client.force_authenticate(getattr(self.fixture, user))
+
+            response = self.client.post(
+                url, {"compliance_checklist": self.checklist1.uuid.hex}
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+            self.offering.refresh_from_db()
+            self.assertEqual(self.offering.compliance_checklist, self.checklist1)
+
+            # Verify that the background task was triggered
+            mock_task.assert_called_once_with(
+                offering_id=self.offering.id, checklist_id=self.checklist1.id
+            )
+
+    @data("staff", "owner")
+    def test_removing_compliance_checklist_triggers_background_task_for_existing_users(
+        self, user
+    ):
+        """Test that removing compliance checklist triggers background task to remove completions."""
+        # First set a checklist
+        self.offering.compliance_checklist = self.checklist1
+        self.offering.save()
+
+        # Create some existing offering users
+        from waldur_mastermind.marketplace.tests.factories import OfferingUserFactory
+
+        OfferingUserFactory(offering=self.offering)
+        OfferingUserFactory(offering=self.offering)
+
+        # Mock the removal task to verify it gets called
+        from unittest.mock import patch
+
+        with patch(
+            "waldur_mastermind.marketplace.tasks.remove_checklist_completions_for_offering_users.delay"
+        ) as mock_task:
+            url = factories.OfferingFactory.get_url(
+                self.offering, "update_compliance_checklist"
+            )
+            self.client.force_authenticate(getattr(self.fixture, user))
+
+            # Remove the compliance checklist
+            response = self.client.post(url, {"compliance_checklist": None})
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+            self.offering.refresh_from_db()
+            self.assertIsNone(self.offering.compliance_checklist)
+
+            # Verify that the background task was triggered
+            mock_task.assert_called_once_with(
+                offering_id=self.offering.id, checklist_id=self.checklist1.id
+            )
+
+    @data("staff", "owner")
+    def test_changing_compliance_checklist_triggers_replacement_task(self, user):
+        """Test that changing compliance checklist triggers background task to replace completions."""
+        # First set a checklist
+        self.offering.compliance_checklist = self.checklist1
+        self.offering.save()
+
+        # Create some existing offering users
+        from waldur_mastermind.marketplace.tests.factories import OfferingUserFactory
+
+        OfferingUserFactory(offering=self.offering)
+        OfferingUserFactory(offering=self.offering)
+
+        # Mock the replacement task to verify it gets called
+        from unittest.mock import patch
+
+        with patch(
+            "waldur_mastermind.marketplace.tasks.replace_checklist_completions_for_offering_users.delay"
+        ) as mock_task:
+            url = factories.OfferingFactory.get_url(
+                self.offering, "update_compliance_checklist"
+            )
+            self.client.force_authenticate(getattr(self.fixture, user))
+
+            # Change to a different compliance checklist
+            response = self.client.post(
+                url, {"compliance_checklist": self.checklist2.uuid.hex}
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+            self.offering.refresh_from_db()
+            self.assertEqual(self.offering.compliance_checklist, self.checklist2)
+
+            # Verify that the background task was triggered
+            mock_task.assert_called_once_with(
+                offering_id=self.offering.id,
+                old_checklist_id=self.checklist1.id,
+                new_checklist_id=self.checklist2.id,
+            )

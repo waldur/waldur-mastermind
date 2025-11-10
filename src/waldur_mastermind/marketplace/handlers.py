@@ -1202,6 +1202,83 @@ def create_offering_user_checklist_completions(
         )
 
 
+def create_checklist_completions_for_existing_users(
+    sender, instance: Offering, created=False, **kwargs
+):
+    """Manage checklist completions for existing OfferingUsers when compliance changes."""
+    if created:
+        return  # New offerings are handled by the OfferingUser creation handler
+
+    # Check if compliance_checklist changed
+    if not instance.tracker.has_changed("compliance_checklist"):
+        return
+
+    old_checklist = instance.tracker.previous("compliance_checklist")
+    new_checklist = instance.compliance_checklist
+
+    from waldur_mastermind.marketplace import tasks
+
+    # Handle different scenarios
+    if old_checklist is None and new_checklist is not None:
+        # Adding compliance checklist (None → checklist)
+        tasks.create_checklist_completions_for_offering_users.delay(
+            offering_id=instance.id, checklist_id=new_checklist.id
+        )
+        logger.info(
+            "Queued background task to create checklist completions for offering %s with checklist %s",
+            instance.name,
+            new_checklist.name,
+        )
+
+    elif old_checklist is not None and new_checklist is None:
+        # Removing compliance checklist (checklist → None)
+        # old_checklist might be an ID, so get the object if needed
+        old_checklist_id = (
+            old_checklist if isinstance(old_checklist, int) else old_checklist.id
+        )
+        old_checklist_name = (
+            old_checklist.name
+            if hasattr(old_checklist, "name")
+            else f"Checklist ID {old_checklist_id}"
+        )
+
+        tasks.remove_checklist_completions_for_offering_users.delay(
+            offering_id=instance.id, checklist_id=old_checklist_id
+        )
+        logger.info(
+            "Queued background task to remove checklist completions for offering %s with old checklist %s",
+            instance.name,
+            old_checklist_name,
+        )
+
+    elif old_checklist is not None and new_checklist is not None:
+        # Handle both ID and object cases for comparison
+        old_checklist_id = (
+            old_checklist if isinstance(old_checklist, int) else old_checklist.id
+        )
+        new_checklist_id = new_checklist.id
+
+        if old_checklist_id != new_checklist_id:
+            # Changing checklist (checklist_A → checklist_B)
+            old_checklist_name = (
+                old_checklist.name
+                if hasattr(old_checklist, "name")
+                else f"Checklist ID {old_checklist_id}"
+            )
+
+            tasks.replace_checklist_completions_for_offering_users.delay(
+                offering_id=instance.id,
+                old_checklist_id=old_checklist_id,
+                new_checklist_id=new_checklist_id,
+            )
+            logger.info(
+                "Queued background task to replace checklist completions for offering %s: %s → %s",
+                instance.name,
+                old_checklist_name,
+                new_checklist.name,
+            )
+
+
 def delete_offering_user_checklist_completions(
     sender, instance: OfferingUser, **kwargs
 ):

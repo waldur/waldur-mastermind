@@ -5189,6 +5189,7 @@ class OfferingUserSerializer(
     service_provider_comment_url = serializers.ReadOnlyField()
     has_consent = serializers.SerializerMethodField()
     requires_reconsent = serializers.SerializerMethodField()
+    has_compliance_checklist = serializers.SerializerMethodField()
 
     class Meta:
         model = models.OfferingUser
@@ -5214,6 +5215,7 @@ class OfferingUserSerializer(
             "service_provider_comment_url",
             "has_consent",
             "requires_reconsent",
+            "has_compliance_checklist",
         )
         extra_kwargs = dict(
             url={
@@ -5296,6 +5298,26 @@ class OfferingUserSerializer(
         if not active_tos or not active_tos.requires_reconsent:
             return False
         return active_tos.version != consent.version
+
+    def get_has_compliance_checklist(self, offering_user) -> bool:
+        """Check if the offering user has a connected compliance checklist completion."""
+        # Check if the offering has compliance requirements
+        if not offering_user.offering.compliance_checklist:
+            return False
+
+        # Use cached data if available to avoid N+1 queries
+        if hasattr(offering_user, "_compliance_completion_exists"):
+            return offering_user._compliance_completion_exists
+
+        # Fall back to individual query if not pre-loaded
+        from django.contrib.contenttypes.models import ContentType
+
+        offering_user_ct = ContentType.objects.get_for_model(offering_user)
+        return checklist_models.ChecklistCompletion.objects.filter(
+            scope_content_type=offering_user_ct,
+            scope_object_id=offering_user.id,
+            checklist=offering_user.offering.compliance_checklist,
+        ).exists()
 
     def get_fields(self):
         request = self.context["request"]

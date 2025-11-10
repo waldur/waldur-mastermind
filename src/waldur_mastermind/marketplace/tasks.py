@@ -16,6 +16,7 @@ from django.utils import timezone
 from rest_framework import status
 
 from waldur_core import _get_version
+from waldur_core.checklist import models as checklist_models
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import User
@@ -1001,4 +1002,251 @@ def revoke_outdated_consents():
 
     logger.info(
         f"Total of {revoked_count} outdated consents revoked across all offerings"
+    )
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.create_checklist_completions_for_offering_users"
+)
+def create_checklist_completions_for_offering_users(offering_id, checklist_id):
+    """Background task to create checklist completions for existing offering users."""
+    try:
+        offering = models.Offering.objects.get(id=offering_id)
+        checklist = checklist_models.Checklist.objects.get(id=checklist_id)
+    except (models.Offering.DoesNotExist, checklist_models.Checklist.DoesNotExist) as e:
+        logger.error(
+            f"Failed to find offering {offering_id} or checklist {checklist_id}: {e}"
+        )
+        return
+
+    logger.info(
+        f"Starting checklist completion creation for offering '{offering.name}' "
+        f"with checklist '{checklist.name}'"
+    )
+
+    # Get content type for OfferingUser
+    offering_user_content_type = ContentType.objects.get_for_model(models.OfferingUser)
+
+    # Get all existing offering users for this offering
+    offering_user_ids = list(
+        models.OfferingUser.objects.filter(offering=offering).values_list(
+            "id", flat=True
+        )
+    )
+
+    total_users = len(offering_user_ids)
+    logger.info(f"Found {total_users} offering users to process")
+
+    if total_users == 0:
+        logger.info("No offering users found, nothing to do")
+        return
+
+    # Process in batches to avoid memory issues
+    batch_size = 100
+    created_count = 0
+    skipped_count = 0
+
+    for i in range(0, len(offering_user_ids), batch_size):
+        batch_ids = offering_user_ids[i : i + batch_size]
+        offering_users = models.OfferingUser.objects.filter(id__in=batch_ids)
+
+        completions_to_create = []
+        for offering_user in offering_users:
+            # Check if completion already exists to avoid duplicates
+            existing_completion = checklist_models.ChecklistCompletion.objects.filter(
+                scope_content_type=offering_user_content_type,
+                scope_object_id=offering_user.id,
+                checklist=checklist,
+            ).exists()
+
+            if not existing_completion:
+                completions_to_create.append(
+                    checklist_models.ChecklistCompletion(
+                        scope_content_type=offering_user_content_type,
+                        scope_object_id=offering_user.id,
+                        checklist=checklist,
+                    )
+                )
+            else:
+                skipped_count += 1
+
+        # Bulk create for efficiency
+        if completions_to_create:
+            checklist_models.ChecklistCompletion.objects.bulk_create(
+                completions_to_create, ignore_conflicts=True
+            )
+            created_count += len(completions_to_create)
+
+        # Log progress for large batches
+        batch_num = i // batch_size + 1
+        total_batches = (len(offering_user_ids) - 1) // batch_size + 1
+        logger.info(
+            f"Processed batch {batch_num}/{total_batches}: "
+            f"created {len(completions_to_create)} completions"
+        )
+
+    logger.info(
+        f"Checklist completion creation completed for offering '{offering.name}': "
+        f"created {created_count}, skipped {skipped_count} (already existed), "
+        f"total {total_users} users processed"
+    )
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.remove_checklist_completions_for_offering_users"
+)
+def remove_checklist_completions_for_offering_users(offering_id, checklist_id):
+    """Background task to remove checklist completions when compliance is removed."""
+    try:
+        offering = models.Offering.objects.get(id=offering_id)
+        checklist = checklist_models.Checklist.objects.get(id=checklist_id)
+    except (models.Offering.DoesNotExist, checklist_models.Checklist.DoesNotExist) as e:
+        logger.error(
+            f"Failed to find offering {offering_id} or checklist {checklist_id}: {e}"
+        )
+        return
+
+    logger.info(
+        f"Starting checklist completion removal for offering '{offering.name}' "
+        f"with checklist '{checklist.name}'"
+    )
+
+    # Get content type for OfferingUser
+    offering_user_content_type = ContentType.objects.get_for_model(models.OfferingUser)
+
+    # Get all offering users for this offering
+    offering_user_ids = list(
+        models.OfferingUser.objects.filter(offering=offering).values_list(
+            "id", flat=True
+        )
+    )
+
+    total_users = len(offering_user_ids)
+    logger.info(f"Found {total_users} offering users to process for removal")
+
+    if total_users == 0:
+        logger.info("No offering users found, nothing to remove")
+        return
+
+    # Remove completions in batches to avoid memory issues
+    batch_size = 100
+    deleted_count = 0
+
+    for i in range(0, len(offering_user_ids), batch_size):
+        batch_ids = offering_user_ids[i : i + batch_size]
+
+        # Delete completions for this batch
+        deleted_in_batch = checklist_models.ChecklistCompletion.objects.filter(
+            scope_content_type=offering_user_content_type,
+            scope_object_id__in=batch_ids,
+            checklist=checklist,
+        ).delete()[0]
+
+        deleted_count += deleted_in_batch
+
+        # Log progress for large batches
+        batch_num = i // batch_size + 1
+        total_batches = (len(offering_user_ids) - 1) // batch_size + 1
+        logger.info(
+            f"Processed batch {batch_num}/{total_batches}: "
+            f"deleted {deleted_in_batch} completions"
+        )
+
+    logger.info(
+        f"Checklist completion removal completed for offering '{offering.name}': "
+        f"deleted {deleted_count} completions for {total_users} users"
+    )
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.replace_checklist_completions_for_offering_users"
+)
+def replace_checklist_completions_for_offering_users(
+    offering_id, old_checklist_id, new_checklist_id
+):
+    """Background task to replace checklist completions when checklist is changed."""
+    try:
+        offering = models.Offering.objects.get(id=offering_id)
+        old_checklist = checklist_models.Checklist.objects.get(id=old_checklist_id)
+        new_checklist = checklist_models.Checklist.objects.get(id=new_checklist_id)
+    except (
+        models.Offering.DoesNotExist,
+        checklist_models.Checklist.DoesNotExist,
+    ) as e:
+        logger.error(
+            f"Failed to find offering {offering_id} or checklists {old_checklist_id}/{new_checklist_id}: {e}"
+        )
+        return
+
+    logger.info(
+        f"Starting checklist completion replacement for offering '{offering.name}': "
+        f"'{old_checklist.name}' → '{new_checklist.name}'"
+    )
+
+    # Get content type for OfferingUser
+    offering_user_content_type = ContentType.objects.get_for_model(models.OfferingUser)
+
+    # Get all offering users for this offering
+    offering_user_ids = list(
+        models.OfferingUser.objects.filter(offering=offering).values_list(
+            "id", flat=True
+        )
+    )
+
+    total_users = len(offering_user_ids)
+    logger.info(f"Found {total_users} offering users to process for replacement")
+
+    if total_users == 0:
+        logger.info("No offering users found, nothing to replace")
+        return
+
+    # Process in batches
+    batch_size = 100
+    deleted_count = 0
+    created_count = 0
+
+    for i in range(0, len(offering_user_ids), batch_size):
+        batch_ids = offering_user_ids[i : i + batch_size]
+
+        # First, remove old completions
+        deleted_in_batch = checklist_models.ChecklistCompletion.objects.filter(
+            scope_content_type=offering_user_content_type,
+            scope_object_id__in=batch_ids,
+            checklist=old_checklist,
+        ).delete()[0]
+
+        deleted_count += deleted_in_batch
+
+        # Then create new completions for users in this batch
+        offering_users = models.OfferingUser.objects.filter(id__in=batch_ids)
+        completions_to_create = []
+
+        for offering_user in offering_users:
+            completions_to_create.append(
+                checklist_models.ChecklistCompletion(
+                    scope_content_type=offering_user_content_type,
+                    scope_object_id=offering_user.id,
+                    checklist=new_checklist,
+                )
+            )
+
+        # Bulk create new completions
+        if completions_to_create:
+            checklist_models.ChecklistCompletion.objects.bulk_create(
+                completions_to_create, ignore_conflicts=True
+            )
+            created_count += len(completions_to_create)
+
+        # Log progress
+        batch_num = i // batch_size + 1
+        total_batches = (len(offering_user_ids) - 1) // batch_size + 1
+        logger.info(
+            f"Processed batch {batch_num}/{total_batches}: "
+            f"deleted {deleted_in_batch}, created {len(completions_to_create)} completions"
+        )
+
+    logger.info(
+        f"Checklist completion replacement completed for offering '{offering.name}': "
+        f"deleted {deleted_count} old completions, created {created_count} new completions "
+        f"for {total_users} users"
     )
