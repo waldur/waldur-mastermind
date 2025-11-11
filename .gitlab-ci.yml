@@ -1010,3 +1010,61 @@ Publish Ansible Galaxy collection:
       done
 
     - echo "--- All collections processed ---"
+
+Update SDK docs generator schema:
+  stage: postdeploy # Runs after the schema has been successfully generated
+  image:
+    name: registry.hpc.ut.ee/mirror/alpine/git:latest
+    entrypoint: [""]
+  needs:
+    - job: Generate OpenAPI schema
+      artifacts: true # This is crucial to get the schema file from the previous job
+  rules:
+    # Run under the exact same conditions as the 'Generate OpenAPI schema' job
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+  before_script:
+    # No SSH setup is needed. We only need to install git and configure the user.
+    - apk add --no-cache git
+    - git config --global user.name "${GITLAB_USER_NAME}"
+    - git config --global user.email "${GITLAB_USER_EMAIL}"
+  script:
+    # --- Define variables for clarity ---
+    - DOCS_REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/waldur/waldur-sdk-docs-generator.git"
+    - DOCS_REPO_DIR="/tmp/waldur-sdk-docs-generator"
+    - SOURCE_SCHEMA_PATH="${CI_PROJECT_DIR}/waldur-openapi-schema.yaml"
+    - DESTINATION_SCHEMA_PATH="${DOCS_REPO_DIR}/input/openapi.yml"
+
+    # --- Step 1: Clone the target repository using the CI_JOB_TOKEN ---
+    - echo "Cloning docs generator repository..."
+    - git clone "${DOCS_REPO_URL}" "${DOCS_REPO_DIR}"
+
+    # --- Step 2: Copy the new schema file ---
+    - echo "Copying schema from ${SOURCE_SCHEMA_PATH} to ${DESTINATION_SCHEMA_PATH}"
+    - cp "${SOURCE_SCHEMA_PATH}" "${DESTINATION_SCHEMA_PATH}"
+
+    # --- Step 3: Commit and push if changes exist ---
+    - cd "${DOCS_REPO_DIR}"
+    - |
+      # Check if there are any changes to commit.
+      if [ -z "$(git status --porcelain)" ]; then
+        echo "OpenAPI schema has not changed. No commit needed."
+      else
+        echo "Schema has changed. Committing and pushing..."
+
+        # Determine the version for a descriptive commit message
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          SCHEMA_VERSION="$CI_COMMIT_TAG"
+        else
+          # Fallback for develop branch: use the timestamp from the dev version
+          SCHEMA_VERSION="develop-$(date +%Y%m%d%H%M)"
+        fi
+
+        git add input/openapi.yml
+        git commit -m "feat: Update OpenAPI schema to version ${SCHEMA_VERSION} from mastermind [skip ci]"
+
+        # Push to the 'main' branch of the docs generator repository
+        git push origin main
+
+        echo "Successfully pushed schema update to waldur-sdk-docs-generator."
+      fi
