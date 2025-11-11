@@ -1061,7 +1061,7 @@ Update SDK docs generator schema:
         fi
 
         git add input/openapi.yml
-        git commit -m "feat: Update OpenAPI schema to version ${SCHEMA_VERSION} from mastermind [skip ci]"
+        git commit -m "feat: Update OpenAPI schema to version ${SCHEMA_VERSION} from mastermind"
 
         # Push to the 'main' branch of the docs generator repository
         git push origin main
