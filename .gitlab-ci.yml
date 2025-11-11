@@ -1030,12 +1030,12 @@ Update SDK docs generator schema:
     - git config --global user.email "${GITLAB_USER_EMAIL}"
   script:
     # --- Define variables for clarity ---
-    - DOCS_REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/waldur/waldur-sdk-docs-generator.git"
+    - DOCS_REPO_URL="https://gitlab-ci-token:${GITLAB_TOKEN}@${CI_SERVER_HOST}/waldur/waldur-sdk-docs-generator.git"
     - DOCS_REPO_DIR="/tmp/waldur-sdk-docs-generator"
     - SOURCE_SCHEMA_PATH="${CI_PROJECT_DIR}/waldur-openapi-schema.yaml"
     - DESTINATION_SCHEMA_PATH="${DOCS_REPO_DIR}/input/openapi.yml"
 
-    # --- Step 1: Clone the target repository using the CI_JOB_TOKEN ---
+    # --- Step 1: Clone the target repository using the GITLAB_TOKEN ---
     - echo "Cloning docs generator repository..."
     - git clone "${DOCS_REPO_URL}" "${DOCS_REPO_DIR}"
 
