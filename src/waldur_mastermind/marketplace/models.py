@@ -1482,6 +1482,7 @@ class Resource(
             state__in=[
                 OrderStates.PENDING_CONSUMER,
                 OrderStates.PENDING_PROVIDER,
+                OrderStates.PENDING_START_DATE,
                 OrderStates.EXECUTING,
             ],
         ).first()
