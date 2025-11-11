@@ -194,6 +194,10 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
             "question_options",
             "min_value",
             "max_value",
+            "allowed_file_types",
+            "allowed_mime_types",
+            "max_file_size_mb",
+            "max_files_count",
         )
         read_only_fields = (
             "uuid",
@@ -206,6 +210,10 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
             "question_options",
             "min_value",
             "max_value",
+            "allowed_file_types",
+            "allowed_mime_types",
+            "max_file_size_mb",
+            "max_files_count",
         )
 
     @extend_schema_field(serializers.DictField(allow_null=True))
@@ -303,6 +311,10 @@ class QuestionAdminSerializer(QuestionSerializer):
         min_value = attrs.get("min_value")
         max_value = attrs.get("max_value")
         dependency_logic_operator = attrs.get("dependency_logic_operator")
+        allowed_file_types = attrs.get("allowed_file_types")
+        allowed_mime_types = attrs.get("allowed_mime_types")
+        max_file_size_mb = attrs.get("max_file_size_mb")
+        max_files_count = attrs.get("max_files_count")
 
         # Validate review trigger configuration
         # Check if both operator and review_answer_value are set together or both empty
@@ -383,6 +395,68 @@ class QuestionAdminSerializer(QuestionSerializer):
                 f"Must be one of: {[choice[0] for choice in enums.DependencyLogicOperators.CHOICES]}"
             )
 
+        # Validate file-specific fields for FILE and MULTIPLE_FILES questions only
+        if question_type and question_type not in ["file", "multiple_files"]:
+            if (
+                allowed_file_types
+                or allowed_mime_types
+                or max_file_size_mb is not None
+                or max_files_count is not None
+            ):
+                raise serializers.ValidationError(
+                    "File validation fields (allowed_file_types, allowed_mime_types, max_file_size_mb, max_files_count) "
+                    "can only be set for FILE or MULTIPLE_FILES type questions."
+                )
+
+        # Validate allowed_file_types format
+        if allowed_file_types is not None:
+            if not isinstance(allowed_file_types, list):
+                raise serializers.ValidationError(
+                    "allowed_file_types must be a list of file extensions."
+                )
+
+            for file_type in allowed_file_types:
+                if not isinstance(file_type, str) or not file_type.startswith("."):
+                    raise serializers.ValidationError(
+                        f"Invalid file type '{file_type}'. File types must be strings starting with '.' (e.g., '.pdf', '.doc')."
+                    )
+
+        # Validate allowed_mime_types format
+        if allowed_mime_types is not None:
+            if not isinstance(allowed_mime_types, list):
+                raise serializers.ValidationError(
+                    "allowed_mime_types must be a list of MIME types."
+                )
+
+            for mime_type in allowed_mime_types:
+                if not isinstance(mime_type, str):
+                    raise serializers.ValidationError(
+                        f"Invalid MIME type '{mime_type}'. MIME types must be strings."
+                    )
+
+                # Basic MIME type format validation
+                if "/" not in mime_type and not mime_type.endswith("/*"):
+                    raise serializers.ValidationError(
+                        f"Invalid MIME type '{mime_type}'. MIME types must be in format 'type/subtype' or 'type/*' (e.g., 'application/pdf', 'image/*')."
+                    )
+
+        # Validate max_file_size_mb
+        if max_file_size_mb is not None and max_file_size_mb <= 0:
+            raise serializers.ValidationError(
+                "max_file_size_mb must be a positive number."
+            )
+
+        # Validate max_files_count
+        if max_files_count is not None:
+            if max_files_count <= 0:
+                raise serializers.ValidationError(
+                    "max_files_count must be a positive number."
+                )
+            if question_type == "file":
+                raise serializers.ValidationError(
+                    "max_files_count can only be set for MULTIPLE_FILES type questions, not FILE type."
+                )
+
         return attrs
 
     class Meta(QuestionSerializer.Meta):
@@ -405,6 +479,10 @@ class QuestionAdminSerializer(QuestionSerializer):
             "min_value",
             "max_value",
             "dependency_logic_operator",
+            "allowed_file_types",
+            "allowed_mime_types",
+            "max_file_size_mb",
+            "max_files_count",
         ]
         extra_kwargs = {
             "url": {

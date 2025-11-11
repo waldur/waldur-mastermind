@@ -42,7 +42,8 @@ Individual questions with configurable types, ordering, conditional user guidanc
 - **Text Area**: Long text responses
 - **Number**: Numeric input with optional min/max validation constraints
 - **Date**: Date selection
-- **File**: File upload (planned)
+- **File**: Single file upload with validation
+- **Multiple Files**: Multiple file uploads with validation
 
 **Features:**
 
@@ -87,6 +88,98 @@ Content-Type: application/json
 - Age ranges (18-100)
 - Scientific measurements with decimal precision
 - Counts and quantities with natural limits
+
+#### FILE and MULTIPLE_FILES Question Type Validation
+
+FILE and MULTIPLE_FILES type questions support comprehensive validation for secure file uploads with configurable restrictions:
+
+- **allowed_file_types**: List of allowed file extensions (e.g., `['.pdf', '.doc', '.docx']`)
+- **allowed_mime_types**: List of allowed MIME types for security (e.g., `['application/pdf', 'application/msword']`)
+- **max_file_size_mb**: Maximum file size in megabytes per file
+- **max_files_count**: Maximum number of files (MULTIPLE_FILES only)
+
+**Security Features:**
+
+- **Header-Based Validation**: Uses file content detection (via `python-magic`) rather than trusting extensions
+- **Dual Validation**: When both extensions and MIME types are specified, files must match both criteria
+- **Wildcard Support**: MIME types support wildcards like `image/*` for category-based validation
+- **Spoofing Prevention**: Rejects files with mismatched extensions and MIME types (e.g., executable file renamed to `.pdf`)
+
+**Example API Usage:**
+
+```http
+POST /api/checklists-admin-questions/
+Content-Type: application/json
+
+{
+  "description": "Upload compliance documents",
+  "question_type": "multiple_files",
+  "checklist": "http://localhost:8000/api/checklists-admin/{checklist_uuid}/",
+  "required": true,
+  "allowed_file_types": [".pdf", ".docx"],
+  "allowed_mime_types": ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  "max_file_size_mb": 25,
+  "max_files_count": 5,
+  "user_guidance": "Upload your compliance documentation. Accepted formats: PDF and Word documents.",
+  "order": 1
+}
+```
+
+**File Answer Format:**
+
+Users submit files as base64 encoded content. The system automatically detects MIME types and stores files securely.
+
+Single file (FILE type):
+
+```json
+{
+  "name": "compliance_report.pdf",
+  "content": "JVBERi0xLjQKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwo+PgplbmRvYmoKeHJlZgowIDEKMDAwMDAwMDAwMCA2NTUzNSBmIAp0cmFpbGVyCjw8Ci9TaXplIDEKL1Jvb3QgMSAwIFIKPj4Kc3RhcnR4cmVmCjkKJSVFT0Y="
+}
+```
+
+Multiple files (MULTIPLE_FILES type):
+
+```json
+[
+  {
+    "name": "technical_spec.pdf",
+    "content": "JVBERi0xLjQKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwo+PgplbmRvYmoKeHJlZgowIDEKMDAwMDAwMDAwMCA2NTUzNSBmIAp0cmFpbGVyCjw8Ci9TaXplIDEKL1Jvb3QgMSAwIFIKPj4Kc3RhcnR4cmVmCjkKJSVFT0Y="
+  },
+  {
+    "name": "user_manual.docx",
+    "content": "UEsDBBQABgAIAAAAIQAAAAAAAAAAAAAAAQAAABEAAABkb2NQcm9wcy9jb3JlLnhtbIFCwI9Z..."
+  }
+]
+```
+
+After submission, the system processes files and stores metadata:
+
+Processed single file response:
+
+```json
+{
+  "name": "compliance_report.pdf",
+  "size": 1234,
+  "mime_type": "application/pdf",
+  "stored_file_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Validation Scenarios:**
+
+- **Document Management**: Restrict to office documents with `["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]`
+- **Image Upload**: Use `["image/*"]` to allow any image format while preventing executable files
+- **Mixed Media**: Combine specific types like `["application/pdf", "image/jpeg", "image/png"]`
+- **Size Control**: Set appropriate limits based on content type (e.g., 50MB for videos, 10MB for documents)
+
+**Security Best Practices:**
+
+1. **Always set MIME type restrictions** for security-critical uploads
+2. **Use both extension and MIME type validation** for maximum security
+3. **Set appropriate file size limits** to prevent resource abuse
+4. **Limit file counts** for MULTIPLE_FILES to prevent overwhelming storage
+5. **Use specific MIME types** rather than wildcards when possible for better security
 
 ### QuestionOption
 
@@ -457,29 +550,29 @@ The checklist system supports sophisticated conditional logic through two mechan
 All conditional logic supports these operators, with specific question type compatibility:
 
 - `equals` - Exact match
-  - **Compatible with**: NUMBER, DATE, BOOLEAN question types
-  - **Example**: Check if boolean answer is `true`, or if number equals `100`
+  - **Compatible with**: NUMBER, DATE, BOOLEAN, FILE question types
+  - **Example**: Check if boolean answer is `true`, or if file name equals `"document.pdf"`
 
 - `not_equals` - Not equal to
-  - **Compatible with**: NUMBER, DATE, BOOLEAN question types
-  - **Example**: Check if boolean answer is not `false`, or if number is not `0`
+  - **Compatible with**: NUMBER, DATE, BOOLEAN, FILE question types
+  - **Example**: Check if boolean answer is not `false`, or if file name is not `"template.pdf"`
 
 - `contains` - Text contains substring
-  - **Compatible with**: TEXT_INPUT, TEXT_AREA question types
-  - **Example**: Check if text answer contains "sensitive" or "export"
+  - **Compatible with**: TEXT_INPUT, TEXT_AREA, FILE, MULTIPLE_FILES question types
+  - **Example**: Check if text answer contains "sensitive", or if file name contains "confidential"
   - **Note**: Case-sensitive matching
 
 - `in` - Value exists in list
-  - **Compatible with**: SINGLE_SELECT, MULTI_SELECT question types
-  - **Example**: Check if selected option is one of `["high", "critical", "urgent"]`
+  - **Compatible with**: SINGLE_SELECT, MULTI_SELECT, MULTIPLE_FILES question types
+  - **Example**: Check if selected option is one of `["high", "critical", "urgent"]`, or if any uploaded file name is in a list
   - **Note**: For single-select, checks if the selected value is in the condition list
-  - **Note**: For multi-select, checks if any selected value is in the condition list
+  - **Note**: For multi-select and multiple files, checks if any selected value is in the condition list
 
 - `not_in` - Value does not exist in list
-  - **Compatible with**: SINGLE_SELECT, MULTI_SELECT question types
-  - **Example**: Check if selected option is not one of `["low", "minimal"]`
+  - **Compatible with**: SINGLE_SELECT, MULTI_SELECT, MULTIPLE_FILES question types
+  - **Example**: Check if selected option is not one of `["low", "minimal"]`, or if no uploaded files match a list
   - **Note**: For single-select, checks if the selected value is not in the condition list
-  - **Note**: For multi-select, checks if none of the selected values are in the condition list
+  - **Note**: For multi-select and multiple files, checks if none of the selected values are in the condition list
 
 ### Question Dependencies (Conditional Visibility)
 
@@ -658,6 +751,72 @@ POST /api/checklists-admin-question-dependencies/
   "depends_on_question": "http://localhost:8000/api/checklists-admin-questions/{cloud_provider_question_uuid}/",
   "required_answer_value": "aws",
   "operator": "equals"
+}
+```
+
+#### File-Based Conditional Logic
+
+Configure questions to show or trigger reviews based on file uploads:
+
+**Show additional questions if specific file types are uploaded:**
+
+```http
+# Base file upload question
+POST /api/checklists-admin-questions/
+{
+  "description": "Upload your project documentation",
+  "question_type": "multiple_files",
+  "allowed_file_types": [".pdf", ".docx", ".pptx"],
+  "allowed_mime_types": ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+  "max_file_size_mb": 50,
+  "max_files_count": 10,
+  "order": 1
+}
+
+# Show compliance questions if any file contains "confidential"
+POST /api/checklists-admin-question-dependencies/
+{
+  "question": "http://localhost:8000/api/checklists-admin-questions/{compliance_question_uuid}/",
+  "depends_on_question": "http://localhost:8000/api/checklists-admin-questions/{file_upload_question_uuid}/",
+  "required_answer_value": "confidential",
+  "operator": "contains"
+}
+```
+
+**Trigger reviews for sensitive document uploads:**
+
+```http
+POST /api/checklists-admin-questions/
+{
+  "description": "Upload technical specifications",
+  "question_type": "file",
+  "allowed_file_types": [".pdf", ".docx"],
+  "allowed_mime_types": ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  "max_file_size_mb": 25,
+
+  // Trigger review if filename contains sensitive keywords
+  "review_answer_value": ["secret", "confidential", "proprietary"],
+  "operator": "contains",
+  "always_requires_review": false,
+
+  // Show guidance for sensitive uploads
+  "user_guidance": "⚠️ This file appears to contain sensitive information and will require additional review.",
+  "always_show_guidance": false,
+  "guidance_answer_value": ["secret", "confidential", "proprietary"],
+  "guidance_operator": "contains"
+}
+```
+
+**File size and count-based dependencies:**
+
+```http
+# Show budget approval question if large files are uploaded
+POST /api/checklists-admin-question-dependencies/
+{
+  "question": "http://localhost:8000/api/checklists-admin-questions/{budget_approval_question_uuid}/",
+  "depends_on_question": "http://localhost:8000/api/checklists-admin-questions/{large_files_question_uuid}/",
+  "required_answer_value": ["presentation.pptx", "video.mp4", "dataset.zip"],
+  "operator": "in"
 }
 ```
 
@@ -1193,6 +1352,53 @@ Content-Type: application/json
 4. **Answer Submission**: Users submit answers, triggering automatic completion status updates
 5. **Review Process**: Reviewers access full checklist information through `ReviewerChecklistMixin`
 6. **Completion Tracking**: Host apps monitor completion status and take appropriate actions
+
+### File Upload Integration Flow
+
+For file upload questions, the integration includes additional security validation:
+
+1. **Frontend Upload**: Client uploads files to secure storage (e.g., S3, database storage)
+2. **File Validation**: Server validates file headers using `python-magic` for MIME type detection
+3. **Security Check**: System verifies both file extension and MIME type match allowed criteria
+4. **Answer Submission**: File metadata (name, size, MIME type, URL) submitted as answer data
+5. **Review Triggers**: Files with sensitive names or large sizes trigger automatic review
+6. **Compliance Tracking**: System tracks which files were uploaded for compliance auditing
+
+**File Answer Submission Example:**
+
+```json
+POST /api/proposals/{uuid}/submit_answers/
+[
+  {
+    "question_uuid": "file-upload-question-uuid",
+    "answer_data": {
+      "name": "compliance_report.pdf",
+      "content": "JVBERi0xLjQKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwo+PgplbmRvYmoKeHJlZgowIDEKMDAwMDAwMDAwMCA2NTUzNSBmIAp0cmFpbGVyCjw8Ci9TaXplIDEKL1Jvb3QgMSAwIFIKPj4Kc3RhcnR4cmVmCjkKJSVFT0Y="
+    }
+  },
+  {
+    "question_uuid": "multiple-files-question-uuid",
+    "answer_data": [
+      {
+        "name": "technical_spec.pdf",
+        "content": "JVBERi0xLjQKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwo+PgplbmRvYmoKeHJlZgowIDEKMDAwMDAwMDAwMCA2NTUzNSBmIAp0cmFpbGVyCjw8Ci9TaXplIDEKL1Jvb3QgMSAwIFIKPj4Kc3RhcnR4cmVmCjkKJSVFT0Y="
+      },
+      {
+        "name": "user_guide.docx",
+        "content": "UEsDBBQABgAIAAAAIQAAAAAAAAAAAAAAAQAAABEAAABkb2NQcm9wcy9jb3JlLnhtbIFCwI9Z..."
+      }
+    ]
+  }
+]
+```
+
+The system automatically:
+
+1. **Decodes base64 content** and validates file integrity
+2. **Detects MIME types** from file headers using `python-magic`
+3. **Validates against restrictions** (file types, MIME types, sizes)
+4. **Stores files securely** in Waldur's media system
+5. **Returns metadata** (no longer contains base64 content)
 
 ### Example Integration (Proposals)
 

@@ -13,23 +13,29 @@ def is_valid_operator_for_question_type(question_type, operator):
             enums.QuestionTypes.NUMBER,
             enums.QuestionTypes.DATE,
             enums.QuestionTypes.BOOLEAN,
+            enums.QuestionTypes.FILE,
         ],
         "not_equals": [
             enums.QuestionTypes.NUMBER,
             enums.QuestionTypes.DATE,
             enums.QuestionTypes.BOOLEAN,
+            enums.QuestionTypes.FILE,
         ],
         "contains": [
             enums.QuestionTypes.TEXT_INPUT,
             enums.QuestionTypes.TEXT_AREA,
+            enums.QuestionTypes.FILE,
+            enums.QuestionTypes.MULTIPLE_FILES,
         ],
         "in": [
             enums.QuestionTypes.MULTI_SELECT,
             enums.QuestionTypes.SINGLE_SELECT,
+            enums.QuestionTypes.MULTIPLE_FILES,
         ],
         "not_in": [
             enums.QuestionTypes.MULTI_SELECT,
             enums.QuestionTypes.SINGLE_SELECT,
+            enums.QuestionTypes.MULTIPLE_FILES,
         ],
     }
     if question_type in valid_operators[operator]:
@@ -85,6 +91,17 @@ def _is_valid_trigger_value(
     ]:
         return True
 
+    # File types validation
+    if isinstance(answer_data, dict) and question_type in [
+        enums.QuestionTypes.FILE,
+    ]:
+        return True
+
+    if isinstance(answer_data, list) and question_type in [
+        enums.QuestionTypes.MULTIPLE_FILES,
+    ]:
+        return True
+
     return False
 
 
@@ -130,6 +147,13 @@ def is_valid_answer(
             return True
         except (ValueError, TypeError):
             return False
+
+    # Basic file type validation (detailed validation is done in Question.is_valid_file_answer)
+    if question_type == enums.QuestionTypes.FILE:
+        return isinstance(answer_data, dict)
+
+    if question_type == enums.QuestionTypes.MULTIPLE_FILES:
+        return isinstance(answer_data, list)
 
     return _is_valid_trigger_value(answer_data, question_type)
 
