@@ -1,5 +1,8 @@
+import base64
 import datetime
+import uuid
 
+import magic
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -7,6 +10,8 @@ from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
+from waldur_core.media import models as media_models
+from waldur_core.media import utils as media_utils
 from waldur_core.media.validators import ImageValidator
 
 from . import enums, utils
@@ -166,6 +171,40 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         ),
     )
 
+    # File validation fields
+    allowed_file_types = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_(
+            "List of allowed file extensions (e.g., ['.pdf', '.doc', '.docx']). "
+            "If empty, all file types are allowed."
+        ),
+    )
+    allowed_mime_types = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_(
+            "List of allowed MIME types (e.g., ['application/pdf', 'application/msword']). "
+            "If empty, MIME type validation is not enforced. When both extensions and MIME types "
+            "are specified, files must match both criteria for security."
+        ),
+    )
+    max_file_size_mb = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "Maximum file size in megabytes. If not set, no size limit is enforced."
+        ),
+    )
+    max_files_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "Maximum number of files allowed for MULTIPLE_FILES type questions. "
+            "If not set, no count limit is enforced."
+        ),
+    )
+
     class Meta:
         ordering = (
             "checklist",
@@ -215,7 +254,163 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
                 if self.max_value is not None and numeric_value > float(self.max_value):
                     return False
 
+        # Additional validation for FILE and MULTIPLE_FILES type with constraints
+        if self.question_type in ["file", "multiple_files"] and answer_data is not None:
+            return self.is_valid_file_answer(answer_data)
+
         return True
+
+    def _process_single_file(self, file_data, validate_only=False):
+        """Process and validate a single file. Returns processed file data or raises exception if invalid."""
+        if not isinstance(file_data, dict):
+            raise ValueError("File data must be a dictionary")
+
+        # Check required fields
+        required_fields = ["name", "content"]
+        if not all(key in file_data for key in required_fields):
+            raise ValueError("Missing required fields: name, content")
+
+        # Validate and process base64 content
+        content_str = file_data.get("content", "")
+        if not content_str:
+            raise ValueError("Empty content")
+
+        # Decode base64 content with validation
+        file_content = base64.b64decode(content_str, validate=True)
+        actual_file_size = len(file_content)
+
+        # Ensure we actually have some content
+        if actual_file_size == 0:
+            raise ValueError("Empty file content after decoding")
+
+        # Detect MIME type from actual content for security
+        detected_mime_type = magic.from_buffer(file_content[:1024], mime=True)
+
+        # Check file extension if restrictions are set
+        if self.allowed_file_types:
+            file_name = file_data.get("name", "")
+            file_ext = (
+                "." + file_name.split(".")[-1].lower() if "." in file_name else ""
+            )
+            allowed_extensions = [ext.lower() for ext in self.allowed_file_types]
+            if file_ext not in allowed_extensions:
+                raise ValueError(f"File extension {file_ext} not allowed")
+
+        # Check MIME type if restrictions are set
+        if self.allowed_mime_types:
+            if detected_mime_type not in self.allowed_mime_types:
+                # Also check for wildcard matches (e.g., 'image/*' matches 'image/jpeg')
+                mime_category = detected_mime_type.split("/")[0]
+                wildcard_match = any(
+                    allowed.endswith("/*") and allowed.startswith(mime_category + "/")
+                    for allowed in self.allowed_mime_types
+                )
+                if not wildcard_match:
+                    raise ValueError(f"MIME type {detected_mime_type} not allowed")
+
+        # Check file size if limit is set
+        if self.max_file_size_mb:
+            max_size_bytes = self.max_file_size_mb * 1024 * 1024
+            if actual_file_size > max_size_bytes:
+                raise ValueError(
+                    f"File size {actual_file_size} exceeds limit {max_size_bytes}"
+                )
+
+        if validate_only:
+            return True
+
+        # Return processed file metadata (for actual processing)
+        return {
+            "name": file_data.get("name", ""),
+            "size": actual_file_size,
+            "mime_type": detected_mime_type,
+            "content": file_content,  # Include content for storage
+        }
+
+    def is_valid_file_answer(self, answer_data) -> bool:
+        """Validate file answer data against file constraints."""
+        if self.question_type == "file":
+            if not isinstance(answer_data, dict):
+                return False
+            files = [answer_data]
+        elif self.question_type == "multiple_files":
+            if not isinstance(answer_data, list):
+                return False
+            files = answer_data
+
+            # Check max files count
+            if self.max_files_count and len(files) > self.max_files_count:
+                return False
+        else:
+            return True
+
+        # Validate each file using the helper method
+        try:
+            for file_data in files:
+                self._process_single_file(file_data, validate_only=True)
+            return True
+        except Exception:
+            return False
+
+    def process_file_answer(self, answer_data):
+        """Process file answer data, extracting metadata and storing content."""
+        if self.question_type not in ["file", "multiple_files"]:
+            return answer_data
+
+        if self.question_type == "file":
+            files = [answer_data] if isinstance(answer_data, dict) else []
+        else:  # multiple_files
+            files = answer_data if isinstance(answer_data, list) else []
+
+        processed_files = []
+
+        for file_data in files:
+            try:
+                # Use the helper method to process and validate the file
+                processed_data = self._process_single_file(
+                    file_data, validate_only=False
+                )
+
+                # Store content in media storage and create final metadata
+                processed_file = {
+                    "name": processed_data["name"],
+                    "size": processed_data["size"],
+                    "mime_type": processed_data["mime_type"],
+                    "stored_file_id": self._store_file_content(
+                        processed_data["name"] or "unnamed_file",
+                        processed_data["content"],
+                        processed_data["mime_type"],
+                    ),
+                }
+
+                processed_files.append(processed_file)
+
+            except Exception:
+                # Skip invalid files
+                continue
+
+        if self.question_type == "file":
+            return processed_files[0] if processed_files else None
+        else:  # multiple_files
+            return processed_files
+
+    def _store_file_content(self, filename, content, mime_type):
+        """Store file content using Waldur's media system."""
+        # Generate unique filename
+
+        unique_filename = f"checklist_files/{uuid.uuid4().hex}_{filename}"
+
+        # Create file record
+        content_hash = media_utils.get_image_hash(content)
+        file_obj = media_models.File.objects.create(
+            content=content,
+            size=len(content),
+            name=unique_filename,
+            mime_type=mime_type,
+            hash=content_hash,
+        )
+
+        return str(file_obj.uuid)
 
     def should_trigger_review(self, answer_data: any) -> bool | None:
         """Check if this answer should trigger a review"""
@@ -486,8 +681,12 @@ class Answer(core_models.UuidMixin, TimeStampedModel):
         return f"{self.user.username} - {self.question.description[:30]}..."
 
     def save(self, *args, **kwargs):
-        """Auto-check if review is required when saving"""
+        """Auto-check if review is required and process file content when saving"""
         if not self.pk:
+            # Process file content if this is a file question
+            if self.question.question_type in ["file", "multiple_files"]:
+                self.answer_data = self.question.process_file_answer(self.answer_data)
+
             self.requires_review = self.question.should_trigger_review(self.answer_data)
 
         super().save(*args, **kwargs)

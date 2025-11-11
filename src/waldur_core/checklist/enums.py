@@ -26,6 +26,7 @@ class QuestionTypes:
     NUMBER = "number"
     DATE = "date"
     FILE = "file"
+    MULTIPLE_FILES = "multiple_files"
 
     CHOICES = [
         (BOOLEAN, _("Yes/No/N/A")),
@@ -36,6 +37,7 @@ class QuestionTypes:
         (NUMBER, _("Number input")),
         (DATE, _("Date input")),
         (FILE, _("File input")),
+        (MULTIPLE_FILES, _("Multiple files input")),
     ]
 
 
