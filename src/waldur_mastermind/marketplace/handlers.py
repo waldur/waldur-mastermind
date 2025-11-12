@@ -2057,7 +2057,7 @@ def log_terms_of_service_consent_granted(
     if not created:
         return
     event_logger.emit(
-        "User {user_name} has accepted Terms of Service for offering {offering_name}.",
+        "User {user_name} has accepted Terms of Service for offering {offering_name}, ToS version {version}.",
         event_type=EventType.TERMS_OF_SERVICE_CONSENT_GRANTED,
         event_context={
             "user": instance.user,
@@ -2082,7 +2082,7 @@ def log_terms_of_service_consent_revoked(
         return
 
     event_logger.emit(
-        "User {user_name} has revoked Terms of Service consent for offering {offering_name}.",
+        "User {user_name} has revoked Terms of Service consent for offering {offering_name}, ToS version {version}.",
         event_type=EventType.TERMS_OF_SERVICE_CONSENT_REVOKED,
         event_context={
             "user": instance.user,
