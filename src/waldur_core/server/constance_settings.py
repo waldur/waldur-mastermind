@@ -576,6 +576,26 @@ CONSTANCE_CONFIG = {
         "url_field",
     ),
     "ONBOARDING_WICO_TOKEN": ("", "WirtschaftsCompass API token", "secret_field"),
+    "ONBOARDING_BOLAGSVERKET_API_URL": (
+        "https://gw-accept2.api.bolagsverket.se/",
+        "Sweden Business Register API server URL",
+        "url_field",
+    ),
+    "ONBOARDING_BOLAGSVERKET_TOKEN_API_URL": (
+        "https://portal-accept2.api.bolagsverket.se/",
+        "Bolagsverket OAuth2 token server base URL",
+        "url_field",
+    ),
+    "ONBOARDING_BOLAGSVERKET_CLIENT_ID": (
+        "",
+        "Sweden Business Register API client identifier",
+        "text_field",
+    ),
+    "ONBOARDING_BOLAGSVERKET_CLIENT_SECRET": (
+        "",
+        "Sweden Business Register API client secret",
+        "secret_field",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -761,6 +781,10 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ONBOARDING_ARIREGISTER_TIMEOUT",
         "ONBOARDING_WICO_API_URL",
         "ONBOARDING_WICO_TOKEN",
+        "ONBOARDING_BOLAGSVERKET_API_URL",
+        "ONBOARDING_BOLAGSVERKET_TOKEN_API_URL",
+        "ONBOARDING_BOLAGSVERKET_CLIENT_ID",
+        "ONBOARDING_BOLAGSVERKET_CLIENT_SECRET",
     ),
 }
 

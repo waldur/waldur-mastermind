@@ -10,7 +10,7 @@ from rest_framework.test import APITestCase
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.onboarding import enums, models
-from waldur_core.onboarding.backends.base import ValidationRequest
+from waldur_core.onboarding.backends.base import ErrorCode, ValidationRequest
 from waldur_core.onboarding.backends.estonia import EstonianAriregisterBackend
 from waldur_core.structure.tests import factories as structure_factories
 
@@ -297,7 +297,7 @@ class EstonianAriregisterAPITest(APITestCase):
         verification = response.data
 
         self._assert_verification_status(
-            verification, enums.VerificationStatus.ESCALATED, "NOT_AUTHORIZED"
+            verification, enums.VerificationStatus.ESCALATED, ErrorCode.NOT_AUTHORIZED
         )
         self.assertEqual(verification["validation_method"], "ariregister")
         self.assertEqual(verification["verified_user_roles"], [])
@@ -333,7 +333,7 @@ class EstonianAriregisterAPITest(APITestCase):
         verification = response.data
 
         self._assert_verification_status(
-            verification, enums.VerificationStatus.ESCALATED, "NOT_AUTHORIZED"
+            verification, enums.VerificationStatus.ESCALATED, ErrorCode.NOT_AUTHORIZED
         )
         self.assertEqual(verification["validation_method"], "ariregister")
         self.assertEqual(verification["verified_user_roles"], ["KOAS"])
@@ -362,7 +362,7 @@ class EstonianAriregisterAPITest(APITestCase):
         verification = response.data
 
         self._assert_verification_status(
-            verification, enums.VerificationStatus.ESCALATED, "API_ERROR"
+            verification, enums.VerificationStatus.ESCALATED, ErrorCode.API_ERROR
         )
         self.assertEqual(verification["validation_method"], "ariregister")
         self.assertIn("Äriregister API error", verification["error_traceback"])
@@ -389,7 +389,9 @@ class EstonianAriregisterAPITest(APITestCase):
         verification = response.data
 
         self._assert_verification_status(
-            verification, enums.VerificationStatus.ESCALATED, "COMPANY_NOT_FOUND"
+            verification,
+            enums.VerificationStatus.ESCALATED,
+            ErrorCode.COMPANY_NOT_FOUND,
         )
         self.assertEqual(verification["validation_method"], "ariregister")
         self.assertIn("not found", verification["error_traceback"])
@@ -596,7 +598,9 @@ class EstonianAriregisterAPITest(APITestCase):
         verification = response.data
 
         self._assert_verification_status(
-            verification, enums.VerificationStatus.ESCALATED, "NO_BACKEND_AVAILABLE"
+            verification,
+            enums.VerificationStatus.ESCALATED,
+            ErrorCode.NO_BACKEND_AVAILABLE,
         )
         self.assertIn(
             "No validation backend available", verification["error_traceback"]
@@ -664,7 +668,9 @@ class EstonianAriregisterAPITest(APITestCase):
         verification = response.data
 
         self._assert_verification_status(
-            verification, enums.VerificationStatus.ESCALATED, "NO_BACKEND_AVAILABLE"
+            verification,
+            enums.VerificationStatus.ESCALATED,
+            ErrorCode.NO_BACKEND_AVAILABLE,
         )
 
     @override_config(
@@ -896,7 +902,7 @@ class EstonianAriregisterBackendTest(TestCase):
         self.assertFalse(result.is_valid)
         self.assertEqual(result.method_used, "ariregister")
         self.assertEqual(result.user_roles, [])
-        self.assertEqual(result.error_code, "NOT_AUTHORIZED")
+        self.assertEqual(result.error_code, ErrorCode.NOT_AUTHORIZED)
         self.assertIn("not listed as authorized representative", result.error_message)
 
     @override_config(
@@ -924,7 +930,7 @@ class EstonianAriregisterBackendTest(TestCase):
         self.assertFalse(result.is_valid)
         self.assertEqual(result.method_used, "ariregister")
         self.assertEqual(result.user_roles, ["KOAS"])
-        self.assertEqual(result.error_code, "NOT_AUTHORIZED")
+        self.assertEqual(result.error_code, ErrorCode.NOT_AUTHORIZED)
         self.assertIn("not listed as authorized representative", result.error_message)
 
     @override_config(
@@ -948,7 +954,7 @@ class EstonianAriregisterBackendTest(TestCase):
 
         self.assertFalse(result.is_valid)
         self.assertEqual(result.method_used, "ariregister")
-        self.assertEqual(result.error_code, "API_ERROR")
+        self.assertEqual(result.error_code, ErrorCode.API_ERROR)
         self.assertIn("Äriregister API error", result.error_message)
 
     @override_config(
@@ -973,5 +979,5 @@ class EstonianAriregisterBackendTest(TestCase):
         result = self.backend.validate_company(request)
         self.assertFalse(result.is_valid)
         self.assertEqual(result.method_used, "ariregister")
-        self.assertEqual(result.error_code, "COMPANY_NOT_FOUND")
+        self.assertEqual(result.error_code, ErrorCode.COMPANY_NOT_FOUND)
         self.assertIn("not found", result.error_message)
