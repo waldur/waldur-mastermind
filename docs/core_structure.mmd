@@ -45,6 +45,7 @@ classDiagram
         +bool archived
         +bool display_billing_info_in_projects
         +Checklist project_metadata_checklist [FK]
+        +int grace_period_days
         +OrganizationGroup organization_groups
     }
     class ProjectType {
@@ -75,6 +76,7 @@ classDiagram
         +string kind
         +JSONField termination_metadata
         +string staff_notes
+        +int grace_period_days
     }
     Customer "*" -- "*" OrganizationGroup : organization_groups
     OrganizationGroup "*" -- "1" OrganizationGroup : parent
