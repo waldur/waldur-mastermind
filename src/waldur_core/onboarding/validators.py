@@ -13,8 +13,9 @@ from django.utils import timezone
 
 from waldur_core.core.models import User
 
+from . import enums
 from .backends import ValidationRequest, backend_registry
-from .enums import VerificationStatus
+from .backends.base import ErrorCode
 from .models import OnboardingVerification
 
 
@@ -51,7 +52,7 @@ class OnboardingValidator:
             verification = existing_verification
             verification.legal_person_identifier = legal_person_identifier
             verification.legal_name = legal_name
-            verification.status = VerificationStatus.PENDING
+            verification.status = enums.VerificationStatus.PENDING
             if not verification.expires_at:
                 verification.expires_at = timezone.now() + timedelta(hours=expire_delta)
             verification.save()
@@ -61,7 +62,7 @@ class OnboardingValidator:
                 country=country,
                 legal_person_identifier=legal_person_identifier,
                 legal_name=legal_name,
-                status=VerificationStatus.PENDING,
+                status=enums.VerificationStatus.PENDING,
                 expires_at=timezone.now() + timedelta(hours=expire_delta),
             )
 
@@ -84,18 +85,18 @@ class OnboardingValidator:
             )
 
             if not backend:
-                verification.status = VerificationStatus.ESCALATED
+                verification.status = enums.VerificationStatus.ESCALATED
                 verification.error_traceback = (
                     f"No validation backend available for country {country}"
                 )
-                verification.error_message = "NO_BACKEND_AVAILABLE"
+                verification.error_message = ErrorCode.NO_BACKEND_AVAILABLE
                 verification.validated_at = timezone.now()
                 verification.save()
                 return verification
 
             identity_valid, identity_error = backend.validate_user_identity(user)
             if not identity_valid:
-                verification.status = VerificationStatus.ESCALATED
+                verification.status = enums.VerificationStatus.ESCALATED
                 verification.error_traceback = identity_error
                 verification.error_message = "IDENTITY_VALIDATION_FAILED"
                 verification.validated_at = timezone.now()
@@ -108,8 +109,10 @@ class OnboardingValidator:
             backend_person_identifier = backend.get_person_identifier_from_user(user)
 
             # For WirtschaftsCompass validation, use provided data or fall back to user object
-            if backend.get_validation_method() == "wirtschaftscompass" and (
-                first_name or last_name or birth_date
+            if (
+                backend.get_validation_method()
+                == enums.ValidationMethod.WIRTSCHAFTSCOMPASS
+                and (first_name or last_name or birth_date)
             ):
                 final_person_identifier = {
                     "first_name": first_name or getattr(user, "first_name", ""),
@@ -145,9 +148,9 @@ class OnboardingValidator:
             verification.validated_at = timezone.now()
 
             if result.is_valid:
-                verification.status = VerificationStatus.VERIFIED
+                verification.status = enums.VerificationStatus.VERIFIED
             else:
-                verification.status = VerificationStatus.ESCALATED
+                verification.status = enums.VerificationStatus.ESCALATED
                 verification.error_traceback = (
                     result.error_message
                     or "Automatic validation failed, escalated to manual verification"
@@ -158,19 +161,19 @@ class OnboardingValidator:
 
         except ValueError as e:
             # Handle configuration errors (e.g., missing credentials)
-            verification.status = VerificationStatus.ESCALATED
+            verification.status = enums.VerificationStatus.ESCALATED
             verification.error_traceback = str(e)
-            verification.error_message = "CONFIGURATION_ERROR"
+            verification.error_message = ErrorCode.CONFIGURATION_ERROR
             verification.validated_at = timezone.now()
             verification.save()
 
         except Exception as e:
             # Handle unexpected errors
-            verification.status = VerificationStatus.ESCALATED
+            verification.status = enums.VerificationStatus.ESCALATED
             verification.error_traceback = (
                 f"Unexpected error during validation: {str(e)}"
             )
-            verification.error_message = "UNKNOWN_ERROR"
+            verification.error_message = ErrorCode.UNKNOWN_ERROR
             verification.validated_at = timezone.now()
             verification.save()
 

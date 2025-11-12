@@ -11,6 +11,8 @@ from typing import Any
 import requests
 from constance import config
 
+from waldur_core.onboarding import enums
+
 from .base import (
     CompanyRegistryBackend,
     ErrorCode,
@@ -76,7 +78,7 @@ class AustriaRegisterBackend(CompanyRegistryBackend):
 
     @classmethod
     def get_validation_method(cls) -> str:
-        return "wirtschaftscompass"
+        return enums.ValidationMethod.WIRTSCHAFTSCOMPASS
 
     @classmethod
     def get_required_fields(cls) -> list[str]:
