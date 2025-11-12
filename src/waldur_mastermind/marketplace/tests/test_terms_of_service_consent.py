@@ -2942,7 +2942,7 @@ class TermsOfServiceConsentEventLoggingTest(APITransactionTestCase):
         self._create_consent()
         event = self._assert_event_created("terms_of_service_consent_granted")
 
-        expected_message = f"User {self.user.full_name} has accepted Terms of Service for offering {self.offering.name}."
+        expected_message = f"User {self.user.full_name} has accepted Terms of Service for offering {self.offering.name}, ToS version 1.0."
         self.assertEqual(event.message, expected_message)
 
     def test_consent_granted_event_logging_event_type(self):
