@@ -128,3 +128,23 @@ class CustomerComponentUsagePolicyViewSet(ActionsViewSet):
     def actions(self, request, *args, **kwargs):
         data = list(models.CustomerComponentUsagePolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)
+
+
+class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
+    queryset = models.SlurmPeriodicUsagePolicy.objects.all().order_by("-created")
+    serializer_class = serializers.SlurmPeriodicUsagePolicySerializer
+    filter_backends = [
+        DjangoFilterBackend,
+        structure_filters.GenericRoleFilter,
+    ]
+    filterset_class = filters.PolicyFilter
+    lookup_field = "uuid"
+    destroy_permissions = update_permissions = partial_update_permissions = [
+        structure_permissions.is_owner
+    ]
+
+    @extend_schema(parameters=[])
+    @action(detail=False, methods=["get"])
+    def actions(self, request, *args, **kwargs):
+        data = list(models.SlurmPeriodicUsagePolicy.available_actions)
+        return Response(data, status=status.HTTP_200_OK)

@@ -358,7 +358,7 @@ class CustomerComponentUsagePolicySerializer(PolicySerializer):
         if component_limits is None:
             return
 
-        # Validate duplicates within incoming payload before DB operations
+        # Validate duplicates within payload: only one limit per component and period
         keys = [
             (cl.get("component", {}).get("uuid"), cl.get("period"))
             for cl in component_limits
@@ -368,25 +368,27 @@ class CustomerComponentUsagePolicySerializer(PolicySerializer):
                 _("Duplicate component limits for the same component and period.")
             )
 
+        # Clear existing component limits for this policy
         models.CustomerUsagePolicyComponent.objects.filter(policy=policy).delete()
 
         for component_limit in component_limits:
             component_uuid = component_limit["component"]["uuid"]
             limit = component_limit["limit"]
-            period = component_limit.get("period")
+            period = component_limit["period"]
 
-            component = marketplace_models.OfferingComponent.objects.filter(
-                uuid=component_uuid
-            ).first()
-
-            if not component:
+            try:
+                component = marketplace_models.OfferingComponent.objects.get(
+                    uuid=component_uuid
+                )
+            except marketplace_models.OfferingComponent.DoesNotExist:
                 raise serializers.ValidationError(
-                    _(f"Component with UUID {component_uuid} not found.")
+                    f"Component with uuid {component_uuid} does not exist."
                 )
 
-            if component.billing_type not in (BillingTypes.LIMIT, BillingTypes.USAGE):
+            # Validate billing type
+            if component.billing_type not in (BillingTypes.USAGE, BillingTypes.LIMIT):
                 raise serializers.ValidationError(
-                    _("The selected component must be usage or limit billing type.")
+                    f"Component {component.type} has billing type {component.billing_type} which is not supported for usage policies. Only USAGE and LIMIT billing types are supported."
                 )
 
             models.CustomerUsagePolicyComponent.objects.create(
@@ -405,3 +407,20 @@ class CustomerComponentUsagePolicySerializer(PolicySerializer):
         component_limits = validated_data.pop("component_limits_set", None)
         self._create_or_update(policy, component_limits)
         return super().update(policy, validated_data)
+
+
+class SlurmPeriodicUsagePolicySerializer(OfferingUsagePolicySerializer):
+    class Meta(OfferingUsagePolicySerializer.Meta):
+        model = models.SlurmPeriodicUsagePolicy
+        view_name = "marketplace-slurm-periodic-usage-policy-detail"
+        fields = OfferingUsagePolicySerializer.Meta.fields + (
+            "limit_type",
+            "tres_billing_enabled",
+            "tres_billing_weights",
+            "fairshare_decay_half_life",
+            "grace_ratio",
+            "carryover_enabled",
+            "raw_usage_reset",
+            "qos_strategy",
+        )
+        extra_kwargs = OfferingUsagePolicySerializer.Meta.extra_kwargs

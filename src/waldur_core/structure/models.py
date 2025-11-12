@@ -1,4 +1,5 @@
 import re
+from datetime import timedelta
 from decimal import Decimal
 from functools import lru_cache
 from typing import cast
@@ -509,6 +510,13 @@ class Customer(
         blank=True,
         help_text=_("Checklist used for project metadata collection"),
     )
+    grace_period_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "Number of extra days after project end date before resources are terminated"
+        ),
+    )
     tracker = cast(
         FieldInstanceTracker, FieldTracker(fields=["project_metadata_checklist"])
     )
@@ -810,6 +818,13 @@ class Project(
         blank=True,
         help_text=_("Internal notes visible only to staff and support users"),
     )
+    grace_period_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "Number of extra days after project end date before resources are terminated. Overrides customer-level setting."
+        ),
+    )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
     # Entities returned in manager available_objects are limited to not-deleted instances.
@@ -818,9 +833,25 @@ class Project(
     objects = models.Manager()
     id: int
 
+    def get_grace_period_days(self):
+        """Get the grace period days, with project-level setting overriding customer-level."""
+        if self.grace_period_days is not None:
+            return self.grace_period_days
+        if self.customer.grace_period_days is not None:
+            return self.customer.grace_period_days
+        return 0
+
+    def get_effective_end_date(self):
+        """Get the effective end date including grace period."""
+        if not self.end_date:
+            return None
+        grace_days = self.get_grace_period_days()
+        return self.end_date + timedelta(days=grace_days)
+
     @property
     def is_expired(self):
-        return self.end_date and self.end_date <= timezone.now().date()
+        effective_end_date = self.get_effective_end_date()
+        return effective_end_date and effective_end_date <= timezone.now().date()
 
     @property
     def full_name(self) -> str:

@@ -229,6 +229,7 @@ class CustomerAdmin(
         "default_tax_percent",
         "blocked",
         "archived",
+        "grace_period_days",
     )
     list_display = (
         "name",
@@ -245,9 +246,15 @@ class CustomerAdmin(
 
     def get_readonly_fields(self, request, obj=None):
         fields = super().get_readonly_fields(request, obj)
+        readonly_fields = list(fields)
+
         if obj and obj.is_billable():
-            return fields + ("accounting_start_date",)
-        return fields
+            readonly_fields.append("accounting_start_date")
+
+        if not request.user.is_staff:
+            readonly_fields.append("grace_period_days")
+
+        return readonly_fields
 
     @transaction.atomic
     def delete_queryset(self, request, queryset):
@@ -269,6 +276,7 @@ class ProjectAdmin(
         "type",
         "oecd_fos_2007_code",
         "image",
+        "grace_period_days",
     )
 
     list_display = [
@@ -282,6 +290,12 @@ class ProjectAdmin(
     search_fields = ["name", "uuid"]
     change_readonly_fields = ["customer"]
     actions = ("cleanup", "sync_remote")
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly_fields = super().get_readonly_fields(request, obj)
+        if not request.user.is_staff:
+            readonly_fields = list(readonly_fields) + ["grace_period_days"]
+        return readonly_fields
 
     class Cleanup(ExecutorAdminAction):
         executor = executors.ProjectCleanupExecutor
