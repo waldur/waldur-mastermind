@@ -297,6 +297,70 @@ class ResourceHandlerTest(APITransactionTestCase):
             f"Expected 0 events for state display no-op, got {event_count}",
         )
 
+    def test_resource_update_log_skipped_for_date_string_equivalence(self):
+        """
+        This test ensures that the resource update log is not created when a date field
+        changes from datetime to string but string representations are equivalent.
+        This addresses the noisy logging issue where end_date: 2025-12-11 -> 2025-12-11.
+        """
+        Event.objects.all().delete()
+        resource = self.fixture.resource
+
+        from datetime import date
+
+        # Simulate the scenario: datetime object vs string with same value
+        old_date = date(2025, 12, 11)
+        new_date_str = "2025-12-11"
+
+        resource.end_date = new_date_str
+        # Mock the tracker to simulate what happens when django-model-utils detects change
+        resource.tracker.changed = lambda: {"end_date": old_date}
+
+        marketplace_handlers.resource_has_been_changed(
+            sender=type(resource), instance=resource, created=False
+        )
+
+        event_count = Event.objects.filter(
+            event_type="marketplace_resource_update_succeeded",
+            context__resource_uuid=str(resource.uuid),
+        ).count()
+        self.assertEqual(
+            event_count,
+            0,
+            f"Expected 0 events for equivalent date string change, got {event_count}",
+        )
+
+    def test_resource_update_log_created_for_real_date_change(self):
+        """
+        This test ensures that the resource update log is still created when a date field
+        actually changes to a different value.
+        """
+        Event.objects.all().delete()
+        resource = self.fixture.resource
+
+        from datetime import date
+
+        # Simulate actual date change
+        old_date = date(2025, 12, 11)
+        new_date = date(2025, 12, 12)  # Different date
+
+        resource.end_date = new_date
+        resource.tracker.changed = lambda: {"end_date": old_date}
+
+        marketplace_handlers.resource_has_been_changed(
+            sender=type(resource), instance=resource, created=False
+        )
+
+        event_count = Event.objects.filter(
+            event_type="marketplace_resource_update_succeeded",
+            context__resource_uuid=str(resource.uuid),
+        ).count()
+        self.assertEqual(
+            event_count,
+            1,
+            f"Expected 1 event for real date change, got {event_count}",
+        )
+
 
 class UpdateOfferingUserUsernameAfterUserChangeTest(APITransactionTestCase):
     def setUp(self):

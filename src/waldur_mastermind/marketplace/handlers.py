@@ -1024,7 +1024,8 @@ def resource_has_been_changed(sender, instance: Resource, created=False, **kwarg
             new_value = new_value_display
         else:
             new_value = getattr(instance, field)
-            if old_value == new_value:
+            # More robust comparison to handle date fields and other types
+            if str(old_value) == str(new_value):
                 continue
 
         if not old_value and not new_value:

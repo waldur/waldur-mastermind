@@ -226,7 +226,13 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
             return None
 
         try:
-            answer = completion.answers.get(question=obj, user=request.user)
+            # If user has permission to view the completion, they should see all answers
+            # The permission check is done at the viewset level, so if we're here, user is authorized
+            answer = completion.answers.filter(question=obj).first()
+
+            if not answer:
+                return None
+
             # For basic view, hide review flag from answer
             answer_data = AnswerSerializer(answer, context=self.context).data
             if hasattr(self, "_hide_review_flags") or not isinstance(

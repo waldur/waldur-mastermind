@@ -13,6 +13,7 @@ from rest_framework import permissions as rf_permissions
 
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import serializers as checklist_serializers
+from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMixin
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import ReviewStates
@@ -29,6 +30,7 @@ from waldur_core.logging.enums import EventType
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CallRole, ProposalRole
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
@@ -674,12 +676,33 @@ class ProposalViewSet(
     submit_answers_permissions = [permission_factory(PermissionEnum.MANAGE_PROPOSAL)]
 
     # ReviewerChecklistMixin permissions - for proposal reviewers
-    checklist_review_permissions = [
-        permission_factory(PermissionEnum.MANAGE_PROPOSAL_REVIEW, ["round.call"])
-    ]
-    completion_review_status_permissions = [
-        permission_factory(PermissionEnum.MANAGE_PROPOSAL_REVIEW, ["round.call"])
-    ]
+    # Custom permission for compliance checklists (call managers only) or regular proposal review permissions
+    def _compliance_checklist_permission(self, request, view, obj=None):
+        """Custom permission that restricts compliance checklist access to call managers only."""
+        if not obj:
+            return False
+
+        completion = self.get_checklist_completion(obj)
+        if completion and completion.checklist:
+            if (
+                completion.checklist.checklist_type
+                == ChecklistTypes.PROPOSAL_COMPLIANCE
+            ):
+                # For compliance checklists, only call managers can access
+                return UserRole.objects.filter(
+                    user=request.user,
+                    role=CallRole.MANAGER,
+                    scope=obj.round.call,
+                    is_active=True,
+                ).exists()
+
+        # For non-compliance checklists, use regular proposal review permissions
+        return permissions_utils.has_permission(
+            request, PermissionEnum.MANAGE_PROPOSAL_REVIEW, obj.round.call
+        )
+
+    checklist_review_permissions = [_compliance_checklist_permission]
+    completion_review_status_permissions = [_compliance_checklist_permission]
 
     def is_creator(request, view, obj=None):
         if not obj:

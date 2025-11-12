@@ -6,8 +6,9 @@ from dbtemplates import models as dbtemplate_models
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
+from django.core.exceptions import ImproperlyConfigured
+from django.db import connection, transaction
 from django.db import models as django_models
-from django.db import transaction
 from django.db.models import Q
 from django.template import Template, TemplateSyntaxError
 from django.utils import timezone
@@ -452,6 +453,17 @@ class CountrySerializerMixin(serializers.Serializer):
     @staticmethod
     def get_country_choices():
         try:
+            # Check if database is properly configured to avoid errors during schema generation
+            try:
+                # Try to check database connection without executing queries
+                connection.ensure_connection()
+                # If connection is dummy backend, skip database-dependent config
+                if connection.vendor == "dummy":
+                    return core_fields.COUNTRIES
+            except (ImproperlyConfigured, Exception):
+                # Database not available or improperly configured, use defaults
+                return core_fields.COUNTRIES
+
             if config.COUNTRIES:
                 if isinstance(config.COUNTRIES, list):
                     if "," in config.COUNTRIES[0]:
@@ -464,10 +476,9 @@ class CountrySerializerMixin(serializers.Serializer):
                     item for item in core_fields.COUNTRIES if item[0] in country_codes
                 ]
         except Exception:
-            logger.exception(
-                "Failed to get country choices, using complete list of countries as fallback."
-            )
-            return core_fields.COUNTRIES
+            # Fallback to default without logging during schema generation
+            pass
+        return core_fields.COUNTRIES
 
     country = serializers.ChoiceField(
         required=False, choices=core_fields.COUNTRIES, allow_blank=True
@@ -603,6 +614,10 @@ class CustomerSerializer(
             request = self.context["request"]
             user = request.user
         except (KeyError, AttributeError):
+            return fields
+
+        # Skip field filtering during schema generation
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
         if not user.is_staff:
