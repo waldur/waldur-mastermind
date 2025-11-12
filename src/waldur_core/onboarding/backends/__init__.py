@@ -5,6 +5,7 @@ from .base import (
     backend_registry,
 )
 from .estonia import EstonianAriregisterBackend
+from .sweden import SwedenRegisterBackend
 
 __all__ = [
     "ValidationRequest",
@@ -12,4 +13,5 @@ __all__ = [
     "backend_registry",
     "EstonianAriregisterBackend",
     "AustriaRegisterBackend",
+    "SwedenRegisterBackend",
 ]

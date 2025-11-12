@@ -12,6 +12,8 @@ from typing import Any
 import requests
 from constance import config
 
+from waldur_core.onboarding import enums
+
 from .base import (
     CompanyRegistryBackend,
     ErrorCode,
@@ -49,7 +51,7 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
 
     @classmethod
     def get_validation_method(cls) -> str:
-        return "ariregister"
+        return enums.ValidationMethod.ARIREGISTER
 
     @classmethod
     def get_required_fields(cls) -> list[str]:

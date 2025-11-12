@@ -10,6 +10,8 @@ from typing import Any, cast
 import requests
 from constance import config
 
+from waldur_core.onboarding import enums
+
 from .base import (
     CompanyRegistryBackend,
     ErrorCode,
@@ -94,7 +96,7 @@ class SwedenRegisterBackend(CompanyRegistryBackend):
 
     @classmethod
     def get_validation_method(cls) -> str:
-        return "bolagsverket"
+        return enums.ValidationMethod.BOLAGSVERKET
 
     @classmethod
     def get_required_fields(cls) -> list[str]:
