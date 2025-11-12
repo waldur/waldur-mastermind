@@ -163,12 +163,24 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
         """
         verification = self.get_object()
 
+        # ToDo: remove this after implementing getting user's identifier via auth methods
+        # Accept optional person_identifier and Austrian data from request body if provided
+        person_identifier = request.data.get("person_identifier", "")
+        first_name = request.data.get("first_name", "")
+        last_name = request.data.get("last_name", "")
+        birth_date = request.data.get("birth_date", "")
+
         verification = onboarding_validator.validate_company(
             user=request.user,
             country=verification.country,
             legal_person_identifier=verification.legal_person_identifier,
             legal_name=verification.legal_name,
             existing_verification=verification,
+            # ToDo: remove this after implementing getting user's identifier via auth methods
+            person_identifier=person_identifier,
+            first_name=first_name,
+            last_name=last_name,
+            birth_date=birth_date,
         )
 
         response_serializer = OnboardingVerificationSerializer(verification)

@@ -187,6 +187,30 @@ class OnboardingCompanyValidationRequestSerializer(serializers.Serializer):
         default=False,
         help_text="Indicates if the validation is to be performed manually",
     )
+    # ToDo: remove this after implementing getting user's identifier via auth methods
+    person_identifier = serializers.CharField(
+        max_length=50,
+        required=False,
+        allow_blank=True,
+        help_text="Personal identifier (temporary workaround for Estonian civil_number)",
+    )
+    first_name = serializers.CharField(
+        max_length=100,
+        required=False,
+        allow_blank=True,
+        help_text="User's first name (temporary workaround for Austrian validation)",
+    )
+    last_name = serializers.CharField(
+        max_length=100,
+        required=False,
+        allow_blank=True,
+        help_text="User's last name (temporary workaround for Austrian validation)",
+    )
+    birth_date = serializers.DateField(
+        required=False,
+        allow_null=True,
+        help_text="User's birth date (temporary workaround for Austrian validation)",
+    )
 
 
 class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
