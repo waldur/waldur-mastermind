@@ -236,10 +236,19 @@ def terminate_resource(serialized_resource, serialized_user):
     name="waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached"
 )
 def terminate_resources_if_project_end_date_has_been_reached():
-    """Terminate resources when their project has reached its end date."""
-    expired_projects = structure_models.Project.available_objects.exclude(
+    """Terminate resources when their project has reached its end date (including grace period)."""
+    today = timezone.datetime.today().date()
+
+    # Find projects where the effective end date (including grace period) has passed
+    expired_projects = []
+    for project in structure_models.Project.available_objects.exclude(
         end_date__isnull=True
-    ).filter(end_date__lte=timezone.datetime.today())
+    ):
+        if (
+            project.get_effective_end_date()
+            and project.get_effective_end_date() <= today
+        ):
+            expired_projects.append(project)
 
     for project in expired_projects:
         project_resources = models.Resource.objects.filter(project=project)
@@ -264,9 +273,12 @@ def terminate_resources_if_project_end_date_has_been_reached():
             "About to terminate resources from expired project: %s",
             ",".join([f"{r.uuid}, {r.name}" for r in terminatable_resources]),
         )
+        project.get_effective_end_date()
+        grace_days = project.get_grace_period_days()
+        termination_comment = f"Project effective end date (including {grace_days} day grace period) has been reached on {timezone.datetime.today()}"
         utils.schedule_resources_termination(
             terminatable_resources,
-            termination_comment=f"Project end date has been reached on {timezone.datetime.today()}",
+            termination_comment=termination_comment,
         )
 
 

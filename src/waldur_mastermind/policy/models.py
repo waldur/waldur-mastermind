@@ -786,7 +786,7 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         # Check for recent usage changes in SLURM resources
         recent_usage = marketplace_models.ComponentUsage.objects.filter(
             resource__project__customer__in=customers,
-            resource__offering=self.offering,
+            resource__offering=self.scope,
             modified__gte=self.modified
             - datetime.timedelta(minutes=5),  # Recent changes
         )

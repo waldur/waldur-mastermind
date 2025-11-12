@@ -1592,3 +1592,207 @@ class ProjectRecoveryTest(test.APITransactionTestCase):
         # Should have null termination_metadata
         self.assertIn("termination_metadata", response.data)
         self.assertIsNone(response.data["termination_metadata"])
+
+
+class GracePeriodTest(test.APITransactionTestCase):
+    """Test grace period functionality for projects and customers."""
+
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.staff_user = factories.UserFactory(is_staff=True)
+        # Add permissions for testing grace period updates
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_CUSTOMER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+
+    def test_project_grace_period_overrides_customer_grace_period(self):
+        """Test that project-level grace period overrides customer-level setting."""
+        # Set customer grace period to 5 days
+        customer = self.fixture.customer
+        customer.grace_period_days = 5
+        customer.save()
+
+        # Create project with grace period override of 10 days
+        project = self.fixture.project
+        project.grace_period_days = 10
+        project.end_date = timezone.now().date() + timedelta(days=1)
+        project.save()
+
+        # Should get project-level grace period
+        self.assertEqual(project.get_grace_period_days(), 10)
+
+        # Effective end date should be end_date + 10 days
+        expected_effective_end_date = project.end_date + timedelta(days=10)
+        self.assertEqual(project.get_effective_end_date(), expected_effective_end_date)
+
+    def test_project_inherits_customer_grace_period(self):
+        """Test that project inherits customer grace period when not set."""
+        # Set customer grace period to 7 days
+        customer = self.fixture.customer
+        customer.grace_period_days = 7
+        customer.save()
+
+        # Create project without grace period setting
+        project = self.fixture.project
+        project.grace_period_days = None
+        project.end_date = timezone.now().date() + timedelta(days=1)
+        project.save()
+
+        # Should inherit customer grace period
+        self.assertEqual(project.get_grace_period_days(), 7)
+
+        # Effective end date should be end_date + 7 days
+        expected_effective_end_date = project.end_date + timedelta(days=7)
+        self.assertEqual(project.get_effective_end_date(), expected_effective_end_date)
+
+    def test_zero_grace_period_when_none_set(self):
+        """Test that grace period is 0 when neither customer nor project have it set."""
+        # Ensure no grace periods are set
+        customer = self.fixture.customer
+        customer.grace_period_days = None
+        customer.save()
+
+        project = self.fixture.project
+        project.grace_period_days = None
+        project.end_date = timezone.now().date() + timedelta(days=1)
+        project.save()
+
+        # Should default to 0 grace period
+        self.assertEqual(project.get_grace_period_days(), 0)
+
+        # Effective end date should be same as end_date
+        self.assertEqual(project.get_effective_end_date(), project.end_date)
+
+    def test_is_expired_with_grace_period(self):
+        """Test that is_expired considers grace period."""
+        # Set grace period of 5 days
+        project = self.fixture.project
+        project.grace_period_days = 5
+        project.end_date = timezone.now().date() - timedelta(days=3)  # 3 days ago
+        project.save()
+
+        # Should not be expired yet (within grace period)
+        self.assertFalse(project.is_expired)
+
+        # Set end date to 6 days ago (beyond grace period)
+        project.end_date = timezone.now().date() - timedelta(days=6)
+        project.save()
+
+        # Should be expired now
+        self.assertTrue(project.is_expired)
+
+    def test_get_effective_end_date_returns_none_when_no_end_date(self):
+        """Test that get_effective_end_date returns None when no end_date is set."""
+        project = self.fixture.project
+        project.grace_period_days = 5
+        project.end_date = None
+        project.save()
+
+        self.assertIsNone(project.get_effective_end_date())
+
+    def test_grace_period_fields_visible_to_all_in_api(self):
+        """Test that grace_period_days field is visible to all users in API."""
+        # Test Customer API
+        customer_url = factories.CustomerFactory.get_url(self.fixture.customer)
+
+        # Non-staff user should see grace_period_days
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(customer_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("grace_period_days", response.data)
+
+        # Staff user should also see grace_period_days
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.get(customer_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("grace_period_days", response.data)
+
+        # Test Project API
+        project_url = factories.ProjectFactory.get_url(self.fixture.project)
+
+        # Non-staff user should see grace_period_days
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(project_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("grace_period_days", response.data)
+
+        # Staff user should also see grace_period_days
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.get(project_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("grace_period_days", response.data)
+
+    def test_non_staff_cannot_update_grace_period(self):
+        """Test that non-staff users cannot update grace_period_days."""
+        # Test Customer update
+        customer_url = factories.CustomerFactory.get_url(self.fixture.customer)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(customer_url, {"grace_period_days": 10})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Grace period should not have been updated
+        self.fixture.customer.refresh_from_db()
+        self.assertIsNone(self.fixture.customer.grace_period_days)
+
+        # Test Project update
+        project_url = factories.ProjectFactory.get_url(self.fixture.project)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(project_url, {"grace_period_days": 10})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Grace period should not have been updated
+        self.fixture.project.refresh_from_db()
+        self.assertIsNone(self.fixture.project.grace_period_days)
+
+    def test_staff_can_update_grace_period(self):
+        """Test that staff users can update grace_period_days."""
+        # Test Customer update
+        customer_url = factories.CustomerFactory.get_url(self.fixture.customer)
+
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.patch(customer_url, {"grace_period_days": 10})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Grace period should have been updated
+        self.fixture.customer.refresh_from_db()
+        self.assertEqual(self.fixture.customer.grace_period_days, 10)
+
+        # Test Project update
+        project_url = factories.ProjectFactory.get_url(self.fixture.project)
+
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.patch(project_url, {"grace_period_days": 15})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Grace period should have been updated
+        self.fixture.project.refresh_from_db()
+        self.assertEqual(self.fixture.project.grace_period_days, 15)
+
+    def test_grace_period_field_readonly_for_non_staff(self):
+        """Test that grace_period_days field is read-only for non-staff users."""
+        # Test Customer API - should be read-only for non-staff
+        customer_url = factories.CustomerFactory.get_url(self.fixture.customer)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.options(customer_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # The field should be present but read-only in the options
+        actions = response.data.get("actions", {})
+        if "PUT" in actions and "grace_period_days" in actions["PUT"]:
+            field_info = actions["PUT"]["grace_period_days"]
+            self.assertTrue(field_info.get("read_only", False))
+
+        # Test Project API - should be read-only for non-staff
+        project_url = factories.ProjectFactory.get_url(self.fixture.project)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.options(project_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # The field should be present but read-only in the options
+        actions = response.data.get("actions", {})
+        if "PUT" in actions and "grace_period_days" in actions["PUT"]:
+            field_info = actions["PUT"]["grace_period_days"]
+            self.assertTrue(field_info.get("read_only", False))

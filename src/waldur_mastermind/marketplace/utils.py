@@ -1663,21 +1663,31 @@ def generate_resource_name(
 
 def notification_about_project_ending(end_date):
     projects_by_recipient = defaultdict(list)
-    expired_projects = structure_models.Project.available_objects.exclude(
+
+    # Find projects where the effective end date (including grace period) matches the target date
+    candidate_projects = structure_models.Project.available_objects.exclude(
         end_date__isnull=True
-    ).filter(end_date=end_date)
+    )
+    expired_projects = []
+
+    for project in candidate_projects:
+        effective_end_date = project.get_effective_end_date()
+        if effective_end_date == end_date:
+            expired_projects.append(project)
 
     # If there are no expired projects, we don't need to send notifications
-    if not expired_projects.exists():
-        logger.info("No projects found with end_date=%s", end_date)
+    if not expired_projects:
+        logger.info("No projects found with effective_end_date=%s", end_date)
         return
 
     for project in expired_projects:
         logger.info(
-            "Project %s (uuid=%s) has end_date=%s",
+            "Project %s (uuid=%s) has end_date=%s, grace_period=%d days, effective_end_date=%s",
             project.name,
             project.uuid,
             project.end_date,
+            project.get_grace_period_days(),
+            project.get_effective_end_date(),
         )
         project_users = (
             project.get_users().exclude(email="").exclude(notifications_enabled=False)

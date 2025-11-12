@@ -159,3 +159,38 @@ class CustomerComponentUsagePolicyFactory(
             kwargs={"uuid": policy.uuid.hex},
         )
         return url if action is None else url + action + "/"
+
+
+class SlurmPeriodicUsagePolicyFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.SlurmPeriodicUsagePolicy],
+):
+    class Meta:
+        model = models.SlurmPeriodicUsagePolicy
+
+    scope = factory.SubFactory(marketplace_factories.OfferingFactory)
+    actions = "notify_organization_owners"
+    limit_type = "GrpTRESMins"
+    tres_billing_enabled = True
+    grace_ratio = 0.2
+    carryover_enabled = True
+    fairshare_decay_half_life = 15
+    raw_usage_reset = True
+    qos_strategy = "threshold"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse(
+            "marketplace-slurm-periodic-usage-policy-list"
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_url(cls, policy=None, action=None):
+        if policy is None:
+            policy = SlurmPeriodicUsagePolicyFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-slurm-periodic-usage-policy-detail",
+            kwargs={"uuid": policy.uuid.hex},
+        )
+        return url if action is None else url + action + "/"

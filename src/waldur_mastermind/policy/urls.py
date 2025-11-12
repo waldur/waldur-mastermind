@@ -27,3 +27,8 @@ def register_in(router):
         views.CustomerComponentUsagePolicyViewSet,
         basename="marketplace-customer-component-usage-policy",
     )
+    router.register(
+        r"marketplace-slurm-periodic-usage-policies",
+        views.SlurmPeriodicUsagePolicyViewSet,
+        basename="marketplace-slurm-periodic-usage-policy",
+    )

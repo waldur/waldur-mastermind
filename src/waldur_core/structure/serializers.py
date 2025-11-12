@@ -258,6 +258,7 @@ class ProjectSerializer(
             "is_removed",
             "termination_metadata",
             "staff_notes",
+            "grace_period_days",
         )
         read_only_fields = (
             "end_date_requested_by",
@@ -319,6 +320,20 @@ class ProjectSerializer(
                 elif not user.is_staff:
                     # Support users can see but not edit
                     fields["staff_notes"].read_only = True
+
+        # Handle grace_period_days field visibility and permissions
+        if "grace_period_days" in fields:
+            user = self.context["request"].user
+            # Check if this is schema generation context (drf-spectacular)
+            # When generating schema, we want to include all fields
+            is_schema_generation = getattr(
+                self.context.get("view"), "swagger_fake_view", False
+            )
+
+            if not is_schema_generation:
+                if not user.is_staff:
+                    # Make field read-only for non-staff users
+                    fields["grace_period_days"].read_only = True
 
         # Make all fields read-only for terminated (soft-deleted) projects
         if isinstance(self.instance, models.Project) and self.instance.is_removed:
@@ -553,6 +568,7 @@ class CustomerSerializer(
             "country_name",
             "max_service_accounts",
             "project_metadata_checklist",
+            "grace_period_days",
         ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
             "access_subnets",
@@ -594,6 +610,10 @@ class CustomerSerializer(
                 fields.keys()
             ):
                 fields[field_name].read_only = True
+
+            # Make grace_period_days read-only for non-staff users
+            if "grace_period_days" in fields:
+                fields["grace_period_days"].read_only = True
 
         return fields
 
