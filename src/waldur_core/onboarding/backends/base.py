@@ -31,6 +31,14 @@ class ValidationRequest:
     additional_params: dict[str, Any] = field(default_factory=dict)
 
 
+class ErrorCode:
+    NOT_AUTHORIZED = "NOT_AUTHORIZED"
+    API_ERROR = "API_ERROR"
+    UNKNOWN_ERROR = "UNKNOWN_ERROR"
+    COMPANY_NOT_FOUND = "COMPANY_NOT_FOUND"
+    NO_BACKEND_AVAILABLE = "NO_BACKEND_AVAILABLE"
+
+
 @dataclass
 class ValidationResult:
     """Standardized response from company validation."""
@@ -197,7 +205,7 @@ class BackendRegistry:
                 company_data={},
                 user_roles=[],
                 raw_response={},
-                error_code="NO_BACKEND_AVAILABLE",
+                error_code=ErrorCode.NO_BACKEND_AVAILABLE,
                 error_message=f"No validation backend available for country {request.country}",
             )
 
@@ -213,7 +221,7 @@ class BackendRegistry:
                 company_data={},
                 user_roles=[],
                 raw_response={},
-                error_code="BACKEND_ERROR",
+                error_code=ErrorCode.API_ERROR,
                 error_message=f"Backend error: {str(e)}",
             )
 

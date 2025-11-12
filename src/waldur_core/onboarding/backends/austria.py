@@ -13,6 +13,7 @@ from constance import config
 
 from .base import (
     CompanyRegistryBackend,
+    ErrorCode,
     ValidationRequest,
     ValidationResult,
     backend_registry,
@@ -140,7 +141,7 @@ class AustriaRegisterBackend(CompanyRegistryBackend):
                 company_data=normalized_data.__dict__,
                 user_roles=verified_user_roles,
                 raw_response=verified_company_data,
-                error_code=None if is_authorized else "NOT_AUTHORIZED",
+                error_code=None if is_authorized else ErrorCode.NOT_AUTHORIZED,
                 error_message=None
                 if is_authorized
                 else f"User {request.person_identifier} is not listed as authorized representative",
@@ -149,11 +150,11 @@ class AustriaRegisterBackend(CompanyRegistryBackend):
         except Exception as e:
             if isinstance(e, WiCoError):
                 logger.error(f"WirtschaftsCompass API request error: {str(e)}")
-                error_code = "API_ERROR"
+                error_code = ErrorCode.API_ERROR
                 error_message = f"WirtschaftsCompass API error: {str(e)}"
             else:
                 logger.exception("Unexpected error during company validation")
-                error_code = "UNKNOWN_ERROR"
+                error_code = ErrorCode.UNKNOWN_ERROR
                 error_message = f"An unexpected error occurred: {str(e)}"
 
             return ValidationResult(

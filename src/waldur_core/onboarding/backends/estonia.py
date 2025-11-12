@@ -14,6 +14,7 @@ from constance import config
 
 from .base import (
     CompanyRegistryBackend,
+    ErrorCode,
     ValidationRequest,
     ValidationResult,
     backend_registry,
@@ -94,7 +95,7 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
                     company_data={},
                     user_roles=[],
                     raw_response={},
-                    error_code="COMPANY_NOT_FOUND",
+                    error_code=ErrorCode.COMPANY_NOT_FOUND,
                     error_message=f"Company with registration code {request.legal_person_identifier} not found",
                 )
 
@@ -109,7 +110,7 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
                 company_data=normalized_data.__dict__,
                 user_roles=verified_user_roles,
                 raw_response=verified_company_data,
-                error_code=None if is_authorized else "NOT_AUTHORIZED",
+                error_code=None if is_authorized else ErrorCode.NOT_AUTHORIZED,
                 error_message=None
                 if is_authorized
                 else f"User {request.person_identifier} is not listed as authorized representative",
@@ -127,7 +128,7 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
                 company_data={},
                 user_roles=[],
                 raw_response={},
-                error_code="API_ERROR",
+                error_code=ErrorCode.API_ERROR,
                 error_message=f"Äriregister API error: {str(e)}",
             )
         except Exception as e:
@@ -138,7 +139,7 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
                 company_data={},
                 user_roles=[],
                 raw_response={},
-                error_code="UNKNOWN_ERROR",
+                error_code=ErrorCode.UNKNOWN_ERROR,
                 error_message=f"An unexpected error occurred: {str(e)}",
             )
 

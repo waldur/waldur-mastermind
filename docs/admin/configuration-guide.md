@@ -2124,3 +2124,31 @@ WirtschaftsCompass API server URL
 **Type:** secret_field
 
 WirtschaftsCompass API token
+
+#### ONBOARDING_BOLAGSVERKET_API_URL
+
+**Type:** url_field
+
+**Default value:** <https://gw-accept2.api.bolagsverket.se/>
+
+Sweden Business Register API server URL.
+
+#### ONBOARDING_BOLAGSVERKET_TOKEN_API_URL
+
+**Type:** url_field
+
+**Default value:** <https://portal-accept2.api.bolagsverket.se/>
+
+Bolagsverket OAuth2 token server base URL.
+
+#### ONBOARDING_BOLAGSVERKET_CLIENT_ID
+
+**Type:** text_field
+
+Sweden Business Register API client identifier.
+
+#### ONBOARDING_BOLAGSVERKET_CLIENT_SECRET
+
+**Type:** secret_field
+
+Sweden Business Register API client secret.

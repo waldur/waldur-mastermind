@@ -210,3 +210,48 @@ def wico_fetch_company_profile():
         dict: Mock API response with wico-id
     """
     return {"meta": {}, "data": {"wicoId": "076d39c4-a5f2-44ea-8540-50c9fb9c6132"}}
+
+
+# Swedish Bolagsverket fixtures
+BOLAGSVERKET_LEGAL_PERSON_IDENTIFIER = "5560021361"
+BOLAGSVERKET_AUTHORIZED_PERSON_IDENTIFIER = "198101032384"
+BOLAGSVERKET_UNKNOWN_PERSON_IDENTIFIER = "190001019999"
+BOLAGSVERKET_COMPANY_NAME = "Testbolag 4 bokat av SKV Aktiebolag"
+
+
+def bolagsverket_company_response():
+    return [
+        {
+            "identitet": {
+                "typ": {
+                    "kod": "ORGANISATIONSNUMMER",
+                    "klartext": "Organisationsnummer",
+                },
+                "identitetsbeteckning": BOLAGSVERKET_LEGAL_PERSON_IDENTIFIER,
+            },
+            "arende": {
+                "arendenummer": "154823/2024",
+                "avslutatTidpunkt": "2024-03-27T14:38:11.000+01:00",
+            },
+            "organisationsnamn": {
+                "typ": {"kod": "FORETAGSNAMN", "klartext": "Företagsnamn"},
+                "namn": BOLAGSVERKET_COMPANY_NAME,
+            },
+            "organisationsform": {"kod": "AB", "klartext": "Aktiebolag"},
+            "organisationsstatusar": [],
+            "funktionarer": [
+                {
+                    "personnamn": {"fornamn": "FN10003", "efternamn": "EN10003"},
+                    "identitet": {
+                        "typ": {"kod": "PERSONNUMMER", "klartext": "Personnummer"},
+                        "identitetsbeteckning": BOLAGSVERKET_AUTHORIZED_PERSON_IDENTIFIER,
+                    },
+                    "funktionarsroller": [
+                        {"kod": "LE", "klartext": "Styrelseledamot"},
+                    ],
+                    "postadress": {"postnummer": "85181", "postort": "SUNDSVALL"},
+                },
+            ],
+            "antalValdaFunktionarer": {"ledamoter": 1, "suppleanter": 1},
+        }
+    ]
