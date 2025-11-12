@@ -2075,6 +2075,12 @@ Number of seconds to cache token introspection results.
 
 ### Onboarding settings
 
+#### ONBOARDING_COUNTRY
+
+**Type:** text_field
+
+ISO 3166-1 alpha-2 country code for the deployment (e.g., 'EE' for Estonia, 'AT' for Austria). Used for onboarding and localization.
+
 #### ONBOARDING_VERIFICATION_EXPIRY_HOURS
 
 **Type:** int
@@ -2131,7 +2137,7 @@ WirtschaftsCompass API token
 
 **Default value:** <https://gw-accept2.api.bolagsverket.se/>
 
-Sweden Business Register API server URL.
+Sweden Business Register API server URL
 
 #### ONBOARDING_BOLAGSVERKET_TOKEN_API_URL
 
@@ -2139,16 +2145,16 @@ Sweden Business Register API server URL.
 
 **Default value:** <https://portal-accept2.api.bolagsverket.se/>
 
-Bolagsverket OAuth2 token server base URL.
+Bolagsverket OAuth2 token server base URL
 
 #### ONBOARDING_BOLAGSVERKET_CLIENT_ID
 
 **Type:** text_field
 
-Sweden Business Register API client identifier.
+Sweden Business Register API client identifier
 
 #### ONBOARDING_BOLAGSVERKET_CLIENT_SECRET
 
 **Type:** secret_field
 
-Sweden Business Register API client secret.
+Sweden Business Register API client secret
