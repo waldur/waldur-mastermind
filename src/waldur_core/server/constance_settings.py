@@ -542,6 +542,11 @@ CONSTANCE_CONFIG = {
         "List of offering types disabled for creation and selection.",
         "list_field",
     ),
+    "ONBOARDING_COUNTRY": (
+        "",
+        "ISO 3166-1 alpha-2 country code for the deployment (e.g., 'EE' for Estonia, 'AT' for Austria). Used for onboarding and localization.",
+        "text_field",
+    ),
     "ONBOARDING_VERIFICATION_EXPIRY_HOURS": (
         48,
         "Number of hours after which onboarding verifications expire.",
@@ -748,6 +753,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "OIDC_CACHE_TIMEOUT",
     ),
     "Onboarding settings": (
+        "ONBOARDING_COUNTRY",
         "ONBOARDING_VERIFICATION_EXPIRY_HOURS",
         "ONBOARDING_ARIREGISTER_BASE_URL",
         "ONBOARDING_ARIREGISTER_USERNAME",
@@ -770,6 +776,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "DOCS_URL",
     "SHORT_PAGE_TITLE",
     "FULL_PAGE_TITLE",
+    "ONBOARDING_COUNTRY",
     "BRAND_COLOR",
     "HERO_LINK_LABEL",
     "HERO_LINK_URL",

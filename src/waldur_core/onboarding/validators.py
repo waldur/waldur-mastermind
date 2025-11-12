@@ -26,6 +26,11 @@ class OnboardingValidator:
         legal_person_identifier: str,
         legal_name: str = "",
         existing_verification: OnboardingVerification | None = None,
+        # ToDo: remove this after implementing getting user's identifier via auth methods
+        person_identifier: str = "",
+        first_name: str = "",
+        last_name: str = "",
+        birth_date: str = "",
     ) -> OnboardingVerification:
         """
         Validate that a user is authorized to represent a company.
@@ -61,12 +66,18 @@ class OnboardingValidator:
             )
 
         try:
+            # ToDo: remove this after implementing getting user's identifier via auth methods
+            # Use provided person_identifier if available, otherwise get from user
+            temp_person_identifier = person_identifier or getattr(
+                user, "civil_number", ""
+            )
+
             # Step 1: Validate user has required identity information
             # Use the backend registry to validate identity
             backend = backend_registry.find_backend_for_request(
                 ValidationRequest(
                     country=country,
-                    person_identifier=getattr(user, "civil_number", ""),
+                    person_identifier=temp_person_identifier,
                     legal_person_identifier=legal_person_identifier,
                     legal_name=legal_name,
                 )
@@ -92,9 +103,33 @@ class OnboardingValidator:
                 return verification
 
             # Step 2: Create validation request
+            # ToDo: remove this after implementing getting user's identifier via auth methods
+            # Use provided person data if available, otherwise get from backend
+            backend_person_identifier = backend.get_person_identifier_from_user(user)
+
+            # For WirtschaftsCompass validation, use provided data or fall back to user object
+            if backend.get_validation_method() == "wirtschaftscompass" and (
+                first_name or last_name or birth_date
+            ):
+                final_person_identifier = {
+                    "first_name": first_name or getattr(user, "first_name", ""),
+                    "last_name": last_name or getattr(user, "last_name", ""),
+                    "birth_date": birth_date
+                    or (
+                        user.birth_date.strftime("%Y-%m-%d")
+                        if hasattr(user, "birth_date") and user.birth_date
+                        else ""
+                    ),
+                }
+            # For other validations (e.g., Estonian), use provided person_identifier or fall back to backend
+            elif person_identifier:
+                final_person_identifier = person_identifier
+            else:
+                final_person_identifier = backend_person_identifier
+
             request = ValidationRequest(
                 country=country,
-                person_identifier=backend.get_person_identifier_from_user(user),
+                person_identifier=final_person_identifier,
                 legal_person_identifier=legal_person_identifier,
                 legal_name=legal_name,
             )
