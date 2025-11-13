@@ -37,6 +37,7 @@ dependencies = [
   "docker==7.1.0",
   "iptools==0.7.0",
   "lxml>=4.6.5,<5.0.0",
+  "openportal>=0.20.1",
   "pbr==4.0.4",
   "Pillow>=11.0.0,<12.0.0",
   "pycountry @ git+https://github.com/pycountry/pycountry.git@main",
@@ -134,6 +135,8 @@ waldur_freeipa = "waldur_freeipa.extension:FreeIPAExtension"
 waldur_invoices = "waldur_mastermind.invoices.extension:InvoicesExtension"
 waldur_marketplace = "waldur_mastermind.marketplace.extension:MarketplaceExtension"
 waldur_marketplace_azure = "waldur_mastermind.marketplace_azure.extension:MarketplaceAzureExtension"
+waldur_marketplace_openportal = "waldur_mastermind.marketplace_openportal.extension:MarketplaceOpenPortalExtension"
+waldur_marketplace_openportal_remote = "waldur_mastermind.marketplace_openportal_remote.extension:MarketplaceOpenPortalRemoteExtension"
 waldur_marketplace_openstack = "waldur_mastermind.marketplace_openstack.extension:MarketplaceOpenStackExtension"
 waldur_marketplace_rancher = "waldur_mastermind.marketplace_rancher.extension:MarketplaceRancherExtension"
 waldur_marketplace_script = "waldur_mastermind.marketplace_script.extension:MarketplaceScriptExtension"
@@ -143,6 +146,7 @@ waldur_marketplace_support = "waldur_mastermind.marketplace_support.extension:Ma
 waldur_marketplace_vmware = "waldur_mastermind.marketplace_vmware.extension:MarketplaceVMwareExtension"
 waldur_marketplace_remote = "waldur_mastermind.marketplace_remote.extension:MarketplaceRemoteExtension"
 waldur_marketplace_promotions = "waldur_mastermind.promotions.extension:MarketplacePromotionsExtension"
+waldur_openportal = "waldur_openportal.extension:OpenPortalExtension"
 waldur_openstack = "waldur_openstack.extension:OpenStackExtension"
 waldur_openstack_tenant = "waldur_openstack_tenant.extension:OpenStackTenantExtension"
 waldur_openstack_replication = "waldur_openstack_replication.extension:OpenStackReplicationExtension"
