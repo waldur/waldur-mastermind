@@ -1714,7 +1714,7 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
         return models.Project.objects.filter(customer=customer).order_by("name")
 
     def list(self, request, customer_uuid=None):
-        """Get detailed project compliance information with database-level pagination."""
+        """Get detailed project compliance information."""
         customer = self.get_customer()
 
         # Check if customer has project metadata checklist configured
@@ -2020,7 +2020,7 @@ class CustomerProjectMetadataComplianceProjectsViewSet(
         return context
 
     def list(self, request, customer_uuid=None):
-        """List project checklist answer data with database-level pagination."""
+        """List project checklist answer data."""
         customer = self.get_customer()
 
         # Check if customer has project metadata checklist configured
@@ -2133,7 +2133,7 @@ class CustomerProjectMetadataQuestionAnswersViewSet(
         return context
 
     def list(self, request, customer_uuid=None):
-        """List questions with project answers, paginated by question at database level."""
+        """List questions with project answers"""
         customer = self.get_customer()
 
         # Check if customer has project metadata checklist configured
