@@ -44,6 +44,7 @@ class CustomMenu(Menu):
 
     IAAS_CLOUDS = (
         "waldur_azure.*",
+        "waldur_openportal.*",
         "waldur_openstack.*",
         "waldur_aws.*",
         "waldur_digitalocean.*",

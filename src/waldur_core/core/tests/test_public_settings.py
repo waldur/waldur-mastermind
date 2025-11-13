@@ -41,6 +41,7 @@ class TestPublicSettings(TestCase):
             "LANGUAGE_CODE": "en",
             "LANGUAGES": (("en", "English"), ("et", "Eesti")),
             "LANGUAGE_CHOICES": ["en"],
+            "WALDUR_OPENPORTAL": {"ENABLED": False},
         }
         mock_settings = mock.Mock(**extensions)
         self.patcher_settings = mock.patch(
