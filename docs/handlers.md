@@ -59,6 +59,8 @@ td:nth-child(4) {
 | `delete_error_message` | `Custom Signal (post_transition)` | `waldur_azure.SQLDatabase` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `waldur_digitalocean.Droplet` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `google.GoogleCalendar` | Delete error message if instance state changed from erred |
+| `delete_error_message` | `Custom Signal (post_transition)` | `waldur_openportal.Allocation` | Delete error message if instance state changed from erred |
+| `delete_error_message` | `Custom Signal (post_transition)` | `waldur_openportal.RemoteAllocation` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `openstack.Tenant` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `openstack.ServerGroup` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `openstack.SecurityGroup` | Delete error message if instance state changed from erred |
@@ -109,6 +111,8 @@ td:nth-child(4) {
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_azure.SQLServer` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_azure.SQLDatabase` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_digitalocean.Droplet` | If VM that contains service settings were deleted - all settings |
+| `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_openportal.Allocation` | If VM that contains service settings were deleted - all settings |
+| `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_openportal.RemoteAllocation` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.Tenant` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.ServerGroup` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.SecurityGroup` | If VM that contains service settings were deleted - all settings |
@@ -152,6 +156,8 @@ td:nth-child(4) {
 | `log_resource_action` | `Custom Signal (post_transition)` | `waldur_azure.SQLServer` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `waldur_azure.SQLDatabase` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `waldur_digitalocean.Droplet` | Log resource state transitions. |
+| `log_resource_action` | `Custom Signal (post_transition)` | `waldur_openportal.Allocation` | Log resource state transitions. |
+| `log_resource_action` | `Custom Signal (post_transition)` | `waldur_openportal.RemoteAllocation` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `openstack.Tenant` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `openstack.ServerGroup` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `openstack.SecurityGroup` | Log resource state transitions. |
@@ -186,6 +192,8 @@ td:nth-child(4) {
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `waldur_azure.SQLServer` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `waldur_azure.SQLDatabase` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `waldur_digitalocean.Droplet` | Log scheduled resource creation. |
+| `log_resource_creation_scheduled` | `Django Signal (post_save)` | `waldur_openportal.Allocation` | Log scheduled resource creation. |
+| `log_resource_creation_scheduled` | `Django Signal (post_save)` | `waldur_openportal.RemoteAllocation` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.Tenant` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.ServerGroup` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.SecurityGroup` | Log scheduled resource creation. |
@@ -220,6 +228,8 @@ td:nth-child(4) {
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `waldur_azure.SQLServer` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `waldur_azure.SQLDatabase` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `waldur_digitalocean.Droplet` | Log resource deletion. |
+| `log_resource_deleted` | `Django Signal (pre_delete)` | `waldur_openportal.Allocation` | Log resource deletion. |
+| `log_resource_deleted` | `Django Signal (pre_delete)` | `waldur_openportal.RemoteAllocation` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.Tenant` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.ServerGroup` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.SecurityGroup` | Log resource deletion. |
@@ -254,6 +264,8 @@ td:nth-child(4) {
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_azure.SQLServer` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_azure.SQLDatabase` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_digitalocean.Droplet` | Log resource import. |
+| `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_openportal.Allocation` | Log resource import. |
+| `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_openportal.RemoteAllocation` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.Tenant` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.ServerGroup` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.SecurityGroup` | Log resource import. |
@@ -302,6 +314,8 @@ td:nth-child(4) {
 | `recalculate_count_quota` | `Django Signal (post_save)` | `waldur_azure.SQLServer` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `waldur_azure.SQLDatabase` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `waldur_digitalocean.Droplet` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `waldur_openportal.Allocation` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `waldur_openportal.RemoteAllocation` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.Tenant` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.ServerGroup` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.SecurityGroup` | Recalculate count quota when an instance is created or deleted. |
@@ -338,6 +352,8 @@ td:nth-child(4) {
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_azure.SQLServer` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_azure.SQLDatabase` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_digitalocean.Droplet` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_openportal.Allocation` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_openportal.RemoteAllocation` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.Tenant` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.ServerGroup` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.SecurityGroup` | Recalculate count quota when an instance is created or deleted. |
@@ -423,6 +439,8 @@ td:nth-child(4) {
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `AzureSqlServerSerializer` | Add marketplace offering related fields to the serializer. |
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `AzurePublicIPSerializer` | Add marketplace offering related fields to the serializer. |
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `AzureSqlDatabaseSerializer` | Add marketplace offering related fields to the serializer. |
+| `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `AllocationSerializer` | Add marketplace offering related fields to the serializer. |
+| `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `RemoteAllocationSerializer` | Add marketplace offering related fields to the serializer. |
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `OpenStackTenantSerializer` | Add marketplace offering related fields to the serializer. |
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `OpenStackRouterSerializer` | Add marketplace offering related fields to the serializer. |
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `OpenStackVolumeSerializer` | Add marketplace offering related fields to the serializer. |
@@ -454,6 +472,8 @@ td:nth-child(4) {
 | `change_order_state` | `Django Signal (post_save)` | `waldur_azure.VirtualMachine` | Change the state of an order based on resource state changes. |
 | `change_order_state` | `Django Signal (post_save)` | `waldur_azure.SQLServer` | Change the state of an order based on resource state changes. |
 | `change_order_state` | `Django Signal (post_save)` | `waldur_azure.SQLDatabase` | Change the state of an order based on resource state changes. |
+| `change_order_state` | `Django Signal (post_save)` | `waldur_openportal.Allocation` | Change the state of an order based on resource state changes. |
+| `change_order_state` | `Django Signal (post_save)` | `waldur_openportal.RemoteAllocation` | Change the state of an order based on resource state changes. |
 | `change_order_state` | `Django Signal (post_save)` | `openstack.Instance` | Change the state of an order based on resource state changes. |
 | `change_order_state` | `Django Signal (post_save)` | `openstack.Volume` | Change the state of an order based on resource state changes. |
 | `change_order_state` | `Django Signal (post_save)` | `openstack.Tenant` | Change the state of an order based on resource state changes. |
@@ -478,6 +498,8 @@ td:nth-child(4) {
 | `create_offering_from_tenant` | `Django Signal (post_save)` | `openstack.Tenant` | No description |
 | `create_offering_user_checklist_completions` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Create checklist completions for OfferingUser when created. |
 | `create_offering_user_for_new_resource` | `Custom Signal (resource_creation_succeeded)` | `marketplace.Resource` | Create an offering user for a new resource. |
+| `create_offering_user_for_openportal_remote_user` | `Custom Signal (openportal_remote_association_created)` | `waldur_openportal.RemoteAllocation` | No description |
+| `create_offering_user_for_openportal_user` | `Custom Signal (openportal_association_created)` | `waldur_openportal.Allocation` | No description |
 | `create_offering_user_for_rancher_user` | `Django Signal (post_save)` | `waldur_rancher.RancherUser` | No description |
 | `create_offering_user_for_slurm_user` | `Custom Signal (slurm_association_created)` | `waldur_slurm.Allocation` | No description |
 | `create_offering_users_when_project_role_granted` | `Custom Signal (role_granted)` | `—` | Create offering users when a project role is granted. |
@@ -503,6 +525,8 @@ td:nth-child(4) {
 | `delete_stale_price_estimate` | `Django Signal (pre_delete)` | `structure.Customer` | Delete price estimates when customer or project is deleted. |
 | `disable_archived_service_settings_without_existing_resource` | `Django Signal (post_save)` | `marketplace.Resource` | Disable archived service settings if there are no existing resources. |
 | `disable_service_settings_without_existing_resource_when_archived` | `Django Signal (post_save)` | `marketplace.Offering` | Disable service settings without existing resources when an offering is archived. |
+| `drop_offering_user_for_openportal_remote_user` | `Custom Signal (openportal_remote_association_deleted)` | `waldur_openportal.RemoteAllocation` | No description |
+| `drop_offering_user_for_openportal_user` | `Custom Signal (openportal_association_deleted)` | `waldur_openportal.Allocation` | No description |
 | `drop_offering_user_for_rancher_user` | `Django Signal (pre_delete)` | `waldur_rancher.RancherUser` | No description |
 | `drop_offering_user_for_slurm_user` | `Custom Signal (slurm_association_deleted)` | `waldur_slurm.Allocation` | No description |
 | `emit_invoice_created_event` | `Django Signal (post_save)` | `invoices.Invoice` | Emit invoice created signal when invoice state changes to CREATED. |
@@ -585,8 +609,10 @@ td:nth-child(4) {
 | `set_project_name_on_invoice_item_creation` | `Django Signal (post_save)` | `invoices.InvoiceItem` | No description |
 | `set_tax_percent_on_invoice_creation` | `Django Signal (pre_save)` | `invoices.Invoice` | No description |
 | `switch_resource_plan_period_when_plan_is_updated` | `Django Signal (post_save)` | `marketplace.Resource` | Switch the resource plan period when a resource's plan is updated. |
+| `sync_component_user_usage_when_allocation_user_usage_is_submitted` | `Django Signal (post_save)` | `waldur_openportal.AllocationUserUsage` | No description |
 | `sync_component_user_usage_when_allocation_user_usage_is_submitted` | `Django Signal (post_save)` | `waldur_slurm.AllocationUserUsage` | No description |
 | `sync_limits` | `Django Signal (post_save)` | `marketplace.Resource` | Synchronize resource limits. |
+| `sync_offering_resource_options` | `Django Signal (post_save)` | `marketplace.Offering` | No description |
 | `sync_permission_with_remote` | `Custom Signal (role_granted)` | `—` | No description |
 | `sync_permission_with_remote` | `Custom Signal (role_revoked)` | `—` | No description |
 | `sync_permission_with_remote` | `Custom Signal (role_updated)` | `—` | No description |
@@ -606,6 +632,8 @@ td:nth-child(4) {
 | `synchronize_resource_metadata_on_delete` | `Django Signal (post_delete)` | `waldur_azure.VirtualMachine` | Synchronize resource metadata on delete. |
 | `synchronize_resource_metadata_on_delete` | `Django Signal (post_delete)` | `waldur_azure.SQLServer` | Synchronize resource metadata on delete. |
 | `synchronize_resource_metadata_on_delete` | `Django Signal (post_delete)` | `waldur_azure.SQLDatabase` | Synchronize resource metadata on delete. |
+| `synchronize_resource_metadata_on_delete` | `Django Signal (post_delete)` | `waldur_openportal.Allocation` | Synchronize resource metadata on delete. |
+| `synchronize_resource_metadata_on_delete` | `Django Signal (post_delete)` | `waldur_openportal.RemoteAllocation` | Synchronize resource metadata on delete. |
 | `synchronize_resource_metadata_on_delete` | `Django Signal (post_delete)` | `openstack.Instance` | Synchronize resource metadata on delete. |
 | `synchronize_resource_metadata_on_delete` | `Django Signal (post_delete)` | `openstack.Volume` | Synchronize resource metadata on delete. |
 | `synchronize_resource_metadata_on_delete` | `Django Signal (post_delete)` | `openstack.Tenant` | Synchronize resource metadata on delete. |
@@ -615,6 +643,8 @@ td:nth-child(4) {
 | `synchronize_resource_metadata_on_save` | `Django Signal (post_save)` | `waldur_azure.VirtualMachine` | Synchronize resource metadata on save. |
 | `synchronize_resource_metadata_on_save` | `Django Signal (post_save)` | `waldur_azure.SQLServer` | Synchronize resource metadata on save. |
 | `synchronize_resource_metadata_on_save` | `Django Signal (post_save)` | `waldur_azure.SQLDatabase` | Synchronize resource metadata on save. |
+| `synchronize_resource_metadata_on_save` | `Django Signal (post_save)` | `waldur_openportal.Allocation` | Synchronize resource metadata on save. |
+| `synchronize_resource_metadata_on_save` | `Django Signal (post_save)` | `waldur_openportal.RemoteAllocation` | Synchronize resource metadata on save. |
 | `synchronize_resource_metadata_on_save` | `Django Signal (post_save)` | `openstack.Instance` | Synchronize resource metadata on save. |
 | `synchronize_resource_metadata_on_save` | `Django Signal (post_save)` | `openstack.Volume` | Synchronize resource metadata on save. |
 | `synchronize_resource_metadata_on_save` | `Django Signal (post_save)` | `openstack.Tenant` | Synchronize resource metadata on save. |
@@ -629,6 +659,8 @@ td:nth-child(4) {
 | `terminate_resource` | `Django Signal (pre_delete)` | `waldur_azure.VirtualMachine` | Terminate a resource. |
 | `terminate_resource` | `Django Signal (pre_delete)` | `waldur_azure.SQLServer` | Terminate a resource. |
 | `terminate_resource` | `Django Signal (pre_delete)` | `waldur_azure.SQLDatabase` | Terminate a resource. |
+| `terminate_resource` | `Django Signal (pre_delete)` | `waldur_openportal.Allocation` | Terminate a resource. |
+| `terminate_resource` | `Django Signal (pre_delete)` | `waldur_openportal.RemoteAllocation` | Terminate a resource. |
 | `terminate_resource` | `Django Signal (pre_delete)` | `openstack.Instance` | Terminate a resource. |
 | `terminate_resource` | `Django Signal (pre_delete)` | `openstack.Volume` | Terminate a resource. |
 | `terminate_resource` | `Django Signal (pre_delete)` | `openstack.Tenant` | Terminate a resource. |
@@ -642,6 +674,8 @@ td:nth-child(4) {
 | `update_category_offerings_count` | `Custom Signal (recalculate_quotas)` | `—` | Update the count of offerings for each category. |
 | `update_category_quota_when_offering_is_created` | `Django Signal (post_save)` | `marketplace.Offering` | Update category quota when an offering is created or its state changes. |
 | `update_category_quota_when_offering_is_deleted` | `Django Signal (post_delete)` | `marketplace.Offering` | Update category quota when an offering is deleted. |
+| `update_component_quota` | `Django Signal (post_save)` | `waldur_openportal.Allocation` | No description |
+| `update_component_quota` | `Django Signal (post_save)` | `waldur_openportal.RemoteAllocation` | No description |
 | `update_component_quota` | `Django Signal (post_save)` | `waldur_slurm.Allocation` | No description |
 | `update_customer_of_offering_if_project_has_been_moved` | `Custom Signal (project_moved)` | `structure.Project` | Update the customer of an offering if the project has been moved. |
 | `update_daily_quotas` | `Django Signal (post_save)` | `quotas.QuotaUsage` | No description |
@@ -661,6 +695,21 @@ td:nth-child(4) {
 | `update_order_if_issue_was_complete` | `Django Signal (post_save)` | `support.Issue` | No description |
 | `update_remote_resource_options` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
 | `update_resource_when_order_is_rejected_or_erred` | `Django Signal (post_save)` | `marketplace.Order` | Update resource state when an order is rejected or erred. |
+
+## Application: `waldur_openportal`
+
+| Handler Name | Signal Type | Sender | Description |
+|--------------|-------------|--------|-------------|
+| `delete_project` | `Django Signal (pre_delete)` | `structure.Project` | Make sure to remote the project in the remote portal if it is |
+| `delete_user` | `Django Signal (pre_delete)` | `core.User` | Completely delete the user from all OpenPortal allocations to which |
+| `role_granted` | `Custom Signal (role_granted)` | `—` | This function is called when a user is granted a role in a project. |
+| `role_revoked` | `Custom Signal (role_revoked)` | `—` | Revoke a role from the passed user. Note that this will trigger a full |
+| `sync_project_credits_on_remote_allocation_change` | `Django Signal (post_save)` | `waldur_openportal.RemoteAllocation` | Synchronize ProjectCredit when a RemoteAllocation is created or updated. |
+| `update_allocation_credits` | `Django Signal (post_save)` | `marketplace.Resource` | Update the allocation credits for the given resource. This is called |
+| `update_offering_agents` | `Django Signal (post_save)` | `waldur_openportal.ProjectTemplate` | No description |
+| `update_project` | `Django Signal (post_save)` | `structure.Project` | Update the project (passed as "instance") in OpenPortal. If this |
+| `update_quotas_on_allocation_usage_update` | `Django Signal (post_save)` | `waldur_openportal.Allocation` | No description |
+| `update_quotas_on_remote_allocation_usage_update` | `Django Signal (post_save)` | `waldur_openportal.RemoteAllocation` | No description |
 
 ## Application: `waldur_openstack`
 
@@ -722,14 +771,15 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 648
+Total unique handlers found: 692
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 334 handlers
+- **waldur_core**: 350 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 266 handlers
+- **waldur_mastermind**: 284 handlers
+- **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
 - **waldur_rancher**: 12 handlers

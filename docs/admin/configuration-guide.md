@@ -835,6 +835,26 @@ UUID of a Waldur SLURM offering, which will be used for creating allocations for
 
 UUID of a Waldur SLURM offering plan, which will be used for creating allocations for users
 
+### WALDUR_OPENPORTAL plugin
+
+Default value:
+
+```python
+WALDUR_OPENPORTAL = {'DEFAULT_LIMITS': {'NODE': 1000}, 'ENABLED': False}
+```
+
+#### DEFAULT_LIMITS
+
+**Type:** Mapping[str, int]
+
+Default limits of account that are set when OpenPortal account is provisioned.
+
+#### ENABLED
+
+**Type:** bool
+
+Enable support for OpenPortal plugin in a deployment
+
 ### WALDUR_OPENSTACK plugin
 
 Default value:
