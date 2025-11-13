@@ -334,4 +334,12 @@ class OrderCreateTest(test.APITransactionTestCase):
         if add_payload:
             payload.update(add_payload)
 
+        if "plan" not in payload:
+            plan = offering.plans.filter(archived=False).first()
+            if plan:
+                payload["plan"] = marketplace_factories.PlanFactory.get_public_url(plan)
+            else:
+                plan = marketplace_factories.PlanFactory(offering=offering)
+                payload["plan"] = marketplace_factories.PlanFactory.get_public_url(plan)
+
         return self.client.post(url, payload)

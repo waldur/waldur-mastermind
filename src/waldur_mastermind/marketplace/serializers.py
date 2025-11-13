@@ -3697,6 +3697,7 @@ class OrderCreateSerializer(
         self._validate_terms_of_service(user, offering, accepting_tos)
         self._validate_project_not_terminated(project)
         self._validate_project_policy_constraints(project, offering)
+        self._validate_plan_for_create(attrs, offering)
 
         # Prepaid Offering Validation
         prepaid_components = offering.components.filter(is_prepaid=True)
@@ -3918,6 +3919,26 @@ class OrderCreateSerializer(
                         )
                     }
                 )
+
+    def _validate_plan_for_create(self, attrs, offering):
+        """
+        Plan is required for CREATE orders.
+        Private offerings can be created without plans.
+        """
+        order_type = attrs.get("type", OrderTypes.CREATE)
+        plan = attrs.get("plan")
+
+        if order_type != OrderTypes.CREATE:
+            return
+
+        # Private offerings (shared=False) can be created without plans
+        if not offering.shared:
+            return
+
+        if not plan:
+            raise ValidationError(
+                {"plan": _("Plan is required when creating resources.")}
+            )
 
     def _validate_order_start_date(self, attrs):
         start_date = attrs.get("start_date")

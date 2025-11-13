@@ -377,6 +377,57 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.tenant = self.fixture.tenant
         self.service_settings = self.fixture.tenant.service_settings
 
+    def test_instance_order_via_api_does_not_require_plan(self):
+        """
+        Test that private offerings (like OpenStack instances) can be created without a plan.
+        Private offerings (shared=False) are typically auto-created and inherit plans from parent resources.
+        """
+        tenant_offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_TENANT_OFFERING,
+            scope=self.service_settings,
+            state=OfferingStates.ACTIVE,
+            customer=self.fixture.customer,
+        )
+
+        # Create private instance offering (shared=False, no plan required)
+        instance_offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_INSTANCE_OFFERING,
+            scope=self.tenant,
+            parent=tenant_offering,
+            state=OfferingStates.ACTIVE,
+            shared=False,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+        )
+
+        subnet_url = openstack_factories.SubNetFactory.get_url(self.fixture.subnet)
+        attributes = {
+            "flavor": openstack_factories.FlavorFactory.get_url(self.fixture.flavor),
+            "image": openstack_factories.ImageFactory.get_url(self.fixture.image),
+            "name": "virtual-machine",
+            "system_volume_size": self.fixture.image.min_disk,
+            "ports": [{"subnet": subnet_url}],
+            "ssh_public_key": structure_factories.SshPublicKeyFactory.get_url(
+                structure_factories.SshPublicKeyFactory(user=self.fixture.manager)
+            ),
+        }
+
+        # Create order WITHOUT plan - should succeed for private offerings
+        self.client.force_authenticate(self.fixture.owner)
+        url = marketplace_factories.OrderFactory.get_list_url()
+        payload = {
+            "project": structure_factories.ProjectFactory.get_url(self.fixture.project),
+            "offering": marketplace_factories.OfferingFactory.get_public_url(
+                instance_offering
+            ),
+            "attributes": attributes,
+        }
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        order = marketplace_models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertIsNone(order.plan)
+
     def test_instance_is_created_when_order_is_processed(self):
         order = self.trigger_instance_creation()
         self.assertEqual(order.state, OrderStates.EXECUTING, order.error_message)

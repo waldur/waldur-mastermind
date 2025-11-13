@@ -30,7 +30,7 @@ class BaseOrderCreateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
 
-    def create_order(self, user, offering=None, add_payload=None):
+    def create_order(self, user, offering=None, add_payload=None, skip_auto_plan=False):
         if offering is None:
             offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         self.client.force_authenticate(user)
@@ -43,6 +43,15 @@ class BaseOrderCreateTest(test.APITransactionTestCase):
 
         if add_payload:
             payload.update(add_payload)
+
+        if "plan" not in payload and not skip_auto_plan:
+            plan = offering.plans.filter(archived=False).first()
+            if plan:
+                payload["plan"] = factories.PlanFactory.get_public_url(plan)
+            else:
+                # Create a plan if offering doesn't have one
+                plan = factories.PlanFactory(offering=offering)
+                payload["plan"] = factories.PlanFactory.get_public_url(plan)
 
         return self.client.post(url, payload)
 
@@ -93,6 +102,17 @@ class OrderCreateTest(BaseOrderCreateTest):
             self.fixture.owner, offering, add_payload=add_payload
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_can_not_create_order_without_plan(self):
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        factories.PlanFactory(offering=offering, archived=False)
+        response = self.create_order(self.fixture.staff, offering, skip_auto_plan=True)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("plan", response.data)
+        self.assertIn(
+            "Plan is required when creating resources",
+            str(response.data["plan"]),
+        )
 
     def test_can_not_create_order_with_plan_related_to_another_offering(self):
         offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
@@ -302,7 +322,8 @@ class OrderCreateTest(BaseOrderCreateTest):
             state=OfferingStates.ACTIVE,
             plugin_options={"maximal_resource_count_per_project": 2},
         )
-        factories.ResourceFactory(project=self.project, offering=offering)
+        plan = factories.PlanFactory(offering=offering)
+        factories.ResourceFactory(project=self.project, offering=offering, plan=plan)
 
         response = self.create_order(user, offering)
 
@@ -314,9 +335,11 @@ class OrderCreateTest(BaseOrderCreateTest):
             state=OfferingStates.ACTIVE,
             plugin_options={"maximal_resource_count_per_project": 1},
         )
+        plan = factories.PlanFactory(offering=offering)
         factories.ResourceFactory(
             project=self.project,
             offering=offering,
+            plan=plan,
             state=models.Resource.States.TERMINATED,
         )
 
@@ -330,9 +353,10 @@ class OrderCreateTest(BaseOrderCreateTest):
             state=OfferingStates.ACTIVE,
             plugin_options={"maximal_resource_count_per_project": 1},
         )
+        plan = factories.PlanFactory(offering=offering)
         # Create resource in a different project
         factories.ResourceFactory(
-            project=structure_factories.ProjectFactory(), offering=offering
+            project=structure_factories.ProjectFactory(), offering=offering, plan=plan
         )
 
         response = self.create_order(user, offering)

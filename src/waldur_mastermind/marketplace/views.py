@@ -7461,6 +7461,11 @@ class BackendResourceViewSet(core_views.ActionsViewSet):
         project = backend_resource.project
         offering = backend_resource.offering
 
+        if not plan and offering.shared:
+            raise rf_exceptions.ValidationError(
+                {"plan": _("Plan is required when importing resources.")}
+            )
+
         backend_id = backend_resource.backend_id
         logger.info(
             "Importing the backend resource %s (%s)", backend_resource.name, backend_id

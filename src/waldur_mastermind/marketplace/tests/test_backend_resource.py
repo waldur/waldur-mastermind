@@ -143,6 +143,65 @@ class BackendResourceImportTest(test.APITransactionTestCase):
             ).exists()
         )
 
+    def test_backend_resource_import_without_plan_fails(self):
+        """Test that importing a resource without a plan fails for shared offerings."""
+        self.client.force_login(self.fixture.staff)
+        url = factories.BackendResourceFactory.get_url(
+            self.backend_resource, "import_resource"
+        )
+        payload = {}
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("plan", response.data)
+        self.assertIn(
+            "Plan is required when importing resources", str(response.data["plan"])
+        )
+
+        self.assertFalse(
+            models.Resource.objects.filter(
+                backend_id=self.backend_resource.backend_id
+            ).exists()
+        )
+
+    def test_backend_resource_import_private_offering_without_plan_succeeds(self):
+        """Test that importing a resource without a plan succeeds for private offerings."""
+        private_offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            project=self.project,
+            shared=False,
+        )
+        private_backend_resource = factories.BackendResourceFactory(
+            offering=private_offering,
+            project=self.project,
+        )
+
+        self.client.force_login(self.fixture.staff)
+        url = factories.BackendResourceFactory.get_url(
+            private_backend_resource, "import_resource"
+        )
+        payload = {}
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.Resource.objects.filter(
+                backend_id=private_backend_resource.backend_id
+            ).exists()
+        )
+        resource = models.Resource.objects.get(
+            backend_id=private_backend_resource.backend_id
+        )
+        self.assertEqual(resource.offering, private_offering)
+        self.assertIsNone(resource.plan)
+        self.assertTrue(
+            models.Order.objects.filter(
+                resource=resource,
+                created_by=self.fixture.staff,
+            ).exists()
+        )
+        self.assertIsNone(models.Order.objects.get(resource=resource).plan)
+
 
 @ddt
 class BackendResourceRequestTest(test.APITransactionTestCase):
