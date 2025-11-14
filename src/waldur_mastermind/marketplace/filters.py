@@ -149,6 +149,9 @@ class OfferingFilter(
         label="User Has Offering User",
         widget=BooleanWidget,
     )
+    can_create_offering_user = django_filters.BooleanFilter(
+        field_name="plugin_options__service_provider_can_create_offering_user"
+    )
     query = django_filters.CharFilter(
         method="filter_query",
         label="Search by offering name, slug or description",
