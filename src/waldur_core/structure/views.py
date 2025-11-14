@@ -288,6 +288,10 @@ class CustomerViewSet(
         utils.check_customer_blocked_or_archived(serializer.instance)
         return super().perform_update(serializer)
 
+    @extend_schema(
+        summary="Delete a customer",
+        description="Delete a customer. This action is only available to staff users. If a customer has any active projects, the deletion request will fail with a 409 Conflict response.",
+    )
     def perform_destroy(self, instance):
         if not self.request.user.is_staff:
             raise PermissionDenied()
@@ -297,9 +301,21 @@ class CustomerViewSet(
         return super().perform_destroy(instance)
 
     @extend_schema(
-        description="Return list of countries",
+        summary="Get list of available countries",
+        description="Returns a list of countries that can be used when creating or updating a customer. The list can be configured by the service provider.",
         request=None,
         responses=serializers.CountrySerializer(many=True),
+        examples=[
+            OpenApiExample(
+                "Country list response",
+                response_only=True,
+                value=[
+                    {"label": "Estonia", "value": "EE"},
+                    {"label": "Latvia", "value": "LV"},
+                    {"label": "Finland", "value": "FI"},
+                ],
+            )
+        ],
     )
     @action(detail=False)
     def countries(self, request):
@@ -311,11 +327,15 @@ class CustomerViewSet(
         )
 
     @extend_schema(
-        description="Return statistics about customer resources usage",
+        summary="Get customer resource usage statistics",
+        description="Provides statistics about the resource usage (e.g., CPU, RAM, storage) for all projects within a customer. Can be filtered to show usage for the current month only.",
         responses=serializers.ComponentsUsageStatsSerializer,
         parameters=[
             OpenApiParameter(
-                name="for_current_month", type=bool, location=OpenApiParameter.QUERY
+                name="for_current_month",
+                type=bool,
+                location=OpenApiParameter.QUERY,
+                description="If true, returns usage data for the current month only. Otherwise, returns total usage.",
             ),
         ],
     )
@@ -344,7 +364,8 @@ class CustomerViewSet(
         )
 
     @extend_schema(
-        description="Update organization groups for customer",
+        summary="Update organization groups for a customer",
+        description="Assigns a customer to one or more organization groups. This action is restricted to staff users.",
         request=marketplace_serializers.OrganizationGroupsSerializer,
         responses=None,
     )
@@ -362,8 +383,9 @@ class CustomerViewSet(
 
 
 @extend_schema(
+    summary="List users of a customer",
     parameters=[CUSTOMER_UUID_PARAMETER],
-    description="A list of users connected to the customer.",
+    description="Lists all users who have a role in the specified customer or any of its projects. Requires permissions to list customer users.",
 )
 class CustomerUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     serializer_class = serializers.CustomerUserSerializer
@@ -391,6 +413,32 @@ class CustomerUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         return customer.get_users()
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List access subnets",
+        description="Retrieve a list of access subnets. Staff and support users can see all subnets, while other users can only see subnets associated with customers they have a role in.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve access subnet",
+        description="Fetch the details of a specific access subnet by its UUID.",
+    ),
+    create=extend_schema(
+        summary="Create an access subnet",
+        description="Create a new access subnet for a customer.",
+    ),
+    update=extend_schema(
+        summary="Update an access subnet",
+        description="Update an existing access subnet.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update an access subnet",
+        description="Partially update an existing access subnet.",
+    ),
+    destroy=extend_schema(
+        summary="Delete an access subnet",
+        description="Delete an existing access subnet.",
+    ),
+)
 class AccessSubnetViewSet(core_views.ActionsViewSet):
     queryset = models.AccessSubnet.objects.all()
     serializer_class = serializers.AccessSubnetSerializer
@@ -413,6 +461,16 @@ class AccessSubnetViewSet(core_views.ActionsViewSet):
         return models.AccessSubnet.objects.filter(customer__in=connected_customers)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List project types",
+        description="Retrieve a list of available project types.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve project type details",
+        description="Fetch details of a specific project type by its UUID.",
+    ),
+)
 class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.ProjectType.objects.all()
     serializer_class = serializers.ProjectTypeSerializer
@@ -423,6 +481,8 @@ class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
 @extend_schema_view(
     list=extend_schema(
+        summary="List projects",
+        description="Retrieve a list of projects. The list is filtered based on the user's permissions. By default, only active projects are shown.",
         parameters=[
             OpenApiParameter(
                 "include_terminated",
@@ -430,8 +490,20 @@ class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
                 OpenApiParameter.QUERY,
                 description="Include soft-deleted (terminated) projects. Only available to staff and support users, or users with organizational roles who can see their terminated projects.",
             )
-        ]
-    )
+        ],
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve project details",
+        description="Fetch the details of a specific project by its UUID. Users can access details of terminated projects they previously had access to.",
+    ),
+    update=extend_schema(
+        summary="Update project details",
+        description="Update the details of a project. Requires project administrator or customer owner permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update project details",
+        description="Partially update the details of a project. Requires project administrator or customer owner permissions.",
+    ),
 )
 class ProjectViewSet(
     checklist_mixins.UserChecklistMixin,
@@ -609,6 +681,8 @@ class ProjectViewSet(
         instance._soft_delete(terminated_by=self.request.user)
 
     @extend_schema(
+        summary="Move project to another customer",
+        description="Moves a project and its associated resources to a different customer. This is a staff-only action. You can choose whether to preserve existing project permissions for users.",
         request=serializers.MoveProjectSerializer,
         responses={
             200: serializers.ProjectSerializer,
@@ -684,7 +758,8 @@ class ProjectViewSet(
     @extend_schema(
         request=serializers.ProjectRecoverySerializer,
         responses=serializers.ProjectSerializer,
-        description="Recover a soft-deleted project with team member restoration",
+        summary="Recover a soft-deleted project",
+        description="Recovers a soft-deleted (terminated) project, making it active again. Provides options to restore previous team members automatically (staff-only) or send them new invitations.",
     )
     @action(detail=True, methods=["post"])
     def recover(self, request, uuid=None):
@@ -1228,6 +1303,7 @@ class UserViewSet(core_views.ActionsViewSet):
     @extend_schema(
         request=serializers.UserAuthTokenSerializer,
         responses=serializers.UserAuthTokenSerializer,
+        summary="Refresh user auth token",
         description="Allows to refresh user auth token.",
     )
     @action(detail=True, methods=["post"])
@@ -1428,6 +1504,16 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
 
     pull_serializer_class = EmptySerializer
 
+    @extend_schema(
+        summary="Synchronize resource state",
+        description=(
+            "Schedule an asynchronous pull operation to synchronize resource state from the "
+            "backend. Returns 202 if the pull was scheduled successfully, or 409 if the "
+            "pull operation is not implemented for this resource type."
+        ),
+        request=None,
+        responses={202: None, 409: None},
+    )
     @action(detail=True, methods=["post"])
     def pull(self, request, uuid=None):
         if self.pull_executor == NotImplemented:
@@ -1449,13 +1535,16 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
 
     unlink_serializer_class = EmptySerializer
 
+    @extend_schema(
+        summary="Unlink resource",
+        description="""Delete resource from the database without scheduling operations on backend
+        and without checking current state of the resource. It is intended to be used
+        for removing resource stuck in transitioning state.""",
+        request=None,
+        responses={204: None},
+    )
     @action(detail=True, methods=["post"])
     def unlink(self, request, uuid=None):
-        """
-        Delete resource from the database without scheduling operations on backend
-        and without checking current state of the resource. It is intended to be used
-        for removing resource stuck in transitioning state.
-        """
         obj = self.get_object()
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

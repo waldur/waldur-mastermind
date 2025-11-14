@@ -1048,10 +1048,8 @@ class ActionMethodMixin:
 ORIGINAL_LIST_MODEL_MIXIN_LIST = mixins.ListModelMixin.list
 
 
+# Mixin to optimize HEAD requests for DRF views bypassing serializer processing
 def optimized_head_list(cls, request, *args, **kwargs):
-    """
-    Mixin to optimize HEAD requests for DRF views bypassing serializer processing
-    """
     # HEAD requests are mapped to list by default router
     if request.method != "HEAD":
         return ORIGINAL_LIST_MODEL_MIXIN_LIST(cls, request, *args, **kwargs)
