@@ -848,6 +848,7 @@ class ResourceFilter(
             ("created", "created"),
             ("project__name", "project_name"),
             ("state", "state"),
+            ("end_date", "end_date"),
         )
     )
 
