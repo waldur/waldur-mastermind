@@ -6,7 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import permissions as rf_permissions
 from rest_framework import status
 from rest_framework.decorators import action
@@ -27,6 +27,20 @@ from waldur_core.users.enums import InvitationState
 from waldur_core.users.utils import can_manage_invitation_with, parse_invitation_token
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List user invitations",
+        description="Retrieve a list of user invitations visible to the current user.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve user invitation",
+        description="Retrieve details of a specific user invitation.",
+    ),
+    create=extend_schema(
+        summary="Create user invitation",
+        description="Create a new user invitation to grant a role in a specific scope (e.g., organization or project).",
+    ),
+)
 class InvitationViewSet(ProtectedViewSet):
     queryset = models.Invitation.objects.all().order_by("-created")
     serializer_class = serializers.InvitationSerializer
@@ -68,13 +82,17 @@ class InvitationViewSet(ProtectedViewSet):
                 lambda: tasks.process_invitation.delay(invitation.uuid.hex, sender)
             )
 
-    @extend_schema(request=serializers.TokenSerializer, responses=None)
-    @action(detail=False, methods=["post"], permission_classes=[])
-    def approve(self, request):
-        """
+    @extend_schema(
+        summary="Approve a requested invitation",
+        description="""
         For user's convenience invitation approval is performed without authentication.
         User UUID and invitation UUID is encoded into cryptographically signed token.
-        """
+        """,
+        request=serializers.TokenSerializer,
+        responses=None,
+    )
+    @action(detail=False, methods=["post"], permission_classes=[])
+    def approve(self, request):
         token = request.data.get("token")
         if not token:
             raise ValidationError("token is required parameter")
@@ -93,13 +111,17 @@ class InvitationViewSet(ProtectedViewSet):
             {"detail": _("Invitation has been approved.")}, status=status.HTTP_200_OK
         )
 
-    @extend_schema(request=serializers.TokenSerializer, responses=None)
-    @action(detail=False, methods=["post"], permission_classes=[])
-    def reject(self, request):
-        """
+    @extend_schema(
+        summary="Reject a requested invitation",
+        description="""
         For user's convenience invitation reject action is performed without authentication.
         User UUID and invitation UUID is encoded into cryptographically signed token.
-        """
+        """,
+        request=serializers.TokenSerializer,
+        responses=None,
+    )
+    @action(detail=False, methods=["post"], permission_classes=[])
+    def reject(self, request):
         token = request.data.get("token")
         if not token:
             raise ValidationError("token is required parameter")
@@ -117,7 +139,12 @@ class InvitationViewSet(ProtectedViewSet):
             {"detail": _("Invitation has been rejected.")}, status=status.HTTP_200_OK
         )
 
-    @extend_schema(request=None, responses=None)
+    @extend_schema(
+        summary="Resend an invitation",
+        description="Resends an email for a pending, expired, or canceled invitation. If the invitation was expired or canceled, its state is reset to 'pending' and its creation time is updated.",
+        request=None,
+        responses={200: None},
+    )
     @action(detail=True, methods=["post"])
     def send(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
@@ -148,7 +175,12 @@ class InvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(request=None, responses=None)
+    @extend_schema(
+        summary="Cancel an invitation",
+        description="Cancels a pending or planned (pending_project) invitation.",
+        request=None,
+        responses={200: {"description": "Invitation has been successfully canceled."}},
+    )
     @action(detail=True, methods=["post"])
     def cancel(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
@@ -169,7 +201,12 @@ class InvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(request=None, responses=None)
+    @extend_schema(
+        summary="Delete an invitation (staff only)",
+        description="Deletes an invitation. This action is restricted to staff users.",
+        request=None,
+        responses={200: None},
+    )
     @action(detail=True, methods=["post"])
     def delete(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
@@ -183,12 +220,16 @@ class InvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(request=None, responses=None)
+    @extend_schema(
+        summary="Accept an invitation",
+        description="Accepts an invitation for the currently authenticated user. This grants the user the specified role in the invitation's scope.",
+        request=None,
+        responses={200: None},
+    )
     @action(
         detail=True, methods=["post"], filter_backends=[filters.PendingInvitationFilter]
     )
     def accept(self, request, uuid=None):
-        """Accept invitation for current user."""
         invitation: models.Invitation = self.get_object()
 
         if has_user(invitation.scope, request.user, invitation.role):
@@ -212,7 +253,11 @@ class InvitationViewSet(ProtectedViewSet):
         )
 
     @extend_schema(
-        request=None, responses=serializers.InvitationCheckSerializer, parameters=[]
+        summary="Check invitation validity",
+        description="Checks if an invitation is pending and returns its email and whether a civil number is required for acceptance. This endpoint is public and does not require authentication.",
+        request=None,
+        responses=serializers.InvitationCheckSerializer,
+        parameters=[],
     )
     @action(detail=True, methods=["post"], filter_backends=[], permission_classes=[])
     def check(self, request, uuid=None):
@@ -229,6 +274,8 @@ class InvitationViewSet(ProtectedViewSet):
             return Response({"email": invitation.email}, status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Get public invitation details",
+        description="Retrieves public-facing details of an invitation. This is used to show information to a user before they accept it.",
         request=None,
         responses=serializers.VisibleInvitationDetailsSerializer,
     )
@@ -239,6 +286,20 @@ class InvitationViewSet(ProtectedViewSet):
         return Response(serializer.data)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List group invitations",
+        description="Retrieve a list of group invitations. Unauthenticated users can only see public invitations.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve group invitation",
+        description="Retrieve details of a specific group invitation. Unauthenticated users can only see public invitations.",
+    ),
+    create=extend_schema(
+        summary="Create group invitation",
+        description="Create a new group invitation, which acts as a template for users to request permissions.",
+    ),
+)
 class GroupInvitationViewSet(ProtectedViewSet):
     queryset = models.GroupInvitation.objects.all().order_by("-created")
     serializer_class = serializers.GroupInvitationSerializer
@@ -258,11 +319,12 @@ class GroupInvitationViewSet(ProtectedViewSet):
         return super().get_permissions()
 
     @extend_schema(
+        summary="List projects for a customer-scoped group invitation",
+        description="For a group invitation scoped to a customer, this endpoint lists all projects within that customer.",
         request=None,
         responses=structure_serializers.NestedProjectSerializer(
             many=True, read_only=True
         ),
-        description="Return projects for group invitation",
         filters=False,
     )
     @action(detail=True, methods=["get"], filter_backends=[])
@@ -281,9 +343,10 @@ class GroupInvitationViewSet(ProtectedViewSet):
         return Response(projects.data, status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Cancel a group invitation",
+        description="Cancels an active group invitation, preventing new permission requests from being created.",
         request=None,
-        responses=None,
-        description="Cancel group invitation",
+        responses={200: None},
         parameters=[],
     )
     @action(detail=True, methods=["post"], filter_backends=[])
@@ -301,7 +364,12 @@ class GroupInvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(request=None, responses=serializers.SubmitRequestResponseSerializer)
+    @extend_schema(
+        summary="Submit a permission request",
+        description="Creates a permission request based on a group invitation for the currently authenticated user.",
+        request=None,
+        responses=serializers.SubmitRequestResponseSerializer,
+    )
     @action(detail=True, methods=["post"], filter_backends=[])
     def submit_request(self, request, uuid=None):
         invitation: models.GroupInvitation = self.get_object()
@@ -368,6 +436,16 @@ class GroupInvitationViewSet(ProtectedViewSet):
         serializer.save()
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List permission requests",
+        description="Retrieve a list of permission requests visible to the user.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve permission request",
+        description="Retrieve details of a specific permission request.",
+    ),
+)
 class PermissionRequestViewSet(ReadOnlyActionsViewSet):
     queryset = models.PermissionRequest.objects.all().order_by("-created")
     serializer_class = serializers.PermissionRequestSerializer
@@ -394,15 +472,32 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
         getattr(permission_request, action_name)(self.request.user, comment)
         return Response(status=status.HTTP_200_OK)
 
+    @extend_schema(
+        summary="Approve a permission request",
+        description="Approves a pending permission request, granting the requesting user the permissions defined in the associated group invitation.",
+        request=core_serializers.ReviewCommentSerializer,
+        responses={200: None},
+    )
     @action(detail=True, methods=["post"])
     def approve(self, request, uuid=None):
         return self.perform_action(request, uuid, "approve")
 
+    @extend_schema(
+        summary="Reject a permission request",
+        description="Rejects a pending permission request.",
+        request=core_serializers.ReviewCommentSerializer,
+        responses={200: None},
+    )
     @action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         return self.perform_action(request, uuid, "reject")
 
-    @extend_schema(request=None, responses=serializers.CancelRequestResponseSerializer)
+    @extend_schema(
+        summary="Cancel a permission request",
+        description="Cancels a pending or draft permission request. This can be done by the user who created the request or by a staff member.",
+        request=None,
+        responses=serializers.CancelRequestResponseSerializer,
+    )
     @action(detail=True, methods=["post"])
     def cancel_request(self, request, uuid=None):
         """Cancel permission request. Users can cancel their own requests, staff can cancel any request."""
