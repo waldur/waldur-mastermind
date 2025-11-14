@@ -88,6 +88,45 @@ PROJECT_UUID_PARAMETER = OpenApiParameter(
 )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List customers",
+        description="Retrieve a list of customers. The list is filtered based on the user's permissions.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve customer details",
+        description="Fetch the details of a specific customer by its UUID.",
+    ),
+    create=extend_schema(
+        summary="Create a new customer",
+        description="A new customer can only be created by users with staff privilege.",
+        request=serializers.CustomerSerializer,
+        examples=[
+            OpenApiExample(
+                name="Create customer",
+                value={
+                    "name": "Customer A",
+                    "native_name": "Customer A",
+                    "abbreviation": "CA",
+                    "contact_details": "Luhamaa 28, 10128 Tallinn",
+                },
+                request_only=True,
+            ),
+        ],
+    ),
+    update=extend_schema(
+        summary="Update a customer",
+        description="Update the details of an existing customer. Requires customer owner or staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a customer",
+        description="Partially update the details of an existing customer. Requires customer owner or staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a customer",
+        description="Delete a customer. This action is only available to staff users. If a customer has any active projects, the deletion request will fail with a 409 Conflict response.",
+    ),
+)
 class CustomerViewSet(
     UserRoleMixin,
     core_mixins.EagerLoadMixin,
@@ -238,29 +277,10 @@ class CustomerViewSet(
                 estimates_by_customer.get(customer.id)
             )
 
-    @extend_schema(
-        description="A new customer can only be created by users with staff privilege",
-        request=serializers.CustomerSerializer,
-        examples=[
-            OpenApiExample(
-                name="Create customer",
-                value={
-                    "name": "Customer A",
-                    "native_name": "Customer A",
-                    "abbreviation": "CA",
-                    "contact_details": "Luhamaa 28, 10128 Tallinn",
-                },
-                request_only=True,
-            ),
-        ],
-    )
     def create(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        """
-        If a customer has connected projects, deletion request will fail with 409 response code.
-        """
         return super().destroy(request, *args, **kwargs)
 
     def perform_create(self, serializer):
@@ -288,10 +308,6 @@ class CustomerViewSet(
         utils.check_customer_blocked_or_archived(serializer.instance)
         return super().perform_update(serializer)
 
-    @extend_schema(
-        summary="Delete a customer",
-        description="Delete a customer. This action is only available to staff users. If a customer has any active projects, the deletion request will fail with a 409 Conflict response.",
-    )
     def perform_destroy(self, instance):
         if not self.request.user.is_staff:
             raise PermissionDenied()
@@ -641,6 +657,8 @@ class ProjectViewSet(
             return None
 
     @extend_schema(
+        summary="Create a new project",
+        description="A new project can be created by users with staff privilege (is_staff=True) or customer owners. Project resource quota is optional.",
         request=serializers.ProjectSerializer,
         examples=[
             OpenApiExample(
@@ -654,16 +672,13 @@ class ProjectViewSet(
         ],
     )
     def create(self, request, *args, **kwargs):
-        """
-        A new project can be created by users with staff privilege (is_staff=True) or customer owners.
-        Project resource quota is optional.
-        """
         return super().create(request, *args, **kwargs)
 
+    @extend_schema(
+        summary="Delete a project",
+        description="Delete a project. If the project has any active resources, the deletion request will fail with a 409 Conflict response. This action performs a soft-delete, and the project can be recovered later.",
+    )
     def destroy(self, request, *args, **kwargs):
-        """
-        If a project has connected instances, deletion request will fail with 409 response code.
-        """
         return super().destroy(request, *args, **kwargs)
 
     def perform_create(self, serializer):
@@ -723,11 +738,15 @@ class ProjectViewSet(
     move_project_permissions = [permissions.is_staff]
 
     @extend_schema(
-        description="Return statistics about project resources usage",
+        summary="Get project resource usage statistics",
+        description="Provides statistics about the resource usage (e.g., CPU, RAM, storage) for all resources within a project. Can be filtered to show usage for the current month only.",
         responses=serializers.ComponentsUsageStatsSerializer,
         parameters=[
             OpenApiParameter(
-                name="for_current_month", type=bool, location=OpenApiParameter.QUERY
+                name="for_current_month",
+                type=bool,
+                location=OpenApiParameter.QUERY,
+                description="If true, returns usage data for the current month only. Otherwise, returns total usage.",
             ),
         ],
     )
@@ -1135,6 +1154,7 @@ class UserViewSet(core_views.ActionsViewSet):
         return super().list(request, *args, **kwargs)
 
     @extend_schema(
+        summary="Request email change",
         request=serializers.UserEmailChangeSerializer,
         responses=None,
         description="Allows to change email for user.",
@@ -1173,6 +1193,7 @@ class UserViewSet(core_views.ActionsViewSet):
     change_email_serializer_class = serializers.UserEmailChangeSerializer
 
     @extend_schema(
+        summary="Cancel email change request",
         request=None,
         responses=None,
         description="Cancel email update request",
@@ -1190,6 +1211,7 @@ class UserViewSet(core_views.ActionsViewSet):
         return Response({"detail": msg}, status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Confirm email change",
         request=serializers.ConfirmEmailRequestSerializer,
         responses=None,
         description="Confirm email update using code",
@@ -1225,6 +1247,7 @@ class UserViewSet(core_views.ActionsViewSet):
         super().check_permissions(request)
 
     @extend_schema(
+        summary="Get current user details",
         description="Get current user details, including authentication token.",
         parameters=[],
     )
@@ -1240,9 +1263,9 @@ class UserViewSet(core_views.ActionsViewSet):
         )
 
     @extend_schema(
+        summary="Synchronize user details from eduTEAMS",
         request=None,
         responses=None,
-        description="Pulls remote user data from eduTEAMS.",
     )
     @action(detail=True, methods=["post"])
     def pull_remote_user(self, request, uuid=None):
@@ -1260,6 +1283,7 @@ class UserViewSet(core_views.ActionsViewSet):
         return Response(status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Change user password",
         request=serializers.PasswordChangeSerializer,
         responses=None,
         description="Allows staff user to change password for any user.",
@@ -1289,6 +1313,7 @@ class UserViewSet(core_views.ActionsViewSet):
     change_password_permissions = [permissions.is_staff]
 
     @extend_schema(
+        summary="Get user auth token",
         request=serializers.UserAuthTokenSerializer,
         responses=serializers.UserAuthTokenSerializer,
         filters=False,
@@ -1304,7 +1329,6 @@ class UserViewSet(core_views.ActionsViewSet):
         request=serializers.UserAuthTokenSerializer,
         responses=serializers.UserAuthTokenSerializer,
         summary="Refresh user auth token",
-        description="Allows to refresh user auth token.",
     )
     @action(detail=True, methods=["post"])
     def refresh_token(self, request, uuid=None):
@@ -1344,9 +1368,9 @@ class CustomerPermissionReviewViewSet(
     lookup_field = "uuid"
 
     @extend_schema(
+        summary="Close customer permission review",
         request=None,
         responses=None,
-        description="Close customer permission review.",
     )
     @action(detail=True, methods=["post"])
     def close(self, request, uuid=None):
@@ -1377,6 +1401,7 @@ class ProjectPermissionReviewViewSet(
     lookup_field = "uuid"
 
     @extend_schema(
+        summary="Close project permission review",
         request=None,
         responses=None,
         description="Complete project permission review.",
@@ -1583,6 +1608,7 @@ class NotificationViewSet(ActionsViewSet):
     lookup_field = "uuid"
 
     @extend_schema(
+        summary="Enable a notification",
         request=None,
         responses=None,
     )
@@ -1600,6 +1626,7 @@ class NotificationViewSet(ActionsViewSet):
         )
 
     @extend_schema(
+        summary="Disable a notification",
         request=None,
         responses=None,
     )
@@ -1625,6 +1652,7 @@ class NotificationTemplateViewSet(ActionsViewSet):
     filterset_class = filters.NotificationTemplateFilter
 
     @extend_schema(
+        summary="Override notification template content",
         request=serializers.NotificationTemplateUpdateSerializers,
         responses=None,
     )
@@ -1663,6 +1691,32 @@ class AuthTokenViewSet(ActionsViewSet):
         return get_active_tokens()
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List external links",
+        description="Retrieve a list of external links available in the system.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve external link",
+        description="Fetch the details of a specific external link by its UUID.",
+    ),
+    create=extend_schema(
+        summary="Create an external link",
+        description="Create a new external link. This action is restricted to staff users.",
+    ),
+    update=extend_schema(
+        summary="Update an external link",
+        description="Update an existing external link. This action is restricted to staff users.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update an external link",
+        description="Partially update an existing external link. This action is restricted to staff users.",
+    ),
+    destroy=extend_schema(
+        summary="Delete an external link",
+        description="Delete an existing external link. This action is restricted to staff users.",
+    ),
+)
 class ExternalLinkViewSet(viewsets.ModelViewSet):
     queryset = models.ExternalLink.objects.all()
     serializer_class = serializers.ExternalLinkSerializer
@@ -1673,7 +1727,11 @@ class ExternalLinkViewSet(viewsets.ModelViewSet):
     ordering_fields = ("name", "url")
 
 
-@extend_schema(parameters=[CUSTOMER_UUID_PARAMETER])
+@extend_schema(
+    parameters=[CUSTOMER_UUID_PARAMETER],
+    summary="Get project metadata compliance overview",
+    description="Provides aggregated statistics about project metadata compliance for all projects within a customer.",
+)
 class CustomerProjectMetadataComplianceOverviewViewSet(
     mixins.ListModelMixin, viewsets.GenericViewSet
 ):
@@ -1770,7 +1828,11 @@ class CustomerProjectMetadataComplianceOverviewViewSet(
         return Response(serializer.data)
 
 
-@extend_schema(parameters=[CUSTOMER_UUID_PARAMETER])
+@extend_schema(
+    parameters=[CUSTOMER_UUID_PARAMETER],
+    summary="Get detailed project metadata compliance",
+    description="Provides detailed compliance status for all projects within a customer, including individual answers and completion status.",
+)
 class CustomerProjectMetadataComplianceDetailsViewSet(
     mixins.ListModelMixin, viewsets.GenericViewSet
 ):
@@ -2062,7 +2124,11 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
         return None
 
 
-@extend_schema(parameters=[CUSTOMER_UUID_PARAMETER])
+@extend_schema(
+    parameters=[CUSTOMER_UUID_PARAMETER],
+    summary="List projects with compliance data",
+    description="Provides a paginated list of projects with their checklist completion status and answer details.",
+)
 class CustomerProjectMetadataComplianceProjectsViewSet(
     mixins.ListModelMixin, viewsets.GenericViewSet
 ):
@@ -2171,7 +2237,11 @@ class CustomerProjectMetadataComplianceProjectsViewSet(
         serializer_class._bulk_completion_data = completion_map
 
 
-@extend_schema(parameters=[CUSTOMER_UUID_PARAMETER])
+@extend_schema(
+    parameters=[CUSTOMER_UUID_PARAMETER],
+    summary="List questions with project answers",
+    description="Provides a paginated list of all questions from the customer's compliance checklist, including the answers given in each project.",
+)
 class CustomerProjectMetadataQuestionAnswersViewSet(
     mixins.ListModelMixin, viewsets.GenericViewSet
 ):
