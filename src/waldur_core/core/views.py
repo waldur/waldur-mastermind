@@ -105,6 +105,8 @@ class ObtainAuthToken(APIView):
     serializer_class = ObtainAuthTokenSerializer
 
     @extend_schema(
+        summary="Obtain authentication token",
+        description="Authenticates a user with username and password and returns an authentication token.",
         request=ObtainAuthTokenSerializer,
         responses={
             200: CoreAuthTokenSerializer,
@@ -221,7 +223,8 @@ class LogoutView(generics.GenericAPIView):
     filter_backends = []
 
     @extend_schema(
-        description="Logout from the system. If single logout is supported, returns logout URL.",
+        summary="Log out",
+        description="Logs out the current user by deleting their authentication token. If single logout (SLO) is supported for the current authentication method (e.g., SAML2 or OIDC), this endpoint may return a logout URL to which the user should be redirected to complete the logout process on the identity provider side.",
         request=None,
         responses={
             200: LogoutSerializer,
@@ -507,7 +510,8 @@ def get_public_settings(request=None):
 
 
 @extend_schema(
-    description="Retrieve public settings",
+    summary="Get public configuration",
+    description="Returns a dictionary of public settings for the Waldur deployment. This includes feature flags, authentication methods, and other configuration details that are safe to expose to any user.",
     request=None,
     responses={status.HTTP_200_OK: dict},
 )
@@ -519,13 +523,28 @@ def configuration_detail(request):
 
 @extend_schema(
     methods=["GET"],
-    request=ConstanceSettingsSerializer,
+    summary="Get all overridable settings",
+    description="Returns all settings that can be overridden in the database via the Constance backend. Requires admin permissions.",
+    request=None,
     responses={status.HTTP_200_OK: ConstanceSettingsSerializer},
 )
 @extend_schema(
     methods=["POST"],
+    summary="Update overridable settings",
+    description="Updates one or more settings in the database via the Constance backend. Requires admin permissions.",
     request=ConstanceSettingsSerializer,
     responses={status.HTTP_200_OK: None},
+    examples=[
+        OpenApiExample(
+            "Enable marketplace and set a custom title",
+            summary="An example of updating multiple settings at once.",
+            value={
+                "WALDUR_MARKETPLACE_ENABLED": True,
+                "SITE_NAME": "My Custom Cloud Portal",
+            },
+            request_only=True,
+        )
+    ],
 )
 @api_view(["POST", "GET"])
 @permission_classes((rf_permissions.IsAdminUser,))
@@ -542,9 +561,25 @@ def override_db_settings(request):
 
 
 @extend_schema(
-    description="Override feature values",
+    summary="Update feature flags",
+    description="Allows administrators to enable or disable specific feature flags in the system. The request should be a dictionary where keys are feature sections and values are dictionaries of feature keys and their boolean state.",
     request=dict,
     responses={status.HTTP_200_OK: str},
+    examples=[
+        OpenApiExample(
+            "Update user and marketplace features",
+            summary="Example of enabling SSH keys for users and concealing prices in the marketplace.",
+            value={"user": {"ssh_keys": True}, "marketplace": {"conceal_prices": True}},
+            request_only=True,
+        ),
+        OpenApiExample(
+            "Successful response",
+            summary="Example response after updating two features.",
+            value="2 features are updated.",
+            response_only=True,
+            status_codes=[200],
+        ),
+    ],
 )
 @api_view(["POST"])
 @permission_classes((rf_permissions.IsAdminUser,))
@@ -661,6 +696,11 @@ class CeleryStatsViewSet(generics.GenericAPIView):
     filter_backends = []
     serializer_class = EmptySerializer
 
+    @extend_schema(
+        summary="Get Celery worker statistics",
+        description="Provides a snapshot of the Celery workers' status, including active, scheduled, reserved, and revoked tasks, as well as worker-specific statistics. Requires support user permissions.",
+        responses={status.HTTP_200_OK: dict},
+    )
     def get(self, request, *args, **kwargs):
         from waldur_core.server.celeryconf import app
 
@@ -706,7 +746,12 @@ def dictfetchall(cursor):
 class DatabaseStatsViewSet(APIView):
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
 
-    @extend_schema(request=None, responses=TableSizeSerializer(many=True))
+    @extend_schema(
+        summary="Get database table statistics",
+        description="Retrieves statistics about the database, including the top 10 largest tables by total size. This information is useful for monitoring and maintenance. Requires support user permissions.",
+        request=None,
+        responses=TableSizeSerializer(many=True),
+    )
     def get(self, request, *args, **kwargs):
         data = []
         with connection.cursor() as cursor:
@@ -716,18 +761,46 @@ class DatabaseStatsViewSet(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
-@extend_schema(
-    description="Execute SQL query against readonly database",
-    request=QuerySerializer,
-    responses={
-        200: list[Any],
-        400: None,
-    },
-)
 class QueryViewSet(generics.GenericAPIView):
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
     serializer_class = QuerySerializer
 
+    @extend_schema(
+        summary="Execute read-only SQL query",
+        description="Execute a given SQL query against a read-only database replica. This is a powerful tool for diagnostics and reporting, but should be used with caution. Requires support user permissions.",
+        request=QuerySerializer,
+        responses={
+            200: list[Any],
+            400: None,
+        },
+        examples=[
+            OpenApiExample(
+                "List all customers",
+                summary="Example of a query to retrieve all customers.",
+                value={
+                    "query": "SELECT uuid, name, country FROM structure_customer LIMIT 10;"
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Successful response",
+                summary="Example response for a successful query.",
+                value=[
+                    ["a1b2c3d4-e5f6-a7b8-c9d0-e1f2a3b4c5d6", "Customer A", "US"],
+                    ["b2c3d4e5-f6a7-b8c9-d0e1-f2a3b4c5d6a7", "Customer B", "DE"],
+                ],
+                response_only=True,
+                status_codes=[200],
+            ),
+            OpenApiExample(
+                "Error response",
+                summary="Example response for a failed query.",
+                value={"error": 'syntax error at or near "SELEC"'},
+                response_only=True,
+                status_codes=[400],
+            ),
+        ],
+    )
     def post(self, request, *args, **kwargs):
         data = []
         query = request.data.get("query")
@@ -824,7 +897,8 @@ def get_latest_github_tag(timeout=5):
 
 
 @extend_schema(
-    description="Retrieve current version of the application and the latest available version from GitHub (if available).",
+    summary="Get application version",
+    description="Retrieves the current installed version of the application and the latest available version from GitHub (if available). Requires staff or support user permissions.",
     request=None,
     responses=VersionSerializer,
 )
@@ -999,8 +1073,9 @@ class PermissionMetadataView(APIView):
     authentication_classes = []
 
     @extend_schema(
+        summary="Get permission metadata",
+        description="Retrieves metadata about roles, permissions, and their descriptions. This endpoint is publicly accessible and provides data needed for UI components, such as role selection dropdowns and permission management interfaces.",
         responses={200: PermissionMetadataResponseSerializer},
-        description="Get permission metadata including roles, permissions, and descriptions",
     )
     def get(self, request):
         return Response(
@@ -1027,8 +1102,9 @@ class EventMetadataView(APIView):
     authentication_classes = []
 
     @extend_schema(
+        summary="Get event metadata",
+        description="Retrieves metadata for all available event types, grouped by categories. This endpoint is publicly accessible and is useful for building UIs for event filtering or webhook configuration.",
         responses={200: EventMetadataResponseSerializer},
-        description="Get event metadata grouped by categories",
     )
     def get(self, request):
         return Response({"event_groups": get_event_groups()})
@@ -1041,8 +1117,9 @@ class FeatureMetadataView(APIView):
     authentication_classes = []
 
     @extend_schema(
+        summary="Get feature flag metadata",
+        description="Retrieves metadata for all available feature flags, including their keys, descriptions, and grouping sections. This endpoint is publicly accessible and helps UIs to dynamically render feature-related settings.",
         responses={200: FeatureMetadataResponseSerializer},
-        description="Get feature metadata including toggles and descriptions",
     )
     def get(self, request):
         feature_enums = {}
@@ -1065,8 +1142,9 @@ class SettingsMetadataView(APIView):
     authentication_classes = []
 
     @extend_schema(
+        summary="Get overridable settings metadata",
+        description="Retrieves metadata for all settings that can be configured via the Constance backend. This includes setting keys, human-readable descriptions, default values, and types. This endpoint is publicly accessible.",
         responses={200: SettingsMetadataResponseSerializer},
-        description="Get settings metadata from Constance configuration",
     )
     def get(self, request):
         settings_data = []
