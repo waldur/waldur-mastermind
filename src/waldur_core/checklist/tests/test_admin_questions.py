@@ -1,7 +1,8 @@
 from ddt import data, ddt
 from rest_framework import status, test
+from rest_framework.test import APIRequestFactory
 
-from waldur_core.checklist import models
+from waldur_core.checklist import models, serializers
 from waldur_core.checklist.tests import factories, fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
@@ -152,3 +153,273 @@ class QuestionAdminDeleteTest(test.APITransactionTestCase):
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(models.Question.objects.filter(pk=self.question.pk).exists())
+
+
+class QuestionAdminSerializerFieldTest(test.APITransactionTestCase):
+    """Test that QuestionAdminSerializer can access all required fields."""
+
+    def setUp(self):
+        self.fixture = fixtures.CheckListFixture()
+
+    def test_serializer_has_all_required_fields(self):
+        """Test that QuestionAdminSerializer includes all expected model fields."""
+        serializer = serializers.QuestionAdminSerializer()
+        fields = serializer.get_fields()
+
+        # Check that all critical fields are available
+        expected_fields = [
+            "uuid",
+            "description",
+            "required",
+            "question_type",
+            "order",
+            "user_guidance",
+            "question_options",
+            "allowed_file_types",
+            "allowed_mime_types",
+            "max_file_size_mb",
+            "max_files_count",
+            "min_value",
+            "max_value",
+            "operator",
+            "review_answer_value",
+            "always_requires_review",
+            "guidance_answer_value",
+            "guidance_operator",
+            "always_show_guidance",
+            "dependency_logic_operator",
+            "url",
+            "checklist_name",
+            "checklist_uuid",
+            "checklist",
+        ]
+
+        for field_name in expected_fields:
+            self.assertIn(
+                field_name,
+                fields,
+                f"Field '{field_name}' should be available in QuestionAdminSerializer",
+            )
+
+    def test_serializer_can_serialize_question_with_file_fields(self):
+        """Test that serializer can serialize a question with file-related fields."""
+        question = factories.QuestionFactory(
+            question_type=enums.QuestionTypes.FILE,
+            allowed_file_types=[".pdf", ".doc"],
+            allowed_mime_types=["application/pdf", "application/msword"],
+            max_file_size_mb=10,
+        )
+
+        request = APIRequestFactory().get("/")
+        request.user = self.fixture.staff
+        context = {"request": request}
+        serializer = serializers.QuestionAdminSerializer(question, context=context)
+        data = serializer.data
+
+        # Check that file fields are properly serialized
+        self.assertEqual(data["allowed_file_types"], [".pdf", ".doc"])
+        self.assertEqual(
+            data["allowed_mime_types"], ["application/pdf", "application/msword"]
+        )
+        self.assertEqual(data["max_file_size_mb"], 10)
+        self.assertEqual(data["question_type"], enums.QuestionTypes.FILE)
+
+    def test_serializer_can_serialize_question_with_multiple_files_fields(self):
+        """Test that serializer can serialize a question with multiple files fields."""
+        question = factories.QuestionFactory(
+            question_type=enums.QuestionTypes.MULTIPLE_FILES,
+            allowed_file_types=[".jpg", ".png"],
+            allowed_mime_types=["image/*"],
+            max_file_size_mb=5,
+            max_files_count=3,
+        )
+
+        request = APIRequestFactory().get("/")
+        request.user = self.fixture.staff
+        context = {"request": request}
+        serializer = serializers.QuestionAdminSerializer(question, context=context)
+        data = serializer.data
+
+        # Check that all fields including max_files_count are properly serialized
+        self.assertEqual(data["allowed_file_types"], [".jpg", ".png"])
+        self.assertEqual(data["allowed_mime_types"], ["image/*"])
+        self.assertEqual(data["max_file_size_mb"], 5)
+        self.assertEqual(data["max_files_count"], 3)
+        self.assertEqual(data["question_type"], enums.QuestionTypes.MULTIPLE_FILES)
+
+    def test_serializer_can_serialize_question_with_number_fields(self):
+        """Test that serializer can serialize a question with number validation fields."""
+        question = factories.QuestionFactory(
+            question_type=enums.QuestionTypes.NUMBER,
+            min_value=1.0,
+            max_value=100.0,
+        )
+
+        request = APIRequestFactory().get("/")
+        request.user = self.fixture.staff
+        context = {"request": request}
+        serializer = serializers.QuestionAdminSerializer(question, context=context)
+        data = serializer.data
+
+        # Check that number validation fields are properly serialized
+        self.assertEqual(float(data["min_value"]), 1.0)
+        self.assertEqual(float(data["max_value"]), 100.0)
+        self.assertEqual(data["question_type"], enums.QuestionTypes.NUMBER)
+
+
+@ddt
+class ChecklistQuestionsEndpointTest(test.APITransactionTestCase):
+    """Test the checklist questions endpoint that was failing with the original error."""
+
+    def setUp(self):
+        self.fixture = fixtures.CheckListFixture()
+        # Create questions with various field types that were causing the issue
+        self.file_question = factories.QuestionFactory(
+            checklist=self.fixture.checklist,
+            question_type=enums.QuestionTypes.FILE,
+            allowed_file_types=[".pdf"],
+            allowed_mime_types=["application/pdf"],
+            max_file_size_mb=10,
+            description="File upload question",
+        )
+        self.number_question = factories.QuestionFactory(
+            checklist=self.fixture.checklist,
+            question_type=enums.QuestionTypes.NUMBER,
+            min_value=0.0,
+            max_value=100.0,
+            description="Number input question",
+        )
+        self.multiple_files_question = factories.QuestionFactory(
+            checklist=self.fixture.checklist,
+            question_type=enums.QuestionTypes.MULTIPLE_FILES,
+            allowed_file_types=[".jpg", ".png"],
+            max_files_count=5,
+            description="Multiple files question",
+        )
+
+    def _get_questions_url(self, checklist=None):
+        """Get the URL for the checklist questions endpoint."""
+        if checklist is None:
+            checklist = self.fixture.checklist
+        return factories.ChecklistFactory.get_admin_url(checklist) + "questions/"
+
+    @data("staff")
+    def test_user_can_get_checklist_questions(self, user):
+        """Test that the checklist questions endpoint works without serializer errors."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        url = self._get_questions_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        # Should return all questions for this checklist
+        self.assertGreaterEqual(len(data), 3)  # At least our 3 created questions
+
+        # Check that questions have the expected fields
+        question_descriptions = {q["description"] for q in data}
+        self.assertIn("File upload question", question_descriptions)
+        self.assertIn("Number input question", question_descriptions)
+        self.assertIn("Multiple files question", question_descriptions)
+
+    @data("staff")
+    def test_questions_endpoint_returns_file_fields(self, user):
+        """Test that the questions endpoint properly returns file-related fields."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        url = self._get_questions_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        # Find the file question in the response
+        file_question_data = next(
+            (q for q in data if q["description"] == "File upload question"), None
+        )
+        self.assertIsNotNone(file_question_data)
+
+        # Check that file fields are included and have correct values
+        self.assertEqual(file_question_data["allowed_file_types"], [".pdf"])
+        self.assertEqual(file_question_data["allowed_mime_types"], ["application/pdf"])
+        self.assertEqual(file_question_data["max_file_size_mb"], 10)
+        self.assertEqual(file_question_data["question_type"], enums.QuestionTypes.FILE)
+
+    @data("staff")
+    def test_questions_endpoint_returns_number_fields(self, user):
+        """Test that the questions endpoint properly returns number validation fields."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        url = self._get_questions_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        # Find the number question in the response
+        number_question_data = next(
+            (q for q in data if q["description"] == "Number input question"), None
+        )
+        self.assertIsNotNone(number_question_data)
+
+        # Check that number fields are included and have correct values
+        self.assertEqual(float(number_question_data["min_value"]), 0.0)
+        self.assertEqual(float(number_question_data["max_value"]), 100.0)
+        self.assertEqual(
+            number_question_data["question_type"], enums.QuestionTypes.NUMBER
+        )
+
+    @data("staff")
+    def test_questions_endpoint_returns_multiple_files_fields(self, user):
+        """Test that the questions endpoint properly returns multiple files fields."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        url = self._get_questions_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        # Find the multiple files question in the response
+        multiple_files_question_data = next(
+            (q for q in data if q["description"] == "Multiple files question"), None
+        )
+        self.assertIsNotNone(multiple_files_question_data)
+
+        # Check that multiple files fields are included and have correct values
+        self.assertEqual(
+            multiple_files_question_data["allowed_file_types"], [".jpg", ".png"]
+        )
+        self.assertEqual(multiple_files_question_data["max_files_count"], 5)
+        self.assertEqual(
+            multiple_files_question_data["question_type"],
+            enums.QuestionTypes.MULTIPLE_FILES,
+        )
+
+    @data("owner")
+    def test_unauthorized_user_cannot_access_questions_endpoint(self, user):
+        """Test that unauthorized users cannot access the questions endpoint."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        url = self._get_questions_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data("staff")
+    def test_questions_endpoint_with_pagination(self, user):
+        """Test that the questions endpoint works with pagination parameters."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        url = self._get_questions_url()
+        response = self.client.get(url, {"page": 1, "page_size": 10})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should not fail with the original field error

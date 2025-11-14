@@ -985,7 +985,6 @@ class ServiceDeskBackend(SupportBackend):
         issue.link = backend_issue["_links"].get("agent") or backend_issue[
             "_links"
         ].get("web")
-        # issue.priority = backend_issue.fields.priority.name
         issue.summary = backend_issue.get("summary") or next(
             f["value"]
             for f in backend_issue["requestFieldValues"]
