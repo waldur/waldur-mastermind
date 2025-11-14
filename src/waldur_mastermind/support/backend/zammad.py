@@ -93,6 +93,9 @@ class ZammadServiceBackend(SupportBackend):
         )
         issue.backend_id = zammad_issue.id
         issue.key = zammad_issue.id
+        issue.link = (
+            f"{config.ZAMMAD_API_URL.strip('/')}/#ticket/zoom/{zammad_issue.id}"
+        )
         issue.backend_name = self.backend_name
         issue.status = zammad_issue.status
         issue.set_ok()
