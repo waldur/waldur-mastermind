@@ -11,7 +11,13 @@ from drf_spectacular.plumbing import (
     build_array_type,
     build_basic_type,
 )
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import (
+    OpenApiExample,
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -58,6 +64,20 @@ def validate_scope_not_soft_deleted(scope):
         )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List roles",
+        description="Get a list of all available roles.",
+    ),
+    retrieve=extend_schema(
+        summary="Get role details",
+        description="Retrieve the details of a specific role by its UUID.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a role",
+        description="Allows staff users to delete a custom role. System roles and roles that are currently in use cannot be deleted.",
+    ),
+)
 class RoleViewSet(ActionsViewSet):
     queryset = models.Role.objects.all()
     serializer_class = serializers.RoleDetailsSerializer
@@ -67,8 +87,37 @@ class RoleViewSet(ActionsViewSet):
     destroy_validators = [can_destroy_role]
 
     @extend_schema(
+        summary="Create a new role",
+        description="Allows staff users to create a new custom role with a specific set of permissions.",
         request=serializers.RoleModifySerializer,
         responses=serializers.RoleDetailsSerializer,
+        examples=[
+            OpenApiExample(
+                "Create a project-level reviewer role",
+                request_only=True,
+                value={
+                    "name": "PROJECT.REVIEWER",
+                    "description": "Can view project.",
+                    "content_type": "project",
+                    "permissions": ["PROJECT.LIST"],
+                },
+            ),
+            OpenApiExample(
+                "Successful role creation response",
+                response_only=True,
+                status_codes=[status.HTTP_201_CREATED],
+                value={
+                    "uuid": "d8c2d5852d434937985392d24249b6d3",
+                    "name": "PROJECT.REVIEWER",
+                    "description": "Can view project.",
+                    "permissions": ["PROJECT.LIST"],
+                    "is_system_role": False,
+                    "is_active": True,
+                    "users_count": 0,
+                    "content_type": "project",
+                },
+            ),
+        ],
     )
     def create(self, request):
         serializer = serializers.RoleModifySerializer(data=request.data)
@@ -78,8 +127,37 @@ class RoleViewSet(ActionsViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
+        summary="Update a role",
+        description="Allows staff users to update an existing role's name, description, content type, and permissions. The name of a system role cannot be changed.",
         request=serializers.RoleModifySerializer,
         responses=serializers.RoleDetailsSerializer,
+        examples=[
+            OpenApiExample(
+                "Add a permission to a role",
+                request_only=True,
+                value={
+                    "name": "PROJECT.REVIEWER",
+                    "description": "Can view project and update metadata.",
+                    "content_type": "project",
+                    "permissions": ["PROJECT.LIST", "PROJECT.UPDATE_METADATA"],
+                },
+            ),
+            OpenApiExample(
+                "Successful role update response",
+                response_only=True,
+                status_codes=[status.HTTP_200_OK],
+                value={
+                    "uuid": "d8c2d5852d434937985392d24249b6d3",
+                    "name": "PROJECT.REVIEWER",
+                    "description": "Can view project and update metadata.",
+                    "permissions": ["PROJECT.LIST", "PROJECT.UPDATE_METADATA"],
+                    "is_system_role": False,
+                    "is_active": True,
+                    "users_count": 5,
+                    "content_type": "project",
+                },
+            ),
+        ],
     )
     def update(self, request, **kwargs):
         instance: models.Role = self.get_object()
@@ -90,8 +168,19 @@ class RoleViewSet(ActionsViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Update role descriptions",
+        description="Allows staff users to update the multilingual descriptions of a role.",
         request=serializers.RoleDescriptionSerializer,
         responses=serializers.RoleDescriptionSerializer,
+        examples=[
+            OpenApiExample(
+                "Update English and Estonian descriptions",
+                value={
+                    "description_en": "New English description",
+                    "description_et": "Uus kirjeldus eesti keeles",
+                },
+            )
+        ],
     )
     @action(detail=True, methods=["PUT"])
     def update_descriptions(self, request, uuid=None):
@@ -102,8 +191,17 @@ class RoleViewSet(ActionsViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Enable a role",
+        description="Allows staff users to enable a role, making it available for assignment.",
         request=None,
-        responses=None,
+        responses={200: OpenApiResponse(description="Role enabled successfully.")},
+        examples=[
+            OpenApiExample(
+                "Successful role enable response",
+                response_only=True,
+                value={"detail": "The role PROJECT.REVIEWER has been enabled"},
+            )
+        ],
     )
     @action(detail=True, methods=["post"])
     def enable(self, request, uuid=None):
@@ -119,8 +217,17 @@ class RoleViewSet(ActionsViewSet):
         )
 
     @extend_schema(
+        summary="Disable a role",
+        description="Allows staff users to disable a role, preventing it from being assigned further. Existing assignments are not affected.",
         request=None,
-        responses=None,
+        responses={200: OpenApiResponse(description="Role disabled successfully.")},
+        examples=[
+            OpenApiExample(
+                "Successful role disable response",
+                response_only=True,
+                value={"detail": "The role PROJECT.REVIEWER has been disabled"},
+            )
+        ],
     )
     @action(detail=True, methods=["post"])
     def disable(self, request, uuid=None):
@@ -140,6 +247,8 @@ class UserRoleMixin:
     """Mixin to provide user role management functionality for viewsets."""
 
     @extend_schema(
+        summary="List users and their roles in a scope",
+        description="Retrieves a list of users who have a role within a specific scope (e.g., a project or an organization). The list can be filtered by user details or role.",
         parameters=[
             OpenApiParameter(
                 name="user",
@@ -214,6 +323,28 @@ class UserRoleMixin:
         ],
         responses=serializers.UserRoleDetailsSerializer(many=True),
         filters=False,
+        examples=[
+            OpenApiExample(
+                "Example user role list response",
+                response_only=True,
+                value=[
+                    {
+                        "uuid": "a7e6b0a29a434d2889273c5240217a26",
+                        "created": "2023-10-26T10:00:00Z",
+                        "expiration_time": "2024-12-31T23:59:59Z",
+                        "role_name": "PROJECT.ADMIN",
+                        "role_uuid": "d8c2d5852d434937985392d24249b6d3",
+                        "user_email": "alice@example.com",
+                        "user_full_name": "Alice Smith",
+                        "user_username": "alice",
+                        "user_uuid": "8f20242b638743b18a485f81ac685e13",
+                        "user_image": None,
+                        "created_by_full_name": "Bob Johnson",
+                        "created_by_uuid": "b4e4c2f1a6f24a8d8e4c2f1a6f24a8d8",
+                    }
+                ],
+            )
+        ],
     )
     @action(detail=True, methods=["GET"])
     def list_users(self, request, uuid=None):
@@ -257,22 +388,42 @@ class UserRoleMixin:
         return self.get_paginated_response(serializer.data)
 
     @extend_schema(
+        summary="Grant a role to a user",
+        description="Assigns a specific role to a user within the current scope. An optional expiration time for the role can be set.",
         request=serializers.UserRoleCreateSerializer,
         responses={
             201: serializers.UserRoleExpirationTimeSerializer,
-            400: {
-                "type": "object",
-                "properties": {
-                    "non_field_errors": {"type": "array", "items": {"type": "string"}}
+            400: OpenApiResponse(
+                description="Validation error, for example when trying to add a user to a terminated project."
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Grant project admin role until end of year",
+                request_only=True,
+                value={
+                    "user": "8f20242b638743b18a485f81ac685e13",
+                    "role": "PROJECT.ADMIN",
+                    "expiration_time": "2024-12-31",
                 },
-                "description": "Validation error when trying to add user to terminated project",
-                "example": {
+            ),
+            OpenApiExample(
+                "Successful role grant response",
+                response_only=True,
+                status_codes=[201],
+                value={"expiration_time": "2024-12-31T00:00:00Z"},
+            ),
+            OpenApiExample(
+                "Example validation error",
+                response_only=True,
+                status_codes=[400],
+                value={
                     "non_field_errors": [
                         "Cannot manage team members for terminated projects."
                     ]
                 },
-            },
-        },
+            ),
+        ],
     )
     @action(detail=True, methods=["POST"])
     def add_user(self, request, uuid=None):
@@ -301,8 +452,36 @@ class UserRoleMixin:
         )
 
     @extend_schema(
+        summary="Update a user's role expiration",
+        description="Updates the expiration time for a user's existing role in the current scope. This is useful for extending or shortening the duration of a permission. To make a role permanent, set expiration_time to null.",
         request=serializers.UserRoleUpdateSerializer,
         responses={200: serializers.UserRoleExpirationTimeSerializer},
+        examples=[
+            OpenApiExample(
+                "Extend role until mid-2025",
+                request_only=True,
+                value={
+                    "user": "8f20242b638743b18a485f81ac685e13",
+                    "role": "PROJECT.ADMIN",
+                    "expiration_time": "2025-06-30",
+                },
+            ),
+            OpenApiExample(
+                "Make a role permanent",
+                request_only=True,
+                value={
+                    "user": "8f20242b638743b18a485f81ac685e13",
+                    "role": "PROJECT.ADMIN",
+                    "expiration_time": None,
+                },
+            ),
+            OpenApiExample(
+                "Successful role update response",
+                response_only=True,
+                status_codes=[200],
+                value={"expiration_time": "2025-06-30T00:00:00Z"},
+            ),
+        ],
     )
     @action(detail=True, methods=["POST"])
     def update_user(self, request, uuid=None):
@@ -330,8 +509,20 @@ class UserRoleMixin:
         )
 
     @extend_schema(
+        summary="Revoke a role from a user",
+        description="Removes a specific role from a user within the current scope. This effectively revokes their permissions associated with that role.",
         request=serializers.UserRoleDeleteSerializer,
-        responses={200: None},
+        responses={200: OpenApiResponse(description="Role revoked successfully.")},
+        examples=[
+            OpenApiExample(
+                "Revoke project admin role from user",
+                request_only=True,
+                value={
+                    "user": "8f20242b638743b18a485f81ac685e13",
+                    "role": "PROJECT.ADMIN",
+                },
+            )
+        ],
     )
     @action(detail=True, methods=["POST"])
     def delete_user(self, request, uuid=None):
@@ -376,6 +567,64 @@ def filter_user_permissions_by_ip_address(qs: QuerySet[models.UserRole], user_ip
     )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List user permissions",
+        description="Get a list of all permissions for the current user. Staff and support users can view all user permissions. The list can be filtered by user, scope, role, etc.",
+        examples=[
+            OpenApiExample(
+                "Example user permission list response",
+                response_only=True,
+                value=[
+                    {
+                        "user_uuid": "8f20242b638743b18a485f81ac685e13",
+                        "user_name": "Alice Smith",
+                        "user_slug": "alice-smith",
+                        "created": "2023-10-26T10:00:00Z",
+                        "expiration_time": "2024-12-31T23:59:59Z",
+                        "created_by_full_name": "Bob Johnson",
+                        "created_by_username": "bob",
+                        "role_name": "PROJECT.ADMIN",
+                        "role_description": "Project administrator with full control over the project.",
+                        "role_uuid": "d8c2d5852d434937985392d24249b6d3",
+                        "scope_type": "project",
+                        "scope_uuid": "c81f33f1b4094a319e1fe1a3d5ca76a5",
+                        "scope_name": "Cloud Storage Project",
+                        "customer_uuid": "b7e4501a1c6a4f91807d79b932408c62",
+                        "customer_name": "MegaCorp",
+                    }
+                ],
+            )
+        ],
+    ),
+    retrieve=extend_schema(
+        summary="Get permission details",
+        description="Retrieve the details of a specific user permission grant by its UUID.",
+        examples=[
+            OpenApiExample(
+                "Example user permission detail response",
+                response_only=True,
+                value={
+                    "user_uuid": "8f20242b638743b18a485f81ac685e13",
+                    "user_name": "Alice Smith",
+                    "user_slug": "alice-smith",
+                    "created": "2023-10-26T10:00:00Z",
+                    "expiration_time": "2024-12-31T23:59:59Z",
+                    "created_by_full_name": "Bob Johnson",
+                    "created_by_username": "bob",
+                    "role_name": "PROJECT.ADMIN",
+                    "role_description": "Project administrator with full control over the project.",
+                    "role_uuid": "d8c2d5852d434937985392d24249b6d3",
+                    "scope_type": "project",
+                    "scope_uuid": "c81f33f1b4094a319e1fe1a3d5ca76a5",
+                    "scope_name": "Cloud Storage Project",
+                    "customer_uuid": "b7e4501a1c6a4f91807d79b932408c62",
+                    "customer_name": "MegaCorp",
+                },
+            )
+        ],
+    ),
+)
 class UserPermissionViewSet(ReadOnlyModelViewSet):
     queryset = models.UserRole.objects.filter(is_active=True)
     serializer_class = serializers.PermissionSerializer
