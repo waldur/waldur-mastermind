@@ -1702,20 +1702,19 @@ wheels = [
 
 [[package]]
 name = "openportal"
-version = "0.20.1"
+version = "0.20.2"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/63/45/ca44a8ff7e69edcc4db7c0170cab91684e069041d6c941a6770ca8803e21/openportal-0.20.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e1726a8927fa0d5ff52015e0a46fc30228e8d34fe0a55f1eabd1ab76858afec6", size = 2492855, upload-time = "2025-10-21T04:14:26.643Z" },
-    { url = "https://files.pythonhosted.org/packages/67/27/c6c77b571436059b356ee6d0b11f4266d7dbe32d49284cf490d656a435cd/openportal-0.20.1-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:26d8d0c35b9e32b88ebe6b79af3f0eaf797448e12526ea861746069df08c1a5e", size = 2555635, upload-time = "2025-10-21T04:14:01.677Z" },
-    { url = "https://files.pythonhosted.org/packages/8a/4b/cba72fca692c273786beaebdd8cd17a83ea79fbf0d82c5862177a5b4f736/openportal-0.20.1-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:b5dff92fe3c80fc319bcf125784b08f73f2015a7a4869f65b0790aff1e070e67", size = 2710569, upload-time = "2025-10-21T04:14:40.014Z" },
-    { url = "https://files.pythonhosted.org/packages/c0/16/0ec9167ced4d6e997400abafbf8cb6fac4f02b2a8e254b3f2412b0728c08/openportal-0.20.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d5e5fabb0fff042176ef2158b2ada7a6f2c6221882f1fca97ca3ca305b7a5c56", size = 2493134, upload-time = "2025-10-21T04:14:28.323Z" },
-    { url = "https://files.pythonhosted.org/packages/b6/b0/f5b7a0e4075ace12489aa7efc2f282f5b26afa4248f6cb3f11ab0e3c8d4d/openportal-0.20.1-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:bc5f0560a1de1456cc56370fd641da777f31744828dc3a94d3408d6c1d7b5643", size = 2555736, upload-time = "2025-10-21T04:14:04.088Z" },
-    { url = "https://files.pythonhosted.org/packages/ea/64/719f068a27b8229571df354e5cdeccb4c6c150a2bd8358e3badfc76b0bd1/openportal-0.20.1-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:1eb824c084852fd11571e22404e0a54a036e772660459fed1369ea7cdc807f1f", size = 2710779, upload-time = "2025-10-21T04:14:42.038Z" },
-    { url = "https://files.pythonhosted.org/packages/ab/cc/e87badae4adf5e4d1c0d87f7dd8f457a57494d821ef823800dd188bc4cfb/openportal-0.20.1-pp310-pypy310_pp73-musllinux_1_1_aarch64.whl", hash = "sha256:d230c6c7f112e80873b7b615607ba96e7d0c0cf51ce005a913d5bf989e40ddd4", size = 2555870, upload-time = "2025-10-21T04:14:20.632Z" },
-    { url = "https://files.pythonhosted.org/packages/d1/a2/8dc6aa76d92dbf30149b145ad43a8ebc50cdeb72747018592d6ea06ba3d2/openportal-0.20.1-pp310-pypy310_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:96528c25ce6c40aa46ab83d1655234f19c11b971c027b3bbf801128fc7e3b5d6", size = 2710840, upload-time = "2025-10-21T04:14:54.963Z" },
-    { url = "https://files.pythonhosted.org/packages/a6/36/4f24745d519445bd08ac644f017d45d5350131d8642c6a2f8141d6d0f7f6/openportal-0.20.1-pp311-pypy311_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d454b66fd84eefc55279999cdb27cc4a9b8f73711bfac09a3e1379ec0b9e9619", size = 2493343, upload-time = "2025-10-21T04:14:38.34Z" },
-    { url = "https://files.pythonhosted.org/packages/96/30/d9a046137c27642be47febef42223f9a9266dbe3b3e38d7ee0a8dd920d05/openportal-0.20.1-pp311-pypy311_pp73-musllinux_1_1_aarch64.whl", hash = "sha256:f5eba53121fc3b33c61cbe71c1072e374725e30b2ba4e249f860e3acdab5f303", size = 2555911, upload-time = "2025-10-21T04:14:22.615Z" },
-    { url = "https://files.pythonhosted.org/packages/e9/69/41b8b805f56d50681de42c24ffa1cf885725ccc13ca1710fd3f5973281f8/openportal-0.20.1-pp311-pypy311_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:36a6cccfaa5a406d12def1925132634eba12b3b1b0f4f70cb08b6560b93efd77", size = 2711116, upload-time = "2025-10-21T04:14:57.098Z" },
+    { url = "https://files.pythonhosted.org/packages/80/6e/9da9689285462f2b9822da56db07e97b9c0ad1ca9f2bbf656562b2dff9c3/openportal-0.20.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e23037571bfd525f2b516c78877835839fd17f71fc00d8a52764ed1eca48ec5b", size = 2534463, upload-time = "2025-11-15T09:54:30.867Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/7b/8ee6ec884196209ab729f7643909bea51b0bbcd7ad4ca1a9ecab87a98b4a/openportal-0.20.2-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:cf37e562edde50c239c25476817bb3911c2539c05345d1078ec225e667ba82cc", size = 2634057, upload-time = "2025-11-15T09:54:12.68Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/24/45d5452bbdcc7703a7c00fa9a61a8ceefe530bb3207db6537523c82024ba/openportal-0.20.2-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:515123a819adc93c0d08af98b69bcbcdda268663813299e71c393e5cff8cc90d", size = 2749690, upload-time = "2025-11-15T09:54:42.224Z" },
+    { url = "https://files.pythonhosted.org/packages/55/48/8e33022528f8d9ebba1b03814706e5633766fe0fd1aeeae5e6975359b992/openportal-0.20.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:89da7228e276b60f492ba681cc42eebb966cbcd40f61c4bc299ad4866c6dfc34", size = 2558623, upload-time = "2025-11-15T09:54:58.088Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/be/9c125cbb1194f121dde475dfb8efd23ecadd1bfce47e36c69c1e8187a0a0/openportal-0.20.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:548b700f8237fd68df8718dee3688a1c2b8086a5dcf84ce4a09e3d3bac0ebf14", size = 2534443, upload-time = "2025-11-15T09:54:32.26Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/af/5c9ba1f4e650915b61f378ec3069e5749bebe6b53a4afd97880fbd2dfecf/openportal-0.20.2-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:d96ab47d217468fc73c3929b25272907c8497898869782d1c63137f463f1b419", size = 2634162, upload-time = "2025-11-15T09:54:14.456Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/d6/e7dcdf6a70905264ca30c0a81fe7093b93ee1043be7d22a20f13d9cb86d5/openportal-0.20.2-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:997616b0d292a5a446f4de288f5410614d2032931101143148e3607705f8be89", size = 2749643, upload-time = "2025-11-15T09:54:43.682Z" },
+    { url = "https://files.pythonhosted.org/packages/33/ae/0574d1a55b7b49ace763ef3cb28a096a8a8fe8164423efb894e259df76fe/openportal-0.20.2-pp311-pypy311_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:38971134ada333a0e8f6a7466ea2c0ae3253f181dfc9f0585a8e95eed0e8ef3a", size = 2534536, upload-time = "2025-11-15T09:54:40.753Z" },
+    { url = "https://files.pythonhosted.org/packages/44/e3/bd0ce3de123504f76526b2f5bdb8065ae96aa2fc1ef9c97084785f5e1ee1/openportal-0.20.2-pp311-pypy311_pp73-musllinux_1_1_aarch64.whl", hash = "sha256:25645beea0183cbfd7f2696fcee908db6bd173da3c2375952615cde32a461103", size = 2634406, upload-time = "2025-11-15T09:54:29.414Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/1a/bec3771883c0ce912cb6b8e386d136738a91368f12282da46c4ad7dbdfd8/openportal-0.20.2-pp311-pypy311_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:f757c4e05ac4fb25f188b7915c4eac1220fd65d0383e450b7f97aa6c473d0033", size = 2750486, upload-time = "2025-11-15T09:54:56.792Z" },
 ]
 
 [[package]]
@@ -3259,7 +3258,7 @@ requires-dist = [
     { name = "mock-django", marker = "extra == 'dev'", specifier = "==0.6.10" },
     { name = "msrestazure", specifier = "==0.6.4" },
     { name = "nh3", specifier = ">=0.2.18,<1.0.0" },
-    { name = "openportal", specifier = ">=0.20.1" },
+    { name = "openportal", specifier = ">=0.20.2" },
     { name = "paho-mqtt", specifier = "==2.1.0" },
     { name = "pbr", specifier = "==4.0.4" },
     { name = "pillow", specifier = ">=11.0.0,<12.0.0" },
