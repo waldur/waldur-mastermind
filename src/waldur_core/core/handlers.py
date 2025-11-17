@@ -117,8 +117,14 @@ def log_user_save(sender, instance: User, created=False, **kwargs):
         if user_details_changed:
             event_logger.emit(
                 "Details for {{affected_user_username}} have been updated from {} to {}.".format(
-                    str(old_values["details"]).strip("{}"),
-                    str(instance.details).strip("{}"),
+                    str(old_values["details"])
+                    .strip("{}")
+                    .replace("{", "{{")
+                    .replace("}", "}}"),
+                    str(instance.details)
+                    .strip("{}")
+                    .replace("{", "{{")
+                    .replace("}", "}}"),
                 ),
                 event_type=EventType.USER_DETAILS_UPDATE_SUCCEEDED,
                 event_context={"affected_user": instance},
