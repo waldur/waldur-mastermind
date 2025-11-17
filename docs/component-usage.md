@@ -91,12 +91,40 @@ usage = factories.ComponentUsageFactory(
 ```json
 {
     "resource": "resource-uuid",
-    "component": "component-uuid",
-    "usage": 100.50,
-    "date": "2024-01-15T10:30:00Z",
-    "recurring": false
+    "usages": [
+        {
+            "type": "cpu",
+            "amount": 100.50,
+            "description": "Optional description",
+            "recurring": false
+        }
+    ]
 }
 ```
+
+**Alternative format using plan_period:**
+
+```json
+{
+    "plan_period": "plan-period-uuid",
+    "usages": [
+        {
+            "type": "cpu",
+            "amount": 100.50,
+            "recurring": false
+        }
+    ]
+}
+```
+
+**Notes:**
+
+- Either `resource` or `plan_period` must be provided (not both)
+- `usages` is an array - you can submit multiple component usages in one request
+- `type` is the component type string (e.g., "cpu", "ram", "storage"), not a UUID
+- `amount` is the usage value (not `usage`)
+- `date` is automatically set to the current time - you don't need to provide it
+- `description` and `recurring` are optional fields
 
 ### 4. Via Utility Function
 
@@ -113,7 +141,7 @@ utils.import_current_usages(resource)
 
 The `import_current_usages()` function automatically creates/updates ComponentUsage records:
 
-**File**: `src/waldur_mastermind/marketplace/utils.py:2273`
+**File**: `src/waldur_mastermind/marketplace/utils.py:941`
 
 ```python
 def import_current_usages(resource):
