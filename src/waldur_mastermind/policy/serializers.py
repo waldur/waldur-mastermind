@@ -220,7 +220,42 @@ class OfferingPolicySerializerMixin(core_serializers.AugmentedSerializerMixin):
         view_name="organization-group-detail",
         lookup_field="uuid",
         many=True,
+        required=False,
+        allow_empty=True,
     )
+    apply_to_all = serializers.BooleanField(
+        default=False,
+        help_text="If True, policy applies to all customers. "
+        "Mutually exclusive with organization_groups.",
+    )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        # Check for new policies and updates
+        apply_to_all = attrs.get("apply_to_all", False)
+        organization_groups = attrs.get("organization_groups", [])
+
+        # For existing instances, check current values if not provided
+        if self.instance and "apply_to_all" not in attrs:
+            apply_to_all = self.instance.apply_to_all
+        if self.instance and "organization_groups" not in attrs:
+            organization_groups = list(self.instance.organization_groups.all())
+
+        # Check mutual exclusivity
+        if apply_to_all and organization_groups:
+            raise serializers.ValidationError(
+                "Cannot set apply_to_all=True when organization_groups are specified. "
+                "Choose one approach: either apply_to_all or specific organization_groups."
+            )
+
+        # Ensure at least one is set
+        if not apply_to_all and not organization_groups:
+            raise serializers.ValidationError(
+                "Must either set apply_to_all=True or specify organization_groups."
+            )
+
+        return attrs
 
     def validate_scope(self, scope):
         if not scope:
@@ -238,7 +273,7 @@ class OfferingPolicySerializerMixin(core_serializers.AugmentedSerializerMixin):
         )
 
     class Meta:
-        fields = ("organization_groups",)
+        fields = ("organization_groups", "apply_to_all")
         extra_kwargs = {
             "organization_groups": {
                 "lookup_field": "uuid",
