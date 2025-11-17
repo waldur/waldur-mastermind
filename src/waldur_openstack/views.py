@@ -11,6 +11,7 @@ from drf_spectacular.utils import (
     OpenApiParameter,
     OpenApiTypes,
     extend_schema,
+    extend_schema_view,
 )
 from keystoneauth1.exceptions.connection import ConnectFailure
 from rest_framework import decorators, exceptions, generics, response, status
@@ -147,6 +148,16 @@ class FlavorUsageReporter(UsageReporter):
         return {row["flavor_name"]: row["count"] for row in rows}
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List flavors",
+        description="Get a list of available VM instance flavors.",
+    ),
+    retrieve=extend_schema(
+        summary="Get flavor details",
+        description="Retrieve details of a specific VM instance flavor.",
+    ),
+)
 class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
     """
     VM instance flavor is a pre-defined set of virtual hardware parameters that the instance will use:
@@ -160,11 +171,25 @@ class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.FlavorFilter
 
+    @extend_schema(
+        summary="Get flavor usage statistics",
+        description="Retrieve usage statistics for VM instance flavors, showing running and created instance counts for each flavor.",
+    )
     @decorators.action(detail=False)
     def usage_stats(self, request):
         return FlavorUsageReporter(self, request).get_report()
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List images",
+        description="Get a list of available VM instance images.",
+    ),
+    retrieve=extend_schema(
+        summary="Get image details",
+        description="Retrieve details of a specific VM instance image.",
+    ),
+)
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Image.objects.all().order_by("name")
     serializer_class = serializers.OpenStackImageSerializer
@@ -172,11 +197,25 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.ImageFilter
 
+    @extend_schema(
+        summary="Get image usage statistics",
+        description="Retrieve usage statistics for VM instance images, showing running and created instance counts for each image.",
+    )
     @decorators.action(detail=False)
     def usage_stats(self, request):
         return ImageUsageReporter(self, request).get_report()
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List volume types",
+        description="Get a list of available volume types.",
+    ),
+    retrieve=extend_schema(
+        summary="Get volume type details",
+        description="Retrieve details of a specific volume type.",
+    ),
+)
 class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.VolumeType.objects.filter(disabled=False).order_by(
         "settings", "name"
@@ -186,6 +225,7 @@ class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
     filterset_class = filters.VolumeTypeFilter
 
     @extend_schema(
+        summary="List unique volume type names",
         description="Return a list of unique volume type names.",
         responses=list[str],
     )
@@ -200,6 +240,24 @@ class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
         return response.Response(names, status=status.HTTP_200_OK)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List security groups",
+        description="Get a list of security groups.",
+    ),
+    retrieve=extend_schema(
+        summary="Get security group details",
+        description="Retrieve details of a specific security group.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update security group",
+        description="Update specific fields of a security group.",
+    ),
+    destroy=extend_schema(
+        summary="Delete security group",
+        description="Delete a security group.",
+    ),
+)
 class SecurityGroupViewSet(structure_views.ResourceViewSet):
     queryset = models.SecurityGroup.objects.all().order_by("tenant__name")
     serializer_class = serializers.OpenStackSecurityGroupSerializer
@@ -228,7 +286,8 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
     delete_executor = executors.SecurityGroupDeleteExecutor
 
     @extend_schema(
-        description="Update security group rules",
+        summary="Set security group rules",
+        description="Update the rules for a specific security group. This overwrites all existing rules.",
         request=serializers.OpenStackSecurityGroupRuleListUpdateSerializer,
         responses=None,
         examples=[
@@ -278,6 +337,20 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
     )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List server groups",
+        description="Get a list of server groups.",
+    ),
+    retrieve=extend_schema(
+        summary="Get server group details",
+        description="Retrieve details of a specific server group.",
+    ),
+    destroy=extend_schema(
+        summary="Delete server group",
+        description="Delete a server group.",
+    ),
+)
 class ServerGroupViewSet(structure_views.ResourceViewSet):
     queryset = models.ServerGroup.objects.all().order_by("tenant__name")
     serializer_class = serializers.OpenStackServerGroupSerializer
@@ -286,6 +359,20 @@ class ServerGroupViewSet(structure_views.ResourceViewSet):
     delete_executor = executors.ServerGroupDeleteExecutor
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List floating IPs",
+        description="Get a list of floating IP addresses. Status *DOWN* means that floating IP is not linked to a VM, status *ACTIVE* means that it is in use.",
+    ),
+    retrieve=extend_schema(
+        summary="Get floating IP details",
+        description="Retrieve details of a specific floating IP address.",
+    ),
+    destroy=extend_schema(
+        summary="Delete floating IP",
+        description="Delete a floating IP address.",
+    ),
+)
 class FloatingIPViewSet(structure_views.ResourceViewSet):
     queryset = models.FloatingIP.objects.all().order_by("address")
     serializer_class = serializers.OpenStackFloatingIPSerializer
@@ -301,6 +388,7 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
         return super().list(request, *args, **kwargs)
 
     @extend_schema(
+        summary="Attach floating IP to a port",
         description="Attach floating IP to port",
         request=serializers.OpenStackFloatingIPAttachSerializer,
         responses=None,
@@ -343,6 +431,7 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
     attach_to_port_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
+        summary="Detach floating IP from port",
         description="Detach floating IP from port",
         request=None,
         responses=None,
@@ -365,6 +454,7 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
     detach_from_port_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
+        summary="Update floating IP description",
         description="Update description of the floating IP",
         request=serializers.OpenStackFloatingIPDescriptionUpdateSerializer,
         responses=None,
@@ -390,6 +480,32 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
     update_description_validators = [core_validators.StateValidator(CoreStates.OK)]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List tenants",
+        description="Get a list of OpenStack tenants.",
+    ),
+    retrieve=extend_schema(
+        summary="Get tenant details",
+        description="Retrieve details of a specific OpenStack tenant.",
+    ),
+    create=extend_schema(
+        summary="Create tenant",
+        description="Create a new OpenStack tenant.",
+    ),
+    update=extend_schema(
+        summary="Update tenant",
+        description="Update an existing OpenStack tenant.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update tenant",
+        description="Update specific fields of an OpenStack tenant.",
+    ),
+    destroy=extend_schema(
+        summary="Delete tenant",
+        description="Delete an OpenStack tenant and all its resources.",
+    ),
+)
 class TenantViewSet(structure_views.ResourceViewSet):
     queryset = models.Tenant.objects.all().order_by("name")
     serializer_class = serializers.OpenStackTenantSerializer
@@ -421,6 +537,34 @@ class TenantViewSet(structure_views.ResourceViewSet):
     destroy_permissions = [delete_permission_check]
 
     @extend_schema(
+        summary="Set tenant quotas",
+        description="""A quota can be set for a particular tenant. Only staff users can do that.
+In order to set quota submit POST request to /api/openstack-tenants/<uuid>/set_quotas/.
+The quota values are propagated to the backend.
+
+The following quotas are supported. All values are expected to be integers:
+
+- instances - maximal number of created instances.
+- ram - maximal size of ram for allocation. In MiB_.
+- storage - maximal size of storage for allocation. In MiB_.
+- vcpu - maximal number of virtual cores for allocation.
+- security_group_count - maximal number of created security groups.
+- security_group_rule_count - maximal number of created security groups rules.
+- volumes - maximal number of created volumes.
+- snapshots - maximal number of created snapshots.
+
+It is possible to update quotas by one or by submitting all the fields in one request.
+Waldur will attempt to update the provided quotas. Please note, that if provided quotas are
+conflicting with the backend (e.g. requested number of instances is below of the already existing ones),
+some quotas might not be applied.
+
+.. _MiB: http://en.wikipedia.org/wiki/Mebibyte
+
+Response code of a successful request is **202 ACCEPTED**.
+In case tenant is in a non-stable status, the response would be **409 CONFLICT**.
+In this case REST client is advised to repeat the request after some time.
+On successful completion the task will synchronize quotas with the backend.
+""",
         examples=[
             OpenApiExample(
                 request_only=True,
@@ -436,38 +580,10 @@ class TenantViewSet(structure_views.ResourceViewSet):
                     "snapshots": 20,
                 },
             )
-        ]
+        ],
     )
     @decorators.action(detail=True, methods=["post"])
     def set_quotas(self, request, uuid=None):
-        """
-        A quota can be set for a particular tenant. Only staff users can do that.
-        In order to set quota submit POST request to /api/openstack-tenants/<uuid>/set_quotas/.
-        The quota values are propagated to the backend.
-
-        The following quotas are supported. All values are expected to be integers:
-
-        - instances - maximal number of created instances.
-        - ram - maximal size of ram for allocation. In MiB_.
-        - storage - maximal size of storage for allocation. In MiB_.
-        - vcpu - maximal number of virtual cores for allocation.
-        - security_group_count - maximal number of created security groups.
-        - security_group_rule_count - maximal number of created security groups rules.
-        - volumes - maximal number of created volumes.
-        - snapshots - maximal number of created snapshots.
-
-        It is possible to update quotas by one or by submitting all the fields in one request.
-        Waldur will attempt to update the provided quotas. Please note, that if provided quotas are
-        conflicting with the backend (e.g. requested number of instances is below of the already existing ones),
-        some quotas might not be applied.
-
-        .. _MiB: http://en.wikipedia.org/wiki/Mebibyte
-
-        Response code of a successful request is **202 ACCEPTED**.
-        In case tenant is in a non-stable status, the response would be **409 CONFLICT**.
-        In this case REST client is advised to repeat the request after some time.
-        On successful completion the task will synchronize quotas with the backend.
-        """
         tenant: models.Tenant = self.get_object()
 
         serializer = self.get_serializer(data=request.data)
@@ -488,6 +604,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
     set_quotas_serializer_class = serializers.OpenStackTenantQuotaSerializer
 
     @extend_schema(
+        summary="Create network for tenant",
         description="Create network for tenant",
     )
     @decorators.action(detail=True, methods=["post"])
@@ -535,6 +652,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
                 )
 
     @extend_schema(
+        summary="Create floating IP for tenant",
         description="Create floating IP for tenant",
         request=serializers.OpenStackFloatingIPSerializer,
         responses=serializers.OpenStackFloatingIPSerializer,
@@ -555,6 +673,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
     create_floating_ip_serializer_class = serializers.OpenStackFloatingIPSerializer
 
     @extend_schema(
+        summary="Pull floating IPs",
         description="Trigger job to pull floating IPs from remote VPC",
         request=None,
         responses={202: None},
@@ -570,6 +689,8 @@ class TenantViewSet(structure_views.ResourceViewSet):
     pull_floating_ips_serializer_class = EmptySerializer
 
     @extend_schema(
+        summary="Create security group",
+        description="Create a security group for the tenant.",
         examples=[
             OpenApiExample(
                 request_only=True,
@@ -612,6 +733,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
     )
 
     @extend_schema(
+        summary="Pull security groups",
         description="Trigger job to pull security groups from remote VPC",
         request=None,
     )
@@ -626,6 +748,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
     pull_security_groups_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
+        summary="Pull server groups",
         description="Trigger job to pull server groups from remote VPC",
         request=None,
     )
@@ -640,13 +763,15 @@ class TenantViewSet(structure_views.ResourceViewSet):
     pull_server_groups_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
+        summary="Create server group",
+        description="Create a new server group for the tenant.",
         examples=[
             OpenApiExample(
                 request_only=True,
                 name="openstack-tenant-create-server-group",
                 value={"name": "Server group name", "policy": "affinity"},
             )
-        ]
+        ],
     )
     @decorators.action(detail=True, methods=["post"])
     def create_server_group(self, request, uuid=None):
@@ -661,6 +786,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
     create_server_group_serializer_class = serializers.OpenStackServerGroupSerializer
 
     @extend_schema(
+        summary="Change tenant user password",
         description="Change password for tenant user",
         request=serializers.OpenStackTenantChangePasswordSerializer,
         responses=None,
@@ -683,6 +809,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
     change_password_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
+        summary="Pull tenant quotas",
         description="It triggers celery job to pull quotas from remote VPC",
         request=None,
         responses=None,
@@ -698,6 +825,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
     pull_quotas_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
+        summary="List backend instances",
         description="Return a list of volumes from backend",
         responses=serializers.OpenStackBackendInstanceSerializer(many=True),
         request=None,
@@ -715,6 +843,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="List backend volumes",
         description="Return a list of volumes from backend",
         request=None,
         responses=serializers.OpenStackBackendVolumesSerializer(many=True),
@@ -732,6 +861,24 @@ class TenantViewSet(structure_views.ResourceViewSet):
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List routers",
+        description="Get a list of routers.",
+    ),
+    retrieve=extend_schema(
+        summary="Get router details",
+        description="Retrieve details of a specific router.",
+    ),
+    create=extend_schema(
+        summary="Create router",
+        description="Create a new router.",
+    ),
+    destroy=extend_schema(
+        summary="Delete router",
+        description="Delete a router.",
+    ),
+)
 class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.Router.objects.all().order_by("tenant__name")
@@ -744,6 +891,10 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     delete_executor = executors.RouterDeleteExecutor
     create_executor = executors.RouterCreateExecutor
 
+    @extend_schema(
+        summary="Set static routes",
+        description="Define or overwrite the static routes for the router.",
+    )
     @decorators.action(detail=True, methods=["POST"])
     def set_routes(self, request, uuid=None):
         router: models.Router = self.get_object()
@@ -786,6 +937,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     ]
 
     @extend_schema(
+        summary="Add router interface",
         description="Add interface to router. Either subnet or port must be provided.",
         request=serializers.OpenStackRouterInterfaceSerializer,
         responses=None,
@@ -888,6 +1040,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     add_router_interface_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
+        summary="Remove router interface",
         description="Remove interface from router. Either subnet or port must be provided.",
         request=serializers.OpenStackRouterInterfaceSerializer,
         responses=None,
@@ -914,6 +1067,32 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     remove_router_interface_validators = [core_validators.StateValidator(CoreStates.OK)]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List ports",
+        description="Get a list of network ports.",
+    ),
+    retrieve=extend_schema(
+        summary="Get port details",
+        description="Retrieve details of a specific network port.",
+    ),
+    create=extend_schema(
+        summary="Create port",
+        description="Create a new network port.",
+    ),
+    update=extend_schema(
+        summary="Update port",
+        description="Update an existing network port.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update port",
+        description="Update specific fields of a network port.",
+    ),
+    destroy=extend_schema(
+        summary="Delete port",
+        description="Delete a network port.",
+    ),
+)
 class PortViewSet(structure_views.ResourceViewSet):
     queryset = models.Port.objects.all().order_by("network__name")
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
@@ -925,6 +1104,7 @@ class PortViewSet(structure_views.ResourceViewSet):
     delete_executor = executors.PortDeleteExecutor
 
     @extend_schema(
+        summary="Enable port security",
         description="Enable port security for the port",
         request=None,
         responses={status.HTTP_200_OK: None},
@@ -941,6 +1121,7 @@ class PortViewSet(structure_views.ResourceViewSet):
         return response.Response(status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Disable port security",
         description="Disable port security for the port",
         request=None,
         responses={status.HTTP_200_OK: None},
@@ -958,6 +1139,7 @@ class PortViewSet(structure_views.ResourceViewSet):
         return response.Response(status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Enable port",
         description="Enable port.",
         request=None,
         responses={status.HTTP_200_OK: None},
@@ -974,6 +1156,7 @@ class PortViewSet(structure_views.ResourceViewSet):
         return response.Response(status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Disable port",
         description="Disable port.",
         request=None,
         responses={status.HTTP_200_OK: None},
@@ -990,6 +1173,7 @@ class PortViewSet(structure_views.ResourceViewSet):
         return response.Response(status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Update port IP address",
         description="Update port IP address.",
         request=serializers.OpenStackPortIPUpdateSerializer,
         responses={status.HTTP_200_OK: None},
@@ -1010,6 +1194,7 @@ class PortViewSet(structure_views.ResourceViewSet):
     update_port_ip_serializer_class = serializers.OpenStackPortIPUpdateSerializer
 
     @extend_schema(
+        summary="Update port security groups",
         description="Update security groups of the port",
         request=serializers.OpenStackInstanceSecurityGroupsUpdateSerializer,
         responses=None,
@@ -1042,6 +1227,28 @@ class PortViewSet(structure_views.ResourceViewSet):
     )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List networks",
+        description="Get a list of networks.",
+    ),
+    retrieve=extend_schema(
+        summary="Get network details",
+        description="Retrieve details of a specific network.",
+    ),
+    update=extend_schema(
+        summary="Update network",
+        description="Update an existing network.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update network",
+        description="Update specific fields of a network.",
+    ),
+    destroy=extend_schema(
+        summary="Delete network",
+        description="Delete a network.",
+    ),
+)
 class NetworkViewSet(structure_views.ResourceViewSet):
     queryset = Network.objects.all().order_by("name")
     serializer_class = serializers.OpenStackNetworkSerializer
@@ -1107,6 +1314,10 @@ class NetworkViewSet(structure_views.ResourceViewSet):
 
         return NetworkViewSet.get_related_networks(user)
 
+    @extend_schema(
+        summary="Create subnet",
+        description="Create a new subnet within the network.",
+    )
     @decorators.action(detail=True, methods=["post"])
     def create_subnet(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
@@ -1118,6 +1329,10 @@ class NetworkViewSet(structure_views.ResourceViewSet):
     create_subnet_validators = [core_validators.StateValidator(CoreStates.OK)]
     create_subnet_serializer_class = serializers.OpenStackSubNetSerializer
 
+    @extend_schema(
+        summary="Set network MTU",
+        description="Update the Maximum Transmission Unit (MTU) for the network.",
+    )
     @decorators.action(detail=True, methods=["post"])
     def set_mtu(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
@@ -1150,7 +1365,9 @@ class NetworkViewSet(structure_views.ResourceViewSet):
         raise exceptions.PermissionDenied()
 
     @extend_schema(
-        description="Create RBAC policy for the network",
+        deprecated=True,
+        summary="Create RBAC policy",
+        description="Create RBAC policy for the network. DEPRECATED: please use the dedicated /api/openstack-network-rbac-policies/ endpoint.",
         request=serializers.DeprecatedNetworkRBACPolicySerializer,
         responses=serializers.DeprecatedNetworkRBACPolicySerializer,
     )
@@ -1195,7 +1412,9 @@ class NetworkViewSet(structure_views.ResourceViewSet):
     )
 
     @extend_schema(
-        description="Delete RBAC policy for the network",
+        deprecated=True,
+        summary="Delete RBAC policy",
+        description="Delete RBAC policy for the network. DEPRECATED: please use the dedicated /api/openstack-network-rbac-policies/ endpoint.",
         request=None,
         responses={204: None},
         parameters=[
@@ -1233,6 +1452,28 @@ class NetworkViewSet(structure_views.ResourceViewSet):
         return response.Response(status=status.HTTP_204_NO_CONTENT)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List subnets",
+        description="Get a list of subnets.",
+    ),
+    retrieve=extend_schema(
+        summary="Get subnet details",
+        description="Retrieve details of a specific subnet.",
+    ),
+    update=extend_schema(
+        summary="Update subnet",
+        description="Update an existing subnet.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update subnet",
+        description="Update specific fields of a subnet.",
+    ),
+    destroy=extend_schema(
+        summary="Delete subnet",
+        description="Delete a subnet.",
+    ),
+)
 class SubNetViewSet(structure_views.ResourceViewSet):
     queryset = models.SubNet.objects.all().order_by("network")
     serializer_class = serializers.OpenStackSubNetSerializer
@@ -1257,6 +1498,10 @@ class SubNetViewSet(structure_views.ResourceViewSet):
         all_networks = NetworkViewSet.get_related_networks(user)
         return queryset.filter(network__in=all_networks)
 
+    @extend_schema(
+        summary="Connect subnet to router",
+        description="Connect the subnet to the default tenant router.",
+    )
     @decorators.action(detail=True, methods=["post"])
     def connect(self, request, uuid=None):
         executors.SubnetConnectExecutor.execute(self.get_object())
@@ -1265,6 +1510,10 @@ class SubNetViewSet(structure_views.ResourceViewSet):
     connect_validators = [core_validators.StateValidator(CoreStates.OK)]
     connect_serializer_class = EmptySerializer
 
+    @extend_schema(
+        summary="Disconnect subnet from router",
+        description="Disconnect the subnet from the default tenant router.",
+    )
     @decorators.action(detail=True, methods=["post"])
     def disconnect(self, request, uuid=None):
         executors.SubnetDisconnectExecutor.execute(self.get_object())
@@ -1274,6 +1523,24 @@ class SubNetViewSet(structure_views.ResourceViewSet):
     disconnect_serializer_class = EmptySerializer
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List volumes",
+        description="Get a list of volumes.",
+    ),
+    retrieve=extend_schema(
+        summary="Get volume details",
+        description="Retrieve details of a specific volume.",
+    ),
+    update=extend_schema(
+        summary="Update volume",
+        description="Update an existing volume.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update volume",
+        description="Update specific fields of a volume.",
+    ),
+)
 class VolumeViewSet(structure_views.ResourceViewSet):
     queryset = models.Volume.objects.all().order_by("name")
     serializer_class = serializers.OpenStackVolumeSerializer
@@ -1298,6 +1565,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
             )
 
     @extend_schema(
+        summary="Extend volume size",
         description="Increase volume size",
         request=serializers.OpenStackVolumeExtendSerializer,
         responses=None,
@@ -1333,6 +1601,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     extend_serializer_class = serializers.OpenStackVolumeExtendSerializer
 
     @extend_schema(
+        summary="Create volume snapshot",
         description="Create snapshot from volume",
         request=serializers.OpenStackSnapshotSerializer,
         responses={201: serializers.OpenStackSnapshotSerializer},
@@ -1349,6 +1618,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     snapshot_serializer_class = serializers.OpenStackSnapshotSerializer
 
     @extend_schema(
+        summary="Attach volume to instance",
         description="Attach volume to instance",
         request=serializers.VolumeAttachSerializer,
         responses=None,
@@ -1372,6 +1642,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     attach_serializer_class = serializers.VolumeAttachSerializer
 
     @extend_schema(
+        summary="Detach volume from instance",
         description="Detach instance from volume",
         request=None,
         responses=None,
@@ -1392,6 +1663,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     ]
 
     @extend_schema(
+        summary="Change volume type",
         description="Retype detached volume",
         request=serializers.OpenStackVolumeRetypeSerializer,
         responses=None,
@@ -1416,6 +1688,28 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     retype_serializer_class = serializers.OpenStackVolumeRetypeSerializer
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List snapshots",
+        description="Get a list of snapshots.",
+    ),
+    retrieve=extend_schema(
+        summary="Get snapshot details",
+        description="Retrieve details of a specific snapshot.",
+    ),
+    update=extend_schema(
+        summary="Update snapshot",
+        description="Update an existing snapshot.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update snapshot",
+        description="Update specific fields of a snapshot.",
+    ),
+    destroy=extend_schema(
+        summary="Delete snapshot",
+        description="Delete a snapshot.",
+    ),
+)
 class SnapshotViewSet(structure_views.ResourceViewSet):
     queryset = models.Snapshot.objects.all().order_by("name")
     serializer_class = serializers.OpenStackSnapshotSerializer
@@ -1426,6 +1720,7 @@ class SnapshotViewSet(structure_views.ResourceViewSet):
     disabled_actions = ["create"]
 
     @extend_schema(
+        summary="Restore volume from snapshot",
         description="Restore volume from snapshot",
         request=serializers.OpenStackSnapshotRestorationSerializer,
         responses=serializers.OpenStackVolumeSerializer,
@@ -1450,6 +1745,7 @@ class SnapshotViewSet(structure_views.ResourceViewSet):
     restore_validators = [core_validators.StateValidator(CoreStates.OK)]
 
     @extend_schema(
+        summary="List snapshot restorations",
         description="Get a list of snapshot restorations",
         request=None,
         responses=serializers.OpenStackSnapshotRestorationSerializer(many=True),
@@ -1464,6 +1760,16 @@ class SnapshotViewSet(structure_views.ResourceViewSet):
     restorations_serializer_class = serializers.OpenStackSnapshotRestorationSerializer
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List instance availability zones",
+        description="Get a list of instance availability zones.",
+    ),
+    retrieve=extend_schema(
+        summary="Get instance availability zone details",
+        description="Retrieve details of a specific instance availability zone.",
+    ),
+)
 class InstanceAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.InstanceAvailabilityZone.objects.all().order_by(
         "settings", "name"
@@ -1473,6 +1779,24 @@ class InstanceAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet
     filterset_class = filters.InstanceAvailabilityZoneFilter
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List instances",
+        description="Get a list of VM instances.",
+    ),
+    retrieve=extend_schema(
+        summary="Get instance details",
+        description="Retrieve details of a specific VM instance.",
+    ),
+    update=extend_schema(
+        summary="Update instance",
+        description="Update an existing VM instance.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update instance",
+        description="Update specific fields of a VM instance.",
+    ),
+)
 class InstanceViewSet(structure_views.ResourceViewSet):
     """
     OpenStack instance permissions
@@ -1514,6 +1838,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
                 )
 
     @extend_schema(
+        summary="Change instance flavor",
         description="Change flavor of the instance",
         request=serializers.InstanceFlavorChangeSerializer,
         responses=None,
@@ -1553,6 +1878,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     change_flavor_permissions = [openstack_permissions.can_manage_openstack_instance]
 
     @extend_schema(
+        summary="Start instance",
         description="Start the instance",
         request=None,
         responses=None,
@@ -1583,6 +1909,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     start_serializer_class = EmptySerializer
 
     @extend_schema(
+        summary="Stop instance",
         description="Stop the instance",
         request=None,
         responses=None,
@@ -1613,6 +1940,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     stop_serializer_class = EmptySerializer
 
     @extend_schema(
+        summary="Restart instance",
         description="Restart the instance",
         request=None,
         responses=None,
@@ -1643,6 +1971,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     restart_serializer_class = EmptySerializer
 
     @extend_schema(
+        summary="Update instance security groups",
         description="Update security groups of the instance",
         request=serializers.OpenStackInstanceSecurityGroupsUpdateSerializer,
         responses=None,
@@ -1669,6 +1998,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
 
     @extend_schema(
+        summary="Create instance backup",
         description="Create backup from instance",
         request=serializers.OpenStackBackupSerializer,
         responses=serializers.OpenStackBackupSerializer,
@@ -1687,6 +2017,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     backup_serializer_class = serializers.OpenStackBackupSerializer
 
     @extend_schema(
+        summary="Update instance allowed address pairs",
         description="Update allowed address pairs of the instance",
         request=serializers.OpenStackInstanceAllowedAddressPairsUpdateSerializer,
         responses=None,
@@ -1733,6 +2064,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
 
     @extend_schema(
+        summary="Update instance ports",
         description="Update ports of the instance",
         request=serializers.OpenStackInstancePortsUpdateSerializer,
         responses=None,
@@ -1755,6 +2087,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     update_ports_serializer_class = serializers.OpenStackInstancePortsUpdateSerializer
 
     @extend_schema(
+        summary="List instance ports",
         description="Get a list of instance ports",
         request=None,
         responses=serializers.OpenStackNestedPortSerializer(many=True),
@@ -1769,6 +2102,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     ports_serializer_class = serializers.OpenStackNestedPortSerializer
 
     @extend_schema(
+        summary="Update instance floating IPs",
         description="Update floating IPs of the instance",
         request=serializers.OpenStackInstanceFloatingIPsUpdateSerializer,
         responses=None,
@@ -1795,6 +2129,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
 
     @extend_schema(
+        summary="List instance floating IPs",
         description="Get a list of instance floating IPs",
         request=None,
         responses=serializers.OpenStackInstanceFloatingIpsSerializer,
@@ -1811,6 +2146,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Get console URL",
         description="Get console url for the instance",
         request=None,
         responses=ConsoleUrlSerializer,
@@ -1832,6 +2168,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     console_permissions = [openstack_permissions.has_permissions_for_console]
 
     @extend_schema(
+        summary="Get console log",
         description="Get console log for the instance",
         parameters=[OpenApiParameter("length", int, OpenApiParameter.QUERY)],
         request=None,
@@ -1857,6 +2194,24 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     console_log_permissions = [openstack_permissions.has_permissions_for_console]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List instances created via Marketplace",
+        description="Get a list of VM instances that were created via the Marketplace.",
+    ),
+    retrieve=extend_schema(
+        summary="Get instance created via Marketplace",
+        description="Retrieve details of a specific VM instance created via the Marketplace.",
+    ),
+    create=extend_schema(
+        summary="Create instance via Marketplace",
+        description="Create a new VM instance through a Marketplace offering.",
+    ),
+    destroy=extend_schema(
+        summary="Destroy instance created via Marketplace",
+        description="Delete a VM instance created via the Marketplace.",
+    ),
+)
 class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
     queryset = models.Instance.objects.all()
     serializer_class = serializers.OpenStackInstanceCreateSerializer
@@ -1864,6 +2219,10 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
         structure_filters.StartTimeFilter,
     )
 
+    @extend_schema(
+        summary="Force destroy instance",
+        description="Forcefully destroy the instance, bypassing some state checks. This action is intended for recovery from failed states and should be used with caution.",
+    )
     @decorators.action(detail=True, methods=["delete"])
     def force_destroy(self, request, uuid=None):
         """This action completely repeats 'destroy', with the exclusion of validators.
@@ -1894,6 +2253,24 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
         )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List volumes created via Marketplace",
+        description="Get a list of volumes that were created via the Marketplace.",
+    ),
+    retrieve=extend_schema(
+        summary="Get volume created via Marketplace",
+        description="Retrieve details of a specific volume created via the Marketplace.",
+    ),
+    create=extend_schema(
+        summary="Create volume via Marketplace",
+        description="Create a new volume through a Marketplace offering.",
+    ),
+    destroy=extend_schema(
+        summary="Destroy volume created via Marketplace",
+        description="Delete a volume created via the Marketplace.",
+    ),
+)
 class MarketplaceVolumeViewSet(structure_views.ResourceViewSet):
     queryset = models.Volume.objects.all().order_by("name")
     serializer_class = serializers.OpenStackVolumeSerializer
@@ -1925,6 +2302,28 @@ class MarketplaceVolumeViewSet(structure_views.ResourceViewSet):
     ]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List backups",
+        description="Get a list of instance backups.",
+    ),
+    retrieve=extend_schema(
+        summary="Get backup details",
+        description="Retrieve details of a specific instance backup.",
+    ),
+    update=extend_schema(
+        summary="Update backup",
+        description="Update an existing instance backup.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update backup",
+        description="Update specific fields of an instance backup.",
+    ),
+    destroy=extend_schema(
+        summary="Delete backup",
+        description="Delete an instance backup.",
+    ),
+)
 class BackupViewSet(structure_views.ResourceViewSet):
     queryset = models.Backup.objects.all().order_by("name")
     serializer_class = serializers.OpenStackBackupSerializer
@@ -1939,6 +2338,7 @@ class BackupViewSet(structure_views.ResourceViewSet):
         serializer.save()
 
     @extend_schema(
+        summary="Restore instance from backup",
         description="Restore instance from backup",
         request=serializers.OpenStackBackupRestorationCreateSerializer,
         responses=serializers.OpenStackInstanceSerializer,
@@ -2002,6 +2402,16 @@ class SharedSettingsBaseView(generics.GenericAPIView):
         return self.get_paginated_response(serializer.data)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List volume availability zones",
+        description="Get a list of volume availability zones.",
+    ),
+    retrieve=extend_schema(
+        summary="Get volume availability zone details",
+        description="Retrieve details of a specific volume availability zone.",
+    ),
+)
 class VolumeAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.VolumeAvailabilityZone.objects.all().order_by("settings", "name")
     serializer_class = serializers.OpenStackVolumeAvailabilityZoneSerializer
@@ -2009,6 +2419,16 @@ class VolumeAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
     filterset_class = filters.VolumeAvailabilityZoneFilter
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List network RBAC policies",
+        description="Get a list of network RBAC policies.",
+    ),
+    retrieve=extend_schema(
+        summary="Get network RBAC policy details",
+        description="Retrieve details of a specific network RBAC policy.",
+    ),
+)
 class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.NetworkRBACPolicy.objects.all().order_by("-created")
@@ -2037,6 +2457,7 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
         raise exceptions.PermissionDenied()
 
     @extend_schema(
+        summary="Create RBAC policy",
         description="Create RBAC policy for the network",
         request=serializers.NetworkRBACPolicySerializer,
         responses=serializers.NetworkRBACPolicySerializer,
@@ -2076,6 +2497,7 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
         return response.Response(result_serializer.data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
+        summary="Delete RBAC policy",
         description="Delete RBAC policy for the network",
         request=None,
         responses={204: None},
