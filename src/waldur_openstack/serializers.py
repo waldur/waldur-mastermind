@@ -858,11 +858,29 @@ def can_create_tenant(
         )
 
 
+class OpenStackTenantSecurityGroupSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    description = serializers.CharField(required=False, allow_blank=True)
+    rules = OpenStackSecurityGroupRuleCreateSerializer(many=True, required=False)
+
+    def validate_name(self, value):
+        if value == "default":
+            raise serializers.ValidationError(
+                _("Default security group is managed by OpenStack itself.")
+            )
+        return value
+
+
 class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
     quotas = QuotaSerializer(many=True, read_only=True)
     subnet_cidr = serializers.CharField(
         default="192.168.42.0/24",
         initial="192.168.42.0/24",
+        write_only=True,
+    )
+    security_groups = OpenStackTenantSecurityGroupSerializer(
+        many=True,
+        required=False,
         write_only=True,
     )
 
@@ -877,6 +895,7 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
             "quotas",
             "subnet_cidr",
             "default_volume_type_name",
+            "security_groups",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -913,7 +932,20 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
 
         return fields
 
-    def validate_security_groups_configuration(self):
+    def validate_security_groups_configuration(self, attrs):
+        security_groups = attrs.get("security_groups")
+        if security_groups:
+            names = [sg["name"] for sg in security_groups]
+            if len(names) != len(set(names)):
+                raise serializers.ValidationError(
+                    {
+                        "security_groups": _(
+                            "Security group names must be unique within the request."
+                        )
+                    }
+                )
+            return
+
         plugin_settings = getattr(settings, "WALDUR_OPENSTACK", {})
         config_groups = plugin_settings.get("DEFAULT_SECURITY_GROUPS", [])
         for group in config_groups:
@@ -1001,7 +1033,7 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
             project = attrs["project"]
             can_create_tenant(user, project)
 
-        self.validate_security_groups_configuration()
+        self.validate_security_groups_configuration(attrs)
 
         if self.instance is not None:
             service_settings = self.instance.service_settings
@@ -1047,6 +1079,8 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
         validated_data["user_password"] = core_utils.pwgen()
 
         subnet_cidr = validated_data.pop("subnet_cidr")
+        security_groups_data = validated_data.pop("security_groups", None)
+
         # if MTU was passed
         mtu = validated_data.get("mtu")
         with transaction.atomic():
@@ -1069,40 +1103,58 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
                 cidr=subnet_cidr,
                 dns_nameservers=service_settings.options.get("dns_nameservers", []),
             )
+            self.create_default_security_groups(tenant, security_groups_data)
 
-            plugin_settings = getattr(settings, "WALDUR_OPENSTACK", {})
-            config_groups = copy.deepcopy(
-                plugin_settings.get("DEFAULT_SECURITY_GROUPS", [])
-            )
+        return tenant
 
-            for group in config_groups:
-                sg_name = group.get("name")
-                sg_description = group.get("description", None)
-                sg = models.SecurityGroup.objects.get_or_create(
+    def create_default_security_groups(
+        self, tenant: models.Tenant, security_groups_data: dict | None = None
+    ):
+        if security_groups_data is not None:
+            for group_data in security_groups_data:
+                rules: list[models.SecurityGroupRule] = group_data.pop("rules", [])
+                sg = models.SecurityGroup.objects.create(
                     service_settings=tenant.service_settings,
                     project=tenant.project,
                     tenant=tenant,
-                    description=sg_description,
-                    name=sg_name,
-                )[0]
+                    **group_data,
+                )
+                for rule in rules:
+                    rule.security_group = sg
+                    rule.save()
+            return
 
-                for rule in group.get("rules"):
-                    if "icmp_type" in rule:
-                        rule["from_port"] = rule.pop("icmp_type")
-                    if "icmp_code" in rule:
-                        rule["to_port"] = rule.pop("icmp_code")
+        plugin_settings = getattr(settings, "WALDUR_OPENSTACK", {})
+        config_groups = copy.deepcopy(
+            plugin_settings.get("DEFAULT_SECURITY_GROUPS", [])
+        )
 
-                    try:
-                        rule = models.SecurityGroupRule(security_group=sg, **rule)
-                        rule.full_clean()
-                    except serializers.ValidationError as e:
-                        logger.error(
-                            f"Failed to create rule for security group {sg_name}: {e}."
-                        )
-                    else:
-                        rule.save()
+        for group in config_groups:
+            sg_name = group.get("name")
+            sg_description = group.get("description", None)
+            sg = models.SecurityGroup.objects.get_or_create(
+                service_settings=tenant.service_settings,
+                project=tenant.project,
+                tenant=tenant,
+                description=sg_description,
+                name=sg_name,
+            )[0]
 
-        return tenant
+            for rule in group.get("rules"):
+                if "icmp_type" in rule:
+                    rule["from_port"] = rule.pop("icmp_type")
+                if "icmp_code" in rule:
+                    rule["to_port"] = rule.pop("icmp_code")
+
+                try:
+                    rule = models.SecurityGroupRule(security_group=sg, **rule)
+                    rule.full_clean()
+                except serializers.ValidationError as e:
+                    logger.error(
+                        f"Failed to create rule for security group {sg_name}: {e}."
+                    )
+                else:
+                    rule.save()
 
 
 class OpenStackSubNetAllocationPoolSerializer(serializers.Serializer):

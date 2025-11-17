@@ -342,6 +342,67 @@ class TenantCreateTest(BaseTenantActionsTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_tenant_is_created_with_custom_security_groups(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self.valid_data.copy()
+        payload["security_groups"] = [
+            {
+                "name": "web",
+                "description": "Web server",
+                "rules": [
+                    {
+                        "protocol": "tcp",
+                        "from_port": 80,
+                        "to_port": 80,
+                        "cidr": "0.0.0.0/0",
+                    }
+                ],
+            }
+        ]
+
+        response = self.client.post(self.url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        tenant = models.Tenant.objects.get(name=payload["name"])
+        self.assertEqual(tenant.security_groups.count(), 1)
+        sg = tenant.security_groups.first()
+        self.assertEqual(sg.name, "web")
+        self.assertEqual(sg.rules.count(), 1)
+        rule = sg.rules.first()
+        self.assertEqual(rule.from_port, 80)
+
+    @override_openstack_settings(DEFAULT_SECURITY_GROUPS=[{"name": "default-sg"}])
+    def test_default_security_groups_are_not_created_if_custom_are_provided(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self.valid_data.copy()
+        payload["security_groups"] = [{"name": "web"}]
+
+        response = self.client.post(self.url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        tenant = models.Tenant.objects.get(name=payload["name"])
+        self.assertEqual(tenant.security_groups.count(), 1)
+        self.assertEqual(tenant.security_groups.first().name, "web")
+        self.assertFalse(tenant.security_groups.filter(name="default-sg").exists())
+
+    def test_tenant_is_not_created_if_custom_security_group_names_are_not_unique(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self.valid_data.copy()
+        payload["security_groups"] = [{"name": "web"}, {"name": "web"}]
+
+        response = self.client.post(self.url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("security_groups", response.data)
+
+    def test_tenant_is_not_created_if_custom_security_group_name_is_default(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self.valid_data.copy()
+        payload["security_groups"] = [{"name": "default"}]
+
+        response = self.client.post(self.url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("security_groups", response.data)
+
     def test_task_id(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url, data=self.valid_data)
