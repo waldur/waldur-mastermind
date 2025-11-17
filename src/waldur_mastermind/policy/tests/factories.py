@@ -76,6 +76,7 @@ class OfferingEstimatedCostPolicyFactory(
     scope = factory.SubFactory(marketplace_factories.OfferingFactory)
     limit_cost = 10
     actions = "notify_organization_owners,block_creation_of_new_resources"
+    apply_to_all = True  # Simpler default for most tests
 
     @classmethod
     def get_list_url(cls, action=None):
@@ -104,6 +105,9 @@ class OfferingUsagePolicyFactory(
 
     scope = factory.SubFactory(marketplace_factories.OfferingFactory)
     actions = "notify_organization_owners,block_creation_of_new_resources"
+    apply_to_all = (
+        False  # Use organization_groups for compatibility with existing tests
+    )
 
     @classmethod
     def get_list_url(cls, action=None):
@@ -170,6 +174,7 @@ class SlurmPeriodicUsagePolicyFactory(
 
     scope = factory.SubFactory(marketplace_factories.OfferingFactory)
     actions = "notify_organization_owners"
+    apply_to_all = True
     limit_type = "GrpTRESMins"
     tres_billing_enabled = True
     grace_ratio = 0.2

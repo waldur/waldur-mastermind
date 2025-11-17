@@ -39,6 +39,7 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
         """Test basic policy model creation."""
         policy = SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
+            apply_to_all=True,  # Required field now
             grace_ratio=0.2,
             carryover_enabled=True,
             fairshare_decay_half_life=15,
@@ -57,6 +58,7 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
         """Test basic settings calculation without complex mocking."""
         policy = SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
+            apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=False,  # Disable carryover to simplify test
         )
@@ -81,7 +83,7 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
     def test_decay_calculation_method(self):
         """Test decay calculation method directly."""
         SlurmPeriodicUsagePolicy.objects.create(
-            scope=self.offering, fairshare_decay_half_life=15
+            scope=self.offering, apply_to_all=True, fairshare_decay_half_life=15
         )
 
         # Test the calculation logic that's used in carryover
@@ -112,7 +114,7 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
     def test_tres_billing_calculation(self):
         """Test TRES billing calculation method."""
         policy = SlurmPeriodicUsagePolicy.objects.create(
-            scope=self.offering, tres_billing_enabled=True
+            scope=self.offering, apply_to_all=True, tres_billing_enabled=True
         )
 
         # Test billing minutes calculation
@@ -130,6 +132,7 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
         """Test QoS threshold calculation."""
         policy = SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
+            apply_to_all=True,
             grace_ratio=0.25,  # 25% grace
             tres_billing_enabled=True,
         )
@@ -155,6 +158,7 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
         """Test configuration resolution without complex scenarios."""
         policy = SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
+            apply_to_all=True,
             grace_ratio=0.2,
             limit_type="MaxTRESMins",
             tres_billing_enabled=False,
@@ -239,13 +243,19 @@ class TestSlurmPeriodicUsagePolicyCore(TestCase):
         self.assertTrue(hasattr(policy, "is_triggered"))
         self.assertTrue(hasattr(policy, "apply_policy_actions"))
 
+        # Test that new available_actions includes SLURM-specific ones
+        self.assertIn("request_downscaling", policy.available_actions)
+        self.assertIn("request_pausing", policy.available_actions)
+
         print("✅ Policy inheritance working correctly")
 
     def test_model_fields_and_defaults(self):
         """Test all model fields and their defaults."""
         offering = marketplace_factories.OfferingFactory()
 
-        policy = SlurmPeriodicUsagePolicy.objects.create(scope=offering)
+        policy = SlurmPeriodicUsagePolicy.objects.create(
+            scope=offering, apply_to_all=True
+        )
 
         # Test all defaults
         self.assertEqual(policy.limit_type, "GrpTRESMins")
@@ -273,7 +283,7 @@ class TestSlurmPeriodicUsagePolicyCore(TestCase):
 
         for limit_type, description in limit_types:
             policy = SlurmPeriodicUsagePolicy.objects.create(
-                scope=offering, limit_type=limit_type
+                scope=offering, apply_to_all=True, limit_type=limit_type
             )
 
             self.assertEqual(policy.limit_type, limit_type)
@@ -289,7 +299,7 @@ class TestSlurmPeriodicUsagePolicyCore(TestCase):
         custom_weights = {"CPU": 0.01, "Mem": 0.002, "GRES/gpu": 0.5}
 
         policy = SlurmPeriodicUsagePolicy.objects.create(
-            scope=offering, tres_billing_weights=custom_weights
+            scope=offering, apply_to_all=True, tres_billing_weights=custom_weights
         )
 
         # Reload from database
@@ -310,6 +320,7 @@ class TestSlurmPeriodicUsagePolicyConstraints(TestCase):
         # Create first policy - should work
         policy1 = SlurmPeriodicUsagePolicy.objects.create(
             scope=offering,
+            apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=True,
         )
@@ -321,6 +332,7 @@ class TestSlurmPeriodicUsagePolicyConstraints(TestCase):
         with self.assertRaises(ValidationError) as cm:
             SlurmPeriodicUsagePolicy.objects.create(
                 scope=offering,
+                apply_to_all=True,
                 grace_ratio=0.3,
                 carryover_enabled=False,
             )
@@ -338,11 +350,13 @@ class TestSlurmPeriodicUsagePolicyConstraints(TestCase):
         # Create policies for different offerings - should work
         policy1 = SlurmPeriodicUsagePolicy.objects.create(
             scope=offering1,
+            apply_to_all=True,
             grace_ratio=0.2,
         )
 
         policy2 = SlurmPeriodicUsagePolicy.objects.create(
             scope=offering2,
+            apply_to_all=True,
             grace_ratio=0.3,
         )
 
@@ -360,6 +374,7 @@ class TestSlurmPeriodicUsagePolicyConstraints(TestCase):
 
         policy = SlurmPeriodicUsagePolicy.objects.create(
             scope=offering,
+            apply_to_all=True,
             grace_ratio=0.2,
         )
 
@@ -384,6 +399,7 @@ class TestSlurmPeriodicUsagePolicyConstraints(TestCase):
         # Create policy
         policy1 = SlurmPeriodicUsagePolicy.objects.create(
             scope=offering,
+            apply_to_all=True,
             grace_ratio=0.2,
         )
         policy1_id = policy1.pk
@@ -397,6 +413,7 @@ class TestSlurmPeriodicUsagePolicyConstraints(TestCase):
         # Create new policy for same offering - should work
         policy2 = SlurmPeriodicUsagePolicy.objects.create(
             scope=offering,
+            apply_to_all=True,
             grace_ratio=0.3,
         )
 

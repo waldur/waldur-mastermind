@@ -4,6 +4,7 @@ import logging
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core import exceptions
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q, Sum
 from django.utils.translation import gettext_lazy as _
@@ -239,7 +240,14 @@ class OfferingPolicy(Policy):
     observable_classes = []
 
     scope = models.ForeignKey(marketplace_models.Offering, on_delete=models.CASCADE)
-    organization_groups = models.ManyToManyField(structure_models.OrganizationGroup)
+    organization_groups = models.ManyToManyField(
+        structure_models.OrganizationGroup, blank=True
+    )
+    apply_to_all = models.BooleanField(
+        default=False,
+        help_text="If True, policy applies to all customers. "
+        "Mutually exclusive with organization_groups.",
+    )
     actions = models.CharField(max_length=255)
 
     @staticmethod
@@ -253,19 +261,58 @@ class OfferingPolicy(Policy):
             uuid=self.scope.uuid.hex,
         )
 
+    def clean(self):
+        super().clean()
+        # Validate mutual exclusivity for saved instances
+        if self.pk:
+            if self.apply_to_all and self.organization_groups.exists():
+                raise ValidationError(
+                    "Cannot set apply_to_all=True when organization_groups are specified. "
+                    "Choose one approach: either apply_to_all or specific organization_groups."
+                )
+            if not self.apply_to_all and not self.organization_groups.exists():
+                raise ValidationError(
+                    "Must either set apply_to_all=True or specify organization_groups."
+                )
+
+    def get_affected_customers(self):
+        """Get customers affected by this policy based on apply_to_all or organization_groups"""
+        if self.apply_to_all:
+            return structure_models.Customer.objects.filter(
+                blocked=False,
+                archived=False,
+            )
+        else:
+            return structure_models.Customer.objects.filter(
+                organization_groups__in=self.organization_groups.all(),
+                blocked=False,
+                archived=False,
+            )
+
     class Meta:
         abstract = True
 
 
 class OfferingEstimatedCostPolicy(EstimatedCostPolicyMixin, OfferingPolicy):
     def is_triggered(self):
-        customers = structure_models.Customer.objects.filter(
-            organization_groups__in=self.organization_groups.all()
-        )
-        items = invoices_models.InvoiceItem.objects.filter(
-            resource__offering=self.scope,
-            invoice__customer__in=customers,
-        )
+        # Use optimized query based on apply_to_all setting
+        if self.apply_to_all:
+            # Direct filter on invoice items without customer IN clause
+            items = invoices_models.InvoiceItem.objects.filter(
+                resource__offering=self.scope,
+                invoice__customer__blocked=False,
+                invoice__customer__archived=False,
+            )
+        else:
+            customers = structure_models.Customer.objects.filter(
+                organization_groups__in=self.organization_groups.all(),
+                blocked=False,
+                archived=False,
+            )
+            items = invoices_models.InvoiceItem.objects.filter(
+                resource__offering=self.scope,
+                invoice__customer__in=customers,
+            )
         return self._is_triggered(items)
 
     class Meta:
@@ -282,14 +329,23 @@ class OfferingUsagePolicy(invoices_models.PeriodMixin, OfferingPolicy):
     )
 
     def is_triggered(self):
-        customers = structure_models.Customer.objects.filter(
-            organization_groups__in=self.organization_groups.all(),
-            blocked=False,
-            archived=False,
-        )
-        usages = marketplace_models.ComponentUsage.objects.filter(
-            resource__project__customer__in=customers
-        )
+        # Use optimized query based on apply_to_all setting
+        if self.apply_to_all:
+            # Direct filter without customer IN clause
+            usages = marketplace_models.ComponentUsage.objects.filter(
+                resource__offering=self.scope,
+                resource__project__customer__blocked=False,
+                resource__project__customer__archived=False,
+            )
+        else:
+            customers = structure_models.Customer.objects.filter(
+                organization_groups__in=self.organization_groups.all(),
+                blocked=False,
+                archived=False,
+            )
+            usages = marketplace_models.ComponentUsage.objects.filter(
+                resource__offering=self.scope, resource__project__customer__in=customers
+            )
 
         usages = usages.filter(
             billing_period__lte=core_utils.month_end(datetime.date.today())
@@ -391,6 +447,12 @@ class CustomerUsagePolicyComponent(invoices_models.PeriodMixin, TimeStampedModel
 
 class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
     """SLURM-specific periodic usage policy with decay and carryover logic."""
+
+    # Extend available actions to include SLURM-relevant ones
+    available_actions = OfferingPolicy.available_actions | {
+        "request_downscaling",  # Apply slowdown QoS
+        "request_pausing",  # Apply blocked QoS
+    }
 
     # Core SLURM configuration options
     limit_type = models.CharField(
@@ -772,26 +834,134 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         return qos_threshold, grace_limit
 
     def is_triggered(self):
-        """Check if policy should be triggered based on usage changes."""
-        # This method is called by the policy framework when ComponentUsage changes
-        # We trigger on any usage change for SLURM resources
+        """Check if policy should be triggered based on usage thresholds.
 
-        # Get all customers in scope
-        customers = structure_models.Customer.objects.filter(
-            organization_groups__in=self.organization_groups.all(),
-            blocked=False,
-            archived=False,
+        Returns True if any resource exceeds the configured thresholds.
+        This triggers the actions defined in the policy (e.g., request_downscaling, request_pausing).
+        """
+        # Get affected customers based on apply_to_all or organization_groups
+        customers = self.get_affected_customers()
+
+        # Get current period for usage calculation
+        current_period = self._get_current_period()
+
+        # Check usage for all resources in this offering
+        resources = marketplace_models.Resource.objects.filter(
+            project__customer__in=customers,
+            offering=self.scope,
+        ).exclude(
+            state__in=(
+                marketplace_models.ResourceStates.TERMINATED,
+                marketplace_models.ResourceStates.TERMINATING,
+            )
         )
 
-        # Check for recent usage changes in SLURM resources
-        recent_usage = marketplace_models.ComponentUsage.objects.filter(
-            resource__project__customer__in=customers,
-            resource__offering=self.scope,
-            modified__gte=self.modified
-            - datetime.timedelta(minutes=5),  # Recent changes
-        )
+        # Check each resource against thresholds
+        for resource in resources:
+            usage_percentage = self.get_resource_usage_percentage(
+                resource, current_period
+            )
 
-        return recent_usage.exists()
+            # Check if we've crossed any threshold
+            if "request_pausing" in self.actions:
+                # Check grace limit (typically 120%)
+                grace_limit_percentage = (1 + self.grace_ratio) * 100
+                if usage_percentage >= grace_limit_percentage:
+                    logger.info(
+                        f"Resource {resource.uuid} exceeds grace limit: {usage_percentage:.1f}% >= {grace_limit_percentage:.1f}%"
+                    )
+                    return True
+
+            if "request_downscaling" in self.actions:
+                # Check normal threshold (100%)
+                if usage_percentage >= 100:
+                    logger.info(
+                        f"Resource {resource.uuid} exceeds threshold: {usage_percentage:.1f}% >= 100%"
+                    )
+                    return True
+
+            if (
+                "notify_organization_owners" in self.actions
+                or "notify_external_user" in self.actions
+            ):
+                # Notification threshold can be lower (e.g., 80%)
+                notification_threshold = 80  # Could be made configurable
+                if usage_percentage >= notification_threshold:
+                    logger.info(
+                        f"Resource {resource.uuid} exceeds notification threshold: {usage_percentage:.1f}% >= {notification_threshold}%"
+                    )
+                    return True
+
+        return False
+
+    def get_resource_usage_percentage(self, resource, current_period=None):
+        """Calculate usage percentage for a resource in the current period.
+
+        Returns:
+            float: Usage percentage (0-inf), where 100 = full allocation used
+        """
+        if not current_period:
+            current_period = self._get_current_period()
+
+        # Get base allocation for this resource
+        base_allocation = self._get_base_allocation(resource)
+
+        # Apply carryover if enabled
+        if self.carryover_enabled:
+            total_allocation, _ = self._calculate_allocation_with_carryover(
+                resource,
+                base_allocation,
+                current_period,
+                {
+                    "carryover_enabled": True,
+                    "fairshare_decay_half_life": self.fairshare_decay_half_life,
+                },
+            )
+        else:
+            total_allocation = base_allocation
+
+        # Get current usage for this period
+        current_usage = self._get_current_period_usage(resource, current_period)
+
+        # Calculate percentage
+        if total_allocation > 0:
+            return (current_usage / total_allocation) * 100
+        return 0
+
+    def _get_current_period_usage(self, resource, current_period):
+        """Get total usage for resource in current period."""
+        try:
+            # Parse period to get date range
+            year, quarter = current_period.split("-Q")
+            year = int(year)
+            quarter = int(quarter)
+
+            # Calculate quarter date range
+            start_month = (quarter - 1) * 3 + 1
+            start_date = datetime.date(year, start_month, 1)
+
+            if quarter == 4:
+                end_date = datetime.date(year, 12, 31)
+            else:
+                next_quarter_start = datetime.date(year, start_month + 3, 1)
+                end_date = next_quarter_start - relativedelta(days=1)
+
+            # Get component usage for the period
+            usage_total = 0.0
+            usages = marketplace_models.ComponentUsage.objects.filter(
+                resource=resource,
+                billing_period__gte=start_date,
+                billing_period__lte=end_date,
+            )
+
+            for usage in usages:
+                usage_total += float(usage.usage)
+
+            return usage_total
+
+        except Exception as e:
+            logger.error(f"Error getting current period usage: {e}")
+            return 0.0
 
     def apply_policy_actions(self, resource):
         """Apply policy actions - calculate and send settings to site agent."""

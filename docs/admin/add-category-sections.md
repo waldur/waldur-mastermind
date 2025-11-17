@@ -180,4 +180,3 @@ After adding sections, verify in the UI:
 For more examples, see the standard category definitions in:
 
 - `src/waldur_mastermind/marketplace/management/commands/load_categories.py`
-

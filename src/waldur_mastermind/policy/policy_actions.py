@@ -16,6 +16,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
 )
 from waldur_mastermind.marketplace.exceptions import PolicyException
+from waldur_mastermind.marketplace.models import Offering
 from waldur_mastermind.policy import models, tasks
 
 from . import enums, structures
@@ -70,9 +71,11 @@ def terminate_resources(policy: models.Policy):
         resources = resources.filter(project=policy.scope)
     elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
+    elif isinstance(policy.scope, Offering):
+        resources = resources.filter(offering=policy.scope)
     else:
-        # Assuming that policy scope is an offering
-        resources = resources.filter(offeirng=policy.scope)
+        logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
+        return
 
     for resource in resources:
         with transaction.atomic():
@@ -157,9 +160,11 @@ def request_downscaling(policy: models.Policy):
         resources = resources.filter(project=policy.scope)
     elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
+    elif isinstance(policy.scope, Offering):
+        resources = resources.filter(offering=policy.scope)
     else:
-        # Assuming that policy scope is an offering
-        resources = resources.filter(offeirng=policy.scope)
+        logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
+        return
 
     resources.update(downscaled=True)
     logger.info(
@@ -170,7 +175,7 @@ def request_downscaling(policy: models.Policy):
     event_logger.emit(
         "Cost policy has been triggered and downscaling has been requested. Resources: %s"
         % ", ".join([str(r) for r in resources]),
-        event_type=EventType.BLOCK_MODIFICATION_OF_EXISTING_RESOURCES,
+        event_type=EventType.REQUEST_DOWNSCALING,
         event_context={"policy_uuid": policy.uuid.hex},
         scopes=[],
     )
@@ -190,9 +195,11 @@ def reset_downscaling(policy: models.Policy):
         resources = resources.filter(project=policy.scope)
     elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
+    elif isinstance(policy.scope, Offering):
+        resources = resources.filter(offering=policy.scope)
     else:
-        # Assuming that policy scope is an offering
-        resources = resources.filter(offeirng=policy.scope)
+        logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
+        return
 
     resources.update(downscaled=False)
     logger.info(
@@ -211,9 +218,11 @@ def restrict_members(policy: models.Policy):
         resources = resources.filter(project=policy.scope)
     elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
+    elif isinstance(policy.scope, Offering):
+        resources = resources.filter(offering=policy.scope)
     else:
-        # Assuming that policy scope is an offering
-        resources = resources.filter(offeirng=policy.scope)
+        logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
+        return
 
     resources.update(restrict_member_access=True)
 
@@ -240,9 +249,11 @@ def reset_member_restriction(policy: models.Policy):
         resources = resources.filter(project=policy.scope)
     elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
+    elif isinstance(policy.scope, Offering):
+        resources = resources.filter(offering=policy.scope)
     else:
-        # Assuming that policy scope is an offering
-        resources = resources.filter(offeirng=policy.scope)
+        logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
+        return
 
     resources.update(restrict_member_access=False)
 
@@ -262,9 +273,11 @@ def request_pausing(policy: models.Policy):
         resources = resources.filter(project=policy.scope)
     elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
+    elif isinstance(policy.scope, Offering):
+        resources = resources.filter(offering=policy.scope)
     else:
-        # Assuming that policy scope is an offering
-        resources = resources.filter(offeirng=policy.scope)
+        logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
+        return
 
     resources.update(paused=True)
     logger.info(
@@ -290,9 +303,11 @@ def reset_pausing(policy: models.Policy):
         resources = resources.filter(project=policy.scope)
     elif isinstance(policy.scope, Customer):
         resources = resources.filter(project__customer=policy.scope)
+    elif isinstance(policy.scope, Offering):
+        resources = resources.filter(offering=policy.scope)
     else:
-        # Assuming that policy scope is an offering
-        resources = resources.filter(offeirng=policy.scope)
+        logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
+        return
 
     resources.update(paused=False)
     logger.info(

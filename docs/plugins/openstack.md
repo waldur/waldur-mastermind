@@ -122,6 +122,160 @@ The plugin enables:
 | List Images | Get available images | `GET /api/openstack-images/` |
 | Import Images | Sync images from Glance | Handled via tenant sync |
 | Image Metadata | Get image properties | Included in image list |
+| **Custom Images** | | |
+| Create Custom Image | Create image metadata | `POST /api/openstack-marketplace/{tenant_uuid}/create_image/` |
+| Upload Image Data | Upload binary image data | `POST /api/openstack-marketplace/{tenant_uuid}/upload_image_data/{image_id}/` |
+
+## Custom Image Upload Workflow
+
+The OpenStack plugin provides a two-step process for uploading custom images to OpenStack Glance, enabling users to create and use their own VM images.
+
+### Overview
+
+The image upload process consists of two sequential API calls:
+
+1. **Create Image Metadata**: Creates an empty image record in OpenStack with metadata
+2. **Upload Image Data**: Streams the actual image file content to OpenStack
+
+### Step 1: Create Image Metadata
+
+**Endpoint**: `POST /api/openstack-marketplace/{tenant_uuid}/create_image/`
+
+Creates an image metadata record in OpenStack Glance and returns an upload URL.
+
+#### Required Parameters
+
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|---------|
+| `name` | string | Image name | Required |
+| `disk_format` | string | Disk format | `qcow2` |
+| `container_format` | string | Container format | `bare` |
+| `visibility` | string | Image visibility | `private` |
+| `min_disk` | integer | Minimum disk size (GB) | `0` |
+| `min_ram` | integer | Minimum RAM (MB) | `0` |
+
+#### Supported Disk Formats
+
+- `qcow2` - QEMU Copy On Write (recommended)
+- `raw` - Raw disk image
+- `vhd` - Virtual Hard Disk
+- `vmdk` - VMware Virtual Machine Disk
+- `vdi` - VirtualBox Disk Image
+- `iso` - ISO 9660 disk image
+- `aki`, `ami`, `ari` - Amazon kernel/machine/ramdisk images
+
+#### Supported Container Formats
+
+- `bare` - No container (most common)
+- `ovf` - Open Virtualization Format
+- `aki`, `ami`, `ari` - Amazon formats
+
+#### Example Request
+
+```json
+{
+    "name": "My Custom Ubuntu Image",
+    "disk_format": "qcow2",
+    "container_format": "bare",
+    "visibility": "private",
+    "min_disk": 10,
+    "min_ram": 1024
+}
+```
+
+#### Example Response
+
+```json
+{
+    "image_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "My Custom Ubuntu Image",
+    "status": "queued",
+    "upload_url": "/api/openstack-marketplace/12345678-90ab-cdef-1234-567890abcdef/upload_image_data/a1b2c3d4-e5f6-7890-abcd-ef1234567890/"
+}
+```
+
+### Step 2: Upload Image Data
+
+**Endpoint**: `POST /api/openstack-marketplace/{tenant_uuid}/upload_image_data/{image_id}/`
+
+Uploads the binary image file content to the previously created image.
+
+#### Request Format
+
+- **Content-Type**: `application/octet-stream`
+- **Body**: Raw binary image file data
+- **Method**: HTTP PUT (internally) to OpenStack Glance
+
+#### Example using curl
+
+```bash
+curl -X POST \
+  -H "Authorization: Token your-auth-token" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @/path/to/image.qcow2 \
+  "https://waldur.example.com/api/openstack-marketplace/12345678-90ab-cdef-1234-567890abcdef/upload_image_data/a1b2c3d4-e5f6-7890-abcd-ef1234567890/"
+```
+
+#### Example Response
+
+```json
+{
+    "status": "success",
+    "response": "Image upload completed successfully"
+}
+```
+
+### Implementation Details
+
+#### Backend Workflow
+
+1. **Authentication**: Uses tenant-specific OpenStack session
+2. **Streaming**: Uploads data in 8KB chunks to handle large files efficiently
+3. **Direct API**: Makes direct HTTP PUT to Glance API v2 (`/v2/images/{image_id}/file`)
+4. **Verification**: Confirms image exists in Glance after upload
+
+#### Permission Requirements
+
+- **Service Provider Permission**: `SERVICE_PROVIDER_OPENSTACK_IMAGE_MANAGEMENT` required for public images
+- **Tenant Access**: User must have access to the target OpenStack tenant
+- **Offering Context**: Image limits are enforced based on the marketplace offering configuration
+
+#### Size and Count Limits
+
+The plugin enforces configurable limits:
+
+| Limit Type | Configuration Key | Description |
+|------------|-------------------|-------------|
+| Total Image Count | `image_count_total_limit` | Maximum number of images per tenant |
+| Total Image Size | `image_size_total_limit` | Maximum total size of all images (bytes) |
+
+Limits are checked before creation and upload respectively.
+
+#### Error Handling
+
+Common error scenarios:
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Image ID is required` | Missing image_id in URL path | Ensure correct URL format |
+| `Image count limit exceeded` | Too many images in tenant | Remove unused images |
+| `Image size limit would be exceeded` | File too large | Use smaller image or increase limits |
+| `HTTPX request failed` | Network/connectivity issue | Check OpenStack connectivity |
+| `Verification failed` | Image not found after upload | Retry upload or check OpenStack logs |
+
+### Security Considerations
+
+1. **File Size Validation**: Content-Length header used to validate file size before upload
+2. **Permission Checks**: Public image creation requires special permissions
+3. **Streaming Upload**: Large files handled via streaming to prevent memory issues
+4. **SSL Verification**: Configurable SSL verification for OpenStack API calls
+
+### Troubleshooting
+
+1. **Upload Timeouts**: Large images may require extended timeout settings
+2. **SSL Issues**: Verify `verify_ssl` setting in service configuration
+3. **Quota Exceeded**: Check OpenStack image quotas in addition to Waldur limits
+4. **Format Validation**: Ensure disk_format and container_format are compatible
 
 ## Network Requirements
 
@@ -267,7 +421,7 @@ The plugin runs the following automated tasks:
 | Delete Expired Backups | Every 10 minutes | Remove backups past retention |
 | Delete Expired Snapshots | Every 10 minutes | Remove snapshots past retention |
 
-## Security Considerations
+## Security and Troubleshooting
 
 1. **Credential Management**:
   - Service account credentials are stored in database `secret_options` field
@@ -286,8 +440,6 @@ The plugin runs the following automated tasks:
   - Resource state changes tracked in event log
   - Failed operations logged with error details
   - Quota changes trigger audit events
-
-## Troubleshooting
 
 ### Common Issues
 
