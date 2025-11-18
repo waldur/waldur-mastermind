@@ -595,3 +595,127 @@ class SecurityGroupRetrieveTest(BaseSecurityGroupTest):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class TenantPushSecurityGroupsTest(BaseSecurityGroupTest):
+    def setUp(self):
+        super().setUp()
+        self.tenant = self.fixture.tenant
+        self.tenant.state = CoreStates.OK
+        self.tenant.save()
+        self.url = factories.TenantFactory.get_url(
+            self.tenant, action="push_security_groups"
+        )
+        self.client.force_authenticate(self.fixture.admin)
+
+    @patch("waldur_openstack.executors.TenantPushSecurityGroupsExecutor.execute")
+    def test_create_new_security_group(self, mock_executor):
+        payload = [{"name": "new-sg", "description": "New SG"}]
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertTrue(self.tenant.security_groups.filter(name="new-sg").exists())
+        mock_executor.assert_called_once_with(self.tenant)
+
+    @patch("waldur_openstack.executors.TenantPushSecurityGroupsExecutor.execute")
+    def test_delete_existing_security_group(self, mock_executor):
+        sg_to_delete = factories.SecurityGroupFactory(tenant=self.tenant)
+        payload = []
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertFalse(
+            self.tenant.security_groups.filter(id=sg_to_delete.id).exists()
+        )
+        mock_executor.assert_called_once_with(self.tenant)
+
+    @patch("waldur_openstack.executors.TenantPushSecurityGroupsExecutor.execute")
+    def test_update_existing_security_group(self, mock_executor):
+        sg_to_update = factories.SecurityGroupFactory(tenant=self.tenant)
+        payload = [
+            {
+                "uuid": sg_to_update.uuid.hex,
+                "name": "updated-name",
+                "description": "updated-desc",
+            }
+        ]
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        sg_to_update.refresh_from_db()
+        self.assertEqual(sg_to_update.name, "updated-name")
+        self.assertEqual(sg_to_update.description, "updated-desc")
+        mock_executor.assert_called_once_with(self.tenant)
+
+    @patch("waldur_openstack.executors.TenantPushSecurityGroupsExecutor.execute")
+    def test_update_rules_for_existing_group(self, mock_executor):
+        sg_to_update = factories.SecurityGroupFactory(tenant=self.tenant)
+        factories.SecurityGroupRuleFactory(security_group=sg_to_update)
+        self.assertEqual(sg_to_update.rules.count(), 1)
+
+        payload = [
+            {
+                "uuid": sg_to_update.uuid.hex,
+                "name": sg_to_update.name,
+                "rules": [
+                    {
+                        "protocol": "tcp",
+                        "from_port": 80,
+                        "to_port": 80,
+                        "cidr": "0.0.0.0/0",
+                    }
+                ],
+            }
+        ]
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        sg_to_update.refresh_from_db()
+        self.assertEqual(sg_to_update.rules.count(), 1)
+        self.assertEqual(sg_to_update.rules.first().from_port, 80)
+        mock_executor.assert_called_once_with(self.tenant)
+
+    @patch("waldur_openstack.executors.TenantPushSecurityGroupsExecutor.execute")
+    def test_mixed_operation(self, mock_executor):
+        sg_to_delete = factories.SecurityGroupFactory(tenant=self.tenant, name="delete")
+        sg_to_update = factories.SecurityGroupFactory(tenant=self.tenant, name="update")
+
+        payload = [
+            {
+                "uuid": sg_to_update.uuid.hex,
+                "name": "updated-name",
+            },
+            {"name": "new-sg"},
+        ]
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+        self.assertFalse(
+            self.tenant.security_groups.filter(id=sg_to_delete.id).exists()
+        )
+        self.assertTrue(
+            self.tenant.security_groups.filter(name="updated-name").exists()
+        )
+        self.assertTrue(self.tenant.security_groups.filter(name="new-sg").exists())
+
+        mock_executor.assert_called_once_with(self.tenant)
+
+    def test_create_group_with_remote_group_rule_by_name(self):
+        payload = [
+            {
+                "name": "sg-A",
+                "rules": [
+                    {
+                        "protocol": "tcp",
+                        "from_port": 1,
+                        "to_port": 1,
+                        "remote_group_name": "sg-B",
+                    }
+                ],
+            },
+            {"name": "sg-B"},
+        ]
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+        sg_a = self.tenant.security_groups.get(name="sg-A")
+        sg_b = self.tenant.security_groups.get(name="sg-B")
+
+        self.assertEqual(sg_a.rules.count(), 1)
+        self.assertEqual(sg_a.rules.first().remote_group, sg_b)

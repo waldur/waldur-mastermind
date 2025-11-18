@@ -604,6 +604,16 @@ class TenantPullSecurityGroupsExecutor(core_executors.ActionExecutor):
         )
 
 
+class TenantPushSecurityGroupsExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, tenant, serialized_tenant, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_tenant,
+            "push_tenant_security_groups",
+            state_transition="begin_updating",
+        )
+
+
 class TenantPullServerGroupsExecutor(core_executors.ActionExecutor):
     @classmethod
     def get_task_signature(cls, tenant, serialized_tenant, **kwargs):
