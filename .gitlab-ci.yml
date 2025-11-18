@@ -245,9 +245,7 @@ Run type checkings:
         src/waldur_rancher/serializers.py
 
 Try building docker image:
-  image:
-    name: "gcr.io/kaniko-project/executor:debug"
-    entrypoint: [""]
+  image: "quay.io/buildah/stable"
   stage: test
   interruptible: true
   rules:
@@ -261,12 +259,13 @@ Try building docker image:
   variables:
     DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
   script:
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+    - buildah build
+      --platform=linux/amd64
       --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
-      --destination "waldur-mastermind:$CI_COMMIT_REF_SLUG"
-      --no-push
+      -t waldur-mastermind:$CI_COMMIT_REF_SLUG
+      -f "${CI_PROJECT_DIR}/Dockerfile"
+      ${CI_PROJECT_DIR}
+
 
 Generate Image SBOM:
   extends: .Generate Image SBOM template
@@ -284,9 +283,7 @@ Generate Codebase SBOM:
 Build docker image for tests:
   stage: build
   interruptible: true
-  image:
-    name: "gcr.io/kaniko-project/executor:debug"
-    entrypoint: [""]
+  image: "quay.io/buildah/stable"
   rules:
     # If scheduled pipeline for 'develop' branch is set up
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
@@ -295,22 +292,14 @@ Build docker image for tests:
   script:
     - echo $CI_COMMIT_SHA > docker/rootfs/COMMIT
     - cat docker/rootfs/COMMIT
-    - AUTH=$(echo -n "${WALDUR_DOCKER_HUB_USER}:${WALDUR_DOCKER_HUB_PASSWORD}" | base64)
-    - |
-      cat << EOF > /kaniko/.docker/config.json
-      {
-        "auths": {
-          "https://index.docker.io/v1/": {
-            "auth": "${AUTH}"
-          }
-        }
-      }
-      EOF
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/tests/Dockerfile"
+    - echo "$CI_REGISTRY_PASSWORD" | buildah login $CI_REGISTRY --username "$CI_REGISTRY_USER" --password-stdin
+    - buildah build
+      --platform=linux/amd64
       --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
-      --destination "$WALDUR_MASTERMIND_TEST_IMAGE"
+      -f ${CI_PROJECT_DIR}/tests/Dockerfile
+      -t "$WALDUR_MASTERMIND_TEST_IMAGE"
+      ${CI_PROJECT_DIR}
+    - buildah push "$WALDUR_MASTERMIND_TEST_IMAGE"
 
 Publish the latest multiarch docker image:
   extends: .Publish multiarch latest docker image template
@@ -342,11 +331,7 @@ Publish multiarch docker image with specific version:
 Test Multi-arch docker image build:
   stage: test
   interruptible: true
-  image: registry.hpc.ut.ee/mirror/docker:latest
-  services:
-    - name: public.ecr.aws/docker/library/docker:dind
-      command: ["--mtu=1400"]
-      alias: docker
+  image: "quay.io/buildah/stable"
   rules:
     # Skip tests if said so
     - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
@@ -357,22 +342,29 @@ Test Multi-arch docker image build:
         - docker/**/*
         - .gitlab-ci.yml
   variables:
-    DOCKER_DRIVER: overlay2
     DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
-    DOCKER_HUB_REGISTRY: "docker.io"
   cache: []
   before_script:
-    - apk update
-    - apk add --no-cache gcc python3-dev musl-dev linux-headers openldap-dev openssl libffi-dev libjpeg-turbo-dev libxml2-dev libxslt-dev
-    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY --username "$CI_REGISTRY_USER" --password-stdin
+    - dnf update
+    - dnf install -y gcc python3-devel musl-devel kernel-headers openldap-devel openssl libffi-devel libjpeg-turbo-devel libxml2-devel libxslt-devel
+    - echo "$CI_REGISTRY_PASSWORD" | buildah login $CI_REGISTRY --username "$CI_REGISTRY_USER" --password-stdin
   script:
-    - docker context create builder
-    - docker buildx version
-    - docker buildx create builder --use
-    - docker buildx build --platform linux/amd64,linux/arm64 --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY -t ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch --push .
-    - docker buildx imagetools inspect ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch
-    - docker pull ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch
-    - docker image inspect ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch
+    # Build x86-based image
+    - buildah build
+      --platform=linux/amd64
+      --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
+      -t ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch-amd64
+      ${CI_PROJECT_DIR}
+    - buildah push ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch-amd64
+    - buildah inspect ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch-amd64
+    # Build ARM-based image
+    - buildah build
+      --platform=linux/arm64
+      --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
+      -t ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch-arm64
+      ${CI_PROJECT_DIR}
+    - buildah push ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch-arm64
+    - buildah inspect ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch-arm64
 
 Lint docker image:
   extends: .Lint docker image template
