@@ -3,7 +3,6 @@ import datetime
 import logging
 import textwrap
 import traceback
-import uuid
 from typing import cast
 
 import httpx
@@ -37,7 +36,12 @@ from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from drf_spectacular.utils import (
+    OpenApiExample,
+    OpenApiParameter,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import generics, mixins, status, views
 from rest_framework import permissions as rf_permissions
@@ -243,7 +247,12 @@ class PublicViewsetMixin:
 class ConnectedOfferingDetailsMixin:
     """Mixin to provide offering details action for connected resources."""
 
-    @extend_schema(responses=serializers.PublicOfferingDetailsSerializer, filters=False)
+    @extend_schema(
+        summary="Get offering details",
+        description="Returns details of the offering connected to the requested object.",
+        responses=serializers.PublicOfferingDetailsSerializer,
+        filters=False,
+    )
     @action(detail=True, methods=["get"])
     def offering(self, request, *args, **kwargs):
         requested_object = self.get_object()
@@ -257,6 +266,32 @@ class ConnectedOfferingDetailsMixin:
             return Response(status.HTTP_204_NO_CONTENT)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List service providers",
+        description="Returns a paginated list of service providers.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a service provider",
+        description="Returns details of a specific service provider.",
+    ),
+    create=extend_schema(
+        summary="Create a service provider",
+        description="Creates a new service provider profile for a customer.",
+    ),
+    update=extend_schema(
+        summary="Update a service provider",
+        description="Updates an existing service provider profile.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a service provider",
+        description="Partially updates an existing service provider profile.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a service provider",
+        description="Deletes a service provider profile. Only possible if there are no active offerings.",
+    ),
+)
 class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceView):
     queryset = models.ServiceProvider.objects.all().order_by("customer__name")
     serializer_class = serializers.ServiceProviderSerializer
@@ -264,7 +299,8 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
 
     @extend_schema(
         operation_id="service_provider_api_secret_code_retrieve",
-        description="Return service provider API secret code.",
+        summary="Get service provider API secret code",
+        description="Returns the API secret code for a service provider. Requires service provider owner permission.",
         request=None,
         responses={
             status.HTTP_200_OK: serializers.ServiceProviderApiSecretCodeSerializer
@@ -274,7 +310,8 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     )
     @extend_schema(
         operation_id="service_provider_api_secret_code_generate",
-        description="Generate new service provider API secret code.",
+        summary="Generate new service provider API secret code",
+        description="Generates a new API secret code for a service provider, invalidating the old one. Requires service provider owner permission.",
         request=None,
         responses={
             status.HTTP_200_OK: serializers.ServiceProviderApiSecretCodeSerializer
@@ -328,6 +365,8 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     ]
 
     @extend_schema(
+        summary="Set offering username for a user",
+        description="Sets or updates the offering-specific username for a user across all offerings managed by the service provider that the user has access to.",
         request=serializers.SetOfferingsUsernameSerializer,
         responses={status.HTTP_201_CREATED: None},
     )
@@ -380,6 +419,8 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     ]
 
     @extend_schema(
+        summary="Get service provider statistics",
+        description="Returns various statistics for the service provider, such as number of active campaigns, customers, and resources.",
         responses=serializers.ServiceProviderStatisticsSerializer,
         filters=False,
     )
@@ -468,6 +509,8 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     ]
 
     @extend_schema(
+        summary="Get service provider revenue",
+        description="Returns monthly revenue data for the last year for the service provider.",
         responses=serializers.ServiceProviderRevenues(many=True),
         filters=False,
     )
@@ -500,10 +543,15 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     ]
 
     @extend_schema(
+        summary="List customers with robot accounts",
+        description="Returns a paginated list of customers who have robot accounts for resources managed by this service provider.",
         responses=serializers.NameUUIDSerializer(many=True),
         parameters=[
             OpenApiParameter(
-                name="customer_name", type=str, location=OpenApiParameter.QUERY
+                name="customer_name",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by customer name (case-insensitive partial match).",
             ),
         ],
         filters=False,
@@ -538,10 +586,15 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     ]
 
     @extend_schema(
+        summary="List projects with robot accounts",
+        description="Returns a paginated list of projects which have robot accounts for resources managed by this service provider.",
         responses=serializers.NameUUIDSerializer(many=True),
         parameters=[
             OpenApiParameter(
-                name="project_name", type=str, location=OpenApiParameter.QUERY
+                name="project_name",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by project name (case-insensitive partial match).",
             ),
         ],
         filters=False,
@@ -578,7 +631,8 @@ SERVICE_PROVIDER_UUID = OpenApiParameter(
 
 @extend_schema_view(
     list=extend_schema(
-        description="Return customers of service provider.",
+        summary="List customers of a service provider",
+        description="Returns a paginated list of customers who have consumed resources from the specified service provider.",
         parameters=[SERVICE_PROVIDER_UUID],
     )
 )
@@ -618,8 +672,18 @@ class ServiceProviderCustomersViewSet(
 
 @extend_schema_view(
     list=extend_schema(
-        description="Return customer projects of service provider.",
-        parameters=[SERVICE_PROVIDER_UUID],
+        summary="List customer projects of a service provider",
+        description="Returns a paginated list of projects belonging to a specific customer that have consumed resources from the specified service provider.",
+        parameters=[
+            SERVICE_PROVIDER_UUID,
+            OpenApiParameter(
+                name="project_customer_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="UUID of the customer to filter projects by.",
+            ),
+        ],
     )
 )
 class ServiceProviderCustomerProjectsViewSet(
@@ -663,7 +727,8 @@ class ServiceProviderCustomerProjectsViewSet(
 
 @extend_schema_view(
     list=extend_schema(
-        description="Return projects of service provider.",
+        summary="List projects of a service provider",
+        description="Returns a paginated list of all projects that have consumed resources from the specified service provider.",
         parameters=[SERVICE_PROVIDER_UUID],
     )
 )
@@ -701,7 +766,8 @@ class ServiceProviderProjectsViewSet(mixins.ListModelMixin, rf_viewsets.GenericV
 
 @extend_schema_view(
     list=extend_schema(
-        description="Return project permissions of service provider.",
+        summary="List project permissions of a service provider",
+        description="Returns a paginated list of project permissions for all projects that have consumed resources from the specified service provider.",
         parameters=[SERVICE_PROVIDER_UUID],
     )
 )
@@ -740,7 +806,8 @@ class ServiceProviderProjectPermissionsViewSet(
 
 @extend_schema_view(
     list=extend_schema(
-        description="Return SSH keys of service provider.",
+        summary="List SSH keys of a service provider",
+        description="Returns a paginated list of SSH public keys for all users who have consumed resources from the specified service provider.",
         parameters=[SERVICE_PROVIDER_UUID],
     )
 )
@@ -771,7 +838,8 @@ class ServiceProviderKeysViewSet(mixins.ListModelMixin, rf_viewsets.GenericViewS
 
 @extend_schema_view(
     list=extend_schema(
-        description="Return users of service provider.",
+        summary="List users of a service provider",
+        description="Returns a paginated list of all users who have consumed resources from the specified service provider.",
         parameters=[SERVICE_PROVIDER_UUID],
     )
 )
@@ -829,7 +897,8 @@ class ServiceProviderUsersViewSet(mixins.ListModelMixin, rf_viewsets.GenericView
 
 @extend_schema_view(
     list=extend_schema(
-        description="Return offerings of service provider.",
+        summary="List offerings of a service provider",
+        description="Returns a paginated list of all billable, shared offerings provided by the specified service provider.",
         parameters=[SERVICE_PROVIDER_UUID],
     )
 )
@@ -856,14 +925,14 @@ class ServiceProviderOfferingsViewSet(
 
 @extend_schema_view(
     list=extend_schema(
-        description="""Return customers that have access role for a specified user within service provider's scope.
+        summary="List customers of a specific user within a service provider's scope",
+        description="""Returns a paginated list of customers that a specified user has access to within the scope of a service provider.
 
-        Checks for:
-        - Customers where user has direct permissions
-        - Customers with projects where user has project roles
-        - Customers related to service provider's resources
-
-        If user UUID is invalid or missing, returns empty list.""",
+        This includes:
+        - Customers where the user has direct permissions.
+        - Customers with projects where the user has project roles.
+        - Customers related to the service provider's resources that the user can access.
+        """,
         parameters=[
             SERVICE_PROVIDER_UUID,
             OpenApiParameter(
@@ -871,7 +940,7 @@ class ServiceProviderOfferingsViewSet(
                 type=OpenApiTypes.UUID,
                 location=OpenApiParameter.QUERY,
                 required=True,
-                description="UUID of user to get related customers for",
+                description="UUID of the user to get related customers for.",
             ),
         ],
     )
@@ -935,7 +1004,8 @@ class ServiceProviderUserCustomersViewSet(
 @extend_schema_view(
     compliance_overview=extend_schema(
         operation_id="service_provider_compliance_overview",
-        description="Get compliance overview statistics for all offerings managed by this service provider.",
+        summary="Get compliance overview for a service provider",
+        description="Returns compliance overview statistics for all offerings managed by this service provider.",
         responses={
             status.HTTP_200_OK: serializers.ServiceProviderComplianceOverviewSerializer(
                 many=True
@@ -946,7 +1016,8 @@ class ServiceProviderUserCustomersViewSet(
     ),
     offering_users=extend_schema(
         operation_id="service_provider_offering_users_compliance",
-        description="List offering users with their compliance status for this service provider.",
+        summary="List offering users' compliance status",
+        description="Returns a list of offering users with their compliance status for this service provider. Can be filtered by offering and compliance status.",
         responses={
             status.HTTP_200_OK: serializers.ServiceProviderOfferingUserComplianceSerializer(
                 many=True
@@ -958,14 +1029,14 @@ class ServiceProviderUserCustomersViewSet(
                 name="offering_uuid",
                 type=OpenApiTypes.UUID,
                 location=OpenApiParameter.QUERY,
-                description="Filter by offering UUID",
+                description="Filter by offering UUID.",
                 required=False,
             ),
             OpenApiParameter(
                 name="compliance_status",
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description="Filter by compliance status: completed, pending, no_checklist",
+                description="Filter by compliance status: completed, pending, no_checklist.",
                 required=False,
             ),
         ],
@@ -973,7 +1044,8 @@ class ServiceProviderUserCustomersViewSet(
     ),
     checklists_summary=extend_schema(
         operation_id="service_provider_checklists_summary",
-        description="Get summary of all compliance checklists used by this service provider with usage counts.",
+        summary="Get summary of compliance checklists",
+        description="Returns a summary of all compliance checklists used by this service provider with usage counts.",
         responses={
             status.HTTP_200_OK: serializers.ServiceProviderChecklistSummarySerializer(
                 many=True
@@ -1239,12 +1311,12 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
 
 @extend_schema_view(
     list=extend_schema(
-        description="""Return project service accounts that have access to resources managed by the provider.
+        summary="List project service accounts for a service provider",
+        description="""Returns a paginated list of project service accounts that have access to resources managed by the provider.
 
-        Checks for:
-        - Projects with active service provider's resources
-        - Service accounts with non-blank usernames
-
+        This includes:
+        - Projects with active resources of the service provider.
+        - Service accounts with non-blank usernames.
         """,
         parameters=[
             SERVICE_PROVIDER_UUID,
@@ -1294,12 +1366,12 @@ class ServiceProviderProjectServiceAccountsViewSet(
 
 @extend_schema_view(
     list=extend_schema(
-        description="""Return course project accounts that have access to resources managed by the provider.
+        summary="List course project accounts for a service provider",
+        description="""Returns a paginated list of course project accounts that have access to resources managed by the provider.
 
-        Checks for:
-        - Projects with active service provider's resources
-        - Course accounts with non-blank users
-
+        This includes:
+        - Projects with active resources of the service provider.
+        - Course accounts with non-blank users.
         """,
         parameters=[
             SERVICE_PROVIDER_UUID,
@@ -1347,6 +1419,32 @@ class ServiceProviderCourseAccountsViewSet(
         return super().filter_queryset(queryset)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List categories",
+        description="Returns a paginated list of marketplace categories.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a category",
+        description="Returns details of a specific marketplace category.",
+    ),
+    create=extend_schema(
+        summary="Create a category",
+        description="Creates a new marketplace category. Requires staff permissions.",
+    ),
+    update=extend_schema(
+        summary="Update a category",
+        description="Updates an existing marketplace category. Requires staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a category",
+        description="Partially updates an existing marketplace category. Requires staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a category",
+        description="Deletes a marketplace category. Requires staff permissions.",
+    ),
+)
 class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet):
     queryset = models.Category.objects.all()
     serializer_class = serializers.MarketplaceCategorySerializer
@@ -1359,6 +1457,32 @@ class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsView
     ) = [structure_permissions.is_staff]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List category columns",
+        description="Returns a paginated list of category columns used for resource table rendering.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a category column",
+        description="Returns details of a specific category column.",
+    ),
+    create=extend_schema(
+        summary="Create a category column",
+        description="Creates a new category column. Requires staff permissions.",
+    ),
+    update=extend_schema(
+        summary="Update a category column",
+        description="Updates an existing category column. Requires staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a category column",
+        description="Partially updates an existing category column. Requires staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a category column",
+        description="Deletes a category column. Requires staff permissions.",
+    ),
+)
 class CategoryColumnsViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     queryset = models.CategoryColumn.objects.all()
     serializer_class = serializers.CategoryColumnSerializer
@@ -1371,6 +1495,32 @@ class CategoryColumnsViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     ) = [structure_permissions.is_staff]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List category groups",
+        description="Returns a paginated list of category groups.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a category group",
+        description="Returns details of a specific category group.",
+    ),
+    create=extend_schema(
+        summary="Create a category group",
+        description="Creates a new category group. Requires staff permissions.",
+    ),
+    update=extend_schema(
+        summary="Update a category group",
+        description="Updates an existing category group. Requires staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a category group",
+        description="Partially updates an existing category group. Requires staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a category group",
+        description="Deletes a category group. Requires staff permissions.",
+    ),
+)
 class CategoryGroupViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     queryset = models.CategoryGroup.objects.all()
     serializer_class = serializers.CategoryGroupSerializer
@@ -1435,6 +1585,26 @@ def validate_offering_username_generation_policy(offering):
         )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List provider offerings",
+        description="Returns a paginated list of offerings for the provider.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a provider offering",
+        description="Returns details of a specific provider offering.",
+    ),
+    create=extend_schema(
+        summary="Create a provider offering",
+        description="Creates a new provider offering.",
+        request=serializers.OfferingCreateSerializer,
+        responses={201: serializers.ProviderOfferingDetailsSerializer},
+    ),
+    destroy=extend_schema(
+        summary="Delete a provider offering",
+        description="Deletes a provider offering. Only possible for offerings in a Draft state with no associated resources.",
+    ),
+)
 class ProviderOfferingViewSet(
     UserRoleMixin,
     core_views.CreateReversionMixin,
@@ -1592,6 +1762,8 @@ class ProviderOfferingViewSet(
         return super().destroy(request, *args, **kwargs)
 
     @extend_schema(
+        summary="Activate an offering",
+        description="Activates a draft or paused offering, making it available for ordering.",
         request=None,
         responses=serializers.DetailStateSerializer,
     )
@@ -1600,6 +1772,8 @@ class ProviderOfferingViewSet(
         return self._update_state("activate")
 
     @extend_schema(
+        summary="Move an offering to draft",
+        description="Moves an active or paused offering back to the draft state for editing.",
         request=None,
         responses=serializers.DetailStateSerializer,
     )
@@ -1608,7 +1782,10 @@ class ProviderOfferingViewSet(
         return self._update_state("draft")
 
     @extend_schema(
-        responses=serializers.OrderDetailsSerializer(many=True), filters=True
+        summary="List orders for an offering",
+        description="Returns a paginated list of orders associated with a specific offering.",
+        responses=serializers.OrderDetailsSerializer(many=True),
+        filters=True,
     )
     @action(detail=True, methods=["get"], filter_backends=[])
     def orders(self, request, uuid=None):
@@ -1630,7 +1807,11 @@ class ProviderOfferingViewSet(
         )
         return self.get_paginated_response(serializer.data)
 
-    @extend_schema(responses=serializers.OrderDetailsSerializer)
+    @extend_schema(
+        summary="Retrieve a specific order for an offering",
+        description="Returns details of a specific order associated with an offering.",
+        responses=serializers.OrderDetailsSerializer,
+    )
     def order_detail(self, request, uuid=None, order_uuid=None):
         offering: models.Offering = self.get_object()
         if not (request.user.is_staff or request.user.is_support):
@@ -1651,6 +1832,8 @@ class ProviderOfferingViewSet(
         return Response(serializer.data)
 
     @extend_schema(
+        summary="Pause an offering",
+        description="Pauses an active offering, preventing new orders from being created.",
         responses=serializers.DetailStateSerializer,
         request=serializers.OfferingPauseSerializer,
     )
@@ -1661,6 +1844,8 @@ class ProviderOfferingViewSet(
     pause_serializer_class = serializers.OfferingPauseSerializer
 
     @extend_schema(
+        summary="Unpause an offering",
+        description="Resumes a paused offering, making it available for ordering again.",
         request=None,
         responses=serializers.DetailStateSerializer,
     )
@@ -1669,6 +1854,8 @@ class ProviderOfferingViewSet(
         return self._update_state("unpause")
 
     @extend_schema(
+        summary="Archive an offering",
+        description="Archives an offering, making it permanently unavailable for new orders.",
         request=None,
         responses=serializers.DetailStateSerializer,
     )
@@ -1749,8 +1936,9 @@ class ProviderOfferingViewSet(
         super().perform_create(serializer)
 
     @extend_schema(
+        summary="List importable resources",
+        description="Returns a paginated list of resources that can be imported for this offering.",
         filters=False,
-        description="List importable resources for offering.",
         request=None,
         responses=serializers.ImportableResourceSerializer(many=True),
     )
@@ -1792,6 +1980,8 @@ class ProviderOfferingViewSet(
     import_resource_serializer_class = serializers.ImportResourceSerializer
 
     @extend_schema(
+        summary="Import a resource",
+        description="Imports a backend resource into the marketplace.",
         request=serializers.ImportResourceSerializer,
         responses=serializers.ResourceSerializer,
     )
@@ -1865,9 +2055,10 @@ class ProviderOfferingViewSet(
         return Response(data=resource_serializer.data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
+        summary="Update offering attributes",
+        description="Updates the attributes of an offering.",
         request=dict,
         responses=None,
-        description="Update offering attributes.",
     )
     @action(detail=True, methods=["post"])
     def update_attributes(self, request, uuid=None):
@@ -1898,6 +2089,8 @@ class ProviderOfferingViewSet(
         return Response(status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Update offering location",
+        description="Updates the geographical location (latitude and longitude) of an offering.",
         request=serializers.OfferingLocationUpdateSerializer,
         responses={200: None},
     )
@@ -1915,6 +2108,8 @@ class ProviderOfferingViewSet(
     update_location_serializer_class = serializers.OfferingLocationUpdateSerializer
 
     @extend_schema(
+        summary="Update offering category",
+        description="Updates the category of an offering.",
         request=serializers.OfferingDescriptionUpdateSerializer,
         responses={200: None},
     )
@@ -1934,6 +2129,8 @@ class ProviderOfferingViewSet(
     )
 
     @extend_schema(
+        summary="Update offering overview",
+        description="Updates the overview fields of an offering, such as name, description, and getting started guide.",
         request=serializers.OfferingOverviewUpdateSerializer,
         responses={200: None},
     )
@@ -1946,6 +2143,8 @@ class ProviderOfferingViewSet(
     update_overview_serializer_class = serializers.OfferingOverviewUpdateSerializer
 
     @extend_schema(
+        summary="Update offering options",
+        description="Updates the order form options for an offering.",
         request=serializers.OfferingOptionsUpdateSerializer,
         responses={200: None},
     )
@@ -1963,6 +2162,8 @@ class ProviderOfferingViewSet(
     update_options_serializer_class = serializers.OfferingOptionsUpdateSerializer
 
     @extend_schema(
+        summary="Update offering resource options",
+        description="Updates the resource report form options for an offering.",
         request=serializers.OfferingResourceOptionsUpdateSerializer,
         responses={200: None},
     )
@@ -1982,6 +2183,8 @@ class ProviderOfferingViewSet(
     )
 
     @extend_schema(
+        summary="Update offering integration settings",
+        description="Updates the backend integration settings for an offering, including plugin options, secret options, and service attributes.",
         request=serializers.OfferingIntegrationUpdateSerializer,
         responses={200: None},
     )
@@ -2001,6 +2204,8 @@ class ProviderOfferingViewSet(
     )
 
     @extend_schema(
+        summary="Update offering compliance checklist",
+        description="Associates a compliance checklist with an offering.",
         request=serializers.OfferingComplianceChecklistUpdateSerializer,
         responses={200: None},
     )
@@ -2037,8 +2242,9 @@ class ProviderOfferingViewSet(
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(
+        summary="Update offering thumbnail",
+        description="Uploads or replaces the thumbnail image for an offering.",
         request=serializers.OfferingThumbnailSerializer,
-        description="Update offering thumbnail.",
         responses={200: None},
     )
     @action(detail=True, methods=["post"])
@@ -2046,26 +2252,30 @@ class ProviderOfferingViewSet(
         return self._update_media(request, serializers.OfferingThumbnailSerializer)
 
     @extend_schema(
+        summary="Delete offering thumbnail",
+        description="Deletes the thumbnail image of an offering.",
         request=None,
         responses={204: None},
-        description="Delete offering thumbnail.",
     )
     @action(detail=True, methods=["post"])
     def delete_thumbnail(self, request, uuid=None):
         return self._delete_media("thumbnail")
 
     @extend_schema(
+        summary="Update offering image",
+        description="Uploads or replaces the main image for an offering.",
         request=serializers.OfferingImageSerializer,
-        description="Update offering image.",
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_image(self, request, uuid=None):
         return self._update_media(request, serializers.OfferingImageSerializer)
 
     @extend_schema(
+        summary="Delete offering image",
+        description="Deletes the main image of an offering.",
         request=None,
-        responses={200: None},
-        description="Delete offering image.",
+        responses={204: None},
     )
     @action(detail=True, methods=["post"])
     def delete_image(self, request, uuid=None):
@@ -2078,8 +2288,9 @@ class ProviderOfferingViewSet(
     delete_image_permissions = media_permissions
 
     @extend_schema(
+        summary="Get customers for an offering",
+        description="Returns a paginated list of customers who have resources for this offering.",
         responses=serializers.ProviderOfferingCustomerSerializer(many=True),
-        description="Get customers for offering.",
     )
     @action(detail=True)
     def customers(self, request, uuid):
@@ -2133,7 +2344,8 @@ class ProviderOfferingViewSet(
             ),
         ],
         responses=serializers.ProviderOfferingCostsSerializer(many=True),
-        description="Get costs for offering.",
+        summary="Get costs for an offering",
+        description="Returns monthly cost data for an offering within a specified date range.",
     )
     @action(detail=True)
     def costs(self, *args, **kwargs):
@@ -2159,7 +2371,8 @@ class ProviderOfferingViewSet(
             ),
         ],
         responses=serializers.OfferingComponentStatSerializer(many=True),
-        description="Get statistics for offering components.",
+        summary="Get statistics for offering components",
+        description="Returns monthly usage statistics for the components of an offering within a specified date range.",
     )
     @action(detail=True)
     def component_stats(self, *args, **kwargs):
@@ -2197,6 +2410,19 @@ class ProviderOfferingViewSet(
 
     component_stats_permissions = [structure_permissions.is_owner]
 
+    @extend_schema(
+        summary="Get offering statistics",
+        description="Returns basic statistics for an offering, such as the number of active resources and customers.",
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "resources_count": {"type": "integer"},
+                    "customers_count": {"type": "integer"},
+                },
+            }
+        },
+    )
     @action(detail=True)
     def stats(self, *args, **kwargs):
         offering: models.Offering = self.get_object()
@@ -2223,8 +2449,9 @@ class ProviderOfferingViewSet(
     stats_permissions = [structure_permissions.is_owner]
 
     @extend_schema(
+        summary="Update organization groups for offering",
+        description="Sets the list of organization groups that can access this offering.",
         request=serializers.OrganizationGroupsSerializer,
-        description="Update organization groups for offering.",
         responses={200: None},
     )
     @action(detail=True, methods=["post"])
@@ -2241,9 +2468,10 @@ class ProviderOfferingViewSet(
     update_organization_groups_validators = update_validators
 
     @extend_schema(
+        summary="Delete organization groups for offering",
+        description="Removes all organization group associations from this offering, making it accessible to all.",
         request=None,
-        responses=None,
-        description="Delete organization groups for offering.",
+        responses={204: None},
     )
     @action(detail=True, methods=["post"])
     def delete_organization_groups(self, request, uuid=None):
@@ -2255,8 +2483,9 @@ class ProviderOfferingViewSet(
     delete_organization_groups_validators = update_validators
 
     @extend_schema(
+        summary="Add an access endpoint to an offering",
+        description="Adds a new access endpoint (URL) to an offering.",
         request=serializers.NestedEndpointSerializer,
-        description="Add endpoint to offering.",
         responses={201: serializers.EndpointUUIDSerializer},
     )
     @action(detail=True, methods=["post"])
@@ -2285,9 +2514,10 @@ class ProviderOfferingViewSet(
     add_endpoint_validators = update_validators
 
     @extend_schema(
+        summary="Delete an access endpoint from an offering",
+        description="Deletes an existing access endpoint from an offering by its UUID.",
         request=serializers.EndpointUUIDSerializer,
         responses={204: None},
-        description="Delete endpoint from offering.",
     )
     @action(detail=True, methods=["post"])
     def delete_endpoint(self, request, uuid=None):
@@ -2309,6 +2539,8 @@ class ProviderOfferingViewSet(
     delete_endpoint_validators = update_validators
 
     @extend_schema(
+        summary="List offerings grouped by provider",
+        description="Returns a paginated list of active, shared offerings grouped by their service provider.",
         responses=serializers.OfferingGroupsSerializer(many=True),
     )
     @action(detail=False, permission_classes=[], filter_backends=[DjangoFilterBackend])
@@ -2347,7 +2579,29 @@ class ProviderOfferingViewSet(
             ]
         )
 
-    @extend_schema(request=None, responses=str, parameters=[])
+    @extend_schema(
+        summary="Get GLauth user configuration",
+        description="""
+        This endpoint provides a configuration file for GLauth.
+        It is intended to be used by an external agent to synchronize user data from Waldur to GLauth.
+
+        Example output format:
+        ```
+        [[users]]
+          name = "johndoe"
+          givenname="John"
+          sn="Doe"
+          mail = "john.doe@example.com"
+          ...
+        [[groups]]
+          name = "group1"
+          gidnumber = 1001
+        ```
+        """,
+        request=None,
+        responses=str,
+        parameters=[],
+    )
     @action(
         detail=True,
         methods=["GET"],
@@ -2420,7 +2674,8 @@ class ProviderOfferingViewSet(
     glauth_users_config_permissions = [structure_permissions.is_offering_manager]
 
     @extend_schema(
-        description="Check if user has access to offering.",
+        summary="Check user access to offering resources",
+        description="Checks if a specified user has access to any non-terminated resource of this offering.",
         request=None,
         parameters=[
             OpenApiParameter(
@@ -2459,6 +2714,8 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=serializers.UpdateOfferingComponent,
         responses=None,
+        summary="Update an offering component",
+        description="Updates the properties of a specific component within an offering.",
     )
     @action(detail=True, methods=["post"])
     def update_offering_component(self, request, uuid=None):
@@ -2579,8 +2836,10 @@ class ProviderOfferingViewSet(
     update_offering_component_validators = update_validators
 
     @extend_schema(
+        summary="Remove an offering component",
+        description="Removes a custom component from an offering. Built-in components cannot be removed.",
         request=serializers.RemoveOfferingComponentSerializer,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def remove_offering_component(self, request, uuid=None):
@@ -2643,6 +2902,8 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=serializers.OfferingComponentSerializer,
         responses={status.HTTP_201_CREATED: None},
+        summary="Create an offering component",
+        description="Adds a new custom component to an offering.",
     )
     @action(detail=True, methods=["post"])
     def create_offering_component(self, request, uuid=None):
@@ -2665,7 +2926,9 @@ class ProviderOfferingViewSet(
     create_offering_component_validators = update_validators
 
     @extend_schema(
-        responses=None,
+        summary="Synchronize offering service settings",
+        description="Schedules a synchronization task to pull the latest data for the offering's service settings from the backend.",
+        responses={202: None},
         request=None,
     )
     @action(detail=True, methods=["post"])
@@ -2708,6 +2971,8 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=serializers.OfferingBackendMetadataSerializer,
         responses=None,
+        summary="Set offering backend metadata",
+        description="Updates the backend-specific metadata for an offering.",
     )
     @action(detail=True, methods=["POST"])
     def set_backend_metadata(self, request, uuid=None):
@@ -2737,6 +3002,8 @@ class ProviderOfferingViewSet(
         request=None,
         responses=structure_serializers.ProjectSerializer(many=True),
         filters=False,
+        summary="List customer projects for an offering",
+        description="Returns a paginated list of projects that have consumed resources of this offering.",
     )
     @action(detail=True, methods=["GET"])
     def list_customer_projects(self, request, uuid=None):
@@ -2759,6 +3026,8 @@ class ProviderOfferingViewSet(
         responses=structure_serializers.UserSerializer(many=True),
         request=None,
         filters=False,
+        summary="List customer users for an offering",
+        description="Returns a paginated list of users who have access to resources of this offering.",
     )
     @action(detail=True, methods=["GET"])
     def list_customer_users(self, request, uuid=None):
@@ -2798,7 +3067,8 @@ class ProviderOfferingViewSet(
     @extend_schema(
         responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
         request=None,
-        description="Refresh offering user usernames.",
+        summary="Refresh offering user usernames",
+        description="Triggers a refresh of usernames for all non-restricted users associated with this offering, based on the current username generation policy.",
     )
     @action(detail=True, methods=["post"])
     def refresh_offering_usernames(self, request, uuid=None):
@@ -2833,6 +3103,11 @@ class ProviderOfferingViewSet(
         validate_offering_username_generation_policy,
     ]
 
+    @extend_schema(
+        summary="List customer service accounts for an offering",
+        description="Returns a paginated list of customer-level service accounts for customers who have resources of this offering.",
+        responses=serializers.CustomerServiceAccountSerializer(many=True),
+    )
     @action(detail=True, methods=["get"])
     def list_customer_service_accounts(self, request, uuid=None):
         offering: models.Offering = self.get_object()
@@ -2862,6 +3137,11 @@ class ProviderOfferingViewSet(
         )
         return self.get_paginated_response(serializer.data)
 
+    @extend_schema(
+        summary="List project service accounts for an offering",
+        description="Returns a paginated list of project-level service accounts for projects that have resources of this offering.",
+        responses=serializers.ProjectServiceAccountSerializer(many=True),
+    )
     @action(detail=True, methods=["get"])
     def list_project_service_accounts(self, request, uuid=None):
         offering: models.Offering = self.get_object()
@@ -2884,6 +3164,11 @@ class ProviderOfferingViewSet(
         )
         return self.get_paginated_response(serializer.data)
 
+    @extend_schema(
+        summary="List course accounts for an offering",
+        description="Returns a paginated list of course accounts for projects that have resources of this offering.",
+        responses=serializers.CourseAccountSerializer(many=True),
+    )
     @action(detail=True, methods=["get"])
     def list_course_accounts(self, request, uuid=None):
         offering: models.Offering = self.get_object()
@@ -2907,6 +3192,8 @@ class ProviderOfferingViewSet(
         return self.get_paginated_response(serializer.data)
 
     @extend_schema(
+        summary="Move an offering",
+        description="Moves an offering to a different service provider. Requires staff permissions.",
         request=serializers.MoveOfferingSerializer,
         responses=serializers.PublicOfferingDetailsSerializer,
     )
@@ -2932,7 +3219,8 @@ class ProviderOfferingViewSet(
     move_offering_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
-        description="Return comprehensive ToS consent statistics for this offering.",
+        summary="Get Terms of Service consent statistics",
+        description="Returns comprehensive Terms of Service consent statistics for this offering, including user counts, consent rates, and historical data.",
         responses={200: serializers.ToSConsentDashboardSerializer},
         filters=False,
     )
@@ -3003,9 +3291,10 @@ class ProviderOfferingViewSet(
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Add a software catalog to an offering",
+        description="Associates a software catalog with an offering and configures enabled CPU architectures.",
         request=serializers.OfferingSoftwareCatalogSerializer,
         responses={201: serializers.SoftwareCatalogUUIDSerializer},
-        description="Add software catalog to offering.",
     )
     @action(detail=True, methods=["post"])
     def add_software_catalog(self, request, uuid=None):
@@ -3032,9 +3321,10 @@ class ProviderOfferingViewSet(
     )
 
     @extend_schema(
+        summary="Update software catalog configuration",
+        description="Updates the configuration of a software catalog associated with an offering, such as enabled architectures or partition.",
         request=serializers.OfferingSoftwareCatalogUpdateSerializer,
         responses={200: serializers.OfferingSoftwareCatalogSerializer},
-        description="Update software catalog configuration for offering.",
     )
     @action(
         detail=True,
@@ -3076,9 +3366,10 @@ class ProviderOfferingViewSet(
     ]
 
     @extend_schema(
+        summary="Remove a software catalog from an offering",
+        description="Disassociates a software catalog from an offering.",
         request=serializers.RemoveSoftwareCatalogSerializer,
-        responses=None,
-        description="Remove software catalog from offering.",
+        responses={204: None},
     )
     @action(
         detail=True,
@@ -3112,9 +3403,10 @@ class ProviderOfferingViewSet(
     ]
 
     @extend_schema(
+        summary="Add a partition to an offering",
+        description="Adds a new partition configuration to an offering.",
         request=serializers.OfferingPartitionSerializer,
         responses={201: serializers.OfferingPartitionSerializer},
-        description="Add SLURM partition configuration to offering.",
     )
     @action(detail=True, methods=["post"])
     def add_partition(self, request, uuid=None):
@@ -3139,9 +3431,10 @@ class ProviderOfferingViewSet(
     add_partition_serializer_class = serializers.OfferingPartitionSerializer
 
     @extend_schema(
+        summary="Update a partition of an offering",
+        description="Updates the configuration of an existing partition associated with an offering.",
         request=serializers.OfferingPartitionUpdateSerializer,
         responses={200: serializers.OfferingPartitionSerializer},
-        description="Update partition configuration for offering.",
     )
     @action(
         detail=True,
@@ -3179,9 +3472,10 @@ class ProviderOfferingViewSet(
     ]
 
     @extend_schema(
+        summary="Remove a partition from an offering",
+        description="Removes a partition configuration from an offering.",
         request=serializers.RemovePartitionSerializer,
-        responses=None,
-        description="Remove partition from offering.",
+        responses={204: None},
     )
     @action(
         detail=True,
@@ -3211,6 +3505,16 @@ class ProviderOfferingViewSet(
     ]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List public offerings",
+        description="Returns a paginated list of public offerings. The list is filtered to show only offerings that are active or paused and available for ordering by the current user. If anonymous access is enabled, it shows shared offerings available to unauthenticated users.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a public offering",
+        description="Returns the details of a specific public offering. Access is granted if the offering is available for ordering by the current user or if anonymous access is enabled.",
+    ),
+)
 class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
     queryset = models.Offering.objects.filter()
     lookup_field = "uuid"
@@ -3223,6 +3527,8 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
         return self.queryset.filter_by_ordering_availability_for_user(user)
 
     @extend_schema(
+        summary="List plans for an offering",
+        description="Returns a list of plans available for a specific offering. The plans are filtered based on the current user's permissions and organization group memberships.",
         responses=serializers.BasePublicPlanSerializer(many=True),
         filters=False,
     )
@@ -3236,7 +3542,11 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(responses=serializers.BasePublicPlanSerializer)
+    @extend_schema(
+        summary="Retrieve a specific plan for an offering",
+        description="Returns the details of a specific plan if it is available to the current user for the given offering.",
+        responses=serializers.BasePublicPlanSerializer,
+    )
     def plan_detail(self, request, uuid=None, plan_uuid=None):
         offering: models.Offering = self.get_object()
 
@@ -3253,6 +3563,16 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
             return Response(status=status.HTTP_404_NOT_FOUND)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List Datacite referrals for offerings",
+        description="Returns a paginated list of Datacite referrals associated with marketplace offerings. Referrals represent relationships between an offering (identified by a DOI) and other research outputs, such as publications or datasets. The list must be filtered by the offering's scope.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a specific Datacite referral",
+        description="Returns the details of a single Datacite referral record, identified by its UUID. Details include the related identifier (PID), the type of relationship, and metadata about the related work.",
+    ),
+)
 class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):
     queryset = pid_models.DataciteReferral.objects.all()
     serializer_class = serializers.OfferingReferralSerializer
@@ -3288,7 +3608,34 @@ class OfferingUserRoleViewSet(core_views.ActionsViewSet):
     ]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List resource users",
+        description="Returns a paginated list of users associated with resources, including their roles. The list is filtered based on the permissions of the current user. Staff and support users can see all resource-user links. Other users can only see links for resources they have access to.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a resource-user link",
+        description="Returns details of a specific link between a user and a resource, including their role.",
+    ),
+    create=extend_schema(
+        summary="Link a user to a resource",
+        description="Creates a new association between a user and a resource with a specific role. The user must have permission to manage users for the resource (typically service provider staff or owners).",
+    ),
+    destroy=extend_schema(
+        summary="Unlink a user from a resource",
+        description="Removes the association between a user and a resource, effectively revoking their role on that resource. The user must have permission to manage users for the resource.",
+    ),
+)
 class ResourceUserViewSet(core_views.ActionsViewSet):
+    """
+    Manage the association of users with specific marketplace resources, including their roles.
+    This is typically used by service providers or resource owners to grant specific users
+    access to a provisioned resource with a defined role.
+
+    Note: Update and partial update operations are disabled for this endpoint. To change a user's role,
+    the existing link must be deleted and a new one created with the new role.
+    """
+
     queryset = models.ResourceUser.objects.all()
     serializer_class = serializers.ResourceUserSerializer
     lookup_field = "uuid"
@@ -3409,6 +3756,34 @@ def validate_plan_archive(plan):
         raise rf_exceptions.ValidationError(_("Plan is already archived."))
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List provider plans",
+        description="Returns a paginated list of plans managed by the provider. The list is filtered based on the current user's access to the offering's customer.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a provider plan",
+        description="Returns details of a specific plan.",
+    ),
+    create=extend_schema(
+        summary="Create a provider plan",
+        description="Creates a new billing plan for an offering.",
+        request=serializers.ProviderPlanDetailsSerializer,
+        responses={201: serializers.ProviderPlanDetailsSerializer},
+    ),
+    update=extend_schema(
+        summary="Update a provider plan",
+        description="Updates an existing plan. Note: A plan cannot be updated if it is already used by resources.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a provider plan",
+        description="Partially updates an existing plan. Note: A plan cannot be updated if it is already used by resources.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a provider plan",
+        description="Deletes a plan. This is a hard delete and should be used with caution.",
+    ),
+)
 class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.Plan.objects.all()
@@ -3442,8 +3817,10 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
         super().perform_destroy(instance)
 
     @extend_schema(
+        summary="Update plan component prices",
+        description="Updates the prices for one or more components of a specific plan. If the plan is already in use by resources, this action updates the `future_price`, which will be applied from the next billing period. Otherwise, the current `price` is updated directly.",
         request=serializers.PricesUpdateSerializer,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_prices(self, request, uuid):
@@ -3459,8 +3836,10 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     update_prices_validators = [can_manage_plan]
 
     @extend_schema(
+        summary="Update plan component quotas",
+        description="Updates the quotas (fixed amounts) for one or more components of a specific plan. This is only applicable for components with a 'fixed-price' billing type.",
         request=serializers.QuotasUpdateSerializer,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_quotas(self, request, uuid):
@@ -3476,12 +3855,8 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     update_quotas_validators = [can_manage_plan]
 
     @extend_schema(
-        request=serializers.DiscountsUpdateSerializer,
-        responses=None,
-    )
-    @action(detail=True, methods=["post"])
-    def update_discounts(self, request, uuid):
-        """
+        summary="Update plan component discounts",
+        description="""
         Update volume discount configuration for plan components.
 
         This endpoint allows updating discount thresholds and rates for multiple
@@ -3489,9 +3864,14 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
         when limit quantities meet or exceed the threshold.
 
         The discount configuration affects future billing:
-        - Creates separate invoice items showing the discount
-        - Can be enabled or disabled per component
-        """
+        - Creates separate invoice items showing the discount.
+        - Can be enabled or disabled per component.
+        """,
+        request=serializers.DiscountsUpdateSerializer,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def update_discounts(self, request, uuid):
         plan: models.Plan = self.get_object()
         serializer = serializers.DiscountsUpdateSerializer(
             data=request.data, instance=plan
@@ -3521,8 +3901,10 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     archive_validators = [validate_plan_archive]
 
     @extend_schema(
+        summary="Archive a plan",
+        description="Marks a plan as archived. Archived plans cannot be used for provisioning new resources, but existing resources will continue to be billed according to this plan.",
         request=None,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
@@ -3537,14 +3919,27 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
         )
 
     @extend_schema(
+        summary="Get plan usage statistics",
+        description="Returns aggregated statistics on how many resources are currently using each plan. Can be filtered by offering or service provider.",
         parameters=[
             OpenApiParameter(
-                name="offering_uuid", type=str, location=OpenApiParameter.QUERY
+                name="offering_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by offering UUID.",
             ),
             OpenApiParameter(
-                name="customer_provider_uuid", type=str, location=OpenApiParameter.QUERY
+                name="customer_provider_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by service provider's customer UUID.",
             ),
-            OpenApiParameter(name="o", type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(
+                name="o",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Ordering field. Available options: `usage`, `limit`, `remaining`, and their descending counterparts (e.g., `-usage`).",
+            ),
         ],
         responses=serializers.PlanUsageResponseSerializer(many=True),
     )
@@ -3553,8 +3948,10 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
         return PlanUsageReporter(self, request).get_report()
 
     @extend_schema(
+        summary="Update organization groups for a plan",
+        description="Sets the list of organization groups that are allowed to access this plan. If the list is empty, the plan is accessible to all.",
         request=serializers.OrganizationGroupsSerializer,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_organization_groups(self, request, uuid):
@@ -3569,8 +3966,10 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     update_organization_groups_permissions = update_permissions
 
     @extend_schema(
+        summary="Remove all organization groups from a plan",
+        description="Removes all organization group associations from this plan, making it accessible to all users (subject to offering-level restrictions).",
         request=None,
-        responses=None,
+        responses={204: None},
     )
     @action(detail=True, methods=["post"])
     def delete_organization_groups(self, request, uuid=None):
@@ -3581,7 +3980,25 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     delete_organization_groups_permissions = update_organization_groups_permissions
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List plan components",
+        description="Returns a paginated list of all plan components. A plan component defines the pricing and quotas for an offering component within a billing plan. The list is filtered based on the current user's access permissions and organization group memberships.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a plan component",
+        description="Returns the details of a specific plan component, including its pricing, quotas, and associated offering and plan information.",
+    ),
+)
 class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):
+    """
+    Provides read-only access to plan components.
+
+    A plan component links an offering component (e.g., CPU, RAM) to a specific plan,
+    defining its price and fixed quota (if applicable). This endpoint allows users to
+    view the component details for available plans.
+    """
+
     queryset = models.PlanComponent.objects.filter()
     serializer_class = serializers.PlanComponentSerializer
     filterset_class = filters.PlanComponentFilter
@@ -3627,7 +4044,52 @@ class PluginViewSet(views.APIView):
     permission_classes = ()
     authentication_classes = ()
 
-    @extend_schema(responses={200: serializers.PluginOfferingTypeSerializer(many=True)})
+    @extend_schema(
+        summary="List available marketplace plugins and their components",
+        description="""
+        Returns a list of all registered marketplace plugins (offering types) and the components
+        associated with each. This endpoint is public and does not require authentication.
+
+        Each plugin entry includes:
+        - `offering_type`: A unique identifier for the plugin.
+        - `components`: A list of components provided by the plugin, each with its `type`, `name`, `measured_unit`, and `billing_type`.
+        - `available_limits`: A list of component types that support user-defined limits for this plugin.
+        """,
+        responses={
+            200: serializers.PluginOfferingTypeSerializer(many=True),
+        },
+        examples=[
+            OpenApiExample(
+                name="Example Response for Marketplace Plugins",
+                value=[
+                    {
+                        "offering_type": "Marketplace.Slurm",
+                        "components": [
+                            {
+                                "type": "cpu",
+                                "name": "CPU",
+                                "measured_unit": "hours",
+                                "billing_type": "usage",
+                            },
+                            {
+                                "type": "gpu",
+                                "name": "GPU",
+                                "measured_unit": "hours",
+                                "billing_type": "usage",
+                            },
+                            {
+                                "type": "ram",
+                                "name": "RAM",
+                                "measured_unit": "GB-hours",
+                                "billing_type": "usage",
+                            },
+                        ],
+                        "available_limits": [],
+                    },
+                ],
+            )
+        ],
+    )
     def get(self, request):
         offering_types = plugins.manager.get_offering_types()
         payload = []
@@ -3667,6 +4129,43 @@ class OfferingTypeValidator:
             )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List orders",
+        description="Returns a paginated list of orders accessible to the current user. Orders are visible to service consumers (project/customer members with appropriate permissions) and service providers.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve an order",
+        description="Returns the details of a specific order.",
+    ),
+    create=extend_schema(
+        summary="Create an order",
+        description="Creates a new order to provision a resource. The order will be placed in a pending state and may require approval depending on the offering and user permissions.",
+        request=serializers.OrderCreateSerializer,
+        responses={201: serializers.OrderDetailsSerializer},
+        examples=[
+            OpenApiExample(
+                name="Create a resource from a public offering",
+                summary="Example of creating a new resource.",
+                value={
+                    "offering": "http://testserver/api/marketplace-public-offerings/a1b2c3d4e5f678901234567890abcdef/",
+                    "project": "http://testserver/api/projects/b2c3d4e5f678901234567890abcdef12/",
+                    "plan": "http://testserver/api/marketplace-public-offerings/a1b2c3d4e5f678901234567890abcdef/plans/c3d4e5f678901234567890abcdef1234/",
+                    "attributes": {
+                        "name": "My New Virtual Machine",
+                        "cores": 2,
+                        "ram_gb": 4,
+                        "storage_gb": 50,
+                    },
+                },
+            )
+        ],
+    ),
+    destroy=extend_schema(
+        summary="Delete a pending order",
+        description="Deletes an order that is still in a pending state (e.g., `pending-consumer` or `pending-provider`). Executing or completed orders cannot be deleted.",
+    ),
+)
 class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     queryset = models.Order.objects.all()
     filter_backends = (DjangoFilterBackend,)
@@ -3730,8 +4229,15 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         return super().retrieve(request, *args, **kwargs)
 
     @extend_schema(
+        summary="Approve an order (consumer)",
+        description="Approves a pending order from the consumer's side (e.g., project manager, customer owner). This transitions the order to the next state, which could be pending provider approval or executing.",
         request=None,
-        responses=None,
+        responses={
+            200: {
+                "type": "string",
+                "example": "Order has been approved and is being processed.",
+            }
+        },
     )
     @action(detail=True, methods=["post"])
     def approve_by_consumer(self, request, uuid=None):
@@ -3818,8 +4324,15 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
+        summary="Approve an order (provider)",
+        description="Approves a pending order from the provider's side. This typically transitions the order to the executing state.",
         request=None,
-        responses=None,
+        responses={
+            200: {
+                "type": "string",
+                "example": "Order has been approved and is being processed.",
+            }
+        },
     )
     @action(detail=True, methods=["post"])
     def approve_by_provider(self, request, uuid=None):
@@ -3869,8 +4382,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     reject_by_consumer_permissions = [permissions.user_can_reject_order_as_consumer]
 
     @extend_schema(
+        summary="Reject an order (consumer)",
+        description="Rejects a pending order from the consumer's side. This moves the order to the 'rejected' state.",
         request=None,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def reject_by_consumer(self, request, uuid=None):
@@ -3903,8 +4418,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
+        summary="Reject an order (provider)",
+        description="Rejects a pending order from the provider's side. This moves the order to the 'rejected' state.",
         request=None,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def reject_by_provider(self, request, uuid=None):
@@ -3933,8 +4450,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
+        summary="Cancel an order",
+        description="Cancels an order. This is typically only possible for certain offering types (e.g., basic support) and in specific states (pending or executing).",
         request=None,
-        responses=None,
+        responses={202: None},
     )
     @action(detail=True, methods=["post"])
     def cancel(self, request, uuid=None):
@@ -3961,8 +4480,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
+        summary="Set order state to executing (agent)",
+        description="Used by external agents (e.g., site agent) to manually transition the order state to 'executing'. This is only applicable for specific offering types.",
         request=None,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def set_state_executing(self, request, uuid=None):
@@ -3987,8 +4508,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
+        summary="Set order state to done (agent)",
+        description="Used by external agents (e.g., site agent) to manually transition the order state to 'done'. This is only applicable for specific offering types.",
         request=None,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def set_state_done(self, request, uuid=None):
@@ -4008,8 +4531,19 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
+        summary="Set order state to erred (agent)",
+        description="Used by external agents to report a failure during order processing. An error message and traceback can be provided.",
         request=serializers.OrderSetStateErredSerializer,
-        responses=None,
+        responses={200: None},
+        examples=[
+            OpenApiExample(
+                "Report an error",
+                value={
+                    "error_message": "Failed to connect to the backend.",
+                    "error_traceback": "Traceback(...)",
+                },
+            )
+        ],
     )
     @action(detail=True, methods=["post"])
     def set_state_erred(self, request, uuid=None):
@@ -4045,8 +4579,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
+        summary="Unlink an order (staff only)",
+        description="Forcefully deletes an order from the database without affecting the backend resource. This is a staff-only administrative action used to clean up stuck or invalid orders.",
         request=None,
-        responses={403: None, 204: None},
+        responses={204: None, 403: None},
     )
     @action(detail=True, methods=["post"])
     def unlink(self, request, uuid=None):
@@ -4074,18 +4610,16 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             )
 
     @extend_schema(
+        summary="Update order attachment",
+        description="Allows uploading or replacing a file attachment (e.g., a purchase order) for a pending order.",
         request=serializers.OrderAttachmentSerializer,
         responses={200: serializers.OrderAttachmentSerializer},
-        description="Update the attachment for a pending order.",
     )
     @action(
         detail=True,
         methods=["POST"],
     )
     def update_attachment(self, request, uuid=None):
-        """
-        Allows uploading or replacing an attachment for an order.
-        """
         order: models.Order = self.get_object()
         serializer = self.get_serializer(order, data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -4098,18 +4632,16 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Delete order attachment",
+        description="Allows deleting an attachment from a pending order.",
         request=None,
         responses={204: None},
-        description="Delete the attachment from a pending order.",
     )
     @action(
         detail=True,
         methods=["POST"],
     )
     def delete_attachment(self, request, uuid=None):
-        """
-        Allows deleting an attachment from an order.
-        """
         order: models.Order = self.get_object()
 
         if not order.attachment:
@@ -4135,6 +4667,18 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     update_attachment_validators = attachment_validators
     delete_attachment_validators = attachment_validators
 
+    @extend_schema(
+        summary="Set order backend ID",
+        description="Allows a service provider or staff to set or update the backend ID associated with an order. This is useful for linking the order to an external system's identifier.",
+        request=serializers.OrderBackendIDSerializer,
+        responses={
+            200: {
+                "type": "object",
+                "properties": {"status": {"type": "string"}},
+                "example": {"status": "Order backend_id has been changed."},
+            }
+        },
+    )
     @action(detail=True, methods=["POST"])
     def set_backend_id(self, request, uuid=None):
         order = cast(models.Order, self.get_object())
@@ -4177,6 +4721,24 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List resources",
+        description="Returns a paginated list of resources accessible to the current user.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a resource",
+        description="Returns details of a specific resource.",
+    ),
+    update=extend_schema(
+        summary="Update a resource",
+        description="Updates the name, description, or end date of a resource. Requires appropriate permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a resource",
+        description="Partially updates the name, description, or end date of a resource. Requires appropriate permissions.",
+    ),
+)
 class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
     queryset = models.Resource.objects.all()
     filter_backends = (DjangoFilterBackend, filters.ResourceScopeFilterBackend)
@@ -4216,7 +4778,14 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         return super().retrieve(request, *args, **kwargs)
 
     @extend_schema(
+        summary="Get resource details",
+        description="Returns the detailed representation of the backend resource associated with the marketplace resource. The format of the response depends on the resource type.",
         filters=False,
+        responses={
+            200: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.NONE,
+            204: OpenApiTypes.NONE,
+        },
     )
     @action(detail=True, methods=["get"])
     def details(self, request, uuid=None):
@@ -4238,8 +4807,10 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Unlink a resource (staff only)",
+        description="Forcefully deletes a marketplace resource and its related plugin resource from the database. This action does not schedule operations on the backend and is intended for cleaning up resources stuck in transitioning states. Requires staff permissions.",
         request=None,
-        responses=None,
+        responses={204: None, 403: None},
     )
     @action(detail=True, methods=["post"])
     def unlink(self, request, uuid=None):
@@ -4301,8 +4872,10 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         return Response({"order_uuid": order.uuid.hex}, status=status.HTTP_200_OK)
 
     @extend_schema(
+        summary="Terminate a resource",
+        description="Creates a marketplace order to terminate the resource. This action is asynchronous and may require approval.",
+        request=serializers.ResourceTerminateSerializer,
         responses=serializers.OrderUUIDSerializer,
-        description="Create marketplace order for resource termination.",
     )
     @action(detail=True, methods=["post"])
     def terminate(self, request, uuid=None):
@@ -4328,6 +4901,8 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     ]
 
     @extend_schema(
+        summary="List resource plan periods",
+        description="Returns a list of active and future plan periods for the resource. Each period includes the plan details and current component usage.",
         request=None,
         responses=serializers.ResourcePlanPeriodSerializer(many=True),
         filters=False,
@@ -4341,7 +4916,8 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
-        description="Move resource to another project.",
+        summary="Move a resource to another project",
+        description="Moves a resource and its associated data to a different project. Requires staff permissions.",
         request=serializers.MoveResourceSerializer,
         responses={status.HTTP_200_OK: serializers.ResourceSerializer},
     )
@@ -4368,9 +4944,15 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     move_resource_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
-        description="Set slug for resource.",
+        summary="Set resource slug",
+        description="Updates the slug for a resource. Requires staff permissions.",
         request=serializers.ResourceSlugSerializer,
-        responses={status.HTTP_200_OK: None},
+        responses={
+            status.HTTP_200_OK: {
+                "type": "object",
+                "properties": {"status": {"type": "string"}},
+            }
+        },
     )
     @action(detail=True, methods=["post"])
     def set_slug(self, request, uuid=None):
@@ -4404,9 +4986,15 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     set_slug_serializer_class = serializers.ResourceSlugSerializer
 
     @extend_schema(
-        description="Set downscaled flag for resource.",
+        summary="Set downscaled flag for resource",
+        description="Sets the 'downscaled' flag for a resource. Requires staff permissions.",
         request=serializers.ResourceDownscaledSerializer,
-        responses={status.HTTP_200_OK: None},
+        responses={
+            status.HTTP_200_OK: {
+                "type": "object",
+                "properties": {"status": {"type": "string"}},
+            }
+        },
     )
     @action(detail=True, methods=["post"])
     def set_downscaled(self, request, uuid=None):
@@ -4440,9 +5028,15 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     set_downscaled_serializer_class = serializers.ResourceDownscaledSerializer
 
     @extend_schema(
-        description="Set paused flag for resource.",
+        summary="Set paused flag for resource",
+        description="Sets the 'paused' flag for a resource. Requires staff permissions.",
         request=serializers.ResourcePausedSerializer,
-        responses={status.HTTP_200_OK: None},
+        responses={
+            status.HTTP_200_OK: {
+                "type": "object",
+                "properties": {"status": {"type": "string"}},
+            }
+        },
     )
     @action(detail=True, methods=["post"])
     def set_paused(self, request, uuid=None):
@@ -4476,9 +5070,15 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     set_paused_serializer_class = serializers.ResourcePausedSerializer
 
     @extend_schema(
-        description="Set restrict_member_access flag for resource.",
+        summary="Set restrict member access flag",
+        description="Sets the 'restrict_member_access' flag for a resource. Requires staff permissions.",
         request=serializers.ResourceRestrictMemberAccessSerializer,
-        responses={status.HTTP_200_OK: None},
+        responses={
+            status.HTTP_200_OK: {
+                "type": "object",
+                "properties": {"status": {"type": "string"}},
+            }
+        },
     )
     @action(detail=True, methods=["post"])
     def set_restrict_member_access(self, request, uuid=None):
@@ -4543,7 +5143,8 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         return Response(status=status.HTTP_200_OK)
 
     @extend_schema(
-        description="Set end date of the resource by staff.",
+        summary="Set end date of the resource by staff",
+        description="Allows a staff user to set or update the end date for a resource, which will schedule it for termination.",
         request=serializers.ResourceEndDateByProviderSerializer,
         responses={status.HTTP_200_OK: None},
     )
@@ -4554,11 +5155,10 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     set_end_date_by_staff_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
+        summary="Get GLauth user configuration for a resource",
         description="""
-        This endpoint provides a config file for GLauth.
-        Example: https://github.com/glauth/glauth/blob/master/v2/sample-simple.cfg
-        It is assumed that the config is used by an external agent,
-        which synchronizes data from Waldur to GLauth.
+        This endpoint provides a GLauth configuration file for the users associated with the project of this resource.
+        It is intended for use by an external agent to synchronize user data from Waldur to GLauth.
         """,
         request=None,
         responses={status.HTTP_200_OK: str},
@@ -4634,7 +5234,10 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         return Response(response_text)
 
     @extend_schema(
-        filters=False, responses=serializers.SubresourceOfferingSerializer(many=True)
+        summary="List offerings for sub-resources",
+        description="Returns a list of offerings that can be provisioned as sub-resources of the current resource.",
+        filters=False,
+        responses=serializers.SubresourceOfferingSerializer(many=True),
     )
     @action(detail=True, methods=["get"], pagination_class=None)
     def offering_for_subresources(self, request, uuid=None):
@@ -4654,7 +5257,8 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         return Response(result)
 
     @extend_schema(
-        description="Return users connected to the project.",
+        summary="Get resource team",
+        description="Returns a list of users connected to the project of this resource, including their project roles and offering-specific usernames.",
         request=None,
         responses=serializers.ProjectUserSerializer(many=True),
         filters=False,
@@ -4678,9 +5282,15 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         )
 
     @extend_schema(
+        summary="Pull resource data",
+        description="Schedules a task to pull the latest data for the resource from its backend.",
         request=None,
-        responses=dict[str, str],
-        description="Starts process of pulling a resource",
+        responses={
+            202: {
+                "type": "object",
+                "properties": {"detail": {"type": "string"}},
+            }
+        },
     )
     @action(detail=True, methods=["post"])
     def pull(self, request, uuid=None):
@@ -4717,8 +5327,13 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     ]
 
     @extend_schema(
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
-        description="Update resource options.",
+        summary="Update resource options",
+        description="Updates the options of a resource. If the offering is configured to create orders for option changes, a new UPDATE order will be created. Otherwise, the options are updated directly.",
+        request=serializers.ResourceOptionsSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer,
+            status.HTTP_201_CREATED: serializers.OrderUUIDSerializer,
+        },
     )
     @action(detail=True, methods=["post"])
     def update_options(self, request, uuid=None):
@@ -4760,12 +5375,53 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     update_options_serializer_class = serializers.ResourceOptionsSerializer
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List consumer resources",
+        description="Returns a paginated list of resources accessible to the current user as a service consumer.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a consumer resource",
+        description="Returns details of a specific resource accessible to the consumer.",
+    ),
+    update=extend_schema(
+        summary="Update a consumer resource",
+        description="Updates the name, description, or end date of a resource.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a consumer resource",
+        description="Partially updates the name, description, or end date of a resource.",
+    ),
+)
 class ConsumerResourceViewSet(BaseResourceViewSet):
     def get_queryset(self):
         queryset = self.queryset.filter_for_service_consumer(self.request.user)
         queryset = filter_queryset_by_user_ip(queryset, self.request)
         return queryset
 
+    @extend_schema(
+        summary="Suggest a resource name",
+        description="Generates a suggested name for a new resource based on the project and offering.",
+        request=serializers.ResourceSuggestNameSerializer,
+        responses={200: {"type": "object", "properties": {"name": {"type": "string"}}}},
+        examples=[
+            OpenApiExample(
+                "Suggest a name for a new resource",
+                value={
+                    "project": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+                    "offering": "b2c3d4e5-f678-9012-3456-7890abcdef12",
+                },
+                response_only=False,
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Example response with suggested name",
+                value={"name": "customer-slug-project-slug-offering-slug-1"},
+                response_only=True,
+                request_only=False,
+            ),
+        ],
+    )
     @action(detail=False, methods=["post"])
     def suggest_name(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -4777,8 +5433,10 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     suggest_name_serializer_class = serializers.ResourceSuggestNameSerializer
 
     @extend_schema(
+        summary="Switch resource plan",
+        description="Creates a marketplace order to switch the billing plan for a resource. This action is asynchronous and may require approval.",
+        request=serializers.ResourceSwitchPlanSerializer,
         responses=serializers.OrderUUIDSerializer,
-        description="Create marketplace order for resource plan switch.",
     )
     @action(detail=True, methods=["post"])
     def switch_plan(self, request, uuid=None):
@@ -4800,8 +5458,16 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
     @extend_schema(
+        summary="Update resource limits",
+        description="Creates a marketplace order to update the limits (e.g., CPU, RAM) for a resource. This action is asynchronous and may require approval.",
+        request=serializers.ResourceUpdateLimitsSerializer,
         responses=serializers.OrderUUIDSerializer,
-        description="Create marketplace order for resource limits update.",
+        examples=[
+            OpenApiExample(
+                "Update resource limits",
+                value={"limits": {"cpu": 4, "ram_gb": 8}},
+            )
+        ],
     )
     @action(detail=True, methods=["post"])
     def update_limits(self, request, uuid=None):
@@ -4848,9 +5514,20 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     ]
 
     @extend_schema(
+        summary="Renew a prepaid resource",
+        description="Creates a renewal order to extend the subscription period of a prepaid resource. Optionally, limits can be upgraded at the same time.",
         request=serializers.ResourceRenewSerializer,
         responses={200: serializers.OrderUUIDSerializer},
-        description="Create a renewal order for a prepaid resource.",
+        examples=[
+            OpenApiExample(
+                "Renew for 12 months with limit upgrade",
+                value={"extension_months": 12, "limits": {"storage": 200}},
+            ),
+            OpenApiExample(
+                "Renew for 6 months without changing limits",
+                value={"extension_months": 6},
+            ),
+        ],
     )
     @action(detail=True, methods=["post"])
     def renew(self, request, uuid=None):
@@ -4920,11 +5597,34 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     ]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List provider resources",
+        description="Returns a paginated list of resources for offerings managed by the current user as a service provider.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a provider resource",
+        description="Returns details of a specific resource from a provider's perspective.",
+    ),
+    update=extend_schema(
+        summary="Update a provider resource",
+        description="Updates the name or description of a resource. Requires provider permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a provider resource",
+        description="Partially updates the name or description of a resource. Requires provider permissions.",
+    ),
+)
 class ProviderResourceViewSet(BaseResourceViewSet):
     def get_queryset(self):
         return self.queryset.filter_for_service_provider(self.request.user)
 
-    @extend_schema(request=serializers.ResourceEndDateByProviderSerializer)
+    @extend_schema(
+        summary="Set end date by provider",
+        description="Allows a service provider to set or update the end date for a resource, scheduling it for termination. A notification is sent to the consumer.",
+        request=serializers.ResourceEndDateByProviderSerializer,
+        responses={200: None},
+    )
     @action(detail=True, methods=["post"])
     def set_end_date_by_provider(self, request, uuid=None):
         return self._set_end_date(request, False)
@@ -4934,8 +5634,10 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     ]
 
     @extend_schema(
+        summary="Set resource backend ID",
+        description="Allows a service provider to set or update the backend ID for a resource, linking it to an external system's identifier.",
+        request=serializers.ResourceBackendIDSerializer,
         responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
-        description="Set resource backend ID.",
     )
     @action(detail=True, methods=["post"])
     def set_backend_id(self, request, uuid=None):
@@ -4973,8 +5675,10 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     set_backend_id_serializer_class = serializers.ResourceBackendIDSerializer
 
     @extend_schema(
+        summary="Update resource options directly",
+        description="Allows a service provider to directly update the options of a resource without creating an order. This is typically used for administrative changes or backend synchronization.",
+        request=serializers.ResourceOptionsSerializer,
         responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
-        description="Update resource options directly without creating orders.",
     )
     @action(detail=True, methods=["post"])
     def update_options_direct(self, request, uuid=None):
@@ -4997,8 +5701,10 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     update_options_direct_serializer_class = serializers.ResourceOptionsSerializer
 
     @extend_schema(
+        summary="Submit a report for a resource",
+        description="Allows a service provider to submit a report (e.g., usage or status report) for a resource.",
+        request=serializers.ResourceReportSerializer,
         responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
-        description="Submit resource report.",
     )
     @action(detail=True, methods=["post"])
     def submit_report(self, request, uuid=None):
@@ -5019,7 +5725,10 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     submit_report_serializer_class = serializers.ResourceReportSerializer
 
     @extend_schema(
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer}
+        summary="Set resource backend metadata",
+        description="Allows a service provider to set or update the backend-specific metadata for a resource.",
+        request=serializers.ResourceBackendMetadataSerializer,
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
     )
     @action(detail=True, methods=["post"])
     def set_backend_metadata(self, request, uuid=None):
@@ -5046,8 +5755,10 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     )
 
     @extend_schema(
+        summary="Set resource state to erred",
+        description="Allows a service provider to manually set the state of a resource to 'erred'. An error message and traceback can be provided.",
+        request=serializers.ResourceSetStateErredSerializer,
         responses={status.HTTP_200_OK: None},
-        description="Set the resource as erred.",
     )
     @action(detail=True, methods=["post"])
     def set_as_erred(self, request, uuid=None):
@@ -5080,9 +5791,10 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     set_as_erred_serializer_class = serializers.ResourceSetStateErredSerializer
 
     @extend_schema(
+        summary="Set resource state to OK",
+        description="Allows a service provider to manually set the state of a resource to 'OK', clearing any previous error messages.",
         request=None,
         responses={status.HTTP_200_OK: None},
-        description="Set the resource as OK.",
     )
     @action(detail=True, methods=["post"])
     def set_as_ok(self, request, uuid=None):
@@ -5102,7 +5814,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
 
         return Response(status=status.HTTP_200_OK)
 
-    set_as_erred_permissions = [
+    set_as_ok_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
             ["offering.customer"],
@@ -5110,9 +5822,10 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     ]
 
     @extend_schema(
+        summary="Refresh last sync time",
+        description="Updates the 'last_sync' timestamp for a resource to the current time. This is useful for backend agents to signal that a resource is being actively monitored.",
         request=None,
         responses={status.HTTP_200_OK: None},
-        description="Refresh the last sync time for a resource.",
     )
     @action(detail=True, methods=["post"])
     def refresh_last_sync(self, request, uuid=None):
@@ -5129,7 +5842,10 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     ]
 
     @extend_schema(
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer}
+        summary="Set resource limits",
+        description="Allows a service provider to directly set the limits for a resource. This is typically used for administrative changes or backend synchronization, bypassing the normal order process.",
+        request=serializers.ResourceSetLimitsSerializer,
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
     )
     @action(detail=True, methods=["post"])
     def set_limits(self, request, uuid=None):
@@ -5154,8 +5870,8 @@ class ProviderResourceViewSet(BaseResourceViewSet):
                     "Limit of the limit based component %s has been changed for resource %s from %s to %s",
                     component.type,
                     resource,
-                    resource.limits[component.type],
-                    new_limits[component.type],
+                    resource.limits.get(component.type),
+                    new_limits.get(component.type),
                 )
 
         resource.limits = new_limits
@@ -5167,7 +5883,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
 
     set_limits_serializer_class = serializers.ResourceSetLimitsSerializer
 
-    refresh_last_sync_permissions = [
+    set_limits_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
             ["offering.customer"],
@@ -5175,6 +5891,30 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     ]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List offerings for a specific resource category",
+        description="""
+        Returns a paginated list of offerings that belong to a specified category and are associated with at least one active resource accessible to the current user.
+        This endpoint is useful for finding other offerings in the same category as a user's existing resources.
+        """,
+        parameters=[
+            OpenApiParameter(
+                name="category_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.PATH,
+                required=True,
+                description="The UUID of the category to filter offerings by.",
+            ),
+            OpenApiParameter(
+                name="name",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter by offering name (case-insensitive partial match).",
+            ),
+        ],
+    )
+)
 class ResourceOfferingsViewSet(ListAPIView):
     serializer_class = serializers.ResourceOfferingSerializer
     queryset = models.Offering.objects.all()  # used by OpenAPI introspector
@@ -5185,9 +5925,7 @@ class ResourceOfferingsViewSet(ListAPIView):
             raise rf_exceptions.ValidationError("Category UUID is required.")
         category_uuid = self.kwargs["category_uuid"]
         if not is_uuid_like(category_uuid):
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data="Category UUID is invalid."
-            )
+            raise rf_exceptions.ValidationError("Category UUID is invalid.")
         return get_object_or_404(models.Category, uuid=category_uuid)
 
     def get_queryset(self):
@@ -5208,23 +5946,43 @@ class RuntimeStatesViewSet(generics.GenericAPIView):
     pagination_class = None
 
     @extend_schema(
+        summary="List available runtime states for resources",
+        description="""
+        Returns a unique, sorted list of runtime states for all resources accessible to the current user.
+        The runtime state is a backend-specific state of a resource (e.g., 'ACTIVE', 'SHUTOFF' for a VM).
+        This endpoint is useful for building dynamic filters in a user interface.
+        The list can be optionally filtered by project or category.
+        """,
         parameters=[
             OpenApiParameter(
                 name="project_uuid",
-                type=uuid.UUID,
+                type=OpenApiTypes.UUID,
                 location=OpenApiParameter.QUERY,
-                description="UUID of the project to filter runtime states by.",
+                description="Filter runtime states by resources within a specific project.",
             ),
             OpenApiParameter(
                 name="category_uuid",
-                type=uuid.UUID,
+                type=OpenApiTypes.UUID,
                 location=OpenApiParameter.QUERY,
-                description="UUID of the category to filter runtime states by.",
+                description="Filter runtime states by resources belonging to a specific category.",
             ),
         ],
         request=None,
-        responses=serializers.RuntimeStatesSerializer(many=True),
-        description="Retrieve available runtime states for resources, optionally filtered by project and category.",
+        responses={
+            200: serializers.RuntimeStatesSerializer(many=True),
+        },
+        examples=[
+            OpenApiExample(
+                "Example response for runtime states",
+                summary="A list of unique runtime states found for the user's resources.",
+                description="The response is a list of objects, each containing a `value` (the raw state from the backend) and a `label` (a lowercase version for display).",
+                value=[
+                    {"value": "ACTIVE", "label": "active"},
+                    {"value": "BUILDING", "label": "building"},
+                    {"value": "SHUTOFF", "label": "shutoff"},
+                ],
+            )
+        ],
     )
     def get(self, request, **kwargs):
         projects = filter_queryset_for_user(
@@ -5255,6 +6013,31 @@ class RuntimeStatesViewSet(generics.GenericAPIView):
         return Response(result)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List related customers for a service provider",
+        description="""
+        Returns a paginated list of customers who have consumed resources from a specific service provider.
+        This endpoint helps a service provider identify all the organizations that are their clients within the platform.
+        The service provider is identified by its own customer UUID.
+        """,
+        parameters=[
+            OpenApiParameter(
+                name="customer_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.PATH,
+                required=True,
+                description="The UUID of the service provider's customer profile.",
+            ),
+            OpenApiParameter(
+                name="name",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter related customers by name (case-insensitive partial match).",
+            ),
+        ],
+    )
+)
 class RelatedCustomersViewSet(ListAPIView):
     serializer_class = structure_serializers.BasicCustomerSerializer
     filter_backends = (DjangoFilterBackend,)
@@ -5266,9 +6049,7 @@ class RelatedCustomersViewSet(ListAPIView):
             raise rf_exceptions.ValidationError("Customer UUID is required.")
         customer_uuid = self.kwargs["customer_uuid"]
         if not is_uuid_like(customer_uuid):
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data="Customer UUID is invalid."
-            )
+            raise rf_exceptions.ValidationError("Customer UUID is invalid.")
         qs = filter_queryset_for_user(
             structure_models.Customer.objects.all(), self.request.user
         )
@@ -5276,7 +6057,7 @@ class RelatedCustomersViewSet(ListAPIView):
 
     def get_queryset(self):
         customer = self.get_customer()
-        qs: ResourceQuerySet = models.Resource.objects.all()
+        qs = models.Resource.objects.all()
         customer_ids = (
             qs.filter_for_service_provider(self.request.user)
             .filter(offering__customer=customer)
@@ -5286,7 +6067,32 @@ class RelatedCustomersViewSet(ListAPIView):
         return structure_models.Customer.objects.filter(id__in=customer_ids)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List aggregated category component usages",
+        description="""
+        Returns a paginated list of aggregated component usages for marketplace categories.
+        This data is scoped to either a customer or a project and represents the total usage
+        of a component type (e.g., total 'CPU hours' used across all resources of a certain category
+        within a project).
+
+        The list **must** be filtered by a `scope` parameter (either a customer or project URL).
+        """,
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve an aggregated category component usage record",
+        description="Returns the details of a single aggregated usage record for a category component, identified by its database ID.",
+    ),
+)
 class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
+    """
+    Provides read-only access to aggregated component usage data for marketplace categories.
+
+    This endpoint shows the total usage of a component type (like 'CPU hours') across all resources
+    of a particular category within a specific scope (either a customer or a project).
+    It is useful for high-level reporting and analytics.
+    """
+
     queryset = models.CategoryComponentUsage.objects.all().order_by(
         "-date", "component__type"
     )
@@ -5298,6 +6104,16 @@ class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.CategoryComponentUsageSerializer
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List component usage records",
+        description="Returns a paginated list of component usage records for resources. This data is used for billing and usage tracking.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a component usage record",
+        description="Returns the details of a specific component usage record.",
+    ),
+)
 class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.ComponentUsage.objects.all().order_by("-date", "component__type")
     lookup_field = "uuid"
@@ -5306,8 +6122,39 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.ComponentUsageSerializer
 
     @extend_schema(
+        summary="Set component usage for a resource",
+        description="""
+        Allows a service provider to report usage for one or more components of a specific resource.
+        This endpoint is typically used by backend systems or agents to submit periodic usage data.
+
+        - If a `plan_period` is provided, the usage is associated with that period.
+        - If only a `resource` is provided, the system will determine the correct plan period based on the current date.
+        - If a usage record for the same resource, component, and billing period already exists, it will be updated. Otherwise, a new record is created.
+        """,
         request=serializers.ComponentUsageCreateSerializer,
         responses={status.HTTP_201_CREATED: None},
+        examples=[
+            OpenApiExample(
+                "Report usage for multiple components",
+                summary="Example of reporting usage for 'cpu' and 'ram' components.",
+                value={
+                    "plan_period": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+                    "usages": [
+                        {
+                            "type": "cpu",
+                            "amount": 120.50,
+                            "description": "CPU usage for the last period",
+                        },
+                        {
+                            "type": "ram",
+                            "amount": 240.00,
+                            "description": "RAM usage for the last period",
+                            "recurring": True,
+                        },
+                    ],
+                },
+            )
+        ],
     )
     @transaction.atomic
     @action(detail=False, methods=["post"])
@@ -5331,8 +6178,27 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     set_usage_serializer_class = serializers.ComponentUsageCreateSerializer
 
     @extend_schema(
+        summary="Set user-specific component usage",
+        description="""
+        Allows a service provider to report usage for a specific user associated with a resource's component.
+        This is used for detailed, per-user usage tracking within a single resource.
+
+        - If a user-specific usage record already exists for the given component usage, it will be updated.
+        - Otherwise, a new record is created.
+        """,
         request=serializers.ComponentUserUsageCreateSerializer,
         responses={status.HTTP_201_CREATED: None},
+        examples=[
+            OpenApiExample(
+                "Report usage for a specific user",
+                summary="Example of reporting usage for a user identified by their OfferingUser link.",
+                value={
+                    "user": "http://testserver/api/marketplace-offering-users/a1b2c3d4e5f678901234567890abcdef/",
+                    "username": "johndoe",
+                    "usage": 50.75,
+                },
+            )
+        ],
     )
     @action(detail=True, methods=["post"])
     def set_user_usage(self, request, *args, **kwargs):
@@ -5365,7 +6231,30 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     ]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List user-specific component usages",
+        description="""
+        Returns a paginated list of component usage records attributed to specific users.
+        This provides a granular view of resource consumption, breaking down the total usage of a component
+        by individual users.
+        """,
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a user-specific component usage record",
+        description="Returns the details of a single user-specific component usage record.",
+    ),
+)
 class ComponentUserUsageViewSet(core_views.ReadOnlyActionsViewSet):
+    """
+    Provides read-only access to user-specific component usage data.
+
+    This endpoint allows service providers and resource consumers to view detailed
+    usage information for each user associated with a resource's components.
+    It is useful for detailed billing reports, usage analysis, and per-user
+    consumption monitoring.
+    """
+
     lookup_field = "uuid"
     queryset = models.ComponentUserUsage.objects.all().order_by(
         "-component_usage__date", "component_usage__component__type"
@@ -5375,9 +6264,47 @@ class ComponentUserUsageViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.ComponentUserUsageSerializer
 
 
+@extend_schema_view(
+    check_signature=extend_schema(
+        summary="Check service provider signature",
+        description="""
+        Validates a signed payload from a service provider. The payload is a JWT token
+        signed with the provider's API secret code. This endpoint is used to verify the
+        authenticity of a request before processing it.
+
+        The `data` field should contain the JWT token.
+        """,
+        request=serializers.ServiceProviderSignatureSerializer,
+        responses={200: None},
+        examples=[
+            OpenApiExample(
+                "Example signature check request",
+                value={
+                    "customer": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+                    "data": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+                },
+            )
+        ],
+    ),
+    set_usage=extend_schema(
+        summary="Set component usage with signature",
+        description="""
+        Allows a service provider to report usage for resource components using a signed JWT payload.
+        This provides a secure way for external systems to submit billing data.
+
+        The `data` field must contain a JWT token that, when decoded, matches the structure of the
+        `ComponentUsageCreateSerializer`.
+        """,
+        request=serializers.ServiceProviderSignatureSerializer,
+        responses={201: None},
+    ),
+)
 class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     """
-    TODO: Move this viewset to  ComponentUsageViewSet.
+    Public API endpoints for marketplace interactions, typically used by service providers
+    with signature-based authentication.
+
+    Note: These endpoints are intended for backend integrations and are exempt from standard CSRF protection.
     """
 
     permission_classes = ()
@@ -5454,6 +6381,36 @@ def validate_offering_user_state_transition(valid_states, target_state_name):
     return validator
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List offering users",
+        description="Returns a paginated list of users associated with offerings. The visibility of users depends on the role of the authenticated user. Staff and support can see all users. Service providers can see users of their offerings if the user has consented. Regular users can only see their own offering-user records.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve an offering user",
+        description="Returns the details of a specific offering-user link. Visibility follows the same rules as the list view.",
+    ),
+    create=extend_schema(
+        summary="Create an offering user",
+        description="Associates a user with a specific offering, creating an offering-specific user account. This is typically done by a service provider.",
+        request=serializers.OfferingUserSerializer,
+        responses={201: serializers.OfferingUserSerializer},
+        examples=[
+            OpenApiExample(
+                "Create an offering user link",
+                value={
+                    "offering": "http://testserver/api/marketplace-provider-offerings/a1b2c3d4e5f678901234567890abcdef/",
+                    "user": "http://testserver/api/users/b2c3d4e5f678901234567890abcdef12/",
+                    "username": "johndoe_hpc",
+                },
+            )
+        ],
+    ),
+    destroy=extend_schema(
+        summary="Delete an offering user",
+        description="Removes the association between a user and an offering. This action may trigger backend cleanup processes depending on the offering type.",
+    ),
+)
 class OfferingUsersViewSet(
     UserChecklistMixin,
     ReviewerChecklistMixin,
@@ -5561,8 +6518,10 @@ class OfferingUsersViewSet(
         ).prefetch_related("offering__user_consents")
 
     @extend_schema(
+        summary="Update restriction status",
+        description="Allows a service provider to mark an offering user as restricted or unrestricted. A restricted user may have limited access to the resource.",
         request=serializers.OfferingUserUpdateRestrictionSerializer,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_restricted(self, request, uuid=None):
@@ -5590,8 +6549,10 @@ class OfferingUsersViewSet(
     ]
 
     @extend_schema(
+        summary="Begin creation process",
+        description="Transitions the offering user state from 'Requested' or 'Error Creating' to 'Creating'. This is typically used by an agent to signal that the creation process has started.",
         request=None,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def begin_creating(self, request, uuid=None):
@@ -5614,8 +6575,19 @@ class OfferingUsersViewSet(
     ]
 
     @extend_schema(
+        summary="Set state to Pending Additional Validation",
+        description="Transitions the state to 'Pending Additional Validation' and allows a service provider to add a comment and a URL for the user to follow.",
         request=serializers.OfferingUserStateTransitionSerializer,
-        responses=None,
+        responses={200: None},
+        examples=[
+            OpenApiExample(
+                "Request additional validation",
+                value={
+                    "comment": "Please upload a valid ID to complete the verification.",
+                    "comment_url": "https://example.com/upload-id",
+                },
+            )
+        ],
     )
     @action(detail=True, methods=["post"])
     def set_pending_additional_validation(self, request, uuid=None):
@@ -5654,8 +6626,10 @@ class OfferingUsersViewSet(
     ]
 
     @extend_schema(
+        summary="Set state to Pending Account Linking",
+        description="Transitions the state to 'Pending Account Linking' and allows a service provider to add a comment and a URL to guide the user.",
         request=serializers.OfferingUserStateTransitionSerializer,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def set_pending_account_linking(self, request, uuid=None):
@@ -5693,7 +6667,12 @@ class OfferingUsersViewSet(
         )
     ]
 
-    @extend_schema(request=None, responses=None)
+    @extend_schema(
+        summary="Set state to Validation Complete",
+        description="Transitions the state from a pending validation state to 'OK', indicating that the user has completed the required steps. This clears any service provider comments.",
+        request=None,
+        responses={200: None},
+    )
     @action(detail=True, methods=["post"])
     def set_validation_complete(self, request, uuid=None):
         offering_user: models.OfferingUser = self.get_object()
@@ -5726,8 +6705,10 @@ class OfferingUsersViewSet(
     ]
 
     @extend_schema(
+        summary="Set state to OK",
+        description="Manually sets the offering user state to 'OK'. This can be used to recover from an error state or to complete a manual creation process.",
         request=None,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def set_ok(self, request, uuid=None):
@@ -5759,7 +6740,12 @@ class OfferingUsersViewSet(
         )
     ]
 
-    @extend_schema(request=None, responses=None)
+    @extend_schema(
+        summary="Set state to Error Creating",
+        description="Manually moves the offering user into the 'Error Creating' state. This is typically used by an agent to report a failure during the creation process.",
+        request=None,
+        responses={200: None},
+    )
     @action(detail=True, methods=["post"])
     def set_error_creating(self, request, uuid=None):
         offering_user: models.OfferingUser = self.get_object()
@@ -5788,7 +6774,12 @@ class OfferingUsersViewSet(
         )
     ]
 
-    @extend_schema(request=None, responses=None)
+    @extend_schema(
+        summary="Set state to Error Deleting",
+        description="Manually moves the offering user into the 'Error Deleting' state. This is typically used by an agent to report a failure during the deletion process.",
+        request=None,
+        responses={200: None},
+    )
     @action(detail=True, methods=["post"])
     def set_error_deleting(self, request, uuid=None):
         offering_user: models.OfferingUser = self.get_object()
@@ -5812,7 +6803,12 @@ class OfferingUsersViewSet(
         )
     ]
 
-    @extend_schema(request=None, responses=None)
+    @extend_schema(
+        summary="Set state to Deleted",
+        description="Transitions the offering user to the 'Deleted' state, marking the successful completion of the deletion process.",
+        request=None,
+        responses={200: None},
+    )
     @action(detail=True, methods=["post"])
     def set_deleted(self, request, uuid=None):
         """Action to mark an offering user as successfully deleted."""
@@ -5843,7 +6839,12 @@ class OfferingUsersViewSet(
         )
     ]
 
-    @extend_schema(request=None, responses=None)
+    @extend_schema(
+        summary="Request deletion of an offering user",
+        description="Initiates the deletion process for an offering user account by transitioning it to the 'Deletion Requested' state.",
+        request=None,
+        responses={200: None},
+    )
     @action(detail=True, methods=["post"])
     def request_deletion(self, request, uuid=None):
         """Action to request deletion of an offering user account."""
@@ -5874,7 +6875,12 @@ class OfferingUsersViewSet(
         )
     ]
 
-    @extend_schema(request=None, responses=None)
+    @extend_schema(
+        summary="Begin deletion process",
+        description="Transitions the offering user to the 'Deleting' state. This is typically used by an agent to signal that the deletion process has started.",
+        request=None,
+        responses={200: None},
+    )
     @action(detail=True, methods=["post"])
     def set_deleting(self, request, uuid=None):
         """Action to begin the deletion process for an offering user."""
@@ -5910,6 +6916,8 @@ class OfferingUsersViewSet(
     ]
 
     @extend_schema(
+        summary="Update service provider comments",
+        description="Allows a service provider to update the `service_provider_comment` and `service_provider_comment_url` fields for an offering user. This is often used to provide feedback or instructions during a pending state.",
         request=serializers.OfferingUserServiceProviderCommentSerializer,
         responses=serializers.OfferingUserServiceProviderCommentSerializer,
     )
@@ -5955,6 +6963,20 @@ class OfferingUsersViewSet(
     update_comments_permissions = [_check_update_comments_state]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List checklist completions for offering users",
+        description="""
+        Returns a paginated list of all checklist completions for offering users that the current user is allowed to see.
+        This endpoint is used by service providers to monitor compliance status and by users to see their own required checklists.
+        Visibility follows the same rules as the `OfferingUsers` endpoint.
+        """,
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a checklist completion",
+        description="Returns the details of a specific checklist completion for an offering user.",
+    ),
+)
 class OfferingUserChecklistCompletionsViewSet(core_views.ReadOnlyActionsViewSet):
     """List all checklist completions for offering users that the current user is allowed to see."""
 
@@ -6832,6 +7854,14 @@ def can_mutate_robot_account(request, view, obj=None):
         raise PermissionDenied("Remote robot account is synchronized.")
 
 
+@extend_schema_view(
+    list=extend_schema(summary="List service accounts"),
+    retrieve=extend_schema(summary="Retrieve a service account"),
+    create=extend_schema(summary="Create a service account"),
+    update=extend_schema(summary="Update a service account"),
+    partial_update=extend_schema(summary="Partially update a service account"),
+    destroy=extend_schema(summary="Close (delete) a service account"),
+)
 class BaseServiceAccountViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
 
@@ -6946,7 +7976,35 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
             )
 
 
+@extend_schema_view(
+    create=extend_schema(
+        summary="Create a project service account",
+        description="Creates a new service account scoped to a specific project. This generates an API key that can be used for automated access to resources within that project.",
+        examples=[
+            OpenApiExample(
+                "Create a project service account",
+                value={
+                    "project": "http://testserver/api/projects/a1b2c3d4e5f678901234567890abcdef/",
+                    "email": "automation-bot@example.com",
+                    "description": "Service account for CI/CD pipelines",
+                    "preferred_identifier": "cicd-bot-project-alpha",
+                },
+            )
+        ],
+    ),
+    destroy=extend_schema(
+        summary="Close a project service account",
+        description="Deactivates a project service account and revokes its API key.",
+    ),
+)
 class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
+    """
+    Manage service accounts that are scoped to a specific project.
+
+    Project service accounts provide a mechanism for automated systems (like CI/CD pipelines)
+    to interact with resources within a single project, using a dedicated API key instead of a user's credentials.
+    """
+
     queryset = models.ProjectServiceAccount.objects.exclude(
         state=ServiceAccountState.CLOSED
     )
@@ -6990,6 +8048,8 @@ class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
     create_permissions = [check_create_permissions]
 
     @extend_schema(
+        summary="Rotate API key for a project service account",
+        description="Generates a new API key for the service account, immediately invalidating the old one. The new key is returned in the response.",
         request=None,
         responses=serializers.ProjectServiceAccountSerializer,
     )
@@ -7025,7 +8085,35 @@ class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
     rotate_api_key_validators = [core_validators.StateValidator(ServiceAccountState.OK)]
 
 
+@extend_schema_view(
+    create=extend_schema(
+        summary="Create a customer service account",
+        description="Creates a new service account scoped to a specific customer (organization). This generates an API key that can be used for automated access to resources across all projects within that customer.",
+        examples=[
+            OpenApiExample(
+                "Create a customer service account",
+                value={
+                    "customer": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+                    "email": "billing-bot@example.com",
+                    "description": "Service account for billing and reporting",
+                    "preferred_identifier": "billing-bot-customer-alpha",
+                },
+            )
+        ],
+    ),
+    destroy=extend_schema(
+        summary="Close a customer service account",
+        description="Deactivates a customer service account and revokes its API key.",
+    ),
+)
 class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
+    """
+    Manage service accounts that are scoped to a specific customer (organization).
+
+    Customer service accounts provide a mechanism for automated systems to interact
+    with resources across all projects of a customer, using a dedicated API key.
+    """
+
     queryset = models.CustomerServiceAccount.objects.exclude(
         state=ServiceAccountState.CLOSED
     )
@@ -7064,6 +8152,8 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
     create_permissions = [check_create_permissions]
 
     @extend_schema(
+        summary="Rotate API key for a customer service account",
+        description="Generates a new API key for the service account, immediately invalidating the old one. The new key is returned in the response.",
         request=None,
         responses=serializers.CustomerServiceAccountSerializer,
     )
@@ -7099,6 +8189,32 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
     rotate_api_key_validators = [core_validators.StateValidator(ServiceAccountState.OK)]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List robot accounts",
+        description="Returns a paginated list of robot accounts accessible to the current user.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a robot account",
+        description="Returns the details of a specific robot account.",
+    ),
+    create=extend_schema(
+        summary="Create a robot account",
+        description="Creates a new robot account for a specific resource. This is typically used for automated access to a resource, e.g., for CI/CD pipelines.",
+    ),
+    update=extend_schema(
+        summary="Update a robot account",
+        description="Updates the properties of a robot account, such as its username or associated users. Not allowed for synchronized remote accounts.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a robot account",
+        description="Partially updates the properties of a robot account. Not allowed for synchronized remote accounts.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a robot account",
+        description="Deletes a robot account. This is a hard delete and should be used with caution.",
+    ),
+)
 class RobotAccountViewSet(core_views.ActionsViewSet):
     queryset = models.RobotAccount.objects.all()
     lookup_field = "uuid"
@@ -7149,6 +8265,8 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
         instance.save()
 
     @extend_schema(
+        summary="Set robot account state to creating",
+        description="Transitions the robot account state from 'Requested' to 'Creating'. This is typically used by an agent to signal that the creation process has started.",
         request=None,
         responses={
             200: serializers.RobotAccountDetailsSerializer,
@@ -7170,8 +8288,13 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
             return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
+        summary="Set robot account state to OK",
+        description="Manually sets the robot account state to 'OK', indicating that it is fully operational. This can be used to recover from an error state.",
         request=None,
-        responses=serializers.RobotAccountDetailsSerializer,
+        responses={
+            200: serializers.RobotAccountDetailsSerializer,
+            400: serializers.StateTransitionErrorSerializer,
+        },
     )
     @action(detail=True, methods=["post"])
     def set_state_ok(self, request, uuid=None):
@@ -7190,8 +8313,13 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
             return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
+        summary="Request deletion of a robot account",
+        description="Transitions the robot account state from 'OK' to 'Requested deletion', initiating the deletion process.",
         request=None,
-        responses=serializers.RobotAccountDetailsSerializer,
+        responses={
+            200: serializers.RobotAccountDetailsSerializer,
+            400: serializers.StateTransitionErrorSerializer,
+        },
     )
     @action(detail=True, methods=["post"])
     def set_state_request_deletion(self, request, uuid=None):
@@ -7210,8 +8338,13 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
             return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
+        summary="Set robot account state to deleted",
+        description="Transitions the robot account state from 'Requested deletion' to 'Deleted', marking the successful completion of the deletion process.",
         request=None,
-        responses=serializers.RobotAccountDetailsSerializer,
+        responses={
+            200: serializers.RobotAccountDetailsSerializer,
+            400: serializers.StateTransitionErrorSerializer,
+        },
     )
     @action(detail=True, methods=["post"])
     def set_state_deleted(self, request, uuid=None):
@@ -7230,8 +8363,13 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
             return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
+        summary="Set robot account state to erred",
+        description="Manually moves the robot account into the 'Error' state. An optional error message can be provided.",
         request=serializers.RobotAccountErrorSerializer,
-        responses=serializers.RobotAccountDetailsSerializer,
+        responses={
+            200: serializers.RobotAccountDetailsSerializer,
+            400: serializers.StateTransitionErrorSerializer,
+        },
     )
     @action(detail=True, methods=["post"])
     def set_state_erred(self, request, uuid=None):
@@ -7293,7 +8431,41 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
     ]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List sections",
+        description="Returns a paginated list of all sections. Sections are used to group attributes within a category.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a section",
+        description="Returns the details of a specific section, identified by its key.",
+    ),
+    create=extend_schema(
+        summary="Create a section",
+        description="Creates a new section within a category. Requires staff permissions.",
+    ),
+    update=extend_schema(
+        summary="Update a section",
+        description="Updates an existing section. Requires staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a section",
+        description="Partially updates an existing section. Requires staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a section",
+        description="Deletes a section. Requires staff permissions.",
+    ),
+)
 class SectionViewSet(rf_viewsets.ModelViewSet):
+    """
+    Manage sections for marketplace categories.
+
+    Sections are used to organize attributes into logical groups within a category's
+    offering configuration form. This endpoint is primarily for administrative purposes
+    and requires staff permissions for modification.
+    """
+
     queryset = models.Section.objects.all().order_by("title")
     lookup_field = "key"
     serializer_class = serializers.SectionSerializer
@@ -7301,14 +8473,83 @@ class SectionViewSet(rf_viewsets.ModelViewSet):
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List category help articles",
+        description="Returns a paginated list of all help articles associated with marketplace categories.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a category help article",
+        description="Returns the details of a specific help article, identified by its ID.",
+    ),
+    create=extend_schema(
+        summary="Create a category help article",
+        description="Creates a new help article and associates it with one or more categories. Requires staff permissions.",
+    ),
+    update=extend_schema(
+        summary="Update a category help article",
+        description="Updates an existing help article. Requires staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a category help article",
+        description="Partially updates an existing help article. Requires staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a category help article",
+        description="Deletes a help article. Requires staff permissions.",
+    ),
+)
 class CategoryHelpArticleViewSet(rf_viewsets.ModelViewSet):
+    """
+    Manage help articles for marketplace categories.
+
+    Help articles provide links to documentation or support resources related to a category.
+    These are displayed on the offering details page to assist users. This endpoint is
+    primarily for administrative purposes and requires staff permissions for modification.
+    """
+
     queryset = models.CategoryHelpArticle.objects.all().order_by("title")
     serializer_class = serializers.CategoryHelpArticlesSerializer
     filter_backends = (DjangoFilterBackend,)
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List category components",
+        description="Returns a paginated list of all components defined at the category level. These act as templates for components in offerings.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a category component",
+        description="Returns the details of a specific category component, identified by its ID.",
+    ),
+    create=extend_schema(
+        summary="Create a category component",
+        description="Creates a new component for a category. Requires staff permissions.",
+    ),
+    update=extend_schema(
+        summary="Update a category component",
+        description="Updates an existing category component. Requires staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a category component",
+        description="Partially updates an existing category component. Requires staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a category component",
+        description="Deletes a category component. Requires staff permissions.",
+    ),
+)
 class CategoryComponentViewSet(rf_viewsets.ModelViewSet):
+    """
+    Manage components for marketplace categories.
+
+    Category components define the measurable units (e.g., CPU, RAM, storage) that can be
+    included in offerings within a specific category. They serve as templates and are used
+    for aggregated usage reporting. This endpoint is primarily for administrative purposes
+    and requires staff permissions for modification.
+    """
+
     queryset = models.CategoryComponent.objects.all().order_by("name")
     serializer_class = serializers.CategoryComponentsSerializer
     filter_backends = (DjangoFilterBackend,)
@@ -7317,22 +8558,41 @@ class CategoryComponentViewSet(rf_viewsets.ModelViewSet):
 
 class GlobalCategoriesViewSet(views.APIView):
     @extend_schema(
-        description="Count of resource categories for all resources accessible by user.",
+        summary="Get resource counts by category",
+        description="""
+        Returns a dictionary mapping marketplace category UUIDs to the count of active (non-terminated)
+        resources the current user has access to within that category. This is primarily used for UI
+        dashboards or sidebars to display the number of resources in each category filter.
+
+        The counts can be further filtered by providing a `project_uuid` or `customer_uuid`.
+        """,
         parameters=[
             OpenApiParameter(
                 name="project_uuid",
-                type=uuid.UUID,
+                type=OpenApiTypes.UUID,
                 location=OpenApiParameter.QUERY,
-                description="UUID of the project to filter resources by.",
+                description="Filter counts by resources within a specific project.",
             ),
             OpenApiParameter(
                 name="customer_uuid",
-                type=uuid.UUID,
+                type=OpenApiTypes.UUID,
                 location=OpenApiParameter.QUERY,
-                description="UUID of the customer to filter resources by.",
+                description="Filter counts by resources within a specific customer.",
             ),
         ],
-        responses=dict[str, int],
+        responses={200: OpenApiTypes.OBJECT},
+        examples=[
+            OpenApiExample(
+                name="Example of Category Resource Counts",
+                summary="A dictionary of category UUIDs and their corresponding resource counts.",
+                description="The keys are the UUIDs of the categories (in hex format), and the values are the number of non-terminated resources the user can see in that category.",
+                value={
+                    "a1b2c3d4e5f678901234567890abcdef": 5,
+                    "b2c3d4e5f678901234567890abcdef12": 2,
+                    "c3d4e5f678901234567890abcdef1234": 10,
+                },
+            )
+        ],
     )
     def get(self, request):
         # We need to reset ordering to avoid extra GROUP BY created field.
@@ -7360,7 +8620,26 @@ class GlobalCategoriesViewSet(views.APIView):
         )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List integration statuses",
+        description="Returns a paginated list of integration statuses for offerings. This is used to monitor the connectivity and health of backend agents (e.g., site agents) associated with offerings.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve an integration status",
+        description="Returns the details of a specific integration status, including the agent type, status, and last request timestamp.",
+    ),
+)
 class IntegrationStatusViewSet(core_views.ReadOnlyActionsViewSet):
+    """
+    Provides read-only access to the integration status of backend agents for offerings.
+
+    This viewset is used by service providers to monitor the health of their integrations.
+    Each record represents the status of a specific agent (e.g., for order processing,
+    usage reporting) for a particular offering. The status is automatically updated when
+    the agent communicates with the marketplace API.
+    """
+
     lookup_field = "uuid"
     queryset = models.IntegrationStatus.objects.all()
     filter_backends = (DjangoFilterBackend,)
@@ -7385,7 +8664,52 @@ class IntegrationStatusViewSet(core_views.ReadOnlyActionsViewSet):
         return qs.filter(offering__in=offerings)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List component usage limits for users",
+        description="Returns a paginated list of usage limits set for specific users on resource components.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a component usage limit",
+        description="Returns the details of a specific user's usage limit for a component.",
+    ),
+    create=extend_schema(
+        summary="Create a component usage limit for a user",
+        description="Sets a usage limit for a specific user on a resource's component. This is only applicable for offerings that support per-user consumption limitation.",
+        examples=[
+            OpenApiExample(
+                "Set a CPU usage limit for a user",
+                value={
+                    "resource": "http://testserver/api/marketplace-resources/a1b2c3d4-e5f6-7890-1234-567890abcdef/",
+                    "component": "b2c3d4e5-f678-9012-3456-7890abcdef12",
+                    "user": "http://testserver/api/marketplace-offering-users/c3d4e5f6-7890-1234-5678-90abcdef1234/",
+                    "limit": 100,
+                },
+            )
+        ],
+    ),
+    update=extend_schema(
+        summary="Update a component usage limit",
+        description="Updates an existing usage limit for a user on a component.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a component usage limit",
+        description="Partially updates an existing usage limit for a user on a component.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a component usage limit",
+        description="Removes a usage limit for a user on a component.",
+    ),
+)
 class ComponentUserUsageLimitViewSet(core_views.ActionsViewSet):
+    """
+    Manage per-user usage limits for resource components.
+
+    This viewset allows project and customer administrators to set, update, and delete
+    consumption limits for individual users on specific components of a resource. This is
+    useful for controlling and budgeting resource usage within a team.
+    """
+
     lookup_field = "uuid"
     queryset = models.ComponentUserUsageLimit.objects.all().order_by("-created")
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
@@ -7400,12 +8724,49 @@ class ComponentUserUsageLimitViewSet(core_views.ActionsViewSet):
     ]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List backend resources",
+        description="Returns a paginated list of backend resources that are available for import. This endpoint is typically used by site agents to see which resources they have reported.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a backend resource",
+        description="Returns the details of a specific backend resource.",
+    ),
+    create=extend_schema(
+        summary="Create a backend resource",
+        description="Creates a new backend resource record. This is typically done by a site agent to report a resource that is available for import into the marketplace.",
+        examples=[
+            OpenApiExample(
+                "Create a backend resource",
+                summary="Example of creating a backend resource for a specific offering and project.",
+                value={
+                    "name": "my-backend-vm-123",
+                    "project": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+                    "offering": "b2c3d4e5-f678-9012-3456-7890abcdef12",
+                    "backend_id": "vm-backend-uuid-5678",
+                    "backend_metadata": {
+                        "cpu_cores": 4,
+                        "ram_gb": 8,
+                        "storage_gb": 100,
+                    },
+                },
+            )
+        ],
+    ),
+    destroy=extend_schema(
+        summary="Delete a backend resource",
+        description="Deletes a backend resource record. This is typically done when the resource is no longer available for import.",
+    ),
+)
 class BackendResourceViewSet(core_views.ActionsViewSet):
     """
-    The viewset provides endpoints for management over backend resources.
-    A site agent is expected to call these endpoints for creation, update and deletion of backend resources.
-    The `import_resource` endpoint is responsible for importing of a backend resorce into Waldur and
-    only staff can perform this operation.
+    Manage backend resources that are candidates for import into the marketplace.
+
+    This viewset provides endpoints for site agents and administrators to manage the lifecycle
+    of backend resources before they are imported as marketplace resources. It allows for the
+    creation, listing, and deletion of these pre-import records. The `import_resource` action
+    is a staff-only operation to convert a backend resource into a full marketplace resource.
     """
 
     lookup_field = "uuid"
@@ -7447,8 +8808,26 @@ class BackendResourceViewSet(core_views.ActionsViewSet):
     ]
 
     @extend_schema(
+        summary="Import a backend resource (staff only)",
+        description="""
+        Converts a backend resource into a full marketplace resource. This action is restricted to staff users.
+        Upon successful import, the original backend resource record is deleted. A fake order in the 'done'
+        state is created to represent the import event.
+        """,
         request=serializers.BackendResourceImportSerializer,
         responses={status.HTTP_201_CREATED: serializers.ResourceSerializer},
+        examples=[
+            OpenApiExample(
+                "Import with a specific plan",
+                summary="Importing a resource and assigning it to a specific plan.",
+                value={"plan": "a1b2c3d4-e5f6-7890-1234-567890abcdef"},
+            ),
+            OpenApiExample(
+                "Import without a plan (for private offerings)",
+                summary="Importing a resource for a private offering where a plan is not required.",
+                value={},
+            ),
+        ],
     )
     @action(detail=True, methods=["post"])
     def import_resource(self, request, uuid=None):
@@ -7534,13 +8913,33 @@ class BackendResourceViewSet(core_views.ActionsViewSet):
     import_resource_permissions = [structure_permissions.is_staff]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List backend resource requests",
+        description="Returns a paginated list of requests for backend resources.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a backend resource request",
+        description="Returns the details of a specific backend resource request.",
+    ),
+    create=extend_schema(
+        summary="Create a backend resource request",
+        description="Creates a new request to fetch a list of importable resources from a backend. This is typically used by staff to trigger a site agent to report available resources.",
+        examples=[
+            OpenApiExample(
+                "Request resources for an offering",
+                value={"offering": "a1b2c3d4-e5f6-7890-1234-567890abcdef"},
+            )
+        ],
+    ),
+)
 class BackendResourceRequestViewSet(core_views.ActionsViewSet):
     """
-    The viewset provides endpoints for requesting list of ready-to-import backend resources.
-    After creation of the request, a site agent is expected to process it.
-    The agent should:
-    - create BackendResources missing in Waldur using the BackendResourceViewSet
-    - manage the state of the request using `start_processing`, `set_done`, `set_erred` endpoints in this class
+    Manage requests for lists of importable backend resources.
+
+    This viewset provides endpoints for creating and managing requests that are sent to site agents.
+    After a request is created, an agent is expected to process it by creating `BackendResource`
+    instances and updating the request's state through the available actions (`start_processing`, `set_done`, `set_erred`).
     """
 
     lookup_field = "uuid"
@@ -7557,8 +8956,15 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
         utils.publish_backend_resource_request(request)
 
     @extend_schema(
+        summary="Start processing a request",
+        description="Transitions the request state from 'Sent' to 'Processing'. This is used by a site agent to acknowledge that it has started fetching the resource list.",
         request=None,
-        responses={status.HTTP_200_OK: dict},
+        responses={
+            status.HTTP_200_OK: {
+                "type": "object",
+                "properties": {"status": {"type": "string"}},
+            }
+        },
     )
     @action(detail=True, methods=["post"])
     def start_processing(self, request, uuid=None):
@@ -7575,8 +8981,15 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
     ]
 
     @extend_schema(
+        summary="Mark a request as done",
+        description="Transitions the request state from 'Processing' to 'Done'. This is used by a site agent to signal that it has successfully reported all available resources.",
         request=None,
-        responses={status.HTTP_200_OK: dict},
+        responses={
+            status.HTTP_200_OK: {
+                "type": "object",
+                "properties": {"status": {"type": "string"}},
+            }
+        },
     )
     @action(detail=True, methods=["post"])
     def set_done(self, request, uuid=None):
@@ -7594,8 +9007,24 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
     ]
 
     @extend_schema(
+        summary="Mark a request as erred",
+        description="Transitions the request state to 'Erred'. This is used by a site agent to report a failure during the resource fetching process. An error message and traceback should be provided.",
         request=serializers.BackendResourceRequestSetErredSerializer,
-        responses={status.HTTP_200_OK: dict},
+        responses={
+            status.HTTP_200_OK: {
+                "type": "object",
+                "properties": {"status": {"type": "string"}},
+            }
+        },
+        examples=[
+            OpenApiExample(
+                "Report an error",
+                value={
+                    "error_message": "Failed to connect to the backend API.",
+                    "error_traceback": "Traceback(...)",
+                },
+            )
+        ],
     )
     @action(detail=True, methods=["post"])
     def set_erred(self, request, uuid=None):
@@ -7628,6 +9057,32 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
     ]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List maintenance announcements",
+        description="Returns a paginated list of maintenance announcements.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a maintenance announcement",
+        description="Returns the details of a specific maintenance announcement.",
+    ),
+    create=extend_schema(
+        summary="Create a maintenance announcement",
+        description="Creates a new maintenance announcement in the 'Draft' state.",
+    ),
+    update=extend_schema(
+        summary="Update a maintenance announcement",
+        description="Updates an existing maintenance announcement.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a maintenance announcement",
+        description="Partially updates an existing maintenance announcement.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a maintenance announcement",
+        description="Deletes a maintenance announcement.",
+    ),
+)
 class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.MaintenanceAnnouncement.objects.all().order_by("-created")
@@ -7642,13 +9097,14 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
     ]
 
     @extend_schema(
-        request=EmptySerializer,
+        summary="Schedule/publish the maintenance announcement",
+        description="Transitions a 'Draft' maintenance announcement to the 'Scheduled' state, making it publicly visible.",
+        request=None,
         responses={200: serializers.MaintenanceActionResponseSerializer},
     )
     @action(detail=True, methods=["POST"])
     def schedule(self, request, uuid=None):
-        """Schedule/publish the maintenance announcement"""
-        maintenance = self.get_object()
+        maintenance: models.MaintenanceAnnouncement = self.get_object()
 
         maintenance.schedule()
         maintenance.save()
@@ -7664,13 +9120,14 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
     ]
 
     @extend_schema(
-        request=EmptySerializer,
+        summary="Unschedule/unpublish the maintenance announcement",
+        description="Transitions a 'Scheduled' maintenance announcement back to the 'Draft' state, hiding it from public view.",
+        request=None,
         responses={200: serializers.MaintenanceActionResponseSerializer},
     )
     @action(detail=True, methods=["POST"])
     def unschedule(self, request, uuid=None):
-        """Unschedule/unpublish the maintenance announcement"""
-        maintenance = self.get_object()
+        maintenance: models.MaintenanceAnnouncement = self.get_object()
 
         maintenance.unschedule()
         maintenance.save()
@@ -7686,13 +9143,14 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
     ]
 
     @extend_schema(
-        request=EmptySerializer,
+        summary="Start the maintenance announcement",
+        description="Transitions a 'Scheduled' maintenance announcement to 'In progress', indicating that the maintenance work has begun.",
+        request=None,
         responses={200: serializers.MaintenanceActionResponseSerializer},
     )
     @action(detail=True, methods=["POST"])
     def start_maintenance(self, request, uuid=None):
-        """Start the maintenance announcement"""
-        maintenance = self.get_object()
+        maintenance: models.MaintenanceAnnouncement = self.get_object()
 
         maintenance.start_maintenance()
         maintenance.save()
@@ -7708,13 +9166,14 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
     ]
 
     @extend_schema(
-        request=EmptySerializer,
+        summary="Complete the maintenance announcement",
+        description="Transitions an 'In progress' maintenance announcement to 'Completed', indicating that the maintenance work has finished.",
+        request=None,
         responses={200: serializers.MaintenanceActionResponseSerializer},
     )
     @action(detail=True, methods=["POST"])
     def complete_maintenance(self, request, uuid=None):
-        """Complete the maintenance announcement"""
-        maintenance = self.get_object()
+        maintenance: models.MaintenanceAnnouncement = self.get_object()
 
         maintenance.complete_maintenance()
         maintenance.save()
@@ -7732,13 +9191,14 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
     ]
 
     @extend_schema(
-        request=EmptySerializer,
+        summary="Cancel the maintenance announcement",
+        description="Transitions a 'Draft' or 'Scheduled' maintenance announcement to 'Cancelled'.",
+        request=None,
         responses={200: serializers.MaintenanceActionResponseSerializer},
     )
     @action(detail=True, methods=["POST"])
     def cancel_maintenance(self, request, uuid=None):
-        """Cancel the maintenance announcement"""
-        maintenance = self.get_object()
+        maintenance: models.MaintenanceAnnouncement = self.get_object()
 
         maintenance.cancel_maintenance()
         maintenance.save()
@@ -7748,14 +9208,80 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
         )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List affected offerings for maintenance",
+        description="Returns a paginated list of offerings affected by maintenance announcements.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve an affected offering link",
+        description="Returns the details of a specific link between a maintenance announcement and an offering, including the impact level and description.",
+    ),
+    create=extend_schema(
+        summary="Link an offering to a maintenance announcement",
+        description="Creates a new association between an offering and a maintenance announcement, specifying the expected impact.",
+    ),
+    update=extend_schema(
+        summary="Update an affected offering link",
+        description="Updates the impact level or description for an offering linked to a maintenance announcement.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update an affected offering link",
+        description="Partially updates the impact level or description for an offering linked to a maintenance announcement.",
+    ),
+    destroy=extend_schema(
+        summary="Unlink an offering from a maintenance announcement",
+        description="Removes the association between an offering and a maintenance announcement.",
+    ),
+)
 class MaintenanceAnnouncementOfferingViewSet(core_views.ActionsViewSet):
+    """
+    Manage the relationship between maintenance announcements and the specific offerings they affect.
+
+    This viewset allows service providers to specify which of their offerings will be impacted
+    by a maintenance event, and to describe the level and nature of that impact.
+    """
+
     lookup_field = "uuid"
     queryset = models.MaintenanceAnnouncementOffering.objects.all().order_by("-created")
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     serializer_class = serializers.MaintenanceAnnouncementOfferingSerializer
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List maintenance announcement templates",
+        description="Returns a paginated list of reusable templates for maintenance announcements.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a maintenance announcement template",
+        description="Returns the details of a specific maintenance announcement template.",
+    ),
+    create=extend_schema(
+        summary="Create a maintenance announcement template",
+        description="Creates a new reusable template for maintenance announcements, including a default message and type.",
+    ),
+    update=extend_schema(
+        summary="Update a maintenance announcement template",
+        description="Updates an existing maintenance announcement template.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a maintenance announcement template",
+        description="Partially updates an existing maintenance announcement template.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a maintenance announcement template",
+        description="Deletes a maintenance announcement template.",
+    ),
+)
 class MaintenanceAnnouncementTemplateViewSet(core_views.ActionsViewSet):
+    """
+    Manage reusable templates for maintenance announcements.
+
+    Templates allow service providers to quickly create new maintenance announcements
+    by pre-filling common information, such as the message format and maintenance type.
+    """
+
     lookup_field = "uuid"
     queryset = models.MaintenanceAnnouncementTemplate.objects.all().order_by("-created")
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
@@ -7763,7 +9289,42 @@ class MaintenanceAnnouncementTemplateViewSet(core_views.ActionsViewSet):
     serializer_class = serializers.MaintenanceAnnouncementTemplateSerializer
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List affected offering templates",
+        description="Returns a paginated list of associations between maintenance announcement templates and offerings.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve an affected offering template link",
+        description="Returns the details of a specific link between a maintenance announcement template and an offering.",
+    ),
+    create=extend_schema(
+        summary="Link an offering to a maintenance template",
+        description="Creates a reusable association between an offering and a maintenance announcement template, specifying a default impact level and description.",
+    ),
+    update=extend_schema(
+        summary="Update an affected offering template link",
+        description="Updates the default impact level or description for an offering linked to a maintenance template.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update an affected offering template link",
+        description="Partially updates the default impact level or description for an offering linked to a maintenance template.",
+    ),
+    destroy=extend_schema(
+        summary="Unlink an offering from a maintenance template",
+        description="Removes the association between an offering and a maintenance announcement template.",
+    ),
+)
 class MaintenanceAnnouncementOfferingTemplateViewSet(core_views.ActionsViewSet):
+    """
+    Manage the default relationships between maintenance announcement templates and offerings.
+
+    This allows service providers to pre-configure which offerings are typically affected
+    by a certain type of maintenance, streamlining the creation of new announcements.
+    When a new announcement is created from a template, these associations can be
+    automatically applied.
+    """
+
     lookup_field = "uuid"
     queryset = models.MaintenanceAnnouncementOfferingTemplate.objects.all().order_by(
         "-created"
@@ -7773,12 +9334,51 @@ class MaintenanceAnnouncementOfferingTemplateViewSet(core_views.ActionsViewSet):
     serializer_class = serializers.MaintenanceAnnouncementOfferingTemplateSerializer
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List Terms of Service configurations",
+        description="Returns a paginated list of Terms of Service configurations for offerings. Visibility depends on user permissions: staff/support see all; service providers see their own; regular users see ToS for offerings they have consented to or shared offerings.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a Terms of Service configuration",
+        description="Returns the details of a specific Terms of Service configuration.",
+    ),
+    create=extend_schema(
+        summary="Create a Terms of Service configuration",
+        description="Creates a new Terms of Service configuration for an offering. Only one active ToS configuration is allowed per offering.",
+        examples=[
+            OpenApiExample(
+                "Create a new active ToS for an offering",
+                value={
+                    "offering": "http://testserver/api/marketplace-provider-offerings/a1b2c3d4-e5f6-7890-1234-567890abcdef/",
+                    "terms_of_service": "<h1>New Terms</h1><p>Users must agree to these terms...</p>",
+                    "version": "2.0",
+                    "is_active": True,
+                    "requires_reconsent": True,
+                },
+            )
+        ],
+    ),
+    update=extend_schema(
+        summary="Update a Terms of Service configuration",
+        description="Updates an existing Terms of Service configuration. Note that some fields like `version` and `requires_reconsent` are protected and cannot be changed after creation.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a Terms of Service configuration",
+        description="Partially updates an existing Terms of Service configuration.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a Terms of Service configuration",
+        description="Deletes a Terms of Service configuration. This is a hard delete and should be used with caution.",
+    ),
+)
 class ProviderOfferingToSManagementViewset(core_views.ActionsViewSet):
     """
-    ViewSet for managing Terms of Service configurations for offerings.
+    Manage Terms of Service (ToS) configurations for marketplace offerings.
 
-    Service providers can create, update, and delete ToS configurations
-    for their offerings. Users can view ToS configurations.
+    This viewset allows service providers to define and manage the Terms of Service
+    that users must accept before consuming an offering. It supports versioning,
+    activation, and requiring users to re-consent when terms are updated.
     """
 
     queryset = models.OfferingTermsOfService.objects.all()
@@ -7824,19 +9424,36 @@ class ProviderOfferingToSManagementViewset(core_views.ActionsViewSet):
     ]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List user offering consents",
+        description="Returns a paginated list of Terms of Service consents for the current user. Staff and support users can see all consents.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a user offering consent",
+        description="Returns the details of a specific consent record.",
+    ),
+    create=extend_schema(
+        summary="Grant consent to an offering's Terms of Service",
+        description="Creates a consent record for the current user and a specific offering. This indicates that the user has accepted the active Terms of Service for that offering. If a consent already exists (even if revoked), it will be reactivated and updated with the current ToS version.",
+        examples=[
+            OpenApiExample(
+                "Grant consent to an offering",
+                value={"offering": "a1b2c3d4-e5f6-7890-1234-567890abcdef"},
+            )
+        ],
+    ),
+)
 class UserOfferingConsentViewSet(core_views.ActionsViewSet):
     """
-    ViewSet for managing user consent to Terms of Service for offerings.
+    Manage user consent to Terms of Service for offerings.
 
     Provides endpoints for:
-    - Granting consent to an offering
-    - Revoking consent
-    - Listing consents for a user/offering with status information
+    - Granting consent to an offering's active Terms of Service.
+    - Revoking previously granted consent.
+    - Listing and filtering consent records for a user or offering.
 
-    Use standard filtering to find consents:
-    - ?user_uuid=<uuid> - Filter by user
-    - ?offering_uuid=<uuid> - Filter by offering
-    - ?is_active=true - Filter by active status
+    This is a critical component for ensuring compliance and tracking user agreements.
     """
 
     queryset = models.UserOfferingConsent.objects.all()
@@ -7856,9 +9473,10 @@ class UserOfferingConsentViewSet(core_views.ActionsViewSet):
     create_serializer_class = serializers.UserOfferingConsentCreateSerializer
 
     @extend_schema(
+        summary="Revoke consent to Terms of Service",
+        description="Revokes a user's consent to the Terms of Service for an offering. The consent record is marked with a revocation date, and the user may lose access to related resources if consent is required.",
         request=None,
         responses={status.HTTP_200_OK: serializers.UserOfferingConsentSerializer},
-        description="Revoke consent to Terms of Service for an offering.",
     )
     @action(detail=True, methods=["post"])
     def revoke(self, request, uuid=None):
@@ -7873,9 +9491,27 @@ class UserOfferingConsentViewSet(core_views.ActionsViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List public maintenance announcements",
+        description="Returns a paginated list of public maintenance announcements. Only announcements that are 'Scheduled', 'In progress', or 'Completed' are visible. This endpoint is accessible to unauthenticated users.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a public maintenance announcement",
+        description="Returns the details of a specific public maintenance announcement.",
+    ),
+)
 class PublicMaintenanceAnnouncementViewSet(
     PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet
 ):
+    """
+    Provides public, read-only access to maintenance announcements.
+
+    This viewset allows all users, including anonymous ones, to view upcoming and ongoing
+    maintenance events. It exposes a limited set of fields, excluding sensitive
+    information like the creator of the announcement.
+    """
+
     lookup_field = "uuid"
     serializer_class = serializers.PublicMaintenanceAnnouncementSerializer
     permission_classes = (rf_permissions.AllowAny,)
@@ -7893,6 +9529,34 @@ class PublicMaintenanceAnnouncementViewSet(
         ).order_by("-scheduled_start")
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List course accounts",
+        description="Returns a paginated list of course accounts accessible to the current user.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a course account",
+        description="Returns the details of a specific course account.",
+    ),
+    create=extend_schema(
+        summary="Create a course account",
+        description="Creates a new temporary course account within a specified course project.",
+        examples=[
+            OpenApiExample(
+                "Create a course account",
+                value={
+                    "project": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+                    "email": "student@example.com",
+                    "description": "Account for summer course",
+                },
+            )
+        ],
+    ),
+    destroy=extend_schema(
+        summary="Delete (close) a course account",
+        description="Deletes a course account, which triggers a 'close' operation in the backend.",
+    ),
+)
 class CourseAccountViewSet(core_views.ActionsViewSet):
     queryset = models.CourseAccount.objects.all()
     serializer_class = serializers.CourseAccountSerializer
@@ -8012,6 +9676,25 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
         )
     ]
 
+    @extend_schema(
+        summary="Bulk create course accounts",
+        description="Creates multiple course accounts within a specified course project in a single request.",
+        request=serializers.CourseAccountsBulkCreateSerializer,
+        responses={200: serializers.CourseAccountSerializer(many=True)},
+        examples=[
+            OpenApiExample(
+                "Bulk create three course accounts",
+                value={
+                    "project": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+                    "course_accounts": [
+                        {"email": "student1@example.com", "description": "Student One"},
+                        {"email": "student2@example.com", "description": "Student Two"},
+                        {"email": "student3@example.com"},
+                    ],
+                },
+            )
+        ],
+    )
     @action(detail=False, methods=["post"])
     def create_bulk(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -8042,6 +9725,32 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
     create_bulk_serializer_class = serializers.CourseAccountsBulkCreateSerializer
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List software catalogs",
+        description="Returns a paginated list of available software catalogs, such as EESSI or Spack.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a software catalog",
+        description="Returns the details of a specific software catalog, including its name, version, and the number of packages it contains.",
+    ),
+    create=extend_schema(
+        summary="Create a software catalog",
+        description="Creates a new software catalog. Requires staff permissions.",
+    ),
+    update=extend_schema(
+        summary="Update a software catalog",
+        description="Updates an existing software catalog. Requires staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a software catalog",
+        description="Partially updates an existing software catalog. Requires staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a software catalog",
+        description="Deletes a software catalog. Requires staff permissions.",
+    ),
+)
 class SoftwareCatalogViewSet(
     PublicViewsetMixin,
     EagerLoadMixin,
@@ -8059,6 +9768,32 @@ class SoftwareCatalogViewSet(
     unsafe_methods_permissions = [structure_permissions.is_staff]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List software packages",
+        description="Returns a paginated list of software packages available in the catalogs. Can be filtered by catalog, offering, or various package attributes.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a software package",
+        description="Returns the details of a specific software package, including its description, homepage, and available versions.",
+    ),
+    create=extend_schema(
+        summary="Create a software package",
+        description="Creates a new software package within a catalog. Requires staff permissions.",
+    ),
+    update=extend_schema(
+        summary="Update a software package",
+        description="Updates an existing software package. Requires staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a software package",
+        description="Partially updates an existing software package. Requires staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a software package",
+        description="Deletes a software package. Requires staff permissions.",
+    ),
+)
 class SoftwarePackageViewSet(
     PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet
 ):
@@ -8075,6 +9810,32 @@ class SoftwarePackageViewSet(
     unsafe_methods_permissions = [structure_permissions.is_staff]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List software versions",
+        description="Returns a paginated list of software versions. Can be filtered by package, catalog, offering, or CPU architecture.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a software version",
+        description="Returns the details of a specific software version, including its release date and target count.",
+    ),
+    create=extend_schema(
+        summary="Create a software version",
+        description="Creates a new version for a software package. Requires staff permissions.",
+    ),
+    update=extend_schema(
+        summary="Update a software version",
+        description="Updates an existing software version. Requires staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a software version",
+        description="Partially updates an existing software version. Requires staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a software version",
+        description="Deletes a software version. Requires staff permissions.",
+    ),
+)
 class SoftwareVersionViewSet(
     PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet
 ):
@@ -8091,6 +9852,32 @@ class SoftwareVersionViewSet(
     unsafe_methods_permissions = [structure_permissions.is_staff]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List software targets",
+        description="Returns a paginated list of software targets, which represent specific builds of a software version for a given CPU architecture.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a software target",
+        description="Returns the details of a specific software target, including its CPU family, microarchitecture, and path.",
+    ),
+    create=extend_schema(
+        summary="Create a software target",
+        description="Creates a new target for a software version. Requires staff permissions.",
+    ),
+    update=extend_schema(
+        summary="Update a software target",
+        description="Updates an existing software target. Requires staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a software target",
+        description="Partially updates an existing software target. Requires staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a software target",
+        description="Deletes a software target. Requires staff permissions.",
+    ),
+)
 class SoftwareTargetViewSet(
     PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet
 ):

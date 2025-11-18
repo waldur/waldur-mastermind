@@ -33,6 +33,7 @@ class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
         "skip_connection_extnet",
         "skip_creation_of_default_router",
         "availability_zone",
+        "security_groups",
     )
 
     def get_post_data(self):
