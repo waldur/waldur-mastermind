@@ -2315,6 +2315,72 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
 
     @log_backend_action()
+    def push_tenant_security_groups(self, tenant: models.Tenant):
+        session = get_tenant_session(tenant)
+        neutron = get_neutron_client(session)
+
+        try:
+            backend_groups_list = neutron.list_security_groups(
+                tenant_id=tenant.backend_id
+            )["security_groups"]
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        backend_groups = {g["name"]: g for g in backend_groups_list}
+        local_groups = {sg.name: sg for sg in tenant.security_groups.all()}
+
+        # 1. Delete groups from backend that are no longer in local DB
+        for name, backend_group in backend_groups.items():
+            if name not in local_groups and name != "default":
+                try:
+                    neutron.delete_security_group(backend_group["id"])
+                    logger.info(
+                        f"Deleted stale security group {name} from backend for tenant {tenant.name}"
+                    )
+                except neutron_exceptions.NeutronClientException as e:
+                    logger.warning(
+                        f"Could not delete stale security group {name} from backend: {e}"
+                    )
+
+        # 2. Create/update groups and their rules
+        for name, local_group in local_groups.items():
+            backend_group = backend_groups.get(name)
+
+            if not backend_group:
+                # Create group and then its rules
+                try:
+                    new_backend_group = neutron.create_security_group(
+                        {
+                            "security_group": {
+                                "name": local_group.name,
+                                "description": local_group.description,
+                            }
+                        }
+                    )["security_group"]
+                    local_group.backend_id = new_backend_group["id"]
+                    local_group.save(update_fields=["backend_id"])
+                    self.push_security_group_rules(local_group)
+                    logger.info(
+                        f"Created security group {name} in backend for tenant {tenant.name}"
+                    )
+                except OpenStackBackendError as e:
+                    logger.error(
+                        f"Could not create security group {name} in backend: {e}"
+                    )
+            else:
+                # Update group
+                if not local_group.backend_id:
+                    local_group.backend_id = backend_group["id"]
+                    local_group.save(update_fields=["backend_id"])
+                try:
+                    # update_security_group also calls push_security_group_rules
+                    self.update_security_group(local_group)
+                except OpenStackBackendError as e:
+                    logger.error(
+                        f"Could not update security group {name} in backend: {e}"
+                    )
+
+    @log_backend_action()
     def create_server_group(self, server_group: models.ServerGroup):
         session = get_tenant_session(server_group.tenant)
         nova = get_nova_client(session)

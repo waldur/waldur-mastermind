@@ -446,14 +446,14 @@ class DebugSecurityGroupRuleSerializer(BaseSecurityGroupRuleSerializer):
         model = models.SecurityGroupRule
 
 
-def validate_security_group_rule(rule):
-    ethertype = rule.ethertype
-    protocol = rule.protocol
-    from_port = rule.from_port
-    to_port = rule.to_port
-    cidr = rule.cidr
+def validate_security_group_rule(rule: dict):
+    ethertype = rule.get("ethertype", models.SecurityGroupRule.IPv4)
+    protocol = rule.get("protocol")
+    from_port = rule.get("from_port")
+    to_port = rule.get("to_port")
+    cidr = rule.get("cidr")
     # for managed rancher remote group is not used
-    remote_group = getattr(rule, "remote_group", None)
+    remote_group = rule.get("remote_group")
 
     if cidr:
         if ethertype == models.SecurityGroupRule.IPv4 and not is_valid_ipv4_cidr(cidr):
@@ -567,11 +567,7 @@ class OpenStackSecurityGroupRuleSerializer(
         )
 
     def validate(self, rule):
-        """
-        Please note that validate function accepts rule object instead of validated data
-        because it is used as a child of list serializer.
-        """
-        validate_security_group_rule(rule)
+        validate_security_group_rule(self.to_representation(rule))
         return rule
 
 
@@ -746,6 +742,127 @@ class OpenStackSecurityGroupUpdateSerializer(serializers.ModelSerializer):
                     _("Security group name should be unique.")
                 )
         return name
+
+
+class OpenStackSecurityGroupRuleUpdateByNameSerializer(
+    OpenStackSecurityGroupRuleSerializer
+):
+    remote_group = serializers.HyperlinkedRelatedField(
+        lookup_field="uuid",
+        view_name="openstack-sgp-detail",
+        required=False,
+        queryset=models.SecurityGroup.objects.all(),
+    )
+    remote_group_name = serializers.CharField(write_only=True, required=False)
+
+    class Meta(OpenStackSecurityGroupRuleSerializer.Meta):
+        fields = OpenStackSecurityGroupRuleSerializer.Meta.fields + (
+            "remote_group_name",
+        )
+
+
+class TenantSecurityGroupUpdateSerializer(serializers.ModelSerializer):
+    uuid = serializers.UUIDField(required=False)
+    rules = OpenStackSecurityGroupRuleUpdateByNameSerializer(many=True, required=False)
+
+    class Meta:
+        model = models.SecurityGroup
+        fields = ("uuid", "name", "description", "rules")
+
+    def validate_name(self, value):
+        if value == "default":
+            raise serializers.ValidationError(
+                _("Default security group is managed by OpenStack itself.")
+            )
+        return value
+
+
+class TenantPushSecurityGroupsSerializer(serializers.ListSerializer):
+    child = TenantSecurityGroupUpdateSerializer()
+
+    def validate(self, data):
+        names = [sg["name"] for sg in data]
+        if len(names) != len(set(names)):
+            raise serializers.ValidationError(
+                {"security_groups": _("Security group names must be unique.")}
+            )
+
+        tenant = cast(models.Tenant, self.instance)
+        for sg_data in data:
+            if "uuid" in sg_data:
+                if not tenant.security_groups.filter(uuid=sg_data["uuid"]).exists():
+                    raise serializers.ValidationError(
+                        _("Security group with UUID %s does not belong to the tenant.")
+                        % sg_data["uuid"]
+                    )
+            if tenant.security_groups.filter(name=sg_data["name"]).exclude(
+                uuid=sg_data.get("uuid")
+            ):
+                raise serializers.ValidationError(
+                    {"name": _("Security group with this name already exists.")}
+                )
+
+        return data
+
+    @transaction.atomic
+    def save(self, **kwargs):
+        tenant = cast(models.Tenant, self.instance)
+        validated_data = self.validated_data
+
+        # Maps for quick lookups
+        existing_sgs_by_uuid = {sg.uuid.hex: sg for sg in tenant.security_groups.all()}
+        sg_payload_by_uuid = {d["uuid"].hex: d for d in validated_data if "uuid" in d}
+
+        # 1. Delete SGs from DB not in payload
+        uuids_to_delete = set(existing_sgs_by_uuid.keys()) - set(
+            sg_payload_by_uuid.keys()
+        )
+        tenant.security_groups.filter(uuid__in=uuids_to_delete).delete()
+
+        # 2. First pass: Create/update SGs to ensure they all exist in DB before processing rules
+        sgs_in_payload_by_name: dict[str, models.SecurityGroup] = {}
+        for sg_data in validated_data:
+            sg_uuid = sg_data.get("uuid")
+            if sg_uuid:
+                sg = existing_sgs_by_uuid[sg_uuid.hex]
+                sg.name = sg_data["name"]
+                sg.description = sg_data.get("description", "")
+                sg.save()
+            else:
+                sg = models.SecurityGroup.objects.create(
+                    tenant=tenant,
+                    project=tenant.project,
+                    service_settings=tenant.service_settings,
+                    name=sg_data["name"],
+                    description=sg_data.get("description", ""),
+                )
+            sgs_in_payload_by_name[sg.name] = sg
+
+        # 3. Second pass: update rules now that all groups exist
+        for sg_data in validated_data:
+            sg = sgs_in_payload_by_name[sg_data["name"]]
+            rules_data = sg_data.get("rules", [])
+
+            sg.rules.all().delete()
+            for rule_data in rules_data:
+                remote_group_name = rule_data.pop("remote_group_name", None)
+                if remote_group_name:
+                    if remote_group_name in sgs_in_payload_by_name:
+                        rule_data["remote_group"] = sgs_in_payload_by_name[
+                            remote_group_name
+                        ]
+                    else:
+                        try:
+                            remote_sg = tenant.security_groups.get(
+                                name=remote_group_name
+                            )
+                            rule_data["remote_group"] = remote_sg
+                        except models.SecurityGroup.DoesNotExist:
+                            pass  # Let it fail on DB level if remote group is not found
+
+                models.SecurityGroupRule.objects.create(security_group=sg, **rule_data)
+
+        return tenant.security_groups.all()
 
 
 class OpenStackNestedInstanceSerializer(serializers.ModelSerializer):

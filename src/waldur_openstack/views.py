@@ -733,6 +733,37 @@ On successful completion the task will synchronize quotas with the backend.
     )
 
     @extend_schema(
+        summary="Batch update security groups for a tenant.",
+        description="""
+        * Security groups with UUIDs are updated.
+        * Security groups without UUIDs are created.
+        * Security groups existing in the tenant but not present in the request are deleted.
+        * Rules for created/updated security groups are replaced.
+
+        To reference a remote group within a rule, use 'remote_group_name' field.""",
+        request=serializers.TenantPushSecurityGroupsSerializer,
+        responses=None,
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def push_security_groups(self, request, uuid=None):
+        tenant: models.Tenant = self.get_object()
+        serializer = self.get_serializer(instance=tenant, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        executors.TenantPushSecurityGroupsExecutor.execute(tenant)
+
+        return response.Response(
+            {"status": _("Security groups update has been scheduled.")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    push_security_groups_serializer_class = (
+        serializers.TenantPushSecurityGroupsSerializer
+    )
+    push_security_groups_validators = [core_validators.StateValidator(CoreStates.OK)]
+
+    @extend_schema(
         summary="Pull security groups",
         description="Trigger job to pull security groups from remote VPC",
         request=None,

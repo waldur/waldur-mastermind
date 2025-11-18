@@ -1615,7 +1615,7 @@ class RancherClusterSecurityGroupRuleSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, rule):
-        validate_security_group_rule(rule)
+        validate_security_group_rule(self.to_representation(rule))
         return rule
 
     def to_internal_value(self, data):
