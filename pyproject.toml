@@ -89,6 +89,7 @@ dependencies = [
   "waldur-api-client>=7.7.7",
   "atlassian-python-api>=4.0.7",
   "httpx[socks]>=0.28.1",
+  "django-cors-headers>=4.5.0,<5.0.0",
 ]
 
 [project.urls]
@@ -105,7 +106,6 @@ dev = [
   "factory-boy==3.3.0",
   "freezegun==1.2.2",
   "mock-django==0.6.10",
-  "django-cors-headers>=4.5.0,<5.0.0",
   "pre-commit>=4.2.0,<5.0.0",
   "pytest-split-tests>=1.0.9,<2.0.0",
   "respx>=0.22.0,<1.0.0",
