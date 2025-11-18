@@ -1535,6 +1535,7 @@ class ProviderResourceLimitsSetTest(test.APITransactionTestCase):
         self.url = factories.ResourceFactory.get_provider_resource_url(
             self.resource, "set_limits"
         )
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_STATE)
 
     def make_request(self, user, limits=None):
         self.client.force_authenticate(user)
