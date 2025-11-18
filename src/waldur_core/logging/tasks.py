@@ -115,7 +115,7 @@ def delete_stale_event_subscriptions():
     removed_subscriptions.delete()
 
 
-@shared_task(name="waldur_core.logging.tasks.publish_mqtt_messages")
+@shared_task(name="waldur_core.logging.tasks.publish_messages")
 def publish_messages(messages: list[dict[str, str]]) -> None:
     try:
         utils.publish_mqtt_messages(messages)
