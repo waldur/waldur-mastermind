@@ -360,6 +360,8 @@ class PullNetworksTest(BaseBackendTestCase):
     def test_existing_networks_are_updated(self):
         network = factories.NetworkFactory(
             tenant=self.tenant,
+            service_settings=self.tenant.service_settings,
+            project=self.tenant.project,
             backend_id="backend_id",
             name="Old name",
         )
