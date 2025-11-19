@@ -24,7 +24,7 @@ def if_plugin_enabled(f):
         if settings.WALDUR_OPENPORTAL["ENABLED"]:
             return f(*args, **kwargs)
         else:
-            logger.info("Skipping OpenPortal handler because plugin is disabled.")
+            logger.debug("Skipping OpenPortal handler because plugin is disabled.")
 
     return wrapped
 

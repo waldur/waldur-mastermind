@@ -957,26 +957,21 @@ def import_current_usages(resource):
 
         plan_period = get_plan_period(resource, date)
 
-        try:
-            component_usage_object = models.ComponentUsage.objects.get(
-                resource=resource,
-                component=offering_component,
-                billing_period=core_utils.month_start(date),
-                plan_period=plan_period,
-            )
+        component_usage_object, created = models.ComponentUsage.objects.get_or_create(
+            resource=resource,
+            component=offering_component,
+            billing_period=core_utils.month_start(date),
+            plan_period=plan_period,
+            defaults={
+                "usage": component_usage,
+                "date": date,
+            },
+        )
+        if not created:
             component_usage_object.usage = max(
                 component_usage, component_usage_object.usage
             )
             component_usage_object.save()
-        except models.ComponentUsage.DoesNotExist:
-            models.ComponentUsage.objects.create(
-                resource=resource,
-                component=offering_component,
-                usage=component_usage,
-                date=date,
-                billing_period=core_utils.month_start(date),
-                plan_period=plan_period,
-            )
 
 
 def format_limits_list(components_map, limits):
