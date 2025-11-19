@@ -871,6 +871,113 @@ Generate Ansible modules:
       - ansible_waldur_module/
     expire_in: 1 day
 
+Generate Ansible module changelog:
+  stage: deploy
+  interruptible: true
+  needs:
+    - Generate Ansible modules
+  rules:
+    # Run under the same conditions as the generator job
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+  image: registry.hpc.ut.ee/mirror/library/python:3.11-bullseye
+  before_script:
+    # We need git for cloning and jq for parsing JSON
+    - apt-get update && apt-get install -y git jq
+  script:
+    - echo "Cloning the Ansible module repository..."
+    - git clone --branch main git@github.com:waldur/ansible-waldur-module-next.git /tmp/ansible-module-old
+    - cd /tmp/ansible-module-old
+
+    - |
+      # Determine version for changelog title and the baseline for comparison
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        VERSION="$CI_COMMIT_TAG"
+        echo "This is a tagged release: $VERSION. Finding previous stable tag for comparison."
+
+        # Fetch all tags from the remote so we have the full history
+        git fetch --tags origin
+
+        # Find the tag that comes immediately before the current one
+        # 'git tag --sort=-v:refname' lists tags in descending version order
+        # We find the current tag and get the next line, which is the previous tag
+        PREVIOUS_TAG=$(git tag --sort=-v:refname | grep -A 1 "$CI_COMMIT_TAG" | tail -n 1)
+
+        if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" == "$CI_COMMIT_TAG" ]; then
+          echo "Warning: Could not find a previous tag. Will compare against the initial commit."
+          # Fallback: get the very first commit hash
+          BASELINE_COMMIT=$(git rev-list --max-parents=0 HEAD)
+        else
+          echo "Found previous tag: $PREVIOUS_TAG. Using it as the baseline."
+          BASELINE_COMMIT=$PREVIOUS_TAG
+        fi
+
+        # Check out the code as it was at that specific tag/commit
+        git checkout $BASELINE_COMMIT
+
+      else
+        VERSION="develop"
+        echo "This is a develop branch build. Comparing against the latest main branch."
+        # For develop builds, we are already on the 'main' branch, so no checkout is needed.
+      fi
+
+    - cd $CI_PROJECT_DIR
+    - echo "Generating changelogs for version $VERSION..."
+    # Run the script and capture the JSON output
+    - |
+      python3 scripts/generate_ansible_changelog.py \
+        /tmp/ansible-module-old/ansible_waldur_module \
+        ${CI_PROJECT_DIR}/ansible_waldur_module \
+        --version "$VERSION" > collection-changelogs.json
+    - echo "--- Generated Changelogs (JSON) ---"
+    - cat collection-changelogs.json
+    - echo "-----------------------------------"
+
+    # Loop through the JSON and update each collection's README.md
+    - |
+      # Check if the JSON is empty or just '{}'
+      if [ ! -s "collection-changelogs.json" ] || [ "$(jq 'length' collection-changelogs.json)" -eq 0 ]; then
+        echo "No changelogs were generated. Skipping README updates."
+        exit 0
+      fi
+
+      # Get a list of all collections that have a changelog
+      COLLECTIONS=$(jq -r 'keys[]' collection-changelogs.json)
+
+      for COLLECTION in $COLLECTIONS; do
+        echo "Processing collection: $COLLECTION"
+
+        # Convert collection name 'waldur.marketplace' to path 'waldur/marketplace'
+        COLLECTION_PATH=$(echo "$COLLECTION" | tr '.' '/')
+        README_FILE="${CI_PROJECT_DIR}/ansible_waldur_module/ansible_collections/${COLLECTION_PATH}/README.md"
+
+        # Get the markdown content for this specific collection
+        CHANGELOG_CONTENT=$(jq -r ".[\"$COLLECTION\"]" collection-changelogs.json)
+
+        if [ -z "$CHANGELOG_CONTENT" ] || [ "$CHANGELOG_CONTENT" == "null" ]; then
+          echo "No changelog content for $COLLECTION. Skipping."
+          continue
+        fi
+
+        echo "Updating $README_FILE..."
+        # Safely prepend the changelog to the README.md file
+        {
+          echo -e "$CHANGELOG_CONTENT"
+          echo "" # Add a newline for separation
+          echo "---"
+          echo ""
+          if [ -f "$README_FILE" ]; then
+            cat "$README_FILE"
+          fi
+        } > "${README_FILE}.tmp" && mv "${README_FILE}.tmp" "$README_FILE"
+      done
+
+  artifacts:
+    paths:
+      # The artifact is now the entire directory with modified READMEs
+      - ansible_waldur_module/
+    expire_in: 1 day
+
 Upload Ansible module:
   stage: postdeploy
   interruptible: true
@@ -889,14 +996,24 @@ Upload Ansible module:
     name: registry.hpc.ut.ee/mirror/alpine/git:latest
     entrypoint: [""]
   needs:
-    - Generate Ansible modules
+    - Generate Ansible module changelog
   script: |
     cd /tmp/
     git clone --branch main git@github.com:waldur/ansible-waldur-module-next.git
     cd ansible-waldur-module-next
     git pull
+    # The 'ansible_waldur_module' artifact from the previous job contains the updated READMEs
     rm -rf ansible_waldur_module && cp -a "$CI_PROJECT_DIR/ansible_waldur_module/" ansible_waldur_module
-    git add ansible_waldur_module
+
+    # Add all changes within the module directory (new files, modified READMEs, etc.)
+    git add ansible_waldur_module/
+
+    # Exit cleanly if there are no changes to commit
+    if git diff-index --quiet HEAD --; then
+      echo "No changes to commit. Exiting."
+      exit 0
+    fi
+
     if [ -n "$CI_COMMIT_TAG" ]; then
       # Stable release: commit, push code, create and push tag
       echo "Committing and tagging stable release $CI_COMMIT_TAG"
