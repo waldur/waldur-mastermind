@@ -1175,48 +1175,78 @@ class OpenStackBackend(ServiceBackend):
         stale_ports.delete()
 
     def pull_tenant_networks(self, tenant: models.Tenant):
-        self._pull_networks([tenant])
+        """
+        Synchronize networks visible to a tenant, handling RBAC shared networks.
 
-    def _pull_networks(self, tenants: list[models.Tenant]):
-        tenant_mappings = {tenant.backend_id: tenant for tenant in tenants}
-        backend_networks = self.list_networks(list(tenant_mappings.keys()))
+        For RBAC environments, this method correctly identifies the true owner
+        of each network using the tenant_id from the OpenStack API response,
+        preventing incorrect ownership assignment and cyclic deletion issues.
 
-        networks = []
+        Args:
+            tenant: The tenant to synchronize networks for
+
+        Returns:
+            List of networks visible to the tenant
+        """
+        if not tenant.backend_id:
+            return []
+        # list_networks for a specific tenant returns all networks *visible* to it,
+        # including its own and those shared with it via RBAC.
+        backend_networks = self.list_networks(tenant.backend_id)
+        visible_networks = []
+
         with transaction.atomic():
             for backend_network in backend_networks:
-                tenant = tenant_mappings.get(backend_network["tenant_id"])
-                if not tenant:
-                    logger.debug(
-                        "Skipping network %s synchronization because its tenant %s is not available.",
-                        backend_network["id"],
-                        backend_network["tenant_id"],
+                owner_tenant_backend_id = backend_network.get("tenant_id")
+                try:
+                    # Find the actual owner of the network in Waldur's database.
+                    # This is crucial for correct ownership assignment.
+                    owner_tenant = models.Tenant.objects.get(
+                        service_settings=tenant.service_settings,
+                        backend_id=owner_tenant_backend_id,
+                    )
+                except models.Tenant.DoesNotExist:
+                    # The network's owner is not managed by Waldur, or belongs to another provider.
+                    # Skip this network to avoid creating orphaned resources.
+                    logger.warning(
+                        "Skipping network %s sync because its owner tenant %s is not found in Waldur.",
+                        backend_network.get("id", "unknown"),
+                        owner_tenant_backend_id,
                     )
                     continue
 
                 imported_network = self._backend_network_to_network(
                     backend_network,
-                    tenant=tenant,
-                    service_settings=tenant.service_settings,
-                    project=tenant.project,
+                    tenant=owner_tenant,
+                    service_settings=owner_tenant.service_settings,
+                    project=owner_tenant.project,
                 )
 
                 try:
-                    network = tenant.networks.get(
-                        backend_id=imported_network.backend_id
+                    # Perform a global lookup to find the network, which is robust against
+                    # incorrect tenant associations.
+                    network = models.Network.objects.get(
+                        service_settings=tenant.service_settings,
+                        backend_id=imported_network.backend_id,
                     )
                 except models.Network.DoesNotExist:
+                    # Network does not exist; create it with the correct owner.
                     imported_network.save()
                     network = imported_network
 
                     event_logger.emit(
                         "Network %s has been imported to local cache." % network.name,
                         event_type=EventType.OPENSTACK_NETWORK_IMPORTED,
-                        event_context={
-                            "network": network,
-                        },
+                        event_context={"network": network},
                         scopes=[network, network.tenant],
                     )
                 else:
+                    # Network exists. Ensure its tenant is correct and update fields.
+                    if network.tenant != owner_tenant:
+                        network.tenant = owner_tenant
+                        network.project = owner_tenant.project
+                        # service_settings is already correct due to the lookup key
+
                     modified = update_pulled_fields(
                         network, imported_network, models.Network.get_backend_fields()
                     )
@@ -1225,36 +1255,35 @@ class OpenStackBackend(ServiceBackend):
                         event_logger.emit(
                             "Network %s has been pulled from backend." % network.name,
                             event_type=EventType.OPENSTACK_NETWORK_PULLED,
-                            event_context={
-                                "network": network,
-                            },
+                            event_context={"network": network},
                             scopes=[network, network.tenant],
                         )
-                networks.append(network)
+                visible_networks.append(network)
 
-            networks_uuid = [network_item.uuid for network_item in networks]
+            # This part correctly cleans up networks *truly owned* by the synced tenant.
+            # Shared networks are correctly excluded because their owner is different.
+            visible_network_ids = [n.id for n in visible_networks]
             stale_networks = models.Network.objects.filter(
                 state__in=[CoreStates.OK, CoreStates.ERRED],
-                tenant__in=tenants,
-            ).exclude(uuid__in=networks_uuid)
+                tenant=tenant,
+            ).exclude(id__in=visible_network_ids)
+
             for network in stale_networks:
                 event_logger.emit(
                     "Network %s has been cleaned from cache." % network.name,
                     event_type=EventType.OPENSTACK_NETWORK_CLEANED,
-                    event_context={
-                        "network": network,
-                    },
+                    event_context={"network": network},
                     scopes=[network, network.tenant],
                 )
             stale_networks.delete()
 
-        return networks
+        return visible_networks
 
     @method_decorator(create_batch_fetcher)
-    def list_networks(self, tenants):
+    def list_networks(self, tenant_id: str):
         neutron = get_neutron_client(self.admin_session)
         try:
-            return neutron.list_networks(tenant_id=tenants)["networks"]
+            return neutron.list_networks(tenant_id=tenant_id)["networks"]
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
@@ -2585,7 +2614,7 @@ class OpenStackBackend(ServiceBackend):
 
     @log_backend_action()
     def import_tenant_networks(self, tenant: models.Tenant):
-        networks = self._pull_networks([tenant])
+        networks = self.pull_tenant_networks(tenant)
         if networks:
             # XXX: temporary fix - right now backend logic is based on statement "one tenant has one network"
             # We need to fix this in the future.
