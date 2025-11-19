@@ -292,7 +292,7 @@ Build docker image for tests:
   script:
     - echo $CI_COMMIT_SHA > docker/rootfs/COMMIT
     - cat docker/rootfs/COMMIT
-    - echo "$CI_REGISTRY_PASSWORD" | buildah login $CI_REGISTRY --username "$CI_REGISTRY_USER" --password-stdin
+    - echo "$WALDUR_DOCKER_HUB_PASSWORD" | buildah login docker.io --username "$WALDUR_DOCKER_HUB_USER" --password-stdin
     - buildah build
       --platform=linux/amd64
       --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
