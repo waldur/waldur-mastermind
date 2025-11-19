@@ -886,7 +886,7 @@ Generate Ansible module changelog:
     - apt-get update && apt-get install -y git jq
   script:
     - echo "Cloning the Ansible module repository..."
-    - git clone --branch main git@github.com:waldur/ansible-waldur-module-next.git /tmp/ansible-module-old
+    - git clone --depth 1 --branch main https://github.com/waldur/ansible-waldur-module-next.git /tmp/ansible-module-old
     - cd /tmp/ansible-module-old
 
     - |
