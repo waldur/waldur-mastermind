@@ -70,6 +70,9 @@ if env.get("POSTGRESQL_READONLY_USER"):
 
 CELERY_RESULT_BACKEND = f"db+postgresql+psycopg://{DATABASES['default']['USER']}:{DATABASES['default']['PASSWORD']}@{DATABASES['default']['HOST']}:{DATABASES['default']['PORT']}/{DATABASES['default']['NAME']}"
 
+CELERY_DEFAULT_QUEUE_TYPE = "quorum"
+CELERY_BROKER_TRANSPORT_OPTIONS = {"confirm_publish": True}
+
 # Static files
 # See also: https://docs.djangoproject.com/en/4.2/ref/settings/#static-files
 STATIC_ROOT = env.get("GLOBAL_STATIC_ROOT", os.path.join(data_dir, "static"))
