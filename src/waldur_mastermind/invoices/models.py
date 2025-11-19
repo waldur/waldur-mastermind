@@ -8,7 +8,7 @@ from dateutil.parser import parse as parse_datetime
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
+from django.db import DatabaseError, models
 from django.db.models import Index
 from django.db.models.aggregates import Sum
 from django.utils import timezone
@@ -156,7 +156,12 @@ class Invoice(
         if updates:
             for field, value in updates.items():
                 setattr(self, field, value)
-            self.save(update_fields=list(updates.keys()))
+            try:
+                self.save(update_fields=list(updates.keys()))
+            except DatabaseError as e:
+                logger.error(
+                    "Failed to update cached fields for Invoice %s: %s", self.pk, e
+                )
 
     @property
     def tax(self) -> decimal.Decimal:
