@@ -580,6 +580,28 @@ options:
 
 ```
 
+## migrate_rabbitmq_queues
+
+Migrate RabbitMQ queues from classic to quorum type
+
+```bash
+
+usage: waldur migrate_rabbitmq_queues [--dry-run] [--vhost VHOST]
+                                      [--check-only] [--auto-migrate]
+                                      [--force]
+
+options:
+  --dry-run       Show what would be done without making changes
+  --vhost VHOST   RabbitMQ virtual host to migrate (default: /)
+  --check-only    Only check if migration is needed (exit code 0=no migration
+                  needed, 1=migration needed)
+  --auto-migrate  Automatically proceed with migration without interactive
+                  prompts
+  --force         Force migration even when queues have pending messages
+                  (DANGEROUS)
+
+```
+
 ## move_project
 
 Move Waldur project to a different organization.
