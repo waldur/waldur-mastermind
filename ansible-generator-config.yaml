@@ -185,6 +185,13 @@ collections:
         has_limits: true
         resolvers:
           <<: *project_customer_resolvers
+        operations:
+          update:
+            actions:
+              push_security_groups:
+                operation: "openstack_tenants_push_security_groups"
+                param: "security_groups"
+                compare_key: "security_groups"
 
       - name: volume
         plugin: order
@@ -211,6 +218,7 @@ collections:
                 compare_key: "size"
                 param: "size"
                 maps_to: "disk_size"
+
       - name: instance
         plugin: order
         offering_type: OpenStack.Instance
