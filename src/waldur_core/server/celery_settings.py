@@ -2,14 +2,29 @@ import warnings
 from datetime import timedelta
 
 from celery.schedules import crontab
-from kombu import Queue
+from kombu import Exchange, Queue
 
 from waldur_core.core import WaldurExtension
 
 CELERY_TASK_QUEUES = [
-    Queue("tasks", exchange="tasks"),
-    Queue("heavy", exchange="heavy"),
-    Queue("background", exchange="background"),
+    Queue(
+        "tasks",
+        exchange=Exchange("tasks", type="topic"),
+        routing_key="tasks",
+        queue_arguments={"x-queue-type": "quorum"},
+    ),
+    Queue(
+        "heavy",
+        exchange=Exchange("heavy", type="topic"),
+        routing_key="heavy",
+        queue_arguments={"x-queue-type": "quorum"},
+    ),
+    Queue(
+        "background",
+        exchange=Exchange("background", type="topic"),
+        routing_key="background",
+        queue_arguments={"x-queue-type": "quorum"},
+    ),
 ]
 CELERY_TASK_DEFAULT_QUEUE = "tasks"
 CELERY_TASK_ROUTES = ("waldur_core.server.celeryconf.PriorityRouter",)

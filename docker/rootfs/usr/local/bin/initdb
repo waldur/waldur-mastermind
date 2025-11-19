@@ -7,6 +7,43 @@ waldur createcachetable
 echo "INFO: Initializing database..."
 waldur migrate --noinput
 
+echo "INFO: Waiting for RabbitMQ readiness..."
+# Get RabbitMQ host and port from environment variables (matching Helm chart pattern)
+RABBITMQ_HOST=${RABBITMQ_HOSTNAME:-localhost}
+RABBITMQ_MANAGEMENT_PORT=${RABBITMQ_MANAGEMENT_PORT:-15672}
+
+for i in {1..30}; do
+    if curl -f -s http://${RABBITMQ_HOST}:${RABBITMQ_MANAGEMENT_PORT}/api/overview >/dev/null 2>&1; then
+        echo "INFO: RabbitMQ management API is ready at ${RABBITMQ_HOST}:${RABBITMQ_MANAGEMENT_PORT}"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo "WARNING: RabbitMQ management API not accessible at ${RABBITMQ_HOST}:${RABBITMQ_MANAGEMENT_PORT} after 60 seconds"
+        echo "INFO: Skipping queue migration - will be handled by Celery auto-declaration"
+        break
+    fi
+    echo "Waiting for RabbitMQ at ${RABBITMQ_HOST}:${RABBITMQ_MANAGEMENT_PORT}... ($i/30)"
+    sleep 2
+done
+
+echo "INFO: Checking RabbitMQ queue configuration..."
+if waldur migrate_rabbitmq_queues --check-only; then
+    echo "INFO: RabbitMQ queues already properly configured"
+else
+    echo "INFO: Attempting RabbitMQ queue migration to quorum type..."
+    if waldur migrate_rabbitmq_queues --auto-migrate; then
+        echo "INFO: Verifying migration completed successfully..."
+        waldur migrate_rabbitmq_queues --check-only && echo "INFO: Migration verified successfully" || echo "WARNING: Migration verification failed"
+    else
+        echo "WARNING: RabbitMQ queue migration was blocked (likely due to pending messages)"
+        echo "INFO: To migrate safely:"
+        echo "INFO:   1. Stop Celery beat and API pods to prevent new tasks"
+        echo "INFO:   2. Let workers drain existing messages from queues"
+        echo "INFO:   3. Restart this container when queues are empty"
+        echo "INFO: Alternatively, Celery will auto-declare new queue types on worker startup"
+    fi
+fi
+
 echo "INFO: Loading features..."
 waldur load_features /etc/waldur/features.json
 
