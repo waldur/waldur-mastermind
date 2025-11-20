@@ -854,6 +854,25 @@ class Project(
         return effective_end_date and effective_end_date <= timezone.now().date()
 
     @property
+    def is_in_grace_period(self):
+        """Check if project is currently in grace period (past end_date but before effective_end_date)."""
+        if not self.end_date:
+            return False
+
+        today = timezone.now().date()
+        effective_end_date = self.get_effective_end_date()
+
+        # In grace period if past end_date but before effective_end_date
+        return (
+            self.end_date < today and effective_end_date and today <= effective_end_date
+        )
+
+    @property
+    def end_date_with_grace(self):
+        """Get the end date including grace period (same as get_effective_end_date but as property)."""
+        return self.get_effective_end_date()
+
+    @property
     def full_name(self) -> str:
         return self.name
 

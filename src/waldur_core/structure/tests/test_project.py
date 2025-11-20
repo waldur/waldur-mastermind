@@ -1796,3 +1796,186 @@ class GracePeriodTest(test.APITransactionTestCase):
         if "PUT" in actions and "grace_period_days" in actions["PUT"]:
             field_info = actions["PUT"]["grace_period_days"]
             self.assertTrue(field_info.get("read_only", False))
+
+    def test_is_in_grace_period_with_no_end_date(self):
+        """Test that is_in_grace_period returns False when project has no end_date."""
+        project = self.fixture.project
+        project.end_date = None
+        project.grace_period_days = 10
+        project.save()
+
+        self.assertFalse(project.is_in_grace_period)
+
+    def test_is_in_grace_period_before_end_date(self):
+        """Test that is_in_grace_period returns False when current date is before end_date."""
+        project = self.fixture.project
+        project.grace_period_days = 5
+        # Set end_date to tomorrow
+        project.end_date = timezone.now().date() + timedelta(days=1)
+        project.save()
+
+        self.assertFalse(project.is_in_grace_period)
+
+    def test_is_in_grace_period_on_end_date(self):
+        """Test that is_in_grace_period returns False when current date equals end_date."""
+        project = self.fixture.project
+        project.grace_period_days = 5
+        # Set end_date to today
+        project.end_date = timezone.now().date()
+        project.save()
+
+        self.assertFalse(project.is_in_grace_period)
+
+    def test_is_in_grace_period_within_grace_period(self):
+        """Test that is_in_grace_period returns True when within grace period."""
+        project = self.fixture.project
+        project.grace_period_days = 10
+        # Set end_date to 5 days ago (within 10-day grace period)
+        project.end_date = timezone.now().date() - timedelta(days=5)
+        project.save()
+
+        self.assertTrue(project.is_in_grace_period)
+
+    def test_is_in_grace_period_on_last_day_of_grace_period(self):
+        """Test that is_in_grace_period returns True on the last day of grace period."""
+        project = self.fixture.project
+        project.grace_period_days = 5
+        # Set end_date to exactly 5 days ago (last day of grace period)
+        project.end_date = timezone.now().date() - timedelta(days=5)
+        project.save()
+
+        self.assertTrue(project.is_in_grace_period)
+
+    def test_is_in_grace_period_past_grace_period(self):
+        """Test that is_in_grace_period returns False when past grace period."""
+        project = self.fixture.project
+        project.grace_period_days = 5
+        # Set end_date to 6 days ago (past 5-day grace period)
+        project.end_date = timezone.now().date() - timedelta(days=6)
+        project.save()
+
+        self.assertFalse(project.is_in_grace_period)
+
+    def test_is_in_grace_period_with_zero_grace_period(self):
+        """Test that is_in_grace_period returns False when grace period is 0."""
+        project = self.fixture.project
+        project.grace_period_days = 0
+        # Set end_date to yesterday
+        project.end_date = timezone.now().date() - timedelta(days=1)
+        project.save()
+
+        self.assertFalse(project.is_in_grace_period)
+
+    def test_is_in_grace_period_inherits_customer_grace_period(self):
+        """Test that is_in_grace_period works with inherited customer grace period."""
+        # Set customer grace period but not project grace period
+        customer = self.fixture.customer
+        customer.grace_period_days = 7
+        customer.save()
+
+        project = self.fixture.project
+        project.grace_period_days = None
+        # Set end_date to 3 days ago (within 7-day customer grace period)
+        project.end_date = timezone.now().date() - timedelta(days=3)
+        project.save()
+
+        self.assertTrue(project.is_in_grace_period)
+
+    def test_end_date_with_grace_returns_none_when_no_end_date(self):
+        """Test that end_date_with_grace returns None when project has no end_date."""
+        project = self.fixture.project
+        project.end_date = None
+        project.grace_period_days = 10
+        project.save()
+
+        self.assertIsNone(project.end_date_with_grace)
+
+    def test_end_date_with_grace_adds_grace_period_days(self):
+        """Test that end_date_with_grace correctly adds grace period days."""
+        project = self.fixture.project
+        project.grace_period_days = 7
+        project.end_date = timezone.now().date()
+        project.save()
+
+        expected_grace_end = project.end_date + timedelta(days=7)
+        self.assertEqual(project.end_date_with_grace, expected_grace_end)
+
+    def test_end_date_with_grace_with_zero_grace_period(self):
+        """Test that end_date_with_grace equals end_date when grace period is 0."""
+        project = self.fixture.project
+        project.grace_period_days = 0
+        project.end_date = timezone.now().date()
+        project.save()
+
+        self.assertEqual(project.end_date_with_grace, project.end_date)
+
+    def test_end_date_with_grace_inherits_customer_grace_period(self):
+        """Test that end_date_with_grace works with inherited customer grace period."""
+        # Set customer grace period but not project grace period
+        customer = self.fixture.customer
+        customer.grace_period_days = 14
+        customer.save()
+
+        project = self.fixture.project
+        project.grace_period_days = None
+        project.end_date = timezone.now().date()
+        project.save()
+
+        expected_grace_end = project.end_date + timedelta(days=14)
+        self.assertEqual(project.end_date_with_grace, expected_grace_end)
+
+    def test_end_date_with_grace_project_overrides_customer(self):
+        """Test that project grace period overrides customer grace period in end_date_with_grace."""
+        # Set both customer and project grace periods
+        customer = self.fixture.customer
+        customer.grace_period_days = 5
+        customer.save()
+
+        project = self.fixture.project
+        project.grace_period_days = 12  # Should override customer setting
+        project.end_date = timezone.now().date()
+        project.save()
+
+        expected_grace_end = project.end_date + timedelta(days=12)
+        self.assertEqual(project.end_date_with_grace, expected_grace_end)
+
+    def test_grace_period_properties_consistency_with_expired(self):
+        """Test that grace period properties are consistent with is_expired property."""
+        project = self.fixture.project
+        project.grace_period_days = 5
+
+        # Test case 1: Project not expired, not in grace period
+        project.end_date = timezone.now().date() + timedelta(days=1)
+        project.save()
+        self.assertFalse(project.is_expired)
+        self.assertFalse(project.is_in_grace_period)
+
+        # Test case 2: Project in grace period, not expired
+        project.end_date = timezone.now().date() - timedelta(days=3)
+        project.save()
+        self.assertFalse(project.is_expired)  # Within grace period
+        self.assertTrue(project.is_in_grace_period)
+
+        # Test case 3: Project expired and past grace period
+        project.end_date = timezone.now().date() - timedelta(days=6)
+        project.save()
+        self.assertTrue(project.is_expired)  # Past grace period
+        self.assertFalse(project.is_in_grace_period)  # Past grace period
+
+    @freeze_time("2025-01-15")
+    def test_grace_period_properties_with_frozen_time(self):
+        """Test grace period properties with frozen time for precise date testing."""
+        project = self.fixture.project
+        project.grace_period_days = 7
+
+        # Set end_date to 2025-01-10 (5 days ago)
+        project.end_date = datetime.date(2025, 1, 10)
+        project.save()
+
+        # Should be in grace period
+        self.assertTrue(project.is_in_grace_period)
+        self.assertFalse(project.is_expired)
+
+        # Grace end should be 2025-01-17
+        expected_grace_end = datetime.date(2025, 1, 17)
+        self.assertEqual(project.end_date_with_grace, expected_grace_end)
