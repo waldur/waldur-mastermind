@@ -1467,12 +1467,13 @@ def sync_offering_agents():
     This task is called to sync the agents for all offerings
     that are associated with remote OpenPortal backends.
     """
-    if not openportal.have_openportal():
+    if not openportal.ensure_config_loaded():
+        logger.info(
+            "OpenPortal not enabled or config not available, skipping sync_offering_agents"
+        )
         return
 
     logger.info("OpenPortal task.sync_offering_agents")
-
-    openportal.ensure_config_loaded()
 
     # get the name of this portal
     portal = openportal.get_portal()
@@ -1502,10 +1503,11 @@ def sync_board():
     has received any jobs. If it has, then it pulls the job from the
     board and then spawns a new task to process the job.
     """
-    if not openportal.have_openportal():
+    if not openportal.ensure_config_loaded():
+        logger.info(
+            "OpenPortal not enabled or config not available, skipping sync_board"
+        )
         return
-
-    openportal.ensure_config_loaded()
 
     jobs = openportal.fetch_jobs()
 

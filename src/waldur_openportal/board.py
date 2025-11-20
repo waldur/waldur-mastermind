@@ -23,11 +23,10 @@ class OpenPortalBoard:
 
     def __init__(self, destination: openportal.Destination = None):
         # make sure that the OpenPortal config is loaded
-        if not openportal.have_openportal():
-            raise openportal.OpenPortalError("OpenPortal is not available")
-
-        if not openportal.is_config_loaded():
-            self.load_config()
+        if not openportal.ensure_config_loaded():
+            raise openportal.OpenPortalError(
+                "OpenPortal is not enabled or configuration is not available"
+            )
 
         if destination is not None:
             if not isinstance(destination, openportal.Destination):
@@ -104,8 +103,10 @@ class OpenPortalBoard:
         openportal.ensure_config_loaded()
 
     def health(self):
-        if not openportal.have_openportal():
-            raise openportal.OpenPortalError("OpenPortal is not available")
+        if not openportal.is_config_available():
+            raise openportal.OpenPortalError(
+                "OpenPortal is not enabled or configuration is not available"
+            )
 
         try:
             health = openportal.health()
@@ -120,9 +121,9 @@ class OpenPortalBoard:
         """
         Fetch the OpenPortal job with the specified job_id
         """
-        if not openportal.have_openportal():
+        if not openportal.is_config_available():
             raise openportal.OpenPortalError(
-                f"OpenPortal is not available - cannot fetch job with ID '{job_id}'"
+                f"OpenPortal is not enabled or configuration is not available - cannot fetch job with ID '{job_id}'"
             )
 
         try:

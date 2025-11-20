@@ -15,11 +15,10 @@ class OpenPortalRunner:
 
     def __init__(self):
         # make sure that the OpenPortal config is loaded
-        if not openportal.have_openportal():
-            raise openportal.OpenPortalError("OpenPortal is not available")
-
-        if not openportal.is_config_loaded():
-            self.load_config()
+        if not openportal.ensure_config_loaded():
+            raise openportal.OpenPortalError(
+                "OpenPortal is not enabled or configuration is not available"
+            )
 
     def load_config(self):
         """
@@ -31,8 +30,10 @@ class OpenPortalRunner:
         openportal.ensure_config_loaded()
 
     def health(self):
-        if not openportal.have_openportal():
-            raise openportal.OpenPortalError("OpenPortal is not available")
+        if not openportal.is_config_available():
+            raise openportal.OpenPortalError(
+                "OpenPortal is not enabled or configuration is not available"
+            )
 
         try:
             health = openportal.health()
@@ -47,9 +48,9 @@ class OpenPortalRunner:
         """
         Return the OpenPortal job with the specified UID
         """
-        if not openportal.have_openportal():
+        if not openportal.is_config_available():
             raise openportal.OpenPortalError(
-                f"OpenPortal is not available - cannot get job with UID '{uid}'"
+                f"OpenPortal is not enabled or configuration is not available - cannot get job with UID '{uid}'"
             )
 
         try:
@@ -65,9 +66,9 @@ class OpenPortalRunner:
         job that was created. Raises an OpenPortalError if anything
         goes wrong
         """
-        if not openportal.have_openportal():
+        if not openportal.is_config_available():
             raise openportal.OpenPortalError(
-                f"OpenPortal is not available - cannot run '{command}'"
+                f"OpenPortal is not enabled or configuration is not available - cannot run '{command}'"
             )
 
         try:
