@@ -2178,3 +2178,39 @@ Sweden Business Register API client identifier
 **Type:** secret_field
 
 Sweden Business Register API client secret
+
+### LLM inference settings
+
+#### LLM_CHAT_ENABLED
+
+**Type:** bool
+
+Enable LLM-based chat feature and calls to the inference service.
+
+#### LLM_INFERENCES_BACKEND_TYPE
+
+**Type:** str
+
+**Default value:** ollama
+
+Type of LLM inference backend. For example: openai, ollama.
+
+#### LLM_INFERENCES_API_URL
+
+**Type:** url_field
+
+Base URL for LLM inference service API.
+
+#### LLM_INFERENCES_API_TOKEN
+
+**Type:** str
+
+API key for authenticating with the LLM inference service.
+
+#### LLM_INFERENCES_MODEL
+
+**Type:** str
+
+**Default value:** gemma3:27b
+
+Name of the LLM model to use for inference.

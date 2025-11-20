@@ -877,3 +877,35 @@ Backend data update if a server was switched.
 ## sync_saml2_providers
 
 Synchronize SAML2 identity providers.
+
+## validate_openstack_services
+
+Validate access to all OpenStack services used in Waldur for configured offerings
+
+```bash
+
+usage: waldur validate_openstack_services [--service-uuid SERVICE_UUID]
+                                          [--dry-run] [--verbose]
+                                          [--test-writes]
+                                          [--tenant-uuid TENANT_UUID]
+                                          [--offering-uuid OFFERING_UUID]
+                                          [--quiet]
+
+options:
+  --service-uuid SERVICE_UUID
+                        UUID of specific OpenStack service to validate
+                        (optional)
+  --dry-run             Show what would be validated without actual connection
+                        attempts
+  --verbose             Enable verbose output
+  --test-writes         Test write operations (create/update/delete) -
+                        WARNING: Creates and deletes test resources
+  --tenant-uuid TENANT_UUID
+                        UUID of specific tenant to use for write tests
+                        (mutually exclusive with --offering-uuid)
+  --offering-uuid OFFERING_UUID
+                        UUID of OpenStack offering to test against (creates
+                        temporary tenant)
+  --quiet               Suppress SSL warnings and other verbose output
+
+```
