@@ -126,7 +126,7 @@ def update_user(sender, instance: User, created=False, **kwargs):
         try:
             profile = models.Profile.objects.get(user=user)
         except models.Profile.DoesNotExist:
-            logger.warning(f"No FreeIPA profile found for user {user.username}.")
+            logger.debug(f"No FreeIPA profile found for user {user.username}.")
             return
 
         if user.is_active != profile.is_active:

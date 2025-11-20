@@ -33,13 +33,13 @@ Use the EESSI management command to load catalog data:
 
 ```bash
 # Load EESSI catalog (dry run first to see what will be created)
-DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run python manage.py load_eessi_catalog --dry-run
+DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur load_eessi_catalog --dry-run
 
 # Load the actual catalog
-DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run python manage.py load_eessi_catalog
+DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur load_eessi_catalog
 
 # Update existing catalog with new data
-DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run python manage.py load_eessi_catalog --update-existing
+DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur load_eessi_catalog --update-existing
 ```
 
 This creates:
@@ -376,89 +376,12 @@ EESSI provides software in a structured format:
 
 ```
 
-## Offering Partitions
+## SLURM Partitions and Software Catalogs
 
-**Note**: The partition management APIs referenced in this section are documented but the actual implementation may vary. The OfferingPartition model exists in the codebase but may not have corresponding ViewSets exposed via API endpoints. Please verify the current API availability.
+For detailed information about SLURM partition configuration and their integration with software catalogs, see the dedicated [Marketplace SLURM Partitions](marketplace-slurm-partitions.md) guide.
 
-Offering partitions represent SLURM partitions associated with marketplace offerings. They define resource limits, scheduling policies, and access controls for different compute partitions.
-
-### Partition Model Fields
-
-The OfferingPartition model includes the following key fields for SLURM partition configuration:
-
-### Partition Parameters
-
-#### CPU Configuration
-
-- `cpu_bind`: Default task binding policy (SLURM cpu_bind)
-- `def_cpu_per_gpu`: Default CPUs allocated per GPU
-- `max_cpus_per_node`: Maximum allocated CPUs per node
-- `max_cpus_per_socket`: Maximum allocated CPUs per socket
-
-#### Memory Configuration (in MB)
-
-- `def_mem_per_cpu`: Default memory per CPU
-- `def_mem_per_gpu`: Default memory per GPU
-- `def_mem_per_node`: Default memory per node
-- `max_mem_per_cpu`: Maximum memory per CPU
-- `max_mem_per_node`: Maximum memory per node
-
-#### Time Limits
-
-- `default_time`: Default time limit in minutes
-- `max_time`: Maximum time limit in minutes
-- `grace_time`: Preemption grace time in seconds
-
-#### Node Configuration
-
-- `max_nodes`: Maximum nodes per job
-- `min_nodes`: Minimum nodes per job
-- `exclusive_topo`: Exclusive topology access required
-- `exclusive_user`: Exclusive user access required
-
-#### Scheduling Configuration
-
-- `priority_tier`: Priority tier for scheduling and preemption
-- `qos`: Quality of Service (QOS) name
-- `req_resv`: Require reservation for job allocation
-
-### Partition Software Catalog Associations
-
-Software catalogs can optionally be associated with specific partitions through the `partition` field in OfferingSoftwareCatalog:
-
-```bash
-
-# Add software catalog to specific partition
-curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings/{offering_uuid}/add_software_catalog/" \
-  -H "Authorization: Token your-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "catalog": "catalog-uuid",
-    "enabled_cpu_family": ["x86_64"],
-    "enabled_cpu_microarchitectures": ["generic"],
-    "partition": "partition-uuid"
-  }'
-
-```
-
-### API Examples
-
-```bash
-
-# Add software catalog to offering with updated field names
-curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings/{offering_uuid}/add_software_catalog/" \
-  -H "Authorization: Token your-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "catalog": "catalog-uuid",
-    "enabled_cpu_family": ["x86_64", "aarch64"],
-    "enabled_cpu_microarchitectures": ["generic", "zen3", "neoverse_n1"]
-  }'
-
-# Filter software targets by CPU family
-curl "https://your-waldur.example.com/api/marketplace-software-targets/?cpu_family=x86_64"
-
-# Filter by CPU microarchitecture
-curl "https://your-waldur.example.com/api/marketplace-software-targets/?cpu_microarchitecture=zen3"
-
-```
+This includes:
+- SLURM partition model configuration
+- Partition management APIs (add, update, remove)
+- Partition-specific software catalog associations
+- CPU architecture targeting for different partitions
