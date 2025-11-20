@@ -596,6 +596,28 @@ CONSTANCE_CONFIG = {
         "Sweden Business Register API client secret",
         "secret_field",
     ),
+    # LLM inference settings
+    "LLM_CHAT_ENABLED": (
+        False,
+        "Enable LLM-based chat feature and calls to the inference service.",
+    ),
+    "LLM_INFERENCES_BACKEND_TYPE": (
+        "ollama",
+        "Type of LLM inference backend. For example: openai, ollama.",
+    ),
+    "LLM_INFERENCES_API_URL": (
+        "",
+        "Base URL for LLM inference service API.",
+        "url_field",
+    ),
+    "LLM_INFERENCES_API_TOKEN": (
+        "",
+        "API key for authenticating with the LLM inference service.",
+    ),
+    "LLM_INFERENCES_MODEL": (
+        "gemma3:27b",
+        "Name of the LLM model to use for inference.",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -786,6 +808,13 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ONBOARDING_BOLAGSVERKET_CLIENT_ID",
         "ONBOARDING_BOLAGSVERKET_CLIENT_SECRET",
     ),
+    "LLM inference settings": (
+        "LLM_CHAT_ENABLED",
+        "LLM_INFERENCES_BACKEND_TYPE",
+        "LLM_INFERENCES_API_URL",
+        "LLM_INFERENCES_API_TOKEN",
+        "LLM_INFERENCES_MODEL",
+    ),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
@@ -823,6 +852,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "DISABLE_DARK_THEME",
     "MARKETPLACE_LANDING_PAGE",
     "ENABLE_ORDER_START_DATE",
+    "LLM_CHAT_ENABLED",
     # Support plugin
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",
