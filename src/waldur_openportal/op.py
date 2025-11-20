@@ -1,4 +1,39 @@
 # flake8: noqa: F401
+import logging
+import os
+
+from django.conf import settings
+from openportal import (
+    Allocation,  # type: ignore
+    DailyProjectUsageReport,  # type: ignore
+    DateRange,  # type: ignore
+    Destination,  # type: ignore
+    Health,  # type: ignore
+    Instruction,  # type: ignore
+    Job,  # type: ignore
+    Node,  # type: ignore
+    PortalIdentifier,  # type: ignore
+    ProjectDetails,  # type: ignore
+    ProjectIdentifier,  # type: ignore
+    ProjectMapping,  # type: ignore
+    ProjectTemplate,  # type: ignore
+    ProjectUsageReport,  # type: ignore
+    Status,  # type: ignore
+    Usage,  # type: ignore
+    UsageReport,  # type: ignore
+    UserIdentifier,  # type: ignore
+    UserMapping,  # type: ignore
+    fetch_job,  # type: ignore
+    fetch_jobs,  # type: ignore
+    get,  # type: ignore
+    get_portal,  # type: ignore
+    health,  # type: ignore
+    is_config_loaded,  # type: ignore
+    load_config,  # type: ignore
+    run,  # type: ignore
+    send_result,  # type: ignore
+    sync_offerings,  # type: ignore
+)
 
 
 class OpenPortalError(Exception):
@@ -94,162 +129,44 @@ def convert_to_openportal_error(error_message: str) -> OpenPortalError:
         return OpenPortalOtherError(error_message)
 
 
-try:
-    from openportal import (
-        Allocation,  # type: ignore
-        DailyProjectUsageReport,  # type: ignore
-        DateRange,  # type: ignore
-        Destination,  # type: ignore
-        Health,  # type: ignore
-        Instruction,  # type: ignore
-        Job,  # type: ignore
-        Node,  # type: ignore
-        PortalIdentifier,  # type: ignore
-        ProjectDetails,  # type: ignore
-        ProjectIdentifier,  # type: ignore
-        ProjectMapping,  # type: ignore
-        ProjectTemplate,  # type: ignore
-        ProjectUsageReport,  # type: ignore
-        Status,  # type: ignore
-        Usage,  # type: ignore
-        UsageReport,  # type: ignore
-        UserIdentifier,  # type: ignore
-        UserMapping,  # type: ignore
-        fetch_job,  # type: ignore
-        fetch_jobs,  # type: ignore
-        get,  # type: ignore
-        get_portal,  # type: ignore
-        health,  # type: ignore
-        is_config_loaded,  # type: ignore
-        load_config,  # type: ignore
-        run,  # type: ignore
-        send_result,  # type: ignore
-        sync_offerings,  # type: ignore
-    )
+def is_config_available():
+    """Check if OpenPortal config is available without raising exceptions"""
+    # First check if OpenPortal plugin is enabled
+    if not settings.WALDUR_OPENPORTAL.get("ENABLED", False):
+        return False
 
-    _have_openportal = True
+    return bool(os.environ.get("OPENPORTAL_CONFIG"))
 
-    def have_openportal():
-        return _have_openportal
 
-    def ensure_config_loaded():
-        if not is_config_loaded():
-            try:
-                import os
+def ensure_config_loaded():
+    """Load config only if available and enabled, return success status
 
-                config_file = os.environ.get("OPENPORTAL_CONFIG")
-            except KeyError:
-                raise OpenPortalError("OPENPORTAL_CONFIG environment variable not set")
+    Returns:
+        bool: True if config loaded successfully or already loaded, False if disabled/unavailable
+    """
+    logger = logging.getLogger(__name__)
 
-            if not config_file:
-                raise OpenPortalError("OPENPORTAL_CONFIG environment variable not set")
+    # Check if OpenPortal plugin is enabled
+    if not settings.WALDUR_OPENPORTAL.get("ENABLED", False):
+        logger.debug("OpenPortal plugin is disabled, skipping config loading")
+        return False
 
-            try:
-                # this isn't thread-safe - we should make it thread-save
-                # in the OpenPortal python layer
-                load_config(config_file)
-            except Exception as e:
-                raise OpenPortalError(
-                    f"Failed to load OpenPortal config from '{config_file}': {e}"
-                )
+    if not is_config_loaded():
+        config_file = os.environ.get("OPENPORTAL_CONFIG")
+        if not config_file:
+            logger.warning(
+                "OPENPORTAL_CONFIG environment variable not set, skipping OpenPortal operations"
+            )
+            return False
 
-except ImportError:
-    _have_openportal = False
-
-    def have_openportal():
-        return _have_openportal
-
-    def _raise_no_openportal_error():
-        raise OpenPortalError("OpenPortal is not installed.")
-
-    class Allocation:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class DailyProjectUsageReport:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class Destination:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class Health:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class Instruction:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class Job:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class Node:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class PortalIdentifier:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class ProjectIdentifier:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class ProjectMapping:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class UserIdentifier:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class UserMapping:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class DateRange:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class UsageReport:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class Usage:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class ProjectUsageReport:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    class ProjectTemplate:
-        def __init__(self, *args, **kwargs):
-            _raise_no_openportal_error()
-
-    def is_config_loaded():
-        _raise_no_openportal_error()
-
-    def load_config(*args, **kwargs):
-        _raise_no_openportal_error()
-
-    def health(*args, **kwargs):
-        _raise_no_openportal_error()
-
-    def get(*args, **kwargs):
-        _raise_no_openportal_error()
-
-    def get_portal(*args, **kwargs):
-        _raise_no_openportal_error()
-
-    def sync_offerings(*args, **kwargs):
-        _raise_no_openportal_error()
-
-    def run(*args, **kwargs):
-        _raise_no_openportal_error()
-
-    def ensure_config_loaded():
-        _raise_no_openportal_error()
+        try:
+            # this isn't thread-safe - we should make it thread-safe
+            # in the OpenPortal python layer because load_config() likely
+            # modifies global state without proper synchronization
+            load_config(config_file)
+            logger.debug(f"OpenPortal config loaded from {config_file}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load OpenPortal config from '{config_file}': {e}")
+            return False
+    return True
