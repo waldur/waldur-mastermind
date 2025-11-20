@@ -31,6 +31,7 @@ from .serializers import (
     OnboardingJustificationReviewSerializer,
     OnboardingJustificationSerializer,
     OnboardingQuestionMetadataSerializer,
+    OnboardingRunValidationRequestSerializer,
     OnboardingVerificationSerializer,
 )
 from .validators import onboarding_validator
@@ -149,7 +150,7 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
     @extend_schema(
         description="Run automatic validation using the required fields provided during verification creation. "
         "Checklist answers (if any) are only used for supplemental customer/intent data.",
-        request=None,
+        request=OnboardingRunValidationRequestSerializer,
         responses=OnboardingVerificationSerializer,
     )
     @action(detail=True, methods=["post"])
@@ -165,10 +166,14 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
 
         # ToDo: remove this after implementing getting user's identifier via auth methods
         # Accept optional person_identifier and Austrian data from request body if provided
-        person_identifier = request.data.get("person_identifier", "")
-        first_name = request.data.get("first_name", "")
-        last_name = request.data.get("last_name", "")
-        birth_date = request.data.get("birth_date", "")
+        serializer = OnboardingRunValidationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Convert birth_date to string format if provided
+        birth_date_value = serializer.validated_data.get("birth_date")
+        birth_date_str = (
+            birth_date_value.strftime("%Y-%m-%d") if birth_date_value else ""
+        )
 
         verification = onboarding_validator.validate_company(
             user=request.user,
@@ -177,16 +182,16 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
             legal_name=verification.legal_name,
             existing_verification=verification,
             # ToDo: remove this after implementing getting user's identifier via auth methods
-            person_identifier=person_identifier,
-            first_name=first_name,
-            last_name=last_name,
-            birth_date=birth_date,
+            person_identifier=serializer.validated_data.get("person_identifier", ""),
+            first_name=serializer.validated_data.get("first_name", ""),
+            last_name=serializer.validated_data.get("last_name", ""),
+            birth_date=birth_date_str,
         )
 
         response_serializer = OnboardingVerificationSerializer(verification)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
-    run_validation_serializer_class = OnboardingVerificationSerializer
+    run_validation_serializer_class = OnboardingRunValidationRequestSerializer
 
     @extend_schema(
         description="Create customer from successful verification.",

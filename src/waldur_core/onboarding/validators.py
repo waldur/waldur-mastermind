@@ -94,14 +94,23 @@ class OnboardingValidator:
                 verification.save()
                 return verification
 
-            identity_valid, identity_error = backend.validate_user_identity(user)
-            if not identity_valid:
-                verification.status = enums.VerificationStatus.ESCALATED
-                verification.error_traceback = identity_error
-                verification.error_message = "IDENTITY_VALIDATION_FAILED"
-                verification.validated_at = timezone.now()
-                verification.save()
-                return verification
+            # ToDo: remove this after implementing getting user's identifier via auth methods
+            # Skip identity validation if person_identifier is provided via request (workaround)
+            # For Estonian validation: if person_identifier is provided
+            # For Austrian validation: if first_name, last_name, birth_date are provided
+            has_person_identifier_workaround = person_identifier or (
+                first_name and last_name and birth_date
+            )
+
+            if not has_person_identifier_workaround:
+                identity_valid, identity_error = backend.validate_user_identity(user)
+                if not identity_valid:
+                    verification.status = enums.VerificationStatus.ESCALATED
+                    verification.error_traceback = identity_error
+                    verification.error_message = "IDENTITY_VALIDATION_FAILED"
+                    verification.validated_at = timezone.now()
+                    verification.save()
+                    return verification
 
             # Step 2: Create validation request
             # ToDo: remove this after implementing getting user's identifier via auth methods

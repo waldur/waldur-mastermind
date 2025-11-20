@@ -187,6 +187,14 @@ class OnboardingCompanyValidationRequestSerializer(serializers.Serializer):
         default=False,
         help_text="Indicates if the validation is to be performed manually",
     )
+
+
+class OnboardingRunValidationRequestSerializer(serializers.Serializer):
+    """
+    Serializer for run_validation action request body.
+    Accepts optional user identity fields as temporary workaround.
+    """
+
     # ToDo: remove this after implementing getting user's identifier via auth methods
     person_identifier = serializers.CharField(
         max_length=50,
