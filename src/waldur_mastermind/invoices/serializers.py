@@ -1182,18 +1182,27 @@ def add_customer_credit(sender, fields, **kwargs):
 def _optimize_customer_serializer_eager_load_for_credit(sender):
     """Optimize eager loading for CustomerSerializer to prefetch customer credits."""
     # Check if we already have an optimized eager_load method
-    if hasattr(sender.eager_load, "_credit_optimized"):
+    # The flag is on the underlying function if it's a staticmethod
+    eager_load_func = getattr(sender.eager_load, "__func__", sender.eager_load)
+    if hasattr(eager_load_func, "_credit_optimized"):
         return
 
     # If billing optimization is already applied, we need to combine them
-    if hasattr(sender.eager_load, "_billing_optimized"):
-        # Store the billing-optimized method
-        billing_optimized_method = sender.eager_load
+    if hasattr(eager_load_func, "_billing_optimized"):
+        # Get the true original method that was stored by the billing optimization
+        original_eager_load = getattr(
+            eager_load_func, "_original_eager_load", sender.eager_load
+        )
 
-        @staticmethod
         def combined_eager_load(queryset, request=None):
-            # Call the billing-optimized method first
-            queryset = billing_optimized_method(queryset, request)
+            # Call the true original method first
+            queryset = original_eager_load(queryset, request)
+
+            # Add billing optimizations
+            if request:
+                fields = request.query_params.getlist("field")
+                if "billing_price_estimate" in fields:
+                    queryset._billing_optimization_enabled = True
 
             # Add credit optimizations
             if request:
@@ -1203,18 +1212,18 @@ def _optimize_customer_serializer_eager_load_for_credit(sender):
 
             return queryset
 
-        # Mark as optimized for both
+        # Mark as optimized for both and store original
         combined_eager_load._billing_optimized = True
         combined_eager_load._credit_optimized = True
+        combined_eager_load._original_eager_load = original_eager_load
 
         # Replace the eager_load method
-        sender.eager_load = combined_eager_load
+        sender.eager_load = staticmethod(combined_eager_load)
         return
 
     # Store the original eager_load method
     original_eager_load = sender.eager_load
 
-    @staticmethod
     def optimized_eager_load(queryset, request=None):
         # Call the original eager_load first
         queryset = original_eager_load(queryset, request)
@@ -1229,11 +1238,12 @@ def _optimize_customer_serializer_eager_load_for_credit(sender):
 
         return queryset
 
-    # Mark as optimized to avoid double optimization
+    # Mark as optimized to avoid double optimization and store original
     optimized_eager_load._credit_optimized = True
+    optimized_eager_load._original_eager_load = original_eager_load
 
     # Replace the eager_load method
-    sender.eager_load = optimized_eager_load
+    sender.eager_load = staticmethod(optimized_eager_load)
 
 
 def get_customer_unallocated_credit(serializer, customer) -> float | None:
