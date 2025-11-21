@@ -146,7 +146,10 @@ class IssueCreateBaseTest(base.BaseTest):
         service_desk_response = {
             "issueKey": issue_data["key"],  # Map key to issueKey for Service Desk API
             "issueId": issue_data["id"],
-            "requestFieldValues": [],
+            "requestFieldValues": [
+                {"fieldId": "summary", "value": "test_issue"},
+                {"fieldId": "description", "value": ""},
+            ],
             "currentStatus": {"status": "Open"},
             "_links": {"agent": f"https://example.com/browse/{issue_data['key']}"},
         }
@@ -160,13 +163,18 @@ class IssueCreateBaseTest(base.BaseTest):
         self.mock_service_desk_instance.create_issue.return_value = issue_data
 
         # Mock additional API calls used in the backend
-        self.mock_service_desk_instance.get.return_value = [
-            {"id": "customfield_10001", "clauseNames": ["Waldur project"]},
-            {"id": "customfield_10002", "clauseNames": ["Reporter organization"]},
-            {"id": "customfield_10003", "clauseNames": ["Affected resource"]},
-            {"id": "customfield_10004", "clauseNames": ["Waldur template"]},
-            {"id": "customfield_10005", "clauseNames": ["Original Reporter"]},
-        ]
+        def mock_get(url, *args, **kwargs):
+            if url.endswith("?fields=resolution"):
+                return {"fields": {"resolution": {"name": "Done"}}}
+            return [
+                {"id": "customfield_10001", "clauseNames": ["Waldur project"]},
+                {"id": "customfield_10002", "clauseNames": ["Reporter organization"]},
+                {"id": "customfield_10003", "clauseNames": ["Affected resource"]},
+                {"id": "customfield_10004", "clauseNames": ["Waldur template"]},
+                {"id": "customfield_10005", "clauseNames": ["Original Reporter"]},
+            ]
+
+        self.mock_service_desk_instance.get.side_effect = mock_get
 
         # Mock user response
         mock_backend_users = [

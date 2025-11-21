@@ -596,9 +596,7 @@ class ServiceDeskBackend(SupportBackend):
             raise_on_behalf_of=issue.caller.email,
         )
 
-        request_key = request.get("issueKey")
-        issue.backend_id = request_key
-        issue.key = request_key
+        self._backend_issue_to_issue(request, issue)
         issue.state = CoreStates.OK
         issue.save()
         logger.info(
@@ -985,10 +983,17 @@ class ServiceDeskBackend(SupportBackend):
         issue.link = backend_issue["_links"].get("agent") or backend_issue[
             "_links"
         ].get("web")
-        issue.summary = backend_issue.get("summary") or next(
-            f["value"]
-            for f in backend_issue["requestFieldValues"]
-            if f["fieldId"] == "summary"
+        issue.summary = (
+            backend_issue.get("summary")
+            or (
+                backend_issue["requestFieldValues"]
+                and next(
+                    f["value"]
+                    for f in backend_issue["requestFieldValues"]
+                    if f["fieldId"] == "summary"
+                )
+            )
+            or ""
         )
         issue.description = _get_field_value("description")
         # issue.type = backend_issue.fields.issuetype.name
