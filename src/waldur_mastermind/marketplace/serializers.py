@@ -3189,6 +3189,7 @@ class BaseOrderSerializer(BaseItemSerializer):
             "attachment",
             "type",
             "start_date",
+            "slug",
         )
 
         read_only_fields = (
@@ -3198,6 +3199,7 @@ class BaseOrderSerializer(BaseItemSerializer):
             "error_traceback",
             "output",
             "completed_at",
+            "slug",
         )
         protected_fields = (
             "offering",
