@@ -2922,6 +2922,7 @@ class MaintenanceAnnouncement(
     core_models.BackendMixin,
 ):
     message = models.CharField(_("message"), max_length=2000, blank=True)
+    internal_notes = models.CharField(_("internal notes"), max_length=2000, blank=True)
     maintenance_type = models.PositiveSmallIntegerField(
         choices=MaintenanceType.CHOICES,
         default=MaintenanceType.SCHEDULED,

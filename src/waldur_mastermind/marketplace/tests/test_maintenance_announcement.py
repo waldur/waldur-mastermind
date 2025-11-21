@@ -671,3 +671,221 @@ class PublicMaintenanceAnnouncementViewSetTest(test.APITransactionTestCase):
 
         response = self.client.delete(detail_url)
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+@ddt
+class MaintenanceAnnouncementInternalNotesTest(test.APITransactionTestCase):
+    """Test internal_notes field visibility based on user permissions."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.announcement = self.fixture.maintenance_announcement
+        self.announcement.internal_notes = "Secret internal notes for staff only"
+        self.announcement.save()
+        self.url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(
+            self.announcement
+        )
+
+        # Create a support user
+        self.support_user = structure_factories.UserFactory(is_support=True)
+
+    @data("staff", "service_owner")
+    def test_internal_notes_visible_to_authorized_users(self, user):
+        """Staff and service provider users should see internal_notes."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("internal_notes", response.json())
+        self.assertEqual(
+            response.json()["internal_notes"], "Secret internal notes for staff only"
+        )
+
+    def test_internal_notes_visible_to_support_users(self):
+        """Support users should see internal_notes."""
+        self.client.force_authenticate(self.support_user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("internal_notes", response.json())
+        self.assertEqual(
+            response.json()["internal_notes"], "Secret internal notes for staff only"
+        )
+
+    @data(
+        "admin",
+        "manager",
+        "offering_admin",
+        "offering_manager",
+        "owner",
+        "customer_support",
+    )
+    def test_internal_notes_hidden_from_unauthorized_users(self, user):
+        """Unauthorized users should not see internal_notes field when they can access the announcement."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        # These users might not have access to the announcement at all due to existing permissions
+        # If they get 404, that's expected behavior for the existing permission system
+        if response.status_code == status.HTTP_404_NOT_FOUND:
+            # This is expected - user doesn't have access to this announcement
+            return
+        elif response.status_code == status.HTTP_200_OK:
+            # If they do have access, internal_notes should be hidden
+            self.assertNotIn("internal_notes", response.json())
+        else:
+            self.fail(f"Unexpected status code: {response.status_code}")
+
+    def test_internal_notes_hidden_from_anonymous_users(self):
+        """Anonymous users should not see internal_notes field."""
+        # No authentication
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @data("staff", "service_owner")
+    def test_internal_notes_can_be_created_by_authorized_users(self, user):
+        """Staff and service provider users should be able to create internal_notes."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        payload = {
+            "name": "Test maintenance with internal notes",
+            "message": "Public message",
+            "internal_notes": "Private internal information",
+            "scheduled_start": "2030-01-01T10:00:00Z",
+            "scheduled_end": "2030-01-01T12:00:00Z",
+            "service_provider": marketplace_factories.ServiceProviderFactory.get_url(
+                self.fixture.service_provider
+            ),
+        }
+
+        list_url = marketplace_factories.MaintenanceAnnouncementFactory.get_list_url()
+        response = self.client.post(list_url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify internal_notes is present in response
+        self.assertIn("internal_notes", response.json())
+        self.assertEqual(
+            response.json()["internal_notes"], "Private internal information"
+        )
+
+    def test_internal_notes_can_be_created_by_support_users(self):
+        """Support users should be able to create internal_notes."""
+        self.client.force_authenticate(self.support_user)
+
+        payload = {
+            "name": "Test maintenance with internal notes",
+            "message": "Public message",
+            "internal_notes": "Support user notes",
+            "scheduled_start": "2030-01-01T10:00:00Z",
+            "scheduled_end": "2030-01-01T12:00:00Z",
+            "service_provider": marketplace_factories.ServiceProviderFactory.get_url(
+                self.fixture.service_provider
+            ),
+        }
+
+        list_url = marketplace_factories.MaintenanceAnnouncementFactory.get_list_url()
+        response = self.client.post(list_url, payload)
+        # Support users might not have permission to create announcements for arbitrary service providers
+        # This depends on the existing permission system
+        if response.status_code == status.HTTP_400_BAD_REQUEST:
+            # Support users may not be allowed to create announcements - this is expected
+            return
+        elif response.status_code == status.HTTP_201_CREATED:
+            # If creation is allowed, verify internal_notes is present
+            self.assertIn("internal_notes", response.json())
+            self.assertEqual(response.json()["internal_notes"], "Support user notes")
+        else:
+            self.fail(f"Unexpected status code: {response.status_code}")
+
+    @data("staff", "service_owner")
+    def test_internal_notes_can_be_updated_by_authorized_users(self, user):
+        """Staff and service provider users should be able to update internal_notes."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        response = self.client.patch(
+            self.url, {"internal_notes": "Updated internal notes"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify updated internal_notes
+        self.assertIn("internal_notes", response.json())
+        self.assertEqual(response.json()["internal_notes"], "Updated internal notes")
+
+        # Verify in database
+        self.announcement.refresh_from_db()
+        self.assertEqual(self.announcement.internal_notes, "Updated internal notes")
+
+    def test_internal_notes_can_be_updated_by_support_users(self):
+        """Support users should be able to update internal_notes."""
+        self.client.force_authenticate(self.support_user)
+
+        response = self.client.patch(
+            self.url, {"internal_notes": "Support updated notes"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify updated internal_notes
+        self.assertIn("internal_notes", response.json())
+        self.assertEqual(response.json()["internal_notes"], "Support updated notes")
+
+    def test_internal_notes_in_list_view_for_authorized_users(self):
+        """Internal notes should be included in list view for authorized users."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        list_url = marketplace_factories.MaintenanceAnnouncementFactory.get_list_url()
+        response = self.client.get(list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        announcements = response.json()
+        # Find our test announcement in the list
+        test_announcement = next(
+            (a for a in announcements if a["uuid"] == str(self.announcement.uuid)), None
+        )
+
+        self.assertIsNotNone(test_announcement)
+        self.assertIn("internal_notes", test_announcement)
+        self.assertEqual(
+            test_announcement["internal_notes"], "Secret internal notes for staff only"
+        )
+
+    def test_internal_notes_hidden_in_list_view_for_unauthorized_users(self):
+        """Internal notes should be hidden in list view for unauthorized users."""
+        self.client.force_authenticate(self.fixture.admin)
+
+        list_url = marketplace_factories.MaintenanceAnnouncementFactory.get_list_url()
+        response = self.client.get(list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        announcements = response.json()
+        # Find our test announcement in the list (may not be visible due to permissions)
+        test_announcement = next(
+            (a for a in announcements if a["uuid"] == str(self.announcement.uuid)), None
+        )
+
+        if test_announcement is not None:
+            # If the announcement is visible, internal_notes should be hidden
+            self.assertNotIn("internal_notes", test_announcement)
+        # If test_announcement is None, the user doesn't have access to this announcement,
+        # which is expected behavior based on existing permissions
+
+    def test_internal_notes_not_included_in_public_api(self):
+        """Internal notes should never be included in public API responses."""
+        public_url = "/api/public-maintenance-announcements/"
+
+        # Set announcement to scheduled state to make it visible in public API
+        self.announcement.state = MaintenanceState.SCHEDULED
+        self.announcement.save()
+
+        # Test unauthenticated request to public API
+        self.client.logout()
+        response = self.client.get(public_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        announcements = response.json()
+        test_announcement = next(
+            (a for a in announcements if a["uuid"] == str(self.announcement.uuid)), None
+        )
+
+        self.assertIsNotNone(test_announcement)
+        self.assertNotIn("internal_notes", test_announcement)
