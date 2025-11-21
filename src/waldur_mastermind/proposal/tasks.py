@@ -25,13 +25,13 @@ def create_reviews_if_strategy_is_after_round():
     """Create reviews for active rounds with 'after round' review strategy."""
     rounds = proposal_models.Round.objects.filter(
         start_time__lte=timezone.now(),
-        cutoff_time__gte=timezone.now(),
+        cutoff_time__lt=timezone.now(),
         call__state=CallStates.ACTIVE,
         review_strategy=proposal_models.Round.ReviewStrategies.AFTER_ROUND,
     )
 
     for r in rounds:
-        utils.create_reviews_of_round(r)
+        utils.process_closed_round(r)
 
 
 @shared_task(
