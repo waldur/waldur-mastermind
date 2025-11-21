@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from uuid import UUID
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
@@ -19,11 +20,13 @@ from waldur_mastermind.marketplace.models import (
     CustomerServiceAccount,
     Offering,
     OfferingComponent,
+    OfferingUser,
     Order,
     Plan,
     PlanComponent,
     ProjectServiceAccount,
     Resource,
+    ServiceProvider,
 )
 
 
@@ -45,6 +48,12 @@ class Command(BaseCommand):
         self.stats = {
             "users": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "customers": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "service_providers": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "projects": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "categories": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "offerings": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
@@ -82,6 +91,7 @@ class Command(BaseCommand):
             "orders": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "invoices": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "invoice_items": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "offering_users": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
         }
         self.dry_run = False
         self.update_existing = False
@@ -155,6 +165,7 @@ class Command(BaseCommand):
                     self.import_users(data.get("users", []))
 
                 self.import_customers(data.get("customers", []))
+                self.import_service_providers(data.get("service_providers", []))
                 self.import_projects(data.get("projects", []))
                 self.import_categories(data.get("categories", []))
                 self.import_offerings(data.get("offerings", []))
@@ -192,6 +203,9 @@ class Command(BaseCommand):
                 self.import_invoices(data.get("invoices", []))
                 self.import_invoice_items(data.get("invoice_items", []))
 
+                # Import offering users (depends on offerings and users)
+                self.import_offering_users(data.get("offering_users", []))
+
                 if self.dry_run:
                     # Rollback transaction in dry-run mode
                     raise Exception("Dry run - rolling back transaction")
@@ -209,7 +223,7 @@ class Command(BaseCommand):
         self.print_summary()
 
     def import_users(self, users_data):
-        """Import user data."""
+        """Import user data including system_robot."""
         self.stdout.write("Importing users...")
 
         for user_data in users_data:
@@ -223,27 +237,51 @@ class Command(BaseCommand):
                 username = user_data.get("username")
                 email = user_data.get("email")
 
-                if not username or not email:
+                if not username:
                     self.stdout.write(
-                        self.style.WARNING(
-                            f"Skipping user {uuid}: missing username or email"
-                        )
+                        self.style.WARNING(f"Skipping user {uuid}: missing username")
                     )
                     self.stats["users"]["errors"] += 1
                     continue
 
-                existing_user = User.objects.filter(uuid=uuid).first()
+                # Use all_objects to include inactive users to avoid unique constraint violations
+                existing_user = User.all_objects.filter(uuid=uuid).first()
+
+                # Also check if username already exists (even with different UUID)
+                if not existing_user:
+                    username_conflict = User.all_objects.filter(
+                        username=username
+                    ).first()
+                    if username_conflict:
+                        # For system_robot, use the existing one if UUID matches or update it
+                        if username == "system_robot":
+                            existing_user = username_conflict
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"Using existing system_robot user with UUID {username_conflict.uuid}"
+                                )
+                            )
+                        else:
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"Skipping user {uuid}: username '{username}' already exists with UUID {username_conflict.uuid}"
+                                )
+                            )
+                            self.stats["users"]["errors"] += 1
+                            continue
 
                 if existing_user:
                     if self.update_existing:
                         # Update existing user
                         existing_user.username = username
                         existing_user.email = email
-                        existing_user.full_name = user_data.get("full_name", "")
+                        existing_user.first_name = user_data.get("first_name", "")
+                        existing_user.last_name = user_data.get("last_name", "")
                         existing_user.native_name = user_data.get("native_name", "")
                         existing_user.phone_number = user_data.get("phone_number", "")
                         existing_user.organization = user_data.get("organization", "")
                         existing_user.job_title = user_data.get("job_title", "")
+                        existing_user.description = user_data.get("description", "")
                         existing_user.is_staff = user_data.get("is_staff", False)
                         existing_user.is_support = user_data.get("is_support", False)
                         existing_user.is_active = user_data.get("is_active", True)
@@ -263,11 +301,13 @@ class Command(BaseCommand):
                         uuid=uuid,
                         username=username,
                         email=email,
-                        full_name=user_data.get("full_name", ""),
+                        first_name=user_data.get("first_name", ""),
+                        last_name=user_data.get("last_name", ""),
                         native_name=user_data.get("native_name", ""),
                         phone_number=user_data.get("phone_number", ""),
                         organization=user_data.get("organization", ""),
                         job_title=user_data.get("job_title", ""),
+                        description=user_data.get("description", ""),
                         is_staff=user_data.get("is_staff", False),
                         is_support=user_data.get("is_support", False),
                         is_active=user_data.get("is_active", True),
@@ -357,6 +397,98 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["customers"]["errors"] += 1
+
+    def import_service_providers(self, service_providers_data):
+        """Import service provider data."""
+        self.stdout.write("Importing service providers...")
+
+        for sp_data in service_providers_data:
+            try:
+                uuid = sp_data.get("uuid")
+                customer_uuid = sp_data.get("customer_uuid")
+
+                if not uuid or not customer_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping service provider without UUID or customer_uuid"
+                        )
+                    )
+                    self.stats["service_providers"]["errors"] += 1
+                    continue
+
+                # Find customer
+                customer = Customer.objects.filter(uuid=customer_uuid).first()
+                if not customer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping service provider {uuid}: customer {customer_uuid} not found"
+                        )
+                    )
+                    self.stats["service_providers"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "customer": customer,
+                    "description": sp_data.get("description", ""),
+                    "enable_notifications": sp_data.get("enable_notifications", True),
+                    "api_secret_code": sp_data.get("api_secret_code"),
+                    "lead_email": sp_data.get("lead_email"),
+                    "lead_subject": sp_data.get("lead_subject", ""),
+                    "lead_body": sp_data.get("lead_body", ""),
+                }
+
+                if not self.dry_run:
+                    # Check by UUID first
+                    existing_sp = ServiceProvider.objects.filter(uuid=uuid).first()
+
+                    # Also check if customer already has a service provider
+                    if not existing_sp:
+                        customer_conflict = ServiceProvider.objects.filter(
+                            customer=customer
+                        ).first()
+                        if customer_conflict:
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"Skipping service provider {uuid}: customer already has service provider with UUID {customer_conflict.uuid}"
+                                )
+                            )
+                            self.stats["service_providers"]["errors"] += 1
+                            continue
+
+                    if existing_sp:
+                        if self.update_existing:
+                            ServiceProvider.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["service_providers"]["updated"] += 1
+                        else:
+                            self.stats["service_providers"]["skipped"] += 1
+                    else:
+                        ServiceProvider.objects.create(uuid=uuid, **defaults)
+                        self.stats["service_providers"]["created"] += 1
+                else:
+                    # Dry run
+                    existing = ServiceProvider.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["service_providers"]["updated"] += 1
+                        else:
+                            self.stats["service_providers"]["skipped"] += 1
+                    else:
+                        # Check for customer conflict in dry run
+                        customer_has_sp = ServiceProvider.objects.filter(
+                            customer=customer
+                        ).exists()
+                        if customer_has_sp:
+                            self.stats["service_providers"]["errors"] += 1
+                        else:
+                            self.stats["service_providers"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import service provider {sp_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["service_providers"]["errors"] += 1
 
     def import_projects(self, projects_data):
         """Import project data."""
@@ -606,12 +738,15 @@ class Command(BaseCommand):
 
         for role_data in roles_data:
             try:
+                uuid = role_data.get("uuid")
                 name = role_data.get("name")
                 content_type_str = role_data.get("content_type")
 
-                if not name or not content_type_str:
+                if not uuid or not name or not content_type_str:
                     self.stdout.write(
-                        self.style.WARNING("Skipping role without name or content_type")
+                        self.style.WARNING(
+                            "Skipping role without UUID, name, or content_type"
+                        )
                     )
                     self.stats["roles"]["errors"] += 1
                     continue
@@ -632,6 +767,7 @@ class Command(BaseCommand):
                     continue
 
                 defaults = {
+                    "name": name,
                     "description": role_data.get("description", ""),
                     "is_system_role": role_data.get("is_system_role", False),
                     "is_active": role_data.get("is_active", True),
@@ -639,26 +775,45 @@ class Command(BaseCommand):
                 }
 
                 if not self.dry_run:
-                    existing_role = Role.objects.filter(name=name).first()
+                    # Check by UUID first
+                    existing_role = Role.objects.filter(uuid=uuid).first()
+
+                    # Also check if name already exists with different UUID
+                    if not existing_role:
+                        name_conflict = Role.objects.filter(name=name).first()
+                        if name_conflict:
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"Skipping role {uuid}: name '{name}' already exists with UUID {name_conflict.uuid}"
+                                )
+                            )
+                            self.stats["roles"]["errors"] += 1
+                            continue
 
                     if existing_role:
                         if self.update_existing:
-                            Role.objects.filter(name=name).update(**defaults)
+                            Role.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["roles"]["updated"] += 1
                         else:
                             self.stats["roles"]["skipped"] += 1
                     else:
-                        Role.objects.create(name=name, **defaults)
+                        Role.objects.create(uuid=uuid, **defaults)
                         self.stats["roles"]["created"] += 1
                 else:
-                    existing = Role.objects.filter(name=name).exists()
+                    # Dry run
+                    existing = Role.objects.filter(uuid=uuid).exists()
                     if existing:
                         if self.update_existing:
                             self.stats["roles"]["updated"] += 1
                         else:
                             self.stats["roles"]["skipped"] += 1
                     else:
-                        self.stats["roles"]["created"] += 1
+                        # Check for name conflict in dry run
+                        name_exists = Role.objects.filter(name=name).exists()
+                        if name_exists:
+                            self.stats["roles"]["errors"] += 1
+                        else:
+                            self.stats["roles"]["created"] += 1
 
             except Exception as e:
                 self.stdout.write(
@@ -754,7 +909,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find user
-                user = User.objects.filter(uuid=user_uuid).first()
+                user = User.all_objects.filter(uuid=user_uuid).first()
                 if not user:
                     self.stdout.write(
                         self.style.WARNING(
@@ -925,7 +1080,9 @@ class Command(BaseCommand):
                         else:
                             self.stats["project_service_accounts"]["skipped"] += 1
                     else:
-                        ProjectServiceAccount.objects.create(uuid=uuid, **defaults)
+                        ProjectServiceAccount.objects.create(
+                            uuid=UUID(uuid), **defaults
+                        )
                         self.stats["project_service_accounts"]["created"] += 1
                 else:
                     existing = ProjectServiceAccount.objects.filter(uuid=uuid).exists()
@@ -1052,7 +1209,7 @@ class Command(BaseCommand):
                 user = None
                 user_uuid = account_data.get("user_uuid")
                 if user_uuid:
-                    user = User.objects.filter(uuid=user_uuid).first()
+                    user = User.all_objects.filter(uuid=user_uuid).first()
                     if not user:
                         self.stdout.write(
                             self.style.WARNING(
@@ -1081,7 +1238,7 @@ class Command(BaseCommand):
                         else:
                             self.stats["course_accounts"]["skipped"] += 1
                     else:
-                        CourseAccount.objects.create(uuid=uuid, **defaults)
+                        CourseAccount.objects.create(uuid=UUID(uuid), **defaults)
                         self.stats["course_accounts"]["created"] += 1
                 else:
                     existing = CourseAccount.objects.filter(uuid=uuid).exists()
@@ -1507,8 +1664,32 @@ class Command(BaseCommand):
                         else:
                             self.stats["component_usages"]["skipped"] += 1
                     else:
-                        ComponentUsage.objects.create(uuid=uuid, **defaults)
-                        self.stats["component_usages"]["created"] += 1
+                        # Check if a record with the same business key exists
+                        # (unique constraint on resource, component, billing_period when plan_period is NULL)
+                        duplicate_usage = ComponentUsage.objects.filter(
+                            resource=resource,
+                            component=component,
+                            billing_period=billing_period or timezone.now().date(),
+                            plan_period__isnull=True,
+                        ).first()
+
+                        if duplicate_usage:
+                            if self.update_existing:
+                                # Update the existing record with the new UUID and data
+                                ComponentUsage.objects.filter(
+                                    pk=duplicate_usage.pk
+                                ).update(uuid=uuid, **defaults)
+                                self.stats["component_usages"]["updated"] += 1
+                            else:
+                                self.stdout.write(
+                                    self.style.WARNING(
+                                        f"Skipping component usage {uuid}: duplicate exists with UUID {duplicate_usage.uuid}"
+                                    )
+                                )
+                                self.stats["component_usages"]["skipped"] += 1
+                        else:
+                            ComponentUsage.objects.create(uuid=uuid, **defaults)
+                            self.stats["component_usages"]["created"] += 1
                 else:
                     existing = ComponentUsage.objects.filter(uuid=uuid).exists()
                     if existing:
@@ -1517,7 +1698,21 @@ class Command(BaseCommand):
                         else:
                             self.stats["component_usages"]["skipped"] += 1
                     else:
-                        self.stats["component_usages"]["created"] += 1
+                        # Check for duplicate by business key
+                        duplicate_exists = ComponentUsage.objects.filter(
+                            resource=resource,
+                            component=component,
+                            billing_period=billing_period or timezone.now().date(),
+                            plan_period__isnull=True,
+                        ).exists()
+
+                        if duplicate_exists:
+                            if self.update_existing:
+                                self.stats["component_usages"]["updated"] += 1
+                            else:
+                                self.stats["component_usages"]["skipped"] += 1
+                        else:
+                            self.stats["component_usages"]["created"] += 1
 
             except Exception as e:
                 self.stdout.write(
@@ -1784,7 +1979,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find created_by user
-                created_by = User.objects.filter(uuid=created_by_uuid).first()
+                created_by = User.all_objects.filter(uuid=created_by_uuid).first()
                 if not created_by:
                     self.stdout.write(
                         self.style.WARNING(
@@ -1810,7 +2005,7 @@ class Command(BaseCommand):
                 consumer_reviewed_by = None
                 consumer_reviewed_by_uuid = order_data.get("consumer_reviewed_by_uuid")
                 if consumer_reviewed_by_uuid:
-                    consumer_reviewed_by = User.objects.filter(
+                    consumer_reviewed_by = User.all_objects.filter(
                         uuid=consumer_reviewed_by_uuid
                     ).first()
 
@@ -1818,7 +2013,7 @@ class Command(BaseCommand):
                 provider_reviewed_by = None
                 provider_reviewed_by_uuid = order_data.get("provider_reviewed_by_uuid")
                 if provider_reviewed_by_uuid:
-                    provider_reviewed_by = User.objects.filter(
+                    provider_reviewed_by = User.all_objects.filter(
                         uuid=provider_reviewed_by_uuid
                     ).first()
 
@@ -1920,6 +2115,93 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["orders"]["errors"] += 1
+
+    def import_offering_users(self, offering_users_data):
+        """Import offering user data."""
+        self.stdout.write("Importing offering users...")
+
+        for offering_user_data in offering_users_data:
+            try:
+                uuid = offering_user_data.get("uuid")
+                offering_uuid = offering_user_data.get("offering_uuid")
+                user_uuid = offering_user_data.get("user_uuid")
+
+                if not uuid or not offering_uuid or not user_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping offering user without UUID, offering_uuid, or user_uuid"
+                        )
+                    )
+                    self.stats["offering_users"]["errors"] += 1
+                    continue
+
+                # Find offering
+                offering = Offering.objects.filter(uuid=offering_uuid).first()
+                if not offering:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping offering user {uuid}: offering {offering_uuid} not found"
+                        )
+                    )
+                    self.stats["offering_users"]["errors"] += 1
+                    continue
+
+                # Find user
+                user = User.all_objects.filter(uuid=user_uuid).first()
+                if not user:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping offering user {uuid}: user {user_uuid} not found"
+                        )
+                    )
+                    self.stats["offering_users"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "offering": offering,
+                    "user": user,
+                    "username": offering_user_data.get("username", ""),
+                    "is_restricted": offering_user_data.get("is_restricted", False),
+                    "state": offering_user_data.get("state", 1),
+                    "service_provider_comment": offering_user_data.get(
+                        "service_provider_comment", ""
+                    ),
+                    "service_provider_comment_url": offering_user_data.get(
+                        "service_provider_comment_url", ""
+                    ),
+                }
+
+                if not self.dry_run:
+                    existing_offering_user = OfferingUser.objects.filter(
+                        uuid=uuid
+                    ).first()
+
+                    if existing_offering_user:
+                        if self.update_existing:
+                            OfferingUser.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["offering_users"]["updated"] += 1
+                        else:
+                            self.stats["offering_users"]["skipped"] += 1
+                    else:
+                        OfferingUser.objects.create(uuid=UUID(uuid), **defaults)
+                        self.stats["offering_users"]["created"] += 1
+                else:
+                    existing = OfferingUser.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["offering_users"]["updated"] += 1
+                        else:
+                            self.stats["offering_users"]["skipped"] += 1
+                    else:
+                        self.stats["offering_users"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import offering user {offering_user_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["offering_users"]["errors"] += 1
 
     def print_summary(self):
         """Print import summary statistics."""

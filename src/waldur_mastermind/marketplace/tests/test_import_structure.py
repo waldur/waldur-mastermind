@@ -61,7 +61,8 @@ class ImportStructureCommandTest(TestCase):
                 "uuid": "11111111-1111-1111-1111-111111111111",
                 "username": "testuser1",
                 "email": "test1@example.com",
-                "full_name": "Test User One",
+                "first_name": "Test User",
+                "last_name": "One",
                 "is_staff": False,
                 "is_support": False,
                 "is_active": True,
@@ -70,7 +71,8 @@ class ImportStructureCommandTest(TestCase):
                 "uuid": "22222222-2222-2222-2222-222222222222",
                 "username": "testuser2",
                 "email": "test2@example.com",
-                "full_name": "Test User Two",
+                "first_name": "Test User",
+                "last_name": "Two",
                 "native_name": "Test Native",
                 "phone_number": "+123456789",
                 "organization": "Test Org",
@@ -256,7 +258,8 @@ class ImportStructureCommandTest(TestCase):
             uuid="11111111-1111-1111-1111-111111111111",
             username="oldusername",
             email="old@example.com",
-            full_name="Old Name",
+            first_name="Old",
+            last_name="Name",
         )
 
         users_data = [
@@ -264,7 +267,8 @@ class ImportStructureCommandTest(TestCase):
                 "uuid": str(existing_user.uuid),
                 "username": "newusername",
                 "email": "new@example.com",
-                "full_name": "New Name",
+                "first_name": "New",
+                "last_name": "Name",
                 "organization": "New Org",
                 "is_staff": False,
                 "is_support": False,
@@ -422,6 +426,7 @@ class ImportStructureCommandTest(TestCase):
         roles_data = [
             {
                 "name": "CustomerManager",
+                "uuid": "33333333-3333-3333-3333-333333333333",
                 "description": "Manages customers",
                 "content_type": f"{content_type.app_label}.{content_type.model}",
                 "is_system_role": True,
