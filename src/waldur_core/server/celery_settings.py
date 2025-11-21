@@ -8,25 +8,25 @@ from waldur_core.core import WaldurExtension
 
 CELERY_TASK_QUEUES = [
     Queue(
-        "tasks",
-        exchange=Exchange("tasks", type="topic"),
-        routing_key="tasks",
+        "tasks-durable",
+        exchange=Exchange("tasks-durable", type="topic"),
+        routing_key="tasks-durable",
         queue_arguments={"x-queue-type": "quorum"},
     ),
     Queue(
-        "heavy",
-        exchange=Exchange("heavy", type="topic"),
-        routing_key="heavy",
+        "heavy-durable",
+        exchange=Exchange("heavy-durable", type="topic"),
+        routing_key="heavy-durable",
         queue_arguments={"x-queue-type": "quorum"},
     ),
     Queue(
-        "background",
-        exchange=Exchange("background", type="topic"),
-        routing_key="background",
+        "background-durable",
+        exchange=Exchange("background-durable", type="topic"),
+        routing_key="background-durable",
         queue_arguments={"x-queue-type": "quorum"},
     ),
 ]
-CELERY_TASK_DEFAULT_QUEUE = "tasks"
+CELERY_TASK_DEFAULT_QUEUE = "tasks-durable"
 CELERY_TASK_ROUTES = ("waldur_core.server.celeryconf.PriorityRouter",)
 CELERY_TRACK_STARTED = True
 CELERY_SEND_EVENTS = True

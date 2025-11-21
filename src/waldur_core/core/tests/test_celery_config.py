@@ -39,7 +39,7 @@ class CeleryConfigurationTest(TestCase):
     def test_default_queues_are_configured(self):
         """Verify that all expected queues are configured."""
         queue_names = {queue.name for queue in settings.CELERY_TASK_QUEUES}
-        expected_queues = {"tasks", "heavy", "background"}
+        expected_queues = {"tasks-durable", "heavy-durable", "background-durable"}
 
         self.assertEqual(
             queue_names,
@@ -141,12 +141,12 @@ class CeleryConfigurationTest(TestCase):
             # Test heavy task routing
             mock_get.return_value = MockHeavyTask()
             result = router.route_for_task("heavy_task")
-            self.assertEqual(result, {"queue": "heavy"})
+            self.assertEqual(result, {"queue": "heavy-durable"})
 
             # Test background task routing
             mock_get.return_value = MockBackgroundTask()
             result = router.route_for_task("background_task")
-            self.assertEqual(result, {"queue": "background"})
+            self.assertEqual(result, {"queue": "background-durable"})
 
             # Test regular task routing (returns None, uses default queue)
             mock_get.return_value = MockRegularTask()
