@@ -518,6 +518,8 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
                 "requires_reconsent": True,
                 "created": "2023-01-01T00:00:00Z",
                 "modified": "2023-01-01T00:00:00Z",
+                "user_consent": None,
+                "has_user_consent": False,
             }
         ]
 
@@ -565,6 +567,8 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
                 "requires_reconsent": True,
                 "created": "2023-01-01T00:00:00Z",
                 "modified": "2023-01-01T00:00:00Z",
+                "user_consent": None,
+                "has_user_consent": False,
             }
         ]
 
