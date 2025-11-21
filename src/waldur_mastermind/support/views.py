@@ -25,8 +25,13 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.structure import (
+    exceptions as structure_exceptions,
+)
 from waldur_core.structure import filters as structure_filters
-from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import (
+    permissions as structure_permissions,
+)
 from waldur_mastermind.notifications.models import BroadcastMessage
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
@@ -80,6 +85,8 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             backend.get_active_backend().create_confirmation_comment(issue)
         except exceptions.SupportUserInactive:
             raise rf_exceptions.ValidationError({"caller": _("Caller is inactive.")})
+        except structure_exceptions.ServiceBackendError as e:
+            raise rf_exceptions.ValidationError(e)
 
     create_permissions = [can_create_user]
 
