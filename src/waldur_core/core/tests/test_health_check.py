@@ -38,7 +38,7 @@ class HealthCheckIntegrationTest(TestCase):
                 self.assertTrue(True, "Queue configuration is correct")
                 self.assertEqual(
                     queue_names,
-                    {"tasks", "heavy", "background"},
+                    {"tasks-durable", "heavy-durable", "background-durable"},
                     "All expected queues are present",
                 )
             except AttributeError as e:
@@ -63,6 +63,6 @@ class HealthCheckIntegrationTest(TestCase):
         # Verify we got the expected queue names
         self.assertEqual(
             queue_names,
-            {"tasks", "heavy", "background"},
+            {"tasks-durable", "heavy-durable", "background-durable"},
             "Should have all three queues configured",
         )
