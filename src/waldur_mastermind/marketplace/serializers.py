@@ -7300,6 +7300,7 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
             "uuid",
             "name",
             "message",
+            "internal_notes",
             "maintenance_type",
             "external_reference_url",
             "state",
