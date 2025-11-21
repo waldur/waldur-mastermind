@@ -288,7 +288,7 @@ class ExportStructureCommandTest(TestCase):
             exported_user_role["scope_type"],
             f"{content_type.app_label}.{content_type.model}",
         )
-        self.assertEqual(exported_user_role["scope_uuid"], str(customer.id))
+        self.assertEqual(exported_user_role["scope_uuid"], str(customer.uuid.hex))
         self.assertEqual(exported_user_role["scope_name"], customer.name)
         self.assertTrue(exported_user_role["is_active"])
 

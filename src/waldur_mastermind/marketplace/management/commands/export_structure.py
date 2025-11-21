@@ -14,11 +14,13 @@ from waldur_mastermind.marketplace.models import (
     CustomerServiceAccount,
     Offering,
     OfferingComponent,
+    OfferingUser,
     Order,
     Plan,
     PlanComponent,
     ProjectServiceAccount,
     Resource,
+    ServiceProvider,
 )
 
 
@@ -61,6 +63,7 @@ class Command(BaseCommand):
         data = {
             "users": self.export_users(),
             "customers": self.export_customers(),
+            "service_providers": self.export_service_providers(),
             "projects": self.export_projects(),
             "categories": self.export_categories(),
             "offerings": self.export_offerings(),
@@ -78,6 +81,7 @@ class Command(BaseCommand):
             "orders": self.export_orders(),
             "invoices": self.export_invoices(),
             "invoice_items": self.export_invoice_items(),
+            "offering_users": self.export_offering_users(),
         }
 
         # Write to JSON file
@@ -95,6 +99,7 @@ class Command(BaseCommand):
             self.stdout.write("\nExport summary:")
             self.stdout.write(f"  Users: {len(data['users'])}")
             self.stdout.write(f"  Customers: {len(data['customers'])}")
+            self.stdout.write(f"  Service Providers: {len(data['service_providers'])}")
             self.stdout.write(f"  Projects: {len(data['projects'])}")
             self.stdout.write(f"  Categories: {len(data['categories'])}")
             self.stdout.write(f"  Offerings: {len(data['offerings'])}")
@@ -118,6 +123,7 @@ class Command(BaseCommand):
             self.stdout.write(f"  Orders: {len(data['orders'])}")
             self.stdout.write(f"  Invoices: {len(data['invoices'])}")
             self.stdout.write(f"  Invoice Items: {len(data['invoice_items'])}")
+            self.stdout.write(f"  Offering Users: {len(data['offering_users'])}")
 
         except OSError as e:
             self.stdout.write(self.style.ERROR(f"Failed to write to file: {e}"))
@@ -127,15 +133,18 @@ class Command(BaseCommand):
             return
 
     def export_users(self):
-        """Export user data."""
+        """Export user data including system_robot."""
         users = []
-        for user in User.objects.all().order_by("username"):
+        # Export even inactive users because they might be referenced in orders
+        for user in User.all_objects.all().order_by("username"):
             users.append(
                 {
                     "uuid": user.uuid.hex,
                     "username": user.username,
                     "email": user.email,
                     "full_name": user.full_name,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
                     "is_staff": user.is_staff,
                     "is_support": user.is_support,
                     "is_active": user.is_active,
@@ -144,6 +153,7 @@ class Command(BaseCommand):
                     "organization": user.organization,
                     "job_title": user.job_title,
                     "civil_number": user.civil_number,
+                    "description": user.description,
                     "date_joined": user.date_joined.isoformat()
                     if user.date_joined
                     else None,
@@ -182,6 +192,28 @@ class Command(BaseCommand):
                 }
             )
         return customers
+
+    def export_service_providers(self):
+        """Export service provider data."""
+        service_providers = []
+        for sp in ServiceProvider.objects.select_related("customer").order_by(
+            "customer__name"
+        ):
+            service_providers.append(
+                {
+                    "uuid": sp.uuid.hex,
+                    "customer_uuid": sp.customer.uuid.hex,
+                    "customer_name": sp.customer.name,
+                    "description": sp.description,
+                    "enable_notifications": sp.enable_notifications,
+                    "api_secret_code": sp.api_secret_code,
+                    "lead_email": sp.lead_email,
+                    "lead_subject": sp.lead_subject,
+                    "lead_body": sp.lead_body,
+                    "created": sp.created.isoformat() if sp.created else None,
+                }
+            )
+        return service_providers
 
     def export_projects(self):
         """Export project data."""
@@ -290,6 +322,12 @@ class Command(BaseCommand):
     def export_user_roles(self):
         """Export user role assignments."""
         user_roles = []
+        scope_type_to_model = {
+            "marketplace.serviceprovider": ServiceProvider,
+            "structure.customer": Customer,
+            "marketplace.offering": Offering,
+            "structure.project": Project,
+        }
         for user_role in (
             UserRole.objects.select_related(
                 "user", "role", "content_type", "created_by"
@@ -307,7 +345,8 @@ class Command(BaseCommand):
                     f"{user_role.content_type.app_label}.{user_role.content_type.model}"
                 )
                 if user_role.object_id:
-                    scope_uuid = str(user_role.object_id)
+                    model = scope_type_to_model.get(scope_type)
+                    scope_uuid = model.objects.get(id=user_role.object_id).uuid.hex
                     # Try to get the scope object name
                     try:
                         scope_obj = user_role.scope
@@ -688,3 +727,31 @@ class Command(BaseCommand):
                 }
             )
         return orders
+
+    def export_offering_users(self):
+        """Export offering user data."""
+        offering_users = []
+        for offering_user in OfferingUser.objects.select_related(
+            "offering", "offering__customer", "user"
+        ).order_by("created"):
+            offering_users.append(
+                {
+                    "uuid": offering_user.uuid.hex,
+                    "offering_uuid": offering_user.offering.uuid.hex,
+                    "offering_name": offering_user.offering.name,
+                    "user_uuid": offering_user.user.uuid.hex,
+                    "user_username": offering_user.user.username,
+                    "username": offering_user.username,
+                    "is_restricted": offering_user.is_restricted,
+                    "state": offering_user.state,
+                    "service_provider_comment": offering_user.service_provider_comment,
+                    "service_provider_comment_url": offering_user.service_provider_comment_url,
+                    "created": offering_user.created.isoformat()
+                    if offering_user.created
+                    else None,
+                    "modified": offering_user.modified.isoformat()
+                    if offering_user.modified
+                    else None,
+                }
+            )
+        return offering_users
