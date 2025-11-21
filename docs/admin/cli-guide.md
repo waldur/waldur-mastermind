@@ -82,6 +82,34 @@ Clean API configuration settings cache.
 
 Cleanup stale event types in all hooks.
 
+## cleanup_structure
+
+Delete all Waldur structure data from the database.
+
+  This command removes all Users, Customers, Projects, Offerings, Roles, UserRoles,
+  RolePermissions, Events, Feeds, and related marketplace objects.
+
+  IMPORTANT: This is a destructive operation that deletes ALL data. Use --dry-run to preview changes.
+
+  Usage:
+
+```yaml
+waldur cleanup_structure --dry-run
+waldur cleanup_structure
+waldur cleanup_structure --skip-users
+```
+
+```bash
+
+usage: waldur cleanup_structure [--skip-users] [--skip-roles] [--dry-run]
+
+options:
+  --skip-users  Skip deleting users.
+  --skip-roles  Skip deleting roles and role permissions.
+  --dry-run     Show what would be deleted without making changes.
+
+```
+
 ## copy_category
 
 Copy structure of categories for the Marketplace
