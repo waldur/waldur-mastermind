@@ -86,6 +86,7 @@ from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.marketplace.utils import (
     UsernameGenerationPolicy,
+    check_pending_order_exists,
     get_service_provider_resources,
     get_service_provider_user_ids,
     parse_date,
@@ -3433,17 +3434,6 @@ def validate_private_offering(order: models.Order):
     )
 
 
-def check_pending_order_exists(resource):
-    return models.Order.objects.filter(
-        resource=resource,
-        state__in=(
-            OrderStates.PENDING_CONSUMER,
-            OrderStates.PENDING_PROVIDER,
-            OrderStates.EXECUTING,
-        ),
-    ).exists()
-
-
 def confirm_order_request_user_has_offering_consent(
     order: models.Order, request
 ) -> None:
@@ -4398,6 +4388,14 @@ class OrderUUIDSerializer(serializers.Serializer):
     order_uuid = serializers.UUIDField(read_only=True)
 
 
+class ResourceReallocateLimitsResponseSerializer(serializers.Serializer):
+    source_order_uuid = serializers.UUIDField(read_only=True)
+    target_order_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        read_only=True,
+    )
+
+
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.Resource
@@ -4596,6 +4594,23 @@ class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
     limits = serializers.DictField(
         child=serializers.IntegerField(min_value=0), required=True
     )
+
+
+class ResourceReallocateTargetSerializer(serializers.Serializer):
+    resource_uuid = serializers.UUIDField(required=True)
+    allocated_limits = serializers.DictField(
+        child=serializers.IntegerField(min_value=1),
+        required=True,
+    )
+
+
+class ResourceReallocateLimitsSerializer(serializers.Serializer):
+    limits = serializers.DictField(
+        child=serializers.IntegerField(min_value=1),
+        required=True,
+    )
+
+    targets = ResourceReallocateTargetSerializer(many=True, required=True)
 
 
 class ResourceBackendIDSerializer(serializers.ModelSerializer):

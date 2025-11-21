@@ -1488,6 +1488,17 @@ def get_provider_approvers(order):
     return approvers
 
 
+def check_pending_order_exists(resource):
+    return models.Order.objects.filter(
+        resource=resource,
+        state__in=(
+            OrderStates.PENDING_CONSUMER,
+            OrderStates.PENDING_PROVIDER,
+            OrderStates.EXECUTING,
+        ),
+    ).exists()
+
+
 def refresh_integration_agent_status(request, agent_type):
     user_agent = core_utils.get_user_agent(request)
     if "waldur-site-agent" not in user_agent:
@@ -2639,3 +2650,197 @@ def get_model_serializer(model: type):
     except (AttributeError, KeyError, TypeError):
         logger.debug("Unable to resolve model serializer %s", model)
         return None
+
+
+def validate_reallocation(source_resource, limits_to_reallocate, targets, user):
+    """
+    Validate reallocation of resource limits from source to target resources.
+    """
+
+    if not limits_to_reallocate or not targets:
+        error_validation("Limits to reallocate and targets cannot be empty.")
+
+    source_limits = validate_source_resource(source_resource)
+
+    for component, value in limits_to_reallocate.items():
+        validate_source_component(component, value, source_limits)
+
+    target_resource_uuids = [target["resource_uuid"] for target in targets]
+
+    if source_resource.uuid in target_resource_uuids:
+        error_validation("Source resource cannot be a target resource.")
+
+    target_resources = models.Resource.objects.filter(uuid__in=target_resource_uuids)
+    for target_resource in target_resources:
+        if target_resource.state != ResourceStates.OK:
+            error_validation(
+                "Target resource %(name)s must be in OK state.",
+                name=target_resource.name,
+            )
+
+        if check_pending_order_exists(target_resource):
+            error_validation(
+                "Target resource %(name)s has pending orders.",
+                name=target_resource.name,
+            )
+    found_uuids = {resource.uuid for resource in target_resources}
+    missing_uuids = set(target_resource_uuids) - found_uuids
+    if missing_uuids:
+        error_validation(
+            "Target resources with UUIDs %(uuids)s do not exist.",
+            uuids=", ".join(str(uuid) for uuid in missing_uuids),
+        )
+
+    total_allocated = defaultdict(int)
+
+    for target_data in targets:
+        target_uuid = target_data["resource_uuid"]
+        target_resource = target_resources.get(uuid=target_uuid)
+        if not target_resource:
+            error_validation(
+                "Target resource with UUID %(uuid)s not found.",
+                uuid=target_uuid,
+            )
+        validate_target_allocation(
+            target_data, target_resource, source_limits, user, total_allocated
+        )
+
+    # Validate total allocated matches what's being reallocated
+    for component, total_to_reallocate in limits_to_reallocate.items():
+        total_allocated_for_component = total_allocated.get(component, 0)
+        if total_allocated_for_component > total_to_reallocate:
+            error_validation(
+                "Total allocated %(total)s for component %(component)s "
+                "exceeds reallocated amount %(reallocated)s.",
+                total=total_allocated_for_component,
+                component=component,
+                reallocated=total_to_reallocate,
+            )
+        if total_allocated_for_component < total_to_reallocate:
+            error_validation(
+                "Total allocated %(total)s for component %(component)s "
+                "is less than reallocated amount %(reallocated)s. "
+                "All allocated limits must sum to the reallocated amount.",
+                total=total_allocated_for_component,
+                component=component,
+                reallocated=total_to_reallocate,
+            )
+
+
+def validate_source_resource(source_resource):
+    if source_resource.state != ResourceStates.OK:
+        error_validation("Source resource must be in OK state to reallocate limits.")
+
+    if check_pending_order_exists(source_resource):
+        error_validation(
+            "Source resource has pending orders. Cannot reallocate limits."
+        )
+
+    if not source_resource.limits:
+        error_validation("Source resource has no limits to reallocate.")
+
+    source_limits = source_resource.limits
+    validate_limits(source_limits, source_resource.offering, source_resource)
+    return source_limits
+
+
+def error_validation(message, **params):
+    raise serializers.ValidationError(_(message) % params)
+
+
+def validate_source_component(component, value, source_limits):
+    if component not in source_limits:
+        error_validation(
+            "Component %(component)s is not present in source resource limits.",
+            component=component,
+        )
+
+    if value <= 0:
+        error_validation(
+            "Reallocated limit for %(component)s must be positive.",
+            component=component,
+        )
+
+    available = source_limits.get(component, 0)
+
+    if value > available:
+        error_validation(
+            "Cannot reallocate %(value)s of %(component)s. "
+            "Source resource only has %(available)s available.",
+            value=value,
+            component=component,
+            available=available,
+        )
+
+
+def validate_target_allocation(
+    target_data, target_resource, source_limits, user, total_allocated
+):
+    target_uuid = target_data["resource_uuid"]
+    allocated_limits = target_data.get("allocated_limits", {})
+
+    if not allocated_limits:
+        error_validation(
+            "Target resource %(uuid)s has no allocated limits specified.",
+            uuid=target_uuid,
+        )
+
+    if not has_permission(
+        user, PermissionEnum.UPDATE_RESOURCE_LIMITS, target_resource.project
+    ) and not has_permission(
+        user, PermissionEnum.UPDATE_RESOURCE_LIMITS, target_resource.project.customer
+    ):
+        error_validation(
+            "User does not have permission to update target resource %(name)s limits.",
+            name=target_resource.name,
+        )
+
+    target_limits = target_resource.limits or {}
+    validate_limits(target_limits, target_resource.offering, target_resource)
+
+    if set(target_limits.keys()) != set(source_limits.keys()):
+        error_validation(
+            "Target resource %(name)s must have the same components as the source resource.",
+            name=target_resource.name,
+        )
+
+    for component, allocated_value in allocated_limits.items():
+        if allocated_value <= 0:
+            error_validation(
+                "Allocated limit for %(component)s in target %(name)s must be positive.",
+                component=component,
+                name=target_resource.name,
+            )
+
+        new_target_limits = target_limits.copy()
+        new_target_limits[component] = target_limits.get(component, 0) + allocated_value
+
+        try:
+            validate_limits(
+                new_target_limits, target_resource.offering, target_resource
+            )
+        except serializers.ValidationError as e:
+            error_validation(
+                "Target resource %(name)s cannot accept allocated limits for %(component)s: %(error)s",
+                name=target_resource.name,
+                component=component,
+                error=str(e),
+            )
+
+        total_allocated[component] += allocated_value
+
+
+def calculate_new_limits(current_limits, allocated_limits, subtract=False):
+    """
+    Calculate new limits by adding or subtracting delta from current limits.
+    """
+    new_limits = current_limits.copy() if current_limits else {}
+
+    for component, allocated_value in allocated_limits.items():
+        current_value = new_limits.get(component, 0)
+        if subtract:
+            new_limits[component] = max(0, current_value - allocated_value)
+        else:
+            new_limits[component] = current_value + allocated_value
+
+    return new_limits

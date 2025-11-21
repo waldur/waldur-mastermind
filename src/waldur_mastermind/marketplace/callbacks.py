@@ -12,7 +12,8 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes, ResourceStates
 
-from . import log, models, signals, tasks, utils
+from . import log, models, signals, tasks
+from .utils import format_limits_list
 
 logger = logging.getLogger(__name__)
 
@@ -158,12 +159,10 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
             components_map = order.offering.get_limit_components()
             email_context.update(
                 {
-                    "resource_old_limits": utils.format_limits_list(
+                    "resource_old_limits": format_limits_list(
                         components_map, resource.limits
                     ),
-                    "resource_limits": utils.format_limits_list(
-                        components_map, order.limits
-                    ),
+                    "resource_limits": format_limits_list(components_map, order.limits),
                 }
             )
             resource.limits = order.limits

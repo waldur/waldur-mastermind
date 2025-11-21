@@ -1,4 +1,5 @@
 import datetime
+import uuid
 from decimal import Decimal
 from unittest import mock
 
@@ -981,6 +982,446 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         self.resource.offering.save()
         response = self.update_limits(self.fixture.owner, self.resource)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class ResourceReallocateLimitsTest(test.APITransactionTestCase):
+    def setUp(self):
+        plugins.manager.register(
+            offering_type="TEST_TYPE",
+            create_resource_processor=test_utils.TestCreateProcessor,
+            update_resource_processor=test_utils.TestUpdateScopedProcessor,
+            can_update_limits=True,
+        )
+
+        self.fixture = fixtures.ServiceFixture()
+        self.source_resource = factories.ResourceFactory()
+        self.source_resource.state = ResourceStates.OK
+        self.source_resource.project.customer = self.fixture.customer
+        self.source_resource.project.save()
+        self.source_resource.limits = {"vcpu": 10, "ram": 20}
+        self.source_resource.save()
+        self.source_resource.offering.type = "TEST_TYPE"
+        self.source_resource.offering.save()
+
+        factories.OfferingComponentFactory(
+            offering=self.source_resource.offering,
+            type="vcpu",
+            billing_type=BillingTypes.LIMIT,
+        )
+        factories.OfferingComponentFactory(
+            offering=self.source_resource.offering,
+            type="ram",
+            billing_type=BillingTypes.LIMIT,
+        )
+        factories.OfferingComponentFactory(
+            offering=self.source_resource.offering,
+            type="storage",
+            billing_type=BillingTypes.LIMIT,
+        )
+
+        self.target_resource_1 = factories.ResourceFactory(
+            offering=self.source_resource.offering,
+            project=self.fixture.project,
+        )
+        self.target_resource_1.state = ResourceStates.OK
+        self.target_resource_1.limits = {"vcpu": 2, "ram": 4}
+        self.target_resource_1.save()
+
+        self.target_resource_2 = factories.ResourceFactory(
+            offering=self.source_resource.offering,
+            project=self.fixture.project,
+        )
+        self.target_resource_2.state = ResourceStates.OK
+        self.target_resource_2.limits = {"vcpu": 1, "ram": 2}
+        self.target_resource_2.save()
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+
+    def reallocate_limits(self, user, source_resource, limits, targets):
+        self.client.force_authenticate(user)
+        url = factories.ResourceFactory.get_url(source_resource, "reallocate_limits")
+        payload = {"limits": limits, "targets": targets}
+        return self.client.post(url, payload)
+
+    def test_create_reallocate_limits_orders(self):
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            },
+            {
+                "resource_uuid": self.target_resource_2.uuid.hex,
+                "allocated_limits": {"vcpu": 2, "ram": 4},
+            },
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 5, "ram": 10},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("source_order_uuid", response.data)
+        self.assertIn("target_order_uuids", response.data)
+        self.assertEqual(len(response.data["target_order_uuids"]), 2)
+
+    def test_reallocate_limits_creates_source_and_target_orders(self):
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            targets,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check source order was created
+        source_order = models.Order.objects.get(uuid=response.data["source_order_uuid"])
+        self.assertEqual(source_order.type, OrderTypes.UPDATE)
+        self.assertEqual(source_order.resource, self.source_resource)
+        # Limits should be subtracted from source resource, 10 - 3 = 7 and 20 - 6 = 14
+        self.assertEqual(source_order.limits["vcpu"], 7)
+        self.assertEqual(source_order.limits["ram"], 14)
+
+        target_order = models.Order.objects.get(
+            uuid=response.data["target_order_uuids"][0]
+        )
+        self.assertEqual(target_order.type, OrderTypes.UPDATE)
+        self.assertEqual(target_order.resource, self.target_resource_1)
+        # Limits should be added to target resource, 2 + 3 = 5 and 4 + 6 = 10
+        self.assertEqual(target_order.limits["vcpu"], 5)
+        self.assertEqual(target_order.limits["ram"], 10)
+
+    def test_reallocate_limits_is_not_available_if_source_resource_is_not_OK(self):
+        self.source_resource.state = ResourceStates.UPDATING
+        self.source_resource.save()
+
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reallocate_limits_is_not_available_if_target_resource_is_not_OK(self):
+        self.target_resource_1.state = ResourceStates.UPDATING
+        self.target_resource_1.save()
+
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reallocate_limits_is_not_allowed_if_pending_order_for_source_exists(self):
+        factories.OrderFactory(
+            resource=self.source_resource, state=OrderStates.PENDING_CONSUMER
+        )
+
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reallocate_limits_is_not_allowed_if_pending_order_for_target_exists(self):
+        factories.OrderFactory(
+            resource=self.target_resource_1, state=OrderStates.PENDING_CONSUMER
+        )
+
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reallocate_limits_validates_source_cannot_be_target(self):
+        targets = [
+            {
+                "resource_uuid": self.source_resource.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reallocate_limits_validates_component_exists_in_source(self):
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"invalid_component": 5},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reallocate_limits_validates_cannot_exceed_source_limits(self):
+        # Source resource has 10 vcpu and 20 ram but we are trying to reallocate 15 vcpu
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 15},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Cannot reallocate 15 of vcpu. Source resource only has 10 available.",
+            response.data,
+        )
+
+    def test_reallocate_limits_validates_total_allocated_does_not_exceed_reallocated(
+        self,
+    ):
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            },
+            {
+                "resource_uuid": self.target_resource_2.uuid.hex,
+                "allocated_limits": {"vcpu": 5, "ram": 10},
+            },
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 5, "ram": 10},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "exceeds reallocated amount",
+            str(response.data),
+        )
+
+    def test_reallocate_limits_validates_total_allocated_is_not_less_than_reallocated(
+        self,
+    ):
+        # Reallocating 5 vcpu and 10 ram, but only allocating 3 vcpu and 6 ram total, should not be allowed
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 2, "ram": 4},
+            },
+            {
+                "resource_uuid": self.target_resource_2.uuid.hex,
+                "allocated_limits": {"vcpu": 1, "ram": 2},
+            },
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 5, "ram": 10},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "is less than reallocated amount",
+            str(response.data),
+        )
+        self.assertIn(
+            "All allocated limits must sum to the reallocated amount",
+            str(response.data),
+        )
+
+    def test_reallocate_limits_validates_target_has_same_components(self):
+        # Create target with different components (storage instead of vcpu and ram)
+        target_different = factories.ResourceFactory(
+            offering=self.source_resource.offering,
+            project=self.fixture.project,
+        )
+        target_different.state = ResourceStates.OK
+        target_different.limits = {"storage": 100}
+        target_different.save()
+
+        targets = [
+            {
+                "resource_uuid": target_different.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("must have the same components as the source", str(response.data))
+
+    def test_reallocate_limits_validates_target_resource_exists(self):
+        fake_uuid = uuid.uuid4()
+        targets = [
+            {
+                "resource_uuid": fake_uuid,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Target resources with UUIDs %s do not exist." % fake_uuid,
+            str(response.data),
+        )
+
+    def test_reallocate_limits_validates_empty_limits(self):
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Limits to reallocate and targets cannot be empty.", str(response.data)
+        )
+
+    def test_reallocate_limits_validates_empty_targets(self):
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            [],
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Limits to reallocate and targets cannot be empty.", str(response.data)
+        )
+
+    def test_reallocate_limits_validates_positive_values(self):
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": -1, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Ensure this value is greater than or equal to 1.", str(response.data)
+        )
+
+    def test_reallocate_limits_requires_permission_for_target_resource(self):
+        other_project = ProjectFactory()
+        target_other = factories.ResourceFactory(
+            offering=self.source_resource.offering,
+            project=other_project,
+        )
+        target_other.state = ResourceStates.OK
+        target_other.limits = {"vcpu": 1, "ram": 2}
+        target_other.save()
+
+        targets = [
+            {
+                "resource_uuid": target_other.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "User does not have permission to update target resource",
+            str(response.data),
+        )
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.process_order")
+    def test_reallocate_limits_orders_are_created_in_transaction(self, mock_task):
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.staff,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            targets,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            models.Order.objects.filter(
+                resource__in=[self.source_resource, self.target_resource_1],
+                type=OrderTypes.UPDATE,
+            ).count(),
+            2,
+        )
 
 
 class ResourceMoveTest(test.APITransactionTestCase):

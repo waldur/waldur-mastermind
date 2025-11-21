@@ -5491,6 +5491,101 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
             attributes={"old_limits": resource.limits},
         )
 
+    @extend_schema(
+        summary="Reallocate resource limits",
+        description="Creates marketplace orders to reallocate limits from source resource to target resources.",
+        request=serializers.ResourceReallocateLimitsSerializer,
+        responses=serializers.ResourceReallocateLimitsResponseSerializer,
+        examples=[
+            OpenApiExample(
+                "Reallocate limits",
+                value={
+                    "limits": {"cores": 2, "ram": 4},
+                    "targets": [
+                        {
+                            "resource_uuid": "550e8400-e29b-41d4-a716-446655440000",
+                            "allocated_limits": {"cores": 1, "ram": 2},
+                        },
+                        {
+                            "resource_uuid": "660e8400-e29b-41d4-a716-446655440001",
+                            "allocated_limits": {"cores": 1, "ram": 2},
+                        },
+                    ],
+                },
+            )
+        ],
+    )
+    @action(detail=True, methods=["post"])
+    def reallocate_limits(self, request, uuid=None):
+        source_resource = cast(models.Resource, self.get_object())
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        limits_to_reallocate = serializer.validated_data["limits"]
+        targets = serializer.validated_data["targets"]
+
+        utils.validate_reallocation(
+            source_resource, limits_to_reallocate, targets, request.user
+        )
+
+        source_new_limits = utils.calculate_new_limits(
+            source_resource.limits, limits_to_reallocate, subtract=True
+        )
+
+        with transaction.atomic():
+            source_order = models.Order(
+                project=source_resource.project,
+                created_by=request.user,
+                resource=source_resource,
+                offering=source_resource.offering,
+                plan=source_resource.plan,
+                type=OrderTypes.UPDATE,
+                limits=source_new_limits,
+                attributes={"old_limits": source_resource.limits},
+            )
+            serializers.validate_order(source_order, request)
+            source_order.init_cost()
+            source_order.save()
+
+            # Create target orders (increasing limits)
+            target_orders = []
+            for target_data in targets:
+                target_resource = models.Resource.objects.get(
+                    uuid=target_data["resource_uuid"]
+                )
+
+                # Calculate new limits for target resource
+                target_new_limits = utils.calculate_new_limits(
+                    target_resource.limits,
+                    target_data["allocated_limits"],
+                    subtract=False,
+                )
+
+                target_order = models.Order(
+                    project=target_resource.project,
+                    created_by=request.user,
+                    resource=target_resource,
+                    offering=target_resource.offering,
+                    plan=target_resource.plan,
+                    type=OrderTypes.UPDATE,
+                    limits=target_new_limits,
+                    attributes={"old_limits": target_resource.limits},
+                )
+                serializers.validate_order(target_order, request)
+                target_order.init_cost()
+                target_order.save()
+                target_orders.append(target_order)
+
+        return Response(
+            {
+                "source_order_uuid": source_order.uuid.hex,
+                "target_order_uuids": [order.uuid.hex for order in target_orders],
+            }
+        )
+
+    reallocate_limits_serializer_class = serializers.ResourceReallocateLimitsSerializer
+
     update_limits_serializer_class = serializers.ResourceUpdateLimitsSerializer
 
     switch_plan_permissions = [
@@ -5500,7 +5595,13 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
             ["project", "project.customer"],
         ),
     ]
-
+    reallocate_limits_permissions = [
+        permissions.check_tos_consent_permission,
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            ["project", "project.customer"],
+        ),
+    ]
     update_limits_permissions = [
         permissions.check_tos_consent_permission,
         permission_factory(
