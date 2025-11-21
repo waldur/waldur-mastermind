@@ -175,11 +175,11 @@ class PeriodicTaskDuplicateNotificationTest(TestCase):
         self, mock_get_reviewer, mock_notify
     ):
         """Test that create_reviews_if_strategy_is_after_round doesn't send duplicate notifications."""
-        # Setup: Set round to use AFTER_ROUND strategy and make it active
+        # Setup: Set round to use AFTER_ROUND strategy and make it closed
         now = timezone.now()
         self.round.review_strategy = Round.ReviewStrategies.AFTER_ROUND
-        self.round.start_time = now - timedelta(days=1)
-        self.round.cutoff_time = now + timedelta(days=1)
+        self.round.start_time = now - timedelta(days=2)
+        self.round.cutoff_time = now - timedelta(hours=1)  # Round ended 1 hour ago
         self.round.save()
 
         # Set call to ACTIVE state

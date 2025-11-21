@@ -121,11 +121,15 @@ def allocate_proposal(proposal: proposal_models.Proposal):
             requested_resource.save()
 
 
-def create_reviews_of_round(call_round: proposal_models.Round):
+def cancel_draft_proposals_in_round(call_round: proposal_models.Round):
+    """Cancel all draft proposals in a round that has ended."""
     call_round.proposal_set.filter(state=ProposalStates.DRAFT).update(
         state=ProposalStates.CANCELED
     )
 
+
+def create_reviews_for_submitted_proposals(call_round: proposal_models.Round):
+    """Create reviews for submitted/in-review proposals in a round."""
     for proposal in call_round.proposal_set.filter(
         state__in=(
             ProposalStates.SUBMITTED,
@@ -133,6 +137,12 @@ def create_reviews_of_round(call_round: proposal_models.Round):
         )
     ):
         process_proposals_pending_reviewers(proposal)
+
+
+def process_closed_round(call_round: proposal_models.Round):
+    """Process a closed round: cancel draft proposals and create reviews for submitted ones."""
+    cancel_draft_proposals_in_round(call_round)
+    create_reviews_for_submitted_proposals(call_round)
 
 
 def get_proposal_review_counts(proposal: proposal_models.Proposal) -> dict:

@@ -406,7 +406,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         if call_round.cutoff_time < timezone.now():
             call_round.cutoff_time = timezone.now()
 
-        utils.create_reviews_of_round(call_round)
+        utils.process_closed_round(call_round)
 
         return response.Response(
             "Round has been closed.",
