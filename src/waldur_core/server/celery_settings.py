@@ -34,6 +34,12 @@ CELERY_SEND_EVENTS = True
 # Fix for Celery 6.0 deprecation warning
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
+# Prevent Celery from auto-declaring exchanges/queues to avoid type conflicts
+# Only use explicitly defined queues and exchanges
+CELERY_CREATE_MISSING_QUEUES = False
+# If queues are auto-created, use topic exchanges (consistent with our config)
+CELERY_TASK_CREATE_MISSING_QUEUES_EXCHANGE_TYPE = "topic"
+
 # Regular tasks
 CELERY_BEAT_SCHEDULE = {
     "pull-service-properties": {

@@ -33,7 +33,7 @@ if grep -q "process is stopped by supervisor" "$TEMP_LOG" 2>/dev/null; then
 
     # Option 1: Try to force queue redeclaration through amqp-declare-queue
     # This uses Celery's amqp command to redeclare queues without purging
-    for queue in tasks heavy background; do
+    for queue in tasks-durable heavy-durable background-durable; do
         echo "INFO: Attempting to redeclare queue '$queue'..."
         celery -A $CELERY_APP amqp queue.declare $queue false true false 2>/dev/null || {
             echo "INFO: Could not redeclare queue '$queue', may need manual intervention"
@@ -44,7 +44,7 @@ if grep -q "process is stopped by supervisor" "$TEMP_LOG" 2>/dev/null; then
     # This is a last resort and will lose messages, so we only do it if explicitly enabled
     if [ "$CELERY_FORCE_QUEUE_RESET" = "true" ]; then
         echo "WARNING: FORCE RESET enabled - queues will be purged (data loss!)"
-        for queue in tasks heavy background; do
+        for queue in tasks-durable heavy-durable background-durable; do
             echo "INFO: Force purging queue '$queue'..."
             celery -A $CELERY_APP purge -Q $queue --force 2>/dev/null || true
         done

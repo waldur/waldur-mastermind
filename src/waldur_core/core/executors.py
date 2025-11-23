@@ -61,7 +61,7 @@ class BaseExecutor:
                 link=link,
                 link_error=link_error,
                 countdown=countdown,
-                queue=is_heavy_task and "heavy" or None,
+                queue=is_heavy_task and "heavy-durable" or None,
             )
             if hasattr(instance, "task_id"):
                 instance.task_id = async_result.id

@@ -385,7 +385,7 @@ class BackgroundTask(CeleryTask, metaclass=TaskType):
     Background task features:
      - background task does not start if previous task with the same name
        and input parameters is not completed yet;
-     - all background tasks are scheduled in separate queue "background";
+     - all background tasks are scheduled in separate queue "background-durable";
      - by default we do not log background tasks in celery logs. So tasks
        should log themselves explicitly and make sure that they will not
        spam error messages.
