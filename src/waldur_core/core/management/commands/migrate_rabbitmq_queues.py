@@ -913,6 +913,44 @@ class RabbitMQQueueMigration:
         else:
             self.logger.info("\nNo pending messages found in queues.")
 
+        # If using force mode, delete any existing conflicting exchanges/queues first
+        if not use_shovels and self.force:
+            self.logger.info("\n" + "=" * 70)
+            self.logger.info(
+                "Step 0: Cleaning up conflicting exchanges/queues (FORCE mode)"
+            )
+            self.logger.info("=" * 70)
+
+            # Delete existing new-style exchanges if they exist with wrong types
+            for exchange_name in self.NEW_QUEUE_NAMES:
+                existing_exchanges = [
+                    e for e in self.list_exchanges() if e["name"] == exchange_name
+                ]
+                if existing_exchanges:
+                    exchange = existing_exchanges[0]
+                    if exchange.get("type") != "topic":
+                        self.logger.info(
+                            "Deleting existing exchange %s (wrong type: %s)",
+                            exchange_name,
+                            exchange.get("type"),
+                        )
+                        self.delete_exchange(exchange_name)
+
+            # Delete existing new-style queues if they exist with wrong types
+            for queue_name in self.NEW_QUEUE_NAMES:
+                existing_queues = [
+                    q for q in self.list_queues() if q["name"] == queue_name
+                ]
+                if existing_queues:
+                    queue = existing_queues[0]
+                    if not queue.get("arguments", {}).get("x-queue-type") == "quorum":
+                        self.logger.info(
+                            "Deleting existing queue %s (wrong type: %s)",
+                            queue_name,
+                            queue.get("arguments", {}).get("x-queue-type", "classic"),
+                        )
+                        self.delete_queue(queue_name)
+
         # Create new exchanges first
         self.logger.info("\n" + "=" * 70)
         self.logger.info("Step 1: Creating new topic exchanges")
