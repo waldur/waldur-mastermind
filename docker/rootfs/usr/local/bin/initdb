@@ -13,7 +13,7 @@ RABBITMQ_HOST=${RABBITMQ_HOSTNAME:-localhost}
 RABBITMQ_MANAGEMENT_PORT=${RABBITMQ_MANAGEMENT_PORT:-15672}
 
 for i in {1..30}; do
-    if curl -f -s http://${RABBITMQ_HOST}:${RABBITMQ_MANAGEMENT_PORT}/api/version >/dev/null 2>&1; then
+    if wget --spider --quiet --timeout=5 http://${RABBITMQ_HOST}:${RABBITMQ_MANAGEMENT_PORT}/api/version; then
         echo "INFO: RabbitMQ management API is ready at ${RABBITMQ_HOST}:${RABBITMQ_MANAGEMENT_PORT}"
         break
     fi
