@@ -31,16 +31,14 @@ if waldur migrate_rabbitmq_queues --check-only; then
     echo "INFO: RabbitMQ queues already properly configured"
 else
     echo "INFO: Attempting RabbitMQ queue migration to quorum type..."
-    if waldur migrate_rabbitmq_queues --auto-migrate; then
+    echo "INFO: Using --force to ensure upgrade reliability (pending messages will be deleted)"
+    if waldur migrate_rabbitmq_queues --auto-migrate --force; then
         echo "INFO: Verifying migration completed successfully..."
         waldur migrate_rabbitmq_queues --check-only && echo "INFO: Migration verified successfully" || echo "WARNING: Migration verification failed"
     else
-        echo "WARNING: RabbitMQ queue migration was blocked (likely due to pending messages)"
-        echo "INFO: To migrate safely:"
-        echo "INFO:   1. Stop Celery beat and API pods to prevent new tasks"
-        echo "INFO:   2. Let workers drain existing messages from queues"
-        echo "INFO:   3. Restart this container when queues are empty"
-        echo "INFO: Alternatively, Celery will auto-declare new queue types on worker startup"
+        echo "WARNING: RabbitMQ queue migration failed"
+        echo "INFO: This may be due to RabbitMQ connectivity or permission issues"
+        echo "INFO: Celery will attempt auto-declaration of queue types on worker startup"
     fi
 fi
 
