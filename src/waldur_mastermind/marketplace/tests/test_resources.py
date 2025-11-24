@@ -1323,6 +1323,44 @@ class ResourceReallocateLimitsTest(test.APITransactionTestCase):
             str(response.data),
         )
 
+    def test_reallocate_limits_validates_target_same_offering(self):
+        different_offering = factories.OfferingFactory()
+        factories.OfferingComponentFactory(
+            offering=different_offering,
+            type="vcpu",
+            billing_type=BillingTypes.LIMIT,
+        )
+        factories.OfferingComponentFactory(
+            offering=different_offering,
+            type="ram",
+            billing_type=BillingTypes.LIMIT,
+        )
+        target_different_offering = factories.ResourceFactory(
+            offering=different_offering,
+            project=self.fixture.project,
+        )
+        target_different_offering.state = ResourceStates.OK
+        target_different_offering.limits = {"vcpu": 2, "ram": 4}
+        target_different_offering.save()
+
+        targets = [
+            {
+                "resource_uuid": target_different_offering.uuid.hex,
+                "allocated_limits": {"vcpu": 3, "ram": 6},
+            }
+        ]
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 3, "ram": 6},
+            targets,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "must be from the same offering",
+            str(response.data),
+        )
+
     def test_reallocate_limits_validates_empty_limits(self):
         targets = [
             {

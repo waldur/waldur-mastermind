@@ -2672,6 +2672,11 @@ def validate_reallocation(source_resource, limits_to_reallocate, targets, user):
 
     target_resources = models.Resource.objects.filter(uuid__in=target_resource_uuids)
     for target_resource in target_resources:
+        if target_resource.offering != source_resource.offering:
+            error_validation(
+                "Target resource %(name)s must be from the same offering as the source resource.",
+                name=target_resource.name,
+            )
         if target_resource.state != ResourceStates.OK:
             error_validation(
                 "Target resource %(name)s must be in OK state.",
