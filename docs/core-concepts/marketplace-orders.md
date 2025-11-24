@@ -220,19 +220,19 @@ classDiagram
     BaseOrderProcessor <|-- ScriptDeleteResourceProcessor
 
     %% Group by service type
-    class "OpenStack Services" {
+    class OpenStackServices {
         <<namespace>>
     }
 
-    class "Remote Marketplace" {
+    class RemoteMarketplace {
         <<namespace>>
     }
 
-    class "Rancher Services" {
+    class RancherServices {
         <<namespace>>
     }
 
-    class "Script Services" {
+    class ScriptServices {
         <<namespace>>
     }
 ```
