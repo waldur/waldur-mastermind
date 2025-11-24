@@ -50,6 +50,14 @@ from waldur_mastermind.marketplace.tests.factories import (
 User = get_user_model()
 
 
+def add_user_to_project(user, project, role=None):
+    """Helper to add user to project and trigger offering user creation task."""
+    if role is None:
+        role = ProjectRole.MANAGER
+    project.add_user(user, role)
+    tasks.create_or_restore_offering_users_for_user(user.uuid.hex, project.uuid.hex)
+
+
 def deactivate_tos_config(tos_config):
     tos_config.is_active = False
     tos_config.save()
@@ -92,7 +100,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         self.resource.save()
 
         # Add user to project
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
 
         self.consent_list_url = reverse("marketplace-user-offering-consent-list")
         self.consent_data = {
@@ -378,7 +386,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         self.client.force_authenticate(user=self.user)
 
         other_project = ProjectFactory(customer=self.customer)
-        other_project.add_user(self.user, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user, other_project, role=ProjectRole.MANAGER)
 
         models.UserOfferingConsent.objects.create(
             user=self.user,
@@ -530,7 +538,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         )
 
         # Trigger offering user creation by adding user to project
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
 
         # Check that OfferingUser was created
         offering_user = models.OfferingUser.objects.filter(
@@ -545,7 +553,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         # Don't create consent - user has not agreed to ToS
 
         # Trigger offering user creation by adding user to project
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
 
         offering_user = models.OfferingUser.objects.filter(
             user=self.user,
@@ -614,7 +622,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         consent.revoke()
 
         # Trigger offering user creation by adding user to project
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
 
         offering_user = models.OfferingUser.objects.filter(
             user=self.user,
@@ -627,7 +635,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         """Test offering user creation with multiple users, some with consent, some without."""
         # Create another user
         other_user = UserFactory()
-        self.project.add_user(other_user, role=ProjectRole.MEMBER)
+        add_user_to_project(other_user, self.project, role=ProjectRole.MEMBER)
 
         # Create consent only for the first user
         models.UserOfferingConsent.objects.create(
@@ -663,7 +671,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
     def test_offering_user_creation_project_specific_consent(self):
         """Test that consent is user-offering level for offering user creation."""
         other_project = ProjectFactory(customer=self.customer)
-        other_project.add_user(self.user, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user, other_project, role=ProjectRole.MANAGER)
 
         # Create consent for the offering (not project-specific)
         models.UserOfferingConsent.objects.create(
@@ -803,11 +811,11 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         """Test that SP sees only consented users when multiple users have mixed consent status."""
         # Create another user without consent
         user_without_consent = UserFactory()
-        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
+        add_user_to_project(user_without_consent, self.project, role=ProjectRole.MEMBER)
 
         # Create third user with consent
         user_with_consent = UserFactory()
-        self.project.add_user(user_with_consent, role=ProjectRole.MEMBER)
+        add_user_to_project(user_with_consent, self.project, role=ProjectRole.MEMBER)
         models.UserOfferingConsent.objects.create(
             user=user_with_consent,
             offering=self.offering,
@@ -861,7 +869,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         """Test that revoking consent handles case where no OfferingUser exists."""
         new_user = UserFactory()
         # Add user to project and delete offering user
-        self.project.add_user(new_user, role=ProjectRole.MEMBER)
+        add_user_to_project(new_user, self.project, role=ProjectRole.MEMBER)
         models.OfferingUser.objects.filter(
             user=new_user,
             offering=self.offering,
@@ -934,7 +942,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         """Test that order creation works when multiple users have consented."""
         # Create another user and add to project
         other_user = UserFactory()
-        self.project.add_user(other_user, role=ProjectRole.MEMBER)
+        add_user_to_project(other_user, self.project, role=ProjectRole.MEMBER)
 
         # Grant consent to the other user (not the current user)
         models.UserOfferingConsent.objects.create(
@@ -1002,7 +1010,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
     def test_conditional_consent_filtering_when_enabled(self):
         """Test that consent filtering is applied when ENFORCE_USER_CONSENT_FOR_OFFERINGS is True."""
         user_without_consent = UserFactory()
-        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
+        add_user_to_project(user_without_consent, self.project, role=ProjectRole.MEMBER)
 
         models.UserOfferingConsent.objects.create(
             user=self.user,
@@ -1024,7 +1032,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
     def test_conditional_consent_filtering_when_disabled(self):
         """Test that consent filtering is NOT applied when ENFORCE_USER_CONSENT_FOR_OFFERINGS is False."""
         user_without_consent = UserFactory()
-        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
+        add_user_to_project(user_without_consent, self.project, role=ProjectRole.MEMBER)
 
         models.UserOfferingConsent.objects.create(
             user=self.user,
@@ -1048,7 +1056,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
     def test_conditional_consent_filtering_single_offering_with_tos(self):
         """Test consent filtering for a single offering that has ToS requirements."""
         user_without_consent = UserFactory()
-        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
+        add_user_to_project(user_without_consent, self.project, role=ProjectRole.MEMBER)
 
         models.UserOfferingConsent.objects.create(
             user=self.user,
@@ -1078,7 +1086,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
     def test_conditional_consent_filtering_offering_users_endpoint(self):
         """Test that the OfferingUsers endpoint respects the conditional consent filtering."""
         user_without_consent = UserFactory()
-        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
+        add_user_to_project(user_without_consent, self.project, role=ProjectRole.MEMBER)
 
         models.UserOfferingConsent.objects.create(
             user=self.user,
@@ -1108,7 +1116,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
     def test_conditional_consent_filtering_customer_users_endpoint(self):
         """Test that the customer users endpoint respects the conditional consent filtering."""
         user_without_consent = UserFactory()
-        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
+        add_user_to_project(user_without_consent, self.project, role=ProjectRole.MEMBER)
         self.customer.add_user(self.user, CustomerRole.OWNER)
 
         models.UserOfferingConsent.objects.create(
@@ -1172,8 +1180,8 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         resource_no_tos.state = ResourceStates.OK
         resource_no_tos.save()
 
-        self.project.add_user(user_no_consent, role=ProjectRole.MANAGER)
-        project2.add_user(user_no_consent, role=ProjectRole.MANAGER)
+        add_user_to_project(user_no_consent, self.project, role=ProjectRole.MANAGER)
+        add_user_to_project(user_no_consent, project2, role=ProjectRole.MANAGER)
 
         service_provider_user = UserFactory()
         self.offering.customer.add_user(service_provider_user, CustomerRole.OWNER)
@@ -1240,8 +1248,8 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         # Create a THIRD user who also has no consent for main offering
         user_no_consent_main = UserFactory()
 
-        self.project.add_user(user_without_consent, role=ProjectRole.MEMBER)
-        self.project.add_user(user_no_consent_main, role=ProjectRole.MEMBER)
+        add_user_to_project(user_without_consent, self.project, role=ProjectRole.MEMBER)
+        add_user_to_project(user_no_consent_main, self.project, role=ProjectRole.MEMBER)
 
         # Create consent only for the main user for the main offering
         models.UserOfferingConsent.objects.create(
@@ -1343,7 +1351,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
 
         # This user should not be visible because they don't have consent and the view filters them out
         other_user = UserFactory()
-        self.project.add_user(other_user, role=ProjectRole.MEMBER)
+        add_user_to_project(other_user, self.project, role=ProjectRole.MEMBER)
         other_offering_user, created = models.OfferingUser.objects.get_or_create(
             user=other_user,
             offering=self.offering,
@@ -1373,7 +1381,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
     def test_offering_user_filter_has_consent_false(self):
         """Test filtering offering users by has_consent=false with specific user_uuid."""
         other_user = UserFactory()
-        self.project.add_user(other_user, role=ProjectRole.MEMBER)
+        add_user_to_project(other_user, self.project, role=ProjectRole.MEMBER)
 
         self.client.force_authenticate(user=self.user)
 
@@ -1420,7 +1428,7 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
         self.user = UserFactory()
         self.customer = CustomerFactory()
         self.project = ProjectFactory(customer=self.customer)
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
 
         self.service_provider = ServiceProviderFactory(customer=self.customer)
 
@@ -1541,9 +1549,9 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
         user2 = UserFactory()
         user3 = UserFactory()
 
-        self.project.add_user(user1, role=ProjectRole.MANAGER)
-        self.project.add_user(user2, role=ProjectRole.ADMIN)
-        self.project.add_user(user3, role=ProjectRole.MEMBER)
+        add_user_to_project(user1, self.project, role=ProjectRole.MANAGER)
+        add_user_to_project(user2, self.project, role=ProjectRole.ADMIN)
+        add_user_to_project(user3, self.project, role=ProjectRole.MEMBER)
 
         # Create user consents for ToS-required offerings
         models.UserOfferingConsent.objects.create(
@@ -1589,8 +1597,8 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
         user_without_tos = UserFactory()
         user_without_tos2 = UserFactory()
 
-        self.project.add_user(user_without_tos, role=ProjectRole.MANAGER)
-        self.project.add_user(user_without_tos2, role=ProjectRole.ADMIN)
+        add_user_to_project(user_without_tos, self.project, role=ProjectRole.MANAGER)
+        add_user_to_project(user_without_tos2, self.project, role=ProjectRole.ADMIN)
 
         models.OfferingUser.objects.create(
             user=user_without_tos,
@@ -1602,7 +1610,7 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
         )
 
         user_no_resource = UserFactory()
-        self.project.add_user(user_no_resource, role=ProjectRole.MEMBER)
+        add_user_to_project(user_no_resource, self.project, role=ProjectRole.MEMBER)
 
         url = f"/api/marketplace-service-providers/{self.service_provider.uuid}/users/"
 
@@ -1644,8 +1652,8 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
         user_without_consent = UserFactory()
 
         # Add users to project
-        self.project.add_user(user_with_consent, role=ProjectRole.MANAGER)
-        self.project.add_user(user_without_consent, role=ProjectRole.ADMIN)
+        add_user_to_project(user_with_consent, self.project, role=ProjectRole.MANAGER)
+        add_user_to_project(user_without_consent, self.project, role=ProjectRole.ADMIN)
 
         # Create consent for one user
         models.UserOfferingConsent.objects.create(
@@ -1738,7 +1746,9 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
     def test_create_terms_of_service_config_requires_permission(self):
         """Test that creating ToS config requires proper permissions."""
         user_without_permission = UserFactory()
-        self.project.add_user(user_without_permission, role=ProjectRole.MEMBER)
+        add_user_to_project(
+            user_without_permission, self.project, role=ProjectRole.MEMBER
+        )
         self.client.force_authenticate(user=user_without_permission)
         offering_url = OfferingFactory.get_url(self.offering)
         data = {
@@ -1959,7 +1969,7 @@ class ResourceToSConsentPermissionTest(APITransactionTestCase):
         )
         self.resource.state = ResourceStates.OK
         self.resource.save()
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
 
         self.resource_url = ResourceFactory.get_url(self.resource)
 
@@ -2043,7 +2053,7 @@ class ResourceConsentUIFieldsTest(APITransactionTestCase):
         )
         self.resource.state = ResourceStates.OK
         self.resource.save()
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
         self.resource_list_url = ResourceFactory.get_list_url()
 
     def test_requires_reconsent_false_when_no_tos(self):
@@ -2063,7 +2073,7 @@ class ResourceConsentUIFieldsTest(APITransactionTestCase):
     def test_requires_reconsent_false_for_staff_users(self):
         """Test that staff users never require reconsent."""
         staff_user = UserFactory(is_staff=True)
-        self.project.add_user(staff_user, role=ProjectRole.MANAGER)
+        add_user_to_project(staff_user, self.project, role=ProjectRole.MANAGER)
 
         models.OfferingTermsOfService.objects.create(
             offering=self.offering,
@@ -2087,7 +2097,7 @@ class ResourceConsentUIFieldsTest(APITransactionTestCase):
     def test_requires_reconsent_false_for_support_users(self):
         """Test that support users never require reconsent."""
         support_user = UserFactory(is_support=True)
-        self.project.add_user(support_user, role=ProjectRole.MANAGER)
+        add_user_to_project(support_user, self.project, role=ProjectRole.MANAGER)
 
         models.OfferingTermsOfService.objects.create(
             offering=self.offering,
@@ -2345,8 +2355,8 @@ class OfferingUsersViewSetPerformanceTest(APITransactionTestCase):
         self.customer = CustomerFactory()
         self.project = ProjectFactory(customer=self.customer)
 
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
-        self.project.add_user(self.other_user, role=ProjectRole.MEMBER)
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
+        add_user_to_project(self.other_user, self.project, role=ProjectRole.MEMBER)
 
         self.service_provider = ServiceProviderFactory(customer=self.customer)
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_USERS)
@@ -2798,7 +2808,7 @@ class TermsOfServiceConsentEventLoggingTest(APITransactionTestCase):
             is_active=True,
         )
 
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
         self.customer.add_user(self.user, CustomerRole.OWNER)
 
         self.consent_list_url = reverse("marketplace-user-offering-consent-list")
@@ -2890,7 +2900,7 @@ class TermsOfServiceConsentEventLoggingTest(APITransactionTestCase):
     def test_consent_granted_event_logging_with_username_fallback(self):
         """Test that consent granted event uses username when full_name is not available."""
         user_no_full_name = UserFactory(full_name="")
-        self.project.add_user(user_no_full_name, role=ProjectRole.MANAGER)
+        add_user_to_project(user_no_full_name, self.project, role=ProjectRole.MANAGER)
 
         self._create_consent(user=user_no_full_name)
         event = self._assert_event_created("terms_of_service_consent_granted")
@@ -2901,7 +2911,7 @@ class TermsOfServiceConsentEventLoggingTest(APITransactionTestCase):
     def test_consent_granted_event_logging_multiple_consents(self):
         """Test that multiple consent granted events are logged for different users."""
         other_user = UserFactory()
-        self.project.add_user(other_user, role=ProjectRole.MEMBER)
+        add_user_to_project(other_user, self.project, role=ProjectRole.MEMBER)
 
         self._create_consent()
         self._create_consent(user=other_user)
@@ -2996,7 +3006,7 @@ class ToSConsentStatsTest(APITransactionTestCase):
         self.user = UserFactory(is_staff=True)
         self.customer = CustomerFactory()
         self.project = ProjectFactory(customer=self.customer)
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
 
         self.offering = OfferingFactory(
             customer=self.customer,
@@ -3166,9 +3176,9 @@ class ToSConsentStatsTest(APITransactionTestCase):
         user2 = UserFactory()
         user3 = UserFactory()
 
-        self.project.add_user(user1, role=ProjectRole.MEMBER)
-        self.project.add_user(user2, role=ProjectRole.MEMBER)
-        self.project.add_user(user3, role=ProjectRole.MEMBER)
+        add_user_to_project(user1, self.project, role=ProjectRole.MEMBER)
+        add_user_to_project(user2, self.project, role=ProjectRole.MEMBER)
+        add_user_to_project(user3, self.project, role=ProjectRole.MEMBER)
 
         models.OfferingUser.objects.create(
             user=user1,
@@ -3227,7 +3237,7 @@ class ToSConsentStatsTest(APITransactionTestCase):
     def test_update_daily_consent_history_task_with_revoked_consents_today(self):
         """Test the task with consents revoked today."""
         user = UserFactory()
-        self.project.add_user(user, role=ProjectRole.MEMBER)
+        add_user_to_project(user, self.project, role=ProjectRole.MEMBER)
         models.OfferingUser.objects.create(
             user=user,
             offering=self.offering,
@@ -3406,7 +3416,7 @@ class ToSConsentNotificationTest(APITransactionTestCase):
         self.resource.state = ResourceStates.OK
         self.resource.save()
 
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
 
     @mock.patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
     def test_send_tos_consent_notification_task(self, mock_broadcast_mail):
@@ -3796,8 +3806,8 @@ class GracePeriodRevokeConsentsTest(APITransactionTestCase):
             },
         )
 
-        self.project.add_user(self.user, role=ProjectRole.MANAGER)
-        self.project.add_user(self.user2, role=ProjectRole.MEMBER)
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
+        add_user_to_project(self.user2, self.project, role=ProjectRole.MEMBER)
 
     def test_grace_period_not_expired_consents_not_revoked(self):
         """Test that consents are not revoked when grace period is still active."""

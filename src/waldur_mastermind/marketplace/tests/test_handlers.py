@@ -8,10 +8,11 @@ from rest_framework.test import APITransactionTestCase
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.logging.models import Event
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import models as structure_tests_models
-from waldur_mastermind.marketplace import callbacks, utils
+from waldur_mastermind.marketplace import callbacks, tasks, utils
 from waldur_mastermind.marketplace import handlers as marketplace_handlers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
@@ -22,6 +23,13 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories, fixtures
+
+
+def add_user_to_project(user, project, role=None):
+    if role is None:
+        role = ProjectRole.MANAGER
+    project.add_user(user, role)
+    tasks.create_or_restore_offering_users_for_user(user.uuid.hex, project.uuid.hex)
 
 
 class ResourceHandlerTest(APITransactionTestCase):
@@ -779,3 +787,406 @@ class OfferingUserDirectCreationTest(APITransactionTestCase):
 
         self.assertEqual(offering_user.state, OfferingUserStates.CREATION_REQUESTED)
         self.assertEqual(offering_user.username, "")
+
+
+class OfferingUserDeletionOnProjectAccessLossTest(APITransactionTestCase):
+    """Test that offering users are marked for deletion when user loses project access."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        # Configure offering to support offering users
+        self.fixture.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
+            "username_generation_policy": "waldur_username",
+        }
+        self.fixture.offering.save()
+
+        self.resource = factories.ResourceFactory(
+            offering=self.fixture.offering,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+
+        self.test_user = structure_factories.UserFactory(username="test_user")
+
+    def test_offering_user_deletion_requested_when_user_removed_from_project(self):
+        """Test that offering user deletion is requested when user is removed from project."""
+        add_user_to_project(self.test_user, self.fixture.project)
+
+        offering_user = marketplace_models.OfferingUser.objects.get(
+            user=self.test_user, offering=self.fixture.offering
+        )
+        self.assertEqual(offering_user.state, OfferingUserStates.OK)
+
+        self.fixture.project.remove_user(self.test_user, ProjectRole.MANAGER)
+
+        tasks.request_offering_user_deletion_for_user(self.test_user.uuid.hex)
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.state, OfferingUserStates.DELETION_REQUESTED)
+
+    def test_offering_user_not_deleted_when_user_has_access_via_other_project(self):
+        """Test that offering user is not deleted if user still has access via another project."""
+        second_project = structure_factories.ProjectFactory(
+            customer=self.fixture.customer
+        )
+        factories.ResourceFactory(
+            offering=self.fixture.offering,
+            project=second_project,
+            state=ResourceStates.OK,
+        )
+
+        add_user_to_project(self.test_user, self.fixture.project)
+
+        offering_user = marketplace_models.OfferingUser.objects.get(
+            user=self.test_user, offering=self.fixture.offering
+        )
+        self.assertEqual(offering_user.state, OfferingUserStates.OK)
+
+        add_user_to_project(self.test_user, second_project)
+
+        self.fixture.project.remove_user(self.test_user, ProjectRole.MANAGER)
+
+        tasks.request_offering_user_deletion_for_user(self.test_user.uuid.hex)
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.state, OfferingUserStates.OK)
+
+        second_project.remove_user(self.test_user, ProjectRole.MANAGER)
+
+        tasks.request_offering_user_deletion_for_user(self.test_user.uuid.hex)
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.state, OfferingUserStates.DELETION_REQUESTED)
+
+    def test_only_ok_state_offering_users_are_deleted(self):
+        """Test that only offering users in OK state are marked for deletion, unprovisioned ones are marked DELETED."""
+        second_offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "waldur_username",
+            },
+        )
+        factories.ResourceFactory(
+            offering=second_offering,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+
+        offering_user_creating = marketplace_models.OfferingUser.objects.create(
+            user=self.test_user,
+            offering=self.fixture.offering,
+            state=OfferingUserStates.CREATION_REQUESTED,
+        )
+
+        offering_user_ok = marketplace_models.OfferingUser.objects.create(
+            user=self.test_user,
+            offering=second_offering,
+            state=OfferingUserStates.OK,
+            username="test_user",
+        )
+
+        self.fixture.project.add_user(self.test_user, ProjectRole.MANAGER)
+        self.fixture.project.remove_user(self.test_user, ProjectRole.MANAGER)
+
+        tasks.request_offering_user_deletion_for_user(self.test_user.uuid.hex)
+
+        offering_user_creating.refresh_from_db()
+        offering_user_ok.refresh_from_db()
+
+        # CREATION_REQUESTED should go directly to DELETED (never provisioned)
+        self.assertEqual(offering_user_creating.state, OfferingUserStates.DELETED)
+        # OK state should go to DELETION_REQUESTED (provisioned, needs cleanup)
+        self.assertEqual(offering_user_ok.state, OfferingUserStates.DELETION_REQUESTED)
+
+    def test_handler_does_not_fail_when_user_has_no_offering_users(self):
+        """Test that handler doesn't fail when user has no offering users."""
+        empty_project = structure_factories.ProjectFactory(
+            customer=self.fixture.customer
+        )
+
+        empty_project.add_user(self.test_user, ProjectRole.MANAGER)
+        empty_project.remove_user(self.test_user, ProjectRole.MANAGER)
+
+        self.assertFalse(
+            marketplace_models.OfferingUser.objects.filter(user=self.test_user).exists()
+        )
+
+
+class OfferingUserRestorationOnProjectAccessGainedTest(APITransactionTestCase):
+    """Test that offering users are restored when user regains project access."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.fixture.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
+            "username_generation_policy": "waldur_username",
+        }
+        self.fixture.offering.save()
+
+        self.resource = factories.ResourceFactory(
+            offering=self.fixture.offering,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+
+        self.test_user = structure_factories.UserFactory(username="test_user")
+
+    def test_offering_user_restored_from_deletion_requested_when_user_regains_access(
+        self,
+    ):
+        """Test that offering user in DELETION_REQUESTED is restored to OK when user regains access."""
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.test_user,
+            offering=self.fixture.offering,
+            state=OfferingUserStates.OK,
+            username="test_user",
+        )
+        offering_user.request_deletion()
+        offering_user.save()
+        self.assertEqual(offering_user.state, OfferingUserStates.DELETION_REQUESTED)
+
+        add_user_to_project(self.test_user, self.fixture.project)
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.state, OfferingUserStates.OK)
+
+    def test_offering_user_restored_from_deleting_when_user_regains_access(self):
+        """Test that offering user in DELETING is restored to OK when user regains access."""
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.test_user,
+            offering=self.fixture.offering,
+            state=OfferingUserStates.OK,
+            username="test_user",
+        )
+        offering_user.request_deletion()
+        offering_user.set_deleting()
+        offering_user.save()
+        self.assertEqual(offering_user.state, OfferingUserStates.DELETING)
+
+        add_user_to_project(self.test_user, self.fixture.project)
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.state, OfferingUserStates.OK)
+
+    def test_offering_user_requests_new_account_when_deleted_and_user_regains_access(
+        self,
+    ):
+        """Test that offering user in DELETED requests new account creation when user regains access."""
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.test_user,
+            offering=self.fixture.offering,
+            state=OfferingUserStates.OK,
+            username="test_user",
+        )
+        offering_user.request_deletion()
+        offering_user.set_deleting()
+        offering_user.set_deleted()
+        offering_user.save()
+        self.assertEqual(offering_user.state, OfferingUserStates.DELETED)
+
+        add_user_to_project(self.test_user, self.fixture.project)
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.state, OfferingUserStates.CREATION_REQUESTED)
+
+    def test_offering_user_without_username_restored_to_creation_requested(self):
+        """Test that offering user without username is restored to CREATION_REQUESTED."""
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.test_user,
+            offering=self.fixture.offering,
+            state=OfferingUserStates.CREATION_REQUESTED,
+        )
+        offering_user.set_deleted()
+        offering_user.save()
+        self.assertEqual(offering_user.state, OfferingUserStates.DELETED)
+        self.assertFalse(offering_user.username)
+
+        add_user_to_project(self.test_user, self.fixture.project)
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.state, OfferingUserStates.CREATION_REQUESTED)
+
+    def test_offering_user_not_restored_if_already_in_ok_state(self):
+        """Test that offering user already in OK state is not changed when user gains access."""
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.test_user,
+            offering=self.fixture.offering,
+            state=OfferingUserStates.OK,
+            username="test_user",
+        )
+
+        add_user_to_project(self.test_user, self.fixture.project)
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.state, OfferingUserStates.OK)
+
+    def test_event_emitted_when_restoring_from_deletion_requested_to_ok(self):
+        """Test that event is emitted when offering user is restored from DELETION_REQUESTED to OK."""
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.test_user,
+            offering=self.fixture.offering,
+            state=OfferingUserStates.OK,
+            username="test_user",
+        )
+        offering_user.request_deletion()
+        offering_user.save()
+
+        add_user_to_project(self.test_user, self.fixture.project)
+
+        event = Event.objects.filter(
+            event_type="marketplace_offering_user_updated"
+        ).first()
+        self.assertIsNotNone(event)
+        self.assertIn("has been restored from", event.message)
+        self.assertIn("to OK because user regained project access", event.message)
+        self.assertIn(self.test_user.username, event.message)
+        self.assertIn(self.fixture.offering.name, event.message)
+
+    def test_event_emitted_when_restoring_from_deletion_requested_to_creation_requested(
+        self,
+    ):
+        """Test that event is emitted when offering user without username is restored to CREATION_REQUESTED."""
+        # Create in CREATING state (no username) so we can transition to DELETION_REQUESTED
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.test_user,
+            offering=self.fixture.offering,
+            state=OfferingUserStates.CREATING,
+        )
+        offering_user.request_deletion()
+        offering_user.save()
+        self.assertEqual(offering_user.state, OfferingUserStates.DELETION_REQUESTED)
+        self.assertFalse(offering_user.username)
+
+        add_user_to_project(self.test_user, self.fixture.project)
+
+        event = Event.objects.filter(
+            event_type="marketplace_offering_user_updated"
+        ).first()
+        self.assertIsNotNone(event)
+        self.assertIn("Account creation", event.message)
+        self.assertIn("has been requested", event.message)
+        self.assertIn("because user regained project access", event.message)
+        self.assertIn(self.test_user.username, event.message)
+        self.assertIn(self.fixture.offering.name, event.message)
+
+    def test_event_emitted_when_restoring_from_deleted_to_creation_requested(self):
+        """Test that event is emitted when offering user in DELETED state requests new account creation."""
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.test_user,
+            offering=self.fixture.offering,
+            state=OfferingUserStates.OK,
+            username="test_user",
+        )
+        offering_user.request_deletion()
+        offering_user.set_deleting()
+        offering_user.set_deleted()
+        offering_user.save()
+
+        add_user_to_project(self.test_user, self.fixture.project)
+
+        event = Event.objects.filter(
+            event_type="marketplace_offering_user_updated"
+        ).first()
+        self.assertIsNotNone(event)
+        self.assertIn("New account creation", event.message)
+        self.assertIn("has been requested", event.message)
+        self.assertIn("after offering user was deleted", event.message)
+        self.assertIn("because user regained project access", event.message)
+        self.assertIn(self.test_user.username, event.message)
+        self.assertIn(self.fixture.offering.name, event.message)
+
+
+class CleanupStaleOfferingUsersTest(APITransactionTestCase):
+    """Test the periodic cleanup task for stale offering users."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.fixture.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
+            "username_generation_policy": "waldur_username",
+        }
+        self.fixture.offering.save()
+
+        self.user1 = structure_factories.UserFactory(username="user1")
+        self.user2 = structure_factories.UserFactory(username="user2")
+
+    def _create_offering_user(self, user, offering, state, username=None):
+        return marketplace_models.OfferingUser.objects.create(
+            user=user,
+            offering=offering,
+            state=state,
+            username=username,
+        )
+
+    def _transition_to_deletion_requested(self, offering_user):
+        offering_user.request_deletion()
+        offering_user.save()
+        return offering_user
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.request_offering_user_deletion_for_user.delay"
+    )
+    def test_cleanup_task_schedules_deletion_for_users_with_active_offering_users(
+        self, mock_delay
+    ):
+        """Test that cleanup task schedules deletion task for each user with active offering users."""
+        self._create_offering_user(
+            self.user1, self.fixture.offering, OfferingUserStates.OK, "user1"
+        )
+        self._create_offering_user(
+            self.user2, self.fixture.offering, OfferingUserStates.CREATING
+        )
+
+        tasks.cleanup_stale_offering_users()
+
+        self.assertEqual(mock_delay.call_count, 2)
+        called_uuids = {call[0][0] for call in mock_delay.call_args_list}
+        self.assertEqual(called_uuids, {self.user1.uuid.hex, self.user2.uuid.hex})
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.request_offering_user_deletion_for_user.delay"
+    )
+    def test_cleanup_task_excludes_users_already_in_deletion_flow(self, mock_delay):
+        """Test that cleanup task doesn't schedule tasks for users already being deleted."""
+        offering_user1 = self._create_offering_user(
+            self.user1, self.fixture.offering, OfferingUserStates.OK, "user1"
+        )
+        self._transition_to_deletion_requested(offering_user1)
+
+        offering_user2 = self._create_offering_user(
+            self.user2, self.fixture.offering, OfferingUserStates.OK, "user2"
+        )
+        self._transition_to_deletion_requested(offering_user2)
+        offering_user2.set_deleting()
+        offering_user2.save()
+
+        tasks.cleanup_stale_offering_users()
+
+        mock_delay.assert_not_called()
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.request_offering_user_deletion_for_user.delay"
+    )
+    def test_cleanup_task_handles_users_with_mixed_offering_user_states(
+        self, mock_delay
+    ):
+        """Test that cleanup task schedules task if user has at least one non-deletion state."""
+        self._create_offering_user(
+            self.user1, self.fixture.offering, OfferingUserStates.OK, "user1"
+        )
+
+        second_offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            plugin_options={"service_provider_can_create_offering_user": True},
+        )
+        offering_user_deleted = self._create_offering_user(
+            self.user1, second_offering, OfferingUserStates.CREATION_REQUESTED
+        )
+        offering_user_deleted.set_deleted()
+        offering_user_deleted.save()
+
+        tasks.cleanup_stale_offering_users()
+
+        mock_delay.assert_called_once_with(self.user1.uuid.hex)
