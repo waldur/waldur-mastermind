@@ -1390,43 +1390,27 @@ def log_resource_robot_account_deleted(sender, instance: RobotAccount, **kwargs)
 
 
 def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
-    """Create offering users when a project role is granted."""
+    """Schedule task to create or restore offering users when project role is granted."""
     if not isinstance(instance.scope, structure_models.Project):
         return
     project = instance.scope
     user = instance.user
-    resources = project.resource_set.filter(
-        state=ResourceStates.OK,
-        offering__type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
+    # Schedule task after transaction commits to avoid heavy queries in transaction
+    transaction.on_commit(
+        lambda: tasks.create_or_restore_offering_users_for_user.delay(
+            user.uuid.hex, project.uuid.hex
+        )
     )
-    offering_ids = set(resources.values_list("offering_id", flat=True))
-    offerings = models.Offering.objects.filter(id__in=offering_ids)
-    for offering in offerings:
-        if not offering.plugin_options.get("service_provider_can_create_offering_user"):
-            logger.info(
-                "It is not allowed to create users for current offering %s.", offering
-            )
-            continue
 
-        if models.OfferingUser.objects.filter(
-            offering=offering,
-            user=user,
-        ).exists():
-            logger.info("An offering user for %s in %s already exists", user, offering)
-            continue
-        username = utils.generate_username(user, offering)
-        # Set state to OK when username is known at creation time
-        state = (
-            OfferingUserStates.OK if username else OfferingUserStates.CREATION_REQUESTED
-        )
-        offering_user = models.OfferingUser.objects.create(
-            offering=offering,
-            user=user,
-            username=username,
-            state=state,
-        )
-        utils.setup_linux_related_data(offering_user, offering)
-        offering_user.save(update_fields=["backend_metadata"])
+
+def request_offering_user_deletion_when_project_access_lost(sender, instance, **kwargs):
+    """Schedule task to request offering user deletion when project access is lost."""
+    if not isinstance(instance.scope, structure_models.Project):
+        return
+    user = instance.user
+    transaction.on_commit(
+        lambda: tasks.request_offering_user_deletion_for_user.delay(user.uuid.hex)
+    )
 
 
 def create_offering_user_for_new_resource(sender, instance: Resource, **kwargs):

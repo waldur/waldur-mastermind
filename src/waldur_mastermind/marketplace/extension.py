@@ -103,4 +103,9 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
+            "cleanup_stale_offering_users": {
+                "task": "waldur_mastermind.marketplace.cleanup_stale_offering_users",
+                "schedule": timedelta(days=1),
+                "args": (),
+            },
         }

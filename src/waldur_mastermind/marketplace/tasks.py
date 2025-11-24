@@ -11,7 +11,7 @@ from constance import config
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Count, Exists, F, OuterRef, Q, Sum
 from django.utils import timezone
 from rest_framework import status
 
@@ -25,17 +25,20 @@ from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.managers import get_connected_projects
 from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import exceptions, models, plugins, utils
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
+    OfferingUserStates,
     OrderStates,
     OrderTypes,
     ResourceStates,
     RobotAccountStates,
 )
+from waldur_mastermind.marketplace.handlers import OFFERING_USER_ALLOWED_OFFERING_TYPES
 from waldur_mastermind.marketplace.utils import (
     get_consumer_approvers,
     get_provider_approvers,
@@ -1262,3 +1265,195 @@ def replace_checklist_completions_for_offering_users(
         f"deleted {deleted_count} old completions, created {created_count} new completions "
         f"for {total_users} users"
     )
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.request_offering_user_deletion_for_user"
+)
+def request_offering_user_deletion_for_user(user_uuid: str):
+    """
+    Request offering user deletion when user loses project access.
+    Handles both provisioned (OK state) and unprovisioned (creation states) offering users.
+    """
+    user = User.objects.get(uuid=user_uuid)
+    connected_projects = get_connected_projects(user)
+    offering_users_to_request_deletion = (
+        models.OfferingUser.objects.filter(
+            user=user,
+            state__in=[
+                OfferingUserStates.OK,
+                OfferingUserStates.CREATING,
+                OfferingUserStates.PENDING_ACCOUNT_LINKING,
+                OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+                OfferingUserStates.ERROR_CREATING,
+            ],
+        )
+        .annotate(
+            has_resources=Exists(
+                models.Resource.objects.filter(
+                    offering=OuterRef("offering"),
+                    project__in=connected_projects,
+                ).exclude(state=ResourceStates.TERMINATED)
+            )
+        )
+        .filter(has_resources=False)
+    )
+
+    for offering_user in offering_users_to_request_deletion:
+        logger.info(
+            "User %s has no access to resources in offering %s, requesting deletion.",
+            user,
+            offering_user.offering,
+        )
+        offering_user.request_deletion()
+        offering_user.save(update_fields=["state"])
+
+    offering_users_not_provisioned = (
+        models.OfferingUser.objects.filter(
+            user=user,
+            state__in=[
+                OfferingUserStates.CREATION_REQUESTED,
+            ],
+        )
+        .annotate(
+            has_resources=Exists(
+                models.Resource.objects.filter(
+                    offering=OuterRef("offering"),
+                    project__in=connected_projects,
+                ).exclude(state=ResourceStates.TERMINATED)
+            )
+        )
+        .filter(has_resources=False)
+    )
+
+    for offering_user in offering_users_not_provisioned:
+        logger.info(
+            "User %s has no access to resources in offering %s (state: %s), marking as DELETED.",
+            user,
+            offering_user.offering,
+            offering_user.get_state_display(),
+        )
+        offering_user.set_deleted()
+        offering_user.save(update_fields=["state"])
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.create_or_restore_offering_users_for_user"
+)
+def create_or_restore_offering_users_for_user(user_uuid: str, project_uuid: str):
+    """
+    Create or restore offering users when user gains project access.
+    Handles both new creation and restoration of offering users in deletion states.
+    """
+
+    user = User.objects.get(uuid=user_uuid)
+    project = structure_models.Project.objects.get(uuid=project_uuid)
+
+    resources = project.resource_set.filter(
+        state=ResourceStates.OK,
+        offering__type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
+    )
+    offering_ids = set(resources.values_list("offering_id", flat=True))
+    offerings = models.Offering.objects.filter(id__in=offering_ids)
+
+    for offering in offerings:
+        if not offering.plugin_options.get("service_provider_can_create_offering_user"):
+            logger.info(
+                "It is not allowed to create users for current offering %s.", offering
+            )
+            continue
+
+        offering_user = models.OfferingUser.objects.filter(
+            offering=offering,
+            user=user,
+        ).first()
+
+        if offering_user:
+            # Restore offering user if it's in deletion flow
+            if offering_user.state in [
+                OfferingUserStates.DELETION_REQUESTED,
+                OfferingUserStates.DELETING,
+                OfferingUserStates.ERROR_DELETING,
+            ]:
+                old_state = offering_user.get_state_display()
+                if offering_user.username:
+                    # Account exists on service provider - restore to OK
+                    offering_user.set_ok()
+                    offering_user.save(update_fields=["state"])
+                    event_logger.emit(
+                        f"Account for user {offering_user.user.username} in offering {offering_user.offering.name} has been restored from {old_state} to OK because user regained project access.",
+                        event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+                        event_context={"offering_user": offering_user},
+                        scopes=[
+                            offering_user.offering,
+                            offering_user.offering.customer,
+                        ],
+                    )
+                else:
+                    offering_user.state = OfferingUserStates.CREATION_REQUESTED
+                    offering_user.save(update_fields=["state"])
+                    event_logger.emit(
+                        f"Account creation for user {offering_user.user.username} in offering {offering_user.offering.name} has been requested (was in {old_state}) because user regained project access.",
+                        event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+                        event_context={"offering_user": offering_user},
+                        scopes=[
+                            offering_user.offering,
+                            offering_user.offering.customer,
+                        ],
+                    )
+            elif offering_user.state == OfferingUserStates.DELETED:
+                # DELETED state - request new account creation
+                offering_user.state = OfferingUserStates.CREATION_REQUESTED
+                offering_user.save(update_fields=["state"])
+                event_logger.emit(
+                    f"New account creation for user {offering_user.user.username} in offering {offering_user.offering.name} has been requested because user regained project access after offering user was deleted.",
+                    event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+                    event_context={"offering_user": offering_user},
+                    scopes=[offering_user.offering, offering_user.offering.customer],
+                )
+            else:
+                logger.info(
+                    "An offering user for %s in %s already exists", user, offering
+                )
+            continue
+
+        # Create new offering user
+        username = utils.generate_username(user, offering)
+        state = (
+            OfferingUserStates.OK if username else OfferingUserStates.CREATION_REQUESTED
+        )
+        offering_user = models.OfferingUser.objects.create(
+            offering=offering,
+            user=user,
+            username=username,
+            state=state,
+        )
+        utils.setup_linux_related_data(offering_user, offering)
+        offering_user.save(update_fields=["backend_metadata"])
+
+        logger.info("The offering user %s has been created", offering_user)
+
+
+@shared_task(name="waldur_mastermind.marketplace.cleanup_stale_offering_users")
+def cleanup_stale_offering_users():
+    """
+    Periodic task to clean up offering users who no longer have project access.
+    """
+    logger.info("Starting cleanup of stale offering users")
+
+    user_ids = (
+        models.OfferingUser.objects.exclude(
+            state__in=[
+                OfferingUserStates.DELETION_REQUESTED,
+                OfferingUserStates.DELETING,
+                OfferingUserStates.DELETED,
+            ]
+        )
+        .values_list("user_id", flat=True)
+        .distinct()
+    )
+    users = User.objects.filter(id__in=user_ids)
+    for user in users:
+        request_offering_user_deletion_for_user.delay(user.uuid.hex)
+
+    logger.info(f"Scheduled cleanup tasks for {len(users)} users with offering users")

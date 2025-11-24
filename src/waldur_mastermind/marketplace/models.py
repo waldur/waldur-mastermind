@@ -2098,10 +2098,12 @@ class OfferingUser(
         source=[
             OfferingUserStates.CREATION_REQUESTED,
             OfferingUserStates.CREATING,
-            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
             OfferingUserStates.PENDING_ACCOUNT_LINKING,
+            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
             OfferingUserStates.ERROR_CREATING,
             OfferingUserStates.ERROR_DELETING,
+            OfferingUserStates.DELETION_REQUESTED,
+            OfferingUserStates.DELETING,
         ],
         target=OfferingUserStates.OK,
     )
@@ -2146,7 +2148,13 @@ class OfferingUser(
 
     @transition(
         field=state,
-        source=OfferingUserStates.OK,
+        source=[
+            OfferingUserStates.OK,
+            OfferingUserStates.CREATING,
+            OfferingUserStates.PENDING_ACCOUNT_LINKING,
+            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+            OfferingUserStates.ERROR_CREATING,
+        ],
         target=OfferingUserStates.DELETION_REQUESTED,
     )
     def request_deletion(self):
@@ -2165,7 +2173,10 @@ class OfferingUser(
 
     @transition(
         field=state,
-        source=OfferingUserStates.DELETING,
+        source=[
+            OfferingUserStates.CREATION_REQUESTED,
+            OfferingUserStates.DELETING,
+        ],
         target=OfferingUserStates.DELETED,
     )
     def set_deleted(self):

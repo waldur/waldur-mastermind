@@ -10,6 +10,7 @@ from waldur_core.logging.tests import factories as logging_factories
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import tasks
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
 from waldur_mastermind.marketplace.enums import (
@@ -21,10 +22,17 @@ from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_site_agent.tests.fixtures import GlauthUserFixture
 
 
+def add_user_to_project(user, project, role=None):
+    """Helper to add user to project and trigger offering user creation task."""
+    if role is None:
+        role = ProjectRole.MANAGER
+    project.add_user(user, role)
+    tasks.create_or_restore_offering_users_for_user(user.uuid.hex, project.uuid.hex)
+
+
 class OfferingUserCreationTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         fixture = marketplace_fixtures.MarketplaceFixture()
-
         self.resource = fixture.resource
 
         offering = self.resource.offering
@@ -44,14 +52,15 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
     def test_offering_user_created_after_role_creation(self):
         self.resource.state = ResourceStates.OK
         self.resource.save()
-
         self.assertFalse(
             marketplace_models.OfferingUser.objects.filter(
                 offering=self.resource.offering, user=self.offering_admin
             ).exists()
         )
 
-        self.resource.project.add_user(self.offering_admin, ProjectRole.ADMIN)
+        add_user_to_project(
+            self.offering_admin, self.resource.project, ProjectRole.ADMIN
+        )
 
         self.assertTrue(
             marketplace_models.OfferingUser.objects.filter(
