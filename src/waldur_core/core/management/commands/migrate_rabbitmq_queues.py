@@ -690,8 +690,10 @@ class RabbitMQQueueMigration:
         queues = self.list_queues()
         exchanges = self.list_exchanges()
 
-        celery_queues = [q for q in queues if q["name"] in self.OLD_QUEUE_NAMES]
-        celery_exchanges = [e for e in exchanges if e["name"] in self.OLD_QUEUE_NAMES]
+        # Analyze both old and new queue names to handle all migration scenarios
+        all_queue_names = self.OLD_QUEUE_NAMES + self.NEW_QUEUE_NAMES
+        celery_queues = [q for q in queues if q["name"] in all_queue_names]
+        celery_exchanges = [e for e in exchanges if e["name"] in all_queue_names]
 
         analysis = {
             "queues": {},
@@ -760,6 +762,29 @@ class RabbitMQQueueMigration:
             if exchange_info and exchange_info["exists"]:
                 self.logger.debug(
                     "Old exchange %s exists, migration needed", exchange_name
+                )
+                return True
+
+        # Check if any new queues exist with wrong types - they need to be fixed
+        for queue_name in self.NEW_QUEUE_NAMES:
+            queue_info = analysis["queues"].get(queue_name)
+            if queue_info and queue_info["exists"] and not queue_info["is_quorum"]:
+                self.logger.debug(
+                    "New queue %s exists with wrong type, migration needed", queue_name
+                )
+                return True
+
+        # Check if any new exchanges exist with wrong types - they need to be fixed
+        for exchange_name in self.NEW_QUEUE_NAMES:
+            exchange_info = analysis["exchanges"].get(exchange_name)
+            if (
+                exchange_info
+                and exchange_info["exists"]
+                and not exchange_info["is_topic"]
+            ):
+                self.logger.debug(
+                    "New exchange %s exists with wrong type, migration needed",
+                    exchange_name,
                 )
                 return True
 
@@ -914,7 +939,7 @@ class RabbitMQQueueMigration:
             self.logger.info("\nNo pending messages found in queues.")
 
         # If using force mode, delete any existing conflicting exchanges/queues first
-        if not use_shovels and self.force:
+        if self.force:
             self.logger.info("\n" + "=" * 70)
             self.logger.info(
                 "Step 0: Cleaning up conflicting exchanges/queues (FORCE mode)"
@@ -935,6 +960,10 @@ class RabbitMQQueueMigration:
                             exchange.get("type"),
                         )
                         self.delete_exchange(exchange_name)
+                    else:
+                        self.logger.info(
+                            "Exchange %s already has correct type: topic", exchange_name
+                        )
 
             # Delete existing new-style queues if they exist with wrong types
             for queue_name in self.NEW_QUEUE_NAMES:
@@ -950,6 +979,10 @@ class RabbitMQQueueMigration:
                             queue.get("arguments", {}).get("x-queue-type", "classic"),
                         )
                         self.delete_queue(queue_name)
+                    else:
+                        self.logger.info(
+                            "Queue %s already has correct type: quorum", queue_name
+                        )
 
         # Create new exchanges first
         self.logger.info("\n" + "=" * 70)
