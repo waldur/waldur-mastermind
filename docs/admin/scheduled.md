@@ -32,6 +32,7 @@ td:nth-child(4) {
 | `check-expired-permissions` | `waldur_core.permissions.check_expired_permissions` | 1 day | Task not found in registry |
 | `check-polices` | `waldur_mastermind.policy.check_polices` | Cron: `* * 1 * * (m/h/dM/MY/d)` | Evaluate all policies across all policy types in the system. |
 | `cleanup-orphaned-answers` | `waldur_core.checklist.cleanup_orphaned_answers` | 1 day | Task not found in registry |
+| `cleanup_stale_offering_users` | `waldur_mastermind.marketplace.cleanup_stale_offering_users` | 1 day | Periodic task to clean up offering users who no longer have project access. |
 | `core-reset-updating-resources` | `waldur_core.reset_updating_resources` | 10 minutes | Reset resources stuck in UPDATING state when their Celery tasks are completed. |
 | `create-reviews-if-strategy-is-after-proposal` | `waldur_mastermind.proposal.create_reviews_if_strategy_is_after_proposal` | 1 hour | Create reviews for active rounds with 'after proposal' review strategy. |
 | `create-reviews-if-strategy-is-after-round` | `waldur_mastermind.proposal.create_reviews_if_strategy_is_after_round` | 1 hour | Create reviews for active rounds with 'after round' review strategy. |

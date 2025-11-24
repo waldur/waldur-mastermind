@@ -502,7 +502,7 @@ td:nth-child(4) {
 | `create_offering_user_for_openportal_user` | `Custom Signal (openportal_association_created)` | `waldur_openportal.Allocation` | No description |
 | `create_offering_user_for_rancher_user` | `Django Signal (post_save)` | `waldur_rancher.RancherUser` | No description |
 | `create_offering_user_for_slurm_user` | `Custom Signal (slurm_association_created)` | `waldur_slurm.Allocation` | No description |
-| `create_offering_users_when_project_role_granted` | `Custom Signal (role_granted)` | `—` | Create offering users when a project role is granted. |
+| `create_offering_users_when_project_role_granted` | `Custom Signal (role_granted)` | `—` | Schedule task to create or restore offering users when project role is granted. |
 | `create_price_estimate` | `Django Signal (post_save)` | `structure.Project` | Create price estimate when customer or project is created. |
 | `create_price_estimate` | `Django Signal (post_save)` | `structure.Customer` | Create price estimate when customer or project is created. |
 | `create_public_cluster_ip_for_floating_ip` | `Django Signal (post_save)` | `openstack.FloatingIP` | No description |
@@ -586,6 +586,7 @@ td:nth-child(4) {
 | `project_credit_changed_handler` | `Django Signal (post_save)` | `invoices.ProjectCredit` | No description |
 | `project_estimated_cost_policy_trigger_handler` | `Django Signal (post_save)` | `invoices.InvoiceItem` | Evaluate project cost policies when invoice items are updated. |
 | `refund_project_credit_on_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
+| `request_offering_user_deletion_when_project_access_lost` | `Custom Signal (role_revoked)` | `—` | Schedule task to request offering user deletion when project access is lost. |
 | `resource_has_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource changes. |
 | `resource_options_have_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Handle script execution when marketplace resource options are changed. |
 | `resource_state_has_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Handle resource state changes. |
@@ -771,14 +772,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 692
+Total unique handlers found: 693
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 350 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 284 handlers
+- **waldur_mastermind**: 285 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
