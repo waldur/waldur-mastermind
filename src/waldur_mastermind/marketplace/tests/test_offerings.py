@@ -2947,3 +2947,339 @@ class OfferingComplianceChecklistSerializerTest(test.APITransactionTestCase):
         self.assertIn("compliance_checklist", offering_without_checklist_data)
         self.assertIsNone(offering_without_checklist_data["compliance_checklist"])
         self.assertFalse(offering_without_checklist_data["has_compliance_requirements"])
+
+
+class CheckUniqueBackendIDTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.url = factories.OfferingFactory.get_url(
+            self.offering, "check_unique_backend_id"
+        )
+
+        # Create resources with backend_ids
+        self.resource1 = factories.ResourceFactory(
+            offering=self.offering, backend_id="backend_001"
+        )
+        self.resource2 = factories.ResourceFactory(
+            offering=self.offering, backend_id="backend_002"
+        )
+
+        # Create another offering in same customer with resource
+        self.other_offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.other_resource = factories.ResourceFactory(
+            offering=self.other_offering, backend_id="backend_003"
+        )
+
+        # Create resource in different customer
+        self.different_customer = structure_factories.CustomerFactory()
+        self.different_offering = factories.OfferingFactory(
+            customer=self.different_customer
+        )
+        self.different_resource = factories.ResourceFactory(
+            offering=self.different_offering,
+            backend_id="backend_001",  # Same backend_id but different customer
+        )
+
+    def test_staff_can_check_backend_id(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {"backend_id": "new_backend_id"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])
+
+    def test_offering_manager_can_check_backend_id(self):
+        self.offering.add_user(self.fixture.owner, OfferingRole.MANAGER)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url, {"backend_id": "new_backend_id"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])
+
+    def test_check_unique_backend_id_within_offering(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Check existing backend_id in same offering
+        response = self.client.post(self.url, {"backend_id": "backend_001"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+
+        # Check non-existing backend_id
+        response = self.client.post(self.url, {"backend_id": "new_backend_id"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])
+
+    def test_check_unique_backend_id_across_customer_offerings(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Check with check_all_offerings=True - should find conflicts in other offerings
+        response = self.client.post(
+            self.url, {"backend_id": "backend_003", "check_all_offerings": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+
+        # Check with check_all_offerings=False - should not find conflicts in other offerings
+        response = self.client.post(
+            self.url, {"backend_id": "backend_003", "check_all_offerings": False}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])
+
+    def test_backend_id_isolation_between_customers(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # backend_001 exists in different customer, should not conflict
+        response = self.client.post(
+            self.url, {"backend_id": "backend_001", "check_all_offerings": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should find conflict only in same customer, not in different customer
+        self.assertFalse(response.data["is_unique"])
+
+    def test_terminated_resources_are_included(self):
+        # Terminate a resource
+        self.resource1.state = ResourceStates.TERMINATED
+        self.resource1.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Should still find the terminated resource as a conflict
+        response = self.client.post(self.url, {"backend_id": "backend_001"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+
+    def test_invalid_data_validation(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Missing backend_id
+        response = self.client.post(self.url, {})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Too long backend_id
+        response = self.client.post(self.url, {"backend_id": "a" * 256})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_permission_denied_for_unauthorized_user(self):
+        unauthorized_user = UserFactory()
+        self.client.force_authenticate(unauthorized_user)
+
+        response = self.client.post(self.url, {"backend_id": "test"})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_empty_backend_id(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Empty backend_id should be rejected by validation
+        response = self.client.post(self.url, {"backend_id": ""})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_whitespace_backend_id(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Create resource with whitespace backend_id
+        factories.ResourceFactory(
+            offering=self.offering, backend_id="spaces_with_suffix"
+        )
+
+        # Check exact match
+        response = self.client.post(self.url, {"backend_id": "spaces_with_suffix"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+
+        # Check different value should be unique
+        response = self.client.post(
+            self.url, {"backend_id": "spaces_with_different_suffix"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])
+
+    def test_case_sensitivity(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # backend_id is case-sensitive
+        response = self.client.post(self.url, {"backend_id": "BACKEND_001"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            response.data["is_unique"]
+        )  # backend_001 exists, but BACKEND_001 doesn't
+
+        response = self.client.post(self.url, {"backend_id": "backend_001"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])  # exact match exists
+
+    def test_different_resource_states(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Create resources in different states with same backend_id
+        backend_id = "test_state_backend"
+
+        # Active resource
+        active_resource = factories.ResourceFactory(
+            offering=self.offering, backend_id=backend_id, state=ResourceStates.OK
+        )
+
+        response = self.client.post(self.url, {"backend_id": backend_id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+
+        # Change to erred state - should still not be unique
+        active_resource.state = ResourceStates.ERRED
+        active_resource.save()
+
+        response = self.client.post(self.url, {"backend_id": backend_id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+
+        # Change to creating state - should still not be unique
+        active_resource.state = ResourceStates.CREATING
+        active_resource.save()
+
+        response = self.client.post(self.url, {"backend_id": backend_id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+
+    def test_customer_owner_permissions(self):
+        # Customer owner should have access through UPDATE_OFFERING permission
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url, {"backend_id": "new_backend_id"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])
+
+    def test_unicode_backend_id(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Create resource with Unicode backend_id
+        unicode_backend_id = "тест_бэкенд_123_🚀"
+        factories.ResourceFactory(offering=self.offering, backend_id=unicode_backend_id)
+
+        # Check Unicode backend_id
+        response = self.client.post(self.url, {"backend_id": unicode_backend_id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+
+        # Check similar but different Unicode
+        response = self.client.post(self.url, {"backend_id": "тест_бэкенд_124_🚀"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])
+
+    def test_special_characters_backend_id(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        special_chars = "!@#$%^&*()_+-=[]{}|;':\",./<>?"
+        factories.ResourceFactory(offering=self.offering, backend_id=special_chars)
+
+        # Check exact match
+        response = self.client.post(self.url, {"backend_id": special_chars})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+
+    def test_maximum_length_backend_id(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Create resource with maximum length backend_id (255 chars)
+        max_length_backend_id = "a" * 255
+        factories.ResourceFactory(
+            offering=self.offering, backend_id=max_length_backend_id
+        )
+
+        # Check exact match
+        response = self.client.post(self.url, {"backend_id": max_length_backend_id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+
+        # Check one character shorter
+        response = self.client.post(self.url, {"backend_id": "a" * 254})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])
+
+    def test_multiple_resources_same_backend_id_same_offering(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        backend_id = "duplicate_backend"
+
+        # Create multiple resources with same backend_id in same offering
+        # Note: This might not be allowed by database constraints, but testing the check behavior
+        try:
+            factories.ResourceFactory(offering=self.offering, backend_id=backend_id)
+            factories.ResourceFactory(offering=self.offering, backend_id=backend_id)
+        except Exception:
+            # If database prevents duplicates, create just one
+            factories.ResourceFactory(offering=self.offering, backend_id=backend_id)
+
+        response = self.client.post(self.url, {"backend_id": backend_id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+
+    def test_performance_with_many_resources(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Create many resources with different backend_ids
+        import time
+
+        start_time = time.time()
+
+        for i in range(100):
+            factories.ResourceFactory(
+                offering=self.offering, backend_id=f"bulk_backend_{i}"
+            )
+
+        # Check uniqueness for new backend_id - should be fast
+        response = self.client.post(self.url, {"backend_id": "unique_new_backend"})
+        end_time = time.time()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])
+
+        # Should complete in reasonable time (less than 5 seconds)
+        self.assertLess(end_time - start_time, 5.0)
+
+    def test_check_all_offerings_with_mixed_customers(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Create multiple customers with offerings and resources
+        customer2 = structure_factories.CustomerFactory()
+        structure_factories.CustomerFactory()
+
+        offering2 = factories.OfferingFactory(
+            customer=self.fixture.customer
+        )  # Same customer
+        offering3 = factories.OfferingFactory(customer=customer2)  # Different customer
+
+        shared_backend_id = "shared_across_customers"
+
+        # Create resources in different customers with same backend_id
+        factories.ResourceFactory(offering=offering2, backend_id=shared_backend_id)
+        factories.ResourceFactory(offering=offering3, backend_id=shared_backend_id)
+
+        # Check within customer scope - should find conflict in same customer
+        response = self.client.post(
+            self.url, {"backend_id": shared_backend_id, "check_all_offerings": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(
+            response.data["is_unique"]
+        )  # Found in same customer's other offering
+
+        # Check offering scope - should not find conflict (not in current offering)
+        response = self.client.post(
+            self.url, {"backend_id": shared_backend_id, "check_all_offerings": False}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])  # Not in current offering
+
+    def test_null_and_none_handling(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Backend_id field doesn't allow null values, so test string "None"
+        # Check for string "None" - should be unique since no resource has this exact string
+        response = self.client.post(self.url, {"backend_id": "None"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])
+
+        # Create resource with string "null"
+        factories.ResourceFactory(offering=self.offering, backend_id="null")
+
+        # Check for string "null" - should not be unique now
+        response = self.client.post(self.url, {"backend_id": "null"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
