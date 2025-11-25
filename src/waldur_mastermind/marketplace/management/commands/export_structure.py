@@ -2,6 +2,7 @@ import json
 import os
 
 from django.core.management.base import BaseCommand
+from rest_framework.authtoken.models import Token
 
 from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
@@ -62,6 +63,7 @@ class Command(BaseCommand):
         # Export data
         data = {
             "users": self.export_users(),
+            "auth_tokens": self.export_auth_tokens(),
             "customers": self.export_customers(),
             "service_providers": self.export_service_providers(),
             "projects": self.export_projects(),
@@ -98,6 +100,7 @@ class Command(BaseCommand):
             # Print summary
             self.stdout.write("\nExport summary:")
             self.stdout.write(f"  Users: {len(data['users'])}")
+            self.stdout.write(f"  Auth Tokens: {len(data['auth_tokens'])}")
             self.stdout.write(f"  Customers: {len(data['customers'])}")
             self.stdout.write(f"  Service Providers: {len(data['service_providers'])}")
             self.stdout.write(f"  Projects: {len(data['projects'])}")
@@ -161,6 +164,20 @@ class Command(BaseCommand):
             )
         return users
 
+    def export_auth_tokens(self):
+        """Export user authentication tokens."""
+        auth_tokens = []
+        for token in Token.objects.select_related("user").all():
+            auth_tokens.append(
+                {
+                    "key": token.key,
+                    "user_uuid": token.user.uuid.hex,
+                    "user_username": token.user.username,
+                    "created": token.created.isoformat() if token.created else None,
+                }
+            )
+        return auth_tokens
+
     def export_customers(self):
         """Export customer/organization data."""
         customers = []
@@ -186,6 +203,7 @@ class Command(BaseCommand):
                     "postal": customer.postal,
                     "blocked": customer.blocked,
                     "archived": customer.archived,
+                    "slug": customer.slug,
                     "created": customer.created.isoformat()
                     if customer.created
                     else None,
@@ -227,6 +245,7 @@ class Command(BaseCommand):
                     "customer_uuid": project.customer.uuid.hex,
                     "customer_name": project.customer.name,
                     "created": project.created.isoformat() if project.created else None,
+                    "slug": project.slug,
                     "start_date": project.start_date.isoformat()
                     if project.start_date
                     else None,
@@ -509,6 +528,7 @@ class Command(BaseCommand):
                     "options": resource.options,
                     "backend_id": resource.backend_id,
                     "effective_id": resource.effective_id,
+                    "slug": resource.slug,
                     "created": resource.created.isoformat()
                     if resource.created
                     else None,
