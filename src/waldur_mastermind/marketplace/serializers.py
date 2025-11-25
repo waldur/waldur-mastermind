@@ -4920,6 +4920,17 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
         lookup_field="uuid",
         required=False,
     )
+    date = serializers.DateTimeField(
+        required=False,
+        help_text="Date for usage reporting (staff only). If not provided, current date is used.",
+    )
+
+    def validate_date(self, value):
+        if value and not self.context["request"].user.is_staff:
+            raise serializers.ValidationError(
+                _("Only staff users can specify date for backfilling.")
+            )
+        return value
 
     def validate(self, attrs):
         user = attrs.get("user")
@@ -4954,6 +4965,7 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
             "usage",
             "username",
             "user",
+            "date",
         )
 
 
@@ -5035,6 +5047,17 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
     resource = serializers.SlugRelatedField(
         queryset=models.Resource.objects.all(), slug_field="uuid", required=False
     )
+    date = serializers.DateTimeField(
+        required=False,
+        help_text="Date for usage reporting (staff only). If not provided, current date is used.",
+    )
+
+    def validate_date(self, value):
+        if value and not self.context["request"].user.is_staff:
+            raise serializers.ValidationError(
+                _("Only staff users can specify date for backfilling.")
+            )
+        return value
 
     def validate_plan_period(self, plan_period):
         date = datetime.date.today()
@@ -5091,7 +5114,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         )
 
         components_map = self.get_components_map(resource.plan.offering)
-        now = timezone.now()
+        now = self.validated_data.get("date", timezone.now())
         local_now = timezone.localtime(now)
         billing_period = core_utils.month_start(local_now)
         user: User = self.context["request"].user

@@ -2791,8 +2791,6 @@ class ProviderOfferingViewSet(
         Migrate connected objects when component type changes.
         Updates Resource limits and InvoiceItem details.
         """
-        from waldur_mastermind.invoices import models as invoice_models
-
         # 1. Update Resource limits for resources of this offering
         resources_updated = 0
         for resource in models.Resource.objects.filter(offering=offering):
@@ -6354,13 +6352,38 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         serializer.is_valid(raise_exception=True)
 
         validated_data = serializer.validated_data
+
+        # If date is provided, check if we need to use a different ComponentUsage record
+        if validated_data.get("date"):
+            date_to_use = validated_data["date"]
+            local_date = timezone.localtime(date_to_use)
+            billing_period = core_utils.month_start(local_date)
+
+            # Find or create ComponentUsage for the specified date
+            component_usage, created = models.ComponentUsage.objects.get_or_create(
+                resource=component_usage.resource,
+                component=component_usage.component,
+                billing_period=billing_period,
+                defaults={
+                    "usage": 0,
+                    "date": date_to_use,
+                    "description": "Created for user usage backfill",
+                    "recurring": False,
+                    "modified_by": request.user,
+                },
+            )
+
         existing_user_usage = models.ComponentUserUsage.objects.filter(
             component_usage=component_usage, username=validated_data["username"]
         ).first()
 
         if existing_user_usage is None:
-            serializer.validated_data["component_usage"] = component_usage
-            serializer.save()
+            validated_data_copy = validated_data.copy()
+            validated_data_copy.pop(
+                "date", None
+            )  # Remove date as it's not a field in ComponentUserUsage
+            validated_data_copy["component_usage"] = component_usage
+            models.ComponentUserUsage.objects.create(**validated_data_copy)
         else:
             existing_user_usage.usage = validated_data["usage"]
             existing_user_usage.save()
