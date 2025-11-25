@@ -805,6 +805,7 @@ class Command(BaseCommand):
                     "options": offering_data.get("options", {}),
                     "resource_options": offering_data.get("resource_options", {}),
                     "plugin_options": offering_data.get("plugin_options", {}),
+                    "slug": offering_data.get("slug", ""),
                 }
 
                 if category:

@@ -290,6 +290,7 @@ class Command(BaseCommand):
                     "description": offering.description,
                     "type": offering.type,
                     "state": offering.state,
+                    "slug": offering.slug,
                     "category_uuid": offering.category.uuid.hex
                     if offering.category
                     else None,
