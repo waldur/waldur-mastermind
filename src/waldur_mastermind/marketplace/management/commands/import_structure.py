@@ -8,6 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
+from rest_framework.authtoken.models import Token
 
 from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
@@ -47,6 +48,7 @@ class Command(BaseCommand):
         super().__init__(*args, **kwargs)
         self.stats = {
             "users": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "auth_tokens": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "customers": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "service_providers": {
                 "created": 0,
@@ -163,6 +165,7 @@ class Command(BaseCommand):
                 # Import in dependency order
                 if not skip_users:
                     self.import_users(data.get("users", []))
+                    self.import_auth_tokens(data.get("auth_tokens", []))
 
                 self.import_customers(data.get("customers", []))
                 self.import_service_providers(data.get("service_providers", []))
@@ -330,6 +333,109 @@ class Command(BaseCommand):
                 )
                 self.stats["users"]["errors"] += 1
 
+    def import_auth_tokens(self, tokens_data):
+        """Import user authentication tokens."""
+        self.stdout.write("Importing auth tokens...")
+
+        for token_data in tokens_data:
+            try:
+                key = token_data.get("key")
+                user_uuid = token_data.get("user_uuid")
+
+                if not key or not user_uuid:
+                    self.stdout.write(
+                        self.style.WARNING("Skipping token without key or user_uuid")
+                    )
+                    self.stats["auth_tokens"]["errors"] += 1
+                    continue
+
+                # Find user
+                user = User.all_objects.filter(uuid=user_uuid).first()
+                if not user:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping token {key}: user {user_uuid} not found"
+                        )
+                    )
+                    self.stats["auth_tokens"]["errors"] += 1
+                    continue
+
+                # Parse created date
+                created = None
+                if token_data.get("created"):
+                    try:
+                        created = datetime.fromisoformat(token_data["created"])
+                        if timezone.is_naive(created):
+                            created = timezone.make_aware(created)
+                    except (ValueError, TypeError):
+                        pass
+
+                if not self.dry_run:
+                    existing_token = Token.objects.filter(key=key).first()
+
+                    if existing_token:
+                        if self.update_existing:
+                            # Update existing token
+                            existing_token.user = user
+                            if created:
+                                existing_token.created = created
+                            existing_token.save()
+                            self.stats["auth_tokens"]["updated"] += 1
+                        else:
+                            self.stats["auth_tokens"]["skipped"] += 1
+                    else:
+                        # Check if user already has a token
+                        user_token = Token.objects.filter(user=user).first()
+                        if user_token:
+                            if self.update_existing:
+                                # Replace existing token
+                                user_token.delete()
+                                token = Token(key=key, user=user)
+                                if created:
+                                    token.created = created
+                                token.save()
+                                self.stats["auth_tokens"]["updated"] += 1
+                            else:
+                                self.stdout.write(
+                                    self.style.WARNING(
+                                        f"Skipping token {key}: user already has token {user_token.key}"
+                                    )
+                                )
+                                self.stats["auth_tokens"]["skipped"] += 1
+                        else:
+                            # Create new token
+                            token = Token(key=key, user=user)
+                            if created:
+                                token.created = created
+                            token.save()
+                            self.stats["auth_tokens"]["created"] += 1
+                else:
+                    # Dry run
+                    existing = Token.objects.filter(key=key).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["auth_tokens"]["updated"] += 1
+                        else:
+                            self.stats["auth_tokens"]["skipped"] += 1
+                    else:
+                        # Check for user token conflict
+                        user_has_token = Token.objects.filter(user=user).exists()
+                        if user_has_token:
+                            if self.update_existing:
+                                self.stats["auth_tokens"]["updated"] += 1
+                            else:
+                                self.stats["auth_tokens"]["skipped"] += 1
+                        else:
+                            self.stats["auth_tokens"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import auth token {token_data.get('key')}: {e}"
+                    )
+                )
+                self.stats["auth_tokens"]["errors"] += 1
+
     def import_customers(self, customers_data):
         """Import customer/organization data."""
         self.stdout.write("Importing customers...")
@@ -365,6 +471,7 @@ class Command(BaseCommand):
                     "postal": customer_data.get("postal", ""),
                     "blocked": customer_data.get("blocked", False),
                     "archived": customer_data.get("archived", False),
+                    "slug": customer_data.get("slug", ""),
                 }
 
                 if not self.dry_run:
@@ -546,6 +653,7 @@ class Command(BaseCommand):
                     "start_date": start_date,
                     "end_date": end_date,
                     "oecd_fos_2007_code": project_data.get("oecd_fos_2007_code", ""),
+                    "slug": project_data.get("slug", ""),
                 }
 
                 if not self.dry_run:
@@ -1550,6 +1658,7 @@ class Command(BaseCommand):
                     "backend_id": resource_data.get("backend_id", ""),
                     "effective_id": resource_data.get("effective_id", ""),
                     "description": resource_data.get("description", ""),
+                    "slug": resource_data.get("slug", ""),
                 }
 
                 if not self.dry_run:
