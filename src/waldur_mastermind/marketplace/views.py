@@ -3504,6 +3504,50 @@ class ProviderOfferingViewSet(
         )
     ]
 
+    @extend_schema(
+        summary="Check if backend_id is unique",
+        description="Checks if the provided backend_id has been used in resources of this offering or all offerings of the same customer. Returns true if unique, false if already used.",
+        request=serializers.CheckUniqueBackendIDSerializer,
+        responses={200: serializers.CheckUniqueBackendIDResponseSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def check_unique_backend_id(self, request, uuid=None):
+        offering = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        backend_id = serializer.validated_data["backend_id"]
+        check_all_offerings = serializer.validated_data.get(
+            "check_all_offerings", False
+        )
+
+        if check_all_offerings:
+            # Check all offerings of the same customer
+            resources_query = models.Resource.objects.filter(
+                offering__customer=offering.customer, backend_id=backend_id
+            )
+        else:
+            # Check only this offering
+            resources_query = models.Resource.objects.filter(
+                offering=offering, backend_id=backend_id
+            )
+
+        # Include all resources regardless of state (including terminated)
+        is_unique = not resources_query.exists()
+
+        return Response({"is_unique": is_unique})
+
+    check_unique_backend_id_serializer_class = (
+        serializers.CheckUniqueBackendIDSerializer
+    )
+
+    check_unique_backend_id_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+
 
 @extend_schema_view(
     list=extend_schema(

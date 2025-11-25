@@ -4627,6 +4627,15 @@ class OrderBackendIDSerializer(serializers.ModelSerializer):
         fields = ("backend_id",)
 
 
+class CheckUniqueBackendIDSerializer(serializers.Serializer):
+    backend_id = serializers.CharField(required=True, max_length=255)
+    check_all_offerings = serializers.BooleanField(required=False, default=False)
+
+
+class CheckUniqueBackendIDResponseSerializer(serializers.Serializer):
+    is_unique = serializers.BooleanField()
+
+
 class ResourceSlugSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Resource
