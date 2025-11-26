@@ -475,3 +475,162 @@ class InvoiceItemCostsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["price"], "100.00")
+
+
+class InvoiceItemDetailSerializerTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.InvoiceFixture()
+
+    def test_serializer_includes_offering_uuid_from_resource(self):
+        """Test that offering_uuid is correctly serialized from resource.offering.uuid"""
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_url(self.fixture.invoice_item)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that offering_uuid is present and matches the resource's offering UUID
+        self.assertIn("offering_uuid", response.data)
+        self.assertEqual(
+            str(response.data["offering_uuid"]),
+            str(self.fixture.resource.offering.uuid),
+        )
+
+    def test_serializer_includes_offering_component_type_from_direct_relationship(self):
+        """Test offering_component_type from direct plan_component relationship"""
+        # Create an invoice item with direct plan_component relationship
+        plan_component = marketplace_factories.PlanComponentFactory(
+            plan=self.fixture.plan,
+            component__type="cpu",
+            component__billing_type=BillingTypes.FIXED,
+        )
+
+        invoice_item = factories.InvoiceItemFactory(
+            resource=self.fixture.resource,
+            plan_component=plan_component,
+            invoice=self.fixture.invoice,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_url(invoice_item)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that offering_component_type is present and correct
+        self.assertIn("offering_component_type", response.data)
+        self.assertEqual(response.data["offering_component_type"], "cpu")
+
+    def test_serializer_fallback_to_details_field_for_offering_component_type(self):
+        """Test fallback to details field for backward compatibility"""
+        # Create an invoice item without direct plan_component but with details
+        invoice_item = factories.InvoiceItemFactory(
+            resource=self.fixture.resource,
+            plan_component=None,  # No direct relationship
+            invoice=self.fixture.invoice,
+            details={"offering_component_type": "memory", "plan_component_id": 123},
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_url(invoice_item)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that offering_component_type falls back to details
+        self.assertIn("offering_component_type", response.data)
+        self.assertEqual(response.data["offering_component_type"], "memory")
+
+    def test_serializer_returns_none_when_no_component_type_available(self):
+        """Test that None is returned when no component type is available"""
+        # Create an invoice item without plan_component and without details
+        invoice_item = factories.InvoiceItemFactory(
+            resource=self.fixture.resource,
+            plan_component=None,
+            invoice=self.fixture.invoice,
+            details={},  # No offering_component_type in details
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_url(invoice_item)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that offering_component_type is None
+        self.assertIn("offering_component_type", response.data)
+        self.assertIsNone(response.data["offering_component_type"])
+
+    def test_direct_relationship_takes_precedence_over_details(self):
+        """Test that direct plan_component relationship takes precedence over details"""
+        plan_component = marketplace_factories.PlanComponentFactory(
+            plan=self.fixture.plan,
+            component__type="storage",
+            component__billing_type=BillingTypes.USAGE,
+        )
+
+        # Create item with both direct relationship and details (different values)
+        invoice_item = factories.InvoiceItemFactory(
+            resource=self.fixture.resource,
+            plan_component=plan_component,
+            invoice=self.fixture.invoice,
+            details={"offering_component_type": "cpu"},  # Different from plan_component
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_url(invoice_item)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should use direct relationship, not details
+        self.assertEqual(response.data["offering_component_type"], "storage")
+
+
+class InvoiceItemModelTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.InvoiceFixture()
+
+    def test_get_plan_component_uses_direct_relationship_first(self):
+        """Test that get_plan_component() uses direct relationship when available"""
+        plan_component = marketplace_factories.PlanComponentFactory(
+            plan=self.fixture.plan, component__type="cpu"
+        )
+
+        invoice_item = factories.InvoiceItemFactory(
+            plan_component=plan_component,
+            details={"plan_component_id": 999},  # Different ID to ensure direct is used
+        )
+
+        result = invoice_item.get_plan_component()
+        self.assertEqual(result, plan_component)
+
+    def test_get_plan_component_fallback_to_details(self):
+        """Test fallback to details field when no direct relationship"""
+        plan_component = marketplace_factories.PlanComponentFactory(
+            plan=self.fixture.plan, component__type="memory"
+        )
+
+        invoice_item = factories.InvoiceItemFactory(
+            plan_component=None, details={"plan_component_id": plan_component.id}
+        )
+
+        result = invoice_item.get_plan_component()
+        self.assertEqual(result, plan_component)
+
+    def test_get_plan_component_returns_none_when_not_found(self):
+        """Test that None is returned when plan component is not found"""
+        invoice_item = factories.InvoiceItemFactory(
+            plan_component=None,
+            details={"plan_component_id": 99999},  # Non-existent ID
+        )
+
+        result = invoice_item.get_plan_component()
+        self.assertIsNone(result)
+
+    def test_get_plan_component_returns_none_when_no_data(self):
+        """Test that None is returned when no plan component data available"""
+        invoice_item = factories.InvoiceItemFactory(plan_component=None, details={})
+
+        result = invoice_item.get_plan_component()
+        self.assertIsNone(result)
