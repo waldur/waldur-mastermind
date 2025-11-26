@@ -28,12 +28,6 @@ def populate_plan_component_field(apps, schema_editor):
         )
 
 
-def reverse_populate_plan_component_field(apps, schema_editor):
-    """Reverse operation - clear the plan_component field."""
-    InvoiceItem = apps.get_model("invoices", "InvoiceItem")
-    InvoiceItem.objects.update(plan_component=None)
-
-
 class Migration(migrations.Migration):
     dependencies = [
         ("invoices", "0020_add_plan_component_field"),
@@ -42,6 +36,5 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunPython(
             populate_plan_component_field,
-            reverse_populate_plan_component_field,
         ),
     ]
