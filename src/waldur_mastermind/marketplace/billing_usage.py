@@ -216,6 +216,7 @@ class BillingUsageProcessor:
 
             invoice_models.InvoiceItem.objects.create(
                 resource=resource,
+                plan_component=plan_component,
                 project=resource.project,
                 invoice=invoice,
                 start=start,

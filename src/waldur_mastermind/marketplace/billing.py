@@ -274,6 +274,7 @@ class MarketplaceBillingService:
                 name=name,
                 details=details,
                 resource=resource,
+                plan_component=plan_component,
                 project=resource.project,
                 invoice=invoice,
                 start=start,

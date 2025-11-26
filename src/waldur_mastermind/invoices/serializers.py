@@ -112,6 +112,23 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
+    offering_uuid = serializers.UUIDField(
+        read_only=True, source="resource.offering.uuid"
+    )
+    offering_component_type = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_offering_component_type(self, obj: models.InvoiceItem) -> str | None:
+        # Use direct relationship first
+        if obj.plan_component and obj.plan_component.component:
+            return obj.plan_component.component.type
+
+        # Fallback to details field for backward compatibility
+        if obj.details and "offering_component_type" in obj.details:
+            return obj.details["offering_component_type"]
+
+        return None
+
     class Meta:
         model = models.InvoiceItem
         fields = (
@@ -127,6 +144,8 @@ class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
             "start",
             "end",
             "details",
+            "offering_uuid",
+            "offering_component_type",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid", "view_name": "invoice-item-detail"},

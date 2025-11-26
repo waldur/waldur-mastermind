@@ -206,6 +206,7 @@ class LimitPeriodProcessor:
         invoice_models.InvoiceItem.objects.create(
             name=f"{get_invoice_item_name(resource)} / {get_component_name(plan_component)}",
             resource=resource,
+            plan_component=plan_component,
             project=resource.project,
             unit_price=final_unit_price,
             unit=invoice_models.Units.QUANTITY,
@@ -427,6 +428,7 @@ class LimitPeriodProcessor:
         invoice_models.InvoiceItem.objects.create(
             name=f"{get_invoice_item_name(source)} / {get_component_name(plan_component)}",
             resource=source,
+            plan_component=plan_component,
             project=source.project,
             unit_price=plan_component.price,
             unit=unit,
@@ -498,6 +500,7 @@ class LimitPeriodProcessor:
         invoice_models.InvoiceItem.objects.create(
             name=discount_name,
             resource=resource,
+            plan_component=plan_component,
             project=resource.project,
             unit_price=-discount_amount,  # Negative to represent discount
             unit=invoice_models.Units.QUANTITY,

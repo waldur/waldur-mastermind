@@ -158,6 +158,10 @@ def remove_incorrect_total_billing_2025(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("marketplace", "0179_courseaccount"),
+        (
+            "invoices",
+            "0019_projectcredit_mark_unused_credit_as_spent_on_project_termination",
+        ),
     ]
 
     operations = [

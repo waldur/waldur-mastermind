@@ -9,6 +9,7 @@ def clean_logs(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("marketplace", "0142_resource_requested_pausing"),
+        ("logging", "0019_alter_eventsubscription_description"),
     ]
 
     operations = [

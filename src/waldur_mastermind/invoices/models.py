@@ -303,6 +303,13 @@ class InvoiceItem(
         related_name="invoice_items",
         null=True,
     )
+    plan_component = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to=marketplace_models.PlanComponent,
+        related_name="invoice_items",
+        null=True,
+        blank=True,
+    )
     name = models.TextField(default="")
     details: "InvoiceDetailsDict" = models.JSONField(
         default=dict, blank=True, help_text=_("Stores data about scope")
@@ -415,13 +422,18 @@ class InvoiceItem(
         return self._price(current=True)
 
     def get_plan_component(self) -> marketplace_models.PlanComponent | None:
+        # Use direct relationship first
+        if self.plan_component:
+            return self.plan_component
+
+        # Fallback to details field for backward compatibility
         plan_component_id = self.details.get("plan_component_id")
         if not plan_component_id:
-            return
+            return None
         try:
             return marketplace_models.PlanComponent.objects.get(id=plan_component_id)
         except marketplace_models.PlanComponent.DoesNotExist:
-            return
+            return None
 
     def update_quantity(self):
         """
