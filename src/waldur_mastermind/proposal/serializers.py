@@ -1537,6 +1537,20 @@ class CallComplianceOverviewSerializer(serializers.Serializer):
         return proposals_data
 
 
+class AvailableChecklistSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    description = serializers.CharField(read_only=True)
+    checklist_type = serializers.CharField(read_only=True)
+    questions_count = serializers.SerializerMethodField()
+    category_name = serializers.CharField(read_only=True, allow_null=True)
+    category_uuid = serializers.UUIDField(read_only=True, allow_null=True)
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_questions_count(self, obj):
+        return obj.questions.count()
+
+
 class CallComplianceReviewSerializer(serializers.Serializer):
     """Serializer for call manager to review proposal compliance."""
 

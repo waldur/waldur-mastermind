@@ -38,6 +38,7 @@ from waldur_core.structure.managers import (
     filter_queryset_for_user,
     get_connected_customers,
 )
+from waldur_core.structure.models import Customer
 from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
@@ -645,6 +646,95 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             return response.Response(
                 {"detail": "Proposal not found"}, status=status.HTTP_404_NOT_FOUND
             )
+
+    @extend_schema(
+        description="Get available compliance checklists for call creation/editing.",
+        responses=serializers.AvailableChecklistSerializer(many=True),
+        parameters=[
+            OpenApiParameter(
+                name="checklist_type",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by checklist type (default: proposal_compliance)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="customer_uuid",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Customer UUID to check permissions for. Required to verify user has CREATE_CALL permission on that customer's call managing organization.",
+                required=True,
+            ),
+        ],
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def available_compliance_checklists(self, request):
+        """Get list of available compliance checklists for call managers/organizers."""
+        customer_uuid = request.query_params.get("customer_uuid")
+        if not customer_uuid:
+            raise exceptions.ValidationError(
+                {"customer_uuid": "This parameter is required."}
+            )
+
+        customer = Customer.objects.filter(uuid=customer_uuid).first()
+        if not customer:
+            raise exceptions.ValidationError({"customer_uuid": "Customer not found."})
+
+        has_call_managing_org = models.CallManagingOrganisation.objects.filter(
+            customer=customer
+        ).exists()
+        if not has_call_managing_org:
+            raise exceptions.ValidationError(
+                {
+                    "customer_uuid": "Customer does not have a call managing organization."
+                }
+            )
+        checklist_type = request.query_params.get(
+            "checklist_type", ChecklistTypes.PROPOSAL_COMPLIANCE
+        )
+
+        checklists = (
+            checklist_models.Checklist.objects.filter(checklist_type=checklist_type)
+            .select_related("category")
+            .prefetch_related("questions")
+            .order_by("name")
+        )
+
+        serializer = serializers.AvailableChecklistSerializer(
+            checklists, many=True, context={"request": request}
+        )
+        return response.Response(serializer.data, status=status.HTTP_200_OK)
+
+    @staticmethod
+    def _check_available_checklists_permission(request, view, obj=None):
+        """Check if user has CREATE_CALL permission on call managing organization."""
+        user = request.user
+        if user.is_staff:
+            return
+
+        customer_uuid = request.query_params.get("customer_uuid")
+        if not customer_uuid:
+            return
+
+        try:
+            customer = Customer.objects.get(uuid=customer_uuid)
+            call_managing_org = models.CallManagingOrganisation.objects.get(
+                customer=customer
+            )
+            if not permissions_utils.has_permission(
+                user, PermissionEnum.CREATE_CALL, call_managing_org
+            ):
+                raise exceptions.PermissionDenied(
+                    "You do not have permission to create calls for this organization."
+                )
+        except Customer.DoesNotExist:
+            return
+        except models.CallManagingOrganisation.DoesNotExist:
+            return
+
+    available_compliance_checklists_permissions = [
+        _check_available_checklists_permission
+    ]
 
 
 class ProposalViewSet(

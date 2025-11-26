@@ -1,8 +1,13 @@
+import uuid
+
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.checklist.enums import ChecklistTypes
+from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.fixtures import CallRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
@@ -645,3 +650,90 @@ class RequestedOfferingsDeleteTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["uuid"], self.fixture.call.uuid.hex)
+
+
+@ddt
+class AvailableChecklistsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.checklist = checklist_factories.ChecklistFactory(
+            checklist_type=ChecklistTypes.PROPOSAL_COMPLIANCE
+        )
+        self.url = factories.CallFactory.get_protected_list_url(
+            action="available_compliance_checklists"
+        )
+
+    def test_staff_can_get_available_checklists(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"customer_uuid": self.fixture.customer.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.checklist.uuid.hex)
+
+    def test_call_organizer_can_get_available_checklists(self):
+        self.client.force_authenticate(self.fixture.call_organizer_user)
+        response = self.client.get(
+            self.url, {"customer_uuid": self.fixture.customer.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_user_without_permission_cannot_get_checklists(self):
+        self.client.force_authenticate(self.fixture.user)
+        response = self.client.get(
+            self.url, {"customer_uuid": self.fixture.customer.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_customer_uuid_is_required(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("customer_uuid", response.data)
+
+    def test_nonexistent_customer_returns_error(self):
+        self.client.force_authenticate(self.fixture.staff)
+        fake_uuid = uuid.uuid4().hex
+        response = self.client.get(self.url, {"customer_uuid": fake_uuid})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Customer not found", str(response.data))
+
+    def test_customer_without_call_managing_org_returns_error(self):
+        customer = structure_factories.CustomerFactory()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"customer_uuid": customer.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Customer does not have a call managing organization", str(response.data)
+        )
+
+    def test_checklist_type_filtering(self):
+        checklist_factories.ChecklistFactory(checklist_type="random")
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url,
+            {
+                "customer_uuid": self.fixture.customer.uuid.hex,
+                "checklist_type": ChecklistTypes.PROPOSAL_COMPLIANCE,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.checklist.uuid.hex)
+
+    def test_response_includes_required_fields(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"customer_uuid": self.fixture.customer.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        checklist_data = response.data[0]
+        self.assertIn("uuid", checklist_data)
+        self.assertIn("name", checklist_data)
+        self.assertIn("description", checklist_data)
+        self.assertIn("checklist_type", checklist_data)
+        self.assertIn("questions_count", checklist_data)
+        self.assertIn("category_name", checklist_data)
+        self.assertIn("category_uuid", checklist_data)
