@@ -16,6 +16,7 @@ from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.tests import (
     factories as checklist_factories,
 )
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProposalRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models as proposal_models
@@ -28,7 +29,6 @@ class ProposalComplianceTestMixin:
 
     def setUp(self):
         """Set up test environment with compliance checklist."""
-        from waldur_core.permissions.enums import PermissionEnum
 
         # Configure proposal role permissions
         ProposalRole.MANAGER.add_permission(PermissionEnum.MANAGE_PROPOSAL)
@@ -330,8 +330,8 @@ class ProposalComplianceAPITest(
         self.assertFalse(data["is_completed"])
         self.assertEqual(data["completion_percentage"], 0.0)
 
-    def test_call_manager_cannot_access_proposal_checklist_directly(self):
-        """Test that call managers cannot access proposal checklist directly (they use compliance_overview instead)."""
+    def test_call_manager_can_access_proposal_checklist(self):
+        """Test that call managers can access proposal checklist (same permission as viewing proposal)."""
         url = (
             proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
             + "checklist/"
@@ -339,10 +339,13 @@ class ProposalComplianceAPITest(
         self.client.force_authenticate(self.fixture.call_manager)
 
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertIn("checklist", data)
+        self.assertIn("questions", data)
 
-    def test_reviewer_cannot_access_compliance_checklist(self):
-        """Test that reviewers cannot access compliance checklist."""
+    def test_reviewer_can_access_compliance_checklist(self):
+        """Test that reviewers can access compliance checklist (same permission as viewing proposal)."""
         url = (
             proposal_factories.ProposalFactory.get_url(self.fixture.proposal)
             + "checklist/"
@@ -350,7 +353,10 @@ class ProposalComplianceAPITest(
         self.client.force_authenticate(self.fixture.reviewer_1)
 
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertIn("checklist", data)
+        self.assertIn("questions", data)
 
     def test_unauthorized_answer_submission(self):
         """Test that unauthorized users cannot submit answers."""
