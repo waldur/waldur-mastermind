@@ -756,11 +756,36 @@ class ProposalViewSet(
         ).order_by("created")
 
     # Both mixins use the default implementation (obj.checklist_completion)
-
     # UserChecklistMixin permissions - for proposal managers only
-    # Only proposal managers can access proposal checklists directly
-    # Call managers use compliance_overview endpoint for oversight
-    checklist_permissions = [permission_factory(PermissionEnum.MANAGE_PROPOSAL)]
+    # Checklist viewing: same permission as viewing proposal
+    def _checklist_view_permission(request, view, obj=None):
+        if not obj:
+            return
+
+        user = request.user
+        if user.is_staff:
+            return
+
+        if permissions_utils.has_permission(
+            request, PermissionEnum.MANAGE_PROPOSAL, obj
+        ):
+            return
+
+        if permissions_utils.has_permission(
+            request, PermissionEnum.LIST_PROPOSALS, obj.round.call
+        ):
+            return
+
+        if permissions_utils.has_permission(
+            request, PermissionEnum.LIST_PROPOSALS, obj.round.call.manager
+        ):
+            return
+
+        raise exceptions.PermissionDenied(
+            "You do not have permission to view proposal checklist."
+        )
+
+    checklist_permissions = [_checklist_view_permission]
     completion_status_permissions = [permission_factory(PermissionEnum.MANAGE_PROPOSAL)]
     # Only proposal managers can submit answers
     submit_answers_permissions = [permission_factory(PermissionEnum.MANAGE_PROPOSAL)]
