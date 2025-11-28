@@ -97,16 +97,21 @@ Delete all Waldur structure data from the database.
 waldur cleanup_structure --dry-run
 waldur cleanup_structure
 waldur cleanup_structure --skip-users
+waldur cleanup_structure --skip-rabbitmq-messages
 ```
 
 ```bash
 
 usage: waldur cleanup_structure [--skip-users] [--skip-roles] [--dry-run]
+                                [--skip-rabbitmq-messages]
 
 options:
-  --skip-users  Skip deleting users.
-  --skip-roles  Skip deleting roles and role permissions.
-  --dry-run     Show what would be deleted without making changes.
+  --skip-users          Skip deleting users.
+  --skip-roles          Skip deleting roles and role permissions.
+  --dry-run             Show what would be deleted without making changes.
+  --skip-rabbitmq-messages
+                        Skip sending RabbitMQ messages during cleanup
+                        (recommended for large cleanups).
 
 ```
 
@@ -491,12 +496,14 @@ Import Waldur structure data from JSON format.
 waldur import_structure -i structure.json
 waldur import_structure --input structure.json --update
 waldur import_structure -i structure.json --skip-users --dry-run
+waldur import_structure -i structure.json --skip-rabbitmq-messages
 ```
 
 ```bash
 
 usage: waldur import_structure -i INPUT [--update] [--skip-users]
                                [--skip-roles] [--dry-run]
+                               [--skip-rabbitmq-messages]
 
 options:
   -i INPUT, --input INPUT
@@ -505,6 +512,9 @@ options:
   --skip-users          Skip importing users.
   --skip-roles          Skip importing roles and role permissions.
   --dry-run             Show what would be imported without making changes.
+  --skip-rabbitmq-messages
+                        Skip sending RabbitMQ messages during import
+                        (recommended for large imports).
 
 ```
 
