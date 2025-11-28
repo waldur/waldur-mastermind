@@ -1473,20 +1473,11 @@ class Resource(
 
     @property
     def creation_order(self) -> "Order | None":
-        return Order.objects.filter(resource=self, type=OrderTypes.CREATE).first()
+        return self.order_set.filter(type=OrderTypes.CREATE).first()
 
     @property
-    def order_in_progress(self):
-        order_in_progress = Order.objects.filter(
-            resource=self,
-            state__in=[
-                OrderStates.PENDING_CONSUMER,
-                OrderStates.PENDING_PROVIDER,
-                OrderStates.PENDING_START_DATE,
-                OrderStates.EXECUTING,
-            ],
-        ).first()
-        return order_in_progress
+    def order_in_progress(self) -> "Order | None":
+        return self.order_set.filter(state__in=OrderStates.PENDING_STATES).first()
 
     def get_prepaid_balance(
         self, offering_component: "OfferingComponent", excluded_ids: list | None = None
