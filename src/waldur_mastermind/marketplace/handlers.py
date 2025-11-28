@@ -18,6 +18,7 @@ from rest_framework import serializers
 
 from waldur_core.checklist import models as checklist_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.middleware import get_skip_rabbitmq_messages
 from waldur_core.core.models import User
 from waldur_core.logging import event_logger
 from waldur_core.logging import tasks as logging_tasks
@@ -2089,6 +2090,10 @@ def send_offering_user_created_message(
     if not created:
         return
 
+    # Skip message sending if disabled via context (e.g., during imports)
+    if get_skip_rabbitmq_messages():
+        return
+
     offering_user = instance
     offering = offering_user.offering
 
@@ -2100,7 +2105,7 @@ def send_offering_user_created_message(
         "action": "create",
     }
 
-    logger.info("Preparing OfferingUser creation messages for %s", offering_user)
+    logger.debug("Preparing OfferingUser creation messages for %s", offering_user)
 
     messages = marketplace_utils.prepare_messages(
         offering,
@@ -2134,7 +2139,7 @@ def send_offering_user_updated_message(
         "action": "update",
     }
 
-    logger.info("Preparing OfferingUser update message for %s", offering_user)
+    logger.debug("Preparing OfferingUser update message for %s", offering_user)
 
     messages = marketplace_utils.prepare_messages(
         offering,
@@ -2157,7 +2162,7 @@ def send_offering_user_deleted_message(sender, instance: models.OfferingUser, **
         "action": "delete",
     }
 
-    logger.info("Preparing OfferingUser deletion message for %s", offering_user)
+    logger.debug("Preparing OfferingUser deletion message for %s", offering_user)
 
     messages = marketplace_utils.prepare_messages(
         offering,

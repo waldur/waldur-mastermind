@@ -10,6 +10,16 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
+from waldur_core.checklist.models import (
+    Answer,
+    Checklist,
+    ChecklistCompletion,
+    Question,
+)
+from waldur_core.checklist.models import (
+    Category as ChecklistCategory,
+)
+from waldur_core.core.middleware import skip_rabbitmq_messages
 from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import Customer, Project
@@ -42,6 +52,7 @@ class Command(BaseCommand):
         waldur import_structure -i structure.json
         waldur import_structure --input structure.json --update
         waldur import_structure -i structure.json --skip-users --dry-run
+        waldur import_structure -i structure.json --skip-rabbitmq-messages
     """
 
     def __init__(self, *args, **kwargs):
@@ -94,6 +105,21 @@ class Command(BaseCommand):
             "invoices": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "invoice_items": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "offering_users": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "checklist_categories": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "checklists": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "questions": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "checklist_completions": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "answers": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
         }
         self.dry_run = False
         self.update_existing = False
@@ -127,6 +153,11 @@ class Command(BaseCommand):
             action="store_true",
             help="Show what would be imported without making changes.",
         )
+        parser.add_argument(
+            "--skip-rabbitmq-messages",
+            action="store_true",
+            help="Skip sending RabbitMQ messages during import (recommended for large imports).",
+        )
 
     def handle(self, **options):
         input_path = options["input"]
@@ -134,6 +165,7 @@ class Command(BaseCommand):
         self.dry_run = options["dry_run"]
         skip_users = options["skip_users"]
         skip_roles = options["skip_roles"]
+        skip_rabbitmq = options["skip_rabbitmq_messages"]
 
         # Validate input file
         if not os.path.exists(input_path):
@@ -158,56 +190,21 @@ class Command(BaseCommand):
                 self.style.WARNING("DRY RUN MODE - No changes will be made")
             )
 
+        if skip_rabbitmq:
+            self.stdout.write(
+                self.style.WARNING(
+                    "SKIP RABBITMQ MODE - No RabbitMQ messages will be sent"
+                )
+            )
+
         self.stdout.write("Starting structure import...")
 
         try:
-            with transaction.atomic():
-                # Import in dependency order
-                if not skip_users:
-                    self.import_users(data.get("users", []))
-                    self.import_auth_tokens(data.get("auth_tokens", []))
-
-                self.import_customers(data.get("customers", []))
-                self.import_service_providers(data.get("service_providers", []))
-                self.import_projects(data.get("projects", []))
-                self.import_categories(data.get("categories", []))
-                self.import_offerings(data.get("offerings", []))
-
-                # Import marketplace components and plans
-                self.import_plans(data.get("plans", []))
-                self.import_offering_components(data.get("offering_components", []))
-                self.import_plan_components(data.get("plan_components", []))
-
-                # Import resources (depends on offerings, plans, projects)
-                self.import_resources(data.get("resources", []))
-
-                # Import component usages (depends on resources and components)
-                self.import_component_usages(data.get("component_usages", []))
-
-                # Import orders (depends on resources, projects, users, plans)
-                self.import_orders(data.get("orders", []))
-
-                if not skip_roles:
-                    self.import_roles(data.get("roles", []))
-                    self.import_role_permissions(data.get("role_permissions", []))
-
-                self.import_user_roles(data.get("user_roles", []))
-
-                # Import account types
-                self.import_project_service_accounts(
-                    data.get("project_service_accounts", [])
-                )
-                self.import_customer_service_accounts(
-                    data.get("customer_service_accounts", [])
-                )
-                self.import_course_accounts(data.get("course_accounts", []))
-
-                # Import invoicing (depends on customers, resources, projects)
-                self.import_invoices(data.get("invoices", []))
-                self.import_invoice_items(data.get("invoice_items", []))
-
-                # Import offering users (depends on offerings and users)
-                self.import_offering_users(data.get("offering_users", []))
+            if skip_rabbitmq:
+                with skip_rabbitmq_messages():
+                    self._perform_import(data, skip_users, skip_roles)
+            else:
+                self._perform_import(data, skip_users, skip_roles)
 
                 if self.dry_run:
                     # Rollback transaction in dry-run mode
@@ -224,6 +221,67 @@ class Command(BaseCommand):
 
         # Print summary
         self.print_summary()
+
+    def _perform_import(self, data, skip_users, skip_roles):
+        """Perform the actual import operations."""
+        with transaction.atomic():
+            # Import in dependency order
+            if not skip_users:
+                self.import_users(data.get("users", []))
+                self.import_auth_tokens(data.get("auth_tokens", []))
+
+            self.import_customers(data.get("customers", []))
+            self.import_service_providers(data.get("service_providers", []))
+            self.import_projects(data.get("projects", []))
+            self.import_categories(data.get("categories", []))
+            self.import_offerings(data.get("offerings", []))
+
+            # Import marketplace components and plans
+            self.import_plans(data.get("plans", []))
+            self.import_offering_components(data.get("offering_components", []))
+            self.import_plan_components(data.get("plan_components", []))
+
+            # Import resources (depends on offerings, plans, projects)
+            self.import_resources(data.get("resources", []))
+
+            # Import component usages (depends on resources and components)
+            self.import_component_usages(data.get("component_usages", []))
+
+            # Import orders (depends on resources, projects, users, plans)
+            self.import_orders(data.get("orders", []))
+
+            if not skip_roles:
+                self.import_roles(data.get("roles", []))
+                self.import_role_permissions(data.get("role_permissions", []))
+
+            self.import_user_roles(data.get("user_roles", []))
+
+            # Import account types
+            self.import_project_service_accounts(
+                data.get("project_service_accounts", [])
+            )
+            self.import_customer_service_accounts(
+                data.get("customer_service_accounts", [])
+            )
+            self.import_course_accounts(data.get("course_accounts", []))
+
+            # Import invoicing (depends on customers, resources, projects)
+            self.import_invoices(data.get("invoices", []))
+            self.import_invoice_items(data.get("invoice_items", []))
+
+            # Import offering users (depends on offerings and users)
+            self.import_offering_users(data.get("offering_users", []))
+
+            # Import checklist data (dependency order: categories -> checklists -> questions -> completions -> answers)
+            self.import_checklist_categories(data.get("checklist_categories", []))
+            self.import_checklists(data.get("checklists", []))
+            self.import_questions(data.get("questions", []))
+            self.import_checklist_completions(data.get("checklist_completions", []))
+            self.import_answers(data.get("answers", []))
+
+            if self.dry_run:
+                # Rollback transaction in dry-run mode
+                raise Exception("Dry run - rolling back transaction")
 
     def import_users(self, users_data):
         """Import user data including system_robot."""
@@ -289,8 +347,55 @@ class Command(BaseCommand):
                         existing_user.is_support = user_data.get("is_support", False)
                         existing_user.is_active = user_data.get("is_active", True)
 
+                        # Additional fields
+                        existing_user.token_lifetime = user_data.get("token_lifetime")
+                        existing_user.details = user_data.get("details", {})
+                        existing_user.notifications_enabled = user_data.get(
+                            "notifications_enabled", True
+                        )
+                        existing_user.is_identity_manager = user_data.get(
+                            "is_identity_manager", False
+                        )
+                        existing_user.registration_method = user_data.get(
+                            "registration_method", "default"
+                        )
+                        existing_user.identity_source = user_data.get(
+                            "identity_source", ""
+                        )
+                        existing_user.preferred_language = user_data.get(
+                            "preferred_language", ""
+                        )
+                        existing_user.backend_id = user_data.get("backend_id", "")
+                        existing_user.affiliations = user_data.get("affiliations", [])
+                        existing_user.slug = user_data.get("slug", "")
+                        existing_user.query_field = user_data.get("query_field", "")
+                        existing_user.is_superuser = user_data.get(
+                            "is_superuser", False
+                        )
+
                         if user_data.get("civil_number"):
                             existing_user.civil_number = user_data.get("civil_number")
+
+                        # Parse date fields
+                        if user_data.get("agreement_date"):
+                            try:
+                                existing_user.agreement_date = datetime.fromisoformat(
+                                    user_data["agreement_date"]
+                                )
+                                if timezone.is_naive(existing_user.agreement_date):
+                                    existing_user.agreement_date = timezone.make_aware(
+                                        existing_user.agreement_date
+                                    )
+                            except (ValueError, TypeError):
+                                pass
+
+                        if user_data.get("birth_date"):
+                            try:
+                                existing_user.birth_date = datetime.fromisoformat(
+                                    user_data["birth_date"]
+                                ).date()
+                            except (ValueError, TypeError):
+                                pass
 
                         if not self.dry_run:
                             existing_user.save()
@@ -299,6 +404,27 @@ class Command(BaseCommand):
                     else:
                         self.stats["users"]["skipped"] += 1
                 else:
+                    # Parse date fields
+                    agreement_date = None
+                    if user_data.get("agreement_date"):
+                        try:
+                            agreement_date = datetime.fromisoformat(
+                                user_data["agreement_date"]
+                            )
+                            if timezone.is_naive(agreement_date):
+                                agreement_date = timezone.make_aware(agreement_date)
+                        except (ValueError, TypeError):
+                            pass
+
+                    birth_date = None
+                    if user_data.get("birth_date"):
+                        try:
+                            birth_date = datetime.fromisoformat(
+                                user_data["birth_date"]
+                            ).date()
+                        except (ValueError, TypeError):
+                            pass
+
                     # Create new user
                     user = User(
                         uuid=uuid,
@@ -314,6 +440,25 @@ class Command(BaseCommand):
                         is_staff=user_data.get("is_staff", False),
                         is_support=user_data.get("is_support", False),
                         is_active=user_data.get("is_active", True),
+                        # Additional fields
+                        token_lifetime=user_data.get("token_lifetime"),
+                        details=user_data.get("details", {}),
+                        notifications_enabled=user_data.get(
+                            "notifications_enabled", True
+                        ),
+                        is_identity_manager=user_data.get("is_identity_manager", False),
+                        registration_method=user_data.get(
+                            "registration_method", "default"
+                        ),
+                        identity_source=user_data.get("identity_source", ""),
+                        preferred_language=user_data.get("preferred_language", ""),
+                        backend_id=user_data.get("backend_id", ""),
+                        affiliations=user_data.get("affiliations", []),
+                        agreement_date=agreement_date,
+                        birth_date=birth_date,
+                        slug=user_data.get("slug", ""),
+                        query_field=user_data.get("query_field", ""),
+                        is_superuser=user_data.get("is_superuser", False),
                     )
                     if user_data.get("civil_number"):
                         user.civil_number = user_data.get("civil_number")
@@ -452,6 +597,45 @@ class Command(BaseCommand):
                     self.stats["customers"]["errors"] += 1
                     continue
 
+                # Parse accounting start date
+                accounting_start_date = None
+                if customer_data.get("accounting_start_date"):
+                    try:
+                        accounting_start_date = datetime.fromisoformat(
+                            customer_data["accounting_start_date"]
+                        )
+                        if timezone.is_naive(accounting_start_date):
+                            accounting_start_date = timezone.make_aware(
+                                accounting_start_date
+                            )
+                    except (ValueError, TypeError):
+                        pass
+
+                # Parse coordinates
+                latitude = None
+                if customer_data.get("latitude"):
+                    try:
+                        latitude = Decimal(customer_data["latitude"])
+                    except (ValueError, TypeError, InvalidOperation):
+                        pass
+
+                longitude = None
+                if customer_data.get("longitude"):
+                    try:
+                        longitude = Decimal(customer_data["longitude"])
+                    except (ValueError, TypeError, InvalidOperation):
+                        pass
+
+                # Parse tax percent
+                default_tax_percent = None
+                if customer_data.get("default_tax_percent"):
+                    try:
+                        default_tax_percent = Decimal(
+                            customer_data["default_tax_percent"]
+                        )
+                    except (ValueError, TypeError, InvalidOperation):
+                        pass
+
                 defaults = {
                     "name": name,
                     "native_name": customer_data.get("native_name", ""),
@@ -472,7 +656,25 @@ class Command(BaseCommand):
                     "blocked": customer_data.get("blocked", False),
                     "archived": customer_data.get("archived", False),
                     "slug": customer_data.get("slug", ""),
+                    # Enhanced fields
+                    "sponsor_number": customer_data.get("sponsor_number"),
+                    "access_subnets": customer_data.get("access_subnets", ""),
+                    "notification_emails": customer_data.get("notification_emails", ""),
+                    "display_billing_info_in_projects": customer_data.get(
+                        "display_billing_info_in_projects", True
+                    ),
+                    "grace_period_days": customer_data.get("grace_period_days"),
+                    "bank_name": customer_data.get("bank_name", ""),
+                    "bank_account": customer_data.get("bank_account", ""),
+                    "latitude": latitude,
+                    "longitude": longitude,
                 }
+
+                # Add optional fields only if they have values
+                if accounting_start_date:
+                    defaults["accounting_start_date"] = accounting_start_date
+                if default_tax_percent is not None:
+                    defaults["default_tax_percent"] = default_tax_percent
 
                 if not self.dry_run:
                     existing_customer = Customer.objects.filter(uuid=uuid).first()
@@ -652,8 +854,10 @@ class Command(BaseCommand):
                     "customer": customer,
                     "start_date": start_date,
                     "end_date": end_date,
+                    "kind": project_data.get("kind", ""),
                     "oecd_fos_2007_code": project_data.get("oecd_fos_2007_code", ""),
                     "slug": project_data.get("slug", ""),
+                    "backend_id": project_data.get("backend_id", ""),
                 }
 
                 if not self.dry_run:
@@ -793,6 +997,30 @@ class Command(BaseCommand):
                         self.stats["offerings"]["errors"] += 1
                         continue
 
+                # Resolve parent offering reference (optional)
+                parent = None
+                parent_uuid = offering_data.get("parent_uuid")
+                if parent_uuid:
+                    parent = Offering.objects.filter(uuid=parent_uuid).first()
+
+                # Resolve project reference (optional)
+                project = None
+                project_uuid = offering_data.get("project_uuid")
+                if project_uuid:
+                    project = Project.available_objects.filter(
+                        uuid=project_uuid
+                    ).first()
+
+                # Resolve compliance checklist reference (optional)
+                compliance_checklist = None
+                compliance_checklist_uuid = offering_data.get(
+                    "compliance_checklist_uuid"
+                )
+                if compliance_checklist_uuid:
+                    compliance_checklist = Checklist.objects.filter(
+                        uuid=compliance_checklist_uuid
+                    ).first()
+
                 defaults = {
                     "name": name,
                     "description": offering_data.get("description", ""),
@@ -806,6 +1034,23 @@ class Command(BaseCommand):
                     "resource_options": offering_data.get("resource_options", {}),
                     "plugin_options": offering_data.get("plugin_options", {}),
                     "slug": offering_data.get("slug", ""),
+                    # Additional fields
+                    "backend_id": offering_data.get("backend_id", ""),
+                    "full_description": offering_data.get("full_description", ""),
+                    "vendor_details": offering_data.get("vendor_details", ""),
+                    "getting_started": offering_data.get("getting_started", ""),
+                    "integration_guide": offering_data.get("integration_guide", ""),
+                    "privacy_policy_link": offering_data.get("privacy_policy_link", ""),
+                    "access_url": offering_data.get("access_url", ""),
+                    "country": offering_data.get("country", ""),
+                    "paused_reason": offering_data.get("paused_reason", ""),
+                    "secret_options": offering_data.get("secret_options", {}),
+                    "support_per_user_consumption_limitation": offering_data.get(
+                        "support_per_user_consumption_limitation", False
+                    ),
+                    "parent": parent,
+                    "project": project,
+                    "compliance_checklist": compliance_checklist,
                 }
 
                 if category:
@@ -1406,6 +1651,7 @@ class Command(BaseCommand):
                     "archived": plan_data.get("archived", False),
                     "max_amount": plan_data.get("max_amount"),
                     "article_code": plan_data.get("article_code", ""),
+                    "backend_id": plan_data.get("backend_id", ""),
                 }
 
                 if not self.dry_run:
@@ -1478,6 +1724,7 @@ class Command(BaseCommand):
                     "limit_period": component_data.get("limit_period"),
                     "limit_amount": component_data.get("limit_amount"),
                     "article_code": component_data.get("article_code", ""),
+                    "backend_id": component_data.get("backend_id", ""),
                 }
 
                 if not self.dry_run:
@@ -1762,6 +2009,7 @@ class Command(BaseCommand):
                     "billing_period": billing_period or timezone.now().date(),
                     "recurring": usage_data.get("recurring", False),
                     "description": usage_data.get("description", ""),
+                    "backend_id": usage_data.get("backend_id", ""),
                 }
 
                 if not self.dry_run:
@@ -1985,6 +2233,22 @@ class Command(BaseCommand):
                     except (ValueError, TypeError):
                         pass
 
+                # Find plan component (optional)
+                plan_component = None
+                plan_component_uuid = item_data.get("plan_component")
+                if plan_component_uuid:
+                    plan_component = PlanComponent.objects.filter(
+                        uuid=plan_component_uuid
+                    ).first()
+
+                # Parse backend_uuid
+                backend_uuid = None
+                if item_data.get("backend_uuid"):
+                    try:
+                        backend_uuid = UUID(item_data["backend_uuid"])
+                    except (ValueError, TypeError):
+                        pass
+
                 defaults = {
                     "invoice": invoice,
                     "resource": resource,
@@ -1996,6 +2260,9 @@ class Command(BaseCommand):
                     "article_code": item_data.get("article_code", ""),
                     "start": start,
                     "end": end,
+                    "backend_uuid": backend_uuid,
+                    "details": item_data.get("details", {}),
+                    "plan_component": plan_component,
                 }
 
                 if not self.dry_run:
@@ -2194,6 +2461,7 @@ class Command(BaseCommand):
                     "consumer_reviewed_at": consumer_reviewed_at,
                     "provider_reviewed_at": provider_reviewed_at,
                     "completed_at": completed_at,
+                    "backend_id": order_data.get("backend_id", ""),
                 }
 
                 if not self.dry_run:
@@ -2312,6 +2580,489 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["offering_users"]["errors"] += 1
+
+    def import_checklist_categories(self, categories_data):
+        """Import checklist category data."""
+        self.stdout.write("Importing checklist categories...")
+
+        for category_data in categories_data:
+            try:
+                uuid = category_data.get("uuid")
+                name = category_data.get("name")
+
+                if not uuid or not name:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping checklist category without UUID or name"
+                        )
+                    )
+                    self.stats["checklist_categories"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "name": name,
+                    "description": category_data.get("description", ""),
+                }
+
+                if not self.dry_run:
+                    existing_category = ChecklistCategory.objects.filter(
+                        uuid=uuid
+                    ).first()
+
+                    if existing_category:
+                        if self.update_existing:
+                            ChecklistCategory.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["checklist_categories"]["updated"] += 1
+                        else:
+                            self.stats["checklist_categories"]["skipped"] += 1
+                    else:
+                        ChecklistCategory.objects.create(uuid=UUID(uuid), **defaults)
+                        self.stats["checklist_categories"]["created"] += 1
+                else:
+                    existing = ChecklistCategory.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["checklist_categories"]["updated"] += 1
+                        else:
+                            self.stats["checklist_categories"]["skipped"] += 1
+                    else:
+                        self.stats["checklist_categories"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import checklist category {category_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["checklist_categories"]["errors"] += 1
+
+    def import_checklists(self, checklists_data):
+        """Import checklist data."""
+        self.stdout.write("Importing checklists...")
+
+        for checklist_data in checklists_data:
+            try:
+                uuid = checklist_data.get("uuid")
+                name = checklist_data.get("name")
+
+                if not uuid or not name:
+                    self.stdout.write(
+                        self.style.WARNING("Skipping checklist without UUID or name")
+                    )
+                    self.stats["checklists"]["errors"] += 1
+                    continue
+
+                # Find category (optional)
+                category = None
+                category_uuid = checklist_data.get("category_uuid")
+                if category_uuid:
+                    category = ChecklistCategory.objects.filter(
+                        uuid=category_uuid
+                    ).first()
+
+                # Parse dates
+                created = None
+                if checklist_data.get("created"):
+                    try:
+                        created = datetime.fromisoformat(checklist_data["created"])
+                        if timezone.is_naive(created):
+                            created = timezone.make_aware(created)
+                    except (ValueError, TypeError):
+                        pass
+
+                modified = None
+                if checklist_data.get("modified"):
+                    try:
+                        modified = datetime.fromisoformat(checklist_data["modified"])
+                        if timezone.is_naive(modified):
+                            modified = timezone.make_aware(modified)
+                    except (ValueError, TypeError):
+                        pass
+
+                defaults = {
+                    "name": name,
+                    "description": checklist_data.get("description", ""),
+                    "checklist_type": checklist_data.get(
+                        "checklist_type", "project_compliance"
+                    ),
+                    "category": category,
+                }
+
+                if not self.dry_run:
+                    existing_checklist = Checklist.objects.filter(uuid=uuid).first()
+
+                    if existing_checklist:
+                        if self.update_existing:
+                            Checklist.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["checklists"]["updated"] += 1
+                        else:
+                            self.stats["checklists"]["skipped"] += 1
+                    else:
+                        checklist = Checklist.objects.create(
+                            uuid=UUID(uuid), **defaults
+                        )
+                        # Set timestamps after creation
+                        if created:
+                            checklist.created = created
+                        if modified:
+                            checklist.modified = modified
+                        if created or modified:
+                            checklist.save()
+                        self.stats["checklists"]["created"] += 1
+                else:
+                    existing = Checklist.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["checklists"]["updated"] += 1
+                        else:
+                            self.stats["checklists"]["skipped"] += 1
+                    else:
+                        self.stats["checklists"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import checklist {checklist_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["checklists"]["errors"] += 1
+
+    def import_questions(self, questions_data):
+        """Import question data."""
+        self.stdout.write("Importing questions...")
+
+        for question_data in questions_data:
+            try:
+                uuid = question_data.get("uuid")
+                checklist_uuid = question_data.get("checklist_uuid")
+
+                if not uuid or not checklist_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping question without UUID or checklist_uuid"
+                        )
+                    )
+                    self.stats["questions"]["errors"] += 1
+                    continue
+
+                # Find checklist
+                checklist = Checklist.objects.filter(uuid=checklist_uuid).first()
+                if not checklist:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping question {uuid}: checklist {checklist_uuid} not found"
+                        )
+                    )
+                    self.stats["questions"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "checklist": checklist,
+                    "description": question_data.get("description", ""),
+                    "order": question_data.get("order", 0),
+                    "required": question_data.get("required", False),
+                    "question_type": question_data.get("question_type", "boolean"),
+                    "min_value": question_data.get("min_value"),
+                    "max_value": question_data.get("max_value"),
+                    "dependency_logic_operator": question_data.get(
+                        "dependency_logic_operator", "and"
+                    ),
+                    "always_requires_review": question_data.get(
+                        "requires_review", False
+                    ),
+                    "max_files_count": question_data.get("max_files"),
+                }
+
+                if not self.dry_run:
+                    existing_question = Question.objects.filter(uuid=uuid).first()
+
+                    if existing_question:
+                        if self.update_existing:
+                            Question.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["questions"]["updated"] += 1
+                        else:
+                            self.stats["questions"]["skipped"] += 1
+                    else:
+                        Question.objects.create(uuid=UUID(uuid), **defaults)
+                        self.stats["questions"]["created"] += 1
+                else:
+                    existing = Question.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["questions"]["updated"] += 1
+                        else:
+                            self.stats["questions"]["skipped"] += 1
+                    else:
+                        self.stats["questions"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import question {question_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["questions"]["errors"] += 1
+
+    def import_checklist_completions(self, completions_data):
+        """Import checklist completion data."""
+        self.stdout.write("Importing checklist completions...")
+
+        for completion_data in completions_data:
+            try:
+                uuid = completion_data.get("uuid")
+                checklist_uuid = completion_data.get("checklist_uuid")
+                scope_content_type = completion_data.get("scope_content_type")
+                scope_object_id = completion_data.get("scope_object_id")
+
+                if not uuid or not checklist_uuid or not scope_content_type:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping completion without required fields"
+                        )
+                    )
+                    self.stats["checklist_completions"]["errors"] += 1
+                    continue
+
+                # Find checklist
+                checklist = Checklist.objects.filter(uuid=checklist_uuid).first()
+                if not checklist:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping completion {uuid}: checklist {checklist_uuid} not found"
+                        )
+                    )
+                    self.stats["checklist_completions"]["errors"] += 1
+                    continue
+
+                # Parse content type
+                try:
+                    app_label, model = scope_content_type.split(".")
+                    content_type = ContentType.objects.get(
+                        app_label=app_label, model=model
+                    )
+                except (ValueError, ContentType.DoesNotExist):
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping completion {uuid}: invalid scope_content_type {scope_content_type}"
+                        )
+                    )
+                    self.stats["checklist_completions"]["errors"] += 1
+                    continue
+
+                # For project scope, try to resolve by UUID if provided
+                if model == "project" and completion_data.get("scope_object_uuid"):
+                    try:
+                        project = Project.objects.get(
+                            uuid=completion_data["scope_object_uuid"]
+                        )
+                        scope_object_id = project.id
+                    except Project.DoesNotExist:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Skipping completion {uuid}: project {completion_data['scope_object_uuid']} not found"
+                            )
+                        )
+                        self.stats["checklist_completions"]["errors"] += 1
+                        continue
+
+                # Parse dates
+                created = None
+                if completion_data.get("created"):
+                    try:
+                        created = datetime.fromisoformat(completion_data["created"])
+                        if timezone.is_naive(created):
+                            created = timezone.make_aware(created)
+                    except (ValueError, TypeError):
+                        pass
+
+                modified = None
+                if completion_data.get("modified"):
+                    try:
+                        modified = datetime.fromisoformat(completion_data["modified"])
+                        if timezone.is_naive(modified):
+                            modified = timezone.make_aware(modified)
+                    except (ValueError, TypeError):
+                        pass
+
+                defaults = {
+                    "checklist": checklist,
+                    "scope_content_type": content_type,
+                    "scope_object_id": scope_object_id,
+                }
+
+                if not self.dry_run:
+                    existing_completion = ChecklistCompletion.objects.filter(
+                        uuid=uuid
+                    ).first()
+
+                    if existing_completion:
+                        if self.update_existing:
+                            ChecklistCompletion.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["checklist_completions"]["updated"] += 1
+                        else:
+                            self.stats["checklist_completions"]["skipped"] += 1
+                    else:
+                        completion = ChecklistCompletion.objects.create(
+                            uuid=UUID(uuid), **defaults
+                        )
+                        # Set timestamps after creation
+                        if created:
+                            completion.created = created
+                        if modified:
+                            completion.modified = modified
+                        if created or modified:
+                            completion.save()
+                        self.stats["checklist_completions"]["created"] += 1
+                else:
+                    existing = ChecklistCompletion.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["checklist_completions"]["updated"] += 1
+                        else:
+                            self.stats["checklist_completions"]["skipped"] += 1
+                    else:
+                        self.stats["checklist_completions"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import checklist completion {completion_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["checklist_completions"]["errors"] += 1
+
+    def import_answers(self, answers_data):
+        """Import answer data."""
+        self.stdout.write("Importing answers...")
+
+        for answer_data in answers_data:
+            try:
+                uuid = answer_data.get("uuid")
+                user_uuid = answer_data.get("user_uuid")
+                question_uuid = answer_data.get("question_uuid")
+                completion_uuid = answer_data.get("completion_uuid")
+
+                if not uuid or not user_uuid or not question_uuid:
+                    self.stdout.write(
+                        self.style.WARNING("Skipping answer without required fields")
+                    )
+                    self.stats["answers"]["errors"] += 1
+                    continue
+
+                # Find user
+                user = User.all_objects.filter(uuid=user_uuid).first()
+                if not user:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping answer {uuid}: user {user_uuid} not found"
+                        )
+                    )
+                    self.stats["answers"]["errors"] += 1
+                    continue
+
+                # Find question
+                question = Question.objects.filter(uuid=question_uuid).first()
+                if not question:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping answer {uuid}: question {question_uuid} not found"
+                        )
+                    )
+                    self.stats["answers"]["errors"] += 1
+                    continue
+
+                # Find completion (optional but usually present)
+                completion = None
+                if completion_uuid:
+                    completion = ChecklistCompletion.objects.filter(
+                        uuid=completion_uuid
+                    ).first()
+
+                # Find reviewer (optional)
+                reviewed_by = None
+                reviewed_by_uuid = answer_data.get("reviewed_by_uuid")
+                if reviewed_by_uuid:
+                    reviewed_by = User.all_objects.filter(uuid=reviewed_by_uuid).first()
+
+                # Parse dates
+                created = None
+                if answer_data.get("created"):
+                    try:
+                        created = datetime.fromisoformat(answer_data["created"])
+                        if timezone.is_naive(created):
+                            created = timezone.make_aware(created)
+                    except (ValueError, TypeError):
+                        pass
+
+                modified = None
+                if answer_data.get("modified"):
+                    try:
+                        modified = datetime.fromisoformat(answer_data["modified"])
+                        if timezone.is_naive(modified):
+                            modified = timezone.make_aware(modified)
+                    except (ValueError, TypeError):
+                        pass
+
+                reviewed_at = None
+                if answer_data.get("reviewed_at"):
+                    try:
+                        reviewed_at = datetime.fromisoformat(answer_data["reviewed_at"])
+                        if timezone.is_naive(reviewed_at):
+                            reviewed_at = timezone.make_aware(reviewed_at)
+                    except (ValueError, TypeError):
+                        pass
+
+                defaults = {
+                    "user": user,
+                    "question": question,
+                    "completion": completion,
+                    "answer_data": answer_data.get("answer_data", []),
+                    "requires_review": answer_data.get("requires_review", False),
+                    "reviewed_by": reviewed_by,
+                    "reviewed_at": reviewed_at,
+                    "review_notes": answer_data.get("review_notes", ""),
+                }
+
+                if not self.dry_run:
+                    existing_answer = Answer.objects.filter(uuid=uuid).first()
+
+                    if existing_answer:
+                        if self.update_existing:
+                            Answer.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["answers"]["updated"] += 1
+                        else:
+                            self.stats["answers"]["skipped"] += 1
+                    else:
+                        answer = Answer.objects.create(uuid=UUID(uuid), **defaults)
+                        # Set timestamps after creation
+                        if created:
+                            answer.created = created
+                        if modified:
+                            answer.modified = modified
+                        if created or modified:
+                            answer.save()
+                        self.stats["answers"]["created"] += 1
+                else:
+                    existing = Answer.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["answers"]["updated"] += 1
+                        else:
+                            self.stats["answers"]["skipped"] += 1
+                    else:
+                        self.stats["answers"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import answer {answer_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["answers"]["errors"] += 1
 
     def print_summary(self):
         """Print import summary statistics."""
