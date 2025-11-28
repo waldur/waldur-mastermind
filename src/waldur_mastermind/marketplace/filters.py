@@ -810,6 +810,11 @@ class ResourceFilter(
         field_name="restrict_member_access"
     )
     paused = django_filters.BooleanFilter(field_name="paused")
+    order_state = core_filters.MappedMultipleChoiceFilter(
+        choices=OrderStates.CHOICES,
+        field_name="order__state",
+        label="Order state",
+    )
     lexis_links_supported = django_filters.BooleanFilter(
         method="filter_lexis_links_supported", label="LEXIS links supported"
     )

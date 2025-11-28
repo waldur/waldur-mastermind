@@ -182,6 +182,13 @@ class OrderStates:
     )
 
     TERMINAL_STATES = {DONE, ERRED, CANCELED, REJECTED}
+    PENDING_STATES = {
+        PENDING_CONSUMER,
+        PENDING_PROVIDER,
+        PENDING_PROJECT,
+        PENDING_START_DATE,
+        EXECUTING,
+    }
     VALUES = [val for (_, val) in CHOICES]
 
 
