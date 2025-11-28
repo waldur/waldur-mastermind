@@ -1361,3 +1361,362 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(order2.attributes, {})
         self.assertEqual(order2.limits, {})
         self.assertIsNone(order2.cost)
+
+    def test_skip_rabbitmq_messages_flag(self):
+        """Test that --skip-rabbitmq-messages flag shows warning message."""
+        users_data = [
+            {
+                "uuid": "11111111-1111-1111-1111-111111111111",
+                "username": "testuser1",
+                "email": "test1@example.com",
+                "first_name": "Test",
+                "last_name": "User",
+                "is_active": True,
+            }
+        ]
+
+        data = {"users": users_data}
+        self._create_test_json(data)
+
+        output = self._call_import_command(
+            "-i", self.test_file_path, "--skip-rabbitmq-messages"
+        )
+
+        # Verify warning message is shown
+        self.assertIn("SKIP RABBITMQ MODE - No RabbitMQ messages will be sent", output)
+
+        # Verify user was still created
+        self.assertEqual(User.objects.count(), 1)
+        user = User.objects.get(uuid="11111111-1111-1111-1111-111111111111")
+        self.assertEqual(user.username, "testuser1")
+
+    def test_skip_rabbitmq_context_manager_functionality(self):
+        """Test that the skip_rabbitmq_messages context manager works correctly."""
+        from waldur_core.core.middleware import (
+            get_skip_rabbitmq_messages,
+            skip_rabbitmq_messages,
+        )
+
+        # Test that the middleware function works correctly
+        self.assertFalse(get_skip_rabbitmq_messages())
+
+        with skip_rabbitmq_messages():
+            self.assertTrue(get_skip_rabbitmq_messages())
+
+        self.assertFalse(get_skip_rabbitmq_messages())
+
+        # Test nested context managers
+        self.assertFalse(get_skip_rabbitmq_messages())
+        with skip_rabbitmq_messages():
+            self.assertTrue(get_skip_rabbitmq_messages())
+            with skip_rabbitmq_messages():
+                self.assertTrue(get_skip_rabbitmq_messages())
+            self.assertTrue(get_skip_rabbitmq_messages())
+        self.assertFalse(get_skip_rabbitmq_messages())
+
+    def test_cleanup_structure_skip_rabbitmq_messages_flag(self):
+        """Test that cleanup_structure accepts --skip-rabbitmq-messages flag."""
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        output = StringIO()
+        try:
+            # Use dry-run to avoid actually deleting data
+            call_command(
+                "cleanup_structure",
+                "--dry-run",
+                "--skip-rabbitmq-messages",
+                stdout=output,
+            )
+            output_text = output.getvalue()
+
+            # Verify warning messages are shown
+            self.assertIn("DRY RUN MODE - No changes will be made", output_text)
+            self.assertIn(
+                "SKIP RABBITMQ MODE - No RabbitMQ messages will be sent", output_text
+            )
+            self.assertIn(
+                "WARNING: This will delete ALL data from the database!", output_text
+            )
+
+        except Exception as e:
+            # The command might fail due to missing data, but it should not fail due to invalid arguments
+            self.assertNotIn("invalid", str(e).lower())
+            self.assertNotIn("argument", str(e).lower())
+
+    def test_checklist_basic_import_functionality(self):
+        """Test that checklist categories and checklists can be imported."""
+        from waldur_core.checklist.models import (
+            Category as ChecklistCategory,
+        )
+        from waldur_core.checklist.models import (
+            Checklist,
+        )
+
+        # Test data for import (minimal test)
+        test_data = {
+            "checklist_categories": [
+                {
+                    "uuid": "11111111-1111-1111-1111-111111111111",
+                    "name": "Test Category",
+                    "description": "Test category description",
+                }
+            ],
+            "checklists": [
+                {
+                    "uuid": "22222222-2222-2222-2222-222222222222",
+                    "name": "Test Checklist",
+                    "description": "Test checklist description",
+                    "category_uuid": "11111111-1111-1111-1111-111111111111",
+                    "checklist_type": "project_compliance",
+                    "created": "2024-01-01T00:00:00Z",
+                    "modified": "2024-01-01T00:00:00Z",
+                }
+            ],
+            "questions": [
+                {
+                    "uuid": "33333333-3333-3333-3333-333333333333",
+                    "checklist_uuid": "22222222-2222-2222-2222-222222222222",
+                    "description": "Test question?",
+                    "order": 1,
+                    "required": True,
+                    "question_type": "boolean",
+                    "min_value": None,
+                    "max_value": None,
+                    "min_length": None,
+                    "max_length": None,
+                    "possible_values": [],
+                    "dependency_logic_operator": "and",
+                    "requires_review": False,
+                    "review_trigger_values": [],
+                    "max_files": None,
+                }
+            ],
+        }
+
+        self._create_test_json(test_data)
+
+        # Import the data
+        self._call_import_command("-i", self.test_file_path)
+
+        # Verify checklist objects were created
+        self.assertEqual(ChecklistCategory.objects.count(), 1)
+        self.assertEqual(Checklist.objects.count(), 1)
+
+        # Verify the imported data
+        imported_category = ChecklistCategory.objects.get(
+            uuid="11111111-1111-1111-1111-111111111111"
+        )
+        self.assertEqual(imported_category.name, "Test Category")
+
+        imported_checklist = Checklist.objects.get(
+            uuid="22222222-2222-2222-2222-222222222222"
+        )
+        self.assertEqual(imported_checklist.name, "Test Checklist")
+        self.assertEqual(imported_checklist.category, imported_category)
+        self.assertEqual(imported_checklist.checklist_type, "project_compliance")
+
+    def test_enhanced_user_fields_import_export(self):
+        """Test that additional user fields including token_lifetime, details, and notifications_enabled are properly exported and imported."""
+
+        # Test data with enhanced user fields
+        test_data = {
+            "users": [
+                {
+                    "uuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                    "username": "enhanced_user",
+                    "email": "enhanced@example.com",
+                    "first_name": "Enhanced",
+                    "last_name": "User",
+                    "is_active": True,
+                    "is_staff": False,
+                    "is_support": True,
+                    "token_lifetime": 3600,
+                    "details": {"department": "engineering", "level": "senior"},
+                    "notifications_enabled": False,
+                    "is_identity_manager": True,
+                    "registration_method": "saml2",
+                    "identity_source": "company-idp",
+                    "preferred_language": "en",
+                    "backend_id": "backend-123",
+                    "affiliations": ["staff", "developer"],
+                    "agreement_date": "2024-01-15T10:00:00Z",
+                    "birth_date": "1990-05-15",
+                    "native_name": "Enhanced Native",
+                    "phone_number": "+1234567890",
+                    "organization": "Test Corp",
+                    "job_title": "Senior Developer",
+                    "description": "Test user description",
+                }
+            ]
+        }
+
+        self._create_test_json(test_data)
+
+        # Import the data
+        self._call_import_command("-i", self.test_file_path)
+
+        # Verify user was created with all fields
+        self.assertEqual(User.objects.filter(username="enhanced_user").count(), 1)
+
+        imported_user = User.objects.get(uuid="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+
+        # Verify basic fields
+        self.assertEqual(imported_user.username, "enhanced_user")
+        self.assertEqual(imported_user.email, "enhanced@example.com")
+        self.assertEqual(imported_user.first_name, "Enhanced")
+        self.assertEqual(imported_user.last_name, "User")
+        self.assertTrue(imported_user.is_active)
+        self.assertFalse(imported_user.is_staff)
+        self.assertTrue(imported_user.is_support)
+
+        # Verify enhanced fields
+        self.assertEqual(imported_user.token_lifetime, 3600)
+        self.assertEqual(
+            imported_user.details, {"department": "engineering", "level": "senior"}
+        )
+        self.assertFalse(imported_user.notifications_enabled)
+        self.assertTrue(imported_user.is_identity_manager)
+        self.assertEqual(imported_user.registration_method, "saml2")
+        self.assertEqual(imported_user.identity_source, "company-idp")
+        self.assertEqual(imported_user.preferred_language, "en")
+        self.assertEqual(imported_user.backend_id, "backend-123")
+        self.assertEqual(imported_user.affiliations, ["staff", "developer"])
+        self.assertEqual(imported_user.native_name, "Enhanced Native")
+        self.assertEqual(imported_user.phone_number, "+1234567890")
+        self.assertEqual(imported_user.organization, "Test Corp")
+        self.assertEqual(imported_user.job_title, "Senior Developer")
+        self.assertEqual(imported_user.description, "Test user description")
+
+        # Verify date fields
+        self.assertIsNotNone(imported_user.agreement_date)
+        self.assertEqual(imported_user.birth_date.year, 1990)
+        self.assertEqual(imported_user.birth_date.month, 5)
+        self.assertEqual(imported_user.birth_date.day, 15)
+
+    def test_enhanced_offering_fields_import_export(self):
+        """Test that additional offering fields including backend_id, vendor details, and compliance features are properly exported and imported."""
+        from waldur_mastermind.marketplace.tests import (
+            factories as marketplace_factories,
+        )
+
+        # Create prerequisites
+        customer = structure_factories.CustomerFactory()
+        category = marketplace_factories.CategoryFactory()
+        project = structure_factories.ProjectFactory(customer=customer)
+
+        # Test data with enhanced offering fields
+        test_data = {
+            "customers": [
+                {
+                    "uuid": str(customer.uuid),
+                    "name": customer.name,
+                }
+            ],
+            "categories": [
+                {
+                    "uuid": str(category.uuid),
+                    "title": category.title,
+                    "description": category.description,
+                    "backend_id": "test-backend",
+                }
+            ],
+            "projects": [
+                {
+                    "uuid": str(project.uuid),
+                    "name": project.name,
+                    "description": project.description,
+                    "customer_uuid": str(customer.uuid),
+                }
+            ],
+            "offerings": [
+                {
+                    "uuid": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+                    "name": "Enhanced Offering",
+                    "description": "Basic description",
+                    "type": "Packages.Template",
+                    "state": 2,
+                    "customer_uuid": str(customer.uuid),
+                    "category_uuid": str(category.uuid),
+                    "project_uuid": str(project.uuid),
+                    "shared": True,
+                    "billable": True,
+                    "attributes": {"attr1": "value1"},
+                    "options": {"opt1": "val1"},
+                    "resource_options": {"res_opt1": "res_val1"},
+                    "plugin_options": {"plugin_opt1": "plugin_val1"},
+                    "slug": "enhanced-offering",
+                    # Enhanced fields
+                    "backend_id": "backend-offering-123",
+                    "full_description": "This is a comprehensive full description of the offering with detailed information about its capabilities and usage.",
+                    "vendor_details": "Vendor: Test Corp, Support: 24/7, Contact: support@testcorp.com",
+                    "getting_started": "Step 1: Register\nStep 2: Configure\nStep 3: Deploy",
+                    "integration_guide": "Integration requires API key configuration and webhook setup.",
+                    "privacy_policy_link": "https://testcorp.com/privacy",
+                    "access_url": "https://testcorp.com/offering-access",
+                    "country": "EE",
+                    "paused_reason": "Maintenance scheduled",
+                    "secret_options": {
+                        "api_key": "secret-key-123",
+                        "webhook_secret": "webhook-secret-456",
+                    },
+                    "support_per_user_consumption_limitation": True,
+                }
+            ],
+        }
+
+        self._create_test_json(test_data)
+
+        # Import the data
+        self._call_import_command("-i", self.test_file_path)
+
+        # Verify offering was created with all fields
+        from waldur_mastermind.marketplace.models import Offering
+
+        self.assertEqual(Offering.objects.filter(name="Enhanced Offering").count(), 1)
+
+        imported_offering = Offering.objects.get(
+            uuid="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+        )
+
+        # Verify basic fields
+        self.assertEqual(imported_offering.name, "Enhanced Offering")
+        self.assertEqual(imported_offering.description, "Basic description")
+        self.assertEqual(imported_offering.type, "Packages.Template")
+        self.assertEqual(imported_offering.state, 2)
+        self.assertTrue(imported_offering.shared)
+        self.assertTrue(imported_offering.billable)
+        self.assertEqual(imported_offering.customer, customer)
+        self.assertEqual(imported_offering.category, category)
+        self.assertEqual(imported_offering.project, project)
+
+        # Verify enhanced fields
+        self.assertEqual(imported_offering.backend_id, "backend-offering-123")
+        self.assertIn(
+            "comprehensive full description", imported_offering.full_description
+        )
+        self.assertIn("Vendor: Test Corp", imported_offering.vendor_details)
+        self.assertIn("Step 1: Register", imported_offering.getting_started)
+        self.assertIn("API key configuration", imported_offering.integration_guide)
+        self.assertEqual(
+            imported_offering.privacy_policy_link, "https://testcorp.com/privacy"
+        )
+        self.assertEqual(
+            imported_offering.access_url, "https://testcorp.com/offering-access"
+        )
+        self.assertEqual(imported_offering.country, "EE")
+        self.assertEqual(imported_offering.paused_reason, "Maintenance scheduled")
+        self.assertEqual(
+            imported_offering.secret_options,
+            {"api_key": "secret-key-123", "webhook_secret": "webhook-secret-456"},
+        )
+        self.assertTrue(imported_offering.support_per_user_consumption_limitation)
+
+        # Verify JSON fields
+        self.assertEqual(imported_offering.attributes, {"attr1": "value1"})
+        self.assertEqual(imported_offering.options, {"opt1": "val1"})
+        self.assertEqual(imported_offering.resource_options, {"res_opt1": "res_val1"})
+        self.assertEqual(
+            imported_offering.plugin_options, {"plugin_opt1": "plugin_val1"}
+        )

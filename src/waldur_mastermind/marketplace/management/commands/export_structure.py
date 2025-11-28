@@ -4,6 +4,15 @@ import os
 from django.core.management.base import BaseCommand
 from rest_framework.authtoken.models import Token
 
+from waldur_core.checklist.models import (
+    Answer,
+    Checklist,
+    ChecklistCompletion,
+    Question,
+)
+from waldur_core.checklist.models import (
+    Category as ChecklistCategory,
+)
 from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import Customer, Project
@@ -84,6 +93,12 @@ class Command(BaseCommand):
             "invoices": self.export_invoices(),
             "invoice_items": self.export_invoice_items(),
             "offering_users": self.export_offering_users(),
+            # Checklist exports
+            "checklist_categories": self.export_checklist_categories(),
+            "checklists": self.export_checklists(),
+            "questions": self.export_questions(),
+            "checklist_completions": self.export_checklist_completions(),
+            "answers": self.export_answers(),
         }
 
         # Write to JSON file
@@ -160,6 +175,29 @@ class Command(BaseCommand):
                     "date_joined": user.date_joined.isoformat()
                     if user.date_joined
                     else None,
+                    # Additional fields identified in analysis
+                    "token_lifetime": user.token_lifetime,
+                    "details": user.details,
+                    "notifications_enabled": user.notifications_enabled,
+                    "is_identity_manager": user.is_identity_manager,
+                    "registration_method": user.registration_method,
+                    "identity_source": user.identity_source,
+                    "agreement_date": user.agreement_date.isoformat()
+                    if user.agreement_date
+                    else None,
+                    "preferred_language": user.preferred_language,
+                    "backend_id": user.backend_id,
+                    "birth_date": user.birth_date.isoformat()
+                    if user.birth_date
+                    else None,
+                    "affiliations": user.affiliations,
+                    "modified": user.modified.isoformat() if user.modified else None,
+                    "slug": user.slug,
+                    "query_field": user.query_field,
+                    "is_superuser": user.is_superuser,
+                    "last_login": user.last_login.isoformat()
+                    if user.last_login
+                    else None,
                 }
             )
         return users
@@ -207,6 +245,26 @@ class Command(BaseCommand):
                     "created": customer.created.isoformat()
                     if customer.created
                     else None,
+                    "accounting_start_date": customer.accounting_start_date.isoformat()
+                    if customer.accounting_start_date
+                    else None,
+                    "default_tax_percent": str(customer.default_tax_percent)
+                    if customer.default_tax_percent
+                    else None,
+                    "sponsor_number": customer.sponsor_number,
+                    "access_subnets": customer.access_subnets,
+                    "notification_emails": customer.notification_emails,
+                    "display_billing_info_in_projects": customer.display_billing_info_in_projects,
+                    "grace_period_days": customer.grace_period_days,
+                    "bank_name": customer.bank_name,
+                    "bank_account": customer.bank_account,
+                    "latitude": str(customer.latitude) if customer.latitude else None,
+                    "longitude": str(customer.longitude)
+                    if customer.longitude
+                    else None,
+                    "modified": customer.modified.isoformat()
+                    if customer.modified
+                    else None,
                 }
             )
         return customers
@@ -237,24 +295,34 @@ class Command(BaseCommand):
         """Export project data."""
         projects = []
         for project in Project.objects.select_related("customer").order_by("name"):
-            projects.append(
-                {
-                    "uuid": project.uuid.hex,
-                    "name": project.name,
-                    "description": project.description,
-                    "customer_uuid": project.customer.uuid.hex,
-                    "customer_name": project.customer.name,
-                    "created": project.created.isoformat() if project.created else None,
-                    "slug": project.slug,
-                    "start_date": project.start_date.isoformat()
-                    if project.start_date
-                    else None,
-                    "end_date": project.end_date.isoformat()
-                    if project.end_date
-                    else None,
-                    "oecd_fos_2007_code": project.oecd_fos_2007_code,
-                }
-            )
+            project_data = {
+                "uuid": project.uuid.hex,
+                "name": project.name,
+                "description": project.description,
+                "customer_uuid": project.customer.uuid.hex,
+                "customer_name": project.customer.name,
+                "kind": project.kind,
+                "created": project.created.isoformat() if project.created else None,
+                "slug": project.slug,
+                "start_date": project.start_date.isoformat()
+                if project.start_date
+                else None,
+                "end_date": project.end_date.isoformat() if project.end_date else None,
+                "oecd_fos_2007_code": project.oecd_fos_2007_code,
+                "backend_id": project.backend_id,
+                "modified": project.modified.isoformat() if project.modified else None,
+            }
+
+            # Add project metadata checklist reference if it exists
+            if (
+                hasattr(project.customer, "project_metadata_checklist")
+                and project.customer.project_metadata_checklist
+            ):
+                project_data["project_metadata_checklist_uuid"] = (
+                    project.customer.project_metadata_checklist.uuid.hex
+                )
+
+            projects.append(project_data)
         return projects
 
     def export_categories(self):
@@ -283,37 +351,62 @@ class Command(BaseCommand):
         for offering in Offering.objects.select_related(
             "customer", "category"
         ).order_by("name"):
-            offerings.append(
-                {
-                    "uuid": offering.uuid.hex,
-                    "name": offering.name,
-                    "description": offering.description,
-                    "type": offering.type,
-                    "state": offering.state,
-                    "slug": offering.slug,
-                    "category_uuid": offering.category.uuid.hex
-                    if offering.category
-                    else None,
-                    "category_title": offering.category.title
-                    if offering.category
-                    else None,
-                    "customer_uuid": offering.customer.uuid.hex
-                    if offering.customer
-                    else None,
-                    "customer_name": offering.customer.name
-                    if offering.customer
-                    else None,
-                    "shared": offering.shared,
-                    "billable": offering.billable,
-                    "attributes": offering.attributes,
-                    "options": offering.options,
-                    "resource_options": offering.resource_options,
-                    "plugin_options": offering.plugin_options,
-                    "created": offering.created.isoformat()
-                    if offering.created
-                    else None,
-                }
-            )
+            offering_data = {
+                "uuid": offering.uuid.hex,
+                "name": offering.name,
+                "description": offering.description,
+                "type": offering.type,
+                "state": offering.state,
+                "slug": offering.slug,
+                "category_uuid": offering.category.uuid.hex
+                if offering.category
+                else None,
+                "category_title": offering.category.title
+                if offering.category
+                else None,
+                "customer_uuid": offering.customer.uuid.hex
+                if offering.customer
+                else None,
+                "customer_name": offering.customer.name if offering.customer else None,
+                "shared": offering.shared,
+                "billable": offering.billable,
+                "attributes": offering.attributes,
+                "options": offering.options,
+                "resource_options": offering.resource_options,
+                "plugin_options": offering.plugin_options,
+                "created": offering.created.isoformat() if offering.created else None,
+                # Additional fields identified in analysis
+                "backend_id": offering.backend_id,
+                "full_description": offering.full_description,
+                "vendor_details": offering.vendor_details,
+                "getting_started": offering.getting_started,
+                "integration_guide": offering.integration_guide,
+                "privacy_policy_link": offering.privacy_policy_link,
+                "access_url": offering.access_url,
+                "country": offering.country,
+                "paused_reason": offering.paused_reason,
+                "secret_options": offering.secret_options,
+                "support_per_user_consumption_limitation": offering.support_per_user_consumption_limitation,
+                "modified": offering.modified.isoformat()
+                if offering.modified
+                else None,
+            }
+
+            # Add parent offering reference if it exists
+            if offering.parent:
+                offering_data["parent_uuid"] = offering.parent.uuid.hex
+
+            # Add project reference if it exists
+            if offering.project:
+                offering_data["project_uuid"] = offering.project.uuid.hex
+
+            # Add compliance checklist reference if it exists
+            if offering.compliance_checklist:
+                offering_data["compliance_checklist_uuid"] = (
+                    offering.compliance_checklist.uuid.hex
+                )
+
+            offerings.append(offering_data)
         return offerings
 
     def export_roles(self):
@@ -534,6 +627,17 @@ class Command(BaseCommand):
                     if resource.created
                     else None,
                     "description": resource.description,
+                    "modified": resource.modified.isoformat()
+                    if resource.modified
+                    else None,
+                    "end_date": resource.end_date.isoformat()
+                    if resource.end_date
+                    else None,
+                    "report": resource.report,
+                    "cost": str(resource.cost) if resource.cost else None,
+                    "current_usages": resource.current_usages,
+                    "error_message": resource.error_message,
+                    "error_traceback": resource.error_traceback,
                 }
             )
         return resources
@@ -557,6 +661,7 @@ class Command(BaseCommand):
                     "limit_period": component.limit_period,
                     "limit_amount": component.limit_amount,
                     "article_code": component.article_code,
+                    "backend_id": component.backend_id,
                 }
             )
         return components
@@ -582,6 +687,11 @@ class Command(BaseCommand):
                     else None,
                     "recurring": usage.recurring,
                     "description": usage.description,
+                    "backend_id": usage.backend_id,
+                    "modified": usage.modified.isoformat() if usage.modified else None,
+                    "plan_period": usage.plan_period.uuid.hex
+                    if usage.plan_period
+                    else None,
                 }
             )
         return usages
@@ -604,7 +714,9 @@ class Command(BaseCommand):
                     "archived": plan.archived,
                     "max_amount": plan.max_amount,
                     "article_code": plan.article_code,
+                    "backend_id": plan.backend_id,
                     "created": plan.created.isoformat() if plan.created else None,
+                    "modified": plan.modified.isoformat() if plan.modified else None,
                 }
             )
         return plans
@@ -650,6 +762,7 @@ class Command(BaseCommand):
                     if invoice.invoice_date
                     else None,
                     "created": invoice.created.isoformat() if invoice.created else None,
+                    "backend_id": invoice.backend_id,
                 }
             )
         return invoices
@@ -677,6 +790,13 @@ class Command(BaseCommand):
                     "article_code": item.article_code,
                     "start": item.start.isoformat() if item.start else None,
                     "end": item.end.isoformat() if item.end else None,
+                    "backend_uuid": item.backend_uuid.hex
+                    if item.backend_uuid
+                    else None,
+                    "details": item.details,
+                    "plan_component": item.plan_component.uuid.hex
+                    if item.plan_component
+                    else None,
                 }
             )
         return invoice_items
@@ -745,6 +865,11 @@ class Command(BaseCommand):
                     if order.completed_at
                     else None,
                     "created": order.created.isoformat() if order.created else None,
+                    "backend_id": order.backend_id,
+                    "modified": order.modified.isoformat() if order.modified else None,
+                    "slug": order.slug,
+                    "error_message": order.error_message,
+                    "error_traceback": order.error_traceback,
                 }
             )
         return orders
@@ -776,3 +901,121 @@ class Command(BaseCommand):
                 }
             )
         return offering_users
+
+    def export_checklist_categories(self):
+        """Export checklist category data."""
+        categories = []
+        for category in ChecklistCategory.objects.all().order_by("name"):
+            categories.append(
+                {
+                    "uuid": category.uuid.hex,
+                    "name": category.name,
+                    "description": category.description,
+                }
+            )
+        return categories
+
+    def export_checklists(self):
+        """Export checklist data."""
+        checklists = []
+        for checklist in Checklist.objects.select_related("category").order_by("name"):
+            checklist_data = {
+                "uuid": checklist.uuid.hex,
+                "name": checklist.name,
+                "description": checklist.description,
+                "checklist_type": checklist.checklist_type,
+                "created": checklist.created.isoformat() if checklist.created else None,
+                "modified": checklist.modified.isoformat()
+                if checklist.modified
+                else None,
+            }
+
+            if checklist.category:
+                checklist_data["category_uuid"] = checklist.category.uuid.hex
+
+            checklists.append(checklist_data)
+        return checklists
+
+    def export_questions(self):
+        """Export question data."""
+        questions = []
+        for question in Question.objects.select_related("checklist").order_by(
+            "checklist", "order"
+        ):
+            questions.append(
+                {
+                    "uuid": question.uuid.hex,
+                    "checklist_uuid": question.checklist.uuid.hex,
+                    "description": question.description,
+                    "order": question.order,
+                    "required": question.required,
+                    "question_type": question.question_type,
+                    "min_value": question.min_value,
+                    "max_value": question.max_value,
+                    "dependency_logic_operator": question.dependency_logic_operator,
+                    "requires_review": question.always_requires_review,
+                    "max_files": question.max_files_count,
+                }
+            )
+        return questions
+
+    def export_checklist_completions(self):
+        """Export checklist completion data for projects."""
+        completions = []
+        for completion in ChecklistCompletion.objects.select_related(
+            "checklist"
+        ).order_by("created"):
+            completion_data = {
+                "uuid": completion.uuid.hex,
+                "checklist_uuid": completion.checklist.uuid.hex,
+                "scope_content_type": f"{completion.scope_content_type.app_label}.{completion.scope_content_type.model}",
+                "scope_object_id": completion.scope_object_id,
+                "created": completion.created.isoformat()
+                if completion.created
+                else None,
+                "modified": completion.modified.isoformat()
+                if completion.modified
+                else None,
+            }
+
+            # Add scope object UUID if it's a project (most common case)
+            if completion.scope_content_type.model == "project":
+                try:
+                    project = Project.objects.get(id=completion.scope_object_id)
+                    completion_data["scope_object_uuid"] = project.uuid.hex
+                except Project.DoesNotExist:
+                    pass
+
+            completions.append(completion_data)
+        return completions
+
+    def export_answers(self):
+        """Export answer data."""
+        answers = []
+        for answer in Answer.objects.select_related(
+            "user", "question", "completion"
+        ).order_by("created"):
+            answers.append(
+                {
+                    "uuid": answer.uuid.hex,
+                    "user_uuid": answer.user.uuid.hex,
+                    "question_uuid": answer.question.uuid.hex,
+                    "completion_uuid": answer.completion.uuid.hex
+                    if answer.completion
+                    else None,
+                    "answer_data": answer.answer_data,
+                    "requires_review": answer.requires_review,
+                    "reviewed_by_uuid": answer.reviewed_by.uuid.hex
+                    if answer.reviewed_by
+                    else None,
+                    "reviewed_at": answer.reviewed_at.isoformat()
+                    if answer.reviewed_at
+                    else None,
+                    "review_notes": answer.review_notes,
+                    "created": answer.created.isoformat() if answer.created else None,
+                    "modified": answer.modified.isoformat()
+                    if answer.modified
+                    else None,
+                }
+            )
+        return answers

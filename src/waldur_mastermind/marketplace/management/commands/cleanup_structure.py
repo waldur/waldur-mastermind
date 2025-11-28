@@ -1,6 +1,16 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from waldur_core.checklist.models import (
+    Answer,
+    Checklist,
+    ChecklistCompletion,
+    Question,
+)
+from waldur_core.checklist.models import (
+    Category as ChecklistCategory,
+)
+from waldur_core.core.middleware import skip_rabbitmq_messages
 from waldur_core.core.models import User
 from waldur_core.logging.models import Event, Feed
 from waldur_core.permissions.models import Role, RolePermission, UserRole
@@ -36,6 +46,7 @@ class Command(BaseCommand):
         waldur cleanup_structure --dry-run
         waldur cleanup_structure
         waldur cleanup_structure --skip-users
+        waldur cleanup_structure --skip-rabbitmq-messages
     """
 
     def __init__(self, *args, **kwargs):
@@ -43,6 +54,11 @@ class Command(BaseCommand):
         self.stats = {
             "feeds": {"deleted": 0, "errors": 0},
             "events": {"deleted": 0, "errors": 0},
+            "answers": {"deleted": 0, "errors": 0},
+            "checklist_completions": {"deleted": 0, "errors": 0},
+            "questions": {"deleted": 0, "errors": 0},
+            "checklists": {"deleted": 0, "errors": 0},
+            "checklist_categories": {"deleted": 0, "errors": 0},
             "offering_users": {"deleted": 0, "errors": 0},
             "invoice_items": {"deleted": 0, "errors": 0},
             "invoices": {"deleted": 0, "errors": 0},
@@ -83,15 +99,28 @@ class Command(BaseCommand):
             action="store_true",
             help="Show what would be deleted without making changes.",
         )
+        parser.add_argument(
+            "--skip-rabbitmq-messages",
+            action="store_true",
+            help="Skip sending RabbitMQ messages during cleanup (recommended for large cleanups).",
+        )
 
     def handle(self, **options):
         self.dry_run = options["dry_run"]
         skip_users = options["skip_users"]
         skip_roles = options["skip_roles"]
+        skip_rabbitmq = options["skip_rabbitmq_messages"]
 
         if self.dry_run:
             self.stdout.write(
                 self.style.WARNING("DRY RUN MODE - No changes will be made")
+            )
+
+        if skip_rabbitmq:
+            self.stdout.write(
+                self.style.WARNING(
+                    "SKIP RABBITMQ MODE - No RabbitMQ messages will be sent"
+                )
             )
 
         self.stdout.write("Starting structure cleanup...")
@@ -100,61 +129,11 @@ class Command(BaseCommand):
         )
 
         try:
-            with transaction.atomic():
-                # Delete in reverse dependency order (opposite of import)
-
-                # Delete feeds and events first (logging)
-                self.cleanup_feeds()
-                self.cleanup_events()
-
-                # Delete offering users
-                self.cleanup_offering_users()
-
-                # Delete invoicing (depends on customers, resources, projects)
-                self.cleanup_invoice_items()
-                self.cleanup_invoices()
-
-                # Delete account types
-                self.cleanup_course_accounts()
-                self.cleanup_customer_service_accounts()
-                self.cleanup_project_service_accounts()
-
-                # Delete user roles
-                self.cleanup_user_roles()
-
-                # Delete roles and permissions
-                if not skip_roles:
-                    self.cleanup_role_permissions()
-                    self.cleanup_roles()
-
-                # Delete orders (depends on resources, projects, users, plans)
-                self.cleanup_orders()
-
-                # Delete component usages (depends on resources and components)
-                self.cleanup_component_usages()
-
-                # Delete resources (depends on offerings, plans, projects)
-                self.cleanup_resources()
-
-                # Delete marketplace components and plans
-                self.cleanup_plan_components()
-                self.cleanup_offering_components()
-                self.cleanup_plans()
-
-                # Delete offerings, service providers, projects, customers, categories
-                self.cleanup_offerings()
-                self.cleanup_service_providers()
-                self.cleanup_projects()
-                self.cleanup_categories()
-                self.cleanup_customers()
-
-                # Delete users last
-                if not skip_users:
-                    self.cleanup_users()
-
-                if self.dry_run:
-                    # Rollback transaction in dry-run mode
-                    raise Exception("Dry run - rolling back transaction")
+            if skip_rabbitmq:
+                with skip_rabbitmq_messages():
+                    self._perform_cleanup(skip_users, skip_roles)
+            else:
+                self._perform_cleanup(skip_users, skip_roles)
 
         except Exception as e:
             if self.dry_run:
@@ -167,6 +146,71 @@ class Command(BaseCommand):
 
         # Print summary
         self.print_summary()
+
+    def _perform_cleanup(self, skip_users, skip_roles):
+        """Perform the actual cleanup operations."""
+        with transaction.atomic():
+            # Delete in reverse dependency order (opposite of import)
+
+            # Delete feeds and events first (logging)
+            self.cleanup_feeds()
+            self.cleanup_events()
+
+            # Delete offering users
+            self.cleanup_offering_users()
+
+            # Delete checklist data (answers -> completions -> questions -> checklists -> categories)
+            self.cleanup_answers()
+            self.cleanup_checklist_completions()
+            self.cleanup_questions()
+            self.cleanup_checklists()
+            self.cleanup_checklist_categories()
+
+            # Delete invoicing (depends on customers, resources, projects)
+            self.cleanup_invoice_items()
+            self.cleanup_invoices()
+
+            # Delete account types
+            self.cleanup_course_accounts()
+            self.cleanup_customer_service_accounts()
+            self.cleanup_project_service_accounts()
+
+            # Delete user roles
+            self.cleanup_user_roles()
+
+            # Delete roles and permissions
+            if not skip_roles:
+                self.cleanup_role_permissions()
+                self.cleanup_roles()
+
+            # Delete orders (depends on resources, projects, users, plans)
+            self.cleanup_orders()
+
+            # Delete component usages (depends on resources and components)
+            self.cleanup_component_usages()
+
+            # Delete resources (depends on offerings, plans, projects)
+            self.cleanup_resources()
+
+            # Delete marketplace components and plans
+            self.cleanup_plan_components()
+            self.cleanup_offering_components()
+            self.cleanup_plans()
+
+            # Delete offerings, service providers, projects, customers, categories
+            self.cleanup_offerings()
+            self.cleanup_service_providers()
+            self.cleanup_projects()
+            self.cleanup_categories()
+            self.cleanup_customers()
+
+            # Delete users last
+            if not skip_users:
+                self.cleanup_users()
+
+            if self.dry_run:
+                # Rollback transaction in dry-run mode
+                raise Exception("Dry run - rolling back transaction")
 
     def cleanup_feeds(self):
         """Delete all feed data."""
@@ -522,6 +566,84 @@ class Command(BaseCommand):
                 self.style.WARNING(f"Failed to delete offering users: {e}")
             )
             self.stats["offering_users"]["errors"] += 1
+
+    def cleanup_answers(self):
+        """Delete all answer data."""
+        self.stdout.write("Deleting answers...")
+        try:
+            if not self.dry_run:
+                count = Answer.objects.count()
+                Answer.objects.all().delete()
+                self.stats["answers"]["deleted"] = count
+            else:
+                self.stats["answers"]["deleted"] = Answer.objects.count()
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Failed to delete answers: {e}"))
+            self.stats["answers"]["errors"] += 1
+
+    def cleanup_checklist_completions(self):
+        """Delete all checklist completion data."""
+        self.stdout.write("Deleting checklist completions...")
+        try:
+            if not self.dry_run:
+                count = ChecklistCompletion.objects.count()
+                ChecklistCompletion.objects.all().delete()
+                self.stats["checklist_completions"]["deleted"] = count
+            else:
+                self.stats["checklist_completions"]["deleted"] = (
+                    ChecklistCompletion.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete checklist completions: {e}")
+            )
+            self.stats["checklist_completions"]["errors"] += 1
+
+    def cleanup_questions(self):
+        """Delete all question data."""
+        self.stdout.write("Deleting questions...")
+        try:
+            if not self.dry_run:
+                count = Question.objects.count()
+                Question.objects.all().delete()
+                self.stats["questions"]["deleted"] = count
+            else:
+                self.stats["questions"]["deleted"] = Question.objects.count()
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Failed to delete questions: {e}"))
+            self.stats["questions"]["errors"] += 1
+
+    def cleanup_checklists(self):
+        """Delete all checklist data."""
+        self.stdout.write("Deleting checklists...")
+        try:
+            if not self.dry_run:
+                count = Checklist.objects.count()
+                Checklist.objects.all().delete()
+                self.stats["checklists"]["deleted"] = count
+            else:
+                self.stats["checklists"]["deleted"] = Checklist.objects.count()
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Failed to delete checklists: {e}"))
+            self.stats["checklists"]["errors"] += 1
+
+    def cleanup_checklist_categories(self):
+        """Delete all checklist category data."""
+        self.stdout.write("Deleting checklist categories...")
+        try:
+            if not self.dry_run:
+                count = ChecklistCategory.objects.count()
+                ChecklistCategory.objects.all().delete()
+                self.stats["checklist_categories"]["deleted"] = count
+            else:
+                self.stats["checklist_categories"]["deleted"] = (
+                    ChecklistCategory.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete checklist categories: {e}")
+            )
+            self.stats["checklist_categories"]["errors"] += 1
 
     def print_summary(self):
         """Print cleanup summary statistics."""

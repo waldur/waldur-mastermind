@@ -486,9 +486,11 @@ def format_homeport_link(format_str="", **kwargs):
 def get_system_robot():
     from waldur_core.core import models
 
-    robot_user, created = models.User.objects.get_or_create(
-        username="system_robot", is_staff=True, is_active=True
+    # make sure that system_robot is always active and staff
+    robot_user, created = models.User.all_objects.get_or_create(
+        username="system_robot", defaults={"is_staff": True, "is_active": True}
     )
+
     if created:
         robot_user.set_unusable_password()
         robot_user.description = (
