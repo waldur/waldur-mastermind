@@ -881,6 +881,10 @@ class ResourceFilter(
         field_name="order__state",
         label="Order state",
     )
+    exclude_pending_transitional = django_filters.BooleanFilter(
+        method="filter_exclude_pending_transitional",
+        label="Exclude transitional resources with early pending orders",
+    )
     lexis_links_supported = django_filters.BooleanFilter(
         method="filter_lexis_links_supported", label="LEXIS links supported"
     )
@@ -1095,6 +1099,25 @@ class ResourceFilter(
         )
 
         return queryset.filter(offering__id__in=offering_ids)
+
+    def filter_exclude_pending_transitional(self, queryset, name, value):
+        if not value:
+            return queryset
+
+        transitional_states = ["Creating", "Terminating", "Updating"]
+        early_pending_states = [
+            "pending-consumer",
+            "pending-project",
+            "pending-start-date",
+        ]
+
+        # Exclude: transitional AND (no order OR early-pending order)
+        exclude_condition = Q(state__in=transitional_states) & (
+            Q(order_in_progress__isnull=True)
+            | Q(order_in_progress__state__in=early_pending_states)
+        )
+
+        return queryset.exclude(exclude_condition)
 
 
 class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
