@@ -17,3 +17,6 @@ class UpdateAllocationLimitsProcessor(processors.BasicUpdateResourceProcessor):
     def send_request(self, user):
         # waldur-site-agent is responsible for order approval and processing
         return False
+
+    def update_limits_process(self, user) -> bool:
+        return False
