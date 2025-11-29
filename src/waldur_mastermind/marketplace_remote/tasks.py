@@ -68,6 +68,9 @@ from waldur_api_client.models.public_offering_details import PublicOfferingDetai
 from waldur_api_client.models.remote_eduteams_request_request import (
     RemoteEduteamsRequestRequest as RemoteEduteamsRequest,
 )
+from waldur_api_client.models.robot_account_states import (
+    RobotAccountStates as ApiRobotAccountStates,
+)
 from waldur_api_client.models.user_role_create_request import UserRoleCreateRequest
 from waldur_api_client.models.user_role_delete_request import UserRoleDeleteRequest
 from waldur_api_client.models.user_role_update_request import UserRoleUpdateRequest
@@ -991,6 +994,29 @@ class ResourceInvoiceListPullTask(BackgroundListPullTask):
             .exclude(state=ResourceStates.TERMINATED)
             .exclude(backend_id="")
         )
+
+
+# Monkey-patch the API client's RobotAccountStates to handle string values
+_original_new = ApiRobotAccountStates.__new__
+
+
+def _patched_new(cls, value):
+    """Handle both string display values and integer values for RobotAccountStates."""
+    if isinstance(value, str):
+        # Map string display values to integer constants
+        state_mapping = {
+            "Requested": 1,
+            "Creating": 2,
+            "OK": 3,
+            "Requested deletion": 4,
+            "Deleted": 5,
+            "Error": 6,
+        }
+        value = state_mapping.get(value, value)
+    return _original_new(cls, value)
+
+
+ApiRobotAccountStates.__new__ = _patched_new
 
 
 class ResourceRobotAccountPullTask(BackgroundPullTask):
