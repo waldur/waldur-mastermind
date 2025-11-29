@@ -48,7 +48,7 @@ class Role(DescribableMixin, UuidMixin):
         RolePermission.objects.filter(role=self, permission=name).delete()
 
     def __str__(self):
-        return f"{self.name}"
+        return f"{self.name} ({self.is_active})"
 
 
 class UserRoleManager(GenericKeyMixin, models.Manager):
@@ -99,6 +99,9 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
 
     class Meta:
         ordering = ["created"]
+
+    def __str__(self):
+        return f"{self.user.username} ({self.role}, {self.expiration_time}, {self.is_active})"
 
 
 class RolePermission(models.Model):

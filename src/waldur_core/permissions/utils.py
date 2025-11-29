@@ -96,7 +96,16 @@ def get_scope_ids(user, content_type, role=None, permission=None):
     if role:
         if not isinstance(role, list | tuple):
             role = [role]
-        qs = qs.filter(role__name__in=role)
+        # Convert Role objects to their names, but leave strings unchanged
+        role_names = []
+        for r in role:
+            # Check if this is a Role model instance using isinstance
+            if isinstance(r, models.Role):
+                role_names.append(r.name)
+            else:
+                # This is a string (like RoleEnum) - use directly
+                role_names.append(r)
+        qs = qs.filter(role__name__in=role_names)
     if permission:
         qs = qs.filter(role__permissions__permission=permission)
     return qs.order_by().values_list("object_id", flat=True).distinct()

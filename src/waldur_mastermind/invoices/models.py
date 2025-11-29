@@ -159,9 +159,15 @@ class Invoice(
             try:
                 self.save(update_fields=list(updates.keys()))
             except DatabaseError as e:
-                logger.error(
-                    "Failed to update cached fields for Invoice %s: %s", self.pk, e
-                )
+                # Check if this is a race condition where invoice was deleted
+                if "did not affect any rows" in str(e):
+                    logger.debug(
+                        "Invoice %s was deleted during cache update, skipping", self.pk
+                    )
+                else:
+                    logger.error(
+                        "Failed to update cached fields for Invoice %s: %s", self.pk, e
+                    )
 
     @property
     def tax(self) -> decimal.Decimal:

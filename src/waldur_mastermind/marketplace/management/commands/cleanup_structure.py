@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.models import signals
 
 from waldur_core.checklist.models import (
     Answer,
@@ -15,6 +16,7 @@ from waldur_core.core.models import User
 from waldur_core.logging.models import Event, Feed
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import Customer, Project
+from waldur_mastermind.invoices import handlers as invoice_handlers
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 from waldur_mastermind.marketplace.models import (
     Category,
@@ -274,11 +276,12 @@ class Command(BaseCommand):
         self.stdout.write("Deleting projects...")
         try:
             if not self.dry_run:
-                count = Project.available_objects.count()
-                Project.available_objects.all().delete()
+                # Use objects manager to include soft-deleted projects
+                count = Project.objects.count()
+                Project.objects.all().delete()
                 self.stats["projects"]["deleted"] = count
             else:
-                self.stats["projects"]["deleted"] = Project.available_objects.count()
+                self.stats["projects"]["deleted"] = Project.objects.count()
         except Exception as e:
             self.stdout.write(self.style.WARNING(f"Failed to delete projects: {e}"))
             self.stats["projects"]["errors"] += 1
@@ -526,9 +529,32 @@ class Command(BaseCommand):
         self.stdout.write("Deleting invoice items...")
         try:
             if not self.dry_run:
-                count = InvoiceItem.objects.count()
-                InvoiceItem.objects.all().delete()
-                self.stats["invoice_items"]["deleted"] = count
+                # Temporarily disconnect invoice cache update signals to avoid race conditions
+                signals.post_save.disconnect(
+                    invoice_handlers.update_cache_when_invoice_item_is_updated,
+                    sender=InvoiceItem,
+                )
+                signals.post_delete.disconnect(
+                    invoice_handlers.update_cache_when_invoice_item_is_deleted,
+                    sender=InvoiceItem,
+                )
+
+                try:
+                    count = InvoiceItem.objects.count()
+                    InvoiceItem.objects.all().delete()
+                    self.stats["invoice_items"]["deleted"] = count
+                finally:
+                    # Reconnect signals
+                    signals.post_save.connect(
+                        invoice_handlers.update_cache_when_invoice_item_is_updated,
+                        sender=InvoiceItem,
+                        dispatch_uid="waldur_mastermind.invoices.update_cache_when_invoice_item_is_updated_%s",
+                    )
+                    signals.post_delete.connect(
+                        invoice_handlers.update_cache_when_invoice_item_is_deleted,
+                        sender=InvoiceItem,
+                        dispatch_uid="waldur_mastermind.invoices.update_cache_when_invoice_item_is_deleted",
+                    )
             else:
                 self.stats["invoice_items"]["deleted"] = InvoiceItem.objects.count()
         except Exception as e:

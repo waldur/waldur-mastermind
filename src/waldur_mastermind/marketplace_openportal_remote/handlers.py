@@ -154,13 +154,13 @@ def sync_component_user_usage_when_allocation_user_usage_is_submitted(
 
 
 def sync_offering_resource_options(sender, instance, **kwargs):
-    logger.info(
+    logger.debug(
         f"Synchronizing OpenPortal Remote resource options for Offering {instance}"
     )
 
     offering: marketplace_models.Offering = instance
     if offering.type != PLUGIN_NAME:
-        logger.info(f"Skipping as {offering.type} is not {PLUGIN_NAME}")
+        logger.debug(f"Skipping as {offering.type} is not {PLUGIN_NAME}")
         return
 
     # check to make sure that the offering has the right resource_options
