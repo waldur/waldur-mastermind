@@ -37,6 +37,7 @@ from waldur_mastermind.marketplace.models import (
     PlanComponent,
     ProjectServiceAccount,
     Resource,
+    ResourcePlanPeriod,
     ServiceProvider,
 )
 
@@ -100,6 +101,12 @@ class Command(BaseCommand):
             },
             "plan_components": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "resources": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "resource_plan_periods": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "component_usages": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "orders": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "invoices": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
@@ -243,6 +250,9 @@ class Command(BaseCommand):
 
             # Import resources (depends on offerings, plans, projects)
             self.import_resources(data.get("resources", []))
+
+            # Import resource plan periods (depends on resources and plans)
+            self.import_resource_plan_periods(data.get("resource_plan_periods", []))
 
             # Import component usages (depends on resources and components)
             self.import_component_usages(data.get("component_usages", []))
@@ -1939,6 +1949,108 @@ class Command(BaseCommand):
                 )
                 self.stats["resources"]["errors"] += 1
 
+    def import_resource_plan_periods(self, periods_data):
+        """Import resource plan period data."""
+
+        self.stdout.write("Importing resource plan periods...")
+
+        for period_data in periods_data:
+            try:
+                uuid = period_data.get("uuid")
+                resource_uuid = period_data.get("resource_uuid")
+                plan_uuid = period_data.get("plan_uuid")
+
+                if not uuid or not resource_uuid or not plan_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping resource plan period without UUID, resource_uuid, or plan_uuid"
+                        )
+                    )
+                    self.stats["resource_plan_periods"]["errors"] += 1
+                    continue
+
+                # Find resource
+                resource = Resource.objects.filter(uuid=resource_uuid).first()
+                if not resource:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping resource plan period {uuid}: resource {resource_uuid} not found"
+                        )
+                    )
+                    self.stats["resource_plan_periods"]["errors"] += 1
+                    continue
+
+                # Find plan
+                plan = Plan.objects.filter(uuid=plan_uuid).first()
+                if not plan:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping resource plan period {uuid}: plan {plan_uuid} not found"
+                        )
+                    )
+                    self.stats["resource_plan_periods"]["errors"] += 1
+                    continue
+
+                # Parse dates
+                start = None
+                if period_data.get("start"):
+                    try:
+                        start = datetime.fromisoformat(period_data["start"])
+                        if timezone.is_naive(start):
+                            start = timezone.make_aware(start)
+                    except (ValueError, TypeError):
+                        pass
+
+                end = None
+                if period_data.get("end"):
+                    try:
+                        end = datetime.fromisoformat(period_data["end"])
+                        if timezone.is_naive(end):
+                            end = timezone.make_aware(end)
+                    except (ValueError, TypeError):
+                        pass
+
+                defaults = {
+                    "resource": resource,
+                    "plan": plan,
+                    "start": start,
+                    "end": end,
+                }
+
+                if not self.dry_run:
+                    existing_period = ResourcePlanPeriod.objects.filter(
+                        uuid=uuid
+                    ).first()
+
+                    if existing_period:
+                        if self.update_existing:
+                            ResourcePlanPeriod.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["resource_plan_periods"]["updated"] += 1
+                        else:
+                            self.stats["resource_plan_periods"]["skipped"] += 1
+                    else:
+                        ResourcePlanPeriod.objects.create(uuid=uuid, **defaults)
+                        self.stats["resource_plan_periods"]["created"] += 1
+                else:
+                    existing = ResourcePlanPeriod.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["resource_plan_periods"]["updated"] += 1
+                        else:
+                            self.stats["resource_plan_periods"]["skipped"] += 1
+                    else:
+                        self.stats["resource_plan_periods"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Failed to import resource plan period {period_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["resource_plan_periods"]["errors"] += 1
+
     def import_component_usages(self, usages_data):
         """Import component usage data."""
         self.stdout.write("Importing component usages...")
@@ -2001,12 +2113,27 @@ class Command(BaseCommand):
                     except (ValueError, TypeError):
                         pass
 
+                # Find plan_period if provided
+                plan_period = None
+                plan_period_uuid = usage_data.get("plan_period")
+                if plan_period_uuid:
+                    plan_period = ResourcePlanPeriod.objects.filter(
+                        uuid=plan_period_uuid
+                    ).first()
+                    if not plan_period:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Plan period {plan_period_uuid} not found for component usage {uuid}"
+                            )
+                        )
+
                 defaults = {
                     "resource": resource,
                     "component": component,
                     "usage": usage_data.get("usage", 0),
                     "date": date or timezone.now(),
                     "billing_period": billing_period or timezone.now().date(),
+                    "plan_period": plan_period,
                     "recurring": usage_data.get("recurring", False),
                     "description": usage_data.get("description", ""),
                     "backend_id": usage_data.get("backend_id", ""),

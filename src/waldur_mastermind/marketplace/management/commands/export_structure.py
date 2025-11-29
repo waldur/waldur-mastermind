@@ -30,6 +30,7 @@ from waldur_mastermind.marketplace.models import (
     PlanComponent,
     ProjectServiceAccount,
     Resource,
+    ResourcePlanPeriod,
     ServiceProvider,
 )
 
@@ -89,6 +90,7 @@ class Command(BaseCommand):
             "component_usages": self.export_component_usages(),
             "plans": self.export_plans(),
             "plan_components": self.export_plan_components(),
+            "resource_plan_periods": self.export_resource_plan_periods(),
             "orders": self.export_orders(),
             "invoices": self.export_invoices(),
             "invoice_items": self.export_invoice_items(),
@@ -740,6 +742,30 @@ class Command(BaseCommand):
                 }
             )
         return plan_components
+
+    def export_resource_plan_periods(self):
+        """Export resource plan period data."""
+
+        periods = []
+        for period in ResourcePlanPeriod.objects.select_related(
+            "resource", "plan"
+        ).order_by("resource", "start"):
+            periods.append(
+                {
+                    "uuid": period.uuid.hex,
+                    "resource_uuid": period.resource.uuid.hex,
+                    "resource_name": period.resource.name,
+                    "plan_uuid": period.plan.uuid.hex,
+                    "plan_name": period.plan.name,
+                    "start": period.start.isoformat() if period.start else None,
+                    "end": period.end.isoformat() if period.end else None,
+                    "created": period.created.isoformat() if period.created else None,
+                    "modified": period.modified.isoformat()
+                    if period.modified
+                    else None,
+                }
+            )
+        return periods
 
     def export_invoices(self):
         """Export invoice data."""
