@@ -1490,3 +1490,49 @@ class UsagePullTest(testcases.TransactionTestCase):
         )
         self.assertEqual(component_usage.plan_period, existing_plan_period)
         self.assertEqual(component_usage.usage, 100)
+
+
+class RobotAccountStatesTest(testcases.TestCase):
+    def test_robot_account_states_enum_handles_string_values(self):
+        """
+        Test that the monkey-patched RobotAccountStates enum can handle both
+        string display values and integer values.
+        """
+        from waldur_api_client.models.robot_account_states import RobotAccountStates
+
+        # Test with integer values (original behavior)
+        state = RobotAccountStates(1)
+        self.assertEqual(state, RobotAccountStates.VALUE_1)
+
+        state = RobotAccountStates(3)
+        self.assertEqual(state, RobotAccountStates.VALUE_3)
+
+        # Test with string values (patched behavior)
+        state = RobotAccountStates("OK")
+        self.assertEqual(state, RobotAccountStates.VALUE_3)
+
+        state = RobotAccountStates("Creating")
+        self.assertEqual(state, RobotAccountStates.VALUE_2)
+
+        state = RobotAccountStates("Requested")
+        self.assertEqual(state, RobotAccountStates.VALUE_1)
+
+        state = RobotAccountStates("Requested deletion")
+        self.assertEqual(state, RobotAccountStates.VALUE_4)
+
+        state = RobotAccountStates("Deleted")
+        self.assertEqual(state, RobotAccountStates.VALUE_5)
+
+        state = RobotAccountStates("Error")
+        self.assertEqual(state, RobotAccountStates.VALUE_6)
+
+    def test_robot_account_states_enum_handles_invalid_string_values(self):
+        """
+        Test that the monkey-patched RobotAccountStates enum handles invalid string values gracefully.
+        """
+        from waldur_api_client.models.robot_account_states import RobotAccountStates
+
+        # Test with invalid string value - should pass through unchanged
+        # This will raise ValueError since it's not a valid enum value
+        with self.assertRaises(ValueError):
+            RobotAccountStates("InvalidState")
