@@ -820,7 +820,7 @@ class Command(BaseCommand):
                     if item.backend_uuid
                     else None,
                     "details": item.details,
-                    "plan_component": item.plan_component.uuid.hex
+                    "plan_component": item.plan_component.id
                     if item.plan_component
                     else None,
                 }
