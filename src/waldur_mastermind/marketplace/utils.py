@@ -111,6 +111,9 @@ def get_order_processor(order: models.Order):
     elif order.type == OrderTypes.TERMINATE:
         return plugins.manager.get_processor(offering.type, "delete_resource_processor")
 
+    elif order.type == OrderTypes.RESTORE:
+        return plugins.manager.get_processor(offering.type, "create_resource_processor")
+
 
 def process_order(order: models.Order, user):
     processor = get_order_processor(order)

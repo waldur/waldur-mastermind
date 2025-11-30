@@ -4934,6 +4934,32 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
             attributes=attributes,
         )
 
+    @action(detail=True, methods=["post"])
+    def restore(self, request, uuid=None):
+        resource: models.Resource = self.get_object()
+
+        if not resource.offering.plugin_options.get("can_restore_resource"):
+            raise ValidationError(
+                _("Restoring resource is not supported for this offering type.")
+            )
+
+        if resource.state != models.Resource.States.TERMINATED:
+            raise ValidationError(
+                _("Resource must be in TERMINATED state to be restored.")
+            )
+
+        resource.set_state_creating()
+        resource.save(update_fields=["state"])
+
+        return self.create_resource_order(
+            request=request,
+            resource=resource,
+            type=OrderTypes.RESTORE,
+            attributes=resource.attributes,
+            plan=resource.plan,
+            limits=resource.limits,
+        )
+
     terminate_serializer_class = serializers.ResourceTerminateSerializer
 
     terminate_permissions = [permissions.user_can_terminate_resource]

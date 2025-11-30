@@ -42,7 +42,7 @@ class ResourceSerializer(CommonSerializer):
 
 
 class DryRunTypes(OrderTypes):
-    PULL = 4
+    PULL = 5
     CHOICES = OrderTypes.CHOICES + ((PULL, "Pull"),)
 
     @classmethod

@@ -140,11 +140,13 @@ class OrderTypes:
     CREATE = 1
     UPDATE = 2
     TERMINATE = 3
+    RESTORE = 4
 
     CHOICES = (
         (CREATE, "Create"),
         (UPDATE, "Update"),
         (TERMINATE, "Terminate"),
+        (RESTORE, "Restore"),
     )
 
     VALUES = [val for (_, val) in CHOICES]
