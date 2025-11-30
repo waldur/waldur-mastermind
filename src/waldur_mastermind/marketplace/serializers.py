@@ -174,6 +174,10 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="If set to True, create orders when options of related resources are changed.",
     )
+    can_restore_resource = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, resource can be restored.",
+    )
 
 
 class SupportPluginOptionsSerializer(serializers.Serializer):

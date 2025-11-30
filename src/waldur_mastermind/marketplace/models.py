@@ -1395,6 +1395,14 @@ class Resource(
     def set_state_ok(self):
         pass
 
+    @transition(
+        field=state,
+        source=[States.TERMINATED],
+        target=States.CREATING,
+    )
+    def set_state_creating(self):
+        pass
+
     @transition(field=state, source="*", target=States.ERRED)
     def set_state_erred(self):
         pass
