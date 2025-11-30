@@ -172,7 +172,6 @@ class Command(BaseCommand):
         self.dry_run = options["dry_run"]
         skip_users = options["skip_users"]
         skip_roles = options["skip_roles"]
-        skip_rabbitmq = options["skip_rabbitmq_messages"]
 
         # Validate input file
         if not os.path.exists(input_path):
@@ -197,101 +196,183 @@ class Command(BaseCommand):
                 self.style.WARNING("DRY RUN MODE - No changes will be made")
             )
 
-        if skip_rabbitmq:
-            self.stdout.write(
-                self.style.WARNING(
-                    "SKIP RABBITMQ MODE - No RabbitMQ messages will be sent"
-                )
+        self.stdout.write(
+            self.style.WARNING(
+                "IMPORT MODE - Billing and RabbitMQ messages will be disabled during import"
             )
+        )
 
         self.stdout.write("Starting structure import...")
 
         try:
-            if skip_rabbitmq:
-                with skip_rabbitmq_messages():
-                    self._perform_import(data, skip_users, skip_roles)
-            else:
+            # Always use skip_rabbitmq_messages context to prevent billing during import
+            # This prevents ComponentUsage imports from triggering billing signals before PlanComponents are ready
+            with skip_rabbitmq_messages():
                 self._perform_import(data, skip_users, skip_roles)
 
-                if self.dry_run:
-                    # Rollback transaction in dry-run mode
-                    raise Exception("Dry run - rolling back transaction")
-
         except Exception as e:
-            if self.dry_run:
-                self.stdout.write(
-                    self.style.WARNING("Dry run completed - no changes made")
-                )
-            else:
-                self.stdout.write(self.style.ERROR(f"Import failed: {e}"))
-                return
+            self.stdout.write(self.style.ERROR(f"Import failed: {e}"))
+            return
+
+        if self.dry_run:
+            self.stdout.write(self.style.WARNING("Dry run completed - no changes made"))
 
         # Print summary
         self.print_summary()
 
     def _perform_import(self, data, skip_users, skip_roles):
         """Perform the actual import operations."""
-        with transaction.atomic():
-            # Import in dependency order
-            if not skip_users:
-                self.import_users(data.get("users", []))
-                self.import_auth_tokens(data.get("auth_tokens", []))
+        # Import in dependency order, each operation in its own transaction
+        # to prevent one failed import from affecting others
 
-            self.import_customers(data.get("customers", []))
-            self.import_service_providers(data.get("service_providers", []))
-            self.import_projects(data.get("projects", []))
-            self.import_categories(data.get("categories", []))
-            self.import_offerings(data.get("offerings", []))
+        if not skip_users:
+            self._safe_import("users", lambda: self.import_users(data.get("users", [])))
+            self._safe_import(
+                "auth_tokens",
+                lambda: self.import_auth_tokens(data.get("auth_tokens", [])),
+            )
 
-            # Import marketplace components and plans
-            self.import_plans(data.get("plans", []))
-            self.import_offering_components(data.get("offering_components", []))
-            self.import_plan_components(data.get("plan_components", []))
+        self._safe_import(
+            "customers", lambda: self.import_customers(data.get("customers", []))
+        )
+        self._safe_import(
+            "service_providers",
+            lambda: self.import_service_providers(data.get("service_providers", [])),
+        )
+        self._safe_import(
+            "projects", lambda: self.import_projects(data.get("projects", []))
+        )
+        self._safe_import(
+            "categories", lambda: self.import_categories(data.get("categories", []))
+        )
+        self._safe_import(
+            "offerings", lambda: self.import_offerings(data.get("offerings", []))
+        )
 
-            # Import resources (depends on offerings, plans, projects)
-            self.import_resources(data.get("resources", []))
+        # Import marketplace components and plans
+        self._safe_import("plans", lambda: self.import_plans(data.get("plans", [])))
+        self._safe_import(
+            "offering_components",
+            lambda: self.import_offering_components(
+                data.get("offering_components", [])
+            ),
+        )
+        self._safe_import(
+            "plan_components",
+            lambda: self.import_plan_components(data.get("plan_components", [])),
+        )
 
-            # Import resource plan periods (depends on resources and plans)
-            self.import_resource_plan_periods(data.get("resource_plan_periods", []))
+        # Import resources (depends on offerings, plans, projects)
+        self._safe_import(
+            "resources", lambda: self.import_resources(data.get("resources", []))
+        )
 
-            # Import component usages (depends on resources and components)
-            self.import_component_usages(data.get("component_usages", []))
+        # Import resource plan periods (depends on resources and plans)
+        self._safe_import(
+            "resource_plan_periods",
+            lambda: self.import_resource_plan_periods(
+                data.get("resource_plan_periods", [])
+            ),
+        )
 
-            # Import orders (depends on resources, projects, users, plans)
-            self.import_orders(data.get("orders", []))
+        # Import component usages (depends on resources and components)
+        self._safe_import(
+            "component_usages",
+            lambda: self.import_component_usages(data.get("component_usages", [])),
+        )
 
-            if not skip_roles:
-                self.import_roles(data.get("roles", []))
-                self.import_role_permissions(data.get("role_permissions", []))
+        # Import orders (depends on resources, projects, users, plans)
+        self._safe_import("orders", lambda: self.import_orders(data.get("orders", [])))
 
-            self.import_user_roles(data.get("user_roles", []))
+        if not skip_roles:
+            self._safe_import("roles", lambda: self.import_roles(data.get("roles", [])))
+            self._safe_import(
+                "role_permissions",
+                lambda: self.import_role_permissions(data.get("role_permissions", [])),
+            )
 
-            # Import account types
-            self.import_project_service_accounts(
+        self._safe_import(
+            "user_roles", lambda: self.import_user_roles(data.get("user_roles", []))
+        )
+
+        # Import account types
+        self._safe_import(
+            "project_service_accounts",
+            lambda: self.import_project_service_accounts(
                 data.get("project_service_accounts", [])
-            )
-            self.import_customer_service_accounts(
+            ),
+        )
+        self._safe_import(
+            "customer_service_accounts",
+            lambda: self.import_customer_service_accounts(
                 data.get("customer_service_accounts", [])
-            )
-            self.import_course_accounts(data.get("course_accounts", []))
+            ),
+        )
+        self._safe_import(
+            "course_accounts",
+            lambda: self.import_course_accounts(data.get("course_accounts", [])),
+        )
 
-            # Import invoicing (depends on customers, resources, projects)
-            self.import_invoices(data.get("invoices", []))
-            self.import_invoice_items(data.get("invoice_items", []))
+        # Import invoicing (depends on customers, resources, projects)
+        self._safe_import(
+            "invoices", lambda: self.import_invoices(data.get("invoices", []))
+        )
+        self._safe_import(
+            "invoice_items",
+            lambda: self.import_invoice_items(data.get("invoice_items", [])),
+        )
 
-            # Import offering users (depends on offerings and users)
-            self.import_offering_users(data.get("offering_users", []))
+        # Import offering users (depends on offerings and users)
+        self._safe_import(
+            "offering_users",
+            lambda: self.import_offering_users(data.get("offering_users", [])),
+        )
 
-            # Import checklist data (dependency order: categories -> checklists -> questions -> completions -> answers)
-            self.import_checklist_categories(data.get("checklist_categories", []))
-            self.import_checklists(data.get("checklists", []))
-            self.import_questions(data.get("questions", []))
-            self.import_checklist_completions(data.get("checklist_completions", []))
-            self.import_answers(data.get("answers", []))
+        # Import checklist data (dependency order: categories -> checklists -> questions -> completions -> answers)
+        self._safe_import(
+            "checklist_categories",
+            lambda: self.import_checklist_categories(
+                data.get("checklist_categories", [])
+            ),
+        )
+        self._safe_import(
+            "checklists", lambda: self.import_checklists(data.get("checklists", []))
+        )
+        self._safe_import(
+            "questions", lambda: self.import_questions(data.get("questions", []))
+        )
+        self._safe_import(
+            "checklist_completions",
+            lambda: self.import_checklist_completions(
+                data.get("checklist_completions", [])
+            ),
+        )
+        self._safe_import(
+            "answers", lambda: self.import_answers(data.get("answers", []))
+        )
 
+    def _safe_import(self, import_type, import_func):
+        """Safely execute an import function with proper transaction handling."""
+        try:
             if self.dry_run:
-                # Rollback transaction in dry-run mode
-                raise Exception("Dry run - rolling back transaction")
+                # For dry run, wrap in atomic block and rollback at the end
+                with transaction.atomic():
+                    import_func()
+                    # Force rollback in dry run mode
+                    raise Exception("Dry run - rolling back transaction")
+            else:
+                # For actual import, each operation in its own transaction
+                with transaction.atomic():
+                    import_func()
+        except Exception as e:
+            if self.dry_run and "Dry run - rolling back transaction" in str(e):
+                # This is expected in dry run mode, don't treat as error
+                pass
+            else:
+                # Log the error but continue with other imports
+                self.stdout.write(
+                    self.style.WARNING(f"Import of {import_type} failed: {e}")
+                )
 
     def import_users(self, users_data):
         """Import user data including system_robot."""
@@ -2362,10 +2443,10 @@ class Command(BaseCommand):
 
                 # Find plan component (optional)
                 plan_component = None
-                plan_component_uuid = item_data.get("plan_component")
-                if plan_component_uuid:
+                plan_component_id = item_data.get("plan_component")
+                if plan_component_id:
                     plan_component = PlanComponent.objects.filter(
-                        uuid=plan_component_uuid
+                        id=plan_component_id
                     ).first()
 
                 # Parse backend_uuid

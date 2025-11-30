@@ -5,6 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.middleware import get_skip_rabbitmq_messages
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -64,6 +65,13 @@ class BillingUsageProcessor:
             created: Whether the usage record was just created
             **kwargs: Additional signal arguments
         """
+        # Skip billing during import operations
+        if get_skip_rabbitmq_messages():
+            logger.debug(
+                "Skipping billing for component usage during import/maintenance mode"
+            )
+            return
+
         component_usage = instance
         resource = component_usage.resource
         offering_component = component_usage.component
@@ -178,10 +186,17 @@ class BillingUsageProcessor:
         try:
             plan_component = plan.components.get(component=offering_component)
         except ObjectDoesNotExist:
-            logger.error(
-                f"PlanComponent for component '{offering_component.type}' not found "
-                f"in plan '{plan.name}' for resource '{resource.uuid}'. Cannot bill usage."
-            )
+            # During import operations, missing PlanComponents might be expected if import order is affected
+            if get_skip_rabbitmq_messages():
+                logger.debug(
+                    f"PlanComponent for component '{offering_component.type}' not found "
+                    f"in plan '{plan.name}' for resource '{resource.uuid}' during import. Skipping billing."
+                )
+            else:
+                logger.error(
+                    f"PlanComponent for component '{offering_component.type}' not found "
+                    f"in plan '{plan.name}' for resource '{resource.uuid}'. Cannot bill usage."
+                )
             return
 
         converted_usage = convert_quantity(

@@ -1383,7 +1383,10 @@ class ImportStructureCommandTest(TestCase):
         )
 
         # Verify warning message is shown
-        self.assertIn("SKIP RABBITMQ MODE - No RabbitMQ messages will be sent", output)
+        self.assertIn(
+            "IMPORT MODE - Billing and RabbitMQ messages will be disabled during import",
+            output,
+        )
 
         # Verify user was still created
         self.assertEqual(User.objects.count(), 1)
@@ -1720,3 +1723,69 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(
             imported_offering.plugin_options, {"plugin_opt1": "plugin_val1"}
         )
+
+    def test_transaction_isolation_prevents_cascading_failures(self):
+        """Test that failed imports don't prevent subsequent imports from working."""
+        # Create some valid customers
+        customer1 = structure_factories.CustomerFactory()
+        customer2 = structure_factories.CustomerFactory()
+
+        # Create data with invalid invoice (missing customer) and valid offering users
+        data = {
+            "invoices": [
+                {
+                    "uuid": "invalid-invoice-uuid",
+                    "customer_uuid": "nonexistent-customer-uuid",  # This will fail
+                    "month": 1,
+                    "year": 2024,
+                    "total_cost": 100.0,
+                }
+            ],
+            "offering_users": [
+                {
+                    "uuid": "valid-offering-user-uuid",
+                    "offering_uuid": "nonexistent-offering-uuid",  # This will also fail
+                    "user_uuid": "nonexistent-user-uuid",
+                    "username": "testuser",
+                }
+            ],
+            "customers": [
+                {
+                    "uuid": customer1.uuid.hex,
+                    "name": "Updated Customer 1",
+                    "abbreviation": "UC1",
+                    "contact_details": "test@updated.com",
+                },
+                {
+                    "uuid": customer2.uuid.hex,
+                    "name": "Updated Customer 2",
+                    "abbreviation": "UC2",
+                    "contact_details": "test2@updated.com",
+                },
+            ],
+        }
+
+        self._create_test_json(data)
+        output = self._call_import_command("-i", self.test_file_path, "--update")
+
+        # Verify that despite invoice and offering user import failures,
+        # customers were still processed successfully
+        customer1.refresh_from_db()
+        customer2.refresh_from_db()
+        self.assertEqual(customer1.name, "Updated Customer 1")
+        self.assertEqual(customer2.name, "Updated Customer 2")
+
+        # Verify error messages are shown for failed individual objects
+        self.assertIn(
+            "Skipping invoice invalid-invoice-uuid: customer nonexistent-customer-uuid not found",
+            output,
+        )
+        self.assertIn(
+            "Skipping offering user valid-offering-user-uuid: offering nonexistent-offering-uuid not found",
+            output,
+        )
+
+        # Verify that error counts are tracked correctly
+        self.assertIn(
+            "Errors: 1", output
+        )  # Both invoice and offering user sections should show 1 error each
