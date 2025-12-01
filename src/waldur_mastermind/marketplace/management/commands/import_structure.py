@@ -24,6 +24,7 @@ from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.permissions.tasks import sync_user_deactivation_status
 from waldur_core.structure.models import Customer, Project
+from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 from waldur_mastermind.marketplace.models import (
     Category,
@@ -55,6 +56,7 @@ class Command(BaseCommand):
     - Billing: Invoices, Invoice Items, Component Usages, Resource Plan Periods
     - Checklists: Categories, Checklists, Questions, Completions, Answers
     - System: Authentication Tokens, Offering Users
+    - User Management: Invitations, Group Invitations, Permission Requests
 
     The import maintains dependency order and uses transaction isolation for safety.
     RabbitMQ messages are automatically disabled during import to prevent billing issues.
@@ -137,6 +139,19 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "answers": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "invitations": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "group_invitations": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "permission_requests": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
         }
         self.dry_run = False
         self.update_existing = False
@@ -373,6 +388,21 @@ class Command(BaseCommand):
         )
         self._safe_import(
             "answers", lambda: self.import_answers(data.get("answers", []))
+        )
+
+        # Import user management data (after roles and users are ready)
+        self._safe_import(
+            "group_invitations",
+            lambda: self.import_group_invitations(data.get("group_invitations", [])),
+        )
+        self._safe_import(
+            "invitations", lambda: self.import_invitations(data.get("invitations", []))
+        )
+        self._safe_import(
+            "permission_requests",
+            lambda: self.import_permission_requests(
+                data.get("permission_requests", [])
+            ),
         )
 
     def _safe_import(self, import_type, import_func):
@@ -3295,6 +3325,436 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["answers"]["errors"] += 1
+
+    def import_group_invitations(self, group_invitations_data):
+        """Import group invitation data."""
+        self.stdout.write("Importing group invitations...")
+        for group_invitation_data in group_invitations_data:
+            try:
+                uuid = group_invitation_data.get("uuid")
+                customer_uuid = group_invitation_data.get("customer_uuid")
+                role_uuid = group_invitation_data.get("role_uuid")
+                if not uuid or not customer_uuid or not role_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping group invitation without required fields"
+                        )
+                    )
+                    self.stats["group_invitations"]["errors"] += 1
+                    continue
+
+                # Find customer
+                customer = Customer.objects.filter(uuid=customer_uuid).first()
+                if not customer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping group invitation {uuid}: customer {customer_uuid} not found"
+                        )
+                    )
+                    self.stats["group_invitations"]["errors"] += 1
+                    continue
+
+                # Find role
+                role = Role.objects.filter(uuid=role_uuid).first()
+                if not role:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping group invitation {uuid}: role {role_uuid} not found"
+                        )
+                    )
+                    self.stats["group_invitations"]["errors"] += 1
+                    continue
+
+                # Find project role (optional)
+                project_role = None
+                project_role_uuid = group_invitation_data.get("project_role_uuid")
+                if project_role_uuid:
+                    project_role = Role.objects.filter(uuid=project_role_uuid).first()
+
+                # Find created_by (optional)
+                created_by = None
+                created_by_uuid = group_invitation_data.get("created_by_uuid")
+                if created_by_uuid:
+                    created_by = User.all_objects.filter(uuid=created_by_uuid).first()
+
+                # Parse dates
+                created = None
+                if group_invitation_data.get("created"):
+                    try:
+                        created = datetime.fromisoformat(
+                            group_invitation_data["created"]
+                        )
+                        if timezone.is_naive(created):
+                            created = timezone.make_aware(created)
+                    except (ValueError, TypeError):
+                        pass
+
+                modified = None
+                if group_invitation_data.get("modified"):
+                    try:
+                        modified = datetime.fromisoformat(
+                            group_invitation_data["modified"]
+                        )
+                        if timezone.is_naive(modified):
+                            modified = timezone.make_aware(modified)
+                    except (ValueError, TypeError):
+                        pass
+
+                # Parse scope information
+                scope_content_type = group_invitation_data.get("scope_content_type")
+                scope_object_id = group_invitation_data.get("scope_object_id")
+                content_type = None
+                if scope_content_type:
+                    try:
+                        app_label, model = scope_content_type.split(".")
+                        content_type = ContentType.objects.get(
+                            app_label=app_label, model=model
+                        )
+                    except (ValueError, ContentType.DoesNotExist):
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Skipping group invitation {uuid}: invalid scope_content_type {scope_content_type}"
+                            )
+                        )
+                        self.stats["group_invitations"]["errors"] += 1
+                        continue
+
+                defaults = {
+                    "customer": customer,
+                    "role": role,
+                    "project_role": project_role,
+                    "created_by": created_by,
+                    "is_active": group_invitation_data.get("is_active", True),
+                    "is_public": group_invitation_data.get("is_public", False),
+                    "auto_create_project": group_invitation_data.get(
+                        "auto_create_project", False
+                    ),
+                    "content_type": content_type,
+                    "object_id": scope_object_id,
+                }
+
+                if not self.dry_run:
+                    existing_group_invitation = GroupInvitation.objects.filter(
+                        uuid=uuid
+                    ).first()
+                    if existing_group_invitation:
+                        if self.update_existing:
+                            GroupInvitation.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["group_invitations"]["updated"] += 1
+                        else:
+                            self.stats["group_invitations"]["skipped"] += 1
+                    else:
+                        group_invitation = GroupInvitation.objects.create(
+                            uuid=UUID(uuid), **defaults
+                        )
+                        # Set timestamps after creation
+                        if created:
+                            group_invitation.created = created
+                        if modified:
+                            group_invitation.modified = modified
+                        if created or modified:
+                            group_invitation.save()
+                        self.stats["group_invitations"]["created"] += 1
+                else:
+                    existing = GroupInvitation.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["group_invitations"]["updated"] += 1
+                        else:
+                            self.stats["group_invitations"]["skipped"] += 1
+                    else:
+                        self.stats["group_invitations"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import group invitation {group_invitation_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["group_invitations"]["errors"] += 1
+
+    def import_invitations(self, invitations_data):
+        """Import invitation data."""
+        self.stdout.write("Importing invitations...")
+        for invitation_data in invitations_data:
+            try:
+                uuid = invitation_data.get("uuid")
+                customer_uuid = invitation_data.get("customer_uuid")
+                role_uuid = invitation_data.get("role_uuid")
+                email = invitation_data.get("email")
+                if not uuid or not customer_uuid or not role_uuid or not email:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping invitation without required fields"
+                        )
+                    )
+                    self.stats["invitations"]["errors"] += 1
+                    continue
+
+                # Find customer
+                customer = Customer.objects.filter(uuid=customer_uuid).first()
+                if not customer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping invitation {uuid}: customer {customer_uuid} not found"
+                        )
+                    )
+                    self.stats["invitations"]["errors"] += 1
+                    continue
+
+                # Find role
+                role = Role.objects.filter(uuid=role_uuid).first()
+                if not role:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping invitation {uuid}: role {role_uuid} not found"
+                        )
+                    )
+                    self.stats["invitations"]["errors"] += 1
+                    continue
+
+                # Find created_by (optional)
+                created_by = None
+                created_by_uuid = invitation_data.get("created_by_uuid")
+                if created_by_uuid:
+                    created_by = User.all_objects.filter(uuid=created_by_uuid).first()
+
+                # Find approved_by (optional)
+                approved_by = None
+                approved_by_uuid = invitation_data.get("approved_by_uuid")
+                if approved_by_uuid:
+                    approved_by = User.all_objects.filter(uuid=approved_by_uuid).first()
+
+                # Parse dates
+                created = None
+                if invitation_data.get("created"):
+                    try:
+                        created = datetime.fromisoformat(invitation_data["created"])
+                        if timezone.is_naive(created):
+                            created = timezone.make_aware(created)
+                    except (ValueError, TypeError):
+                        pass
+
+                modified = None
+                if invitation_data.get("modified"):
+                    try:
+                        modified = datetime.fromisoformat(invitation_data["modified"])
+                        if timezone.is_naive(modified):
+                            modified = timezone.make_aware(modified)
+                    except (ValueError, TypeError):
+                        pass
+
+                # Parse scope information
+                scope_content_type = invitation_data.get("scope_content_type")
+                scope_object_id = invitation_data.get("scope_object_id")
+                content_type = None
+                if scope_content_type:
+                    try:
+                        app_label, model = scope_content_type.split(".")
+                        content_type = ContentType.objects.get(
+                            app_label=app_label, model=model
+                        )
+                    except (ValueError, ContentType.DoesNotExist):
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Skipping invitation {uuid}: invalid scope_content_type {scope_content_type}"
+                            )
+                        )
+                        self.stats["invitations"]["errors"] += 1
+                        continue
+
+                defaults = {
+                    "customer": customer,
+                    "role": role,
+                    "created_by": created_by,
+                    "approved_by": approved_by,
+                    "email": email,
+                    "civil_number": invitation_data.get("civil_number", ""),
+                    "full_name": invitation_data.get("full_name", ""),
+                    "state": invitation_data.get("state", "pending"),
+                    "execution_state": invitation_data.get(
+                        "execution_state", "Scheduled"
+                    ),
+                    "extra_invitation_text": invitation_data.get(
+                        "extra_invitation_text", ""
+                    ),
+                    "error_message": invitation_data.get("error_message", ""),
+                    "error_traceback": invitation_data.get("error_traceback", ""),
+                    "content_type": content_type,
+                    "object_id": scope_object_id,
+                }
+
+                if not self.dry_run:
+                    existing_invitation = Invitation.objects.filter(uuid=uuid).first()
+                    if existing_invitation:
+                        if self.update_existing:
+                            Invitation.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["invitations"]["updated"] += 1
+                        else:
+                            self.stats["invitations"]["skipped"] += 1
+                    else:
+                        invitation = Invitation.objects.create(
+                            uuid=UUID(uuid), **defaults
+                        )
+                        # Set timestamps after creation
+                        if created:
+                            invitation.created = created
+                        if modified:
+                            invitation.modified = modified
+                        if created or modified:
+                            invitation.save()
+                        self.stats["invitations"]["created"] += 1
+                else:
+                    existing = Invitation.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["invitations"]["updated"] += 1
+                        else:
+                            self.stats["invitations"]["skipped"] += 1
+                    else:
+                        self.stats["invitations"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import invitation {invitation_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["invitations"]["errors"] += 1
+
+    def import_permission_requests(self, permission_requests_data):
+        """Import permission request data."""
+        self.stdout.write("Importing permission requests...")
+        for permission_request_data in permission_requests_data:
+            try:
+                uuid = permission_request_data.get("uuid")
+                invitation_uuid = permission_request_data.get("invitation_uuid")
+                created_by_uuid = permission_request_data.get("created_by_uuid")
+                if not uuid or not invitation_uuid or not created_by_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping permission request without required fields"
+                        )
+                    )
+                    self.stats["permission_requests"]["errors"] += 1
+                    continue
+
+                # Find invitation
+                invitation = GroupInvitation.objects.filter(
+                    uuid=invitation_uuid
+                ).first()
+                if not invitation:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping permission request {uuid}: invitation {invitation_uuid} not found"
+                        )
+                    )
+                    self.stats["permission_requests"]["errors"] += 1
+                    continue
+
+                # Find created_by
+                created_by = User.all_objects.filter(uuid=created_by_uuid).first()
+                if not created_by:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping permission request {uuid}: user {created_by_uuid} not found"
+                        )
+                    )
+                    self.stats["permission_requests"]["errors"] += 1
+                    continue
+
+                # Find reviewed_by (optional)
+                reviewed_by = None
+                reviewed_by_uuid = permission_request_data.get("reviewed_by_uuid")
+                if reviewed_by_uuid:
+                    reviewed_by = User.all_objects.filter(uuid=reviewed_by_uuid).first()
+
+                # Parse dates
+                created = None
+                if permission_request_data.get("created"):
+                    try:
+                        created = datetime.fromisoformat(
+                            permission_request_data["created"]
+                        )
+                        if timezone.is_naive(created):
+                            created = timezone.make_aware(created)
+                    except (ValueError, TypeError):
+                        pass
+
+                modified = None
+                if permission_request_data.get("modified"):
+                    try:
+                        modified = datetime.fromisoformat(
+                            permission_request_data["modified"]
+                        )
+                        if timezone.is_naive(modified):
+                            modified = timezone.make_aware(modified)
+                    except (ValueError, TypeError):
+                        pass
+
+                reviewed_at = None
+                if permission_request_data.get("reviewed_at"):
+                    try:
+                        reviewed_at = datetime.fromisoformat(
+                            permission_request_data["reviewed_at"]
+                        )
+                        if timezone.is_naive(reviewed_at):
+                            reviewed_at = timezone.make_aware(reviewed_at)
+                    except (ValueError, TypeError):
+                        pass
+
+                defaults = {
+                    "invitation": invitation,
+                    "created_by": created_by,
+                    "reviewed_by": reviewed_by,
+                    "reviewed_at": reviewed_at,
+                    "state": permission_request_data.get(
+                        "state", 2
+                    ),  # Default to PENDING
+                    "review_comment": permission_request_data.get("review_comment", ""),
+                }
+
+                if not self.dry_run:
+                    existing_permission_request = PermissionRequest.objects.filter(
+                        uuid=uuid
+                    ).first()
+                    if existing_permission_request:
+                        if self.update_existing:
+                            PermissionRequest.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["permission_requests"]["updated"] += 1
+                        else:
+                            self.stats["permission_requests"]["skipped"] += 1
+                    else:
+                        permission_request = PermissionRequest.objects.create(
+                            uuid=UUID(uuid), **defaults
+                        )
+                        # Set timestamps after creation
+                        if created:
+                            permission_request.created = created
+                        if modified:
+                            permission_request.modified = modified
+                        if created or modified:
+                            permission_request.save()
+                        self.stats["permission_requests"]["created"] += 1
+                else:
+                    existing = PermissionRequest.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["permission_requests"]["updated"] += 1
+                        else:
+                            self.stats["permission_requests"]["skipped"] += 1
+                    else:
+                        self.stats["permission_requests"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import permission request {permission_request_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["permission_requests"]["errors"] += 1
 
     def _sync_user_activation_status(self):
         """

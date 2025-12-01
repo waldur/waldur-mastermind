@@ -6,7 +6,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0196_add_internal_notes_to_maintenance_announcement"),
+        ("marketplace", "0197_alter_order_type"),
     ]
 
     operations = [
