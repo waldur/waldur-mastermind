@@ -242,8 +242,13 @@ class InvitationViewSet(ProtectedViewSet):
                 )
 
         if config.INVITATION_DISABLE_MULTIPLE_ROLES:
-            if UserRole.objects.filter(user=request.user, is_active=True).exists():
-                raise ValidationError(_("User already has role within another scope."))
+            if UserRole.objects.filter(
+                user=request.user,
+                is_active=True,
+                content_type=invitation.content_type,
+                object_id=invitation.object_id,
+            ).exists():
+                raise ValidationError(_("User already has role within this scope."))
 
         invitation.accept(request.user)
 

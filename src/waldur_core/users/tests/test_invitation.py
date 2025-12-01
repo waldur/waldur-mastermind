@@ -1013,7 +1013,26 @@ class InvitationAcceptTest(BaseInvitationTest):
         )
 
     @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
-    def test_user_can_have_only_single_role_in_any_project_or_customer(self):
+    def test_user_cannot_have_multiple_roles_in_same_scope_when_disabled(self):
+        # Create an invitation for the same customer where customer_owner already has a role
+        same_customer_invitation = factories.CustomerInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.SUPPORT,
+        )
+
+        self.client.force_authenticate(user=self.customer_owner)
+        response = self.client.post(
+            factories.CustomerInvitationFactory.get_url(
+                same_customer_invitation, action="accept"
+            )
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, ["User already has role within this scope."])
+
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
+    def test_user_can_have_roles_in_different_scopes_when_multiple_roles_disabled(self):
+        # User with existing role in customer can accept invitation to different project
         self.client.force_authenticate(user=self.customer_owner)
         response = self.client.post(
             factories.ProjectInvitationFactory.get_url(
@@ -1021,8 +1040,9 @@ class InvitationAcceptTest(BaseInvitationTest):
             )
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data, ["User already has role within another scope."])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project_invitation.refresh_from_db()
+        self.assertEqual(self.project_invitation.state, InvitationState.ACCEPTED)
 
     def test_user_which_created_invitation_is_stored_in_permission(self):
         invitation = factories.CustomerInvitationFactory(created_by=self.customer_owner)
