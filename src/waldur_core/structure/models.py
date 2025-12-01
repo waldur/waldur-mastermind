@@ -140,8 +140,8 @@ class VATMixin(models.Model):
         if not vat_code:
             return False
 
-        # Remove spaces and convert to uppercase
-        vat_code = vat_code.replace(" ", "").upper()
+        # Remove spaces and dashes, then convert to uppercase
+        vat_code = vat_code.replace(" ", "").replace("-", "").upper()
 
         # European VAT number patterns extracted from regex documentation
         vat_patterns = {
