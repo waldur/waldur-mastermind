@@ -39,15 +39,24 @@ class Command(BaseCommand):
     help = """
     Delete all Waldur structure data from the database.
 
-    This command removes all Users, Customers, Projects, Offerings, Roles, UserRoles,
-    RolePermissions, Events, Feeds, and related marketplace objects.
+    This command removes ALL data including:
+    - Users, Customers, Service Providers, Projects
+    - Marketplace: Categories, Offerings, Plans, Components, Resources, Orders
+    - Permissions: Roles, User Roles, Role Permissions
+    - Accounts: Project/Customer Service Accounts, Course Accounts
+    - Billing: Invoices, Invoice Items, Component Usages
+    - Checklists: Categories, Checklists, Questions, Completions, Answers
+    - System: Events, Feeds, Offering Users
+
+    The cleanup follows reverse dependency order to prevent foreign key violations.
+    Invoice item signals are temporarily disconnected to avoid race conditions.
 
     IMPORTANT: This is a destructive operation that deletes ALL data. Use --dry-run to preview changes.
 
     Usage:
         waldur cleanup_structure --dry-run
         waldur cleanup_structure
-        waldur cleanup_structure --skip-users
+        waldur cleanup_structure --skip-users --skip-roles
         waldur cleanup_structure --skip-rabbitmq-messages
     """
 

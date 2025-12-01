@@ -37,10 +37,19 @@ from waldur_mastermind.marketplace.models import (
 
 class Command(BaseCommand):
     help = """
-    Export Waldur structure data to JSON format.
+    Export comprehensive Waldur structure data to JSON format.
 
-    This command exports Users, Customers, Projects, Offerings, Roles, UserRoles,
-    and RolePermissions to a comprehensive JSON file for analysis or backup.
+    This command exports a complete Waldur system structure including:
+    - Users, Customers, Service Providers, Projects
+    - Marketplace: Categories, Offerings, Plans, Components, Resources, Orders
+    - Permissions: Roles, User Roles, Role Permissions
+    - Accounts: Project/Customer Service Accounts, Course Accounts
+    - Billing: Invoices, Invoice Items, Component Usages, Resource Plan Periods
+    - Checklists: Categories, Checklists, Questions, Completions, Answers
+    - System: Authentication Tokens, Offering Users
+
+    The exported JSON file can be used for backup, migration, analysis, or import
+    using the import_structure command. All UUIDs and relationships are preserved.
 
     Usage:
         waldur export_structure -o structure.json
