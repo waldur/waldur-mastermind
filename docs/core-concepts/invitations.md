@@ -316,7 +316,7 @@ VALIDATE_INVITATION_EMAIL = False              # Strict email matching
 ```python
 # Runtime configuration
 ENABLE_STRICT_CHECK_ACCEPTING_INVITATION = True   # Enforce email matching
-INVITATION_DISABLE_MULTIPLE_ROLES = False         # Prevent multiple roles per user
+INVITATION_DISABLE_MULTIPLE_ROLES = False         # Prevent multiple roles in same scope
 ```
 
 ### Webhook Integration

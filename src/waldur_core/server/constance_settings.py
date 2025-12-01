@@ -137,7 +137,7 @@ CONSTANCE_CONFIG = {
     ),
     "INVITATION_DISABLE_MULTIPLE_ROLES": (
         False,
-        "Do not allow user to grant multiple roles in the same project or organization using invitation.",
+        "Do not allow user to accept multiple roles within the same scope (project or organization) using invitation. When enabled, users can still accept invitations to different scopes but cannot have multiple roles in the same scope.",
     ),
     "DEFAULT_IDP": ("", "Triggers authentication flow at once."),
     "DOCS_URL": ("", "Renders link to docs in header", "url_field"),
