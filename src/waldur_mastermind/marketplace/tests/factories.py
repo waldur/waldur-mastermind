@@ -975,11 +975,13 @@ class SoftwareTargetFactory(
         model = models.SoftwareTarget
 
     version = factory.SubFactory(SoftwareVersionFactory)
-    cpu_family = factory.Iterator(["x86_64", "aarch64", "ppc64le"])
-    cpu_microarchitecture = "generic"
-    path = factory.LazyAttribute(
-        lambda obj: f"/cvmfs/software.eessi.io/versions/2023.06/software/linux/{obj.cpu_family}/{obj.cpu_microarchitecture}"
+    target_type = "cpu_architecture"
+    target_name = factory.Iterator(["x86_64", "aarch64", "ppc64le"])
+    target_subtype = "generic"
+    location = factory.LazyAttribute(
+        lambda obj: f"/cvmfs/software.eessi.io/versions/2023.06/software/linux/{obj.target_name}/{obj.target_subtype}"
     )
+    metadata = factory.LazyAttribute(lambda obj: {"full_arch": obj.target_name})
 
     @classmethod
     def get_url(cls, target=None, action=None):

@@ -17,7 +17,7 @@ class SoftwareCatalogModelTest(test.APITransactionTestCase):
         )
 
     def test_catalog_str_representation(self):
-        self.assertEqual(str(self.catalog), "EESSI 2023.06")
+        self.assertEqual(str(self.catalog), "EESSI 2023.06 (Binary Runtime (EESSI))")
 
     def test_catalog_has_uuid(self):
         self.assertIsNotNone(self.catalog.uuid)
@@ -73,13 +73,14 @@ class SoftwareTargetModelTest(test.APITransactionTestCase):
         self.version = factories.SoftwareVersionFactory(package=self.package)
         self.target = factories.SoftwareTargetFactory(
             version=self.version,
-            cpu_family="x86_64",
-            cpu_microarchitecture="generic",
-            path="/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic",
+            target_type="cpu_architecture",
+            target_name="x86_64",
+            target_subtype="generic",
+            location="/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic",
         )
 
     def test_target_str_representation(self):
-        expected = f"{self.version} - {self.target.cpu_family}/{self.target.cpu_microarchitecture}"
+        expected = f"{self.version} - {self.target.target_type}:{self.target.target_name}/{self.target.target_subtype}"
         self.assertEqual(str(self.target), expected)
 
     def test_target_belongs_to_version(self):
@@ -101,7 +102,7 @@ class OfferingSoftwareCatalogModelTest(test.APITransactionTestCase):
         )
 
     def test_offering_catalog_str_representation(self):
-        expected = f"{self.offering.name} - {self.catalog.name} {self.catalog.version}"
+        expected = f"{self.offering.name} - {self.catalog}"
         self.assertEqual(str(self.offering_catalog), expected)
 
     def test_offering_catalog_relationships(self):
@@ -348,13 +349,13 @@ class SoftwarePackageViewSetTest(test.APITransactionTestCase):
 
         # Add targets to versions
         factories.SoftwareTargetFactory(
-            version=version1, cpu_family="x86_64", cpu_microarchitecture="generic"
+            version=version1, target_name="x86_64", target_subtype="generic"
         )
         factories.SoftwareTargetFactory(
-            version=version1, cpu_family="aarch64", cpu_microarchitecture="generic"
+            version=version1, target_name="aarch64", target_subtype="generic"
         )
         factories.SoftwareTargetFactory(
-            version=version2, cpu_family="x86_64", cpu_microarchitecture="generic"
+            version=version2, target_name="x86_64", target_subtype="generic"
         )
 
         self.client.force_authenticate(self.fixture.staff)
@@ -379,9 +380,9 @@ class SoftwarePackageViewSetTest(test.APITransactionTestCase):
         self.assertEqual(len(version1_data["targets"]), 2)
         target_data = version_data["targets"][0]
         self.assertIn("uuid", target_data)
-        self.assertIn("cpu_family", target_data)
-        self.assertIn("cpu_microarchitecture", target_data)
-        self.assertIn("path", target_data)
+        self.assertIn("target_name", target_data)
+        self.assertIn("target_subtype", target_data)
+        self.assertIn("location", target_data)
 
     def test_filter_by_catalog_version(self):
         """Test filtering packages by catalog version."""

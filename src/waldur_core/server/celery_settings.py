@@ -118,6 +118,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(hours=1),
         "args": (),
     },
+    # Software catalog updates - run once daily at 3 AM
+    "update-software-catalogs": {
+        "task": "marketplace.update_software_catalogs",
+        "schedule": crontab(hour=3, minute=0),
+        "args": (),
+    },
 }
 
 for ext in WaldurExtension.get_extensions():

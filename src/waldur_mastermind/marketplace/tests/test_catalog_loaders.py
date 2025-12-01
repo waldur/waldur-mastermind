@@ -1,0 +1,525 @@
+"""
+Test cases for software catalog loaders.
+
+Tests the EESSI and Spack catalog loaders using real data snapshots
+to ensure accurate parsing and database loading.
+"""
+
+import json
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import requests
+from django.test import TestCase
+from django.utils import timezone
+from freezegun import freeze_time
+
+from waldur_mastermind.marketplace.catalog_loaders.base import CatalogLoadError
+from waldur_mastermind.marketplace.catalog_loaders.eessi import EESSICatalogLoader
+from waldur_mastermind.marketplace.catalog_loaders.spack import SpackCatalogLoader
+from waldur_mastermind.marketplace.models import (
+    SoftwareCatalog,
+    SoftwarePackage,
+    SoftwareTarget,
+    SoftwareVersion,
+)
+
+
+class BaseLoaderTestCase(TestCase):
+    """Base test case with common fixture loading utilities."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.fixtures_dir = Path(__file__).parent / "fixtures" / "catalog_data"
+
+    def load_test_fixture(self, filename):
+        """Load test fixture JSON data."""
+        fixture_path = self.fixtures_dir / filename
+        if not fixture_path.exists():
+            self.skipTest(f"Test fixture {filename} not found")
+
+        with open(fixture_path) as f:
+            return json.load(f)
+
+
+class EESSICatalogLoaderTest(BaseLoaderTestCase):
+    """Test cases for EESSI catalog loader."""
+
+    def setUp(self):
+        self.eessi_software_data = self.load_test_fixture("eessi_software_test.json")
+        self.eessi_extensions_data = self.load_test_fixture(
+            "eessi_extensions_python_test.json"
+        )
+
+    def test_loader_initialization(self):
+        """Test EESSI loader can be initialized with various parameters."""
+        # Test with defaults
+        loader = EESSICatalogLoader()
+        self.assertEqual(loader.catalog_name, "EESSI")
+        self.assertEqual(loader.catalog_type, "binary_runtime")
+
+        # Test with custom parameters
+        loader = EESSICatalogLoader(
+            catalog_name="Custom EESSI",
+            catalog_version="2023.06",
+            include_extensions=False,
+        )
+        self.assertEqual(loader.catalog_name, "Custom EESSI")
+        self.assertEqual(loader.catalog_version, "2023.06")
+        self.assertFalse(loader.include_extensions)
+
+    @patch("requests.get")
+    def test_version_detection(self, mock_get):
+        """Test automatic version detection from API data."""
+        mock_response = Mock()
+        mock_response.json.return_value = self.eessi_software_data
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        loader = EESSICatalogLoader(catalog_version="auto")
+        # Should detect "2025.06" as latest version from architectures_map
+        self.assertEqual(loader.catalog_version, "2025.06")
+
+    @patch("requests.get")
+    def test_software_data_fetching(self, mock_get):
+        """Test fetching main software data from EESSI API."""
+        mock_response = Mock()
+        mock_response.json.return_value = self.eessi_software_data
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        loader = EESSICatalogLoader()
+        software_data = loader._fetch_software_data()
+
+        self.assertIn("timestamp", software_data)
+        self.assertIn("software", software_data)
+        self.assertIn("architectures_map", software_data)
+
+    @patch("requests.get")
+    def test_extensions_data_fetching(self, mock_get):
+        """Test fetching extension data from EESSI API."""
+        # Mock successful extension fetch
+        mock_response = Mock()
+        mock_response.json.return_value = self.eessi_extensions_data
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        loader = EESSICatalogLoader()
+        extensions_data = loader._fetch_extensions_data()
+
+        self.assertIsInstance(extensions_data, dict)
+        # Should have fetched python extensions
+        self.assertIn("python", extensions_data)
+
+    @patch("requests.get")
+    def test_complete_data_loading(self, mock_get):
+        """Test complete EESSI data loading process."""
+
+        def mock_requests_side_effect(url, **kwargs):
+            mock_response = Mock()
+            if "software.json" in url:
+                mock_response.json.return_value = self.eessi_software_data
+            elif "ext-python.json" in url:
+                mock_response.json.return_value = self.eessi_extensions_data
+            else:
+                mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+            return mock_response
+
+        mock_get.side_effect = mock_requests_side_effect
+
+        loader = EESSICatalogLoader(catalog_version="2023.06")
+        catalog_data = loader.fetch_catalog_data()
+
+        # Verify catalog structure
+        self.assertEqual(catalog_data.name, "EESSI")
+        self.assertEqual(catalog_data.version, "2023.06")
+        self.assertEqual(catalog_data.catalog_type, "binary_runtime")
+        self.assertIn("timestamp", catalog_data.metadata)
+
+        # Verify packages were loaded
+        self.assertGreater(len(catalog_data.packages), 0)
+
+        # Check that a main software package exists
+        self.assertIn("ALL", catalog_data.packages)
+        package_data = catalog_data.packages["ALL"]
+        self.assertFalse(package_data.package_data.is_extension)
+
+        # Verify versions and targets
+        self.assertGreater(len(package_data.versions), 0)
+        for version_with_targets in package_data.versions.values():
+            self.assertGreater(len(version_with_targets.targets), 0)
+
+            # Verify target structure
+            target = version_with_targets.targets[0]
+            self.assertEqual(target.target_type, "cpu_architecture")
+            self.assertIn(target.target_name, ["x86_64", "aarch64"])
+
+    @patch("requests.get")
+    def test_database_loading(self, mock_get):
+        """Test loading EESSI data into database models."""
+
+        def mock_requests_side_effect(url, **kwargs):
+            mock_response = Mock()
+            if "software.json" in url:
+                mock_response.json.return_value = self.eessi_software_data
+            elif "ext-python.json" in url:
+                mock_response.json.return_value = self.eessi_extensions_data
+            else:
+                mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+            return mock_response
+
+        mock_get.side_effect = mock_requests_side_effect
+
+        loader = EESSICatalogLoader(catalog_version="2023.06")
+
+        # Load into database
+        stats = loader.load_catalog(update_existing=True, dry_run=False)
+
+        # Verify statistics
+        self.assertGreater(stats["packages_created"], 0)
+        self.assertGreater(stats["versions_created"], 0)
+        self.assertGreater(stats["targets_created"], 0)
+
+        # Verify database objects were created
+        catalog = SoftwareCatalog.objects.get(name="EESSI", version="2023.06")
+        self.assertEqual(catalog.catalog_type, "binary_runtime")
+        self.assertIsNotNone(catalog.last_successful_update)
+
+        # Verify packages
+        packages = SoftwarePackage.objects.filter(catalog=catalog)
+        self.assertGreater(packages.count(), 0)
+
+        # Verify at least one package has versions and targets
+        package = packages.first()
+        versions = SoftwareVersion.objects.filter(package=package)
+        self.assertGreater(versions.count(), 0)
+
+        version = versions.first()
+        targets = SoftwareTarget.objects.filter(version=version)
+        self.assertGreater(targets.count(), 0)
+
+        # Verify target structure
+        target = targets.first()
+        self.assertEqual(target.target_type, "cpu_architecture")
+        self.assertIn(target.target_name, ["x86_64", "aarch64"])
+
+    def test_dry_run_mode(self):
+        """Test dry run mode doesn't create database objects."""
+        with patch("requests.get") as mock_get:
+            mock_response = Mock()
+            mock_response.json.return_value = self.eessi_software_data
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            loader = EESSICatalogLoader(catalog_version="2023.06")
+
+            # Run in dry run mode
+            stats = loader.load_catalog(dry_run=True)
+
+            # Should return statistics but not create objects
+            self.assertGreater(stats["packages_created"], 0)
+            self.assertEqual(SoftwareCatalog.objects.count(), 0)
+            self.assertEqual(SoftwarePackage.objects.count(), 0)
+
+    @patch("requests.get")
+    def test_network_error_handling(self, mock_get):
+        """Test handling of network errors during data fetching."""
+        mock_get.side_effect = requests.exceptions.RequestException("Network error")
+
+        loader = EESSICatalogLoader()
+
+        with self.assertRaises(CatalogLoadError):
+            loader.fetch_catalog_data()
+
+
+class SpackCatalogLoaderTest(BaseLoaderTestCase):
+    """Test cases for Spack catalog loader."""
+
+    def setUp(self):
+        self.spack_data = self.load_test_fixture("spack_repology_test.json")
+
+    def test_loader_initialization(self):
+        """Test Spack loader can be initialized with various parameters."""
+        # Test with defaults
+        loader = SpackCatalogLoader()
+        self.assertEqual(loader.catalog_name, "Spack")
+        self.assertEqual(loader.catalog_type, "source_package")
+
+        # Test with custom parameters
+        loader = SpackCatalogLoader(
+            catalog_name="Custom Spack", catalog_version="2024.11.26"
+        )
+        self.assertEqual(loader.catalog_name, "Custom Spack")
+        self.assertEqual(loader.catalog_version, "2024.11.26")
+
+    @patch("requests.get")
+    def test_version_detection_from_timestamp(self, mock_get):
+        """Test automatic version detection from Spack timestamp."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "last_update": "2024-11-26 12:00:00.123456",
+            "packages": {},
+        }
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        loader = SpackCatalogLoader(catalog_version="auto")
+        # Should convert timestamp to version format
+        self.assertEqual(loader.catalog_version, "2024.11.26")
+
+    @patch("requests.get")
+    def test_spack_data_parsing(self, mock_get):
+        """Test parsing Spack repology.json format."""
+        mock_response = Mock()
+        mock_response.json.return_value = self.spack_data
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        loader = SpackCatalogLoader(catalog_version="test")
+        catalog_data = loader.fetch_catalog_data()
+
+        # Verify catalog structure
+        self.assertEqual(catalog_data.name, "Spack")
+        self.assertEqual(catalog_data.catalog_type, "source_package")
+        self.assertIn("last_update", catalog_data.metadata)
+
+        # Verify packages were parsed
+        self.assertGreater(len(catalog_data.packages), 0)
+
+        # Check package structure for first package
+        first_package_name = list(catalog_data.packages.keys())[0]
+        package_data = catalog_data.packages[first_package_name]
+
+        # Verify package metadata
+        self.assertIsInstance(package_data.package_data.categories, list)
+        self.assertIsInstance(package_data.package_data.licenses, list)
+        self.assertIsInstance(package_data.package_data.maintainers, list)
+        self.assertFalse(
+            package_data.package_data.is_extension
+        )  # Spack doesn't use extensions
+
+        # Verify versions
+        self.assertGreater(len(package_data.versions), 0)
+
+        # Verify targets (build variants)
+        for version_with_targets in package_data.versions.values():
+            self.assertGreater(len(version_with_targets.targets), 0)
+
+            # Should have at least default build target
+            default_targets = [
+                t for t in version_with_targets.targets if t.target_name == "default"
+            ]
+            self.assertGreater(len(default_targets), 0)
+
+    @patch("requests.get")
+    def test_database_loading(self, mock_get):
+        """Test loading Spack data into database models."""
+        mock_response = Mock()
+        mock_response.json.return_value = self.spack_data
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        loader = SpackCatalogLoader(catalog_version="test")
+
+        # Load into database
+        stats = loader.load_catalog(update_existing=True, dry_run=False)
+
+        # Verify statistics
+        self.assertGreater(stats["packages_created"], 0)
+        self.assertGreater(stats["versions_created"], 0)
+        self.assertGreater(stats["targets_created"], 0)
+
+        # Verify database objects
+        catalog = SoftwareCatalog.objects.get(name="Spack", version="test")
+        self.assertEqual(catalog.catalog_type, "source_package")
+
+        # Verify packages have correct structure
+        packages = SoftwarePackage.objects.filter(catalog=catalog)
+        self.assertGreater(packages.count(), 0)
+
+        package = packages.first()
+        self.assertIsInstance(package.categories, list)
+        self.assertIsInstance(package.licenses, list)
+        self.assertFalse(package.is_extension)
+
+        # Verify versions have dependencies
+        versions = SoftwareVersion.objects.filter(package=package)
+        self.assertGreater(versions.count(), 0)
+
+        version = versions.first()
+        self.assertIsInstance(version.dependencies, list)
+        self.assertIsInstance(version.metadata, dict)
+
+        # Verify targets
+        targets = SoftwareTarget.objects.filter(version=version)
+        self.assertGreater(targets.count(), 0)
+
+        target = targets.first()
+        self.assertIn(
+            target.target_type,
+            ["build_variant", "platform", "external", "build_system"],
+        )
+
+
+class CatalogLoaderIntegrationTest(BaseLoaderTestCase):
+    """Integration tests for catalog loading process."""
+
+    def setUp(self):
+        self.eessi_software_data = self.load_test_fixture("eessi_software_test.json")
+        self.spack_data = self.load_test_fixture("spack_repology_test.json")
+
+    @patch("requests.get")
+    def test_multiple_catalog_loading(self, mock_get):
+        """Test loading multiple catalogs without conflicts."""
+
+        def mock_requests_side_effect(url, **kwargs):
+            mock_response = Mock()
+            if "eessi" in url.lower():
+                mock_response.json.return_value = self.eessi_software_data
+            elif "spack" in url.lower() or "repology" in url:
+                mock_response.json.return_value = self.spack_data
+            else:
+                mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+            return mock_response
+
+        mock_get.side_effect = mock_requests_side_effect
+
+        # Load EESSI catalog
+        eessi_loader = EESSICatalogLoader(catalog_version="2023.06")
+        eessi_loader.load_catalog(dry_run=False)
+
+        # Load Spack catalog
+        spack_loader = SpackCatalogLoader(catalog_version="test")
+        spack_loader.load_catalog(dry_run=False)
+
+        # Verify both catalogs exist
+        self.assertEqual(SoftwareCatalog.objects.count(), 2)
+
+        eessi_catalog = SoftwareCatalog.objects.get(name="EESSI")
+        spack_catalog = SoftwareCatalog.objects.get(name="Spack")
+
+        self.assertEqual(eessi_catalog.catalog_type, "binary_runtime")
+        self.assertEqual(spack_catalog.catalog_type, "source_package")
+
+        # Verify packages are separate per catalog
+        eessi_packages = SoftwarePackage.objects.filter(catalog=eessi_catalog)
+        spack_packages = SoftwarePackage.objects.filter(catalog=spack_catalog)
+
+        self.assertGreater(eessi_packages.count(), 0)
+        self.assertGreater(spack_packages.count(), 0)
+
+    @patch("requests.get")
+    def test_update_existing_catalog(self, mock_get):
+        """Test updating an existing catalog preserves structure."""
+        mock_response = Mock()
+        mock_response.json.return_value = self.eessi_software_data
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        # First load
+        loader = EESSICatalogLoader(catalog_version="2023.06")
+        loader.load_catalog(dry_run=False)
+
+        original_catalog_count = SoftwareCatalog.objects.count()
+        original_package_count = SoftwarePackage.objects.count()
+
+        # Second load (update)
+        loader.load_catalog(update_existing=True, dry_run=False)
+
+        # Should not create duplicate catalog
+        self.assertEqual(SoftwareCatalog.objects.count(), original_catalog_count)
+
+        # Package count might vary depending on data, but shouldn't dramatically increase
+        current_package_count = SoftwarePackage.objects.count()
+        self.assertLessEqual(current_package_count, original_package_count * 2)
+
+    def test_error_handling_resilience(self):
+        """Test that loader errors are properly handled and cataloged."""
+        # Test with invalid API URL
+        loader = EESSICatalogLoader(api_base_url="invalid://url")
+
+        with self.assertRaises(CatalogLoadError):
+            loader.fetch_catalog_data()
+
+    @freeze_time("2024-11-26 12:00:00")
+    def test_catalog_update_timestamps(self):
+        """Test that catalog update timestamps are properly recorded."""
+        with patch("requests.get") as mock_get:
+            mock_response = Mock()
+            mock_response.json.return_value = self.eessi_software_data
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            loader = EESSICatalogLoader(catalog_version="2023.06")
+            loader.load_catalog(dry_run=False)
+
+            catalog = SoftwareCatalog.objects.get(name="EESSI", version="2023.06")
+
+            # Verify timestamps
+            self.assertIsNotNone(catalog.last_successful_update)
+            self.assertEqual(catalog.last_successful_update, timezone.now())
+            self.assertEqual(catalog.update_errors, "")
+
+
+class CatalogLoaderErrorHandlingTest(TestCase):
+    """Test error handling and resilience of catalog loaders."""
+
+    def test_network_timeout_handling(self):
+        """Test handling of network timeouts."""
+        with patch("requests.get") as mock_get:
+            mock_get.side_effect = requests.exceptions.Timeout("Request timed out")
+
+            loader = EESSICatalogLoader()
+
+            with self.assertRaises(CatalogLoadError):
+                loader.fetch_catalog_data()
+
+    def test_invalid_json_handling(self):
+        """Test handling of invalid JSON responses."""
+        with patch("requests.get") as mock_get:
+            mock_response = Mock()
+            mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            loader = SpackCatalogLoader()
+
+            with self.assertRaises(CatalogLoadError):
+                loader.fetch_catalog_data()
+
+    def test_http_error_handling(self):
+        """Test handling of HTTP errors (404, 500, etc.)."""
+        with patch("requests.get") as mock_get:
+            mock_response = Mock()
+            mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+                "404 Not Found"
+            )
+            mock_get.return_value = mock_response
+
+            loader = EESSICatalogLoader()
+
+            with self.assertRaises(CatalogLoadError):
+                loader.fetch_catalog_data()
+
+    def test_database_error_recovery(self):
+        """Test that database errors are properly handled."""
+        with patch("requests.get") as mock_get:
+            mock_response = Mock()
+            mock_response.json.return_value = {"software": {"test": {"versions": []}}}
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            loader = EESSICatalogLoader(catalog_version="2023.06")
+
+            # Simulate database error during loading
+            with patch.object(
+                SoftwareCatalog.objects,
+                "get_or_create",
+                side_effect=Exception("DB Error"),
+            ):
+                with self.assertRaises(CatalogLoadError):
+                    loader.load_catalog(dry_run=False)
