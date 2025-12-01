@@ -33,7 +33,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         respx.start()
         self.fixture = ProjectFixture()
         self.api_url = "https://remote-waldur.com"
-        offering = OfferingFactory(
+        self.offering = OfferingFactory(
             type=REMOTE_OFFERING,
             secret_options={
                 "api_url": self.api_url,
@@ -42,7 +42,9 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
             },
         )
         self.customer = self.fixture.customer
-        self.resource = ResourceFactory(project=self.fixture.project, offering=offering)
+        self.resource = ResourceFactory(
+            project=self.fixture.project, offering=self.offering
+        )
         self.resource.backend_id = "valid-backend-id"
         self.resource.save()
 
@@ -72,7 +74,9 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         }
 
     def mock_invoice_items(self, json):
-        respx.get(f"{self.api_url}/api/invoice-items/").respond(200, json=json)
+        respx.get(
+            f"{self.api_url}/api/invoice-items/", params={"page_size": 100}
+        ).respond(200, json=json)
 
     @freeze_time("2021-08-17")
     def test_invoice_is_created_after_pull(self):
@@ -105,7 +109,14 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
     def test_invoice_items_creation(self):
         item_data = self.get_common_data()
         self.mock_invoice_items(
-            [{"resource_uuid": self.resource.backend_id, **item_data}]
+            [
+                {
+                    "resource_uuid": self.resource.backend_id,
+                    "offering_uuid": self.offering.uuid.hex,
+                    "offering_component_type": None,
+                    **item_data,
+                }
+            ]
         )
         today = datetime.date.today()
         ResourceInvoicePullTask().run(serialize_instance(self.resource))
@@ -149,7 +160,14 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         old_item_data.pop("invoice")
 
         self.mock_invoice_items(
-            [{"resource_uuid": self.resource.backend_id, **new_item_data}]
+            [
+                {
+                    "resource_uuid": self.resource.backend_id,
+                    "offering_uuid": self.offering.uuid.hex,
+                    "offering_component_type": None,
+                    **new_item_data,
+                }
+            ]
         )
 
         invoice = InvoiceFactory(customer=self.customer)

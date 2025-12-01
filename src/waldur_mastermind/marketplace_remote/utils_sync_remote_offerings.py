@@ -51,7 +51,7 @@ class RemoteSynchronisationRunner:
         )
         processed_offering_ids: set[int] = set()
         client = get_waldur_client(self.sync.api_url, self.sync.token)
-        remote_categories = marketplace_categories_list.sync(
+        remote_categories = marketplace_categories_list.sync_all(
             client=client,
             field=[
                 MarketplaceCategoriesListFieldItem.UUID,

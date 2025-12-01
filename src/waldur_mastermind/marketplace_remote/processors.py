@@ -71,7 +71,7 @@ class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
             ),
         )
         # NB: As a backend_id of local Order, uuid of a remote Order is used
-        if response:
+        if response and response.uuid:
             self.order.backend_id = response.uuid.hex
             self.order.save()
 

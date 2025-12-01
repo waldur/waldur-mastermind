@@ -772,7 +772,8 @@ class ResourceOrderImportTest(testcases.TransactionTestCase):
         resource_uuid = self.resource.backend_id
 
         respx.get(
-            f"{self.api_url}/api/marketplace-orders/?field=uuid&resource_uuid={resource_uuid}"
+            f"{self.api_url}/api/marketplace-orders/",
+            params={"field": "uuid", "resource_uuid": resource_uuid, "page_size": 100},
         ).respond(200, json=[])
 
         respx.post(

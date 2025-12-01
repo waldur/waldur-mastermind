@@ -581,7 +581,7 @@ class GetResourceOrderSyncStatusTest(test.APITransactionTestCase):
         """Mock the marketplace orders list endpoint"""
         return respx.get(
             f"{self.api_url}/api/marketplace-orders/",
-            params={"resource_uuid": resource_uuid},
+            params={"resource_uuid": resource_uuid, "page_size": 100},
         ).respond(200, json=orders_data)
 
     def test_successful_order_sync_status_retrieval(self):
@@ -608,7 +608,7 @@ class GetResourceOrderSyncStatusTest(test.APITransactionTestCase):
         self.assertTrue(
             respx.get(
                 f"{self.api_url}/api/marketplace-orders/",
-                params={"resource_uuid": self.resource.backend_id},
+                params={"resource_uuid": self.resource.backend_id, "page_size": 100},
             ).called
         )
 
@@ -656,7 +656,7 @@ class GetResourceOrderSyncStatusTest(test.APITransactionTestCase):
         """Test handling of API errors"""
         respx.get(
             f"{self.api_url}/api/marketplace-orders/",
-            params={"resource_uuid": self.resource.backend_id},
+            params={"resource_uuid": self.resource.backend_id, "page_size": 100},
         ).respond(500, json={"error": "Internal server error"})
         self.client.force_authenticate(user=self.fixture.staff)
 
