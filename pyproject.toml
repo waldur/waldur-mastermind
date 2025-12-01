@@ -234,6 +234,9 @@ typeCheckingMode = "standard"
 reportIncompatibleMethodOverride = "none"
 reportIncompatibleVariableOverride = "none"
 
+[tool.uv.sources]
+waldur-api-client = { git = "https://github.com/waldur/py-client.git" }
+
 [dependency-groups]
 dev = [
     "ddt>=1.7.2",

@@ -3090,16 +3090,12 @@ wheels = [
 
 [[package]]
 name = "waldur-api-client"
-version = "7.8.7"
-source = { registry = "https://pypi.org/simple" }
+version = "7.9.1"
+source = { git = "https://github.com/waldur/py-client.git#dee444d676fbf254a520fe3d0e99c5c1ed28a133" }
 dependencies = [
     { name = "attrs" },
     { name = "httpx" },
     { name = "python-dateutil" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3d/12/1b7de93da92f33c884c2edc60614f4ba88f536d639477a40892f0955c6e5/waldur_api_client-7.8.7.tar.gz", hash = "sha256:d98aa11181ba87872cddcad7ce0368be69c210d8bc659c60e165217ec3be2c1c", size = 1048426, upload-time = "2025-11-10T16:43:37.052Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/02/09/e84bfab30e7cda153bb0fe89a0ba1a6b23ff2fc01f6afc6e97ed11537e15/waldur_api_client-7.8.7-py3-none-any.whl", hash = "sha256:598d8bdee2f3eaf3ba9af3439ea77d4f454280ee79671ebd7d2a1343e8552b3f", size = 3974804, upload-time = "2025-11-10T16:43:35.181Z" },
 ]
 
 [[package]]
@@ -3312,7 +3308,7 @@ requires-dist = [
     { name = "stomp-py", specifier = ">=8.2.0,<9.0.0" },
     { name = "textile", specifier = ">=4.0.2,<5.0.0" },
     { name = "ua-parser", specifier = ">=0.18.0,<1.0.0" },
-    { name = "waldur-api-client", specifier = ">=7.8.7" },
+    { name = "waldur-api-client", git = "https://github.com/waldur/py-client.git" },
     { name = "whitenoise", specifier = ">=6.9.0,<7.0.0" },
     { name = "zammad-py", specifier = "==1.1.0" },
 ]

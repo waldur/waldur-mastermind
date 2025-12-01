@@ -54,7 +54,6 @@ from waldur_api_client.api.remote_eduteams import (
 )
 from waldur_api_client.client import AuthenticatedClient
 from waldur_api_client.errors import UnexpectedStatus
-from waldur_api_client.models import ComponentUserUsage
 from waldur_api_client.models.base_public_plan import BasePublicPlan
 from waldur_api_client.models.maintenance_announcement import (
     MaintenanceAnnouncement as RemoteMaintenanceAnnouncement,
@@ -63,7 +62,6 @@ from waldur_api_client.models.maintenance_announcements_list_state_item import (
     MaintenanceAnnouncementsListStateItem,
 )
 from waldur_api_client.models.offering_component import OfferingComponent
-from waldur_api_client.models.project import Project
 from waldur_api_client.models.public_offering_details import PublicOfferingDetails
 from waldur_api_client.models.remote_eduteams_request_request import (
     RemoteEduteamsRequestRequest as RemoteEduteamsRequest,
@@ -205,7 +203,7 @@ class OfferingPullTask(BackgroundPullTask):
         else:
             try:
                 remote_terms_of_service_list = (
-                    marketplace_offering_terms_of_service_list.sync(
+                    marketplace_offering_terms_of_service_list.sync_all(
                         client=client,
                         offering_uuid=remote_offering_data.uuid,
                     )
@@ -469,7 +467,7 @@ class OfferingUserPullTask(BackgroundPullTask):
         client = get_client_for_offering(local_offering)
         remote_offering_users = {
             remote_offering_user.user_username: remote_offering_user.username
-            for remote_offering_user in marketplace_offering_users_list.sync(
+            for remote_offering_user in marketplace_offering_users_list.sync_all(
                 client=client, offering_uuid=[UUID(local_offering.backend_id)]
             )
         }
@@ -792,7 +790,7 @@ class UsagePullTask(BackgroundPullTask):
             start_date = month_start(today - relativedelta(months=4))
 
         logger.info("Pulling resource %s usages from %s", local_resource, start_date)
-        remote_usages = marketplace_component_usages_list.sync(
+        remote_usages = marketplace_component_usages_list.sync_all(
             client=client,
             resource_uuid=local_resource.backend_id,
             date_after=start_date.date(),
@@ -827,13 +825,11 @@ class UsagePullTask(BackgroundPullTask):
                 defaults=defaults,
             )
 
-            remote_user_usages: list[ComponentUserUsage] | None = (
-                marketplace_component_user_usages_list.sync(
-                    client=client,
-                    resource_uuid=local_resource.backend_id,
-                    component_usage_billing_period=component_usage.billing_period,
-                    type_=remote_usage.type_,
-                )
+            remote_user_usages = marketplace_component_user_usages_list.sync_all(
+                client=client,
+                resource_uuid=local_resource.backend_id,
+                component_usage_billing_period=component_usage.billing_period,
+                type_=remote_usage.type_,
             )
             if remote_user_usages:
                 for remote_user_usage in remote_user_usages:
@@ -897,7 +893,7 @@ class ResourceInvoicePullTask(BackgroundPullTask):
         client = get_client_for_offering(local_resource.offering)
         local_customer: structure_models.Customer = local_resource.project.customer
         try:
-            remote_invoice_items = invoice_items_list.sync(
+            remote_invoice_items = invoice_items_list.sync_all(
                 client=client,
                 resource_uuid=local_resource.backend_id,
                 year=date.year,
@@ -1022,7 +1018,7 @@ ApiRobotAccountStates.__new__ = _patched_new
 class ResourceRobotAccountPullTask(BackgroundPullTask):
     def pull(self, local_resource: models.Resource):
         client = get_client_for_offering(local_resource.offering)
-        remote_accounts = marketplace_robot_accounts_list.sync(
+        remote_accounts = marketplace_robot_accounts_list.sync_all(
             client=client, resource_uuid=local_resource.backend_id
         )
         local_accounts = models.RobotAccount.objects.filter(resource=local_resource)
@@ -1252,7 +1248,7 @@ def sync_remote_project_permissions():
                 remote_project_uuid = remote_project.uuid.hex
 
             try:
-                remote_permissions = projects_list_users_list.sync(
+                remote_permissions = projects_list_users_list.sync_all(
                     client=client, uuid=remote_project_uuid
                 )
             except (UnexpectedStatus, TimeoutException) as e:
@@ -1438,9 +1434,7 @@ def delete_remote_project(serialized_project):
             continue
 
         try:
-            remote_projects: list[Project] = projects_list.sync(
-                client=client, backend_id=backend_id
-            )
+            remote_projects = projects_list.sync(client=client, backend_id=backend_id)
 
             if len(remote_projects) != 1:
                 continue
@@ -1492,7 +1486,7 @@ def clean_remote_projects():
         client = get_waldur_client(api_url, token)
 
         try:
-            remote_projects: list[Project] = projects_list.sync(client=client)
+            remote_projects = projects_list.sync_all(client=client)
         except (UnexpectedStatus, TimeoutException) as e:
             logger.debug(f"Unable to get remote projects (api_url: {api_url}): {e}")
             continue
@@ -1696,14 +1690,12 @@ class MaintenanceAnnouncementPullTask(BackgroundPullTask):
 
             client = get_client_for_offering(offering)
 
-            remote_maintenance_list: list[RemoteMaintenanceAnnouncement] = (
-                maintenance_announcements_list.sync(
-                    client=client,
-                    state=[
-                        MaintenanceAnnouncementsListStateItem.SCHEDULED,
-                        MaintenanceAnnouncementsListStateItem.IN_PROGRESS,
-                    ],
-                )
+            remote_maintenance_list = maintenance_announcements_list.sync_all(
+                client=client,
+                state=[
+                    MaintenanceAnnouncementsListStateItem.SCHEDULED,
+                    MaintenanceAnnouncementsListStateItem.IN_PROGRESS,
+                ],
             )
 
             local_maintenance_list = models.MaintenanceAnnouncement.objects.filter(

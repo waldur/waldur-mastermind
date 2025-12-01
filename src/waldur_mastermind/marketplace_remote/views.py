@@ -113,7 +113,7 @@ class CustomersView(RemoteView):
     def post(self, request, *args, **kwargs):
         client = self.get_client(request)
         try:
-            customers = customers_list.sync(
+            customers = customers_list.sync_all(
                 client=client,
                 owned_by_current_user=True,
                 field=[
@@ -138,7 +138,7 @@ class СategoriesView(RemoteView):
     def post(self, request, *args, **kwargs):
         client = self.get_client(request)
         try:
-            сategories = marketplace_categories_list.sync(client=client)
+            сategories = marketplace_categories_list.sync_all(client=client)
         except (UnexpectedStatus, TimeoutException) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
         return Response([category.to_dict() for category in сategories])

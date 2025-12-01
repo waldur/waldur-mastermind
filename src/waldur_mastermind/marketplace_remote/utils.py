@@ -547,7 +547,7 @@ def import_order(
 
 
 def get_new_order_ids(client, backend_id):
-    remote_orders = marketplace_orders_list.sync(
+    remote_orders = marketplace_orders_list.sync_all(
         client=client,
         resource_uuid=backend_id,
         field=[MarketplaceOrdersListFieldItem.UUID],
@@ -709,7 +709,7 @@ def get_remote_offerings(
 
     if fields:
         params.update({"field": fields})
-    return marketplace_public_offerings_list.sync(client=client, **params)
+    return marketplace_public_offerings_list.sync_all(client=client, **params)
 
 
 def upsert_offering(
@@ -821,7 +821,7 @@ def import_offering_screenshots(local_offering: marketplace_models.Offering):
     remote_offering_uuid = local_offering.backend_id
     client = get_client_for_offering(local_offering)
     try:
-        remote_screenshots = marketplace_screenshots_list.sync(
+        remote_screenshots = marketplace_screenshots_list.sync_all(
             client=client,
             offering_uuid=[uuid.UUID(remote_offering_uuid)],
         )
@@ -971,7 +971,7 @@ def get_resource_team(resource: marketplace_models.Resource):
 
     try:
         client = get_client_for_offering(resource.offering)
-        remote_team = marketplace_resources_team_list.sync(
+        remote_team = marketplace_resources_team_list.sync_all(
             client=client, uuid=resource.backend_id
         )
 
@@ -1039,7 +1039,7 @@ def get_resource_order_sync_status(resource: marketplace_models.Resource):
 
     try:
         client = get_client_for_offering(resource.offering)
-        remote_orders = marketplace_orders_list.sync(
+        remote_orders = marketplace_orders_list.sync_all(
             client=client,
             resource_uuid=resource.backend_id,
         )
