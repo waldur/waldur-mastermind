@@ -2286,6 +2286,7 @@ class ProviderOfferingDetailsSerializer(
     partitions = NestedPartitionSerializer(many=True, read_only=True)
     roles = NestedRoleSerializer(many=True, read_only=True)
     has_compliance_requirements = serializers.SerializerMethodField()
+    billing_type_classification = serializers.SerializerMethodField()
     compliance_checklist = serializers.HyperlinkedRelatedField(
         queryset=checklist_models.Checklist.objects.filter(
             checklist_type=checklist_enums.ChecklistTypes.OFFERING_COMPLIANCE
@@ -2363,6 +2364,7 @@ class ProviderOfferingDetailsSerializer(
             "parent_name",
             "backend_metadata",
             "has_compliance_requirements",
+            "billing_type_classification",
             "compliance_checklist",
         )
         related_paths = {
@@ -2546,6 +2548,24 @@ class ProviderOfferingDetailsSerializer(
     def get_has_compliance_requirements(self, offering: models.Offering) -> bool:
         """Quick check if this offering requires compliance."""
         return offering.compliance_checklist is not None
+
+    def get_billing_type_classification(self, offering: models.Offering) -> str:
+        """
+        Classify offering components by billing type.
+        Returns 'limit_only', 'usage_only', or 'mixed'.
+        """
+        components = offering.components.all()
+        if not components.exists():
+            return "mixed"
+
+        billing_types = set(component.billing_type for component in components)
+
+        if billing_types == {BillingTypes.LIMIT}:
+            return "limit_only"
+        elif billing_types == {BillingTypes.USAGE}:
+            return "usage_only"
+        else:
+            return "mixed"
 
 
 set_override(

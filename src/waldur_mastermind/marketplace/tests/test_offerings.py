@@ -3283,3 +3283,173 @@ class CheckUniqueBackendIDTest(test.APITransactionTestCase):
         response = self.client.post(self.url, {"backend_id": "null"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data["is_unique"])
+
+
+class OfferingBillingTypeClassificationTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+
+    def test_offering_with_no_components_returns_mixed(self):
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(offering)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["billing_type_classification"], "mixed")
+
+    def test_offering_with_only_limit_components_returns_limit_only(self):
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+        )
+
+        # Add limit-based components
+        factories.OfferingComponentFactory(
+            offering=offering,
+            type="cpu",
+            billing_type=BillingTypes.LIMIT,
+        )
+        factories.OfferingComponentFactory(
+            offering=offering,
+            type="ram",
+            billing_type=BillingTypes.LIMIT,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(offering)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["billing_type_classification"], "limit_only")
+
+    def test_offering_with_only_usage_components_returns_usage_only(self):
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+        )
+
+        # Add usage-based components
+        factories.OfferingComponentFactory(
+            offering=offering,
+            type="storage",
+            billing_type=BillingTypes.USAGE,
+        )
+        factories.OfferingComponentFactory(
+            offering=offering,
+            type="network_traffic",
+            billing_type=BillingTypes.USAGE,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(offering)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["billing_type_classification"], "usage_only")
+
+    def test_offering_with_mixed_components_returns_mixed(self):
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+        )
+
+        # Add mixed components
+        factories.OfferingComponentFactory(
+            offering=offering,
+            type="cpu",
+            billing_type=BillingTypes.LIMIT,
+        )
+        factories.OfferingComponentFactory(
+            offering=offering,
+            type="storage",
+            billing_type=BillingTypes.USAGE,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(offering)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["billing_type_classification"], "mixed")
+
+    def test_offering_with_fixed_components_returns_mixed(self):
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+        )
+
+        # Add fixed-price components
+        factories.OfferingComponentFactory(
+            offering=offering,
+            type="monthly_fee",
+            billing_type=BillingTypes.FIXED,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(offering)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["billing_type_classification"], "mixed")
+
+    def test_billing_type_classification_in_public_offering_endpoint(self):
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+            shared=True,
+        )
+
+        factories.OfferingComponentFactory(
+            offering=offering,
+            type="cpu",
+            billing_type=BillingTypes.LIMIT,
+        )
+
+        url = factories.OfferingFactory.get_public_url(offering)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["billing_type_classification"], "limit_only")
+
+    def test_billing_type_classification_in_offering_list(self):
+        # Create offerings with different billing types
+        offering_limit = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+        )
+        factories.OfferingComponentFactory(
+            offering=offering_limit,
+            billing_type=BillingTypes.LIMIT,
+        )
+
+        offering_usage = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+        )
+        factories.OfferingComponentFactory(
+            offering=offering_usage,
+            billing_type=BillingTypes.USAGE,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offerings = response.data
+
+        # Find the offerings and verify their classifications
+        limit_offering = next(
+            o for o in offerings if o["uuid"] == str(offering_limit.uuid)
+        )
+        usage_offering = next(
+            o for o in offerings if o["uuid"] == str(offering_usage.uuid)
+        )
+
+        self.assertEqual(limit_offering["billing_type_classification"], "limit_only")
+        self.assertEqual(usage_offering["billing_type_classification"], "usage_only")
