@@ -19,9 +19,10 @@ from waldur_core.checklist.models import (
 from waldur_core.checklist.models import (
     Category as ChecklistCategory,
 )
-from waldur_core.core.middleware import skip_rabbitmq_messages
+from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
+from waldur_core.permissions.tasks import sync_user_deactivation_status
 from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 from waldur_mastermind.marketplace.models import (
@@ -174,6 +175,11 @@ class Command(BaseCommand):
             action="store_true",
             help="Skip sending RabbitMQ messages during import (recommended for large imports).",
         )
+        parser.add_argument(
+            "--skip-user-sync",
+            action="store_true",
+            help="Skip syncing user activation status after import.",
+        )
 
     def handle(self, **options):
         input_path = options["input"]
@@ -181,6 +187,7 @@ class Command(BaseCommand):
         self.dry_run = options["dry_run"]
         skip_users = options["skip_users"]
         skip_roles = options["skip_roles"]
+        self.skip_user_sync = options["skip_user_sync"]
 
         # Validate input file
         if not os.path.exists(input_path):
@@ -214,9 +221,9 @@ class Command(BaseCommand):
         self.stdout.write("Starting structure import...")
 
         try:
-            # Always use skip_rabbitmq_messages context to prevent billing during import
+            # Always use skip_side_effects context to prevent side effects during import
             # This prevents ComponentUsage imports from triggering billing signals before PlanComponents are ready
-            with skip_rabbitmq_messages():
+            with skip_side_effects():
                 self._perform_import(data, skip_users, skip_roles)
 
         except Exception as e:
@@ -225,6 +232,14 @@ class Command(BaseCommand):
 
         if self.dry_run:
             self.stdout.write(self.style.WARNING("Dry run completed - no changes made"))
+        else:
+            # After successful import, sync user activation status to match current policy
+            if not self.skip_user_sync:
+                self._sync_user_activation_status()
+            else:
+                self.stdout.write(
+                    self.style.WARNING("Skipping user activation status sync")
+                )
 
         # Print summary
         self.print_summary()
@@ -3280,6 +3295,26 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["answers"]["errors"] += 1
+
+    def _sync_user_activation_status(self):
+        """
+        Sync user activation status after import to ensure all users match current policy.
+
+        This ensures that imported users have the correct activation status based on
+        the DEACTIVATE_USER_IF_NO_ROLES setting, regardless of their imported state.
+        """
+        self.stdout.write(self.style.SUCCESS("\nSyncing user activation status..."))
+
+        try:
+            # Call the task function directly (not as a Celery task)
+            sync_user_deactivation_status()
+            self.stdout.write(
+                self.style.SUCCESS("✓ User activation status synced successfully")
+            )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"⚠ Failed to sync user activation status: {e}")
+            )
 
     def print_summary(self):
         """Print import summary statistics."""

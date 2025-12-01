@@ -18,7 +18,7 @@ from rest_framework import serializers
 
 from waldur_core.checklist import models as checklist_models
 from waldur_core.core import utils as core_utils
-from waldur_core.core.middleware import get_skip_rabbitmq_messages
+from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.logging import event_logger
 from waldur_core.logging import tasks as logging_tasks
@@ -2091,7 +2091,7 @@ def send_offering_user_created_message(
         return
 
     # Skip message sending if disabled via context (e.g., during imports)
-    if get_skip_rabbitmq_messages():
+    if get_skip_side_effects():
         return
 
     offering_user = instance
