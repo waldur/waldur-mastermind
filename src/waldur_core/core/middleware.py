@@ -12,22 +12,69 @@ def get_current_user():
     return getattr(_locals, "user", None)
 
 
+def set_skip_side_effects(skip=True):
+    """
+    Set flag to skip side effects during bulk operations in current thread.
+
+    This flag is used during bulk operations like imports to prevent:
+    - RabbitMQ message publishing
+    - Signal handlers from running
+    - Billing calculations
+    - Other side effects during data migrations
+    """
+    _locals.skip_side_effects = skip
+
+
+def get_skip_side_effects():
+    """
+    Get flag indicating if side effects should be skipped during bulk operations.
+
+    Returns True during bulk operations like imports to prevent side effects.
+    """
+    return getattr(_locals, "skip_side_effects", False)
+
+
+@contextmanager
+def skip_side_effects():
+    """
+    Context manager to temporarily skip side effects during bulk operations.
+
+    Used during bulk operations like imports to prevent:
+    - RabbitMQ message publishing
+    - Signal handlers from running
+    - Billing calculations
+    - Other side effects during data migrations
+    """
+    previous_value = get_skip_side_effects()
+    set_skip_side_effects(True)
+    try:
+        yield
+    finally:
+        set_skip_side_effects(previous_value)
+
+
+# Legacy aliases for backward compatibility (to be removed in future version)
 def set_skip_rabbitmq_messages(skip=True):
-    """Set flag to skip RabbitMQ messages in current thread."""
-    _locals.skip_rabbitmq_messages = skip
+    """
+    DEPRECATED: Use set_skip_side_effects() instead.
+    Legacy alias for backward compatibility.
+    """
+    set_skip_side_effects(skip)
 
 
 def get_skip_rabbitmq_messages():
-    """Get flag indicating if RabbitMQ messages should be skipped."""
-    return getattr(_locals, "skip_rabbitmq_messages", False)
+    """
+    DEPRECATED: Use get_skip_side_effects() instead.
+    Legacy alias for backward compatibility.
+    """
+    return get_skip_side_effects()
 
 
 @contextmanager
 def skip_rabbitmq_messages():
-    """Context manager to temporarily skip RabbitMQ messages."""
-    previous_value = get_skip_rabbitmq_messages()
-    set_skip_rabbitmq_messages(True)
-    try:
+    """
+    DEPRECATED: Use skip_side_effects() instead.
+    Legacy alias for backward compatibility.
+    """
+    with skip_side_effects():
         yield
-    finally:
-        set_skip_rabbitmq_messages(previous_value)

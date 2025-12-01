@@ -3,6 +3,7 @@ import logging
 from constance import config
 from django.utils import timezone
 
+from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -10,6 +11,87 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.structure.permissions import _get_customer
 
 logger = logging.getLogger(__name__)
+
+
+def should_deactivate_user(user: User) -> bool:
+    """
+    Check if a user should be deactivated based on the current policy.
+
+    Returns True if:
+    - DEACTIVATE_USER_IF_NO_ROLES setting is enabled
+    - User has no active roles
+    - User is currently active
+    - User is not staff or support
+    """
+    if not config.DEACTIVATE_USER_IF_NO_ROLES:
+        return False
+
+    has_active_roles = UserRole.objects.filter(user=user, is_active=True).exists()
+    return (
+        not has_active_roles
+        and user.is_active
+        and not user.is_staff
+        and not user.is_support
+    )
+
+
+def should_reactivate_user(user: User) -> bool:
+    """
+    Check if a user should be reactivated based on the current policy.
+
+    Returns True if:
+    - DEACTIVATE_USER_IF_NO_ROLES setting is enabled
+    - User has active roles
+    - User is currently inactive
+    - User is not staff or support
+    """
+    if not config.DEACTIVATE_USER_IF_NO_ROLES:
+        return False
+
+    return (
+        not user.is_active
+        and not user.is_staff
+        and not user.is_support
+        and UserRole.objects.filter(user=user, is_active=True).exists()
+    )
+
+
+def deactivate_user_with_logging(user: User, reason: str = "No active roles") -> None:
+    """
+    Deactivate a user and log the action.
+    """
+    user.is_active = False
+    user.save(update_fields=["is_active"])
+
+    logger.info(
+        f"User {user} (uuid={user.uuid}) has been deactivated automatically. Reason: {reason}"
+    )
+
+    event_logger.emit(
+        "User {affected_user_username} has been deactivated automatically as all roles were revoked.",
+        event_type=EventType.USER_DEACTIVATED_NO_ROLES,
+        event_context={"affected_user": user},
+        scopes=[user],
+    )
+
+
+def reactivate_user_with_logging(user: User, reason: str = "Gained new role") -> None:
+    """
+    Reactivate a user and log the action.
+    """
+    user.is_active = True
+    user.save(update_fields=["is_active"])
+
+    logger.info(
+        f"User {user} (uuid={user.uuid}) has been reactivated automatically. Reason: {reason}"
+    )
+
+    event_logger.emit(
+        f"User {{affected_user_username}} has been reactivated automatically. Reason: {reason}",
+        event_type=EventType.USER_ACTIVATED,
+        event_context={"affected_user": user},
+        scopes=[user],
+    )
 
 
 def get_scope_name(scope):
@@ -142,52 +224,21 @@ def log_role_updated(
 
 def deactivate_user_if_no_roles(sender, instance, current_user=None, **kwargs):
     """Deactivate a user if they no longer have any active roles."""
-    if not config.DEACTIVATE_USER_IF_NO_ROLES:
+    # Skip during import operations to avoid interfering with bulk data imports
+    if get_skip_side_effects():
         return
+
     user = instance.user
-    has_active_roles = UserRole.objects.filter(user=user, is_active=True).exists()
-    if (
-        not has_active_roles
-        and user.is_active
-        and not user.is_staff
-        and not user.is_support
-    ):
-        user.is_active = False
-        user.save(update_fields=["is_active"])
-
-        logger.info(
-            f"User {user} (uuid={user.uuid}) has been deactivated automatically as all roles were revoked."
-        )
-
-        event_logger.emit(
-            "User {affected_user_username} has been deactivated automatically as all roles were revoked.",
-            event_type=EventType.USER_DEACTIVATED_NO_ROLES,
-            event_context={"affected_user": user},
-            scopes=[user],
-        )
+    if should_deactivate_user(user):
+        deactivate_user_with_logging(user, "All roles were revoked")
 
 
 def reactivate_user_if_gaining_roles(sender, instance, current_user=None, **kwargs):
     """Reactivate a user if they were previously deactivated and are now gaining roles."""
-    if not config.DEACTIVATE_USER_IF_NO_ROLES:
+    # Skip during import operations to avoid interfering with bulk data imports
+    if get_skip_side_effects():
         return
+
     user = instance.user
-    if (
-        not user.is_active
-        and not user.is_staff
-        and not user.is_support
-        and UserRole.objects.filter(user=user, is_active=True).exists()
-    ):
-        user.is_active = True
-        user.save(update_fields=["is_active"])
-
-        logger.info(
-            f"User {user} (uuid={user.uuid}) has been reactivated automatically as they gained a new role."
-        )
-
-        event_logger.emit(
-            "User {affected_user_username} has been reactivated automatically as they gained a new role.",
-            event_type=EventType.USER_ACTIVATED,
-            event_context={"affected_user": user},
-            scopes=[user],
-        )
+    if should_reactivate_user(user):
+        reactivate_user_with_logging(user, "Gained a new role")

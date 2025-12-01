@@ -11,7 +11,7 @@ from waldur_core.checklist.models import (
 from waldur_core.checklist.models import (
     Category as ChecklistCategory,
 )
-from waldur_core.core.middleware import skip_rabbitmq_messages
+from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.logging.models import Event, Feed
 from waldur_core.permissions.models import Role, RolePermission, UserRole
@@ -120,14 +120,14 @@ class Command(BaseCommand):
         self.dry_run = options["dry_run"]
         skip_users = options["skip_users"]
         skip_roles = options["skip_roles"]
-        skip_rabbitmq = options["skip_rabbitmq_messages"]
+        skip_side_effects_flag = options["skip_rabbitmq_messages"]
 
         if self.dry_run:
             self.stdout.write(
                 self.style.WARNING("DRY RUN MODE - No changes will be made")
             )
 
-        if skip_rabbitmq:
+        if skip_side_effects_flag:
             self.stdout.write(
                 self.style.WARNING(
                     "SKIP RABBITMQ MODE - No RabbitMQ messages will be sent"
@@ -140,8 +140,8 @@ class Command(BaseCommand):
         )
 
         try:
-            if skip_rabbitmq:
-                with skip_rabbitmq_messages():
+            if skip_side_effects_flag:
+                with skip_side_effects():
                     self._perform_cleanup(skip_users, skip_roles)
             else:
                 self._perform_cleanup(skip_users, skip_roles)

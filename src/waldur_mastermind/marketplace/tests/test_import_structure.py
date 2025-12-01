@@ -1362,7 +1362,7 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(order2.limits, {})
         self.assertIsNone(order2.cost)
 
-    def test_skip_rabbitmq_messages_flag(self):
+    def test_skip_side_effects_flag(self):
         """Test that --skip-rabbitmq-messages flag shows warning message."""
         users_data = [
             {
@@ -1394,30 +1394,82 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(user.username, "testuser1")
 
     def test_skip_rabbitmq_context_manager_functionality(self):
-        """Test that the skip_rabbitmq_messages context manager works correctly."""
+        """Test that the skip_side_effects context manager works correctly."""
         from waldur_core.core.middleware import (
-            get_skip_rabbitmq_messages,
-            skip_rabbitmq_messages,
+            get_skip_side_effects,
+            skip_side_effects,
         )
 
         # Test that the middleware function works correctly
-        self.assertFalse(get_skip_rabbitmq_messages())
+        self.assertFalse(get_skip_side_effects())
 
-        with skip_rabbitmq_messages():
-            self.assertTrue(get_skip_rabbitmq_messages())
+        with skip_side_effects():
+            self.assertTrue(get_skip_side_effects())
 
-        self.assertFalse(get_skip_rabbitmq_messages())
+        self.assertFalse(get_skip_side_effects())
 
         # Test nested context managers
-        self.assertFalse(get_skip_rabbitmq_messages())
-        with skip_rabbitmq_messages():
-            self.assertTrue(get_skip_rabbitmq_messages())
-            with skip_rabbitmq_messages():
-                self.assertTrue(get_skip_rabbitmq_messages())
-            self.assertTrue(get_skip_rabbitmq_messages())
-        self.assertFalse(get_skip_rabbitmq_messages())
+        self.assertFalse(get_skip_side_effects())
+        with skip_side_effects():
+            self.assertTrue(get_skip_side_effects())
+            with skip_side_effects():
+                self.assertTrue(get_skip_side_effects())
+            self.assertTrue(get_skip_side_effects())
+        self.assertFalse(get_skip_side_effects())
 
-    def test_cleanup_structure_skip_rabbitmq_messages_flag(self):
+    def test_user_activation_sync_after_import(self):
+        """Test that user activation status is synced after import."""
+        from constance.test.unittest import override_config
+
+        # Create test data with minimal structure
+        users_data = [
+            {
+                "uuid": "11111111-1111-1111-1111-111111111111",
+                "username": "inactive_user",
+                "email": "inactive@example.com",
+                "is_active": True,
+                "first_name": "Inactive",
+                "last_name": "User",
+                "date_joined": "2023-01-01T00:00:00Z",
+                "civil_number": "12345678901",
+            }
+        ]
+
+        test_data = {"users": users_data}
+        self._create_test_json(test_data)
+
+        with override_config(DEACTIVATE_USER_IF_NO_ROLES=True):
+            output = self._call_import_command(input=self.test_file_path)
+
+            # Check that user sync was performed
+            self.assertIn("Syncing user activation status", output)
+
+    def test_skip_user_sync_flag(self):
+        """Test that --skip-user-sync flag prevents user sync after import."""
+        users_data = [
+            {
+                "uuid": "22222222-2222-2222-2222-222222222222",
+                "username": "test_user",
+                "email": "test@example.com",
+                "is_active": True,
+                "first_name": "Test",
+                "last_name": "User",
+                "date_joined": "2023-01-01T00:00:00Z",
+            }
+        ]
+
+        test_data = {"users": users_data}
+        self._create_test_json(test_data)
+
+        output = self._call_import_command(
+            input=self.test_file_path, skip_user_sync=True
+        )
+
+        # Check that user sync was skipped
+        self.assertIn("Skipping user activation status sync", output)
+        self.assertNotIn("Syncing user activation status", output)
+
+    def test_cleanup_structure_skip_side_effects_flag(self):
         """Test that cleanup_structure accepts --skip-rabbitmq-messages flag."""
         from io import StringIO
 

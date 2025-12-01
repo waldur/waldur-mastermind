@@ -5,7 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.middleware import get_skip_rabbitmq_messages
+from waldur_core.core.middleware import get_skip_side_effects
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -66,7 +66,7 @@ class BillingUsageProcessor:
             **kwargs: Additional signal arguments
         """
         # Skip billing during import operations
-        if get_skip_rabbitmq_messages():
+        if get_skip_side_effects():
             logger.debug(
                 "Skipping billing for component usage during import/maintenance mode"
             )
@@ -187,7 +187,7 @@ class BillingUsageProcessor:
             plan_component = plan.components.get(component=offering_component)
         except ObjectDoesNotExist:
             # During import operations, missing PlanComponents might be expected if import order is affected
-            if get_skip_rabbitmq_messages():
+            if get_skip_side_effects():
                 logger.debug(
                     f"PlanComponent for component '{offering_component.type}' not found "
                     f"in plan '{plan.name}' for resource '{resource.uuid}' during import. Skipping billing."

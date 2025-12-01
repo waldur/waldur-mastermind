@@ -58,6 +58,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(hours=24),
         "args": (),
     },
+    "sync-user-deactivation-status": {
+        "task": "waldur_core.permissions.sync_user_deactivation_status",
+        "schedule": timedelta(hours=3),
+        "args": (),
+    },
     "cancel-expired-invitations": {
         "task": "waldur_core.users.cancel_expired_invitations",
         "schedule": timedelta(hours=24),
