@@ -78,12 +78,14 @@ td:nth-child(4) {
 | `send_telemetry` | `waldur_mastermind.marketplace.send_metrics` | 1 day | Send anonymous usage metrics and telemetry data to the Waldur team. |
 | `structure-set-erred-stuck-resources` | `waldur_core.structure.SetErredStuckResources` | 1 hour | This task marks all resources which have been provisioning for more than 3 hours as erred. |
 | `sync-resources` | `waldur_mastermind.marketplace_site_agent.sync_resources` | 10 minutes | Sync resources that haven't been updated in the last hour.<br> Processes only resources that users have subscribed to receive updates for. |
+| `sync-user-deactivation-status` | `waldur_core.permissions.sync_user_deactivation_status` | 3 hours | Task not found in registry |
 | `sync_request_types` | `waldur_mastermind.support.sync_request_types` | 1 day | Synchronize request types from the active support backend. |
 | `terminate_expired_resources` | `waldur_mastermind.marketplace.terminate_expired_resources` | Cron: `20 1 * * * (m/h/dM/MY/d)` | Terminate marketplace resources that have reached their end date. |
 | `terminate_resources_if_project_end_date_has_been_reached` | `waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached` | Cron: `40 1 * * * (m/h/dM/MY/d)` | Terminate resources when their project has reached its end date (including grace period). |
 | `terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_order` | `waldur_mastermind.marketplace.terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_order` | 1 day | Clean up erred Slurm resources that failed both creation and termination. |
 | `update-custom-quotas` | `waldur_core.quotas.update_custom_quotas` | 1 hour | Task not found in registry |
 | `update-invoices-total-cost` | `invoices.update_invoices_total_cost` | 1 day | Update cached total cost for current month invoices. |
+| `update-software-catalogs` | `marketplace.update_software_catalogs` | Cron: `0 3 * * * (m/h/dM/MY/d)` | Daily task to update all enabled software catalogs.<br><br> Updates EESSI, Spack, and other configured catalogs independently.<br> Each catalog is processed in isolation - if one fails, others continue. |
 | `update-standard-quotas` | `waldur_core.quotas.update_standard_quotas` | 1 day | Task not found in registry |
 | `update_daily_consent_history` | `waldur_mastermind.marketplace.update_daily_consent_history` | 1 day | Daily task to update consent history statistics for dashboard reporting.<br> Uses quota system + DailyQuotaHistory for historical tracking. |
 | `valimo-auth-cleanup-auth-results` | `waldur_auth_valimo.cleanup_auth_results` | 1 hour | Clean up Valimo authentication results older than 7 days. |

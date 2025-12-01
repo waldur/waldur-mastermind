@@ -86,8 +86,17 @@ Cleanup stale event types in all hooks.
 
 Delete all Waldur structure data from the database.
 
-  This command removes all Users, Customers, Projects, Offerings, Roles, UserRoles,
-  RolePermissions, Events, Feeds, and related marketplace objects.
+  This command removes ALL data including:
+  - Users, Customers, Service Providers, Projects
+  - Marketplace: Categories, Offerings, Plans, Components, Resources, Orders
+  - Permissions: Roles, User Roles, Role Permissions
+  - Accounts: Project/Customer Service Accounts, Course Accounts
+  - Billing: Invoices, Invoice Items, Component Usages
+  - Checklists: Categories, Checklists, Questions, Completions, Answers
+  - System: Events, Feeds, Offering Users
+
+  The cleanup follows reverse dependency order to prevent foreign key violations.
+  Invoice item signals are temporarily disconnected to avoid race conditions.
 
   IMPORTANT: This is a destructive operation that deletes ALL data. Use --dry-run to preview changes.
 
@@ -96,7 +105,7 @@ Delete all Waldur structure data from the database.
 ```yaml
 waldur cleanup_structure --dry-run
 waldur cleanup_structure
-waldur cleanup_structure --skip-users
+waldur cleanup_structure --skip-users --skip-roles
 waldur cleanup_structure --skip-rabbitmq-messages
 ```
 
@@ -306,10 +315,19 @@ options:
 
 ## export_structure
 
-Export Waldur structure data to JSON format.
+Export comprehensive Waldur structure data to JSON format.
 
-  This command exports Users, Customers, Projects, Offerings, Roles, UserRoles,
-  and RolePermissions to a comprehensive JSON file for analysis or backup.
+  This command exports a complete Waldur system structure including:
+  - Users, Customers, Service Providers, Projects
+  - Marketplace: Categories, Offerings, Plans, Components, Resources, Orders
+  - Permissions: Roles, User Roles, Role Permissions
+  - Accounts: Project/Customer Service Accounts, Course Accounts
+  - Billing: Invoices, Invoice Items, Component Usages, Resource Plan Periods
+  - Checklists: Categories, Checklists, Questions, Completions, Answers
+  - System: Authentication Tokens, Offering Users
+
+  The exported JSON file can be used for backup, migration, analysis, or import
+  using the import_structure command. All UUIDs and relationships are preserved.
 
   Usage:
 
@@ -485,10 +503,19 @@ positional arguments:
 
 ## import_structure
 
-Import Waldur structure data from JSON format.
+Import comprehensive Waldur structure data from JSON format.
 
-  This command imports Users, Customers, Projects, Offerings, Roles, UserRoles,
-  and RolePermissions from a JSON file created by export_structure command.
+  This command imports a complete Waldur system structure including:
+  - Users, Customers, Service Providers, Projects
+  - Marketplace: Categories, Offerings, Plans, Components, Resources, Orders
+  - Permissions: Roles, User Roles, Role Permissions
+  - Accounts: Project/Customer Service Accounts, Course Accounts
+  - Billing: Invoices, Invoice Items, Component Usages, Resource Plan Periods
+  - Checklists: Categories, Checklists, Questions, Completions, Answers
+  - System: Authentication Tokens, Offering Users
+
+  The import maintains dependency order and uses transaction isolation for safety.
+  RabbitMQ messages are automatically disabled during import to prevent billing issues.
 
   Usage:
 
@@ -496,14 +523,14 @@ Import Waldur structure data from JSON format.
 waldur import_structure -i structure.json
 waldur import_structure --input structure.json --update
 waldur import_structure -i structure.json --skip-users --dry-run
-waldur import_structure -i structure.json --skip-rabbitmq-messages
+waldur import_structure -i structure.json --skip-rabbitmq-messages --skip-roles
 ```
 
 ```bash
 
 usage: waldur import_structure -i INPUT [--update] [--skip-users]
                                [--skip-roles] [--dry-run]
-                               [--skip-rabbitmq-messages]
+                               [--skip-rabbitmq-messages] [--skip-user-sync]
 
 options:
   -i INPUT, --input INPUT
@@ -515,6 +542,7 @@ options:
   --skip-rabbitmq-messages
                         Skip sending RabbitMQ messages during import
                         (recommended for large imports).
+  --skip-user-sync      Skip syncing user activation status after import.
 
 ```
 
@@ -547,27 +575,30 @@ positional arguments:
 
 ## load_eessi_catalog
 
-Load EESSI software catalog data into marketplace software catalog models
+Load EESSI software catalog data using the unified catalog loader
 
 ```bash
 
 usage: waldur load_eessi_catalog [--json-file JSON_FILE]
                                  [--catalog-name CATALOG_NAME]
                                  [--catalog-version CATALOG_VERSION]
-                                 [--dry-run] [--update-existing] [--no-sync]
+                                 [--api-url API_URL] [--include-extensions]
+                                 [--no-extensions] [--dry-run]
+                                 [--update-existing] [--no-sync]
 
 options:
   --json-file JSON_FILE
-                        Path to EESSI JSON file (default: eessi.model.json)
+                        Path to JSON file containing EESSI catalog data
   --catalog-name CATALOG_NAME
                         Name of the software catalog (default: EESSI)
   --catalog-version CATALOG_VERSION
-                        EESSI catalog version (e.g., 2023.06). If not
-                        provided, will try to extract from JSON
+                        EESSI catalog version (auto-detect if not provided)
+  --api-url API_URL     Base URL for EESSI API data
+  --include-extensions  Include extension packages (Python, R packages, etc.)
+  --no-extensions       Exclude extension packages
   --dry-run             Show what would be done without making changes
-  --update-existing     Update existing catalog data if it exists
-  --no-sync             Do not remove records missing from JSON file (default:
-                        sync enabled)
+  --update-existing     Update existing catalog data
+  --no-sync             Preserve existing records not in source data
 
 ```
 
@@ -598,6 +629,28 @@ usage: waldur load_notifications notifications_file
 
 positional arguments:
   notifications_file  Specifies location of notifications file.
+
+```
+
+## load_spack_catalog
+
+Load Spack software catalog data using the unified catalog loader
+
+```bash
+
+usage: waldur load_spack_catalog [--catalog-name CATALOG_NAME]
+                                 [--catalog-version CATALOG_VERSION]
+                                 [--data-url DATA_URL] [--dry-run]
+                                 [--update-existing]
+
+options:
+  --catalog-name CATALOG_NAME
+                        Name of the software catalog (default: Spack)
+  --catalog-version CATALOG_VERSION
+                        Spack catalog version (auto-detect if not provided)
+  --data-url DATA_URL   URL for Spack repology.json data
+  --dry-run             Show what would be done without making changes
+  --update-existing     Update existing catalog data (default: true)
 
 ```
 

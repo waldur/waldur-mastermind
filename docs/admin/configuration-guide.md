@@ -1953,7 +1953,7 @@ If true, user email in Waldur database and in invitatation must strictly match.
 
 **Type:** bool
 
-Do not allow user to grant multiple roles in the same project or organization using invitation.
+Do not allow user to accept multiple roles within the same scope (project or organization) using invitation. When enabled, users can still accept invitations to different scopes but cannot have multiple roles in the same scope.
 
 #### DEFAULT_IDP
 
@@ -2214,3 +2214,79 @@ API key for authenticating with the LLM inference service.
 **Default value:** gemma3:27b
 
 Name of the LLM model to use for inference.
+
+### Software catalog settings
+
+#### SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED
+
+**Type:** bool
+
+**Default value:** True
+
+Enable automated daily updates for EESSI software catalog
+
+#### SOFTWARE_CATALOG_EESSI_VERSION
+
+**Type:** str
+
+EESSI catalog version to load (auto-detect if empty)
+
+#### SOFTWARE_CATALOG_EESSI_API_URL
+
+**Type:** str
+
+**Default value:** <https://www.eessi.io/api_data/data/>
+
+Base URL for EESSI API data
+
+#### SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS
+
+**Type:** bool
+
+**Default value:** True
+
+Include extension packages (Python, R packages, etc.) from EESSI
+
+#### SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED
+
+**Type:** bool
+
+**Default value:** True
+
+Enable automated daily updates for Spack software catalog
+
+#### SOFTWARE_CATALOG_SPACK_VERSION
+
+**Type:** str
+
+Spack catalog version to load (auto-detect if empty)
+
+#### SOFTWARE_CATALOG_SPACK_DATA_URL
+
+**Type:** str
+
+**Default value:** <https://raw.githubusercontent.com/spack/packages.spack.io/refs/heads/gh-pages/data/repology.json>
+
+URL for Spack repology.json data
+
+#### SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES
+
+**Type:** bool
+
+**Default value:** True
+
+Update existing packages during catalog refresh
+
+#### SOFTWARE_CATALOG_CLEANUP_ENABLED
+
+**Type:** bool
+
+Enable automatic cleanup of old catalog data
+
+#### SOFTWARE_CATALOG_RETENTION_DAYS
+
+**Type:** int
+
+**Default value:** 90
+
+Number of days to retain old catalog versions
