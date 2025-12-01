@@ -44,16 +44,25 @@ from waldur_mastermind.marketplace.models import (
 
 class Command(BaseCommand):
     help = """
-    Import Waldur structure data from JSON format.
+    Import comprehensive Waldur structure data from JSON format.
 
-    This command imports Users, Customers, Projects, Offerings, Roles, UserRoles,
-    and RolePermissions from a JSON file created by export_structure command.
+    This command imports a complete Waldur system structure including:
+    - Users, Customers, Service Providers, Projects
+    - Marketplace: Categories, Offerings, Plans, Components, Resources, Orders
+    - Permissions: Roles, User Roles, Role Permissions
+    - Accounts: Project/Customer Service Accounts, Course Accounts
+    - Billing: Invoices, Invoice Items, Component Usages, Resource Plan Periods
+    - Checklists: Categories, Checklists, Questions, Completions, Answers
+    - System: Authentication Tokens, Offering Users
+
+    The import maintains dependency order and uses transaction isolation for safety.
+    RabbitMQ messages are automatically disabled during import to prevent billing issues.
 
     Usage:
         waldur import_structure -i structure.json
         waldur import_structure --input structure.json --update
         waldur import_structure -i structure.json --skip-users --dry-run
-        waldur import_structure -i structure.json --skip-rabbitmq-messages
+        waldur import_structure -i structure.json --skip-rabbitmq-messages --skip-roles
     """
 
     def __init__(self, *args, **kwargs):
