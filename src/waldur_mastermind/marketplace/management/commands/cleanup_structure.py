@@ -16,6 +16,7 @@ from waldur_core.core.models import User
 from waldur_core.logging.models import Event, Feed
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import Customer, Project
+from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
 from waldur_mastermind.invoices import handlers as invoice_handlers
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 from waldur_mastermind.marketplace.models import (
@@ -47,6 +48,7 @@ class Command(BaseCommand):
     - Billing: Invoices, Invoice Items, Component Usages
     - Checklists: Categories, Checklists, Questions, Completions, Answers
     - System: Events, Feeds, Offering Users
+    - User Management: Invitations, Group Invitations, Permission Requests
 
     The cleanup follows reverse dependency order to prevent foreign key violations.
     Invoice item signals are temporarily disconnected to avoid race conditions.
@@ -91,6 +93,9 @@ class Command(BaseCommand):
             "categories": {"deleted": 0, "errors": 0},
             "customers": {"deleted": 0, "errors": 0},
             "users": {"deleted": 0, "errors": 0},
+            "permission_requests": {"deleted": 0, "errors": 0},
+            "invitations": {"deleted": 0, "errors": 0},
+            "group_invitations": {"deleted": 0, "errors": 0},
         }
         self.dry_run = False
 
@@ -188,6 +193,11 @@ class Command(BaseCommand):
 
             # Delete user roles
             self.cleanup_user_roles()
+
+            # Delete user management data (depends on users, customers, roles)
+            self.cleanup_permission_requests()
+            self.cleanup_invitations()
+            self.cleanup_group_invitations()
 
             # Delete roles and permissions
             if not skip_roles:
@@ -679,6 +689,56 @@ class Command(BaseCommand):
                 self.style.WARNING(f"Failed to delete checklist categories: {e}")
             )
             self.stats["checklist_categories"]["errors"] += 1
+
+    def cleanup_permission_requests(self):
+        """Delete all permission request data."""
+        self.stdout.write("Deleting permission requests...")
+        try:
+            if not self.dry_run:
+                count = PermissionRequest.objects.count()
+                PermissionRequest.objects.all().delete()
+                self.stats["permission_requests"]["deleted"] = count
+            else:
+                self.stats["permission_requests"]["deleted"] = (
+                    PermissionRequest.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete permission requests: {e}")
+            )
+            self.stats["permission_requests"]["errors"] += 1
+
+    def cleanup_invitations(self):
+        """Delete all invitation data."""
+        self.stdout.write("Deleting invitations...")
+        try:
+            if not self.dry_run:
+                count = Invitation.objects.count()
+                Invitation.objects.all().delete()
+                self.stats["invitations"]["deleted"] = count
+            else:
+                self.stats["invitations"]["deleted"] = Invitation.objects.count()
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Failed to delete invitations: {e}"))
+            self.stats["invitations"]["errors"] += 1
+
+    def cleanup_group_invitations(self):
+        """Delete all group invitation data."""
+        self.stdout.write("Deleting group invitations...")
+        try:
+            if not self.dry_run:
+                count = GroupInvitation.objects.count()
+                GroupInvitation.objects.all().delete()
+                self.stats["group_invitations"]["deleted"] = count
+            else:
+                self.stats["group_invitations"]["deleted"] = (
+                    GroupInvitation.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete group invitations: {e}")
+            )
+            self.stats["group_invitations"]["errors"] += 1
 
     def print_summary(self):
         """Print cleanup summary statistics."""

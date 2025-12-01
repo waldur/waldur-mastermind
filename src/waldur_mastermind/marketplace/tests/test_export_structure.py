@@ -1033,3 +1033,154 @@ class ExportStructureCommandTest(TestCase):
 
         restored_category = Category.objects.get(uuid=original_category_uuid)
         self.assertEqual(restored_category.title, "Roundtrip Category")
+
+    def test_export_group_invitations(self):
+        """Test that export captures group invitation data."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.permissions.models import Role
+        from waldur_core.users.models import GroupInvitation
+
+        customer = structure_factories.CustomerFactory()
+        user = structure_factories.UserFactory()
+        content_type = ContentType.objects.get_for_model(customer)
+        role = Role.objects.create(
+            name="CUSTOMER.OWNER",
+            description="Customer Owner",
+            content_type=content_type,
+            is_active=True,
+        )
+
+        group_invitation = GroupInvitation.objects.create(
+            customer=customer,
+            role=role,
+            created_by=user,
+            is_active=True,
+            is_public=False,
+            auto_create_project=False,
+            content_type=content_type,
+            object_id=customer.id,
+        )
+
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        # Verify group invitations exported
+        self.assertIn("group_invitations", data)
+        exported_group_invitations = [
+            gi
+            for gi in data["group_invitations"]
+            if gi["uuid"] == group_invitation.uuid.hex
+        ]
+        self.assertEqual(len(exported_group_invitations), 1)
+
+        exported_gi = exported_group_invitations[0]
+        self.assertEqual(exported_gi["customer_uuid"], customer.uuid.hex)
+        self.assertEqual(exported_gi["role_uuid"], role.uuid.hex)
+        self.assertEqual(exported_gi["created_by_uuid"], user.uuid.hex)
+        self.assertEqual(exported_gi["is_active"], True)
+        self.assertEqual(exported_gi["is_public"], False)
+        self.assertEqual(exported_gi["auto_create_project"], False)
+
+    def test_export_invitations(self):
+        """Test that export captures invitation data."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.permissions.models import Role
+        from waldur_core.users.models import Invitation
+
+        customer = structure_factories.CustomerFactory()
+        user = structure_factories.UserFactory()
+        content_type = ContentType.objects.get_for_model(customer)
+        role = Role.objects.create(
+            name="CUSTOMER.OWNER",
+            description="Customer Owner",
+            content_type=content_type,
+            is_active=True,
+        )
+
+        invitation = Invitation.objects.create(
+            customer=customer,
+            role=role,
+            created_by=user,
+            email="test@example.com",
+            full_name="Test User",
+            state="pending",
+            execution_state="Scheduled",
+            content_type=content_type,
+            object_id=customer.id,
+        )
+
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        # Verify invitations exported
+        self.assertIn("invitations", data)
+        exported_invitations = [
+            inv for inv in data["invitations"] if inv["uuid"] == invitation.uuid.hex
+        ]
+        self.assertEqual(len(exported_invitations), 1)
+
+        exported_inv = exported_invitations[0]
+        self.assertEqual(exported_inv["customer_uuid"], customer.uuid.hex)
+        self.assertEqual(exported_inv["role_uuid"], role.uuid.hex)
+        self.assertEqual(exported_inv["created_by_uuid"], user.uuid.hex)
+        self.assertEqual(exported_inv["email"], "test@example.com")
+        self.assertEqual(exported_inv["full_name"], "Test User")
+        self.assertEqual(exported_inv["state"], "pending")
+        self.assertEqual(exported_inv["execution_state"], "Scheduled")
+
+    def test_export_permission_requests(self):
+        """Test that export captures permission request data."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.core.enums import ReviewStates
+        from waldur_core.permissions.models import Role
+        from waldur_core.users.models import GroupInvitation, PermissionRequest
+
+        customer = structure_factories.CustomerFactory()
+        user = structure_factories.UserFactory()
+        requesting_user = structure_factories.UserFactory()
+        content_type = ContentType.objects.get_for_model(customer)
+        role = Role.objects.create(
+            name="CUSTOMER.OWNER",
+            description="Customer Owner",
+            content_type=content_type,
+            is_active=True,
+        )
+
+        group_invitation = GroupInvitation.objects.create(
+            customer=customer,
+            role=role,
+            created_by=user,
+            is_active=True,
+            is_public=False,
+            auto_create_project=False,
+            content_type=content_type,
+            object_id=customer.id,
+        )
+
+        permission_request = PermissionRequest.objects.create(
+            invitation=group_invitation,
+            created_by=requesting_user,
+            state=ReviewStates.PENDING,
+            review_comment="Please grant me access",
+        )
+
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        # Verify permission requests exported
+        self.assertIn("permission_requests", data)
+        exported_permission_requests = [
+            pr
+            for pr in data["permission_requests"]
+            if pr["uuid"] == permission_request.uuid.hex
+        ]
+        self.assertEqual(len(exported_permission_requests), 1)
+
+        exported_pr = exported_permission_requests[0]
+        self.assertEqual(exported_pr["invitation_uuid"], group_invitation.uuid.hex)
+        self.assertEqual(exported_pr["created_by_uuid"], requesting_user.uuid.hex)
+        self.assertEqual(exported_pr["state"], ReviewStates.PENDING)
+        self.assertEqual(exported_pr["review_comment"], "Please grant me access")

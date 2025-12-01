@@ -16,6 +16,7 @@ from waldur_core.checklist.models import (
 from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import Customer, Project
+from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 from waldur_mastermind.marketplace.models import (
     Category,
@@ -47,6 +48,7 @@ class Command(BaseCommand):
     - Billing: Invoices, Invoice Items, Component Usages, Resource Plan Periods
     - Checklists: Categories, Checklists, Questions, Completions, Answers
     - System: Authentication Tokens, Offering Users
+    - User Management: Invitations, Group Invitations, Permission Requests
 
     The exported JSON file can be used for backup, migration, analysis, or import
     using the import_structure command. All UUIDs and relationships are preserved.
@@ -110,6 +112,10 @@ class Command(BaseCommand):
             "questions": self.export_questions(),
             "checklist_completions": self.export_checklist_completions(),
             "answers": self.export_answers(),
+            # User management exports
+            "invitations": self.export_invitations(),
+            "group_invitations": self.export_group_invitations(),
+            "permission_requests": self.export_permission_requests(),
         }
 
         # Write to JSON file
@@ -153,6 +159,11 @@ class Command(BaseCommand):
             self.stdout.write(f"  Invoices: {len(data['invoices'])}")
             self.stdout.write(f"  Invoice Items: {len(data['invoice_items'])}")
             self.stdout.write(f"  Offering Users: {len(data['offering_users'])}")
+            self.stdout.write(f"  Invitations: {len(data['invitations'])}")
+            self.stdout.write(f"  Group Invitations: {len(data['group_invitations'])}")
+            self.stdout.write(
+                f"  Permission Requests: {len(data['permission_requests'])}"
+            )
 
         except OSError as e:
             self.stdout.write(self.style.ERROR(f"Failed to write to file: {e}"))
@@ -1054,3 +1065,145 @@ class Command(BaseCommand):
                 }
             )
         return answers
+
+    def export_invitations(self):
+        """Export invitation data."""
+        invitations = []
+        for invitation in Invitation.objects.select_related(
+            "customer", "role", "created_by", "approved_by"
+        ).order_by("created"):
+            invitation_data = {
+                "uuid": invitation.uuid.hex,
+                "customer_uuid": invitation.customer.uuid.hex,
+                "customer_name": invitation.customer.name,
+                "role_uuid": invitation.role.uuid.hex,
+                "role_name": invitation.role.name,
+                "email": invitation.email,
+                "civil_number": invitation.civil_number,
+                "full_name": invitation.full_name,
+                "state": invitation.state,
+                "execution_state": invitation.execution_state,
+                "extra_invitation_text": invitation.extra_invitation_text,
+                "error_message": invitation.error_message,
+                "error_traceback": invitation.error_traceback,
+                "created": invitation.created.isoformat()
+                if invitation.created
+                else None,
+                "modified": invitation.modified.isoformat()
+                if invitation.modified
+                else None,
+            }
+
+            # Add created_by reference if it exists
+            if invitation.created_by:
+                invitation_data["created_by_uuid"] = invitation.created_by.uuid.hex
+                invitation_data["created_by_username"] = invitation.created_by.username
+
+            # Add approved_by reference if it exists
+            if invitation.approved_by:
+                invitation_data["approved_by_uuid"] = invitation.approved_by.uuid.hex
+                invitation_data["approved_by_username"] = (
+                    invitation.approved_by.username
+                )
+
+            # Add scope information
+            invitation_data["scope_content_type"] = (
+                f"{invitation.content_type.app_label}.{invitation.content_type.model}"
+                if invitation.content_type
+                else None
+            )
+            invitation_data["scope_object_id"] = invitation.object_id
+
+            invitations.append(invitation_data)
+        return invitations
+
+    def export_group_invitations(self):
+        """Export group invitation data."""
+        group_invitations = []
+        for group_invitation in GroupInvitation.objects.select_related(
+            "customer", "role", "project_role", "created_by"
+        ).order_by("created"):
+            group_invitation_data = {
+                "uuid": group_invitation.uuid.hex,
+                "customer_uuid": group_invitation.customer.uuid.hex,
+                "customer_name": group_invitation.customer.name,
+                "role_uuid": group_invitation.role.uuid.hex,
+                "role_name": group_invitation.role.name,
+                "is_active": group_invitation.is_active,
+                "is_public": group_invitation.is_public,
+                "auto_create_project": group_invitation.auto_create_project,
+                "created": group_invitation.created.isoformat()
+                if group_invitation.created
+                else None,
+                "modified": group_invitation.modified.isoformat()
+                if group_invitation.modified
+                else None,
+            }
+
+            # Add project_role reference if it exists
+            if group_invitation.project_role:
+                group_invitation_data["project_role_uuid"] = (
+                    group_invitation.project_role.uuid.hex
+                )
+                group_invitation_data["project_role_name"] = (
+                    group_invitation.project_role.name
+                )
+
+            # Add created_by reference if it exists
+            if group_invitation.created_by:
+                group_invitation_data["created_by_uuid"] = (
+                    group_invitation.created_by.uuid.hex
+                )
+                group_invitation_data["created_by_username"] = (
+                    group_invitation.created_by.username
+                )
+
+            # Add scope information
+            group_invitation_data["scope_content_type"] = (
+                f"{group_invitation.content_type.app_label}.{group_invitation.content_type.model}"
+                if group_invitation.content_type
+                else None
+            )
+            group_invitation_data["scope_object_id"] = group_invitation.object_id
+
+            group_invitations.append(group_invitation_data)
+        return group_invitations
+
+    def export_permission_requests(self):
+        """Export permission request data."""
+        permission_requests = []
+        for permission_request in PermissionRequest.objects.select_related(
+            "invitation", "created_by", "reviewed_by"
+        ).order_by("created"):
+            permission_request_data = {
+                "uuid": permission_request.uuid.hex,
+                "invitation_uuid": permission_request.invitation.uuid.hex,
+                "created_by_uuid": permission_request.created_by.uuid.hex,
+                "created_by_username": permission_request.created_by.username,
+                "state": permission_request.state,
+                "created": permission_request.created.isoformat()
+                if permission_request.created
+                else None,
+                "modified": permission_request.modified.isoformat()
+                if permission_request.modified
+                else None,
+                "review_comment": permission_request.review_comment,
+            }
+
+            # Add reviewed_by reference if it exists
+            if permission_request.reviewed_by:
+                permission_request_data["reviewed_by_uuid"] = (
+                    permission_request.reviewed_by.uuid.hex
+                )
+                permission_request_data["reviewed_by_username"] = (
+                    permission_request.reviewed_by.username
+                )
+
+            # Add reviewed_at if it exists
+            if permission_request.reviewed_at:
+                permission_request_data["reviewed_at"] = (
+                    permission_request.reviewed_at.isoformat()
+                )
+
+            permission_requests.append(permission_request_data)
+        return permission_requests
