@@ -30,6 +30,8 @@ from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import exceptions, models, plugins, utils
+from waldur_mastermind.marketplace.catalog_loaders.eessi import EESSICatalogLoader
+from waldur_mastermind.marketplace.catalog_loaders.spack import SpackCatalogLoader
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OfferingUserStates,
@@ -1457,3 +1459,239 @@ def cleanup_stale_offering_users():
         request_offering_user_deletion_for_user.delay(user.uuid.hex)
 
     logger.info(f"Scheduled cleanup tasks for {len(users)} users with offering users")
+
+
+@shared_task(name="marketplace.update_software_catalogs")
+def update_software_catalogs():
+    """
+    Daily task to update all enabled software catalogs.
+
+    Updates EESSI, Spack, and other configured catalogs independently.
+    Each catalog is processed in isolation - if one fails, others continue.
+    """
+    logger.info("Starting software catalogs update")
+
+    results = {}
+
+    # Define catalog configurations
+    catalog_configs = [
+        {
+            "name": "EESSI",
+            "enabled_setting": "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED",
+            "loader_class": EESSICatalogLoader,
+            "loader_kwargs": {
+                "catalog_name": "EESSI",
+                "catalog_version": config.SOFTWARE_CATALOG_EESSI_VERSION or "auto",
+                "api_base_url": config.SOFTWARE_CATALOG_EESSI_API_URL,
+                "include_extensions": config.SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS,
+            },
+            "catalog_type": "binary_runtime",
+        },
+        {
+            "name": "Spack",
+            "enabled_setting": "SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED",
+            "loader_class": SpackCatalogLoader,
+            "loader_kwargs": {
+                "catalog_name": "Spack",
+                "catalog_version": config.SOFTWARE_CATALOG_SPACK_VERSION or "auto",
+                "data_url": config.SOFTWARE_CATALOG_SPACK_DATA_URL,
+            },
+            "catalog_type": "source_package",
+        },
+    ]
+
+    # Process each catalog independently with full exception isolation
+    for catalog_config in catalog_configs:
+        catalog_name = catalog_config["name"]
+
+        try:
+            # Check if catalog is enabled
+            enabled = getattr(config, catalog_config["enabled_setting"], False)
+            if not enabled:
+                logger.info(f"{catalog_name} catalog update is disabled via settings")
+                results[catalog_name.lower()] = {
+                    "status": "skipped",
+                    "reason": "disabled",
+                }
+                continue
+
+            # Validate configuration before proceeding
+            validation_errors = _validate_catalog_config(catalog_config)
+            if validation_errors:
+                raise Exception(
+                    f"Configuration validation failed: {', '.join(validation_errors)}"
+                )
+
+            logger.info(f"Updating {catalog_name} catalog")
+
+            # Create loader instance with error handling
+            try:
+                loader_class = catalog_config["loader_class"]
+                loader_kwargs = catalog_config["loader_kwargs"]
+                loader = loader_class(**loader_kwargs)
+            except Exception as loader_error:
+                raise Exception(
+                    f"Failed to initialize {catalog_name} loader: {loader_error}"
+                ) from loader_error
+
+            # Update catalog with full error isolation
+            try:
+                catalog = _update_catalog_with_error_handling(
+                    loader=loader,
+                    catalog_name=catalog_name,
+                    catalog_type=catalog_config["catalog_type"],
+                )
+            except Exception as update_error:
+                raise Exception(
+                    f"Failed to update {catalog_name} catalog: {update_error}"
+                ) from update_error
+
+            # Record success
+            results[catalog_name.lower()] = {
+                "status": "success",
+                "catalog_uuid": str(catalog.uuid),
+                "catalog_name": catalog.name,
+                "catalog_version": catalog.version,
+                "last_update": catalog.last_successful_update.isoformat()
+                if catalog.last_successful_update
+                else None,
+            }
+            logger.info(f"{catalog_name} catalog update completed successfully")
+
+        except Exception as e:
+            # Log error but continue with next catalog
+            error_msg = f"{catalog_name} catalog update failed: {e}"
+            logger.error(error_msg, exc_info=True)
+
+            results[catalog_name.lower()] = {
+                "status": "error",
+                "error": str(e),
+                "error_type": type(e).__name__,
+            }
+
+            # Continue processing other catalogs
+            continue
+
+    # Aggregate final results
+    success_count = sum(1 for r in results.values() if r.get("status") == "success")
+    error_count = sum(1 for r in results.values() if r.get("status") == "error")
+    skipped_count = sum(1 for r in results.values() if r.get("status") == "skipped")
+
+    # Determine overall task status
+    overall_status = "completed"
+    if error_count > 0 and success_count == 0:
+        overall_status = "failed"  # All catalogs failed
+    elif error_count > 0:
+        overall_status = "partial"  # Some catalogs failed
+
+    summary = {
+        "status": overall_status,
+        "catalogs_updated": success_count,
+        "catalogs_failed": error_count,
+        "catalogs_skipped": skipped_count,
+        "total_catalogs": len(catalog_configs),
+        "update_time": timezone.now().isoformat(),
+        "results": results,
+    }
+
+    # Log appropriate level based on results
+    if overall_status == "failed":
+        logger.error(f"All software catalog updates failed: {summary}")
+    elif overall_status == "partial":
+        logger.warning(f"Some software catalog updates failed: {summary}")
+    else:
+        logger.info(f"Software catalog updates completed successfully: {summary}")
+
+    return summary
+
+
+def _update_catalog_with_error_handling(loader, catalog_name: str, catalog_type: str):
+    """
+    Helper to update catalog with proper error handling and logging.
+
+    Args:
+        loader: Catalog loader instance
+        catalog_name: Name of the catalog
+        catalog_type: Type of the catalog
+
+    Returns:
+        Updated SoftwareCatalog instance
+
+    Raises:
+        Exception: If catalog update fails
+    """
+    catalog = None
+    catalog_created = False
+
+    try:
+        # Find or create catalog record for tracking
+        catalog, catalog_created = models.SoftwareCatalog.objects.get_or_create(
+            name=catalog_name,
+            version=loader.catalog_version,
+            catalog_type=catalog_type,
+            defaults={
+                "description": f"{catalog_name} software catalog",
+                "auto_update_enabled": True,
+            },
+        )
+
+        # Update attempt timestamp
+        catalog.last_update_attempt = timezone.now()
+        catalog.save(update_fields=["last_update_attempt"])
+
+        # Perform the actual update
+        update_existing = config.SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES
+        stats = loader.load_catalog(update_existing=update_existing, dry_run=False)
+
+        # Update success timestamp and clear errors
+        catalog.last_successful_update = timezone.now()
+        catalog.update_errors = ""
+        catalog.save(update_fields=["last_successful_update", "update_errors"])
+
+        logger.info(f"Successfully updated {catalog_name} catalog: {stats}")
+        return catalog
+
+    except Exception as e:
+        # Handle catalog cleanup on failure
+        error_msg = f"Catalog update failed: {e}"
+        if catalog:
+            if catalog_created:
+                # If we created the catalog object and update failed, remove it
+                catalog.delete()
+                logger.debug(f"Removed failed catalog object for {catalog_name}")
+            else:
+                # If catalog existed before, just log the error
+                catalog.update_errors = error_msg
+                catalog.save(update_fields=["update_errors"])
+
+        raise e
+
+
+def _validate_catalog_config(catalog_config):
+    """
+    Validate catalog configuration to prevent runtime errors.
+
+    Returns:
+        List of validation error messages (empty if valid)
+    """
+    errors = []
+    catalog_name = catalog_config["name"]
+    loader_kwargs = catalog_config.get("loader_kwargs", {})
+
+    # Validate EESSI-specific configuration
+    if catalog_name == "EESSI":
+        api_url = loader_kwargs.get("api_base_url", "")
+        if not api_url or not api_url.startswith("http"):
+            errors.append("EESSI API URL must be a valid HTTP/HTTPS URL")
+
+    # Validate Spack-specific configuration
+    elif catalog_name == "Spack":
+        data_url = loader_kwargs.get("data_url", "")
+        if not data_url or not data_url.startswith("http"):
+            errors.append("Spack data URL must be a valid HTTP/HTTPS URL")
+
+    # Validate common fields
+    if not loader_kwargs.get("catalog_name"):
+        errors.append("Catalog name is required")
+
+    return errors

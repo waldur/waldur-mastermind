@@ -2515,27 +2515,66 @@ class OfferingUserRole(core_models.UuidMixin, core_models.NameMixin):
 
 class SoftwareCatalog(core_models.UuidMixin, TimeStampedModel):
     """
-    Software catalog metadata (like EESSI, Spack, etc.)
+    Generic software catalog supporting multiple package management systems.
+
+    Supports various catalog types:
+    - binary_runtime: Pre-compiled software (EESSI)
+    - source_package: Build recipes (Spack)
+    - package_manager: Package manager repos (conda-forge, PyPI)
     """
 
-    name = models.CharField(max_length=100, help_text=_("Catalog name (e.g., EESSI)"))
+    CATALOG_TYPE_CHOICES = [
+        ("binary_runtime", _("Binary Runtime (EESSI)")),
+        ("source_package", _("Source Package (Spack)")),
+        ("package_manager", _("Package Manager (conda, pip)")),
+    ]
+
+    name = models.CharField(
+        max_length=100, help_text=_("Catalog name (e.g., EESSI, Spack)")
+    )
     version = models.CharField(
-        max_length=50, help_text=_("Catalog version (e.g., 2023.06)")
+        max_length=50, help_text=_("Catalog version (e.g., 2023.06, 0.21.0)")
+    )
+    catalog_type = models.CharField(
+        max_length=50,
+        choices=CATALOG_TYPE_CHOICES,
+        default="binary_runtime",  # Default to EESSI-like for existing catalogs
+        help_text=_("Type of software catalog"),
     )
     source_url = models.URLField(blank=True, help_text=_("Catalog source URL"))
     description = models.TextField(blank=True)
 
+    # Flexible storage for catalog-specific metadata
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Catalog-specific metadata (architecture maps, API endpoints, etc.)"
+        ),
+    )
+
+    # Auto-update configuration
+    auto_update_enabled = models.BooleanField(
+        default=True,
+        help_text=_("Whether to automatically update this catalog via scheduled tasks"),
+    )
+    last_update_attempt = models.DateTimeField(null=True, blank=True)
+    last_successful_update = models.DateTimeField(null=True, blank=True)
+    update_errors = models.TextField(blank=True)
+
     class Meta:
-        unique_together = ("name", "version")
-        ordering = ["name", "version"]
+        unique_together = ("name", "version", "catalog_type")
+        ordering = ["name", "catalog_type", "version"]
 
     def __str__(self):
-        return f"{self.name} {self.version}"
+        return f"{self.name} {self.version} ({self.get_catalog_type_display()})"
 
 
 class SoftwarePackage(core_models.UuidMixin, TimeStampedModel):
     """
-    Individual software package within a catalog.
+    Generic software package supporting multiple catalog types.
+
+    Includes common fields across EESSI, Spack, and other package systems.
     """
 
     catalog = models.ForeignKey(
@@ -2543,7 +2582,38 @@ class SoftwarePackage(core_models.UuidMixin, TimeStampedModel):
     )
     name = models.CharField(max_length=200, db_index=True)
     description = models.TextField(blank=True)
-    homepage = models.URLField(blank=True)
+    homepage = models.URLField(blank=True, null=True)
+
+    # Generic classification fields (common across catalogs)
+    categories = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_("Package categories (e.g., ['bio', 'hpc', 'build-tools'])"),
+    )
+    licenses = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_("Software licenses (e.g., ['GPL-3.0', 'MIT'])"),
+    )
+    maintainers = models.JSONField(
+        default=list, blank=True, help_text=_("Package maintainers")
+    )
+
+    # Extension/hierarchy support (for Python packages, R packages, etc.)
+    is_extension = models.BooleanField(
+        default=False,
+        help_text=_("Whether this package is an extension of another package"),
+    )
+    parent_software = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="extensions",
+        help_text=_(
+            "Parent package for extensions (e.g., Python package within Python)"
+        ),
+    )
 
     class Meta:
         unique_together = ("catalog", "name")
@@ -2551,15 +2621,24 @@ class SoftwarePackage(core_models.UuidMixin, TimeStampedModel):
         indexes = [
             models.Index(fields=["catalog", "name"]),
             models.Index(fields=["name"]),
+            models.Index(fields=["is_extension"]),
+            models.Index(fields=["parent_software"]),
         ]
 
     def __str__(self):
         return f"{self.name} ({self.catalog})"
 
+    @property
+    def extension_count(self):
+        """Count of extension packages."""
+        return self.extensions.count()
+
 
 class SoftwareVersion(core_models.UuidMixin, TimeStampedModel):
     """
-    Specific version of a software package.
+    Generic software version supporting multiple catalog types.
+
+    Stores common version metadata and catalog-specific data in flexible fields.
     """
 
     package = models.ForeignKey(
@@ -2567,39 +2646,106 @@ class SoftwareVersion(core_models.UuidMixin, TimeStampedModel):
     )
     version = models.CharField(max_length=100)
     release_date = models.DateField(null=True, blank=True)
-    metadata = models.JSONField(default=dict, blank=True)
+
+    # Generic dependency tracking (catalog-agnostic)
+    dependencies = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_("Package dependencies (format varies by catalog type)"),
+    )
+
+    # Flexible metadata storage for all catalog-specific data
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Version-specific metadata (toolchains, build info, modules, etc.)"
+        ),
+    )
 
     class Meta:
         unique_together = ("package", "version")
         ordering = ["package", "version"]
+        indexes = [
+            models.Index(fields=["package", "version"]),
+            models.Index(fields=["version"]),
+        ]
 
     def __str__(self):
         return f"{self.package.name} {self.version}"
 
+    @property
+    def catalog_type(self):
+        """Return the catalog type for this version."""
+        return self.package.catalog.catalog_type
+
+    def get_metadata_field(self, field_name, default=None):
+        """Helper to get version metadata fields."""
+        return self.metadata.get(field_name, default)
+
 
 class SoftwareTarget(core_models.UuidMixin, TimeStampedModel):
     """
-    Target architecture/platform for software versions.
+    Generic deployment target for software versions.
+
+    Represents where/how software can be deployed - architecture for binary catalogs,
+    build variants for source catalogs, etc.
     """
 
     version = models.ForeignKey(
         SoftwareVersion, on_delete=models.CASCADE, related_name="targets"
     )
-    cpu_family = models.CharField(max_length=50, db_index=True)  # x86_64, aarch64
-    cpu_microarchitecture = models.CharField(
-        max_length=50, db_index=True
-    )  # generic, zen3, etc.
-    path = models.CharField(max_length=500)  # Full CVMFS path
+
+    # Generic target identification
+    target_type = models.CharField(
+        max_length=50,
+        db_index=True,
+        default="architecture",
+        help_text=_("Type of target (architecture, platform, variant, etc.)"),
+    )
+    target_name = models.CharField(
+        max_length=100,
+        db_index=True,
+        default="generic",
+        help_text=_("Target identifier (x86_64/generic, linux, variant_name, etc.)"),
+    )
+
+    # Optional secondary classification (for hierarchical targets)
+    target_subtype = models.CharField(
+        max_length=50,
+        blank=True,
+        db_index=True,
+        help_text=_("Target subtype (microarchitecture, distribution, etc.)"),
+    )
+
+    # Generic path/location (filesystem path, URL, etc.)
+    location = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text=_("Target location (CVMFS path, download URL, etc.)"),
+    )
+
+    # Flexible metadata for target-specific data
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Target-specific metadata (build options, system requirements, etc.)"
+        ),
+    )
 
     class Meta:
-        unique_together = ("version", "cpu_family", "cpu_microarchitecture")
+        unique_together = ("version", "target_type", "target_name", "target_subtype")
         indexes = [
-            models.Index(fields=["cpu_family", "cpu_microarchitecture"]),
-            models.Index(fields=["version", "cpu_family"]),
+            models.Index(fields=["target_type", "target_name"]),
+            models.Index(fields=["version", "target_type"]),
+            models.Index(fields=["target_type", "target_subtype"]),
         ]
 
     def __str__(self):
-        return f"{self.version} - {self.cpu_family}/{self.cpu_microarchitecture}"
+        if self.target_subtype:
+            return f"{self.version} - {self.target_type}:{self.target_name}/{self.target_subtype}"
+        return f"{self.version} - {self.target_type}:{self.target_name}"
 
 
 class OfferingSoftwareCatalog(core_models.UuidMixin, TimeStampedModel):

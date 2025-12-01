@@ -7951,9 +7951,12 @@ class ToSConsentDashboardSerializer(serializers.Serializer):
 
 
 class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):
-    """Serializer for SoftwareCatalog model."""
+    """Serializer for unified SoftwareCatalog model."""
 
     package_count = serializers.SerializerMethodField()
+    catalog_type_display = serializers.CharField(
+        source="get_catalog_type_display", read_only=True
+    )
 
     class Meta:
         model = models.SoftwareCatalog
@@ -7964,11 +7967,27 @@ class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):
             "modified",
             "name",
             "version",
+            "catalog_type",
+            "catalog_type_display",
             "source_url",
             "description",
+            "metadata",
+            "auto_update_enabled",
+            "last_update_attempt",
+            "last_successful_update",
+            "update_errors",
             "package_count",
         )
-        read_only_fields = ("url", "uuid", "created", "modified", "package_count")
+        read_only_fields = (
+            "url",
+            "uuid",
+            "created",
+            "modified",
+            "catalog_type_display",
+            "last_update_attempt",
+            "last_successful_update",
+            "package_count",
+        )
         extra_kwargs = {
             "url": {
                 "view_name": "marketplace-software-catalog-detail",
@@ -7983,15 +8002,17 @@ class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class NestedSoftwareTargetSerializer(serializers.ModelSerializer):
-    """Nested serializer for SoftwareTarget model."""
+    """Nested serializer for unified SoftwareTarget model."""
 
     class Meta:
         model = models.SoftwareTarget
         fields = (
             "uuid",
-            "cpu_family",
-            "cpu_microarchitecture",
-            "path",
+            "target_type",
+            "target_name",
+            "target_subtype",
+            "location",
+            "metadata",
         )
 
 
@@ -8011,11 +8032,16 @@ class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
 
 
 class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
-    """Serializer for SoftwarePackage model."""
+    """Serializer for unified SoftwarePackage model."""
 
     catalog_name = serializers.CharField(source="catalog.name", read_only=True)
     catalog_version = serializers.CharField(source="catalog.version", read_only=True)
+    catalog_type = serializers.CharField(source="catalog.catalog_type", read_only=True)
+    catalog_type_display = serializers.CharField(
+        source="catalog.get_catalog_type_display", read_only=True
+    )
     version_count = serializers.SerializerMethodField()
+    extension_count = serializers.SerializerMethodField()
     versions = NestedSoftwareVersionSerializer(many=True, read_only=True)
 
     class Meta:
@@ -8029,9 +8055,17 @@ class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
             "name",
             "description",
             "homepage",
+            "categories",
+            "licenses",
+            "maintainers",
+            "is_extension",
+            "parent_software",
             "catalog_name",
             "catalog_version",
+            "catalog_type",
+            "catalog_type_display",
             "version_count",
+            "extension_count",
             "versions",
         )
         read_only_fields = (
@@ -8041,7 +8075,10 @@ class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
             "modified",
             "catalog_name",
             "catalog_version",
+            "catalog_type",
+            "catalog_type_display",
             "version_count",
+            "extension_count",
             "versions",
         )
         extra_kwargs = {
@@ -8060,11 +8097,19 @@ class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
         """Get number of versions for this package."""
         return obj.versions.count()
 
+    @extend_schema_field(serializers.IntegerField())
+    def get_extension_count(self, obj):
+        """Get number of extension packages for this package."""
+        return obj.extension_count
+
 
 class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
-    """Serializer for SoftwareVersion model."""
+    """Serializer for unified SoftwareVersion model."""
 
     package_name = serializers.CharField(source="package.name", read_only=True)
+    catalog_type = serializers.CharField(
+        source="package.catalog.catalog_type", read_only=True
+    )
     target_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -8076,7 +8121,10 @@ class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
             "modified",
             "version",
             "release_date",
+            "dependencies",
+            "metadata",
             "package_name",
+            "catalog_type",
             "target_count",
         )
         read_only_fields = fields
@@ -8094,7 +8142,7 @@ class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class SoftwareTargetSerializer(serializers.HyperlinkedModelSerializer):
-    """Serializer for SoftwareTarget model."""
+    """Serializer for unified SoftwareTarget model."""
 
     class Meta:
         model = models.SoftwareTarget
@@ -8103,9 +8151,11 @@ class SoftwareTargetSerializer(serializers.HyperlinkedModelSerializer):
             "uuid",
             "created",
             "modified",
-            "cpu_family",
-            "cpu_microarchitecture",
-            "path",
+            "target_type",
+            "target_name",
+            "target_subtype",
+            "location",
+            "metadata",
         )
         read_only_fields = fields
         extra_kwargs = {

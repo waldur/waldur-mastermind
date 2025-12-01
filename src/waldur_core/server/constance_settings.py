@@ -618,6 +618,47 @@ CONSTANCE_CONFIG = {
         "gemma3:27b",
         "Name of the LLM model to use for inference.",
     ),
+    # Software catalog settings
+    "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED": (
+        True,
+        "Enable automated daily updates for EESSI software catalog",
+    ),
+    "SOFTWARE_CATALOG_EESSI_VERSION": (
+        "",
+        "EESSI catalog version to load (auto-detect if empty)",
+    ),
+    "SOFTWARE_CATALOG_EESSI_API_URL": (
+        "https://www.eessi.io/api_data/data/",
+        "Base URL for EESSI API data",
+    ),
+    "SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS": (
+        True,
+        "Include extension packages (Python, R packages, etc.) from EESSI",
+    ),
+    "SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED": (
+        True,
+        "Enable automated daily updates for Spack software catalog",
+    ),
+    "SOFTWARE_CATALOG_SPACK_VERSION": (
+        "",
+        "Spack catalog version to load (auto-detect if empty)",
+    ),
+    "SOFTWARE_CATALOG_SPACK_DATA_URL": (
+        "https://raw.githubusercontent.com/spack/packages.spack.io/refs/heads/gh-pages/data/repology.json",
+        "URL for Spack repology.json data",
+    ),
+    "SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES": (
+        True,
+        "Update existing packages during catalog refresh",
+    ),
+    "SOFTWARE_CATALOG_CLEANUP_ENABLED": (
+        False,
+        "Enable automatic cleanup of old catalog data",
+    ),
+    "SOFTWARE_CATALOG_RETENTION_DAYS": (
+        90,
+        "Number of days to retain old catalog versions",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -814,6 +855,18 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "LLM_INFERENCES_API_URL",
         "LLM_INFERENCES_API_TOKEN",
         "LLM_INFERENCES_MODEL",
+    ),
+    "Software catalog settings": (
+        "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED",
+        "SOFTWARE_CATALOG_EESSI_VERSION",
+        "SOFTWARE_CATALOG_EESSI_API_URL",
+        "SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS",
+        "SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED",
+        "SOFTWARE_CATALOG_SPACK_VERSION",
+        "SOFTWARE_CATALOG_SPACK_DATA_URL",
+        "SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES",
+        "SOFTWARE_CATALOG_CLEANUP_ENABLED",
+        "SOFTWARE_CATALOG_RETENTION_DAYS",
     ),
 }
 

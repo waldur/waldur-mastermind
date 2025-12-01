@@ -1,0 +1,241 @@
+{
+  "last_update": "2025-11-26 05:04:48.800164",
+  "num_packages": 8657,
+  "packages": {
+    "3dtk": {
+      "alias": [],
+      "categories": [],
+      "dependencies": [
+        "boost",
+        "c",
+        "cgal",
+        "cmake",
+        "cuda",
+        "cxx",
+        "eigen",
+        "freeglut",
+        "gl",
+        "glew",
+        "gmake",
+        "libpng",
+        "ninja",
+        "opencv",
+        "suite-sparse",
+        "zlib-api"
+      ],
+      "downloads": [],
+      "homepages": [
+        "https://slam6d.sourceforge.net/"
+      ],
+      "licenses": [],
+      "maintainers": [],
+      "name": "3dtk",
+      "patches": [
+        "homebrew.patch when platform=darwin"
+      ],
+      "summary": "The 3D Toolkit provides algorithms and methods to process 3D point\nclouds. It includes automatic high-accurate registration (6D\nsimultaneous localization and mapping, 6D SLAM) and other tools, e.g., a\nfast 3D viewer, plane extraction software, etc. Several file formats for\nthe point clouds are natively supported, new formats can be implemented\neasily.\n",
+      "version": [
+        {
+          "downloads": [
+            []
+          ],
+          "version": "1.2"
+        },
+        {
+          "branch": "trunk",
+          "version": "trunk"
+        }
+      ]
+    },
+    "3proxy": {
+      "alias": [],
+      "categories": [],
+      "dependencies": [
+        "c",
+        "gmake"
+      ],
+      "downloads": [
+        "https://github.com/z3APA3A/3proxy/archive/0.8.13.tar.gz",
+        "https://github.com/z3APA3A/3proxy/archive/0.8.12.tar.gz",
+        "https://github.com/z3APA3A/3proxy/archive/0.8.11.tar.gz"
+      ],
+      "homepages": [
+        "https://3proxy.org"
+      ],
+      "licenses": [],
+      "maintainers": [],
+      "name": "3proxy",
+      "patches": [],
+      "summary": "3proxy - tiny free proxy server\n",
+      "version": [
+        {
+          "downloads": [
+            "https://github.com/z3APA3A/3proxy/archive/0.8.11.tar.gz"
+          ],
+          "version": "0.8.11"
+        },
+        {
+          "downloads": [
+            "https://github.com/z3APA3A/3proxy/archive/0.8.12.tar.gz"
+          ],
+          "version": "0.8.12"
+        },
+        {
+          "downloads": [
+            "https://github.com/z3APA3A/3proxy/archive/0.8.13.tar.gz"
+          ],
+          "version": "0.8.13"
+        }
+      ]
+    },
+    "7zip": {
+      "alias": [],
+      "categories": [
+        "windows",
+        "detectable"
+      ],
+      "dependencies": [
+        "c",
+        "cxx"
+      ],
+      "downloads": [
+        "https://prdownloads.sourceforge.net/sevenzip/files/7z2107-src.tar.xz"
+      ],
+      "homepages": [
+        "https://sourceforge.net/projects/sevenzip/"
+      ],
+      "licenses": [
+        "LGPL-2.0-only"
+      ],
+      "maintainers": [],
+      "name": "7zip",
+      "patches": [
+        "noexcept_typedef.patch when platform=windows"
+      ],
+      "summary": "7-Zip is a file archiver for Windows\n",
+      "version": [
+        {
+          "downloads": [
+            "https://prdownloads.sourceforge.net/sevenzip/files/7z2107-src.tar.xz"
+          ],
+          "version": "21.07"
+        }
+      ]
+    },
+    "abacus": {
+      "alias": [],
+      "categories": [],
+      "dependencies": [
+        "c",
+        "cereal",
+        "cxx",
+        "elpa",
+        "fftw",
+        "gmake",
+        "libxc",
+        "mkl",
+        "mpi"
+      ],
+      "downloads": [
+        "https://github.com/abacusmodeling/abacus-develop/archive/refs/tags/vdevelop.tar.gz",
+        "https://github.com/abacusmodeling/abacus-develop/archive/refs/tags/v2.2.3.tar.gz",
+        "https://github.com/abacusmodeling/abacus-develop/archive/refs/tags/v2.2.2.tar.gz",
+        "https://github.com/abacusmodeling/abacus-develop/archive/refs/tags/v2.2.1.tar.gz",
+        "https://github.com/abacusmodeling/abacus-develop/archive/refs/tags/v2.2.0.tar.gz",
+        "https://github.com/abacusmodeling/abacus-develop.git"
+      ],
+      "homepages": [
+        "http://abacus.ustc.edu.cn/"
+      ],
+      "licenses": [
+        "LGPL-3.0-or-later"
+      ],
+      "maintainers": [
+        "bitllion"
+      ],
+      "name": "abacus",
+      "patches": [],
+      "summary": "ABACUS (Atomic-orbital Based Ab-initio Computation at UStc) is an open-\nsource computer code package aiming for large-scale electronic-structure\nsimulations from first principles\n",
+      "version": [
+        {
+          "downloads": [
+            "https://github.com/abacusmodeling/abacus-develop/archive/refs/tags/v2.2.0.tar.gz"
+          ],
+          "version": "2.2.0"
+        },
+        {
+          "downloads": [
+            "https://github.com/abacusmodeling/abacus-develop/archive/refs/tags/v2.2.1.tar.gz"
+          ],
+          "version": "2.2.1"
+        },
+        {
+          "downloads": [
+            "https://github.com/abacusmodeling/abacus-develop/archive/refs/tags/v2.2.2.tar.gz"
+          ],
+          "version": "2.2.2"
+        },
+        {
+          "downloads": [
+            "https://github.com/abacusmodeling/abacus-develop/archive/refs/tags/v2.2.3.tar.gz"
+          ],
+          "version": "2.2.3"
+        },
+        {
+          "branch": "develop",
+          "repositories": [
+            {
+              "branch": "develop",
+              "type": "git",
+              "url": "https://github.com/abacusmodeling/abacus-develop.git"
+            }
+          ],
+          "version": "develop"
+        }
+      ]
+    },
+    "abduco": {
+      "alias": [],
+      "categories": [],
+      "dependencies": [
+        "c",
+        "gmake"
+      ],
+      "downloads": [
+        "https://github.com/martanne/abduco/archive/v0.6.tar.gz",
+        "https://github.com/martanne/abduco/archive/v0.5.tar.gz",
+        "https://github.com/martanne/abduco/archive/v0.4.tar.gz"
+      ],
+      "homepages": [
+        "https://github.com/martanne/abduco"
+      ],
+      "licenses": [
+        "ISC"
+      ],
+      "maintainers": [],
+      "name": "abduco",
+      "patches": [],
+      "summary": "abduco provides session management i.e. it allows programs to be run\nindependently from its controlling terminal. That is programs can be\ndetached - run in the background - and then later reattached. Together\nwith dvtm it provides a simpler and cleaner alternative to tmux or\nscreen.\n",
+      "version": [
+        {
+          "downloads": [
+            "https://github.com/martanne/abduco/archive/v0.4.tar.gz"
+          ],
+          "version": "0.4"
+        },
+        {
+          "downloads": [
+            "https://github.com/martanne/abduco/archive/v0.5.tar.gz"
+          ],
+          "version": "0.5"
+        },
+        {
+          "downloads": [
+            "https://github.com/martanne/abduco/archive/v0.6.tar.gz"
+          ],
+          "version": "0.6"
+        }
+      ]
+    }
+  }
+}
