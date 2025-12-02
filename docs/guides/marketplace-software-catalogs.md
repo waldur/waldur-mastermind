@@ -1,55 +1,158 @@
 # Marketplace Software Catalogs
 
-This guide covers the software catalog system in Waldur's marketplace, using the European Environment for Scientific Software Installations (EESSI) as a primary example.
+This guide covers the software catalog system in Waldur's marketplace, including support for EESSI (European Environment for Scientific Software Installations), Spack, and other software catalogs.
 
 ## Overview
 
-The software catalog system allows marketplace offerings to expose large collections of scientific and HPC software packages from external catalogs like EESSI. Instead of manually tracking individual software installations, offerings can reference comprehensive software catalogs with thousands of packages.
+The software catalog system allows marketplace offerings to expose large collections of scientific and HPC software packages from external catalogs. Instead of manually tracking individual software installations, offerings can reference comprehensive software catalogs with thousands of packages. Waldur supports multiple catalog sources including:
+
+- **EESSI**: Binary runtime environment with pre-compiled HPC software
+- **Spack**: Source-based package manager for scientific computing
+- **Future support**: conda-forge, modules, and custom catalogs
 
 ## Architecture
 
+### Unified Catalog Loader Framework
+
+Waldur uses a unified catalog loader framework that provides:
+
+- **BaseCatalogLoader**: Abstract base class for all catalog loaders
+- **EESSICatalogLoader**: Loader for EESSI catalogs from new API format
+- **SpackCatalogLoader**: Loader for Spack catalogs from repology.json format
+- **Extensible design**: Support for additional catalog types
+
+### Data Models
+
 The system uses relational models for efficient storage and querying:
 
-- **SoftwareCatalog**: Represents a software catalog (e.g., EESSI 2023.06)
+- **SoftwareCatalog**: Represents a software catalog (e.g., EESSI 2023.06, Spack 2024.12)
 - **SoftwarePackage**: Individual software packages within catalogs
 - **SoftwareVersion**: Specific versions of packages
-- **SoftwareTarget**: Architecture/platform-specific installations
+- **SoftwareTarget**: Architecture/platform-specific installations or build variants
 - **OfferingSoftwareCatalog**: Links offerings to available catalogs
 
-## Loading EESSI Catalog Data
+### Catalog Types
 
-### 1. Download EESSI Data
+- **binary_runtime**: Pre-compiled software ready to use (EESSI)
+- **source_package**: Source packages requiring compilation (Spack)
+- **package_manager**: Traditional package managers (future: conda, pip)
+- **environment_module**: Module-based software stacks
 
-First, download the latest EESSI software catalog data:
+## Loading Software Catalogs
 
-```bash
-# Download the latest EESSI catalog data
-curl -o eessi.model.json https://www.eessi.io/docs/available_software/data/json_data_detail.json
-```
+### EESSI Catalog Loading
 
-### 2. Load Software Catalog Data
+The EESSI loader uses the new EESSI API format which supports both main software packages and extensions (Python packages, R packages, etc.).
 
-Use the EESSI management command to load catalog data:
+#### Load EESSI Catalog
 
 ```bash
 # Load EESSI catalog (dry run first to see what will be created)
 DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur load_eessi_catalog --dry-run
 
-# Load the actual catalog
+# Load the actual catalog with extensions
 DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur load_eessi_catalog
+
+# Load without extensions
+DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur load_eessi_catalog --no-extensions
 
 # Update existing catalog with new data
 DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur load_eessi_catalog --update-existing
 ```
 
-This creates:
+#### EESSI Command Options
 
-- **SoftwareCatalog** entry for EESSI with detected version
+- `--catalog-name`: Name of the software catalog (default: EESSI)
+- `--catalog-version`: EESSI version (auto-detected from API if not provided)
+- `--api-url`: Base URL for EESSI API (default: <https://www.eessi.io/api_data/data/>)
+- `--extensions/--no-extensions`: Include/exclude extension packages (default: include)
+- `--dry-run`: Show what would be done without making changes
+- `--update-existing`: Update existing catalog data if it exists
+
+### Spack Catalog Loading
+
+The Spack loader supports the repology.json format from packages.spack.io, providing access to thousands of scientific computing packages.
+
+#### Load Spack Catalog
+
+```bash
+# Load Spack catalog (dry run first to see what will be created)
+DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur load_spack_catalog --dry-run
+
+# Load the actual catalog
+DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur load_spack_catalog
+
+# Load with custom data URL
+DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur load_spack_catalog \
+  --data-url "https://custom.spack.site/data/repology.json"
+
+# Update existing catalog
+DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur load_spack_catalog --update-existing
+```
+
+#### Spack Command Options
+
+- `--catalog-name`: Name of the software catalog (default: Spack)
+- `--catalog-version`: Spack version (auto-detected from data timestamp if not provided)
+- `--data-url`: URL for Spack repology.json data
+- `--dry-run`: Show what would be done without making changes
+- `--update-existing`: Update existing catalog data if it exists
+
+### What Gets Created
+
+Both loaders create:
+
+- **SoftwareCatalog** entry with detected version and metadata
 - **SoftwarePackage** entries for each software package
 - **SoftwareVersion** entries for each package version
-- **SoftwareTarget** entries for each architecture/platform combination
+- **SoftwareTarget** entries for architecture/platform combinations or build variants
 
-### 3. Associate Catalogs with Offerings
+## Automated Catalog Updates
+
+Waldur provides automated daily updates for software catalogs through Celery tasks.
+
+### Configuration Settings
+
+Configure automated updates through constance settings:
+
+#### EESSI Settings
+
+- `SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED`: Enable automated EESSI updates (default: true)
+- `SOFTWARE_CATALOG_EESSI_VERSION`: EESSI version to load (auto-detect if empty)
+- `SOFTWARE_CATALOG_EESSI_API_URL`: Base URL for EESSI API data
+- `SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS`: Include Python/R extensions (default: true)
+
+#### Spack Settings
+
+- `SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED`: Enable automated Spack updates (default: true)
+- `SOFTWARE_CATALOG_SPACK_VERSION`: Spack version to load (auto-detect if empty)
+- `SOFTWARE_CATALOG_SPACK_DATA_URL`: URL for Spack repology.json data
+
+#### General Settings
+
+- `SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES`: Update existing packages during refresh (default: true)
+- `SOFTWARE_CATALOG_CLEANUP_ENABLED`: Enable automatic cleanup of old catalog data (default: false)
+- `SOFTWARE_CATALOG_RETENTION_DAYS`: Number of days to retain old catalog versions (default: 90)
+
+### Scheduled Updates
+
+The `update_software_catalogs` task runs daily at 3 AM and:
+
+1. **Independent Processing**: Each catalog is updated independently - failures don't affect other catalogs
+2. **Configuration Validation**: Validates settings before attempting updates
+3. **Error Isolation**: Individual catalog failures are logged but don't prevent other updates
+4. **Comprehensive Logging**: Detailed logging for monitoring and troubleshooting
+
+### Manual Trigger
+
+You can manually trigger catalog updates:
+
+```bash
+# Trigger all enabled catalog updates
+DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur celery call marketplace.update_software_catalogs
+```
+
+## Associate Catalogs with Offerings
 
 Link the loaded software catalogs to your marketplace offerings:
 
@@ -70,11 +173,13 @@ curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings
   }'
 ```
 
-## Understanding EESSI Architecture Targets
+## Understanding Software Catalog Targets
+
+### EESSI Architecture Targets
 
 EESSI provides software optimized for different CPU architectures and microarchitectures:
 
-### Common Targets
+#### Common CPU Targets
 
 - `x86_64/generic` - General x86_64 compatibility
 - `x86_64/intel/haswell` - Intel Haswell and newer
@@ -84,12 +189,43 @@ EESSI provides software optimized for different CPU architectures and microarchi
 - `aarch64/generic` - General ARM64 compatibility
 - `aarch64/neoverse_n1` - ARM Neoverse N1 cores
 
+#### EESSI Extension Support
+
+The new EESSI API format includes support for extension packages:
+
+- **Python packages**: NumPy, SciPy, TensorFlow, PyTorch, etc.
+- **R packages**: Bioconductor, CRAN packages
+- **Perl modules**: CPAN modules
+- **Ruby gems**: Scientific Ruby libraries
+- **Octave packages**: Signal processing, optimization
+
+Extensions are linked to their parent software (e.g., Python packages linked to Python installation).
+
+### Spack Build Variants
+
+Spack supports flexible build configurations through targets:
+
+#### Target Types
+
+- `build_variant/default` - Standard build configuration
+- `platform/windows` - Windows-compatible packages
+- `external/system` - System-provided packages (detectable)
+- `build_system/build-tool` - Build tools and compilers
+
+#### Spack Categories
+
+- `build-tools` - Compilers, build systems, make tools
+- `detectable` - Externally provided packages
+- `windows` - Windows compatibility
+- Custom categories based on package metadata
+
 ### Why Targets Matter
 
 1. **Performance**: Architecture-specific builds can be 20-50% faster
 2. **Compatibility**: Ensures software runs on target hardware
 3. **Instruction Sets**: Leverages specific CPU features (AVX, NEON, etc.)
 4. **HPC Requirements**: Critical for scientific computing workloads
+5. **Build Flexibility**: Spack provides multiple build configurations
 
 ## Available API Endpoints
 
@@ -313,26 +449,41 @@ curl "https://your-waldur.example.com/api/marketplace-provider-offerings/{offeri
 # Get software packages available for an offering
 curl "https://your-waldur.example.com/api/marketplace-software-packages/?offering_uuid=offering-uuid"
 
-## Command Options
+## Catalog Management Commands
 
-The `load_eessi_catalog` command supports several options:
+### Available Commands
 
-- `--json-file`: Path to EESSI JSON file (default: eessi.model.json)
-- `--catalog-name`: Name of the software catalog (default: EESSI)
-- `--catalog-version`: EESSI catalog version (auto-detected from JSON if not provided)
-- `--dry-run`: Show what would be done without making changes
-- `--update-existing`: Update existing catalog data if it exists
-- `--no-sync`: Disable synchronization (default: sync enabled to remove missing records)
+The software catalog system provides management commands for different catalog types:
 
-### Synchronization Behavior
+- **load_eessi_catalog**: Load EESSI catalogs using the new API format
+- **load_spack_catalog**: Load Spack catalogs from repology.json format
 
-By default, the command synchronizes the database with the JSON file:
+### Common Command Features
 
-- **Adds** new packages, versions, and targets from the JSON
-- **Removes** packages, versions, and targets not present in the JSON
-- **Preserves** existing records that match the JSON data
+All catalog loading commands support:
 
-Use `--no-sync` to disable removal of missing records and only add new data.
+- `--dry-run`: Preview changes without modifying the database
+- `--update-existing`: Update existing packages and versions
+- Automatic version detection from source data
+- Comprehensive error handling and logging
+- Statistics reporting on created/updated records
+
+### Data Loading Process
+
+The unified catalog loader framework follows this process:
+
+1. **Validation**: Verify command arguments and connectivity
+2. **Fetch**: Download catalog data from remote sources
+3. **Transform**: Convert source format to unified data models
+4. **Load**: Create or update database records
+5. **Report**: Provide statistics and completion status
+
+Both loaders handle:
+
+- **Extension packages**: Link child packages to parent software
+- **Multiple architectures**: Support diverse target platforms
+- **Metadata preservation**: Store catalog-specific information
+- **Error recovery**: Continue processing despite individual failures
 
 ## Permissions
 
@@ -347,34 +498,107 @@ Use `--no-sync` to disable removal of missing records and only add new data.
 
 - **OfferingSoftwareCatalog**: Offering managers can associate catalogs with their offerings through offering actions (`add_software_catalog`, `update_software_catalog`, `remove_software_catalog`)
 
-## EESSI Integration Details
+## Integration Details
 
-### EESSI Data Structure
+### EESSI New API Format
 
-EESSI provides software in a structured format:
+The EESSI loader uses the new API format that separates main software and extensions.
+
+#### Main Software Structure
 
 ```json
 
 {
-  "targets": [
-    "/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic",
-    "/cvmfs/software.eessi.io/versions/2023.06/software/linux/aarch64/generic"
-  ],
+  "timestamp": "2024-12-02T10:00:00Z",
+  "architectures_map": {
+    "2023.06": ["x86_64/generic", "aarch64/generic", "x86_64/zen3"]
+  },
   "software": {
     "Python": {
-      "description": "Python is a programming language...",
+      "description": "Python programming language",
       "homepage": "https://www.python.org/",
-      "versions": {
-        "3.9.6": {
-          "versionsuffix": "",
-          "toolchain": "GCCcore/11.2.0"
+      "categories": ["lang"],
+      "versions": [
+        {
+          "version": "3.11.3",
+          "cpu_arch": ["x86_64/generic", "aarch64/generic"],
+          "toolchain": {"name": "GCCcore", "version": "12.3.0"},
+          "required_modules": ["GCCcore/12.3.0"],
+          "modulename": "Python/3.11.3-GCCcore-12.3.0"
         }
-      }
+      ]
     }
   }
 }
 
 ```
+
+#### Extension Structure
+
+```json
+
+{
+  "timestamp": "2024-12-02T10:00:00Z",
+  "software": {
+    "numpy": {
+      "description": "Fundamental package for array computing with Python",
+      "homepage": "https://numpy.org/",
+      "categories": ["math", "lib"],
+      "versions": [
+        {
+          "version": "1.24.2",
+          "cpu_arch": ["x86_64/generic"],
+          "parent_software": {"name": "Python", "version": "3.11.3"},
+          "modulename": "numpy/1.24.2-gfbf-2023a"
+        }
+      ]
+    }
+  }
+}
+
+```
+
+### Spack Repology Format
+
+Spack uses the repology.json format from packages.spack.io:
+
+```json
+
+{
+  "last_update": "2024-12-02 10:00:00",
+  "num_packages": 8000,
+  "packages": {
+    "cmake": {
+      "summary": "A cross-platform, open-source build system",
+      "homepages": ["https://cmake.org"],
+      "categories": ["build-tools"],
+      "licenses": ["BSD-3-Clause"],
+      "maintainers": ["kitware-spack"],
+      "version": [
+        {
+          "version": "3.28.1",
+          "downloads": ["https://github.com/Kitware/CMake/releases/download/v3.28.1/cmake-3.28.1.tar.gz"]
+        }
+      ],
+      "dependencies": ["openssl", "ncurses"]
+    }
+  }
+}
+
+```
+
+### Catalog Metadata Comparison
+
+| Feature | EESSI | Spack |
+|---------|-------|-------|
+| **Format** | New API (JSON) | Repology (JSON) |
+| **Type** | Binary runtime | Source packages |
+| **Architecture Support** | CPU-specific builds | Build variants |
+| **Extensions** | Python, R, Perl, etc. | Dependencies only |
+| **Toolchain Info** | Full toolchain details | Build dependencies |
+| **Installation Paths** | CVMFS paths | Download URLs |
+| **Categories** | Scientific domains | Package types |
+| **Updates** | API timestamp | Git commit date |
 
 ## SLURM Partitions and Software Catalogs
 
