@@ -2209,6 +2209,10 @@ class OfferingUser(
 
     def save(self, *args, **kwargs):
         # Set state to OK when username is known at creation time or when changed
+        # This is triggered by:
+        # 1. Creation with username (not self.pk)
+        # 2. Direct username field updates (self.tracker.has_changed("username"))
+        # 3. Signal handlers that call save() without update_fields (e.g., FreeIPA profile creation)
         if (
             self.username
             and self.state != OfferingUserStates.OK
