@@ -689,7 +689,7 @@ td:nth-child(4) {
 | `update_maintenance_announcement_on_offering_change` | `Django Signal (post_save)` | `marketplace.MaintenanceAnnouncementOffering` | Update AdminAnnouncement when affected offerings change. |
 | `update_maintenance_announcement_on_offering_change` | `Django Signal (post_delete)` | `marketplace.MaintenanceAnnouncementOffering` | Update AdminAnnouncement when affected offerings change. |
 | `update_marketplace_resource_limits_when_vm_is_updated` | `Custom Signal (vm_updated)` | `—` | No description |
-| `update_offering_user_username_after_freeipa_profile_update` | `Django Signal (post_save)` | `waldur_freeipa.Profile` | Update offering user usernames after FreeIPA profile update. |
+| `update_offering_user_username_after_freeipa_profile_update` | `Django Signal (post_save)` | `waldur_freeipa.Profile` | Update offering user usernames after FreeIPA profile creation/update. |
 | `update_offering_user_username_after_offering_settings_change` | `Django Signal (post_save)` | `marketplace.Offering` | Update offering user usernames after offering settings change. |
 | `update_offering_user_username_after_user_change` | `Django Signal (post_save)` | `core.User` | Set new username for offering users after site_username in user details has been changed. |
 | `update_openstack_tenant_usages` | `Django Signal (post_save)` | `quotas.QuotaUsage` | No description |
