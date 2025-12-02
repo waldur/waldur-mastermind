@@ -3083,7 +3083,9 @@ class ProviderOfferingViewSet(
             if new_username != offering_user.username:
                 logger.info("Updating %s username to %s", offering_user, new_username)
                 offering_user.username = new_username
-                offering_user.save(update_fields=["username"])
+                # Call save() without update_fields to trigger state transition logic
+                # This ensures state is updated from CREATION_REQUESTED to OK when username becomes available
+                offering_user.save()
 
         return Response(
             status=status.HTTP_200_OK,

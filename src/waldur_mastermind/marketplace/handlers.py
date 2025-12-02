@@ -1463,7 +1463,16 @@ def create_offering_user_for_new_resource(sender, instance: Resource, **kwargs):
 def update_offering_user_username_after_offering_settings_change(
     sender, instance: Offering, created=False, **kwargs
 ):
-    """Update offering user usernames after offering settings change."""
+    """
+    Update offering user usernames after offering settings change.
+
+    This handler is triggered when offering plugin_options change, which may affect
+    username generation policies. It updates usernames for all OfferingUsers associated
+    with the offering.
+
+    Important: We call save() without update_fields to ensure state transition logic runs
+    when username changes from empty to a valid value.
+    """
     if created:
         return
 
@@ -1483,11 +1492,21 @@ def update_offering_user_username_after_offering_settings_change(
         offering_user.username = new_username
 
         utils.setup_linux_related_data(offering_user, offering)
-        offering_user.save(update_fields=["username", "backend_metadata"])
+        # Call save() without update_fields to trigger state transition logic in OfferingUser.save()
+        # This ensures state is updated from CREATION_REQUESTED to OK when username becomes available
+        offering_user.save()
 
 
 def update_offering_user_username_after_user_change(sender, instance: User, **kwargs):
-    """Set new username for offering users after site_username in user details has been changed."""
+    """
+    Set new username for offering users after site_username in user details has been changed.
+
+    This handler is triggered when user.details changes, specifically when site_username
+    is updated for users using identity claim username generation policy.
+
+    Important: We call save() without update_fields to ensure state transition logic runs
+    when username changes from empty to a valid value.
+    """
     user = instance
 
     # Update username for offering users only if site_username has been changed
@@ -1507,13 +1526,23 @@ def update_offering_user_username_after_user_change(sender, instance: User, **kw
         offering_user.username = new_username
 
         utils.setup_linux_related_data(offering_user, offering)
-        offering_user.save(update_fields=["username", "backend_metadata"])
+        # Call save() without update_fields to trigger state transition logic in OfferingUser.save()
+        # This ensures state is updated from CREATION_REQUESTED to OK when username becomes available
+        offering_user.save()
 
 
 def update_offering_user_username_after_freeipa_profile_update(
     sender, instance: Profile, created=False, **kwargs
 ):
-    """Update offering user usernames after FreeIPA profile update."""
+    """
+    Update offering user usernames after FreeIPA profile creation/update.
+
+    This handler is triggered when a user creates or updates their FreeIPA profile.
+    It updates the username for all OfferingUsers that use FreeIPA username generation policy.
+
+    Important: We call save() without update_fields to ensure the full save() method runs,
+    which includes the state transition logic that sets state to OK when username is available.
+    """
     profile = instance
 
     if not profile.tracker.has_changed("username") or not created:
@@ -1535,7 +1564,9 @@ def update_offering_user_username_after_freeipa_profile_update(
 
         logger.info("Setting username for %s to %s", offering_user, new_username)
         offering_user.username = new_username
-        offering_user.save(update_fields=["username"])
+        # Call save() without update_fields to trigger state transition logic in OfferingUser.save()
+        # This ensures state is updated from CREATION_REQUESTED to OK when username becomes available
+        offering_user.save()
 
 
 def notify_user_about_rejected_order(sender, instance: Order, created=False, **kwargs):
