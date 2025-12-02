@@ -94,6 +94,7 @@ Delete all Waldur structure data from the database.
   - Billing: Invoices, Invoice Items, Component Usages
   - Checklists: Categories, Checklists, Questions, Completions, Answers
   - System: Events, Feeds, Offering Users
+  - User Management: Invitations, Group Invitations, Permission Requests
 
   The cleanup follows reverse dependency order to prevent foreign key violations.
   Invoice item signals are temporarily disconnected to avoid race conditions.
@@ -325,6 +326,7 @@ Export comprehensive Waldur structure data to JSON format.
   - Billing: Invoices, Invoice Items, Component Usages, Resource Plan Periods
   - Checklists: Categories, Checklists, Questions, Completions, Answers
   - System: Authentication Tokens, Offering Users
+  - User Management: Invitations, Group Invitations, Permission Requests
 
   The exported JSON file can be used for backup, migration, analysis, or import
   using the import_structure command. All UUIDs and relationships are preserved.
@@ -513,6 +515,7 @@ Import comprehensive Waldur structure data from JSON format.
   - Billing: Invoices, Invoice Items, Component Usages, Resource Plan Periods
   - Checklists: Categories, Checklists, Questions, Completions, Answers
   - System: Authentication Tokens, Offering Users
+  - User Management: Invitations, Group Invitations, Permission Requests
 
   The import maintains dependency order and uses transaction isolation for safety.
   RabbitMQ messages are automatically disabled during import to prevent billing issues.
