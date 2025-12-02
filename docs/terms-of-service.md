@@ -623,4 +623,3 @@ When `requires_reconsent=True` is set on a ToS configuration:
 
 - `ENFORCE_USER_CONSENT_FOR_OFFERINGS`: Global setting to enable/disable ToS consent enforcement
 - Only applies to offerings with `service_provider_can_create_offering_user` enabled in plugin options
-
