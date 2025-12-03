@@ -59,6 +59,49 @@ def get_offering_trigger_handler(klass):
 offering_usage_policy_trigger_handler = get_offering_trigger_handler(
     models.OfferingUsagePolicy
 )
+
+
+def slurm_periodic_usage_policy_trigger_handler(
+    sender, instance, created=False, **kwargs
+):
+    """
+    Lightweight signal handler that queues background policy evaluation.
+
+    This avoids blocking the ComponentUsage creation request with heavy
+    policy evaluation logic by delegating to Celery background tasks.
+    """
+    from . import tasks  # Import here to avoid circular imports
+
+    component_usage = instance
+    resource = component_usage.resource
+
+    if resource and resource.offering:
+        # Check if resource's offering has SLURM policies
+        has_slurm_policies = models.SlurmPeriodicUsagePolicy.objects.filter(
+            scope=resource.offering
+        ).exists()
+
+        if has_slurm_policies:
+            # Queue background evaluation for this specific resource
+            tasks.evaluate_slurm_resource_policy.delay(
+                resource_uuid=str(resource.uuid),
+                component_usage_uuid=str(component_usage.uuid),
+            )
+
+            logger.info(
+                f"Queued SLURM policy evaluation for resource {resource.uuid} "
+                f"(usage: {component_usage.usage})"
+            )
+        else:
+            logger.debug(
+                f"No SLURM policies found for offering {resource.offering.uuid}"
+            )
+    else:
+        logger.warning(
+            "ComponentUsage signal received without valid resource/offering context"
+        )
+
+
 offering_estimated_cost_policy_trigger_handler = get_offering_trigger_handler(
     models.OfferingEstimatedCostPolicy
 )

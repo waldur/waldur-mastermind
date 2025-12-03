@@ -1,4 +1,5 @@
 import django_filters
+from django.db import models as django_models
 from django_filters.widgets import BooleanWidget
 from rest_framework import filters
 
@@ -95,6 +96,18 @@ class CustomerCreditFilter(django_filters.FilterSet):
     customer_slug = django_filters.CharFilter(
         field_name="customer__slug", lookup_expr="exact"
     )
+    query = django_filters.CharFilter(method="filter_query")
+
+    def filter_query(self, queryset, name, value):
+        if not value:
+            return queryset
+
+        return queryset.filter(
+            django_models.Q(customer__name__icontains=value)
+            | django_models.Q(customer__slug__icontains=value)
+            | django_models.Q(customer__uuid__icontains=value)
+        )
+
     o = django_filters.OrderingFilter(
         fields=(
             ("customer__name", "customer_name"),
@@ -121,6 +134,19 @@ class ProjectCreditFilter(django_filters.FilterSet):
     customer_slug = django_filters.CharFilter(
         field_name="project__customer__slug", lookup_expr="exact"
     )
+    query = django_filters.CharFilter(method="filter_query")
+
+    def filter_query(self, queryset, name, value):
+        if not value:
+            return queryset
+
+        return queryset.filter(
+            django_models.Q(project__name__icontains=value)
+            | django_models.Q(project__uuid__icontains=value)
+            | django_models.Q(project__customer__name__icontains=value)
+            | django_models.Q(project__customer__slug__icontains=value)
+            | django_models.Q(project__customer__uuid__icontains=value)
+        )
 
     o = django_filters.OrderingFilter(
         fields=(

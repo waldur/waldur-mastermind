@@ -7,6 +7,13 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 
 from .. import models
 
+# Re-export commonly used factories for convenience
+OfferingFactory = marketplace_factories.OfferingFactory
+CustomerFactory = structure_factories.CustomerFactory
+ProjectFactory = structure_factories.ProjectFactory
+ResourceFactory = marketplace_factories.ResourceFactory
+OfferingComponentFactory = marketplace_factories.OfferingComponentFactory
+
 
 class ProjectEstimatedCostPolicyFactory(
     factory.django.DjangoModelFactory,

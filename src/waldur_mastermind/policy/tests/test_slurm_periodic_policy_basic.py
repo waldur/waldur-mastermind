@@ -244,8 +244,8 @@ class TestSlurmPeriodicUsagePolicyCore(TestCase):
         self.assertTrue(hasattr(policy, "apply_policy_actions"))
 
         # Test that new available_actions includes SLURM-specific ones
-        self.assertIn("request_downscaling", policy.available_actions)
-        self.assertIn("request_pausing", policy.available_actions)
+        self.assertIn("request_slurm_resource_downscaling", policy.available_actions)
+        self.assertIn("request_slurm_resource_pausing", policy.available_actions)
 
         print("✅ Policy inheritance working correctly")
 

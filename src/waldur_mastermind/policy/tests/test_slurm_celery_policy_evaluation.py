@@ -1,0 +1,881 @@
+"""Tests for Celery-based SLURM policy evaluation."""
+
+import datetime
+from decimal import Decimal
+from unittest.mock import patch
+
+from django.test import TestCase
+from django.utils import timezone
+
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.policy import models, tasks
+from waldur_mastermind.policy.tests import factories
+
+
+class TestSlurmCeleryPolicyEvaluation(TestCase):
+    """Test Celery-based SLURM policy evaluation tasks."""
+
+    def _create_plan_period(self, resource):
+        """Helper to create a ResourcePlanPeriod for a resource."""
+        return marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=resource,
+            plan=resource.plan,
+            start=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+        )
+
+    def _create_component_usage(
+        self, resource, component, usage_amount, plan_period=None
+    ):
+        """Helper to create ComponentUsage with proper plan_period."""
+        if plan_period is None:
+            plan_period = self._create_plan_period(resource)
+        return marketplace_models.ComponentUsage.objects.create(
+            resource=resource,
+            component=component,
+            usage=Decimal(str(usage_amount)),
+            date=timezone.now(),
+            billing_period=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+            plan_period=plan_period,
+        )
+
+    def setUp(self):
+        """Set up test data for policy evaluation tests."""
+        self.offering = factories.OfferingFactory(type="Marketplace.Slurm")
+        self.customer = factories.CustomerFactory()
+        self.project = factories.ProjectFactory(customer=self.customer)
+
+        # Create component for node-hours
+        self.component = factories.OfferingComponentFactory(
+            offering=self.offering, type="node-hours", name="Node hours"
+        )
+
+        # Create test resources
+        self.resource_low_usage = factories.ResourceFactory(
+            offering=self.offering,
+            project=self.project,
+            name="low-usage-resource",
+            backend_id="slurm-account-low",
+        )
+
+        self.resource_high_usage = factories.ResourceFactory(
+            offering=self.offering,
+            project=self.project,
+            name="high-usage-resource",
+            backend_id="slurm-account-high",
+        )
+
+        # Create SLURM periodic usage policy
+        self.policy = models.SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            actions="notify_organization_owners,request_slurm_resource_downscaling,request_slurm_resource_pausing",
+            apply_to_all=True,
+            grace_ratio=0.2,
+            carryover_enabled=False,  # Disable for simpler test calculations
+            fairshare_decay_half_life=15,
+            limit_type="GrpTRESMins",
+            tres_billing_enabled=True,
+            period=3,
+        )
+
+        # Create component limit
+        models.OfferingComponentLimit.objects.create(
+            policy=self.policy,
+            component=self.component,
+            limit=1000,  # 1000 node-hours quarterly
+        )
+
+        # Ensure plan has proper components with allocations
+        if not self.resource_low_usage.plan.components.filter(
+            component=self.component
+        ).exists():
+            marketplace_models.PlanComponent.objects.create(
+                plan=self.resource_low_usage.plan,
+                component=self.component,
+                amount=1000,  # Base allocation
+                price=1,
+            )
+        if not self.resource_high_usage.plan.components.filter(
+            component=self.component
+        ).exists():
+            marketplace_models.PlanComponent.objects.create(
+                plan=self.resource_high_usage.plan,
+                component=self.component,
+                amount=1000,  # Base allocation
+                price=1,
+            )
+
+    def test_evaluate_slurm_resource_policy_task(self):
+        """Test background task queues individual resource evaluations."""
+
+        with patch(
+            "waldur_mastermind.policy.tasks.evaluate_resource_against_policy.delay"
+        ) as mock_delay:
+            # Execute the task
+            tasks.evaluate_slurm_resource_policy(str(self.resource_low_usage.uuid))
+
+            # Verify individual evaluation was queued
+            mock_delay.assert_called_once_with(
+                str(self.resource_low_usage.uuid), str(self.policy.uuid)
+            )
+
+    def test_evaluate_resource_against_policy_below_threshold(self):
+        """Test resource evaluation when usage is below thresholds."""
+
+        # Create low usage (50% of allocation)
+        self._create_component_usage(self.resource_low_usage, self.component, 500)
+
+        # Execute policy evaluation
+        tasks.evaluate_resource_against_policy(
+            str(self.resource_low_usage.uuid), str(self.policy.uuid)
+        )
+
+        # Refresh resource state
+        self.resource_low_usage.refresh_from_db()
+
+        # Verify no restrictions applied
+        self.assertFalse(self.resource_low_usage.downscaled)
+        self.assertFalse(self.resource_low_usage.paused)
+
+    def test_evaluate_resource_against_policy_above_threshold(self):
+        """Test resource evaluation when usage exceeds thresholds."""
+
+        # Create high usage (150% of allocation)
+        self._create_component_usage(self.resource_high_usage, self.component, 1500)
+
+        # Execute policy evaluation
+        with self.assertLogs("waldur_mastermind.policy.tasks", level="INFO") as logs:
+            tasks.evaluate_resource_against_policy(
+                str(self.resource_high_usage.uuid), str(self.policy.uuid)
+            )
+
+        # Refresh resource state
+        self.resource_high_usage.refresh_from_db()
+
+        # Print logs for debugging
+        print("Policy evaluation logs:")
+        for log in logs.output:
+            print(f"  {log}")
+
+        # Debug the usage calculation
+        current_period = self.policy._get_current_period()
+        base_allocation = self.policy._get_base_allocation(self.resource_high_usage)
+        current_usage = self.policy._get_current_period_usage(
+            self.resource_high_usage, current_period
+        )
+        print(f"Current period: {current_period}")
+        print(f"Base allocation: {base_allocation}")
+        print(f"Current usage: {current_usage}")
+
+        # Check what component usage was created
+        usage_objects = marketplace_models.ComponentUsage.objects.filter(
+            resource=self.resource_high_usage, component=self.component
+        )
+        for usage in usage_objects:
+            print(
+                f"ComponentUsage: {usage.usage}, billing_period: {usage.billing_period}, plan_period: {usage.plan_period}"
+            )
+
+        # Verify restrictions applied (150% > 120% grace limit)
+        self.assertTrue(self.resource_high_usage.downscaled)
+        self.assertTrue(self.resource_high_usage.paused)
+
+    def test_automatic_recovery_when_usage_decreases(self):
+        """Test automatic resource recovery when usage drops below thresholds."""
+
+        # Start with restricted resource
+        self.resource_high_usage.downscaled = True
+        self.resource_high_usage.paused = True
+        self.resource_high_usage.save()
+
+        # Create low usage (30% of allocation)
+        self._create_component_usage(self.resource_high_usage, self.component, 300)
+
+        # Execute policy evaluation
+        tasks.evaluate_resource_against_policy(
+            str(self.resource_high_usage.uuid), str(self.policy.uuid)
+        )
+
+        # Refresh resource state
+        self.resource_high_usage.refresh_from_db()
+
+        # Verify automatic recovery (restrictions removed)
+        self.assertFalse(self.resource_high_usage.downscaled)
+        self.assertFalse(self.resource_high_usage.paused)
+
+    def test_resource_independence(self):
+        """Test that resources are evaluated independently."""
+
+        # Resource 1: Low usage (30%)
+        self._create_component_usage(self.resource_low_usage, self.component, 300)
+
+        # Resource 2: High usage (150%)
+        self._create_component_usage(self.resource_high_usage, self.component, 1500)
+
+        # Evaluate both resources
+        tasks.evaluate_resource_against_policy(
+            str(self.resource_low_usage.uuid), str(self.policy.uuid)
+        )
+        tasks.evaluate_resource_against_policy(
+            str(self.resource_high_usage.uuid), str(self.policy.uuid)
+        )
+
+        # Refresh states
+        self.resource_low_usage.refresh_from_db()
+        self.resource_high_usage.refresh_from_db()
+
+        # Verify independence
+        self.assertFalse(
+            self.resource_low_usage.downscaled
+        )  # Not affected by other resource
+        self.assertFalse(self.resource_low_usage.paused)
+
+        self.assertTrue(self.resource_high_usage.downscaled)  # Affected by own usage
+        self.assertTrue(self.resource_high_usage.paused)
+
+    def test_check_other_resources_triggered(self):
+        """Test checking if other resources still trigger policy."""
+
+        # Create usage for multiple resources
+        self._create_component_usage(
+            self.resource_low_usage, self.component, 300
+        )  # 30% - below thresholds
+        self._create_component_usage(
+            self.resource_high_usage, self.component, 1200
+        )  # 120% - above thresholds
+
+        # Check if other resources trigger when excluding low usage resource
+        result = tasks.check_other_resources_triggered.apply(
+            args=[str(self.policy.uuid), str(self.resource_low_usage.uuid)]
+        ).get()
+
+        # Should return True because high usage resource still triggers
+        self.assertTrue(result)
+
+        # Check when excluding high usage resource
+        result = tasks.check_other_resources_triggered.apply(
+            args=[str(self.policy.uuid), str(self.resource_high_usage.uuid)]
+        ).get()
+
+        # Should return False because only low usage resource remains
+        self.assertFalse(result)
+
+    def test_policy_state_management(self):
+        """Test policy has_fired state management with resource-specific evaluation."""
+
+        # Initially policy should not be fired
+        self.assertFalse(self.policy.has_fired)
+
+        # Create high usage that should trigger policy
+        self._create_component_usage(self.resource_high_usage, self.component, 1500)
+
+        # Execute evaluation
+        tasks.evaluate_resource_against_policy(
+            str(self.resource_high_usage.uuid), str(self.policy.uuid)
+        )
+
+        # Policy should be fired
+        self.policy.refresh_from_db()
+        self.assertTrue(self.policy.has_fired)
+        self.assertIsNotNone(self.policy.fired_datetime)
+
+    @patch("waldur_mastermind.policy.tasks.notify_about_resource_usage.delay")
+    def test_notification_queuing(self, mock_notify):
+        """Test that notifications are properly queued for background processing."""
+
+        # Create usage that triggers notification (85%)
+        self._create_component_usage(self.resource_low_usage, self.component, 850)
+
+        # Execute evaluation
+        tasks.evaluate_resource_against_policy(
+            str(self.resource_low_usage.uuid), str(self.policy.uuid)
+        )
+
+        # Verify notification was queued
+        mock_notify.assert_called_once_with(
+            str(self.resource_low_usage.uuid),
+            str(self.policy.uuid),
+            85.0,  # usage percentage
+        )
+
+    def test_quarterly_period_evaluation(self):
+        """Test quarterly period evaluation logic."""
+
+        # Create usage in different billing periods
+        # Previous quarter (Q3 2025 - use July as an example)
+        previous_quarter_date = datetime.date(2025, 7, 1)  # Q3 2025
+        previous_plan_period = marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=self.resource_low_usage,
+            plan=self.resource_low_usage.plan,
+            start=timezone.datetime.combine(
+                previous_quarter_date,
+                timezone.datetime.min.time(),
+                datetime.UTC,
+            ),
+        )
+        marketplace_models.ComponentUsage.objects.create(
+            resource=self.resource_low_usage,
+            component=self.component,
+            usage=Decimal("400"),
+            date=previous_quarter_date,
+            billing_period=previous_quarter_date,
+            plan_period=previous_plan_period,
+        )
+
+        # Current quarter (Q4 2025 - use December as an example)
+        current_quarter_date = datetime.date(2025, 12, 1)  # Q4 2025
+        current_plan_period = marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=self.resource_low_usage,
+            plan=self.resource_low_usage.plan,
+            start=timezone.datetime.combine(
+                current_quarter_date,
+                timezone.datetime.min.time(),
+                datetime.UTC,
+            ),
+        )
+        marketplace_models.ComponentUsage.objects.create(
+            resource=self.resource_low_usage,
+            component=self.component,
+            usage=Decimal("600"),
+            date=current_quarter_date,
+            billing_period=current_quarter_date,
+            plan_period=current_plan_period,
+        )
+
+        # Policy should evaluate current quarter only (600Nh = 60%)
+        tasks.evaluate_resource_against_policy(
+            str(self.resource_low_usage.uuid), str(self.policy.uuid)
+        )
+
+        # Refresh resource state
+        self.resource_low_usage.refresh_from_db()
+
+        # Should not be restricted (60% < 80% notification threshold)
+        self.assertFalse(self.resource_low_usage.downscaled)
+        self.assertFalse(self.resource_low_usage.paused)
+
+    def test_grace_period_logic(self):
+        """Test grace period calculation and enforcement."""
+
+        # Test usage at exactly 100% (should trigger downscaling)
+        self._create_component_usage(
+            self.resource_low_usage, self.component, 1000
+        )  # Exactly 100%
+
+        tasks.evaluate_resource_against_policy(
+            str(self.resource_low_usage.uuid), str(self.policy.uuid)
+        )
+
+        self.resource_low_usage.refresh_from_db()
+
+        # Should be downscaled but not paused (100% < 120% grace limit)
+        self.assertTrue(self.resource_low_usage.downscaled)
+        self.assertFalse(self.resource_low_usage.paused)
+
+        # Test usage at grace limit (120% - should trigger pausing)
+        marketplace_models.ComponentUsage.objects.filter(
+            resource=self.resource_low_usage
+        ).update(usage=Decimal("1200"))  # 120% - grace limit
+
+        tasks.evaluate_resource_against_policy(
+            str(self.resource_low_usage.uuid), str(self.policy.uuid)
+        )
+
+        self.resource_low_usage.refresh_from_db()
+
+        # Should be both downscaled and paused
+        self.assertTrue(self.resource_low_usage.downscaled)
+        self.assertTrue(self.resource_low_usage.paused)
+
+
+class TestSlurmPolicySignalHandlers(TestCase):
+    """Test signal handlers for SLURM policy evaluation."""
+
+    def _create_plan_period(self, resource):
+        """Helper to create a ResourcePlanPeriod for a resource."""
+        return marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=resource,
+            plan=resource.plan,
+            start=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+        )
+
+    def _create_component_usage(
+        self, resource, component, usage_amount, plan_period=None
+    ):
+        """Helper to create ComponentUsage with proper plan_period."""
+        if plan_period is None:
+            plan_period = self._create_plan_period(resource)
+        return marketplace_models.ComponentUsage.objects.create(
+            resource=resource,
+            component=component,
+            usage=Decimal(str(usage_amount)),
+            date=timezone.now(),
+            billing_period=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+            plan_period=plan_period,
+        )
+
+    def setUp(self):
+        """Set up test data for signal handler tests."""
+        self.offering = factories.OfferingFactory(type="Marketplace.Slurm")
+        self.customer = factories.CustomerFactory()
+        self.project = factories.ProjectFactory(customer=self.customer)
+        self.resource = factories.ResourceFactory(
+            offering=self.offering, project=self.project
+        )
+        self.component = factories.OfferingComponentFactory(
+            offering=self.offering, type="node-hours"
+        )
+
+        # Create policy
+        self.policy = models.SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            actions="notify_organization_owners,request_slurm_resource_downscaling",
+            apply_to_all=True,
+            grace_ratio=0.2,
+            period=3,
+        )
+
+        # Create component limit
+        models.OfferingComponentLimit.objects.create(
+            policy=self.policy,
+            component=self.component,
+            limit=1000,
+        )
+
+        # Create plan component for proper allocation
+        marketplace_models.PlanComponent.objects.create(
+            plan=self.resource.plan,
+            component=self.component,
+            amount=1000,
+            price=1,
+        )
+
+    @patch("waldur_mastermind.policy.tasks.evaluate_slurm_resource_policy.delay")
+    def test_signal_handler_queues_background_task(self, mock_delay):
+        """Test that signal handler queues background evaluation task."""
+
+        # Create ComponentUsage (this automatically triggers the signal)
+        component_usage = self._create_component_usage(
+            self.resource, self.component, 800
+        )
+
+        # Verify background task was queued
+        mock_delay.assert_called_once_with(
+            resource_uuid=str(self.resource.uuid),
+            component_usage_uuid=str(component_usage.uuid),
+        )
+
+    def test_signal_handler_no_policy_no_task(self):
+        """Test signal handler doesn't queue tasks when no SLURM policies exist."""
+
+        # Delete the policy
+        self.policy.delete()
+
+        with patch(
+            "waldur_mastermind.policy.tasks.evaluate_slurm_resource_policy.delay"
+        ) as mock_delay:
+            from waldur_mastermind.policy.handlers import (
+                slurm_periodic_usage_policy_trigger_handler,
+            )
+
+            component_usage = self._create_component_usage(
+                self.resource, self.component, 800
+            )
+
+            slurm_periodic_usage_policy_trigger_handler(
+                sender=marketplace_models.ComponentUsage,
+                instance=component_usage,
+                created=True,
+            )
+
+            # Should not queue task when no policies exist
+            mock_delay.assert_not_called()
+
+
+class TestSlurmPolicyRecovery(TestCase):
+    """Test automatic policy recovery mechanisms."""
+
+    def _create_plan_period(self, resource):
+        """Helper to create a ResourcePlanPeriod for a resource."""
+        return marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=resource,
+            plan=resource.plan,
+            start=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+        )
+
+    def _create_component_usage(
+        self, resource, component, usage_amount, plan_period=None
+    ):
+        """Helper to create ComponentUsage with proper plan_period."""
+        if plan_period is None:
+            plan_period = self._create_plan_period(resource)
+        return marketplace_models.ComponentUsage.objects.create(
+            resource=resource,
+            component=component,
+            usage=Decimal(str(usage_amount)),
+            date=timezone.now(),
+            billing_period=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+            plan_period=plan_period,
+        )
+
+    def setUp(self):
+        """Set up test data for recovery tests."""
+        self.offering = factories.OfferingFactory(type="Marketplace.Slurm")
+        self.customer = factories.CustomerFactory()
+        self.project = factories.ProjectFactory(customer=self.customer)
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            project=self.project,
+            downscaled=True,  # Start with restrictions
+            paused=True,
+        )
+        self.component = factories.OfferingComponentFactory(
+            offering=self.offering, type="node-hours"
+        )
+
+        self.policy = models.SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            actions="request_slurm_resource_downscaling,request_slurm_resource_pausing",
+            apply_to_all=True,
+            grace_ratio=0.2,
+            carryover_enabled=False,  # Disable for simpler test calculations
+            has_fired=True,  # Start with fired policy
+        )
+
+        models.OfferingComponentLimit.objects.create(
+            policy=self.policy, component=self.component, limit=1000
+        )
+
+        # Create plan component for proper allocation
+        marketplace_models.PlanComponent.objects.create(
+            plan=self.resource.plan,
+            component=self.component,
+            amount=1000,
+            price=1,
+        )
+
+    def test_downscaling_recovery(self):
+        """Test automatic removal of downscaling when usage drops below 100%."""
+
+        # Create low usage (50% - below downscaling threshold)
+        self._create_component_usage(self.resource, self.component, 500)
+
+        # Execute evaluation
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+        # Refresh resource
+        self.resource.refresh_from_db()
+
+        # Downscaling should be removed (50% < 100%)
+        self.assertFalse(self.resource.downscaled)
+        # Pausing should also be removed (50% < 120%)
+        self.assertFalse(self.resource.paused)
+
+    def test_partial_recovery(self):
+        """Test partial recovery - remove pausing but keep downscaling."""
+
+        # Create usage at 110% (above downscaling, below grace limit)
+        self._create_component_usage(self.resource, self.component, 1100)
+
+        # Execute evaluation
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+        # Refresh resource
+        self.resource.refresh_from_db()
+
+        # Should be downscaled (110% >= 100%) but not paused (110% < 120%)
+        self.assertTrue(self.resource.downscaled)
+        self.assertFalse(self.resource.paused)
+
+
+class TestSlurmPolicyPerformance(TestCase):
+    """Test performance characteristics of Celery-based policy evaluation."""
+
+    def _create_plan_period(self, resource):
+        """Helper to create a ResourcePlanPeriod for a resource."""
+        return marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=resource,
+            plan=resource.plan,
+            start=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+        )
+
+    def _create_component_usage(
+        self, resource, component, usage_amount, plan_period=None
+    ):
+        """Helper to create ComponentUsage with proper plan_period."""
+        if plan_period is None:
+            plan_period = self._create_plan_period(resource)
+        return marketplace_models.ComponentUsage.objects.create(
+            resource=resource,
+            component=component,
+            usage=Decimal(str(usage_amount)),
+            date=timezone.now(),
+            billing_period=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+            plan_period=plan_period,
+        )
+
+    def setUp(self):
+        """Set up performance test data."""
+        self.offering = factories.OfferingFactory(type="Marketplace.Slurm")
+        self.customer = factories.CustomerFactory()
+        self.project = factories.ProjectFactory(customer=self.customer)
+        self.component = factories.OfferingComponentFactory(
+            offering=self.offering, type="node-hours"
+        )
+
+        # Create multiple resources for performance testing
+        self.resources = [
+            factories.ResourceFactory(
+                offering=self.offering, project=self.project, name=f"resource-{i}"
+            )
+            for i in range(10)
+        ]
+
+        self.policy = models.SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            actions="request_slurm_resource_downscaling,request_slurm_resource_pausing",
+            apply_to_all=True,
+            grace_ratio=0.2,
+            carryover_enabled=False,  # Disable for simpler test calculations
+            period=3,
+        )
+
+        # Create component limit
+        models.OfferingComponentLimit.objects.create(
+            policy=self.policy,
+            component=self.component,
+            limit=1000,
+        )
+
+        # Create plan components for all resources
+        for resource in self.resources:
+            if not resource.plan.components.filter(component=self.component).exists():
+                marketplace_models.PlanComponent.objects.create(
+                    plan=resource.plan,
+                    component=self.component,
+                    amount=1000,
+                    price=1,
+                )
+
+    @patch("waldur_mastermind.policy.tasks.evaluate_resource_against_policy.delay")
+    def test_parallel_resource_evaluation(self, mock_delay):
+        """Test that multiple resources are evaluated in parallel."""
+
+        # Queue evaluation for multiple resources
+        for resource in self.resources[:5]:
+            tasks.evaluate_slurm_resource_policy(str(resource.uuid))
+
+        # Verify each resource gets individual evaluation task
+        self.assertEqual(mock_delay.call_count, 5)
+
+        # Verify each call has correct parameters
+        for call in mock_delay.call_args_list:
+            args = call[0]
+            self.assertIn(args[0], [str(r.uuid) for r in self.resources])
+            self.assertEqual(args[1], str(self.policy.uuid))
+
+    def test_task_error_handling(self):
+        """Test error handling in background tasks."""
+
+        # Test with non-existent resource UUID
+        with self.assertLogs("waldur_mastermind.policy.tasks", level="ERROR") as logs:
+            tasks.evaluate_resource_against_policy(
+                "non-existent-uuid", str(self.policy.uuid)
+            )
+
+        # Should log error without crashing
+        self.assertIn("Policy evaluation failed - missing object", logs.output[0])
+
+    def test_concurrent_resource_evaluation(self):
+        """Test concurrent evaluation of multiple resources."""
+
+        # Create different usage levels for resources
+        usage_levels = [300, 800, 1100, 1500, 200]  # Mix of low/high usage
+
+        for i, usage in enumerate(usage_levels):
+            self._create_component_usage(self.resources[i], self.component, usage)
+
+        # Execute evaluations concurrently (simulate Celery parallel execution)
+        for i in range(len(usage_levels)):
+            tasks.evaluate_resource_against_policy(
+                str(self.resources[i].uuid), str(self.policy.uuid)
+            )
+
+        # Verify each resource state matches its individual usage
+        expected_states = [
+            (False, False),  # 300 (30%) - no restrictions
+            (False, False),  # 800 (80%) - notification only, no restrictions
+            (True, False),  # 1100 (110%) - downscaled, not paused
+            (True, True),  # 1500 (150%) - downscaled and paused
+            (False, False),  # 200 (20%) - no restrictions
+        ]
+
+        for i, (exp_downscaled, exp_paused) in enumerate(expected_states):
+            self.resources[i].refresh_from_db()
+            self.assertEqual(
+                self.resources[i].downscaled,
+                exp_downscaled,
+                f"Resource {i} (usage {usage_levels[i]}) downscaled mismatch",
+            )
+            self.assertEqual(
+                self.resources[i].paused,
+                exp_paused,
+                f"Resource {i} (usage {usage_levels[i]}) paused mismatch",
+            )
+
+
+class TestSlurmPolicyIntegration(TestCase):
+    """Integration tests for complete SLURM policy workflow."""
+
+    def _create_plan_period(self, resource):
+        """Helper to create a ResourcePlanPeriod for a resource."""
+        return marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=resource,
+            plan=resource.plan,
+            start=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+        )
+
+    def _create_component_usage(
+        self, resource, component, usage_amount, plan_period=None
+    ):
+        """Helper to create ComponentUsage with proper plan_period."""
+        if plan_period is None:
+            plan_period = self._create_plan_period(resource)
+        return marketplace_models.ComponentUsage.objects.create(
+            resource=resource,
+            component=component,
+            usage=Decimal(str(usage_amount)),
+            date=timezone.now(),
+            billing_period=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+            plan_period=plan_period,
+        )
+
+    def setUp(self):
+        """Set up integration test environment."""
+        self.offering = factories.OfferingFactory(
+            type="Marketplace.Slurm",
+            plugin_options={"supports_downscaling": True, "supports_pausing": True},
+        )
+        self.customer = factories.CustomerFactory()
+        self.project = factories.ProjectFactory(customer=self.customer)
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            project=self.project,
+            backend_id="slurm-test-account",
+        )
+        self.component = factories.OfferingComponentFactory(
+            offering=self.offering, type="node-hours"
+        )
+
+    @patch("waldur_mastermind.policy.tasks.evaluate_slurm_resource_policy.delay")
+    def test_complete_workflow_signal_to_task(self, mock_delay):
+        """Test complete workflow from ComponentUsage signal to task queuing."""
+
+        # Create policy
+        policy = models.SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            actions="request_slurm_resource_downscaling",
+            apply_to_all=True,
+            grace_ratio=0.2,
+            carryover_enabled=False,  # Disable for simpler test calculations
+            period=3,
+        )
+
+        models.OfferingComponentLimit.objects.create(
+            policy=policy, component=self.component, limit=1000
+        )
+
+        # Create plan component
+        marketplace_models.PlanComponent.objects.create(
+            plan=self.resource.plan,
+            component=self.component,
+            amount=1000,
+            price=1,
+        )
+
+        # Create ComponentUsage (this automatically triggers the signal)
+        component_usage = self._create_component_usage(
+            self.resource, self.component, 1200
+        )
+
+        # Verify background task was queued
+        mock_delay.assert_called_once_with(
+            resource_uuid=str(self.resource.uuid),
+            component_usage_uuid=str(component_usage.uuid),
+        )
+
+    def test_end_to_end_policy_application(self):
+        """Test end-to-end policy application without mocks."""
+
+        # Create policy
+        policy = models.SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            actions="request_slurm_resource_downscaling,request_slurm_resource_pausing",
+            apply_to_all=True,
+            grace_ratio=0.2,
+            carryover_enabled=False,  # Disable for simpler test calculations
+            period=3,
+        )
+
+        models.OfferingComponentLimit.objects.create(
+            policy=policy, component=self.component, limit=1000
+        )
+
+        # Create plan component
+        marketplace_models.PlanComponent.objects.create(
+            plan=self.resource.plan,
+            component=self.component,
+            amount=1000,
+            price=1,
+        )
+
+        # Create high usage ComponentUsage
+        self._create_component_usage(self.resource, self.component, 1300)  # 130% usage
+
+        # Execute background evaluation directly
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(policy.uuid)
+        )
+
+        # Verify resource restrictions applied
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.downscaled)
+        self.assertTrue(self.resource.paused)  # 130% > 120% grace limit
+
+        # Test recovery - reduce usage
+        marketplace_models.ComponentUsage.objects.filter(resource=self.resource).update(
+            usage=Decimal("200")
+        )  # 20% usage
+
+        # Execute evaluation again
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(policy.uuid)
+        )
+
+        # Verify automatic recovery
+        self.resource.refresh_from_db()
+        self.assertFalse(self.resource.downscaled)  # Recovered
+        self.assertFalse(self.resource.paused)  # Recovered
