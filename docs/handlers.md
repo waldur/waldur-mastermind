@@ -534,6 +534,7 @@ td:nth-child(4) {
 | `enable_service_settings_with_existing_resource` | `Django Signal (post_save)` | `marketplace.Resource` | Enable service settings if there are existing resources. |
 | `handle_openstack_tenant_order_creation` | `Django Signal (post_save)` | `marketplace.Order` | No description |
 | `handle_openstack_tenant_order_termination` | `Django Signal (post_save)` | `marketplace.Order` | No description |
+| `handle_user_role_revoked` | `Custom Signal (role_revoked)` | `—` | Handle user role revocation by removing users from robot accounts |
 | `handler` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
 | `handler` | `Django Signal (post_save)` | `invoices.InvoiceItem` | No description |
 | `handler` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | No description |
@@ -609,6 +610,7 @@ td:nth-child(4) {
 | `set_mtu_when_network_has_been_created` | `Django Signal (post_save)` | `openstack.Network` | No description |
 | `set_project_name_on_invoice_item_creation` | `Django Signal (post_save)` | `invoices.InvoiceItem` | No description |
 | `set_tax_percent_on_invoice_creation` | `Django Signal (pre_save)` | `invoices.Invoice` | No description |
+| `slurm_periodic_usage_policy_trigger_handler` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Lightweight signal handler that queues background policy evaluation. |
 | `switch_resource_plan_period_when_plan_is_updated` | `Django Signal (post_save)` | `marketplace.Resource` | Switch the resource plan period when a resource's plan is updated. |
 | `sync_component_user_usage_when_allocation_user_usage_is_submitted` | `Django Signal (post_save)` | `waldur_openportal.AllocationUserUsage` | No description |
 | `sync_component_user_usage_when_allocation_user_usage_is_submitted` | `Django Signal (post_save)` | `waldur_slurm.AllocationUserUsage` | No description |
@@ -772,14 +774,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 693
+Total unique handlers found: 695
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 350 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 285 handlers
+- **waldur_mastermind**: 287 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
