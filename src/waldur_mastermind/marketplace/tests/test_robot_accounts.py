@@ -4,9 +4,20 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.core.models import get_ssh_key_fingerprints
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
+from waldur_core.permissions.models import UserRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import RobotAccountStates
+from waldur_mastermind.marketplace.tasks import (
+    reconcile_robot_account_access,
+    remove_users_from_robot_accounts_on_permission_loss,
+)
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -448,3 +459,272 @@ class RobotAccountAccessTest(test.APITransactionTestCase):
     def get_action_url(self, account, action):
         base_url = factories.RobotAccountFactory.get_url(account)
         return f"{base_url}{action}/"
+
+
+class RobotAccountRoleRevocationTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.robot_account = factories.RobotAccountFactory(
+            resource=self.fixture.resource
+        )
+        # Add a user to the robot account
+        self.test_user = self.fixture.user
+        self.robot_account.users.add(self.test_user)
+        self.robot_account.responsible_user = self.test_user
+        self.robot_account.save()
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.remove_users_from_robot_accounts_on_permission_loss.delay"
+    )
+    def test_role_revoked_signal_triggers_task(self, mock_task):
+        """Test that revoking a user role triggers the robot account cleanup task"""
+
+        # Create a user role for the test user in the project
+        user_role = UserRole.objects.create(
+            user=self.test_user,
+            role=ProjectRole.ADMIN,
+            scope=self.fixture.project,
+            is_active=True,
+        )
+
+        # Revoke the role - this should trigger the signal
+        user_role.revoke()
+
+        # Verify that the task was scheduled
+        mock_task.assert_called_once_with(user_role.id)
+
+    def test_remove_users_from_robot_accounts_task_removes_user_access(self):
+        """Test that the task correctly removes users from robot accounts when they lose project access"""
+
+        # Create and immediately revoke a user role
+        user_role = UserRole.objects.create(
+            user=self.test_user,
+            role=ProjectRole.ADMIN,
+            scope=self.fixture.project,
+            is_active=False,  # Already revoked
+        )
+
+        # Verify initial state
+        self.assertTrue(self.robot_account.users.filter(id=self.test_user.id).exists())
+        self.assertEqual(self.robot_account.responsible_user, self.test_user)
+
+        # Run the task
+        remove_users_from_robot_accounts_on_permission_loss(user_role.id)
+
+        # Refresh the robot account
+        self.robot_account.refresh_from_db()
+
+        # Verify user was removed from robot account
+        self.assertFalse(self.robot_account.users.filter(id=self.test_user.id).exists())
+        self.assertIsNone(self.robot_account.responsible_user)
+
+    @mock.patch("waldur_core.logging.event_logger.emit")
+    def test_remove_users_task_logs_removal_events(self, mock_event_logger):
+        """Test that the task logs appropriate events when removing users from robot accounts"""
+
+        # Create and immediately revoke a user role
+        user_role = UserRole.objects.create(
+            user=self.test_user,
+            role=ProjectRole.ADMIN,
+            scope=self.fixture.project,
+            is_active=False,  # Already revoked
+        )
+
+        # Run the task
+        remove_users_from_robot_accounts_on_permission_loss(user_role.id)
+
+        # Verify that event logging was called (expect at least 2 calls for our specific removals)
+        self.assertGreaterEqual(mock_event_logger.call_count, 2)
+
+        # Find our specific calls in the list
+        user_removal_calls = [
+            call
+            for call in mock_event_logger.call_args_list
+            if "has been removed from robot account" in call[0][0]
+            and "Responsible user" not in call[0][0]
+        ]
+        responsible_user_calls = [
+            call
+            for call in mock_event_logger.call_args_list
+            if "Responsible user" in call[0][0]
+            and "has been removed from robot account" in call[0][0]
+        ]
+
+        # Check user removal call
+        self.assertEqual(len(user_removal_calls), 1)
+        user_call = user_removal_calls[0]
+        self.assertIn("has been removed from robot account", user_call[0][0])
+        self.assertEqual(
+            user_call[1]["event_type"], EventType.RESOURCE_ROBOT_ACCOUNT_UPDATED
+        )
+        self.assertEqual(
+            user_call[1]["event_context"]["reason"], "project_access_revoked"
+        )
+        self.assertEqual(user_call[1]["event_context"]["user"], self.test_user)
+        self.assertEqual(
+            user_call[1]["event_context"]["robot_account"], self.robot_account
+        )
+
+        # Check responsible user removal call
+        self.assertEqual(len(responsible_user_calls), 1)
+        responsible_call = responsible_user_calls[0]
+        self.assertIn("Responsible user", responsible_call[0][0])
+        self.assertIn("has been removed from robot account", responsible_call[0][0])
+        self.assertEqual(
+            responsible_call[1]["event_type"], EventType.RESOURCE_ROBOT_ACCOUNT_UPDATED
+        )
+        self.assertEqual(
+            responsible_call[1]["event_context"]["reason"], "project_access_revoked"
+        )
+        self.assertEqual(
+            responsible_call[1]["event_context"]["action"], "responsible_user_cleared"
+        )
+
+    def test_remove_users_task_preserves_access_if_user_has_other_roles(self):
+        """Test that the task doesn't remove users who still have active project roles"""
+
+        # Create two roles for the user
+        role1 = UserRole.objects.create(
+            user=self.test_user,
+            role=ProjectRole.ADMIN,
+            scope=self.fixture.project,
+            is_active=False,  # This one is revoked
+        )
+
+        UserRole.objects.create(
+            user=self.test_user,
+            role=ProjectRole.MANAGER,
+            scope=self.fixture.project,
+            is_active=True,  # This one is still active
+        )
+
+        # Run the task for the revoked role
+        remove_users_from_robot_accounts_on_permission_loss(role1.id)
+
+        # Refresh the robot account
+        self.robot_account.refresh_from_db()
+
+        # Verify user still has access since they have another active role
+        self.assertTrue(self.robot_account.users.filter(id=self.test_user.id).exists())
+        self.assertEqual(self.robot_account.responsible_user, self.test_user)
+
+    def test_remove_users_task_handles_non_project_scope(self):
+        """Test that the task ignores role revocations that are not project-scoped"""
+
+        # Create a customer role (non-project scope)
+        user_role = UserRole.objects.create(
+            user=self.test_user,
+            role=CustomerRole.OWNER,
+            scope=self.fixture.customer,
+            is_active=False,
+        )
+
+        # Run the task
+        remove_users_from_robot_accounts_on_permission_loss(user_role.id)
+
+        # Refresh the robot account
+        self.robot_account.refresh_from_db()
+
+        # Verify user access is preserved (task should ignore non-project scopes)
+        self.assertTrue(self.robot_account.users.filter(id=self.test_user.id).exists())
+        self.assertEqual(self.robot_account.responsible_user, self.test_user)
+
+    def test_remove_users_task_handles_nonexistent_role(self):
+        """Test that the task handles gracefully when UserRole doesn't exist"""
+
+        # Use a non-existent role ID
+        nonexistent_id = 99999
+
+        # This should not raise an exception
+        remove_users_from_robot_accounts_on_permission_loss(nonexistent_id)
+
+        # Refresh the robot account
+        self.robot_account.refresh_from_db()
+
+        # Verify user access is preserved
+        self.assertTrue(self.robot_account.users.filter(id=self.test_user.id).exists())
+        self.assertEqual(self.robot_account.responsible_user, self.test_user)
+
+    def test_reconcile_robot_account_access_task(self):
+        """Test the periodic reconciliation task"""
+
+        # Create another user and robot account for more comprehensive testing
+        another_user = structure_factories.UserFactory()
+        # Create another resource to avoid unique constraint violation
+        another_resource = factories.ResourceFactory(project=self.fixture.project)
+        another_robot_account = factories.RobotAccountFactory(
+            resource=another_resource,
+            type="test",  # Different type to avoid conflict
+        )
+        another_robot_account.users.add(another_user)
+        another_robot_account.responsible_user = another_user
+        another_robot_account.save()
+
+        # Create roles for both users
+        UserRole.objects.create(
+            user=self.test_user,
+            role=ProjectRole.ADMIN,
+            scope=self.fixture.project,
+            is_active=True,  # This user should keep access
+        )
+
+        # Don't create a role for another_user - they should lose access
+
+        # Verify initial state
+        self.assertTrue(self.robot_account.users.filter(id=self.test_user.id).exists())
+        self.assertEqual(self.robot_account.responsible_user, self.test_user)
+        self.assertTrue(another_robot_account.users.filter(id=another_user.id).exists())
+        self.assertEqual(another_robot_account.responsible_user, another_user)
+
+        # Run the reconciliation task
+        result = reconcile_robot_account_access()
+
+        # Refresh from database
+        self.robot_account.refresh_from_db()
+        another_robot_account.refresh_from_db()
+
+        # Verify results
+        self.assertTrue(
+            self.robot_account.users.filter(id=self.test_user.id).exists()
+        )  # Should keep access
+        self.assertEqual(
+            self.robot_account.responsible_user, self.test_user
+        )  # Should keep responsible role
+
+        self.assertFalse(
+            another_robot_account.users.filter(id=another_user.id).exists()
+        )  # Should lose access
+        self.assertIsNone(
+            another_robot_account.responsible_user
+        )  # Should lose responsible role
+
+        # Check task results
+        self.assertEqual(result["accounts_processed"], 2)
+        self.assertEqual(result["users_removed"], 1)
+
+    @mock.patch("waldur_core.logging.event_logger.emit")
+    def test_reconcile_task_logs_removal_events(self, mock_event_logger):
+        """Test that the reconciliation task logs appropriate events when removing users"""
+
+        # User has no active roles, should be removed during reconciliation
+
+        # Run the reconciliation task
+        reconcile_robot_account_access()
+
+        # Should have logged events for user removal and responsible user removal
+        removal_events = [
+            call
+            for call in mock_event_logger.call_args_list
+            if "during access reconciliation" in call[0][0]
+        ]
+
+        self.assertGreaterEqual(len(removal_events), 1)  # At least one removal event
+
+        # Check that reconciliation reason is properly set
+        for event in removal_events:
+            self.assertEqual(
+                event[1]["event_type"], EventType.RESOURCE_ROBOT_ACCOUNT_UPDATED
+            )
+            self.assertEqual(
+                event[1]["event_context"]["reason"], "access_reconciliation"
+            )

@@ -24,8 +24,10 @@ from waldur_core.logging import event_logger
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import get_connected_projects
+from waldur_core.structure.models import Project
 from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
@@ -40,7 +42,8 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
     RobotAccountStates,
 )
-from waldur_mastermind.marketplace.handlers import OFFERING_USER_ALLOWED_OFFERING_TYPES
+
+# Delayed import to avoid circular import with handlers.py
 from waldur_mastermind.marketplace.utils import (
     get_consumer_approvers,
     get_provider_approvers,
@@ -1347,6 +1350,9 @@ def create_or_restore_offering_users_for_user(user_uuid: str, project_uuid: str)
     Create or restore offering users when user gains project access.
     Handles both new creation and restoration of offering users in deletion states.
     """
+    from waldur_mastermind.marketplace.handlers import (
+        OFFERING_USER_ALLOWED_OFFERING_TYPES,
+    )
 
     user = User.objects.get(uuid=user_uuid)
     project = structure_models.Project.objects.get(uuid=project_uuid)
@@ -1695,3 +1701,214 @@ def _validate_catalog_config(catalog_config):
         errors.append("Catalog name is required")
 
     return errors
+
+
+@shared_task(name="waldur_mastermind.marketplace.remove_users_from_robot_accounts")
+def remove_users_from_robot_accounts_on_permission_loss(user_role_id):
+    """
+    Remove users from robot accounts when they lose active membership in a project.
+
+    This task is triggered when a user's role is revoked and checks if they should
+    be removed from robot accounts they no longer have access to.
+
+    Args:
+        user_role_id: ID of the UserRole that was revoked
+    """
+    logger.info(
+        f"Processing robot account cleanup for revoked user role {user_role_id}"
+    )
+
+    try:
+        # Get the revoked user role
+        try:
+            user_role = UserRole.objects.get(id=user_role_id)
+        except UserRole.DoesNotExist:
+            logger.warning(
+                f"UserRole {user_role_id} not found, skipping robot account cleanup"
+            )
+            return
+
+        user = user_role.user
+        scope = user_role.scope
+
+        # Only process project-related role revocations
+        if not isinstance(scope, Project):
+            logger.debug(f"Role revocation for {user} is not project-related, skipping")
+            return
+
+        project = scope
+        logger.info(
+            f"Processing robot account cleanup for user {user} in project {project}"
+        )
+
+        # Check if user still has any active roles in this project
+        remaining_roles = UserRole.objects.filter(
+            user=user, scope=project, is_active=True
+        ).exists()
+
+        if remaining_roles:
+            logger.debug(
+                f"User {user} still has active roles in project {project}, keeping robot account access"
+            )
+            return
+
+        # Find all robot accounts in this project that the user has access to
+        robot_accounts = models.RobotAccount.objects.filter(
+            resource__project=project, users=user
+        )
+
+        removed_count = 0
+        for robot_account in robot_accounts:
+            # Remove user from robot account
+            robot_account.users.remove(user)
+            removed_count += 1
+            logger.info(f"Removed user {user} from robot account {robot_account}")
+
+            # Log the user removal event
+            event_logger.emit(
+                "User {user_username} has been removed from robot account {robot_account_username} due to loss of project access.",
+                event_type=EventType.RESOURCE_ROBOT_ACCOUNT_UPDATED,
+                event_context={
+                    "robot_account": robot_account,
+                    "user": user,
+                    "project": project,
+                    "reason": "project_access_revoked",
+                },
+                scopes=[robot_account, robot_account.resource, project, user],
+            )
+
+            # Also check if user was the responsible_user and remove if they no longer have access
+            if robot_account.responsible_user == user:
+                robot_account.responsible_user = None
+                robot_account.save(update_fields=["responsible_user"])
+                logger.info(
+                    f"Cleared responsible_user {user} from robot account {robot_account}"
+                )
+
+                # Log the responsible user removal event
+                event_logger.emit(
+                    "Responsible user {user_username} has been removed from robot account {robot_account_username} due to loss of project access.",
+                    event_type=EventType.RESOURCE_ROBOT_ACCOUNT_UPDATED,
+                    event_context={
+                        "robot_account": robot_account,
+                        "user": user,
+                        "project": project,
+                        "reason": "project_access_revoked",
+                        "action": "responsible_user_cleared",
+                    },
+                    scopes=[robot_account, robot_account.resource, project, user],
+                )
+
+        if removed_count > 0:
+            logger.info(
+                f"Successfully removed user {user} from {removed_count} robot accounts in project {project}"
+            )
+        else:
+            logger.debug(
+                f"No robot accounts found for user {user} in project {project}"
+            )
+
+    except Exception as e:
+        logger.error(
+            f"Error removing users from robot accounts for role {user_role_id}: {e}",
+            exc_info=True,
+        )
+        raise
+
+
+@shared_task(name="waldur_mastermind.marketplace.reconcile_robot_account_access")
+def reconcile_robot_account_access():
+    """
+    Reconciliation task to ensure robot account access is properly maintained.
+
+    This task periodically checks all robot accounts and removes users who
+    no longer have active project access, serving as a backup to the
+    signal-driven cleanup.
+    """
+    logger.info("Starting robot account access reconciliation")
+
+    try:
+        total_accounts_processed = 0
+        total_users_removed = 0
+
+        # Get all robot accounts with users
+        robot_accounts = (
+            models.RobotAccount.objects.filter(users__isnull=False)
+            .prefetch_related("users", "resource__project")
+            .distinct()
+        )
+
+        for robot_account in robot_accounts:
+            total_accounts_processed += 1
+            project = robot_account.resource.project
+            users_to_remove = []
+
+            # Check each user's access to the project
+            for user in robot_account.users.all():
+                # Check if user has any active roles in this project
+                has_active_access = UserRole.objects.filter(
+                    user=user, scope=project, is_active=True
+                ).exists()
+
+                if not has_active_access:
+                    users_to_remove.append(user)
+
+            # Remove users who no longer have access
+            for user in users_to_remove:
+                robot_account.users.remove(user)
+                total_users_removed += 1
+                logger.info(
+                    f"Reconciliation: Removed user {user} from robot account {robot_account}"
+                )
+
+                # Log the reconciliation event
+                event_logger.emit(
+                    "User {user_username} has been removed from robot account {robot_account_username} during access reconciliation.",
+                    event_type=EventType.RESOURCE_ROBOT_ACCOUNT_UPDATED,
+                    event_context={
+                        "robot_account": robot_account,
+                        "user": user,
+                        "project": project,
+                        "reason": "access_reconciliation",
+                    },
+                    scopes=[robot_account, robot_account.resource, project, user],
+                )
+
+                # Also check responsible_user during reconciliation
+                if robot_account.responsible_user == user:
+                    robot_account.responsible_user = None
+                    robot_account.save(update_fields=["responsible_user"])
+                    logger.info(
+                        f"Reconciliation: Cleared responsible_user {user} from robot account {robot_account}"
+                    )
+
+                    # Log the responsible user reconciliation event
+                    event_logger.emit(
+                        "Responsible user {user_username} has been removed from robot account {robot_account_username} during access reconciliation.",
+                        event_type=EventType.RESOURCE_ROBOT_ACCOUNT_UPDATED,
+                        event_context={
+                            "robot_account": robot_account,
+                            "user": user,
+                            "project": project,
+                            "reason": "access_reconciliation",
+                            "action": "responsible_user_cleared",
+                        },
+                        scopes=[robot_account, robot_account.resource, project, user],
+                    )
+
+        logger.info(
+            f"Robot account access reconciliation completed. "
+            f"Processed {total_accounts_processed} accounts, "
+            f"removed {total_users_removed} users."
+        )
+
+        return {
+            "accounts_processed": total_accounts_processed,
+            "users_removed": total_users_removed,
+        }
+
+    except Exception as e:
+        logger.error(
+            f"Error during robot account access reconciliation: {e}", exc_info=True
+        )
+        raise

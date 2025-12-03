@@ -344,6 +344,11 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.request_offering_user_deletion_when_project_access_lost",
         )
 
+        permission_signals.role_revoked.connect(
+            handlers.handle_user_role_revoked,
+            dispatch_uid="waldur_mastermind.marketplace.handle_user_role_revoked",
+        )
+
         # MaintenanceAnnouncement -> AdminAnnouncement handlers
         signals.post_save.connect(
             handlers.manage_maintenance_admin_announcements,
