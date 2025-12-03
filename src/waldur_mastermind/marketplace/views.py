@@ -3644,7 +3644,16 @@ class OfferingUserRoleViewSet(core_views.ActionsViewSet):
         offerings = models.Offering.objects.all().filter_for_user(user)
         return qs.filter(offering__in=offerings)
 
-    unsafe_methods_permissions = [
+    def perform_create(self, serializer):
+        offering = serializer.validated_data["offering"]
+        if not has_permission(
+            self.request, PermissionEnum.MANAGE_OFFERING_USER_ROLE, offering.customer
+        ):
+            raise PermissionDenied()
+
+        serializer.save()
+
+    update_permissions = partial_update_permissions = destroy_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_OFFERING_USER_ROLE,
             ["offering.customer"],
