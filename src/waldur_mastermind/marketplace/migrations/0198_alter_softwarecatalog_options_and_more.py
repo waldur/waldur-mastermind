@@ -4,6 +4,41 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+def remove_duplicate_software_targets(apps, schema_editor):
+    """Remove duplicate SoftwareTarget records before applying unique constraint."""
+    SoftwareTarget = apps.get_model("marketplace", "SoftwareTarget")
+
+    # Find duplicate groups based on the unique constraint fields
+    from django.db.models import Count
+
+    duplicates = (
+        SoftwareTarget.objects.values(
+            "version", "target_type", "target_name", "target_subtype"
+        )
+        .annotate(count=Count("id"))
+        .filter(count__gt=1)
+    )
+
+    for dup in duplicates:
+        # Get all records in this duplicate group
+        targets = SoftwareTarget.objects.filter(
+            version=dup["version"],
+            target_type=dup["target_type"],
+            target_name=dup["target_name"],
+            target_subtype=dup["target_subtype"],
+        ).order_by("created")
+
+        # Keep the first one, delete the rest
+        targets_to_delete = targets[1:]
+        for target in targets_to_delete:
+            target.delete()
+
+
+def reverse_remove_duplicate_software_targets(apps, schema_editor):
+    # This migration is not reversible as we've deleted data
+    pass
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ("marketplace", "0197_alter_order_type"),
@@ -205,6 +240,10 @@ class Migration(migrations.Migration):
                 default=dict,
                 help_text="Version-specific metadata (toolchains, build info, modules, etc.)",
             ),
+        ),
+        migrations.RunPython(
+            remove_duplicate_software_targets,
+            reverse_remove_duplicate_software_targets,
         ),
         migrations.AlterUniqueTogether(
             name="softwarecatalog",
