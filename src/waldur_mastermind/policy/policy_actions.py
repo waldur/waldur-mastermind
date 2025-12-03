@@ -24,6 +24,73 @@ from . import enums, structures
 logger = logging.getLogger(__name__)
 
 
+def request_slurm_resource_downscaling(policy: models.Policy):
+    """SLURM-specific downscaling for individual resource management."""
+
+    # For SLURM policies, apply actions only to resources that individually exceed thresholds
+    if hasattr(policy, "get_resource_usage_percentage"):
+        resources = marketplace_models.Resource.objects.filter(
+            offering=policy.scope, offering__plugin_options__supports_downscaling=True
+        ).exclude(state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING))
+
+        # Apply downscaling only to resources that individually exceed 100%
+        for resource in resources:
+            usage_percentage = policy.get_resource_usage_percentage(resource)
+
+            if usage_percentage >= 100:
+                if not resource.downscaled:
+                    resource.downscaled = True
+                    resource.save()
+                    logger.info(
+                        f"SLURM resource {resource.uuid} downscaled: {usage_percentage:.1f}% usage"
+                    )
+            elif resource.downscaled and usage_percentage < 100:
+                # Recovery: remove downscaling if usage drops below threshold
+                resource.downscaled = False
+                resource.save()
+                logger.info(
+                    f"SLURM resource {resource.uuid} downscaling removed: {usage_percentage:.1f}% usage"
+                )
+    else:
+        # Fallback to generic behavior
+        request_downscaling(policy)
+
+
+def request_slurm_resource_pausing(policy: models.Policy):
+    """SLURM-specific pausing for individual resource management."""
+
+    if hasattr(policy, "get_resource_usage_percentage") and hasattr(
+        policy, "grace_ratio"
+    ):
+        resources = marketplace_models.Resource.objects.filter(
+            offering=policy.scope, offering__plugin_options__supports_pausing=True
+        ).exclude(state__in=(ResourceStates.TERMINATED,))
+
+        grace_limit = (1 + policy.grace_ratio) * 100
+
+        # Apply pausing only to resources that individually exceed grace limit
+        for resource in resources:
+            usage_percentage = policy.get_resource_usage_percentage(resource)
+
+            if usage_percentage >= grace_limit:
+                if not resource.paused:
+                    resource.paused = True
+                    resource.save()
+                    logger.info(
+                        f"SLURM resource {resource.uuid} paused: {usage_percentage:.1f}% usage (grace limit: {grace_limit:.1f}%)"
+                    )
+            elif resource.paused and usage_percentage < grace_limit:
+                # Recovery: remove pausing if usage drops below grace limit
+                resource.paused = False
+                resource.save()
+                logger.info(
+                    f"SLURM resource {resource.uuid} pausing removed: {usage_percentage:.1f}% usage"
+                )
+    else:
+        # Fallback to generic behavior
+        request_pausing(policy)
+
+
 def notify_project_team(policy: models.Policy):
     serialized_policy = core_utils.serialize_instance(policy)
     tasks.notify_project_team.delay(serialized_policy)
@@ -396,5 +463,15 @@ POLICY_ACTIONS = {
         method=notify_external_user,
         reset_method=None,
         options_validator=notify_external_user_validator,
+    ),
+    "request_slurm_resource_downscaling": structures.PolicyAction(
+        action_type=enums.PolicyActionTypes.IMMEDIATE,
+        method=request_slurm_resource_downscaling,
+        reset_method=None,  # Recovery is built into the method
+    ),
+    "request_slurm_resource_pausing": structures.PolicyAction(
+        action_type=enums.PolicyActionTypes.IMMEDIATE,
+        method=request_slurm_resource_pausing,
+        reset_method=None,  # Recovery is built into the method
     ),
 }

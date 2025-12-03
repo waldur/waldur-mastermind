@@ -448,11 +448,14 @@ class CustomerUsagePolicyComponent(invoices_models.PeriodMixin, TimeStampedModel
 class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
     """SLURM-specific periodic usage policy with decay and carryover logic."""
 
-    # Extend available actions to include SLURM-relevant ones
-    available_actions = OfferingPolicy.available_actions | {
-        "request_downscaling",  # Apply slowdown QoS
-        "request_pausing",  # Apply blocked QoS
-    }
+    # SLURM-specific actions for individual resource management
+    available_actions = (
+        OfferingPolicy.available_actions
+        | {
+            "request_slurm_resource_downscaling",  # SLURM-specific individual resource downscaling
+            "request_slurm_resource_pausing",  # SLURM-specific individual resource pausing
+        }
+    )
 
     # Core SLURM configuration options
     limit_type = models.CharField(
@@ -863,7 +866,10 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
             )
 
             # Check if we've crossed any threshold
-            if "request_pausing" in self.actions:
+            if (
+                "request_slurm_resource_pausing" in self.actions
+                or "request_pausing" in self.actions
+            ):
                 # Check grace limit (typically 120%)
                 grace_limit_percentage = (1 + self.grace_ratio) * 100
                 if usage_percentage >= grace_limit_percentage:
@@ -872,7 +878,10 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                     )
                     return True
 
-            if "request_downscaling" in self.actions:
+            if (
+                "request_slurm_resource_downscaling" in self.actions
+                or "request_downscaling" in self.actions
+            ):
                 # Check normal threshold (100%)
                 if usage_percentage >= 100:
                     logger.info(

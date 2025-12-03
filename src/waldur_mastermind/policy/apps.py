@@ -19,6 +19,7 @@ class PolicyConfig(AppConfig):
             models.CustomerEstimatedCostPolicy,
             models.OfferingEstimatedCostPolicy,
             models.OfferingUsagePolicy,
+            models.SlurmPeriodicUsagePolicy,  # Add SLURM periodic policy to signal handling
             models.CustomerComponentUsagePolicy,
         ]:
             klass_name = camel_case_to_underscore(klass.__name__)

@@ -2,7 +2,7 @@
 Tests for SlurmPeriodicUsagePolicy threshold-based action triggering.
 
 This module tests the integration between SlurmPeriodicUsagePolicy and
-existing policy actions (request_downscaling, request_pausing) for
+existing policy actions (request_slurm_resource_downscaling, request_slurm_resource_pausing) for
 automatic SLURM QoS management.
 """
 
@@ -58,6 +58,13 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
             carryover_enabled=False,  # Simplify test
         )
 
+        # Create component limit
+        models.OfferingComponentLimit.objects.create(
+            policy=policy,
+            component=self.component,
+            limit=1000,
+        )
+
         # Create usage at 80% (800 node-hours)
         marketplace_factories.ComponentUsageFactory(
             resource=self.resource,
@@ -75,14 +82,21 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
 
     @freeze_time("2024-02-15")  # Q1 2024
     def test_policy_triggers_downscaling_at_100_percent_usage(self):
-        """Test that request_downscaling action triggers at 100% usage."""
+        """Test that request_slurm_resource_downscaling action triggers at 100% usage."""
         # Create policy with downscaling action
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
-            actions="request_downscaling",
+            actions="request_slurm_resource_downscaling",
             apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=False,
+        )
+
+        # Create component limit
+        models.OfferingComponentLimit.objects.create(
+            policy=policy,
+            component=self.component,
+            limit=1000,
         )
 
         # Create usage at 100% (1000 node-hours)
@@ -133,7 +147,7 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
         # Create policy with downscaling at 100%
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
-            actions="request_downscaling",
+            actions="request_slurm_resource_downscaling",
             apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=False,
@@ -160,7 +174,7 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
         # Create policy with notification and downscaling
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
-            actions="notify_organization_owners,request_downscaling",
+            actions="notify_organization_owners,request_slurm_resource_downscaling",
             apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=False,
@@ -195,7 +209,7 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
         # Create policy with carryover enabled
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
-            actions="request_downscaling",
+            actions="request_slurm_resource_downscaling",
             apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=True,
@@ -236,7 +250,7 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
         org_group = structure_factories.OrganizationGroupFactory()
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
-            actions="request_downscaling",
+            actions="request_slurm_resource_downscaling",
             apply_to_all=False,
             grace_ratio=0.2,
         )
@@ -258,7 +272,7 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
         # Create policy
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
-            actions="request_downscaling",
+            actions="request_slurm_resource_downscaling",
             apply_to_all=True,
             grace_ratio=0.2,
         )
@@ -293,52 +307,52 @@ class SlurmPeriodicUsagePolicyIntegrationTest(TestCase):
             project=self.fixture.project,
         )
 
-    @patch("waldur_mastermind.policy.policy_actions.request_downscaling")
+    @patch("waldur_mastermind.policy.policy_actions.request_slurm_resource_downscaling")
     def test_request_downscaling_action_called(self, mock_downscaling):
-        """Test that request_downscaling action is called when threshold exceeded."""
+        """Test that request_slurm_resource_downscaling action is called when threshold exceeded."""
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
-            actions="request_downscaling",
+            actions="request_slurm_resource_downscaling",
             apply_to_all=True,
         )
 
         # When policy framework processes triggered policies,
-        # it should call the request_downscaling action
+        # it should call the request_slurm_resource_downscaling action
         # This would mark resource.downscaled = True
         # Site agent would then apply qos_downscaled to SLURM account
 
         # Verify the action is available
-        self.assertIn("request_downscaling", policy.available_actions)
+        self.assertIn("request_slurm_resource_downscaling", policy.available_actions)
 
         # Verify it's configured in actions
-        self.assertIn("request_downscaling", policy.actions)
+        self.assertIn("request_slurm_resource_downscaling", policy.actions)
 
-    @patch("waldur_mastermind.policy.policy_actions.request_pausing")
+    @patch("waldur_mastermind.policy.policy_actions.request_slurm_resource_pausing")
     def test_request_pausing_action_called(self, mock_pausing):
-        """Test that request_pausing action is called when grace limit exceeded."""
+        """Test that request_slurm_resource_pausing action is called when grace limit exceeded."""
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
-            actions="request_pausing",
+            actions="request_slurm_resource_pausing",
             apply_to_all=True,
             grace_ratio=0.2,
         )
 
         # When policy framework processes triggered policies,
-        # it should call the request_pausing action
+        # it should call the request_slurm_resource_pausing action
         # This would mark resource.paused = True
         # Site agent would then apply qos_paused to SLURM account
 
         # Verify the action is available
-        self.assertIn("request_pausing", policy.available_actions)
+        self.assertIn("request_slurm_resource_pausing", policy.available_actions)
 
         # Verify it's configured in actions
-        self.assertIn("request_pausing", policy.actions)
+        self.assertIn("request_slurm_resource_pausing", policy.actions)
 
     def test_combined_actions_for_progressive_management(self):
         """Test policy with combined actions for progressive QoS management."""
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
-            actions="notify_organization_owners,request_downscaling,block_creation_of_new_resources",
+            actions="notify_organization_owners,request_slurm_resource_downscaling,block_creation_of_new_resources",
             apply_to_all=True,
             grace_ratio=0.2,
         )
@@ -346,7 +360,7 @@ class SlurmPeriodicUsagePolicyIntegrationTest(TestCase):
         # All actions should be available
         for action in [
             "notify_organization_owners",
-            "request_downscaling",
+            "request_slurm_resource_downscaling",
             "block_creation_of_new_resources",
         ]:
             self.assertIn(action, policy.available_actions)
@@ -354,5 +368,5 @@ class SlurmPeriodicUsagePolicyIntegrationTest(TestCase):
 
         # This configuration would:
         # 1. Send notifications at 80% usage
-        # 2. Apply slowdown QoS at 100% usage (via request_downscaling)
+        # 2. Apply slowdown QoS at 100% usage (via request_slurm_resource_downscaling)
         # 3. Block new resource creation at 100% usage
