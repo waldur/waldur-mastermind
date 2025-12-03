@@ -9,7 +9,7 @@ from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_valid_models
 from waldur_core.structure.permissions import _get_customer
 from waldur_core.users import models
-from waldur_core.users.enums import InvitationStateType
+from waldur_core.users.enums import InvitationState, InvitationStateType
 
 
 class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
@@ -265,6 +265,43 @@ class InvitationSerializer(BaseInvitationSerializer):
                 "view_name": "user-invitation-detail",
             },
         }
+
+
+class InvitationUpdateSerializer(serializers.ModelSerializer):
+    role = serializers.SlugRelatedField(
+        queryset=Role.objects.filter(is_active=True), slug_field="uuid", required=False
+    )
+
+    class Meta:
+        model = models.Invitation
+        fields = ("email", "role")
+
+    def validate_role(self, role):
+        """Validate that the new role is compatible with the invitation's scope"""
+        if role:
+            invitation = self.instance
+            model_class = role.content_type.model_class()
+            if model_class and not isinstance(invitation.scope, model_class):
+                raise serializers.ValidationError(
+                    "Role and scope should belong to the same content type."
+                )
+            # Ensure role is within the same scope (same content type)
+            if invitation.role.content_type != role.content_type:
+                raise serializers.ValidationError(
+                    f"Cannot change role type from {invitation.role.content_type} to {role.content_type}. "
+                    "Role must remain within the same scope type."
+                )
+        return role
+
+    def validate(self, attrs):
+        """Ensure invitation is in a state that allows editing"""
+        invitation = self.instance
+        if invitation.state not in [
+            InvitationState.PENDING,
+            InvitationState.PENDING_PROJECT,
+        ]:
+            raise serializers.ValidationError("Only pending invitations can be edited.")
+        return attrs
 
 
 class VisibleInvitationDetailsSerializer(BaseInvitationDetailsSerializer):

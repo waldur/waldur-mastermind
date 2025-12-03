@@ -163,7 +163,7 @@ class SoftDeletedProjectRestrictionsTest(APITestCase):
             invitation, action="send"
         )
         response = self.client.post(send_url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_invitation_cancel_blocked_for_soft_deleted_project(self):
         """Test that existing invitations cannot be cancelled for soft-deleted projects"""
@@ -182,7 +182,7 @@ class SoftDeletedProjectRestrictionsTest(APITestCase):
             invitation, action="cancel"
         )
         response = self.client.post(cancel_url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_group_invitation_cancel_blocked_for_soft_deleted_project(self):
         """Test that group invitations cannot be cancelled for soft-deleted projects"""
@@ -202,7 +202,7 @@ class SoftDeletedProjectRestrictionsTest(APITestCase):
             group_invitation, action="cancel"
         )
         response = self.client.post(cancel_url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_invitation_delete_still_works_for_staff(self):
         """Test that staff can still delete invitations for soft-deleted projects (cleanup)"""
@@ -392,7 +392,7 @@ class SoftDeletedProjectEdgeCasesTest(APITestCase):
             invitation, action="send"
         )
         response = self.client.post(send_url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_different_user_roles_restrictions(self):
         """Test that restrictions apply consistently across different user roles"""
@@ -453,7 +453,7 @@ class SoftDeletedProjectEdgeCasesTest(APITestCase):
                     invitation, action=url_action
                 )
                 response = self.client.post(action_url)
-                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_bulk_operations_blocked(self):
         """Test that bulk user management operations are blocked"""
