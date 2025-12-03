@@ -108,4 +108,9 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
+            "reconcile_robot_account_access": {
+                "task": "waldur_mastermind.marketplace.reconcile_robot_account_access",
+                "schedule": crontab(minute=30, hour=2),  # Run daily at 2:30 AM
+                "args": (),
+            },
         }

@@ -67,6 +67,7 @@ from waldur_mastermind.marketplace.permissions import (
 from waldur_mastermind.notifications.models import AdminAnnouncement
 
 from . import callbacks, log, models, tasks, utils
+from .tasks import remove_users_from_robot_accounts_on_permission_loss
 
 logger = logging.getLogger(__name__)
 
@@ -2300,3 +2301,29 @@ def process_billing_on_resource_save(
 
     if resource.state != ResourceStates.CREATING and tracker.has_changed("limits"):
         MarketplaceBillingService.handle_limits_change(resource)
+
+
+def handle_user_role_revoked(
+    sender, instance, current_user=None, reason=None, **kwargs
+):
+    """
+    Handle user role revocation by removing users from robot accounts
+    when they lose project membership.
+
+    Args:
+        sender: The model class that sent the signal
+        instance: The UserRole instance that was revoked
+        current_user: User who performed the revocation (optional)
+        reason: Reason for revocation (optional)
+        **kwargs: Additional keyword arguments
+    """
+    logger.info(
+        f"Processing role revocation for user {instance.user} in scope {instance.scope}"
+    )
+
+    # Schedule the task to remove users from robot accounts
+    # We use a Celery task to avoid blocking the signal handler
+    # and to ensure proper transaction handling
+    transaction.on_commit(
+        lambda: remove_users_from_robot_accounts_on_permission_loss.delay(instance.id)
+    )
