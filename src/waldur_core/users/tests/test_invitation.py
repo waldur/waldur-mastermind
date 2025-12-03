@@ -120,6 +120,7 @@ class BaseInvitationTest(test.APITransactionTestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         ProjectRole.ADMIN.add_permission(PermissionEnum.LIST_PROJECTS)
         ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_PROJECTS)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_PROJECTS)
 
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_INVITATIONS)
@@ -296,7 +297,7 @@ class RetrievePendingInvitationDetailsTest(BaseInvitationTest):
         self,
     ):
         invitation = factories.CustomerInvitationFactory(
-            created_by=self.customer_owner, email=self.user.email
+            created_by=self.project_admin, email=self.user.email
         )
         response = self.get_details(self.user, invitation)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -414,7 +415,7 @@ class InvitationRetrieveByEmailTest(BaseInvitationTest):
         url = factories.InvitationBaseFactory.get_url(pending_invitation, action="send")
 
         response = self.client.post(url)
-        self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN])
+        self.assertIn(response.status_code, [status.HTTP_404_NOT_FOUND])
 
     def test_user_cannot_cancel_pending_invitation_with_matching_email(self):
         pending_invitation = factories.CustomerInvitationFactory(
@@ -430,7 +431,7 @@ class InvitationRetrieveByEmailTest(BaseInvitationTest):
         )
 
         response = self.client.post(url)
-        self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN])
+        self.assertIn(response.status_code, [status.HTTP_404_NOT_FOUND])
 
         pending_invitation.refresh_from_db()
         self.assertEqual(pending_invitation.state, InvitationState.PENDING)
@@ -480,10 +481,11 @@ class InvitationCreateTest(BaseInvitationTest):
         response = self.client.post(
             factories.InvitationBaseFactory.get_list_url(), data=payload
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Users without permission get 404 because invitation filtering prevents them from seeing it
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(
             response.data,
-            {"detail": "You do not have permission to perform this action."},
+            {"detail": "Not found."},
         )
 
     def test_unauthorized_user_cannot_create_project_invitation(self):
@@ -513,7 +515,8 @@ class InvitationCreateTest(BaseInvitationTest):
         response = self.client.post(
             factories.InvitationBaseFactory.get_list_url(), data=payload
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Users without permission get 404 because invitation filtering prevents them from seeing it
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data("staff", "customer_owner")
     def test_user_which_created_invitation_is_stored_in_invitation(self, user):
@@ -533,7 +536,8 @@ class InvitationCreateTest(BaseInvitationTest):
         response = self.client.post(
             factories.InvitationBaseFactory.get_list_url(), data=payload
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data(
         "user",
@@ -569,7 +573,8 @@ class InvitationCreateTest(BaseInvitationTest):
         response = self.client.post(
             factories.InvitationBaseFactory.get_list_url(), data=payload
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_user_cannot_create_invitation_without_scope(self):
         self.client.force_authenticate(user=self.staff)
@@ -766,7 +771,8 @@ class InvitationCancelTest(BaseInvitationTest):
                 self.customer_invitation, action="cancel"
             )
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_invitation_is_canceled_after_expiration_date(self):
         event_type = "invitation_expired"
@@ -777,7 +783,7 @@ class InvitationCancelTest(BaseInvitationTest):
         with self.settings(WALDUR_CORE=waldur_section):
             invitation = factories.ProjectInvitationFactory(
                 created=timezone.now() - timedelta(weeks=1),
-                created_by=self.customer_owner,
+                created_by=self.project_admin,
             )
             tasks.cancel_expired_invitations(models.Invitation.objects.all())
 
@@ -807,7 +813,7 @@ class InvitationCancelTest(BaseInvitationTest):
                 created=timezone.now()
                 - settings.WALDUR_CORE["INVITATION_LIFETIME"]
                 - timedelta(days=1),
-                created_by=self.customer_owner,
+                created_by=self.project_admin,
             )
             tasks.send_reminder_for_pending_invitations()
 
@@ -860,7 +866,8 @@ class InvitationSendTest(BaseInvitationTest):
                 self.customer_invitation, action="send"
             )
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data("staff", "customer_owner", "project_manager")
     def test_authorized_user_can_send_project_invitation(self, user):
@@ -1058,7 +1065,7 @@ class InvitationAcceptTest(BaseInvitationTest):
         self,
     ):
         invitation = factories.CustomerInvitationFactory(
-            created_by=self.customer_owner, email=self.user.email
+            created_by=self.project_admin, email=self.user.email
         )
         self.client.force_authenticate(user=self.user)
         url = factories.CustomerInvitationFactory.get_url(invitation, action="accept")
@@ -1088,7 +1095,7 @@ class InvitationAcceptTest(BaseInvitationTest):
         # Create the invitation with uppercase email
         uppercase_email = self.user.email.upper()
         invitation = factories.CustomerInvitationFactory(
-            created_by=self.customer_owner, email=uppercase_email
+            created_by=self.project_admin, email=uppercase_email
         )
         self.client.force_authenticate(user=self.user)
         url = factories.CustomerInvitationFactory.get_url(invitation, action="accept")
@@ -1108,7 +1115,7 @@ class InvitationAcceptTest(BaseInvitationTest):
         )
         # Create invitation with different case
         invitation = factories.CustomerInvitationFactory(
-            created_by=self.customer_owner, email="mixed.case@EXAMPLE.com"
+            created_by=self.project_admin, email="mixed.case@EXAMPLE.com"
         )
         self.client.force_authenticate(user=mixed_case_user)
         url = factories.CustomerInvitationFactory.get_url(invitation, action="accept")
@@ -1127,7 +1134,7 @@ class InvitationAcceptTest(BaseInvitationTest):
         """Test that a user cannot accept an invitation if emails don't match even after casefolding."""
         # Create invitation with completely different email
         invitation = factories.CustomerInvitationFactory(
-            created_by=self.customer_owner, email="different@example.com"
+            created_by=self.project_admin, email="different@example.com"
         )
         self.client.force_authenticate(user=self.user)
         url = factories.CustomerInvitationFactory.get_url(invitation, action="accept")
@@ -1150,7 +1157,7 @@ class InvitationAcceptTest(BaseInvitationTest):
     ):
         """Test that a user can accept an invitation with different emails if strict checking is disabled."""
         invitation = factories.CustomerInvitationFactory(
-            created_by=self.customer_owner, email="different@example.com"
+            created_by=self.project_admin, email="different@example.com"
         )
         self.client.force_authenticate(user=self.user)
         url = factories.CustomerInvitationFactory.get_url(invitation, action="accept")
@@ -1967,3 +1974,164 @@ class PermissionRequestCancelTest(test.APITransactionTestCase):
         self.assertIsInstance(response.data["uuid"], str)
         self.assertIsInstance(response.data["scope_name"], str)
         self.assertIsInstance(response.data["scope_uuid"], str)
+
+
+class InvitationUpdateTest(BaseInvitationTest):
+    def setUp(self):
+        super().setUp()
+        self.invitation = factories.CustomerInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.OWNER,
+            created_by=self.project_admin,
+            email="original@example.com",
+        )
+        self.project_invitation = factories.ProjectInvitationFactory(
+            scope=self.project,
+            role=ProjectRole.ADMIN,
+            created_by=self.project_admin,
+            email="project@example.com",
+        )
+
+    def test_customer_owner_can_update_invitation_email(self):
+        """Test that customer owner can update invitation email"""
+        self.client.force_authenticate(user=self.customer_owner)
+        new_email = "updated@example.com"
+
+        url = factories.CustomerInvitationFactory.get_url(self.invitation)
+        payload = {"email": new_email}
+
+        response = self.client.patch(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.invitation.refresh_from_db()
+        self.assertEqual(self.invitation.email, new_email)
+
+    def test_customer_owner_can_update_invitation_role_within_same_scope(self):
+        """Test that customer owner can update role within the same scope type"""
+        self.client.force_authenticate(user=self.customer_owner)
+
+        url = factories.CustomerInvitationFactory.get_url(self.invitation)
+        payload = {"role": CustomerRole.SUPPORT.uuid.hex}
+
+        response = self.client.patch(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.invitation.refresh_from_db()
+        self.assertEqual(self.invitation.role, CustomerRole.SUPPORT)
+
+    def test_cannot_update_role_to_different_scope_type(self):
+        """Test that role cannot be changed to incompatible scope type"""
+        self.client.force_authenticate(user=self.customer_owner)
+
+        url = factories.CustomerInvitationFactory.get_url(self.invitation)
+        payload = {
+            "role": ProjectRole.ADMIN.uuid.hex
+        }  # Project role for customer invitation
+
+        response = self.client.patch(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Role and scope should belong to the same content type", str(response.data)
+        )
+
+    def test_cannot_update_accepted_invitation(self):
+        """Test that accepted invitations cannot be updated"""
+        self.invitation.state = InvitationState.ACCEPTED
+        self.invitation.save()
+
+        self.client.force_authenticate(user=self.customer_owner)
+
+        url = factories.CustomerInvitationFactory.get_url(self.invitation)
+        payload = {"email": "new@example.com"}
+
+        response = self.client.patch(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Only pending invitations can be edited", str(response.data))
+
+    def test_cannot_update_canceled_invitation(self):
+        """Test that canceled invitations cannot be updated"""
+        self.invitation.state = InvitationState.CANCELED
+        self.invitation.save()
+
+        self.client.force_authenticate(user=self.customer_owner)
+
+        url = factories.CustomerInvitationFactory.get_url(self.invitation)
+        payload = {"email": "new@example.com"}
+
+        response = self.client.patch(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Only pending invitations can be edited", str(response.data))
+
+    def test_user_without_permission_cannot_update_invitation(self):
+        """Test that user without management permission cannot update invitation"""
+        self.client.force_authenticate(user=self.user)
+
+        url = factories.CustomerInvitationFactory.get_url(self.invitation)
+        payload = {"email": "new@example.com"}
+
+        response = self.client.patch(url, payload)
+
+        # Users without permission get 404 because invitation filtering prevents them from seeing it
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_staff_can_update_any_invitation(self):
+        """Test that staff users can update any invitation"""
+        self.client.force_authenticate(user=self.staff)
+        new_email = "staff-updated@example.com"
+
+        url = factories.CustomerInvitationFactory.get_url(self.invitation)
+        payload = {"email": new_email}
+
+        response = self.client.patch(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.invitation.refresh_from_db()
+        self.assertEqual(self.invitation.email, new_email)
+
+    def test_project_manager_can_update_project_invitation(self):
+        """Test that project manager can update project invitations"""
+        self.client.force_authenticate(user=self.project_manager)
+        new_email = "project-updated@example.com"
+
+        url = factories.ProjectInvitationFactory.get_url(self.project_invitation)
+        payload = {"email": new_email}
+
+        response = self.client.patch(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project_invitation.refresh_from_db()
+        self.assertEqual(self.project_invitation.email, new_email)
+
+    def test_project_admin_cannot_update_project_invitation(self):
+        """Test that project admin cannot update project invitations"""
+        self.client.force_authenticate(user=self.project_admin)
+        new_email = "project-updated@example.com"
+
+        url = factories.ProjectInvitationFactory.get_url(self.project_invitation)
+        payload = {"email": new_email}
+
+        response = self.client.patch(url, payload)
+
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_update_multiple_fields_at_once(self):
+        """Test that multiple fields can be updated in a single request"""
+        self.client.force_authenticate(user=self.customer_owner)
+        new_email = "multi-updated@example.com"
+
+        url = factories.CustomerInvitationFactory.get_url(self.invitation)
+        payload = {
+            "email": new_email,
+            "role": CustomerRole.SUPPORT.uuid.hex,
+        }
+
+        response = self.client.patch(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.invitation.refresh_from_db()
+        self.assertEqual(self.invitation.email, new_email)
+        self.assertEqual(self.invitation.role, CustomerRole.SUPPORT)

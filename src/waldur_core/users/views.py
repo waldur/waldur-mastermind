@@ -8,15 +8,17 @@ from django.utils.translation import gettext as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import permissions as rf_permissions
-from rest_framework import status
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.views import ProtectedViewSet, ReadOnlyActionsViewSet
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_user
 from waldur_core.structure import filters as structure_filters
@@ -40,8 +42,20 @@ from waldur_core.users.utils import can_manage_invitation_with, parse_invitation
         summary="Create user invitation",
         description="Create a new user invitation to grant a role in a specific scope (e.g., organization or project).",
     ),
+    update=extend_schema(
+        summary="Update user invitation",
+        description="Update an existing user invitation. Only pending invitations can be edited. Allows changing email and role within the same scope.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update user invitation",
+        description="Partially update an existing user invitation. Only pending invitations can be edited. Allows changing email and role within the same scope.",
+    ),
+    destroy=extend_schema(
+        summary="Delete user invitation",
+        description="Delete a user invitation. Only users with invitation management permissions can delete invitations.",
+    ),
 )
-class InvitationViewSet(ProtectedViewSet):
+class InvitationViewSet(viewsets.ModelViewSet):
     queryset = models.Invitation.objects.all().order_by("-created")
     serializer_class = serializers.InvitationSerializer
     filter_backends = (
@@ -52,10 +66,86 @@ class InvitationViewSet(ProtectedViewSet):
     filterset_class = filters.InvitationFilter
     lookup_field = "uuid"
 
+    def get_serializer_class(self):
+        if self.action in ["update", "partial_update"]:
+            return serializers.InvitationUpdateSerializer
+        return super().get_serializer_class()
+
+    def perform_update(self, serializer):
+        invitation = self.get_object()
+        if not can_manage_invitation_with(self.request, invitation.scope):
+            # Raise NotFound instead of PermissionDenied to hide invitation existence
+            raise NotFound()
+
+        # Store original values for logging
+        original_values = {
+            "email": invitation.email,
+            "role": invitation.role,
+        }
+
+        serializer.save()
+
+        # Log the changes
+        self._log_invitation_changes(
+            invitation, original_values, serializer.validated_data
+        )
+
+    def perform_destroy(self, instance):
+        if not can_manage_invitation_with(self.request, instance.scope):
+            # Raise NotFound instead of PermissionDenied to hide invitation existence
+            raise NotFound()
+
+        # Log the deletion
+        event_logger.emit(
+            "Invitation to {invitation_email} for {scope_name} has been deleted by {user_username}.",
+            event_type=EventType.USER_INVITATION_DELETED,
+            event_context={
+                "invitation_email": instance.email,
+                "scope_name": instance.scope.name,
+                "user_username": self.request.user.username,
+                "invitation": instance,
+                "user": self.request.user,
+                "scope": instance.scope,
+            },
+            scopes=[instance.scope],
+        )
+
+        super().perform_destroy(instance)
+
+    def _log_invitation_changes(self, invitation, original_values, new_values):
+        """Log invitation changes for audit purposes"""
+        changes = []
+        for field, new_value in new_values.items():
+            old_value = original_values.get(field)
+            if old_value != new_value:
+                if field == "role":
+                    old_str = old_value.name if old_value else None
+                    new_str = new_value.name if new_value else None
+                    changes.append(f"{field}: {old_str} → {new_str}")
+                else:
+                    changes.append(f"{field}: {old_value} → {new_value}")
+
+        if changes:
+            event_logger.emit(
+                "Invitation to {invitation_email} for {scope_name} has been updated by {user_username}. Changes: {changes_summary}",
+                event_type=EventType.USER_INVITATION_UPDATED,
+                event_context={
+                    "invitation_email": invitation.email,
+                    "scope_name": invitation.scope.name,
+                    "user_username": self.request.user.username,
+                    "changes_summary": ", ".join(changes),
+                    "invitation": invitation,
+                    "user": self.request.user,
+                    "scope": invitation.scope,
+                },
+                scopes=[invitation.scope],
+            )
+
     def perform_create(self, serializer):
         scope = serializer.validated_data["scope"]
         if not can_manage_invitation_with(self.request, scope):
-            raise PermissionDenied()
+            # Raise NotFound instead of PermissionDenied to hide invitation existence
+            raise NotFound()
 
         invitation: models.Invitation = serializer.save()
         if isinstance(invitation.scope, Project):
@@ -150,7 +240,8 @@ class InvitationViewSet(ProtectedViewSet):
         invitation: models.Invitation = self.get_object()
 
         if not can_manage_invitation_with(self.request, invitation.scope):
-            raise PermissionDenied()
+            # Raise NotFound instead of PermissionDenied to hide invitation existence
+            raise NotFound()
         elif invitation.state not in (
             InvitationState.PENDING,
             InvitationState.EXPIRED,
@@ -186,7 +277,8 @@ class InvitationViewSet(ProtectedViewSet):
         invitation: models.Invitation = self.get_object()
 
         if not can_manage_invitation_with(self.request, invitation.scope):
-            raise PermissionDenied()
+            # Raise NotFound instead of PermissionDenied to hide invitation existence
+            raise NotFound()
         elif invitation.state not in [
             InvitationState.PENDING,
             InvitationState.PENDING_PROJECT,
@@ -359,7 +451,8 @@ class GroupInvitationViewSet(ProtectedViewSet):
         invitation: models.GroupInvitation = self.get_object()
 
         if not can_manage_invitation_with(request, invitation.scope):
-            raise PermissionDenied()
+            # Raise NotFound instead of PermissionDenied to hide invitation existence
+            raise NotFound()
         elif not invitation.is_active:
             raise ValidationError(_("Only pending invitation can be canceled."))
 
@@ -436,7 +529,8 @@ class GroupInvitationViewSet(ProtectedViewSet):
     def perform_create(self, serializer):
         scope = serializer.validated_data["scope"]
         if not can_manage_invitation_with(self.request, scope):
-            raise PermissionDenied()
+            # Raise NotFound instead of PermissionDenied to hide invitation existence
+            raise NotFound()
 
         serializer.save()
 
@@ -468,7 +562,8 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
         if not can_manage_invitation_with(
             self.request, permission_request.invitation.scope
         ):
-            raise PermissionDenied()
+            # Raise NotFound instead of PermissionDenied to hide invitation existence
+            raise NotFound()
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)

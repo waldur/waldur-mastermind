@@ -159,17 +159,29 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @data("project_admin", "project_manager")
-    def test_user_without_access_cannot_create_project_invitation(self, user):
+    def test_project_admin_cannot_create_project_invitation(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
-        self.client.force_authenticate(user=getattr(self, user))
+        self.client.force_authenticate(user=self.project_admin)
         payload = self._get_valid_project_invitation_payload(
             self.project_group_invitation
         )
         response = self.client.post(
             factories.GroupInvitationBaseFactory.get_list_url(), data=payload
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_project_manager_can_create_project_invitation(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        self.client.force_authenticate(user=self.project_manager)
+        payload = self._get_valid_project_invitation_payload(
+            self.project_group_invitation
+        )
+        response = self.client.post(
+            factories.GroupInvitationBaseFactory.get_list_url(), data=payload
+        )
+        # Project managers have CREATE_PROJECT_PERMISSION so they can create invitations
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     @data(
         "user",
@@ -208,7 +220,8 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         response = self.client.post(
             factories.GroupInvitationBaseFactory.get_list_url(), data=payload
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data("staff", "customer_owner")
     def test_user_which_created_invitation_is_stored_in_invitation(self, user):
@@ -232,7 +245,8 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         response = self.client.post(
             factories.GroupInvitationBaseFactory.get_list_url(), data=payload
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data(
         "user",
@@ -337,7 +351,7 @@ class GroupInvitationCancelTest(BaseGroupInvitationTest):
         self.project_group_invitation.refresh_from_db()
         self.assertEqual(self.project_group_invitation.is_active, False)
 
-    @data("project_admin", "project_manager", "user")
+    @data("project_admin", "user")
     def test_user_without_access_cannot_cancel_project_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(
@@ -345,7 +359,20 @@ class GroupInvitationCancelTest(BaseGroupInvitationTest):
                 self.project_group_invitation, action="cancel"
             )
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_project_manager_can_cancel_project_invitation(self):
+        self.client.force_authenticate(user=self.project_manager)
+        response = self.client.post(
+            factories.ProjectGroupInvitationFactory.get_url(
+                self.project_group_invitation, action="cancel"
+            )
+        )
+        # Project managers have CREATE_PROJECT_PERMISSION so they can cancel invitations
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project_group_invitation.refresh_from_db()
+        self.assertEqual(self.project_group_invitation.is_active, False)
 
     @data("staff", "customer_owner")
     def test_user_with_access_can_cancel_customer_invitation(self, user):
@@ -368,7 +395,8 @@ class GroupInvitationCancelTest(BaseGroupInvitationTest):
                 self.customer_group_invitation, action="cancel"
             )
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_invitation_is_canceled_after_expiration_date(self):
         waldur_section = settings.WALDUR_CORE.copy()
@@ -517,7 +545,8 @@ class RequestApproveTest(BaseInvitationTest):
         CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.permission_request.refresh_from_db()
         self.assertEqual(self.permission_request.state, ReviewStates.PENDING)
 
