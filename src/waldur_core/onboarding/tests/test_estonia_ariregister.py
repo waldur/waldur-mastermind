@@ -437,7 +437,12 @@ class EstonianAriregisterAPITest(APITestCase):
     def test_create_customer_blocked_when_required_checklist_incomplete(
         self, mock_post
     ):
-        """Test that customer creation is blocked when required checklist fields are not completed."""
+        """
+        Test that customer creation is only blocked when required checklist fields are not completed
+        AND there's no validation_method (i.e., manual justification case).
+
+        With automatic validation (validation_method set), customer can be created even if checklist is incomplete.
+        """
         self._mock_ariregister_response(
             mock_post,
             get_estonian_ariregister_success_response(self.legal_person_identifier),
@@ -480,21 +485,24 @@ class EstonianAriregisterAPITest(APITestCase):
         response = self._submit_answers(verification_uuid, answers)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Run validation - should succeed and set status to verified
+        # Run validation - should succeed and set status to verified with validation_method set
         response = self._run_validation(verification_uuid)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         verification = response.data
         self._assert_verification_status(verification, "verified")
 
-        # create customer should FAIL because checklist is incomplete
+        # Verify that validation_method is set (automatic validation)
+        self.assertIsNotNone(verification.get("validation_method"))
+
+        # create customer should SUCCEED because validation_method is set
+        # (automatic validation allows customer creation even with incomplete checklist)
         create_customer_url = self._get_verification_url(
             verification_uuid, "create_customer"
         )
         response = self.client.post(create_customer_url)
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("checklist", str(response.data).lower())
-        self.assertIn("required", str(response.data).lower())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn("uuid", response.data)
 
     @override_config(
         ONBOARDING_ARIREGISTER_BASE_URL="https://demo-ariregxmlv6.rik.ee/",

@@ -300,10 +300,13 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
 
         completion = self.get_or_create_checklist_completion()
         if completion and not completion.is_completed:
-            raise ValueError(
-                "Cannot create customer: checklist has required fields that are not completed. "
-                "Please complete all required checklist questions before creating a customer."
-            )
+            if self.validation_method:
+                pass
+            else:
+                raise ValueError(
+                    "Cannot create customer: checklist has required fields that are not completed. "
+                    "Please complete all required checklist questions before creating a customer."
+                )
 
         if self.legal_person_identifier:
             customer_exists = structure_models.Customer.objects.filter(

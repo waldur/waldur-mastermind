@@ -4,10 +4,14 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from waldur_core.checklist import enums as checklist_enums
+from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.onboarding import enums
 from waldur_core.onboarding.models import (
+    OnboardingCountryChecklistConfiguration,
     OnboardingJustification,
     OnboardingJustificationDocumentation,
+    OnboardingQuestionMetadata,
     OnboardingVerification,
 )
 from waldur_core.structure.tests import factories as structure_factories
@@ -295,3 +299,76 @@ class JustificationDecisionTest(APITestCase):
         self.assertEqual(
             self.escalated_verification.status, enums.VerificationStatus.ESCALATED
         )
+
+    def test_create_customer_blocked_when_required_checklist_incomplete(self):
+        """
+        Test that customer creation after justification approval is blocked when required checklist questions are not completed.
+        This applies to manual validation (no validation_method).
+        """
+        # Create a checklist configuration for EE
+        checklist = checklist_factories.ChecklistFactory(
+            checklist_type=checklist_enums.ChecklistTypes.CUSTOMER_ONBOARDING,
+        )
+        OnboardingCountryChecklistConfiguration.objects.create(
+            country="EE",
+            checklist=checklist,
+            is_active=True,
+        )
+
+        # Add a required question to the checklist
+        required_question = checklist_factories.QuestionFactory(
+            checklist=checklist,
+            description="What is your business purpose? (Required)",
+            question_type=checklist_enums.QuestionTypes.TEXT_INPUT,
+            required=True,
+            order=1,
+        )
+        OnboardingQuestionMetadata.objects.create(
+            question=required_question,
+            intent_field="business_purpose",
+        )
+
+        # Create escalated verification with manual validation (no validation_method set)
+        verification = factories.OnboardingVerificationFactory(
+            user=self.regular_user,
+            status=enums.VerificationStatus.ESCALATED,
+            country="EE",
+            legal_person_identifier="87654321",
+            legal_name="Manual Validation Company OÜ",
+            validation_method="",  # No automatic validation method
+        )
+
+        justification = factories.OnboardingJustificationFactory(
+            verification=verification,
+            user=self.regular_user,
+            user_justification="Please validate our company for manual review.",
+        )
+
+        # Get the checklist to see required questions
+        completion = verification.get_or_create_checklist_completion()
+        self.assertIsNotNone(completion)
+
+        # Verify checklist has questions but none are answered
+        self.assertTrue(completion.checklist.questions.exists())
+        self.assertFalse(completion.is_completed)
+
+        self.client.force_authenticate(user=self.staff_user)
+        url = factories.OnboardingJustificationFactory.get_url(
+            justification, action="approve"
+        )
+        data = {
+            "staff_notes": "Approve with incomplete checklist.",
+        }
+
+        response = self.client.post(url, data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        create_customer_url = factories.OnboardingVerificationFactory.get_url(
+            verification, action="create_customer"
+        )
+        response = self.client.post(create_customer_url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.assertIn("checklist", str(response.data).lower())
+        self.assertIn("required", str(response.data).lower())
