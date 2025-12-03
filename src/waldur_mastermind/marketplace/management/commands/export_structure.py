@@ -17,7 +17,12 @@ from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import Customer, Project
 from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
-from waldur_mastermind.invoices.models import Invoice, InvoiceItem
+from waldur_mastermind.invoices.models import (
+    CustomerCredit,
+    Invoice,
+    InvoiceItem,
+    ProjectCredit,
+)
 from waldur_mastermind.marketplace.models import (
     Category,
     ComponentUsage,
@@ -116,6 +121,9 @@ class Command(BaseCommand):
             "invitations": self.export_invitations(),
             "group_invitations": self.export_group_invitations(),
             "permission_requests": self.export_permission_requests(),
+            # Credit exports
+            "customer_credits": self.export_customer_credits(),
+            "project_credits": self.export_project_credits(),
         }
 
         # Write to JSON file
@@ -164,6 +172,8 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"  Permission Requests: {len(data['permission_requests'])}"
             )
+            self.stdout.write(f"  Customer Credits: {len(data['customer_credits'])}")
+            self.stdout.write(f"  Project Credits: {len(data['project_credits'])}")
 
         except OSError as e:
             self.stdout.write(self.style.ERROR(f"Failed to write to file: {e}"))
@@ -1207,3 +1217,62 @@ class Command(BaseCommand):
 
             permission_requests.append(permission_request_data)
         return permission_requests
+
+    def export_customer_credits(self):
+        """Export customer credit data."""
+        customer_credits = []
+        for credit in CustomerCredit.objects.select_related("customer").order_by(
+            "customer__name"
+        ):
+            customer_credit_data = {
+                "uuid": credit.uuid.hex,
+                "customer_uuid": credit.customer.uuid.hex,
+                "customer_name": credit.customer.name,
+                "value": str(credit.value),
+                "expected_consumption": str(credit.expected_consumption),
+                "minimal_consumption_logic": credit.minimal_consumption_logic,
+                "grace_coefficient": str(credit.grace_coefficient),
+                "apply_as_minimal_consumption": credit.apply_as_minimal_consumption,
+                "end_date": credit.end_date.isoformat() if credit.end_date else None,
+                "created": credit.created.isoformat() if credit.created else None,
+                "modified": credit.modified.isoformat() if credit.modified else None,
+            }
+
+            # Add offerings if any
+            if credit.offerings.exists():
+                customer_credit_data["offering_uuids"] = [
+                    offering.uuid.hex for offering in credit.offerings.all()
+                ]
+
+            customer_credits.append(customer_credit_data)
+        return customer_credits
+
+    def export_project_credits(self):
+        """Export project credit data."""
+        project_credits = []
+        for credit in ProjectCredit.objects.select_related(
+            "project", "project__customer"
+        ).order_by("project__name"):
+            project_credits.append(
+                {
+                    "uuid": credit.uuid.hex,
+                    "project_uuid": credit.project.uuid.hex,
+                    "project_name": credit.project.name,
+                    "customer_uuid": credit.project.customer.uuid.hex,
+                    "customer_name": credit.project.customer.name,
+                    "value": str(credit.value),
+                    "expected_consumption": str(credit.expected_consumption),
+                    "minimal_consumption_logic": credit.minimal_consumption_logic,
+                    "grace_coefficient": str(credit.grace_coefficient),
+                    "apply_as_minimal_consumption": credit.apply_as_minimal_consumption,
+                    "end_date": credit.end_date.isoformat()
+                    if credit.end_date
+                    else None,
+                    "mark_unused_credit_as_spent_on_project_termination": credit.mark_unused_credit_as_spent_on_project_termination,
+                    "created": credit.created.isoformat() if credit.created else None,
+                    "modified": credit.modified.isoformat()
+                    if credit.modified
+                    else None,
+                }
+            )
+        return project_credits

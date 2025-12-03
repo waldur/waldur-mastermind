@@ -25,7 +25,12 @@ from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.permissions.tasks import sync_user_deactivation_status
 from waldur_core.structure.models import Customer, Project
 from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
-from waldur_mastermind.invoices.models import Invoice, InvoiceItem
+from waldur_mastermind.invoices.models import (
+    CustomerCredit,
+    Invoice,
+    InvoiceItem,
+    ProjectCredit,
+)
 from waldur_mastermind.marketplace.models import (
     Category,
     ComponentUsage,
@@ -152,6 +157,8 @@ class Command(BaseCommand):
                 "skipped": 0,
                 "errors": 0,
             },
+            "customer_credits": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "project_credits": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
         }
         self.dry_run = False
         self.update_existing = False
@@ -403,6 +410,16 @@ class Command(BaseCommand):
             lambda: self.import_permission_requests(
                 data.get("permission_requests", [])
             ),
+        )
+
+        # Import credit data (after customers and projects are ready)
+        self._safe_import(
+            "customer_credits",
+            lambda: self.import_customer_credits(data.get("customer_credits", [])),
+        )
+        self._safe_import(
+            "project_credits",
+            lambda: self.import_project_credits(data.get("project_credits", [])),
         )
 
     def _safe_import(self, import_type, import_func):
@@ -3762,6 +3779,248 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["permission_requests"]["errors"] += 1
+
+    def import_customer_credits(self, customer_credits_data):
+        """Import customer credit data."""
+        self.stdout.write("Importing customer credits...")
+        for credit_data in customer_credits_data:
+            try:
+                uuid = credit_data.get("uuid")
+                customer_uuid = credit_data.get("customer_uuid")
+                if not uuid or not customer_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping customer credit without required fields"
+                        )
+                    )
+                    self.stats["customer_credits"]["errors"] += 1
+                    continue
+
+                # Find customer
+                customer = Customer.objects.filter(uuid=customer_uuid).first()
+                if not customer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping customer credit {uuid}: customer {customer_uuid} not found"
+                        )
+                    )
+                    self.stats["customer_credits"]["errors"] += 1
+                    continue
+
+                # Parse end_date
+                end_date = None
+                if credit_data.get("end_date"):
+                    try:
+                        end_date = datetime.fromisoformat(
+                            credit_data["end_date"]
+                        ).date()
+                    except (ValueError, TypeError):
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Invalid end_date for customer credit {uuid}"
+                            )
+                        )
+
+                # Parse dates
+                created = None
+                if credit_data.get("created"):
+                    try:
+                        created = datetime.fromisoformat(
+                            credit_data["created"]
+                        ).replace(tzinfo=timezone.utc)
+                    except (ValueError, TypeError):
+                        pass
+
+                modified = None
+                if credit_data.get("modified"):
+                    try:
+                        modified = datetime.fromisoformat(
+                            credit_data["modified"]
+                        ).replace(tzinfo=timezone.utc)
+                    except (ValueError, TypeError):
+                        pass
+
+                defaults = {
+                    "customer": customer,
+                    "value": Decimal(credit_data.get("value", "0")),
+                    "expected_consumption": Decimal(
+                        credit_data.get("expected_consumption", "0")
+                    ),
+                    "minimal_consumption_logic": credit_data.get(
+                        "minimal_consumption_logic", "fixed"
+                    ),
+                    "grace_coefficient": Decimal(
+                        credit_data.get("grace_coefficient", "0")
+                    ),
+                    "apply_as_minimal_consumption": credit_data.get(
+                        "apply_as_minimal_consumption", True
+                    ),
+                    "end_date": end_date,
+                }
+
+                # Set timestamps if provided
+                if created:
+                    defaults["created"] = created
+                if modified:
+                    defaults["modified"] = modified
+
+                if not self.dry_run:
+                    existing_credit = CustomerCredit.objects.filter(uuid=uuid).first()
+                    if existing_credit:
+                        if self.update_existing:
+                            CustomerCredit.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["customer_credits"]["updated"] += 1
+
+                            # Handle many-to-many offerings relationship
+                            offering_uuids = credit_data.get("offering_uuids", [])
+                            if offering_uuids:
+                                offerings = Offering.objects.filter(
+                                    uuid__in=offering_uuids
+                                )
+                                existing_credit.offerings.set(offerings)
+                        else:
+                            self.stats["customer_credits"]["skipped"] += 1
+                    else:
+                        credit = CustomerCredit.objects.create(uuid=uuid, **defaults)
+
+                        # Handle many-to-many offerings relationship
+                        offering_uuids = credit_data.get("offering_uuids", [])
+                        if offering_uuids:
+                            offerings = Offering.objects.filter(uuid__in=offering_uuids)
+                            credit.offerings.set(offerings)
+
+                        self.stats["customer_credits"]["created"] += 1
+                else:
+                    existing = CustomerCredit.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["customer_credits"]["updated"] += 1
+                        else:
+                            self.stats["customer_credits"]["skipped"] += 1
+                    else:
+                        self.stats["customer_credits"]["created"] += 1
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import customer credit {credit_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["customer_credits"]["errors"] += 1
+
+    def import_project_credits(self, project_credits_data):
+        """Import project credit data."""
+        self.stdout.write("Importing project credits...")
+        for credit_data in project_credits_data:
+            try:
+                uuid = credit_data.get("uuid")
+                project_uuid = credit_data.get("project_uuid")
+                if not uuid or not project_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping project credit without required fields"
+                        )
+                    )
+                    self.stats["project_credits"]["errors"] += 1
+                    continue
+
+                # Find project
+                project = Project.objects.filter(uuid=project_uuid).first()
+                if not project:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping project credit {uuid}: project {project_uuid} not found"
+                        )
+                    )
+                    self.stats["project_credits"]["errors"] += 1
+                    continue
+
+                # Parse end_date
+                end_date = None
+                if credit_data.get("end_date"):
+                    try:
+                        end_date = datetime.fromisoformat(
+                            credit_data["end_date"]
+                        ).date()
+                    except (ValueError, TypeError):
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Invalid end_date for project credit {uuid}"
+                            )
+                        )
+
+                # Parse dates
+                created = None
+                if credit_data.get("created"):
+                    try:
+                        created = datetime.fromisoformat(
+                            credit_data["created"]
+                        ).replace(tzinfo=timezone.utc)
+                    except (ValueError, TypeError):
+                        pass
+
+                modified = None
+                if credit_data.get("modified"):
+                    try:
+                        modified = datetime.fromisoformat(
+                            credit_data["modified"]
+                        ).replace(tzinfo=timezone.utc)
+                    except (ValueError, TypeError):
+                        pass
+
+                defaults = {
+                    "project": project,
+                    "value": Decimal(credit_data.get("value", "0")),
+                    "expected_consumption": Decimal(
+                        credit_data.get("expected_consumption", "0")
+                    ),
+                    "minimal_consumption_logic": credit_data.get(
+                        "minimal_consumption_logic", "fixed"
+                    ),
+                    "grace_coefficient": Decimal(
+                        credit_data.get("grace_coefficient", "0")
+                    ),
+                    "apply_as_minimal_consumption": credit_data.get(
+                        "apply_as_minimal_consumption", True
+                    ),
+                    "end_date": end_date,
+                    "mark_unused_credit_as_spent_on_project_termination": credit_data.get(
+                        "mark_unused_credit_as_spent_on_project_termination", False
+                    ),
+                }
+
+                # Set timestamps if provided
+                if created:
+                    defaults["created"] = created
+                if modified:
+                    defaults["modified"] = modified
+
+                if not self.dry_run:
+                    existing_credit = ProjectCredit.objects.filter(uuid=uuid).first()
+                    if existing_credit:
+                        if self.update_existing:
+                            ProjectCredit.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["project_credits"]["updated"] += 1
+                        else:
+                            self.stats["project_credits"]["skipped"] += 1
+                    else:
+                        ProjectCredit.objects.create(uuid=uuid, **defaults)
+                        self.stats["project_credits"]["created"] += 1
+                else:
+                    existing = ProjectCredit.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["project_credits"]["updated"] += 1
+                        else:
+                            self.stats["project_credits"]["skipped"] += 1
+                    else:
+                        self.stats["project_credits"]["created"] += 1
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import project credit {credit_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["project_credits"]["errors"] += 1
 
     def _sync_user_activation_status(self):
         """

@@ -18,7 +18,12 @@ from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import Customer, Project
 from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
 from waldur_mastermind.invoices import handlers as invoice_handlers
-from waldur_mastermind.invoices.models import Invoice, InvoiceItem
+from waldur_mastermind.invoices.models import (
+    CustomerCredit,
+    Invoice,
+    InvoiceItem,
+    ProjectCredit,
+)
 from waldur_mastermind.marketplace.models import (
     Category,
     ComponentUsage,
@@ -75,6 +80,8 @@ class Command(BaseCommand):
             "offering_users": {"deleted": 0, "errors": 0},
             "invoice_items": {"deleted": 0, "errors": 0},
             "invoices": {"deleted": 0, "errors": 0},
+            "customer_credits": {"deleted": 0, "errors": 0},
+            "project_credits": {"deleted": 0, "errors": 0},
             "course_accounts": {"deleted": 0, "errors": 0},
             "customer_service_accounts": {"deleted": 0, "errors": 0},
             "project_service_accounts": {"deleted": 0, "errors": 0},
@@ -182,6 +189,9 @@ class Command(BaseCommand):
             self.cleanup_checklists()
             self.cleanup_checklist_categories()
 
+            # Delete credits (depends on customers, projects)
+            self.cleanup_project_credits()
+            self.cleanup_customer_credits()
             # Delete invoicing (depends on customers, resources, projects)
             self.cleanup_invoice_items()
             self.cleanup_invoices()
@@ -581,6 +591,40 @@ class Command(BaseCommand):
                 self.style.WARNING(f"Failed to delete invoice items: {e}")
             )
             self.stats["invoice_items"]["errors"] += 1
+
+    def cleanup_customer_credits(self):
+        """Delete all customer credit data."""
+        self.stdout.write("Deleting customer credits...")
+        try:
+            if not self.dry_run:
+                count = CustomerCredit.objects.count()
+                CustomerCredit.objects.all().delete()
+                self.stats["customer_credits"]["deleted"] = count
+            else:
+                self.stats["customer_credits"]["deleted"] = (
+                    CustomerCredit.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete customer credits: {e}")
+            )
+            self.stats["customer_credits"]["errors"] += 1
+
+    def cleanup_project_credits(self):
+        """Delete all project credit data."""
+        self.stdout.write("Deleting project credits...")
+        try:
+            if not self.dry_run:
+                count = ProjectCredit.objects.count()
+                ProjectCredit.objects.all().delete()
+                self.stats["project_credits"]["deleted"] = count
+            else:
+                self.stats["project_credits"]["deleted"] = ProjectCredit.objects.count()
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete project credits: {e}")
+            )
+            self.stats["project_credits"]["errors"] += 1
 
     def cleanup_orders(self):
         """Delete all order data."""

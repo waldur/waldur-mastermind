@@ -1184,3 +1184,192 @@ class ExportStructureCommandTest(TestCase):
         self.assertEqual(exported_pr["created_by_uuid"], requesting_user.uuid.hex)
         self.assertEqual(exported_pr["state"], ReviewStates.PENDING)
         self.assertEqual(exported_pr["review_comment"], "Please grant me access")
+
+    # Credit Export Tests
+
+    def test_export_customer_credits_with_all_fields(self):
+        """Test that customer credits are exported with all fields."""
+        # Create test data
+        customer = structure_factories.CustomerFactory()
+        offering = marketplace_factories.OfferingFactory()
+
+        customer_credit = invoices_factories.CustomerCreditFactory(
+            customer=customer,
+            value=1000.50,
+            expected_consumption=800.25,
+            minimal_consumption_logic="linear",
+            grace_coefficient=15,
+            apply_as_minimal_consumption=True,
+            end_date=timezone.now().replace(day=1).date(),
+        )
+        # Add offering to many-to-many relationship
+        customer_credit.offerings.add(offering)
+
+        # Export and verify
+        self._call_export_command()
+        exported_data = self._load_exported_json()
+
+        self.assertIn("customer_credits", exported_data)
+        exported_credits = exported_data["customer_credits"]
+        self.assertEqual(len(exported_credits), 1)
+
+        exported_credit = exported_credits[0]
+        self.assertEqual(exported_credit["uuid"], customer_credit.uuid.hex)
+        self.assertEqual(exported_credit["customer_uuid"], customer.uuid.hex)
+        self.assertEqual(exported_credit["customer_name"], customer.name)
+        self.assertEqual(exported_credit["value"], "1000.50000")
+        self.assertEqual(exported_credit["expected_consumption"], "800.25000")
+        self.assertEqual(exported_credit["minimal_consumption_logic"], "linear")
+        self.assertEqual(exported_credit["grace_coefficient"], "15")
+        self.assertEqual(exported_credit["apply_as_minimal_consumption"], True)
+        self.assertIsNotNone(exported_credit["end_date"])
+        self.assertIsNotNone(exported_credit["created"])
+        self.assertIsNotNone(exported_credit["modified"])
+        self.assertIn("offering_uuids", exported_credit)
+        self.assertEqual(len(exported_credit["offering_uuids"]), 1)
+        self.assertEqual(exported_credit["offering_uuids"][0], offering.uuid.hex)
+
+    def test_export_project_credits_with_all_fields(self):
+        """Test that project credits are exported with all fields."""
+        # Create test data
+        customer = structure_factories.CustomerFactory()
+        project = structure_factories.ProjectFactory(customer=customer)
+        # ProjectCredit requires a CustomerCredit to exist with sufficient value
+        invoices_factories.CustomerCreditFactory(
+            customer=customer,
+            value=1000,  # Higher than project credit value
+        )
+
+        project_credit = invoices_factories.ProjectCreditFactory(
+            project=project,
+            value=500.75,
+            expected_consumption=400.50,
+            minimal_consumption_logic="fixed",
+            grace_coefficient=10,
+            apply_as_minimal_consumption=False,
+            end_date=timezone.now().replace(day=1).date(),
+            mark_unused_credit_as_spent_on_project_termination=True,
+        )
+
+        # Export and verify
+        self._call_export_command()
+        exported_data = self._load_exported_json()
+
+        self.assertIn("project_credits", exported_data)
+        exported_credits = exported_data["project_credits"]
+        self.assertEqual(len(exported_credits), 1)
+
+        exported_credit = exported_credits[0]
+        self.assertEqual(exported_credit["uuid"], project_credit.uuid.hex)
+        self.assertEqual(exported_credit["project_uuid"], project.uuid.hex)
+        self.assertEqual(exported_credit["project_name"], project.name)
+        self.assertEqual(exported_credit["customer_uuid"], customer.uuid.hex)
+        self.assertEqual(exported_credit["customer_name"], customer.name)
+        self.assertEqual(exported_credit["value"], "500.75000")
+        self.assertEqual(exported_credit["expected_consumption"], "400.50000")
+        self.assertEqual(exported_credit["minimal_consumption_logic"], "fixed")
+        self.assertEqual(exported_credit["grace_coefficient"], "10")
+        self.assertEqual(exported_credit["apply_as_minimal_consumption"], False)
+        self.assertIsNotNone(exported_credit["end_date"])
+        self.assertEqual(
+            exported_credit["mark_unused_credit_as_spent_on_project_termination"], True
+        )
+        self.assertIsNotNone(exported_credit["created"])
+        self.assertIsNotNone(exported_credit["modified"])
+
+    def test_export_credits_empty_collections(self):
+        """Test that empty credit collections are properly handled."""
+        # Export without any credits
+        self._call_export_command()
+        exported_data = self._load_exported_json()
+
+        self.assertIn("customer_credits", exported_data)
+        self.assertIn("project_credits", exported_data)
+        self.assertEqual(len(exported_data["customer_credits"]), 0)
+        self.assertEqual(len(exported_data["project_credits"]), 0)
+
+    def test_export_multiple_credits_different_customers_projects(self):
+        """Test exporting multiple credits across different customers and projects."""
+        # Create test data
+        customer1 = structure_factories.CustomerFactory()
+        customer2 = structure_factories.CustomerFactory()
+        project1 = structure_factories.ProjectFactory(customer=customer1)
+        project2 = structure_factories.ProjectFactory(customer=customer2)
+
+        invoices_factories.CustomerCreditFactory(customer=customer1, value=1000)
+        invoices_factories.CustomerCreditFactory(customer=customer2, value=2000)
+        invoices_factories.ProjectCreditFactory(project=project1, value=300)
+        invoices_factories.ProjectCreditFactory(project=project2, value=400)
+
+        # Export and verify
+        self._call_export_command()
+        exported_data = self._load_exported_json()
+
+        # Check customer credits
+        customer_credits = exported_data["customer_credits"]
+        self.assertEqual(len(customer_credits), 2)
+        exported_customer_uuids = {
+            credit["customer_uuid"] for credit in customer_credits
+        }
+        self.assertIn(customer1.uuid.hex, exported_customer_uuids)
+        self.assertIn(customer2.uuid.hex, exported_customer_uuids)
+
+        # Check project credits
+        project_credits = exported_data["project_credits"]
+        self.assertEqual(len(project_credits), 2)
+        exported_project_uuids = {credit["project_uuid"] for credit in project_credits}
+        self.assertIn(project1.uuid.hex, exported_project_uuids)
+        self.assertIn(project2.uuid.hex, exported_project_uuids)
+
+    def test_export_customer_credit_without_offerings(self):
+        """Test that customer credits without offerings are exported correctly."""
+        customer = structure_factories.CustomerFactory()
+        invoices_factories.CustomerCreditFactory(customer=customer)
+
+        # Export and verify
+        self._call_export_command()
+        exported_data = self._load_exported_json()
+
+        exported_credits = exported_data["customer_credits"]
+        self.assertEqual(len(exported_credits), 1)
+
+        exported_credit = exported_credits[0]
+        # Should not have offering_uuids key since no offerings are associated
+        self.assertNotIn("offering_uuids", exported_credit)
+
+    def test_export_customer_credit_with_multiple_offerings(self):
+        """Test that customer credits with multiple offerings are exported correctly."""
+        customer = structure_factories.CustomerFactory()
+        offering1 = marketplace_factories.OfferingFactory()
+        offering2 = marketplace_factories.OfferingFactory()
+
+        customer_credit = invoices_factories.CustomerCreditFactory(customer=customer)
+        customer_credit.offerings.add(offering1, offering2)
+
+        # Export and verify
+        self._call_export_command()
+        exported_data = self._load_exported_json()
+
+        exported_credits = exported_data["customer_credits"]
+        self.assertEqual(len(exported_credits), 1)
+
+        exported_credit = exported_credits[0]
+        self.assertIn("offering_uuids", exported_credit)
+        self.assertEqual(len(exported_credit["offering_uuids"]), 2)
+        self.assertIn(offering1.uuid.hex, exported_credit["offering_uuids"])
+        self.assertIn(offering2.uuid.hex, exported_credit["offering_uuids"])
+
+    def test_export_credits_command_output_shows_counts(self):
+        """Test that the export command output shows credit counts."""
+        # Create test data
+        customer = structure_factories.CustomerFactory()
+        project = structure_factories.ProjectFactory(customer=customer)
+        invoices_factories.CustomerCreditFactory(customer=customer, value=1000)
+        invoices_factories.ProjectCreditFactory(project=project, value=100)
+
+        # Call export and capture output
+        output = self._call_export_command()
+
+        # Verify that credit counts appear in the summary
+        self.assertIn("Customer Credits: 1", output)
+        self.assertIn("Project Credits: 1", output)

@@ -12,7 +12,12 @@ from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.invoices.models import Invoice, InvoiceItem
+from waldur_mastermind.invoices.models import (
+    CustomerCredit,
+    Invoice,
+    InvoiceItem,
+    ProjectCredit,
+)
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace.models import (
     Category,
@@ -1471,9 +1476,6 @@ class ImportStructureCommandTest(TestCase):
 
     def test_cleanup_structure_skip_side_effects_flag(self):
         """Test that cleanup_structure accepts --skip-rabbitmq-messages flag."""
-        from io import StringIO
-
-        from django.core.management import call_command
 
         output = StringIO()
         try:
@@ -1499,6 +1501,140 @@ class ImportStructureCommandTest(TestCase):
             # The command might fail due to missing data, but it should not fail due to invalid arguments
             self.assertNotIn("invalid", str(e).lower())
             self.assertNotIn("argument", str(e).lower())
+
+    # Credit Cleanup Tests
+
+    def test_cleanup_structure_deletes_credits(self):
+        """Test that cleanup_structure deletes customer and project credits."""
+
+        # Create test data
+        customer = structure_factories.CustomerFactory()
+        project = structure_factories.ProjectFactory(customer=customer)
+        invoices_factories.CustomerCreditFactory(customer=customer, value=1000)
+        invoices_factories.ProjectCreditFactory(project=project, value=100)
+
+        # Verify credits exist
+        self.assertEqual(CustomerCredit.objects.count(), 1)
+        self.assertEqual(ProjectCredit.objects.count(), 1)
+
+        # Run cleanup in dry-run mode first
+        output = StringIO()
+        call_command("cleanup_structure", "--dry-run", stdout=output)
+        output_text = output.getvalue()
+
+        # Verify credits are targeted for deletion in dry-run
+        self.assertIn("customer credits", output_text.lower())
+        self.assertIn("project credits", output_text.lower())
+
+        # Credits should still exist after dry-run
+        self.assertEqual(CustomerCredit.objects.count(), 1)
+        self.assertEqual(ProjectCredit.objects.count(), 1)
+
+        # Now run actual cleanup
+        output = StringIO()
+        call_command("cleanup_structure", stdout=output)
+        final_output = output.getvalue()
+
+        # Verify credits were deleted
+        self.assertEqual(CustomerCredit.objects.count(), 0)
+        self.assertEqual(ProjectCredit.objects.count(), 0)
+
+        # Verify output shows successful deletion
+        self.assertIn("Deleting customer credits", final_output)
+        self.assertIn("Deleting project credits", final_output)
+
+    def test_cleanup_structure_credits_deletion_order(self):
+        """Test that credits are deleted in the correct order (before customers/projects)."""
+
+        # Create test data
+        customer = structure_factories.CustomerFactory()
+        project = structure_factories.ProjectFactory(customer=customer)
+        invoices_factories.CustomerCreditFactory(customer=customer, value=1000)
+        invoices_factories.ProjectCreditFactory(project=project, value=100)
+
+        # Run cleanup and capture output
+        output = StringIO()
+        call_command("cleanup_structure", stdout=output)
+        output_text = output.getvalue()
+
+        # Verify deletion order: credits should be deleted before customers/projects
+        customer_credits_pos = output_text.find("Deleting customer credits")
+        project_credits_pos = output_text.find("Deleting project credits")
+        customers_pos = output_text.find("Deleting customers")
+        projects_pos = output_text.find("Deleting projects")
+
+        # Credits should be deleted before their parent objects
+        self.assertNotEqual(
+            customer_credits_pos, -1, "Customer credits deletion not found"
+        )
+        self.assertNotEqual(
+            project_credits_pos, -1, "Project credits deletion not found"
+        )
+        self.assertNotEqual(customers_pos, -1, "Customers deletion not found")
+        self.assertNotEqual(projects_pos, -1, "Projects deletion not found")
+
+        # Verify order
+        self.assertLess(
+            project_credits_pos,
+            projects_pos,
+            "Project credits should be deleted before projects",
+        )
+        self.assertLess(
+            customer_credits_pos,
+            customers_pos,
+            "Customer credits should be deleted before customers",
+        )
+
+    def test_cleanup_structure_credits_with_empty_database(self):
+        """Test that cleanup handles empty credit collections gracefully."""
+
+        # Ensure no credits exist
+        CustomerCredit.objects.all().delete()
+        ProjectCredit.objects.all().delete()
+
+        # Run cleanup
+        output = StringIO()
+        call_command("cleanup_structure", stdout=output)
+        output_text = output.getvalue()
+
+        # Should handle empty collections without error
+        self.assertIn("Deleting customer credits", output_text)
+        self.assertIn("Deleting project credits", output_text)
+        # Should not show any errors
+        self.assertNotIn("Error", output_text)
+        self.assertNotIn("Failed", output_text)
+
+    def test_cleanup_structure_credits_statistics(self):
+        """Test that cleanup shows correct statistics for credit deletion."""
+
+        # Create test data - multiple credits
+        customer1 = structure_factories.CustomerFactory()
+        customer2 = structure_factories.CustomerFactory()
+        project1 = structure_factories.ProjectFactory(customer=customer1)
+        project2 = structure_factories.ProjectFactory(customer=customer2)
+
+        invoices_factories.CustomerCreditFactory(customer=customer1)
+        invoices_factories.CustomerCreditFactory(customer=customer2)
+        invoices_factories.ProjectCreditFactory(project=project1)
+        invoices_factories.ProjectCreditFactory(project=project2)
+
+        # Verify initial counts
+        self.assertEqual(CustomerCredit.objects.count(), 2)
+        self.assertEqual(ProjectCredit.objects.count(), 2)
+
+        # Run cleanup
+        output = StringIO()
+        call_command("cleanup_structure", stdout=output)
+        output_text = output.getvalue()
+
+        # Verify statistics show correct counts
+        # The output should show deletion statistics for credits
+        self.assertIn("Customer Credits", output_text)
+        self.assertIn("Project Credits", output_text)
+
+        # Verify all credits were deleted
+        self.assertEqual(CustomerCredit.objects.count(), 0)
+        self.assertEqual(ProjectCredit.objects.count(), 0)
 
     def test_checklist_basic_import_functionality(self):
         """Test that checklist categories and checklists can be imported."""
@@ -1927,3 +2063,371 @@ class ImportStructureCommandTest(TestCase):
         # Verify the token_lifetime was updated to the new value
         existing_user.refresh_from_db()
         self.assertEqual(existing_user.token_lifetime, 10800)
+
+    # Credit Import Tests
+
+    def test_import_customer_credits_with_all_fields(self):
+        """Test importing customer credits with all fields."""
+        # Create prerequisite data
+        customer = structure_factories.CustomerFactory()
+        offering = marketplace_factories.OfferingFactory()
+
+        credit_uuid = "550e8400-e29b-41d4-a716-446655440000"
+        test_data = {
+            "customers": [
+                {
+                    "uuid": customer.uuid.hex,
+                    "name": customer.name,
+                    "email": customer.email,
+                }
+            ],
+            "offerings": [
+                {
+                    "uuid": offering.uuid.hex,
+                    "name": offering.name,
+                    "type": offering.type,
+                    "state": offering.state,
+                }
+            ],
+            "customer_credits": [
+                {
+                    "uuid": credit_uuid,
+                    "customer_uuid": customer.uuid.hex,
+                    "customer_name": customer.name,
+                    "value": "1000.50",
+                    "expected_consumption": "800.25",
+                    "minimal_consumption_logic": "linear",
+                    "grace_coefficient": "15",
+                    "apply_as_minimal_consumption": True,
+                    "end_date": "2025-01-01",
+                    "offering_uuids": [offering.uuid.hex],
+                    "created": "2024-01-01T00:00:00Z",
+                    "modified": "2024-01-02T00:00:00Z",
+                }
+            ],
+        }
+
+        self._create_test_json(test_data)
+        output = self._call_import_command("-i", self.test_file_path)
+
+        # Verify import was successful
+        self.assertIn("Customer Credits", output)
+        self.assertEqual(CustomerCredit.objects.count(), 1)
+
+        imported_credit = CustomerCredit.objects.get(uuid=credit_uuid)
+        self.assertEqual(imported_credit.customer, customer)
+        self.assertEqual(str(imported_credit.value), "1000.50000")
+        self.assertEqual(str(imported_credit.expected_consumption), "800.25000")
+        self.assertEqual(imported_credit.minimal_consumption_logic, "linear")
+        self.assertEqual(str(imported_credit.grace_coefficient), "15")
+        self.assertEqual(imported_credit.apply_as_minimal_consumption, True)
+        self.assertIsNotNone(imported_credit.end_date)
+        self.assertEqual(list(imported_credit.offerings.all()), [offering])
+
+    def test_import_project_credits_with_all_fields(self):
+        """Test importing project credits with all fields."""
+        # Create prerequisite data
+        customer = structure_factories.CustomerFactory()
+        project = structure_factories.ProjectFactory(customer=customer)
+
+        customer_credit_uuid = "550e8400-e29b-41d4-a716-446655440002"
+        credit_uuid = "550e8400-e29b-41d4-a716-446655440001"
+        test_data = {
+            "customers": [
+                {
+                    "uuid": customer.uuid.hex,
+                    "name": customer.name,
+                    "email": customer.email,
+                }
+            ],
+            "projects": [
+                {
+                    "uuid": project.uuid.hex,
+                    "name": project.name,
+                    "customer_uuid": customer.uuid.hex,
+                }
+            ],
+            "customer_credits": [
+                {
+                    "uuid": customer_credit_uuid,
+                    "customer_uuid": customer.uuid.hex,
+                    "customer_name": customer.name,
+                    "value": "1000.00",
+                    "expected_consumption": "800.00",
+                    "minimal_consumption_logic": "fixed",
+                    "grace_coefficient": "0",
+                    "apply_as_minimal_consumption": True,
+                }
+            ],
+            "project_credits": [
+                {
+                    "uuid": credit_uuid,
+                    "project_uuid": project.uuid.hex,
+                    "project_name": project.name,
+                    "customer_uuid": customer.uuid.hex,
+                    "customer_name": customer.name,
+                    "value": "500.75",
+                    "expected_consumption": "400.50",
+                    "minimal_consumption_logic": "fixed",
+                    "grace_coefficient": "10",
+                    "apply_as_minimal_consumption": False,
+                    "end_date": "2025-02-01",
+                    "mark_unused_credit_as_spent_on_project_termination": True,
+                    "created": "2024-01-01T00:00:00Z",
+                    "modified": "2024-01-02T00:00:00Z",
+                }
+            ],
+        }
+
+        self._create_test_json(test_data)
+        output = self._call_import_command("-i", self.test_file_path)
+
+        # Verify import was successful
+        self.assertIn("Project Credits", output)
+        self.assertEqual(ProjectCredit.objects.count(), 1)
+
+        imported_credit = ProjectCredit.objects.get(uuid=credit_uuid)
+        self.assertEqual(imported_credit.project, project)
+        self.assertEqual(str(imported_credit.value), "500.75000")
+        self.assertEqual(str(imported_credit.expected_consumption), "400.50000")
+        self.assertEqual(imported_credit.minimal_consumption_logic, "fixed")
+        self.assertEqual(str(imported_credit.grace_coefficient), "10")
+        self.assertEqual(imported_credit.apply_as_minimal_consumption, False)
+        self.assertIsNotNone(imported_credit.end_date)
+        self.assertEqual(
+            imported_credit.mark_unused_credit_as_spent_on_project_termination, True
+        )
+
+    def test_import_credits_dry_run(self):
+        """Test importing credits in dry run mode."""
+        customer = structure_factories.CustomerFactory()
+        project = structure_factories.ProjectFactory(customer=customer)
+
+        test_data = {
+            "customers": [
+                {
+                    "uuid": customer.uuid.hex,
+                    "name": customer.name,
+                    "email": customer.email,
+                }
+            ],
+            "projects": [
+                {
+                    "uuid": project.uuid.hex,
+                    "name": project.name,
+                    "customer_uuid": customer.uuid.hex,
+                }
+            ],
+            "customer_credits": [
+                {
+                    "uuid": "550e8400-e29b-41d4-a716-446655440000",
+                    "customer_uuid": customer.uuid.hex,
+                    "customer_name": customer.name,
+                    "value": "1000.00",
+                    "expected_consumption": "800.00",
+                    "minimal_consumption_logic": "fixed",
+                    "grace_coefficient": "0",
+                    "apply_as_minimal_consumption": True,
+                }
+            ],
+            "project_credits": [
+                {
+                    "uuid": "550e8400-e29b-41d4-a716-446655440001",
+                    "project_uuid": project.uuid.hex,
+                    "project_name": project.name,
+                    "customer_uuid": customer.uuid.hex,
+                    "customer_name": customer.name,
+                    "value": "500.00",
+                    "expected_consumption": "400.00",
+                    "minimal_consumption_logic": "fixed",
+                    "grace_coefficient": "0",
+                    "apply_as_minimal_consumption": True,
+                    "mark_unused_credit_as_spent_on_project_termination": False,
+                }
+            ],
+        }
+
+        # Verify initial counts
+        initial_customer_credit_count = CustomerCredit.objects.count()
+        initial_project_credit_count = ProjectCredit.objects.count()
+
+        self._create_test_json(test_data)
+        output = self._call_import_command("-i", self.test_file_path, "--dry-run")
+
+        # Verify dry run completed
+        self.assertIn("Dry run completed", output)
+
+        # Verify no new credits were created
+        self.assertEqual(CustomerCredit.objects.count(), initial_customer_credit_count)
+        self.assertEqual(ProjectCredit.objects.count(), initial_project_credit_count)
+
+    def test_import_credits_missing_customer_project(self):
+        """Test importing credits with missing customer/project references."""
+        test_data = {
+            "customer_credits": [
+                {
+                    "uuid": "550e8400-e29b-41d4-a716-446655440000",
+                    "customer_uuid": "missing-customer-uuid",
+                    "customer_name": "Missing Customer",
+                    "value": "1000.00",
+                    "expected_consumption": "800.00",
+                }
+            ],
+            "project_credits": [
+                {
+                    "uuid": "550e8400-e29b-41d4-a716-446655440001",
+                    "project_uuid": "missing-project-uuid",
+                    "project_name": "Missing Project",
+                    "customer_uuid": "missing-customer-uuid",
+                    "customer_name": "Missing Customer",
+                    "value": "500.00",
+                    "expected_consumption": "400.00",
+                }
+            ],
+        }
+
+        self._create_test_json(test_data)
+        output = self._call_import_command("-i", self.test_file_path)
+
+        # Verify import warnings for missing references
+        self.assertIn("customer missing-customer-uuid not found", output)
+        self.assertIn("project missing-project-uuid not found", output)
+
+        # Verify no credits were created
+        self.assertEqual(CustomerCredit.objects.count(), 0)
+        self.assertEqual(ProjectCredit.objects.count(), 0)
+
+    def test_import_credits_update_existing(self):
+        """Test updating existing credits during import."""
+        # Create existing credits
+        customer = structure_factories.CustomerFactory()
+        project = structure_factories.ProjectFactory(customer=customer)
+        existing_customer_credit = invoices_factories.CustomerCreditFactory(
+            customer=customer, value=500
+        )
+        existing_project_credit = invoices_factories.ProjectCreditFactory(
+            project=project, value=300
+        )
+
+        test_data = {
+            "customers": [
+                {
+                    "uuid": customer.uuid.hex,
+                    "name": customer.name,
+                    "email": customer.email,
+                }
+            ],
+            "projects": [
+                {
+                    "uuid": project.uuid.hex,
+                    "name": project.name,
+                    "customer_uuid": customer.uuid.hex,
+                }
+            ],
+            "customer_credits": [
+                {
+                    "uuid": existing_customer_credit.uuid.hex,
+                    "customer_uuid": customer.uuid.hex,
+                    "customer_name": customer.name,
+                    "value": "1500.00",  # Updated value
+                    "expected_consumption": "1200.00",  # Updated value
+                    "minimal_consumption_logic": "linear",  # Updated value
+                }
+            ],
+            "project_credits": [
+                {
+                    "uuid": existing_project_credit.uuid.hex,
+                    "project_uuid": project.uuid.hex,
+                    "project_name": project.name,
+                    "customer_uuid": customer.uuid.hex,
+                    "customer_name": customer.name,
+                    "value": "800.00",  # Updated value
+                    "expected_consumption": "600.00",  # Updated value
+                    "mark_unused_credit_as_spent_on_project_termination": True,  # Updated value
+                }
+            ],
+        }
+
+        self._create_test_json(test_data)
+        self._call_import_command("-i", self.test_file_path, "--update")
+
+        # Verify credits were updated
+        existing_customer_credit.refresh_from_db()
+        self.assertEqual(str(existing_customer_credit.value), "1500.00000")
+        self.assertEqual(
+            str(existing_customer_credit.expected_consumption), "1200.00000"
+        )
+        self.assertEqual(existing_customer_credit.minimal_consumption_logic, "linear")
+
+        existing_project_credit.refresh_from_db()
+        self.assertEqual(str(existing_project_credit.value), "800.00000")
+        self.assertEqual(str(existing_project_credit.expected_consumption), "600.00000")
+        self.assertEqual(
+            existing_project_credit.mark_unused_credit_as_spent_on_project_termination,
+            True,
+        )
+
+    def test_import_credits_empty_collections(self):
+        """Test importing with empty credit collections."""
+        test_data = {
+            "customer_credits": [],
+            "project_credits": [],
+        }
+
+        self._create_test_json(test_data)
+        self._call_import_command("-i", self.test_file_path)
+
+        # Verify no credits were imported
+        self.assertEqual(CustomerCredit.objects.count(), 0)
+        self.assertEqual(ProjectCredit.objects.count(), 0)
+
+    def test_import_customer_credit_with_offerings_relationship(self):
+        """Test importing customer credit with multiple offerings."""
+        customer = structure_factories.CustomerFactory()
+        offering1 = marketplace_factories.OfferingFactory()
+        offering2 = marketplace_factories.OfferingFactory()
+
+        test_data = {
+            "customers": [
+                {
+                    "uuid": customer.uuid.hex,
+                    "name": customer.name,
+                    "email": customer.email,
+                }
+            ],
+            "offerings": [
+                {
+                    "uuid": offering1.uuid.hex,
+                    "name": offering1.name,
+                    "type": offering1.type,
+                    "state": offering1.state,
+                },
+                {
+                    "uuid": offering2.uuid.hex,
+                    "name": offering2.name,
+                    "type": offering2.type,
+                    "state": offering2.state,
+                },
+            ],
+            "customer_credits": [
+                {
+                    "uuid": "550e8400-e29b-41d4-a716-446655440000",
+                    "customer_uuid": customer.uuid.hex,
+                    "customer_name": customer.name,
+                    "value": "2000.00",
+                    "expected_consumption": "1500.00",
+                    "offering_uuids": [offering1.uuid.hex, offering2.uuid.hex],
+                }
+            ],
+        }
+
+        self._create_test_json(test_data)
+        self._call_import_command("-i", self.test_file_path)
+
+        # Verify import and relationships
+        imported_credit = CustomerCredit.objects.get(
+            uuid="550e8400-e29b-41d4-a716-446655440000"
+        )
+        self.assertEqual(imported_credit.offerings.count(), 2)
+        self.assertIn(offering1, imported_credit.offerings.all())
+        self.assertIn(offering2, imported_credit.offerings.all())
