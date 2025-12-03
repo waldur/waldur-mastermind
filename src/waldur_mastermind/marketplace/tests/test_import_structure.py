@@ -1841,3 +1841,89 @@ class ImportStructureCommandTest(TestCase):
         self.assertIn(
             "Errors: 1", output
         )  # Both invoice and offering user sections should show 1 error each
+
+    def test_user_token_lifetime_none_handling(self):
+        """Test that None values for token_lifetime don't overwrite existing user settings."""
+        # Create a user with an existing token_lifetime setting
+        existing_user = structure_factories.UserFactory(
+            email="existing@example.com",
+            username="existing_user",
+        )
+        # Set token_lifetime explicitly after creation to ensure it's set
+        existing_user.token_lifetime = 7200  # 2 hours
+        existing_user.save()
+
+        # Verify it was set correctly
+        existing_user.refresh_from_db()
+        self.assertEqual(existing_user.token_lifetime, 7200)
+
+        # Test data with token_lifetime as None (simulating missing or null value)
+        test_data = {
+            "users": [
+                {
+                    "uuid": str(existing_user.uuid),
+                    "email": "existing@example.com",
+                    "username": "existing_user",
+                    "first_name": "Test",
+                    "last_name": "User",
+                    "token_lifetime": None,  # This should not overwrite existing value
+                }
+            ]
+        }
+
+        self._create_test_json(test_data)
+        self._call_import_command("-i", self.test_file_path, "--update")
+
+        # Verify the existing token_lifetime was preserved
+        existing_user.refresh_from_db()
+        self.assertEqual(existing_user.token_lifetime, 7200)
+
+        # Test data without token_lifetime key (simulating export without this field)
+        test_data_no_key = {
+            "users": [
+                {
+                    "uuid": str(existing_user.uuid),
+                    "email": "existing@example.com",
+                    "username": "existing_user",
+                    "first_name": "Test",
+                    "last_name": "User",
+                    # token_lifetime key is missing entirely
+                }
+            ]
+        }
+
+        self._create_test_json(test_data_no_key)
+        self._call_import_command("-i", self.test_file_path, "--update")
+
+        # Verify the existing token_lifetime was preserved
+        existing_user.refresh_from_db()
+        self.assertEqual(existing_user.token_lifetime, 7200)
+
+    def test_user_token_lifetime_valid_value_handling(self):
+        """Test that valid token_lifetime values are properly imported."""
+        existing_user = structure_factories.UserFactory(
+            email="existing@example.com",
+            username="existing_user",
+            token_lifetime=3600,  # 1 hour
+        )
+
+        # Test data with a new valid token_lifetime value
+        test_data = {
+            "users": [
+                {
+                    "uuid": str(existing_user.uuid),
+                    "email": "existing@example.com",
+                    "username": "existing_user",
+                    "first_name": "Test",
+                    "last_name": "User",
+                    "token_lifetime": 10800,  # 3 hours
+                }
+            ]
+        }
+
+        self._create_test_json(test_data)
+        self._call_import_command("-i", self.test_file_path, "--update")
+
+        # Verify the token_lifetime was updated to the new value
+        existing_user.refresh_from_db()
+        self.assertEqual(existing_user.token_lifetime, 10800)

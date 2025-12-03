@@ -493,7 +493,9 @@ class Command(BaseCommand):
                         existing_user.is_active = user_data.get("is_active", True)
 
                         # Additional fields
-                        existing_user.token_lifetime = user_data.get("token_lifetime")
+                        token_lifetime = user_data.get("token_lifetime")
+                        if token_lifetime is not None:
+                            existing_user.token_lifetime = token_lifetime
                         existing_user.details = user_data.get("details", {})
                         existing_user.notifications_enabled = user_data.get(
                             "notifications_enabled", True
@@ -586,7 +588,6 @@ class Command(BaseCommand):
                         is_support=user_data.get("is_support", False),
                         is_active=user_data.get("is_active", True),
                         # Additional fields
-                        token_lifetime=user_data.get("token_lifetime"),
                         details=user_data.get("details", {}),
                         notifications_enabled=user_data.get(
                             "notifications_enabled", True
@@ -607,6 +608,12 @@ class Command(BaseCommand):
                     )
                     if user_data.get("civil_number"):
                         user.civil_number = user_data.get("civil_number")
+
+                    # Handle token_lifetime - only set if provided in data
+                    token_lifetime = user_data.get("token_lifetime")
+                    if token_lifetime is not None:
+                        user.token_lifetime = token_lifetime
+
                     # Set unusable password for security
                     user.set_unusable_password()
 
