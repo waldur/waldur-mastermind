@@ -72,6 +72,12 @@ class OnboardingValidator:
             temp_person_identifier = person_identifier or getattr(
                 user, "civil_number", ""
             )
+            # For Austrian validation: if first_name, last_name, birth_date are provided as workaround,
+            # use a placeholder identifier so backend can be found
+            # will be removed after implementing getting user's identifier via auth methods
+            if not temp_person_identifier and (first_name and last_name and birth_date):
+                # Use a placeholder for backend detection - actual Austrian data will be used in ValidationRequest
+                temp_person_identifier = "at-placeholder"
 
             # Step 1: Validate user has required identity information
             # Use the backend registry to validate identity
