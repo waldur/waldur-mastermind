@@ -6,6 +6,7 @@ from unittest import mock
 from constance.test.unittest import override_config
 from dateutil.relativedelta import relativedelta
 from ddt import data, ddt, unpack
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -417,6 +418,20 @@ class ResourceRenewTest(test.APITransactionTestCase):
     def renew_resource(self, user, resource, payload):
         self.client.force_authenticate(user)
         url = factories.ResourceFactory.get_url(resource, "renew")
+        # Check if payload contains files, then use multipart format
+        has_files = any(hasattr(value, "read") for value in payload.values())
+        if has_files:
+            # For multipart, we need to flatten nested data like limits
+            flattened_payload = {}
+            for key, value in payload.items():
+                if key == "limits" and isinstance(value, dict):
+                    # Convert limits dict to JSON string for multipart
+                    import json
+
+                    flattened_payload[key] = json.dumps(value)
+                else:
+                    flattened_payload[key] = value
+            return self.client.post(url, flattened_payload, format="multipart")
         return self.client.post(url, payload)
 
     def test_user_can_renew_prepaid_resource(self):
@@ -499,6 +514,89 @@ class ResourceRenewTest(test.APITransactionTestCase):
             order.attributes["new_end_date"], expected_new_end_date.isoformat()
         )
         self.assertEqual(order.limits["storage"], 200)
+
+    def test_user_can_renew_with_request_comment(self):
+        # Arrange
+        payload = {
+            "extension_months": 6,
+            "request_comment": "Need extension for project completion",
+        }
+
+        # Act
+        response = self.renew_resource(self.fixture.owner, self.resource, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.request_comment, "Need extension for project completion")
+
+    def test_user_can_renew_with_attachment(self):
+        # Arrange
+        pdf_content = b"%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n>>\nendobj\nxref\n0 1\n0000000000 65535 f \ntrailer\n<<\n/Size 1\n/Root 1 0 R\n>>\nstartxref\n9\n%%EOF"
+        attachment = SimpleUploadedFile(
+            "renewal_request.pdf", pdf_content, content_type="application/pdf"
+        )
+
+        payload = {"extension_months": 6, "attachment": attachment}
+
+        # Act
+        response = self.renew_resource(self.fixture.owner, self.resource, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertTrue(order.attachment)
+        self.assertIn("renewal_request.pdf", order.attachment.name)
+
+    def test_user_can_renew_with_both_comment_and_attachment(self):
+        # Arrange
+        pdf_content = b"%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n>>\nendobj\nxref\n0 1\n0000000000 65535 f \ntrailer\n<<\n/Size 1\n/Root 1 0 R\n>>\nstartxref\n9\n%%EOF"
+        attachment = SimpleUploadedFile(
+            "renewal_documentation.pdf", pdf_content, content_type="application/pdf"
+        )
+
+        payload = {
+            "extension_months": 12,
+            "request_comment": "Annual renewal with increased storage",
+            "attachment": attachment,
+        }
+
+        # Act
+        response = self.renew_resource(self.fixture.owner, self.resource, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.request_comment, "Annual renewal with increased storage")
+        self.assertTrue(order.attachment)
+        self.assertIn("renewal_documentation.pdf", order.attachment.name)
+
+    def test_renewal_validates_comment_length(self):
+        # Arrange - comment longer than 255 characters
+        long_comment = "x" * 256
+        payload = {"extension_months": 6, "request_comment": long_comment}
+
+        # Act
+        response = self.renew_resource(self.fixture.owner, self.resource, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_renewal_allows_empty_comment(self):
+        # Arrange
+        payload = {"extension_months": 6, "request_comment": ""}
+
+        # Act
+        response = self.renew_resource(self.fixture.owner, self.resource, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.request_comment, "")
 
 
 @ddt

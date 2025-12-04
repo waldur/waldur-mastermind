@@ -4562,6 +4562,16 @@ class ResourceRenewSerializer(serializers.Serializer):
         required=False,
         help_text=_("Optional new limits for the resource. Supports upgrades only."),
     )
+    request_comment = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_blank=True,
+        help_text=_("Optional comment for the renewal request."),
+    )
+    attachment = serializers.FileField(
+        required=False,
+        help_text=_("Optional PDF attachment for the renewal request."),
+    )
 
     def validate(self, attrs):
         """

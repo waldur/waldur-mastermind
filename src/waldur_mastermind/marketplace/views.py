@@ -5721,6 +5721,8 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
 
         extension_months = serializer.validated_data["extension_months"]
         new_limits = serializer.validated_data.get("limits")  # This can be None
+        request_comment = serializer.validated_data.get("request_comment", "")
+        attachment = serializer.validated_data.get("attachment")
 
         # If new limits are not provided, use the resource's current limits for the new period.
         final_limits = new_limits or resource.limits
@@ -5760,6 +5762,8 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
             limits=final_limits,
             attributes=order_attributes,
             switch_price=renewal_cost,
+            request_comment=request_comment,
+            attachment=attachment,
         )
 
     renew_serializer_class = serializers.ResourceRenewSerializer
