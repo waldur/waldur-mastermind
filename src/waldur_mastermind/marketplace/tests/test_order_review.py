@@ -18,9 +18,10 @@ from waldur_core.permissions.fixtures import (
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import models, tasks
+from waldur_mastermind.marketplace import models, tasks, utils
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
+    SCRIPT_OFFERING,
     BillingTypes,
     OrderStates,
     OrderTypes,
@@ -614,3 +615,56 @@ class OrderApprovalByProviderNotificationTest(test.APITransactionTestCase):
     def test_notification_is_not_sent_when_there_are_no_approvers(self):
         tasks.notify_provider_about_pending_order(self.fixture.order.uuid.hex)
         self.assertEqual(len(mail.outbox), 0)
+
+
+class ScriptOfferingOrderReviewTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.manager = self.fixture.manager
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+
+    def test_script_offering_auto_approves_by_default(self):
+        """Test that SCRIPT_OFFERING orders skip provider approval by default."""
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer, type=SCRIPT_OFFERING
+        )
+        order = factories.OrderFactory(
+            offering=offering, project=self.project, created_by=self.manager
+        )
+
+        # Should return True (skip approval) by default
+        result = utils.order_should_not_be_reviewed_by_provider(order)
+        self.assertTrue(result)
+
+    def test_script_offering_requires_approval_when_flag_is_false(self):
+        """Test that SCRIPT_OFFERING orders require provider approval when auto_approve_marketplace_script=False."""
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            type=SCRIPT_OFFERING,
+            plugin_options={"auto_approve_marketplace_script": False},
+        )
+        order = factories.OrderFactory(
+            offering=offering, project=self.project, created_by=self.manager
+        )
+
+        # Should return False (require approval) when flag is False
+        result = utils.order_should_not_be_reviewed_by_provider(order)
+        self.assertFalse(result)
+
+    def test_script_offering_skips_approval_for_service_provider_owner(self):
+        """Test that service provider owners can skip approval even when auto_approve_marketplace_script=False."""
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            type=SCRIPT_OFFERING,
+            plugin_options={"auto_approve_marketplace_script": False},
+        )
+        order = factories.OrderFactory(
+            offering=offering,
+            project=self.project,
+            created_by=self.fixture.owner,  # Owner is also the offering owner
+        )
+
+        # Should return True (skip approval) for service provider owner even when flag is False
+        result = utils.order_should_not_be_reviewed_by_provider(order)
+        self.assertTrue(result)
