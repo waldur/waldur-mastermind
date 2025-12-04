@@ -2,7 +2,7 @@
 
 ## System Overview
 
-The [STOMP](https://stomp.github.io/)-based event notification system allows Waldur to communicate changes to resources, orders, and user roles to the `waldur-site-agent` that runs on a remote cluster. This eliminates the need for constant polling and enables immediate reactions to events.
+The [STOMP](https://stomp.github.io/)-based event notification system enables Waldur to communicate changes to resources, orders, user roles, and other events to external systems via message queues. This eliminates the need for constant polling and enables immediate reactions to events in distributed architectures.
 
 The key components include:
 
@@ -10,17 +10,17 @@ The key components include:
 
 2. **Event Subscription Service**: Manages subscriptions to events by creating unique topics for each type of notification. Related file: event subscription management via API: [waldur_core/logging/views.py](https://github.com/waldur/waldur-mastermind/blob/73f2a0a7df04405b1c9ed5d2512d6213d649d398/src/waldur_core/logging/views.py#L193)
 
-3. **STOMP Consumer (Agent side)**: The `waldur-site-agent` running on the resource provider's infrastructure that subscribes to these topics and processes incoming messages. Related files:
-   1. Event subscription registration: [waldur_site_agent/event_processing/utils.py](https://github.com/waldur/waldur-site-agent/blob/464b46f287aadffe5f98191221af7fea6e6c0ce1/waldur_site_agent/event_processing/utils.py#L50)
-   2. STOMP message handlers: [waldur_site_agent/event_processing/handlers.py](https://github.com/waldur/waldur-site-agent/blob/464b46f287aadffe5f98191221af7fea6e6c0ce1/waldur_site_agent/event_processing/handlers.py#L99)
-   3. STOMP listener: [waldur_site_agent/event_processing/listener.py](https://github.com/waldur/waldur-site-agent/blob/464b46f287aadffe5f98191221af7fea6e6c0ce1/waldur_site_agent/event_processing/listener.py#L30)
+3. **STOMP Consumer (External System)**: Any external system that subscribes to these topics and processes incoming messages. This can be:
+   - The `waldur-site-agent` running on resource provider infrastructure
+   - Custom integration services (e.g., SharePoint integration, external notification systems)
+   - Third-party systems that need to react to Waldur events
 
 ## Event Flow
 
 1. An event occurs in Waldur (e.g., a new order is created, a user role changes, or a resource is updated)
 2. Waldur publishes a message to the appropriate STOMP queue(s)
-3. The site agent receives the message and processes it based on the event type
-4. The agent communicates with the backend (e.g., SLURM) to execute the necessary actions
+3. External systems (agents, integrations, or third-party services) receive the message and process it based on the event type
+4. The consuming system executes the necessary actions based on the message content
 
 ## Queue Naming Strategy
 
@@ -58,9 +58,13 @@ The system handles several types of events:
 
 ### Publishing Messages (Waldur Side)
 
-When events like order creation occur, Waldur prepares and publishes STOMP messages: [code link](https://github.com/waldur/waldur-mastermind/blob/73f2a0a7df04405b1c9ed5d2512d6213d649d398/src/waldur_mastermind/marketplace_slurm_remote/utils.py#L12)
+Events are published through a standardized mechanism in Waldur:
 
-These messages are then sent via: [publish_stomp_messages](https://github.com/waldur/waldur-mastermind/blob/73f2a0a7df04405b1c9ed5d2512d6213d649d398/src/waldur_core/logging/tasks.py#L83)
+1. **Event Detection**: Events are triggered by Django signal handlers throughout the system
+2. **Message Preparation**: Event data is serialized into JSON format with standardized payload structure
+3. **Queue Publishing**: Messages are sent to appropriate queues using the `publish_messages` Celery task
+
+The core publishing function is located in `src/waldur_core/logging/tasks.py:118` and utilizes the `publish_stomp_messages` utility in `src/waldur_core/logging/utils.py:93`.
 
 ### Offering User Event Messages
 
@@ -135,28 +139,212 @@ Resource periodic limits events are published when SLURM periodic usage policies
 - **Carryover Calculation**: When unused allocation from previous periods is calculated with decay factors
 - **Limit Updates**: When fairshare values, TRES limits, or QoS thresholds need to be updated on the SLURM backend
 
-### Subscription Management (Agent Side)
+### Subscription Management (Consumer Side)
 
-The [EventSubscriptionManager](https://github.com/waldur/waldur-site-agent/blob/464b46f287aadffe5f98191221af7fea6e6c0ce1/waldur_site_agent/event_processing/event_subscription_manager.py#L28) class handles creation of event subscriptions and setup of STOMP consumers:
+External systems consuming events can be implemented with different levels of sophistication:
 
-- [get_or_create_event_subscription](https://github.com/waldur/waldur-site-agent/blob/464b46f287aadffe5f98191221af7fea6e6c0ce1/waldur_site_agent/event_processing/event_subscription_manager.py#L98) - create an event subscription in Waldur if doesn't exist yet
-- [start_stomp_connection](https://github.com/waldur/waldur-site-agent/blob/464b46f287aadffe5f98191221af7fea6e6c0ce1/waldur_site_agent/event_processing/event_subscription_manager.py#L193) - setup STOMP client, connect agent to the broker and subscribe consumer to a queue
+#### 1. Simple Event Subscription (Basic Integration)
 
-### Message Processing (Agent Side)
+For basic integrations, implement a direct subscription pattern:
 
-When a message arrives, it's routed to the appropriate handler based on the event type:
+```python
+from waldur_api_client import AuthenticatedClient
+from waldur_api_client.models import ObservableObjectTypeEnum
+import stomp
 
-- [on_order_message_stomp](https://github.com/waldur/waldur-site-agent/blob/464b46f287aadffe5f98191221af7fea6e6c0ce1/waldur_site_agent/event_processing/handlers.py#L99) - create or update resources on backend
-- [on_user_role_message_stomp](https://github.com/waldur/waldur-site-agent/blob/464b46f287aadffe5f98191221af7fea6e6c0ce1/waldur_site_agent/event_processing/handlers.py#L117) - create or update access permissions on backend
-- [on_resource_message_stomp](https://github.com/waldur/waldur-site-agent/blob/464b46f287aadffe5f98191221af7fea6e6c0ce1/waldur_site_agent/event_processing/handlers.py#L152C5-L152C30) - create or update resource configuration on backend
-- **on_resource_periodic_limits_message_stomp** - apply SLURM periodic usage policies, fairshare values, and allocation limits
+# Create event subscription
+client = AuthenticatedClient(base_url="https://api.waldur.com", token="your-token")
+subscription = create_event_subscription(
+    client,
+    ObservableObjectTypeEnum.ORDER  # or other types
+)
+
+# Setup STOMP connection
+connection = stomp.WSStompConnection(
+    host_and_ports=[(stomp_host, stomp_port)],
+    vhost=subscription.user_uuid.hex
+)
+
+# Implement message listener
+class EventListener(stomp.ConnectionListener):
+    def on_message(self, frame):
+        message_data = json.loads(frame.body)
+        # Process message based on action and content
+        handle_event(message_data)
+```
+
+#### 2. Structured Agent Pattern (Advanced Integration)
+
+For more complex systems that need structured management and monitoring, use the **AgentIdentity** framework pattern from waldur-site-agent:
+
+```python
+import datetime
+from waldur_api_client.models import AgentIdentityRequest, AgentServiceCreateRequest, AgentProcessorCreateRequest
+from waldur_api_client.api.marketplace_site_agent_identities import (
+    marketplace_site_agent_identities_create,
+    marketplace_site_agent_identities_register_service,
+)
+from waldur_api_client.api.marketplace_site_agent_services import (
+    marketplace_site_agent_services_register_processor,
+)
+
+# Register agent identity
+agent_identity_data = AgentIdentityRequest(
+    offering=offering_uuid,
+    name="my-integration-agent",
+    version="1.0.0",
+    dependencies=["stomp", "requests"],
+    last_restarted=datetime.datetime.now(),
+    config_file_path="/etc/my-agent/config.yaml",
+    config_file_content="# agent configuration"
+)
+
+agent_identity = marketplace_site_agent_identities_create.sync(
+    body=agent_identity_data,
+    client=waldur_rest_client
+)
+
+# Register agent service for event processing
+service_name = f"event_process-{observable_object_type}"
+agent_service = marketplace_site_agent_identities_register_service.sync(
+    uuid=agent_identity.uuid.hex,
+    body=AgentServiceCreateRequest(
+        name=service_name,
+        mode="event_process"
+    ),
+    client=waldur_rest_client
+)
+
+# Register processors within the service
+processor = marketplace_site_agent_services_register_processor.sync(
+    uuid=agent_service.uuid.hex,
+    body=AgentProcessorCreateRequest(
+        name="order-processor",
+        backend_type="CUSTOM_BACKEND",
+        backend_version="2.0"
+    ),
+    client=waldur_rest_client
+)
+```
+
+**Benefits of AgentIdentity Pattern:**
+
+- **Monitoring**: Track agent health, version, and dependencies in Waldur
+- **Service Management**: Organize multiple services within a single agent
+- **Processor Tracking**: Monitor individual processors and their backend versions
+- **Configuration Management**: Store and version configuration files
+- **Statistics**: Collect and report agent performance metrics
+
+### Message Processing (Consumer Side)
+
+When a message arrives, it should be routed to appropriate handlers based on the event type and action. The message structure includes:
+
+- **Event Type**: Determined by the observable object type (`order`, `user_role`, `resource`, etc.)
+- **Action**: Specific operation to perform (`create`, `update`, `delete`, `apply_periodic_settings`, etc.)
+- **Payload**: Event-specific data needed to process the action
+
+**Message Processing Patterns:**
+
+The system supports different message processing approaches based on complexity:
+
+```python
+# 1. Simple message processing (lightweight integration pattern)
+class SimpleEventListener(stomp.ConnectionListener):
+    def on_message(self, frame):
+        try:
+            message_data = json.loads(frame.body)
+            message_type = self.get_message_type_from_queue(frame.headers.get('destination'))
+
+            if message_type == 'order':
+                self.handle_order(message_data)
+            elif message_type == 'user_role':
+                self.handle_user_role(message_data)
+
+        except Exception as e:
+            logger.error(f"Error processing message: {e}")
+
+# 2. Structured agent processing (waldur-site-agent pattern)
+OBJECT_TYPE_TO_HANDLER = {
+    "order": handle_order_message_stomp,
+    "user_role": handle_user_role_message_stomp,
+    "resource": handle_resource_message_stomp,
+    "resource_periodic_limits": handle_resource_periodic_limits_stomp,
+    "service_account": handle_account_message_stomp,
+    "course_account": handle_account_message_stomp,
+    "importable_resources": handle_importable_resources_message_stomp,
+}
+
+def route_message(frame, offering, user_agent):
+    """Route message to appropriate handler based on destination."""
+    destination = frame.headers.get(HDR_DESTINATION, "")
+    # Extract object type from queue name: subscription_xxx_offering_yyy_OBJECT_TYPE
+    object_type = destination.split('_')[-1] if '_' in destination else ""
+
+    handler = OBJECT_TYPE_TO_HANDLER.get(object_type)
+    if handler:
+        handler(frame, offering, user_agent)
+    else:
+        logger.warning(f"No handler found for object type: {object_type}")
+```
+
+## API Endpoints
+
+The event notification system provides REST API endpoints for managing event-based functionality (verified from OpenAPI specification):
+
+### Event Subscriptions
+
+- **GET /api/event-subscriptions/** - List event subscriptions
+- **POST /api/event-subscriptions/** - Create new event subscription
+- **GET /api/event-subscriptions/{uuid}/** - Retrieve specific subscription
+- **PATCH /api/event-subscriptions/{uuid}/** - Update subscription settings
+- **DELETE /api/event-subscriptions/{uuid}/** - Delete subscription
+
+### Agent Identity Management
+
+- **GET /api/marketplace-site-agent-identities/** - List agent identities
+- **POST /api/marketplace-site-agent-identities/** - Register new agent identity
+- **GET /api/marketplace-site-agent-identities/{uuid}/** - Retrieve agent identity
+- **PATCH /api/marketplace-site-agent-identities/{uuid}/** - Update agent identity
+- **DELETE /api/marketplace-site-agent-identities/{uuid}/** - Delete agent identity
+- **POST /api/marketplace-site-agent-identities/{uuid}/register_service/** - Register service within agent
+- **POST /api/marketplace-site-agent-identities/{uuid}/register_event_subscription/** - Register event subscription for agent
+
+### Agent Services
+
+- **GET /api/marketplace-site-agent-services/** - List agent services
+- **GET /api/marketplace-site-agent-services/{uuid}/** - Retrieve service details
+- **PATCH /api/marketplace-site-agent-services/{uuid}/** - Update service
+- **DELETE /api/marketplace-site-agent-services/{uuid}/** - Delete service
+- **POST /api/marketplace-site-agent-services/{uuid}/register_processor/** - Register processor within service
+- **POST /api/marketplace-site-agent-services/{uuid}/set_statistics/** - Update service statistics
+
+### Agent Processors
+
+- **GET /api/marketplace-site-agent-processors/** - List agent processors
+- **GET /api/marketplace-site-agent-processors/{uuid}/** - Retrieve processor details
+- **PATCH /api/marketplace-site-agent-processors/{uuid}/** - Update processor
+- **DELETE /api/marketplace-site-agent-processors/{uuid}/** - Delete processor
+
+### Monitoring & Statistics
+
+- **GET /api/rabbitmq-vhost-stats/** - Get RabbitMQ virtual host statistics
+- **GET /api/rabbitmq-user-stats/** - Get RabbitMQ user statistics
+
+### Utility Endpoints
+
+- **POST /api/projects/{uuid}/sync_user_roles/** - Trigger user role synchronization for specific project
 
 ## Technical Components
 
 1. **WebSocket Transport**: The system uses STOMP over WebSockets for communication
 2. **TLS Security**: Connections can be secured with TLS
 3. **User Authentication**: Each subscription has its own credentials and permissions in RabbitMQ
-4. **Queue Structure**: Queue names follow the pattern `/queue/subscription_{subscription_uuid}_offering_{offering_uuid}_{affected_object}`
+4. **Queue Structure**: Queue names follow the pattern `/queue/subscription_{subscription_uuid}_offering_{offering_uuid}_{observable_object_type}`
+
+   Example queue names:
+   - `/queue/subscription_abc123_offering_def456_order`
+   - `/queue/subscription_abc123_offering_def456_user_role`
+   - `/queue/subscription_abc123_offering_def456_resource_periodic_limits`
 
 ## Error Handling and Resilience
 
@@ -167,12 +355,21 @@ The system includes:
 - Retry mechanisms for order processing
 - Error logging and optional Sentry integration
 
-## Benefits of the STOMP Approach
+## Integration Examples
 
-1. **Real-time Processing**: Actions are triggered immediately when events occur
-2. **Reduced Network Traffic**: No constant polling needed
-3. **Decoupling**: The agent doesn't need direct access to Waldur's database
-4. **Scalability**: Multiple agents can subscribe to different events
-5. **Reliability**: The STOMP protocol provides queue persistency to ensure message delivery and different acknowledgement options on the agent side
+### Real-world Implementations
 
-This event-driven architecture significantly improves the responsiveness and efficiency of the order processing system compared to traditional polling approaches.
+1. **Waldur Site Agent**: Full-featured agent for SLURM/HPC resource management
+   - Manages compute allocations, user accounts, and resource limits
+   - Implements structured AgentIdentity pattern with services and processors
+   - Handles complex periodic usage policies and carryover calculations
+
+2. **External Billing Systems**: Automated billing updates
+   - Subscribes to resource usage and order events
+   - Updates external accounting systems in real-time
+   - Reduces manual billing reconciliation
+
+3. **Custom Integration Services**: Lightweight integration patterns
+   - Process marketplace orders to create external resources
+   - Use simple subscription patterns for specific event types
+   - Demonstrate flexible integration approaches
