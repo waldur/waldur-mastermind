@@ -340,11 +340,12 @@ waldur export_structure --output /path/to/structure.json
 
 ```bash
 
-usage: waldur export_structure -o OUTPUT
+usage: waldur export_structure -o OUTPUT [--verbose]
 
 options:
   -o OUTPUT, --output OUTPUT
                         Path to the output JSON file.
+  --verbose             Enable verbose logging output
 
 ```
 
