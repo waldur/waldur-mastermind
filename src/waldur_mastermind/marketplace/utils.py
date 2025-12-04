@@ -66,6 +66,7 @@ from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import REMOTE_OFFERING as REMOTE_PLUGIN_NAME
+from waldur_mastermind.marketplace.enums import SCRIPT_OFFERING as SCRIPT_PLUGIN_NAME
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING as SITE_AGENT_PLUGIN_NAME,
 )
@@ -1440,6 +1441,30 @@ def order_should_not_be_reviewed_by_provider(order: models.Order):
         # If any condition is not met, the order is requested for manual approval
         return (
             auto_approve_remote_orders
+            or user_is_service_provider_owner
+            or user_is_service_provider_offering_manager
+        )
+
+    if offering.type == SCRIPT_PLUGIN_NAME:
+        # If an offering has auto_approve_marketplace_script flag set to False, an order requires manual approval
+        auto_approve_marketplace_script = offering.plugin_options.get(
+            "auto_approve_marketplace_script", True
+        )
+        # A service provider owner or a service manager is not required to approve an order manually
+        user_is_service_provider_owner = (
+            offering.customer
+            and structure_permissions._has_owner_access(user, offering.customer)
+        )
+        user_is_service_provider_offering_manager = (
+            offering.customer
+            and structure_permissions._has_service_manager_access(
+                user, offering.customer
+            )
+            and offering.has_user(user)
+        )
+        # If any condition is not met, the order is requested for manual approval
+        return (
+            auto_approve_marketplace_script
             or user_is_service_provider_owner
             or user_is_service_provider_offering_manager
         )
