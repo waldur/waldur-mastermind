@@ -491,16 +491,33 @@ class Command(BaseCommand):
                 )
                 if user_role.object_id:
                     model = scope_type_to_model.get(scope_type)
-                    scope_uuid = model.objects.get(id=user_role.object_id).uuid.hex
-                    # Try to get the scope object name
-                    try:
-                        scope_obj = user_role.scope
-                        if hasattr(scope_obj, "name"):
-                            scope_name = scope_obj.name
-                        elif hasattr(scope_obj, "username"):
-                            scope_name = scope_obj.username
-                    except Exception:
-                        pass
+                    if model:
+                        try:
+                            scope_obj = model.objects.get(id=user_role.object_id)
+                            scope_uuid = scope_obj.uuid.hex
+                            # Try to get the scope object name
+                            if hasattr(scope_obj, "name"):
+                                scope_name = scope_obj.name
+                            elif hasattr(scope_obj, "username"):
+                                scope_name = scope_obj.username
+                        except model.DoesNotExist:
+                            # Skip user roles that reference deleted objects
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"Skipping user role {user_role.uuid.hex}: "
+                                    f"Referenced {scope_type} with ID {user_role.object_id} does not exist"
+                                )
+                            )
+                            continue
+                        except Exception:
+                            # Handle any other unexpected errors
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"Error processing user role {user_role.uuid.hex}: "
+                                    f"Could not access {scope_type} with ID {user_role.object_id}"
+                                )
+                            )
+                            continue
 
             user_roles.append(
                 {
