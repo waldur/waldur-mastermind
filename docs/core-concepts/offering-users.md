@@ -33,7 +33,10 @@ stateDiagram-v2
     CREATING --> OK : set_ok()
 
     PENDING_ACCOUNT_LINKING --> OK : set_validation_complete()
+    PENDING_ACCOUNT_LINKING --> PENDING_ADDITIONAL_VALIDATION : set_pending_additional_validation()
+
     PENDING_ADDITIONAL_VALIDATION --> OK : set_validation_complete()
+    PENDING_ADDITIONAL_VALIDATION --> PENDING_ACCOUNT_LINKING : set_pending_account_linking()
 
     OK --> DELETION_REQUESTED : request_deletion()
 
@@ -89,7 +92,7 @@ Content-Type: application/json
 }
 ```
 
-**Valid transitions from:** `CREATING`, `ERROR_CREATING`
+**Valid transitions from:** `CREATING`, `ERROR_CREATING`, `PENDING_ACCOUNT_LINKING`
 
 #### Set Pending Account Linking
 
@@ -103,7 +106,7 @@ Content-Type: application/json
 }
 ```
 
-**Valid transitions from:** `CREATING`, `ERROR_CREATING`
+**Valid transitions from:** `CREATING`, `ERROR_CREATING`, `PENDING_ADDITIONAL_VALIDATION`
 
 #### Set Validation Complete
 

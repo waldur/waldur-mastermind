@@ -812,6 +812,71 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
             response.data["service_provider_comment_url"], "https://test.example.com"
         )
 
+    def test_transition_from_pending_account_linking_to_pending_additional_validation(
+        self,
+    ):
+        """Test transition from PENDING_ACCOUNT_LINKING to PENDING_ADDITIONAL_VALIDATION."""
+        self.offering_user.state = OfferingUserStates.PENDING_ACCOUNT_LINKING
+        self.offering_user.service_provider_comment = "Please link your account"
+        self.offering_user.save()
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_pending_additional_validation")
+        payload = {"comment": "Additional documents required"}
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment, "Additional documents required"
+        )
+
+    def test_transition_from_pending_additional_validation_to_pending_account_linking(
+        self,
+    ):
+        """Test transition from PENDING_ADDITIONAL_VALIDATION to PENDING_ACCOUNT_LINKING."""
+        self.offering_user.state = OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        self.offering_user.service_provider_comment = "Additional documents required"
+        self.offering_user.save()
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_pending_account_linking")
+        payload = {"comment": "Please link your existing account"}
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.PENDING_ACCOUNT_LINKING
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment,
+            "Please link your existing account",
+        )
+
+    def test_transition_between_pending_states_preserves_comment_url(self):
+        """Test that comment URLs are preserved when transitioning between pending states."""
+        self.offering_user.state = OfferingUserStates.PENDING_ACCOUNT_LINKING
+        self.offering_user.save()
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_pending_additional_validation")
+        payload = {
+            "comment": "Additional documents required",
+            "comment_url": "https://docs.example.com/validation",
+        }
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment, "Additional documents required"
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment_url,
+            "https://docs.example.com/validation",
+        )
+
 
 @ddt
 class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):

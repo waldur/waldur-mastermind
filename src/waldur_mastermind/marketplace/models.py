@@ -2111,7 +2111,11 @@ class OfferingUser(
 
     @transition(
         field=state,
-        source=[OfferingUserStates.CREATING, OfferingUserStates.ERROR_CREATING],
+        source=[
+            OfferingUserStates.CREATING,
+            OfferingUserStates.ERROR_CREATING,
+            OfferingUserStates.PENDING_ACCOUNT_LINKING,
+        ],
         target=OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
     )
     def set_pending_additional_validation(self, comment=None, comment_url=None):
@@ -2122,7 +2126,11 @@ class OfferingUser(
 
     @transition(
         field=state,
-        source=[OfferingUserStates.CREATING, OfferingUserStates.ERROR_CREATING],
+        source=[
+            OfferingUserStates.CREATING,
+            OfferingUserStates.ERROR_CREATING,
+            OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+        ],
         target=OfferingUserStates.PENDING_ACCOUNT_LINKING,
     )
     def set_pending_account_linking(self, comment=None, comment_url=None):
