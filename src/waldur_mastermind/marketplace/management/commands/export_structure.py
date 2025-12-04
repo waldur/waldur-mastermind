@@ -1,5 +1,7 @@
 import json
+import logging
 import os
+import time
 
 from django.core.management.base import BaseCommand
 from rest_framework.authtoken.models import Token
@@ -63,6 +65,11 @@ class Command(BaseCommand):
         waldur export_structure --output /path/to/structure.json
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logging.getLogger(__name__)
+        self.export_times = {}
+
     def add_arguments(self, parser):
         parser.add_argument(
             "-o",
@@ -72,113 +79,201 @@ class Command(BaseCommand):
             help="Path to the output JSON file.",
             required=True,
         )
+        parser.add_argument(
+            "--verbose",
+            action="store_true",
+            help="Enable verbose logging output",
+        )
+
+    def log_export_step(self, step_name, export_function):
+        """Helper method to log and time export steps."""
+        self.logger.info(f"Starting export of {step_name}...")
+        start_time = time.time()
+
+        try:
+            result = export_function()
+            count = len(result) if result else 0
+            elapsed = time.time() - start_time
+            self.export_times[step_name] = elapsed
+
+            self.logger.info(
+                f"Completed export of {step_name}: {count} records in {elapsed:.2f}s"
+            )
+            self.stdout.write(f"  ✓ {step_name}: {count} records ({elapsed:.2f}s)")
+
+            return result
+        except Exception as e:
+            elapsed = time.time() - start_time
+            self.logger.error(f"Failed to export {step_name} after {elapsed:.2f}s: {e}")
+            self.stdout.write(self.style.ERROR(f"  ✗ {step_name}: Failed ({e})"))
+            raise
 
     def handle(self, **options):
         output_path = options["output"]
+        verbose = options.get("verbose", False)
+
+        # Setup logging level
+        if verbose:
+            logging.basicConfig(level=logging.INFO)
+
+        self.logger.info(f"Starting structure export to {output_path}")
 
         # Validate output directory exists
         output_dir = os.path.dirname(output_path)
         if output_dir and not os.path.exists(output_dir):
-            self.stdout.write(
-                self.style.ERROR(f"Output directory does not exist: {output_dir}")
-            )
+            error_msg = f"Output directory does not exist: {output_dir}"
+            self.logger.error(error_msg)
+            self.stdout.write(self.style.ERROR(error_msg))
             return
 
         self.stdout.write("Starting structure export...")
+        self.logger.info("Beginning data export phase")
 
-        # Export data
+        export_start_time = time.time()
+
+        # Export data with logging
         data = {
-            "users": self.export_users(),
-            "auth_tokens": self.export_auth_tokens(),
-            "customers": self.export_customers(),
-            "service_providers": self.export_service_providers(),
-            "projects": self.export_projects(),
-            "categories": self.export_categories(),
-            "offerings": self.export_offerings(),
-            "roles": self.export_roles(),
-            "user_roles": self.export_user_roles(),
-            "role_permissions": self.export_role_permissions(),
-            "project_service_accounts": self.export_project_service_accounts(),
-            "customer_service_accounts": self.export_customer_service_accounts(),
-            "course_accounts": self.export_course_accounts(),
-            "resources": self.export_resources(),
-            "offering_components": self.export_offering_components(),
-            "component_usages": self.export_component_usages(),
-            "plans": self.export_plans(),
-            "plan_components": self.export_plan_components(),
-            "resource_plan_periods": self.export_resource_plan_periods(),
-            "orders": self.export_orders(),
-            "invoices": self.export_invoices(),
-            "invoice_items": self.export_invoice_items(),
-            "offering_users": self.export_offering_users(),
+            "users": self.log_export_step("users", self.export_users),
+            "auth_tokens": self.log_export_step("auth_tokens", self.export_auth_tokens),
+            "customers": self.log_export_step("customers", self.export_customers),
+            "service_providers": self.log_export_step(
+                "service_providers", self.export_service_providers
+            ),
+            "projects": self.log_export_step("projects", self.export_projects),
+            "categories": self.log_export_step("categories", self.export_categories),
+            "offerings": self.log_export_step("offerings", self.export_offerings),
+            "roles": self.log_export_step("roles", self.export_roles),
+            "user_roles": self.log_export_step("user_roles", self.export_user_roles),
+            "role_permissions": self.log_export_step(
+                "role_permissions", self.export_role_permissions
+            ),
+            "project_service_accounts": self.log_export_step(
+                "project_service_accounts", self.export_project_service_accounts
+            ),
+            "customer_service_accounts": self.log_export_step(
+                "customer_service_accounts", self.export_customer_service_accounts
+            ),
+            "course_accounts": self.log_export_step(
+                "course_accounts", self.export_course_accounts
+            ),
+            "resources": self.log_export_step("resources", self.export_resources),
+            "offering_components": self.log_export_step(
+                "offering_components", self.export_offering_components
+            ),
+            "component_usages": self.log_export_step(
+                "component_usages", self.export_component_usages
+            ),
+            "plans": self.log_export_step("plans", self.export_plans),
+            "plan_components": self.log_export_step(
+                "plan_components", self.export_plan_components
+            ),
+            "resource_plan_periods": self.log_export_step(
+                "resource_plan_periods", self.export_resource_plan_periods
+            ),
+            "orders": self.log_export_step("orders", self.export_orders),
+            "invoices": self.log_export_step("invoices", self.export_invoices),
+            "invoice_items": self.log_export_step(
+                "invoice_items", self.export_invoice_items
+            ),
+            "offering_users": self.log_export_step(
+                "offering_users", self.export_offering_users
+            ),
             # Checklist exports
-            "checklist_categories": self.export_checklist_categories(),
-            "checklists": self.export_checklists(),
-            "questions": self.export_questions(),
-            "checklist_completions": self.export_checklist_completions(),
-            "answers": self.export_answers(),
+            "checklist_categories": self.log_export_step(
+                "checklist_categories", self.export_checklist_categories
+            ),
+            "checklists": self.log_export_step("checklists", self.export_checklists),
+            "questions": self.log_export_step("questions", self.export_questions),
+            "checklist_completions": self.log_export_step(
+                "checklist_completions", self.export_checklist_completions
+            ),
+            "answers": self.log_export_step("answers", self.export_answers),
             # User management exports
-            "invitations": self.export_invitations(),
-            "group_invitations": self.export_group_invitations(),
-            "permission_requests": self.export_permission_requests(),
+            "invitations": self.log_export_step("invitations", self.export_invitations),
+            "group_invitations": self.log_export_step(
+                "group_invitations", self.export_group_invitations
+            ),
+            "permission_requests": self.log_export_step(
+                "permission_requests", self.export_permission_requests
+            ),
             # Credit exports
-            "customer_credits": self.export_customer_credits(),
-            "project_credits": self.export_project_credits(),
+            "customer_credits": self.log_export_step(
+                "customer_credits", self.export_customer_credits
+            ),
+            "project_credits": self.log_export_step(
+                "project_credits", self.export_project_credits
+            ),
         }
 
+        export_elapsed = time.time() - export_start_time
+        self.logger.info(f"Data export completed in {export_elapsed:.2f}s")
+
         # Write to JSON file
+        self.logger.info(f"Writing data to JSON file: {output_path}")
+        write_start_time = time.time()
+
         try:
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
 
+            write_elapsed = time.time() - write_start_time
+            file_size = os.path.getsize(output_path) / (1024 * 1024)  # Size in MB
+
+            self.logger.info(
+                f"Successfully wrote {file_size:.1f}MB JSON file in {write_elapsed:.2f}s"
+            )
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Successfully exported structure data to {output_path}"
+                    f"Successfully exported structure data to {output_path} ({file_size:.1f}MB)"
                 )
             )
 
             # Print summary
+            total_elapsed = time.time() - export_start_time + write_elapsed
+            total_records = sum(
+                len(v) if isinstance(v, list) else 0 for v in data.values()
+            )
+
             self.stdout.write("\nExport summary:")
-            self.stdout.write(f"  Users: {len(data['users'])}")
-            self.stdout.write(f"  Auth Tokens: {len(data['auth_tokens'])}")
-            self.stdout.write(f"  Customers: {len(data['customers'])}")
-            self.stdout.write(f"  Service Providers: {len(data['service_providers'])}")
-            self.stdout.write(f"  Projects: {len(data['projects'])}")
-            self.stdout.write(f"  Categories: {len(data['categories'])}")
-            self.stdout.write(f"  Offerings: {len(data['offerings'])}")
-            self.stdout.write(f"  Roles: {len(data['roles'])}")
-            self.stdout.write(f"  User Roles: {len(data['user_roles'])}")
-            self.stdout.write(f"  Role Permissions: {len(data['role_permissions'])}")
-            self.stdout.write(
-                f"  Project Service Accounts: {len(data['project_service_accounts'])}"
+            self.stdout.write(f"  Total records: {total_records}")
+            self.stdout.write(f"  Total time: {total_elapsed:.2f}s")
+            self.stdout.write(f"  File size: {file_size:.1f}MB")
+            self.stdout.write("")
+
+            # Detailed breakdown
+            self.stdout.write("Record counts by type:")
+            for key, value in data.items():
+                count = len(value) if isinstance(value, list) else 0
+                timing = self.export_times.get(key, 0)
+                self.stdout.write(
+                    f"  {key.replace('_', ' ').title()}: {count} ({timing:.2f}s)"
+                )
+
+            # Performance summary
+            if self.export_times:
+                slowest_exports = sorted(
+                    self.export_times.items(), key=lambda x: x[1], reverse=True
+                )[:5]
+                self.stdout.write("\nSlowest exports:")
+                for export_name, export_time in slowest_exports:
+                    count = len(data.get(export_name, []))
+                    rate = count / export_time if export_time > 0 else 0
+                    self.stdout.write(
+                        f"  {export_name}: {export_time:.2f}s ({count} records, {rate:.1f} rec/s)"
+                    )
+
+            self.logger.info(
+                f"Export completed successfully: {total_records} records, {file_size:.1f}MB, {total_elapsed:.2f}s"
             )
-            self.stdout.write(
-                f"  Customer Service Accounts: {len(data['customer_service_accounts'])}"
-            )
-            self.stdout.write(f"  Course Accounts: {len(data['course_accounts'])}")
-            self.stdout.write(f"  Resources: {len(data['resources'])}")
-            self.stdout.write(
-                f"  Offering Components: {len(data['offering_components'])}"
-            )
-            self.stdout.write(f"  Component Usages: {len(data['component_usages'])}")
-            self.stdout.write(f"  Plans: {len(data['plans'])}")
-            self.stdout.write(f"  Plan Components: {len(data['plan_components'])}")
-            self.stdout.write(f"  Orders: {len(data['orders'])}")
-            self.stdout.write(f"  Invoices: {len(data['invoices'])}")
-            self.stdout.write(f"  Invoice Items: {len(data['invoice_items'])}")
-            self.stdout.write(f"  Offering Users: {len(data['offering_users'])}")
-            self.stdout.write(f"  Invitations: {len(data['invitations'])}")
-            self.stdout.write(f"  Group Invitations: {len(data['group_invitations'])}")
-            self.stdout.write(
-                f"  Permission Requests: {len(data['permission_requests'])}"
-            )
-            self.stdout.write(f"  Customer Credits: {len(data['customer_credits'])}")
-            self.stdout.write(f"  Project Credits: {len(data['project_credits'])}")
 
         except OSError as e:
+            write_elapsed = time.time() - write_start_time
+            self.logger.error(f"Failed to write file after {write_elapsed:.2f}s: {e}")
             self.stdout.write(self.style.ERROR(f"Failed to write to file: {e}"))
             return
         except Exception as e:
+            write_elapsed = time.time() - write_start_time
+            self.logger.error(f"Unexpected error after {write_elapsed:.2f}s: {e}")
             self.stdout.write(self.style.ERROR(f"Unexpected error: {e}"))
             return
 
@@ -186,7 +281,10 @@ class Command(BaseCommand):
         """Export user data including system_robot."""
         users = []
         # Export even inactive users because they might be referenced in orders
-        for user in User.all_objects.all().order_by("username"):
+        queryset = User.all_objects.all().order_by("username")
+        self.logger.debug(f"Querying {queryset.count()} users...")
+
+        for user in queryset:
             users.append(
                 {
                     "uuid": user.uuid.hex,
@@ -473,13 +571,19 @@ class Command(BaseCommand):
             "marketplace.offering": Offering,
             "structure.project": Project,
         }
-        for user_role in (
+
+        queryset = (
             UserRole.objects.select_related(
                 "user", "role", "content_type", "created_by"
             )
             .prefetch_related("role__permissions")
             .order_by("created")
-        ):
+        )
+        self.logger.debug(
+            f"Querying {queryset.count()} user roles with related data..."
+        )
+
+        for user_role in queryset:
             # Get scope information
             scope_type = None
             scope_uuid = None
@@ -502,21 +606,21 @@ class Command(BaseCommand):
                                 scope_name = scope_obj.username
                         except model.DoesNotExist:
                             # Skip user roles that reference deleted objects
-                            self.stdout.write(
-                                self.style.WARNING(
-                                    f"Skipping user role {user_role.uuid.hex}: "
-                                    f"Referenced {scope_type} with ID {user_role.object_id} does not exist"
-                                )
+                            warning_msg = (
+                                f"Skipping user role {user_role.uuid.hex}: "
+                                f"Referenced {scope_type} with ID {user_role.object_id} does not exist"
                             )
+                            self.logger.warning(warning_msg)
+                            self.stdout.write(self.style.WARNING(warning_msg))
                             continue
-                        except Exception:
+                        except Exception as e:
                             # Handle any other unexpected errors
-                            self.stdout.write(
-                                self.style.WARNING(
-                                    f"Error processing user role {user_role.uuid.hex}: "
-                                    f"Could not access {scope_type} with ID {user_role.object_id}"
-                                )
+                            error_msg = (
+                                f"Error processing user role {user_role.uuid.hex}: "
+                                f"Could not access {scope_type} with ID {user_role.object_id}: {e}"
                             )
+                            self.logger.error(error_msg)
+                            self.stdout.write(self.style.WARNING(error_msg))
                             continue
 
             user_roles.append(
@@ -718,9 +822,12 @@ class Command(BaseCommand):
     def export_component_usages(self):
         """Export component usage data."""
         usages = []
-        for usage in ComponentUsage.objects.select_related(
+        queryset = ComponentUsage.objects.select_related(
             "resource", "component", "component__offering"
-        ).order_by("date"):
+        ).order_by("date")
+        self.logger.debug(f"Querying {queryset.count()} component usages...")
+
+        for usage in queryset:
             usages.append(
                 {
                     "uuid": usage.uuid.hex,
