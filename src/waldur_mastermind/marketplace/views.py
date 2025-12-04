@@ -6825,6 +6825,7 @@ class OfferingUsersViewSet(
             [
                 OfferingUserStates.CREATING,
                 OfferingUserStates.ERROR_CREATING,
+                OfferingUserStates.PENDING_ACCOUNT_LINKING,
             ],
             "PENDING_ADDITIONAL_VALIDATION",
         )
@@ -6867,6 +6868,7 @@ class OfferingUsersViewSet(
             [
                 OfferingUserStates.CREATING,
                 OfferingUserStates.ERROR_CREATING,
+                OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
             ],
             "PENDING_ACCOUNT_LINKING",
         )
