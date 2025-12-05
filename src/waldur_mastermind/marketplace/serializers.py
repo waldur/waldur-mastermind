@@ -6741,7 +6741,7 @@ class RobotAccountSerializer(BaseServiceAccountSerializer):
     )
     state = serializers.SerializerMethodField()
 
-    @extend_schema_field(serializers.ChoiceField(choices=RobotAccountStates.CHOICES))
+    @extend_schema_field(serializers.ChoiceField(choices=RobotAccountStates.VALUES))
     def get_state(
         self, robot_account: models.RobotAccount
     ) -> Literal[
