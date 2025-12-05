@@ -65,7 +65,7 @@ SPECTACULAR_SETTINGS = {
         "RancherRoleScopeType": RoleScopeType.CHOICES,
         "KeycloakUserGroupMembershipState": KeycloakUserGroupMembershipState.CHOICES,
         "RancherCatalogScopeType": CatalogScopeTypeChoices,
-        "RobotAccountStates": RobotAccountStates.CHOICES,
+        "RobotAccountStates": RobotAccountStates.VALUES,
         "ChecklistOperators": checklist_enums.OPERATORS,
         "ServiceAccountState": ServiceAccountState.VALUES,
         "OfferingUserState": OfferingUserStates.VALUES,
