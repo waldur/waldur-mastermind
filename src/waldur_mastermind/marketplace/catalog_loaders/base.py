@@ -304,15 +304,17 @@ class BaseCatalogLoader(ABC):
         if total_extensions > 0:
             self.logger.info("Processing extension packages...")
             self._log_memory_usage("before extensions")
-            stats.update(
-                self._process_extensions_bulk(
-                    catalog,
-                    packages_data,
-                    parent_packages,
-                    update_existing,
-                    total_extensions,
-                )
+            extension_stats = self._process_extensions_bulk(
+                catalog,
+                packages_data,
+                parent_packages,
+                update_existing,
+                total_extensions,
             )
+            stats["packages_created"] += extension_stats["packages_created"]
+            stats["packages_updated"] += extension_stats["packages_updated"]
+            stats["versions_created"] += extension_stats["versions_created"]
+            stats["targets_created"] += extension_stats["targets_created"]
             self._log_memory_usage("after extensions")
 
         return stats
