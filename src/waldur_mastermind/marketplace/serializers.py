@@ -6832,15 +6832,24 @@ class RobotAccountSerializer(BaseServiceAccountSerializer):
             users = []
 
         resource_users = utils.get_resource_users(resource)
-        if set(user.id for user in users) - set(user.id for user in resource_users):
+        missing_users = set(user.id for user in users) - set(
+            user.id for user in resource_users
+        )
+        if missing_users:
+            invalid_user_objects = [user for user in users if user.id in missing_users]
+            user_details = []
+            for user in invalid_user_objects:
+                identifier = user.full_name or user.email
+                user_details.append(str(identifier))
             raise serializers.ValidationError(
-                "User should belong to the same project or organization as resource."
+                f"Users {', '.join(user_details)} should belong to the same project or organization as the resource."
             )
 
         responsible_user = validated_data.get("responsible_user")
         if responsible_user and responsible_user not in resource_users:
+            identifier = responsible_user.full_name or responsible_user.email
             raise serializers.ValidationError(
-                "The responsible user should belong to the same project or organization as resource."
+                f"The responsible user {identifier} should belong to the same project or organization as the resource."
             )
         return validated_data
 
