@@ -148,16 +148,44 @@ class EESSICatalogLoader(BaseCatalogLoader):
 
         # Process main software packages
         main_software = software_data.get("software", {})
-        for package_name, package_info in main_software.items():
+        total_main_packages = len(main_software)
+        self.logger.info(f"Processing {total_main_packages} main software packages")
+        self._log_memory_usage("before main package processing")
+
+        for i, (package_name, package_info) in enumerate(main_software.items(), 1):
+            if i % 100 == 0 or i == total_main_packages:
+                self.logger.info(f"Processed {i}/{total_main_packages} main packages")
             package_with_versions = self._process_eessi_package(
                 package_name, package_info, False
             )
             catalog_data.packages[package_name] = package_with_versions
 
+        self._log_memory_usage("after main package processing")
+
         # Process extension packages
+        total_extensions = sum(
+            len(ext_data.get("software", {})) for ext_data in extensions_data.values()
+        )
+        self.logger.info(
+            f"Processing {total_extensions} extension packages across {len(extensions_data)} extension types"
+        )
+        self._log_memory_usage("before extension processing")
+
+        processed_extensions = 0
         for ext_type, ext_data in extensions_data.items():
             ext_software = ext_data.get("software", {})
+            ext_count = len(ext_software)
+            self.logger.info(f"Processing {ext_count} {ext_type} extension packages")
+
             for package_name, package_info in ext_software.items():
+                processed_extensions += 1
+                if (
+                    processed_extensions % 500 == 0
+                    or processed_extensions == total_extensions
+                ):
+                    self.logger.info(
+                        f"Processed {processed_extensions}/{total_extensions} extension packages"
+                    )
                 package_with_versions = self._process_eessi_package(
                     package_name, package_info, True
                 )
@@ -166,6 +194,9 @@ class EESSICatalogLoader(BaseCatalogLoader):
                     package_with_versions
                 )
 
+        self.logger.info(
+            f"Completed processing all packages: {len(catalog_data.packages)} total packages"
+        )
         return catalog_data
 
     def _process_eessi_package(
@@ -199,8 +230,20 @@ class EESSICatalogLoader(BaseCatalogLoader):
         )
 
         # Process versions
+        versions_list = package_info.get("versions", [])
+        if len(versions_list) > 50:  # Log packages with many versions
+            self.logger.debug(
+                f"Processing package {package_name} with {len(versions_list)} versions"
+            )
+
         versions = {}
-        for version_info in package_info.get("versions", []):
+        for i, version_info in enumerate(versions_list):
+            # Log progress for packages with many versions
+            if len(versions_list) > 100 and (i + 1) % 50 == 0:
+                self.logger.debug(
+                    f"Package {package_name}: processed {i + 1}/{len(versions_list)} versions"
+                )
+
             version_with_targets = self._process_eessi_version(version_info)
             versions[version_info["version"]] = version_with_targets
 

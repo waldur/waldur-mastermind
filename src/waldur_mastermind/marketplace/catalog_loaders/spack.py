@@ -203,7 +203,10 @@ class SpackCatalogLoader(BaseCatalogLoader):
 
         # Create default build target
         downloads = version_info.get("downloads", [])
-        primary_download = downloads[0] if downloads else ""
+        # Handle case where downloads[0] might be null in JSON
+        primary_download = ""
+        if downloads:
+            primary_download = downloads[0] or ""
 
         default_target = TargetData(
             target_type="build_variant",

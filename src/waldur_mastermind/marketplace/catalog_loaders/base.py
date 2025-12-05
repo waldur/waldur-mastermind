@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+import psutil
 from django.db import transaction
 from django.utils import timezone
 
@@ -75,6 +76,9 @@ class TargetData:
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
+        # Ensure location is never None to avoid database constraint violations
+        if self.location is None:
+            self.location = ""
 
 
 @dataclass
@@ -134,6 +138,16 @@ class BaseCatalogLoader(ABC):
         self.catalog_type = catalog_type
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
+    def _log_memory_usage(self, stage: str):
+        """Log current memory usage for monitoring large dataset processing."""
+        try:
+            process = psutil.Process()
+            memory_info = process.memory_info()
+            memory_mb = memory_info.rss / 1024 / 1024  # Convert to MB
+            self.logger.info(f"Memory usage at {stage}: {memory_mb:.1f} MB")
+        except Exception as e:
+            self.logger.debug(f"Could not get memory usage: {e}")
+
     @abstractmethod
     def fetch_catalog_data(self) -> CatalogData:
         """
@@ -161,13 +175,16 @@ class BaseCatalogLoader(ABC):
             Dict with statistics (packages_created, versions_created, etc.)
         """
         self.logger.info(f"Loading catalog {self.catalog_name} {self.catalog_version}")
+        self._log_memory_usage("start")
 
         try:
             # Fetch catalog data
             catalog_data = self.fetch_catalog_data()
+            self._log_memory_usage("after data fetch")
 
             # Load into database
             stats = self._load_to_database(catalog_data, update_existing, dry_run)
+            self._log_memory_usage("after database load")
 
             if not dry_run:
                 self.logger.info(f"Successfully loaded catalog: {stats}")
@@ -252,59 +269,415 @@ class BaseCatalogLoader(ABC):
         # Track parent packages for extensions
         parent_packages = {}
 
-        # First pass: create main packages
+        # Count main and extension packages
+        main_packages = [
+            pkg for pkg in packages_data.values() if not pkg.package_data.is_extension
+        ]
+        extension_packages = [
+            pkg for pkg in packages_data.values() if pkg.package_data.is_extension
+        ]
+
+        total_main = len(main_packages)
+        total_extensions = len(extension_packages)
+        self.logger.info(
+            f"Starting database operations: {total_main} main packages, {total_extensions} extensions"
+        )
+        self._log_memory_usage("before main packages")
+
+        # First pass: create main packages in batches
+        self.logger.info("Processing main packages...")
+        main_stats = self._process_main_packages_bulk(
+            catalog, packages_data, update_existing, total_main
+        )
+        parent_packages.update(main_stats["parent_packages"])
+        stats["packages_created"] += main_stats["packages_created"]
+        stats["packages_updated"] += main_stats["packages_updated"]
+        stats["versions_created"] += main_stats["versions_created"]
+        stats["targets_created"] += main_stats["targets_created"]
+
+        self.logger.info(
+            f"Completed main packages. Created {stats['packages_created']} packages, {stats['versions_created']} versions, {stats['targets_created']} targets"
+        )
+        self._log_memory_usage("after main packages")
+
+        # Second pass: create extension packages in batches
+        if total_extensions > 0:
+            self.logger.info("Processing extension packages...")
+            self._log_memory_usage("before extensions")
+            stats.update(
+                self._process_extensions_bulk(
+                    catalog,
+                    packages_data,
+                    parent_packages,
+                    update_existing,
+                    total_extensions,
+                )
+            )
+            self._log_memory_usage("after extensions")
+
+        return stats
+
+    def _process_main_packages_bulk(
+        self,
+        catalog: SoftwareCatalog,
+        packages_data: dict[str, PackageWithVersions],
+        update_existing: bool,
+        total_main: int,
+    ) -> dict[str, any]:
+        """Process main packages in optimized batches."""
+        stats = {
+            "packages_created": 0,
+            "packages_updated": 0,
+            "versions_created": 0,
+            "targets_created": 0,
+            "parent_packages": {},
+        }
+
+        batch_size = 25  # Smaller batches for main packages as they have more versions
+        main_batch = []
+        processed_main = 0
+
         for package_name, package_with_versions in packages_data.items():
             package_data = package_with_versions.package_data
 
             if package_data.is_extension:
-                continue  # Process extensions in second pass
+                continue  # Skip extensions
 
-            package, created = self._create_or_update_package(
-                catalog, package_data, None, update_existing
+            processed_main += 1
+            main_batch.append((package_name, package_with_versions))
+
+            # Process batch when full or at end
+            if len(main_batch) >= batch_size or processed_main == total_main:
+                batch_stats = self._process_main_batch(
+                    catalog, main_batch, update_existing
+                )
+                stats["packages_created"] += batch_stats["packages_created"]
+                stats["packages_updated"] += batch_stats["packages_updated"]
+                stats["versions_created"] += batch_stats["versions_created"]
+                stats["targets_created"] += batch_stats["targets_created"]
+                stats["parent_packages"].update(batch_stats["parent_packages"])
+
+                self.logger.info(
+                    f"Database: processed {processed_main}/{total_main} main packages"
+                )
+                main_batch.clear()
+
+        return stats
+
+    def _process_main_batch(
+        self,
+        catalog: SoftwareCatalog,
+        main_batch: list,
+        update_existing: bool,
+    ) -> dict[str, any]:
+        """Process a batch of main packages efficiently."""
+        stats = {
+            "packages_created": 0,
+            "packages_updated": 0,
+            "versions_created": 0,
+            "targets_created": 0,
+            "parent_packages": {},
+        }
+
+        # Prepare bulk data
+        packages_to_create = []
+        package_names_in_batch = []
+
+        for package_name, package_with_versions in main_batch:
+            package_data = package_with_versions.package_data
+            package_names_in_batch.append(package_name)
+            packages_to_create.append(
+                SoftwarePackage(
+                    catalog=catalog,
+                    name=package_data.name,
+                    description=package_data.description,
+                    homepage=package_data.homepage,
+                    categories=package_data.categories,
+                    licenses=package_data.licenses,
+                    maintainers=package_data.maintainers,
+                    is_extension=package_data.is_extension,
+                    parent_software=None,  # Main packages have no parent
+                )
             )
-            parent_packages[package_name] = package
 
-            if created:
-                stats["packages_created"] += 1
-            elif update_existing:
-                stats["packages_updated"] += 1
-
-            # Process versions
-            version_stats = self._process_versions(
-                package, package_with_versions.versions
+        # Check which packages already exist
+        existing_packages = {
+            pkg.name: pkg
+            for pkg in SoftwarePackage.objects.filter(
+                catalog=catalog, name__in=package_names_in_batch
             )
-            stats["versions_created"] += version_stats["versions_created"]
-            stats["targets_created"] += version_stats["targets_created"]
+        }
 
-        # Second pass: create extension packages
+        # Bulk create new packages
+        new_packages = []
+        for pkg in packages_to_create:
+            if pkg.name not in existing_packages:
+                new_packages.append(pkg)
+
+        if new_packages:
+            created_packages = SoftwarePackage.objects.bulk_create(
+                new_packages, ignore_conflicts=True
+            )
+            stats["packages_created"] += len(created_packages)
+
+        # Get all packages (existing + newly created) for version processing and parent tracking
+        all_packages = {
+            pkg.name: pkg
+            for pkg in SoftwarePackage.objects.filter(
+                catalog=catalog, name__in=package_names_in_batch
+            )
+        }
+
+        # Update parent packages mapping and process versions
+        for package_name, package_with_versions in main_batch:
+            package = all_packages.get(package_name)
+            if package:
+                stats["parent_packages"][package_name] = package
+                version_stats = self._process_versions_bulk(
+                    package, package_with_versions.versions
+                )
+                stats["versions_created"] += version_stats["versions_created"]
+                stats["targets_created"] += version_stats["targets_created"]
+
+        return stats
+
+    def _process_extensions_bulk(
+        self,
+        catalog: SoftwareCatalog,
+        packages_data: dict[str, PackageWithVersions],
+        parent_packages: dict[str, SoftwarePackage],
+        update_existing: bool,
+        total_extensions: int,
+    ) -> dict[str, int]:
+        """Process extension packages in optimized batches."""
+        stats = {
+            "packages_created": 0,
+            "packages_updated": 0,
+            "versions_created": 0,
+            "targets_created": 0,
+        }
+
+        batch_size = 50  # Process extensions in batches
+        extension_batch = []
+        processed_extensions = 0
+
         for package_name, package_with_versions in packages_data.items():
             package_data = package_with_versions.package_data
 
             if not package_data.is_extension:
                 continue
 
+            processed_extensions += 1
+            extension_batch.append((package_name, package_with_versions))
+
+            # Process batch when full or at end
+            if (
+                len(extension_batch) >= batch_size
+                or processed_extensions == total_extensions
+            ):
+                batch_stats = self._process_extension_batch(
+                    catalog, extension_batch, parent_packages, update_existing
+                )
+                stats["packages_created"] += batch_stats["packages_created"]
+                stats["packages_updated"] += batch_stats["packages_updated"]
+                stats["versions_created"] += batch_stats["versions_created"]
+                stats["targets_created"] += batch_stats["targets_created"]
+
+                self.logger.info(
+                    f"Database: processed {processed_extensions}/{total_extensions} extension packages"
+                )
+                extension_batch.clear()
+
+        return stats
+
+    def _process_extension_batch(
+        self,
+        catalog: SoftwareCatalog,
+        extension_batch: list,
+        parent_packages: dict[str, SoftwarePackage],
+        update_existing: bool,
+    ) -> dict[str, int]:
+        """Process a batch of extension packages efficiently."""
+        stats = {
+            "packages_created": 0,
+            "packages_updated": 0,
+            "versions_created": 0,
+            "targets_created": 0,
+        }
+
+        # Prepare bulk data with validation
+        packages_to_create = []
+        package_names_in_batch = []
+        valid_extensions = []
+
+        # Collect all required parent package names for this batch
+        required_parents = set()
+        for package_name, package_with_versions in extension_batch:
+            package_data = package_with_versions.package_data
+            if package_data.parent_software_name:
+                required_parents.add(package_data.parent_software_name)
+
+        # Find any missing parent packages in batch
+        missing_parents = required_parents - set(parent_packages.keys())
+        if missing_parents:
+            # Try to find them in the database (might be from previous runs)
+            additional_parents = {
+                pkg.name: pkg
+                for pkg in SoftwarePackage.objects.filter(
+                    catalog=catalog, name__in=list(missing_parents), is_extension=False
+                )
+            }
+            parent_packages.update(additional_parents)
+            still_missing = missing_parents - set(additional_parents.keys())
+            if still_missing:
+                self.logger.warning(
+                    f"Missing parent packages for batch: {list(still_missing)}"
+                )
+
+        for package_name, package_with_versions in extension_batch:
+            package_data = package_with_versions.package_data
             parent_package = parent_packages.get(package_data.parent_software_name)
+
             if not parent_package:
                 self.logger.warning(
                     f"Parent package {package_data.parent_software_name} not found for extension {package_name}"
                 )
                 continue
 
-            package, created = self._create_or_update_package(
-                catalog, package_data, parent_package, update_existing
+            package_names_in_batch.append(package_name)
+            valid_extensions.append((package_name, package_with_versions))
+            packages_to_create.append(
+                SoftwarePackage(
+                    catalog=catalog,
+                    name=package_data.name,
+                    description=package_data.description,
+                    homepage=package_data.homepage,
+                    categories=package_data.categories,
+                    licenses=package_data.licenses,
+                    maintainers=package_data.maintainers,
+                    is_extension=package_data.is_extension,
+                    parent_software=parent_package,
+                )
             )
 
-            if created:
-                stats["packages_created"] += 1
-            elif update_existing:
-                stats["packages_updated"] += 1
+        if not package_names_in_batch:
+            return stats  # No valid packages to process
 
-            # Process versions
-            version_stats = self._process_versions(
-                package, package_with_versions.versions
+        # Check which packages already exist
+        existing_packages = {
+            pkg.name: pkg
+            for pkg in SoftwarePackage.objects.filter(
+                catalog=catalog, name__in=package_names_in_batch
             )
-            stats["versions_created"] += version_stats["versions_created"]
-            stats["targets_created"] += version_stats["targets_created"]
+        }
+
+        # Bulk create new packages
+        new_packages = []
+        for pkg in packages_to_create:
+            if pkg.name not in existing_packages:
+                new_packages.append(pkg)
+
+        if new_packages:
+            created_packages = SoftwarePackage.objects.bulk_create(
+                new_packages, ignore_conflicts=True
+            )
+            stats["packages_created"] += len(created_packages)
+
+        # Get all packages (existing + newly created) for version processing
+        all_packages = {
+            pkg.name: pkg
+            for pkg in SoftwarePackage.objects.filter(
+                catalog=catalog, name__in=package_names_in_batch
+            )
+        }
+
+        # Process versions for each valid package
+        for package_name, package_with_versions in valid_extensions:
+            package = all_packages.get(package_name)
+            if package:
+                version_stats = self._process_versions_bulk(
+                    package, package_with_versions.versions
+                )
+                stats["versions_created"] += version_stats["versions_created"]
+                stats["targets_created"] += version_stats["targets_created"]
+
+        return stats
+
+    def _process_versions_bulk(
+        self, package: SoftwarePackage, versions_data: dict[str, VersionWithTargets]
+    ) -> dict[str, int]:
+        """Process versions and targets with bulk operations."""
+        stats = {"versions_created": 0, "targets_created": 0}
+
+        if not versions_data:
+            return stats
+
+        # Prepare bulk data
+        versions_to_create = []
+        version_names = list(versions_data.keys())
+
+        # Check existing versions
+        existing_versions = {
+            v.version: v
+            for v in SoftwareVersion.objects.filter(
+                package=package, version__in=version_names
+            )
+        }
+
+        # Prepare new versions for bulk create
+        for version_name, version_with_targets in versions_data.items():
+            if version_name not in existing_versions:
+                version_data = version_with_targets.version_data
+                versions_to_create.append(
+                    SoftwareVersion(
+                        package=package,
+                        version=version_data.version,
+                        release_date=version_data.release_date,
+                        dependencies=version_data.dependencies,
+                        metadata=version_data.metadata,
+                    )
+                )
+
+        # Bulk create versions
+        if versions_to_create:
+            created_versions = SoftwareVersion.objects.bulk_create(
+                versions_to_create, ignore_conflicts=True
+            )
+            stats["versions_created"] += len(created_versions)
+
+        # Get all versions for target processing
+        all_versions = {
+            v.version: v
+            for v in SoftwareVersion.objects.filter(
+                package=package, version__in=version_names
+            )
+        }
+
+        # Bulk process targets
+        targets_to_create = []
+        for version_name, version_with_targets in versions_data.items():
+            version_obj = all_versions.get(version_name)
+            if version_obj:
+                for target_data in version_with_targets.targets:
+                    # Ensure location is not None (database constraint)
+                    location = target_data.location or ""
+                    targets_to_create.append(
+                        SoftwareTarget(
+                            version=version_obj,
+                            target_type=target_data.target_type,
+                            target_name=target_data.target_name,
+                            target_subtype=target_data.target_subtype,
+                            location=location,
+                            metadata=target_data.metadata,
+                        )
+                    )
+
+        # Bulk create targets
+        if targets_to_create:
+            created_targets = SoftwareTarget.objects.bulk_create(
+                targets_to_create, ignore_conflicts=True
+            )
+            stats["targets_created"] += len(created_targets)
 
         return stats
 
@@ -336,46 +709,6 @@ class BaseCatalogLoader(ABC):
             package.save()
 
         return package, created
-
-    def _process_versions(
-        self, package: SoftwarePackage, versions_data: dict[str, VersionWithTargets]
-    ) -> dict[str, int]:
-        """Process versions and their targets for a package."""
-        stats = {"versions_created": 0, "targets_created": 0}
-
-        for version_name, version_with_targets in versions_data.items():
-            version_data = version_with_targets.version_data
-
-            version, created = SoftwareVersion.objects.get_or_create(
-                package=package,
-                version=version_data.version,
-                defaults={
-                    "release_date": version_data.release_date,
-                    "dependencies": version_data.dependencies,
-                    "metadata": version_data.metadata,
-                },
-            )
-
-            if created:
-                stats["versions_created"] += 1
-
-            # Process targets
-            for target_data in version_with_targets.targets:
-                target, target_created = SoftwareTarget.objects.get_or_create(
-                    version=version,
-                    target_type=target_data.target_type,
-                    target_name=target_data.target_name,
-                    target_subtype=target_data.target_subtype,
-                    defaults={
-                        "location": target_data.location,
-                        "metadata": target_data.metadata,
-                    },
-                )
-
-                if target_created:
-                    stats["targets_created"] += 1
-
-        return stats
 
 
 class CatalogLoadError(Exception):

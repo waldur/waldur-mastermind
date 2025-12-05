@@ -8133,6 +8133,10 @@ class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
                 "view_name": "marketplace-software-catalog-detail",
                 "lookup_field": "uuid",
             },
+            "parent_software": {
+                "view_name": "marketplace-software-package-detail",
+                "lookup_field": "uuid",
+            },
         }
 
     @extend_schema_field(serializers.IntegerField())
