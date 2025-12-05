@@ -182,6 +182,90 @@ class RobotAccountTest(test.APITransactionTestCase):
                     f"Unexpected state value: {account_data['state']}",
                 )
 
+    def test_create_robot_account_with_invalid_user_shows_user_name_in_error(self):
+        """Test that creating a robot account with a user not in the resource's project/organization shows the user's name in the error"""
+        self.client.force_authenticate(self.fixture.service_owner)
+
+        invalid_user = structure_factories.UserFactory(
+            first_name="John", last_name="Snow", email="john.snow@example.com"
+        )
+
+        url = factories.RobotAccountFactory.get_list_url()
+        resource_url = factories.ResourceFactory.get_url(self.fixture.resource)
+        user_url = structure_factories.UserFactory.get_url(invalid_user)
+
+        response = self.client.post(
+            url,
+            {
+                "resource": resource_url,
+                "type": "cicd",
+                "users": [user_url],
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        error_message = str(response.data)
+        self.assertIn(
+            "Users John Snow should belong to the same project or organization as the resource.",
+            error_message,
+        )
+
+    def test_update_robot_account_with_invalid_user_shows_user_name_in_error(self):
+        """Test that updating a robot account with a user not in the resource's project/organization shows the user's name in the error"""
+        self.client.force_authenticate(self.fixture.service_owner)
+
+        account = factories.RobotAccountFactory(resource=self.fixture.resource)
+        url = factories.RobotAccountFactory.get_url(account)
+
+        invalid_user = structure_factories.UserFactory(
+            first_name="Jane", last_name="Smith", email="jane.smith@example.com"
+        )
+
+        user_url = structure_factories.UserFactory.get_url(invalid_user)
+
+        response = self.client.patch(
+            url,
+            {
+                "users": [user_url],
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        error_message = str(response.data)
+        self.assertIn(
+            "Users Jane Smith should belong to the same project or organization as the resource.",
+            error_message,
+        )
+
+    def test_update_robot_account_with_invalid_responsible_user_shows_user_name_in_error(
+        self,
+    ):
+        """Test that updating a robot account with a responsible_user not in the resource's project/organization shows the user's name in the error"""
+        self.client.force_authenticate(self.fixture.service_owner)
+
+        account = factories.RobotAccountFactory(resource=self.fixture.resource)
+        url = factories.RobotAccountFactory.get_url(account)
+
+        invalid_user = structure_factories.UserFactory(
+            first_name="John", last_name="Snow", email="john.snow@example.com"
+        )
+
+        user_url = structure_factories.UserFactory.get_url(invalid_user)
+
+        response = self.client.patch(
+            url,
+            {
+                "responsible_user": user_url,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        error_message = str(response.data)
+        self.assertIn(
+            "The responsible user John Snow should belong to the same project or organization as the resource.",
+            error_message,
+        )
+
 
 class RobotAccountStateTransitionTest(test.APITransactionTestCase):
     def setUp(self):
