@@ -229,3 +229,156 @@ class OfferingUserFreeipaStateBugTest(TestCase):
         # Verify state is updated
         self.assertEqual(offering_user.state, OfferingUserStates.OK)
         self.assertEqual(offering_user.username, "direct_save_test")
+
+    def test_offering_settings_change_only_updates_creation_requested_state(self):
+        """
+        Test that when offering settings change, only OfferingUsers in CREATION_REQUESTED
+        state get their usernames updated. Users in other states should not be affected.
+        """
+        # Create FreeIPA profile for username generation
+        self.offering.plugin_options = {
+            "username_generation_policy": "service_provider"
+        }
+        self.offering.save()
+
+        freeipa_profile = freeipa_factories.ProfileFactory(user=self.user)
+
+        # Create offering users in different states
+        offering_user_creation_requested = (
+            marketplace_models.OfferingUser.objects.create(
+                offering=self.offering,
+                user=self.user,
+                username="",
+                state=OfferingUserStates.CREATION_REQUESTED,
+            )
+        )
+
+        user2 = UserFactory()
+        freeipa_factories.ProfileFactory(user=user2)
+        offering_user_ok = marketplace_models.OfferingUser.objects.create(
+            offering=self.offering,
+            user=user2,
+            username="old_username",
+            state=OfferingUserStates.OK,
+        )
+
+        user3 = UserFactory()
+        freeipa_factories.ProfileFactory(user=user3)
+        offering_user_deletion_requested = (
+            marketplace_models.OfferingUser.objects.create(
+                offering=self.offering,
+                user=user3,
+                username="deletion_username",
+            )
+        )
+        offering_user_deletion_requested.state = OfferingUserStates.DELETION_REQUESTED
+        offering_user_deletion_requested.save()
+
+        # Change offering settings to trigger handler
+        self.offering.plugin_options = {"username_generation_policy": "freeipa"}
+        self.offering.save()
+
+        # Verify CREATION_REQUESTED user was updated
+        offering_user_creation_requested.refresh_from_db()
+        self.assertEqual(
+            offering_user_creation_requested.username, freeipa_profile.username
+        )
+        self.assertEqual(offering_user_creation_requested.state, OfferingUserStates.OK)
+
+        # Verify OK state user was updated (username unchanged)
+        offering_user_ok.refresh_from_db()
+        self.assertNotEqual(offering_user_ok.username, "old_username")
+        self.assertEqual(offering_user_ok.state, OfferingUserStates.OK)
+
+        # Verify DELETION_REQUESTED user was NOT updated
+        offering_user_deletion_requested.refresh_from_db()
+        self.assertEqual(offering_user_deletion_requested.username, "deletion_username")
+        self.assertEqual(
+            offering_user_deletion_requested.state,
+            OfferingUserStates.DELETION_REQUESTED,
+        )
+
+    def test_offering_settings_change_only_updates_creating_state(self):
+        """
+        Test that when offering settings change, OfferingUsers in CREATING state
+        also get their usernames updated (in addition to CREATION_REQUESTED).
+        """
+        self.offering.plugin_options = {
+            "username_generation_policy": "service_provider"
+        }
+        self.offering.save()
+
+        # Create FreeIPA profile for username generation
+        freeipa_profile = freeipa_factories.ProfileFactory(user=self.user)
+
+        # Create offering user in CREATING state
+        offering_user_creating = marketplace_models.OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.user,
+            username="",
+            state=OfferingUserStates.CREATING,
+        )
+
+        # Change offering settings to trigger handler
+        self.offering.plugin_options = {"username_generation_policy": "freeipa"}
+        self.offering.save()
+
+        # Verify CREATING user was updated
+        offering_user_creating.refresh_from_db()
+        self.assertEqual(offering_user_creating.username, freeipa_profile.username)
+        self.assertEqual(offering_user_creating.state, OfferingUserStates.OK)
+
+    def test_offering_settings_change_does_not_update_deleting_state(self):
+        """
+        Test that when offering settings change, OfferingUsers in DELETING state
+        are not updated.
+        """
+        self.offering.plugin_options = {
+            "username_generation_policy": "service_provider"
+        }
+        self.offering.save()
+        # Create FreeIPA profile
+        freeipa_factories.ProfileFactory(user=self.user)
+
+        # Create offering user in DELETING state with a username
+        offering_user_deleting = marketplace_models.OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.user,
+            username="deleting_username",
+        )
+        offering_user_deleting.state = OfferingUserStates.DELETING
+        offering_user_deleting.save()
+
+        # Change offering settings to trigger handler
+        self.offering.plugin_options = {"username_generation_policy": "freeipa"}
+        self.offering.save()
+
+        # Verify DELETING user was NOT updated
+        offering_user_deleting.refresh_from_db()
+        self.assertEqual(offering_user_deleting.username, "deleting_username")
+        self.assertEqual(offering_user_deleting.state, OfferingUserStates.DELETING)
+
+    def test_offering_settings_change_does_not_update_deleted_state(self):
+        """
+        Test that when offering settings change, OfferingUsers in DELETED state
+        are not updated.
+        """
+        # Create FreeIPA profile
+        freeipa_factories.ProfileFactory(user=self.user)
+
+        # Create offering user in DELETED state
+        offering_user_deleted = marketplace_models.OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.user,
+            username="",
+            state=OfferingUserStates.DELETED,
+        )
+
+        # Change offering settings to trigger handler
+        self.offering.plugin_options = {"username_generation_policy": "freeipa"}
+        self.offering.save()
+
+        # Verify DELETED user was NOT updated
+        offering_user_deleted.refresh_from_db()
+        self.assertEqual(offering_user_deleted.username, "")
+        self.assertEqual(offering_user_deleted.state, OfferingUserStates.DELETED)

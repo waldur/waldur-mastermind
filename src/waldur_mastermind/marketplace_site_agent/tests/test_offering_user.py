@@ -15,6 +15,7 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
+    OfferingUserStates,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -186,6 +187,8 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
             user=self.admin,
             offering=self.offering,
         )
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save()
 
     def test_username_updated_when_generation_policy_changed(self):
         self.assertEqual(self.admin.username, self.offering_user.username)

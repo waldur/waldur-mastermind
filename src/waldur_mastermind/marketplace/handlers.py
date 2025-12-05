@@ -1485,7 +1485,14 @@ def update_offering_user_username_after_offering_settings_change(
     ):
         return
 
-    offering_users = models.OfferingUser.objects.filter(offering=offering)
+    offering_users = models.OfferingUser.objects.filter(
+        offering=offering,
+        state__in=[
+            OfferingUserStates.CREATION_REQUESTED,
+            OfferingUserStates.CREATING,
+            OfferingUserStates.OK,
+        ],
+    )
 
     for offering_user in offering_users:
         new_username = utils.generate_username(offering_user.user, offering)
