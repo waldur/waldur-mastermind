@@ -1750,6 +1750,14 @@ class Order(
         return 0
 
     @property
+    def old_cost_estimate(self) -> float:
+        if "old_limits" in self.attributes:
+            plan = self.old_plan or self.plan
+            if plan:
+                return plan.get_estimate(self.attributes["old_limits"])
+        return 0
+
+    @property
     def activation_price(self) -> float:
         if self.type == OrderTypes.CREATE:
             return self.plan.init_price
