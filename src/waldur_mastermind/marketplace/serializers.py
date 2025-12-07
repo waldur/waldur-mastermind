@@ -3394,10 +3394,6 @@ class OrderDetailsSerializer(BaseOrderSerializer):
         allow_null=True,
     )
 
-    old_cost_estimate = serializers.ReadOnlyField(
-        source="resource.cost",
-        allow_null=True,
-    )
     new_cost_estimate = serializers.ReadOnlyField(
         source="cost",
         allow_null=True,
