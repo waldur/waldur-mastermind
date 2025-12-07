@@ -8371,3 +8371,147 @@ class OfferingPartitionSerializer(serializers.ModelSerializer):
 
 class RemovePartitionSerializer(serializers.Serializer):
     partition_uuid = serializers.UUIDField()
+
+
+class OfferingExportParametersSerializer(serializers.Serializer):
+    """
+    Serializer to configure offering export parameters.
+
+    Controls which attributes and related entities to include in the export.
+    """
+
+    include_components = serializers.BooleanField(
+        default=True, help_text="Include offering components in export"
+    )
+    include_plans = serializers.BooleanField(
+        default=True, help_text="Include offering plans in export"
+    )
+    include_screenshots = serializers.BooleanField(
+        default=True, help_text="Include offering screenshots in export"
+    )
+    include_files = serializers.BooleanField(
+        default=True, help_text="Include offering files in export"
+    )
+    include_endpoints = serializers.BooleanField(
+        default=True, help_text="Include offering access endpoints in export"
+    )
+    include_organization_groups = serializers.BooleanField(
+        default=True, help_text="Include organization groups associations in export"
+    )
+    include_terms_of_service = serializers.BooleanField(
+        default=True, help_text="Include terms of service configurations in export"
+    )
+    include_plugin_options = serializers.BooleanField(
+        default=True, help_text="Include plugin options in export"
+    )
+    include_secret_options = serializers.BooleanField(
+        default=False,
+        help_text="Include secret options in export (WARNING: sensitive data)",
+    )
+    include_attributes = serializers.BooleanField(
+        default=True, help_text="Include offering attributes in export"
+    )
+    include_options = serializers.BooleanField(
+        default=True, help_text="Include offering options in export"
+    )
+    include_resource_options = serializers.BooleanField(
+        default=True, help_text="Include resource options in export"
+    )
+
+
+class OfferingImportParametersSerializer(serializers.Serializer):
+    """
+    Serializer to configure offering import parameters.
+
+    Controls how the offering data should be imported and mapped.
+    """
+
+    customer = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=structure_models.Customer.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="Target customer for imported offering. If not provided, uses current user's customer",
+    )
+    category = serializers.SlugRelatedField(
+        slug_field="title",
+        queryset=models.Category.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="Target category name for imported offering. If not provided, uses category from export data",
+    )
+    project = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=structure_models.Project.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="Target project for imported offering (optional)",
+    )
+    import_components = serializers.BooleanField(
+        default=True, help_text="Import offering components"
+    )
+    import_plans = serializers.BooleanField(
+        default=True, help_text="Import offering plans"
+    )
+    import_screenshots = serializers.BooleanField(
+        default=True, help_text="Import offering screenshots"
+    )
+    import_files = serializers.BooleanField(
+        default=True, help_text="Import offering files"
+    )
+    import_endpoints = serializers.BooleanField(
+        default=True, help_text="Import offering access endpoints"
+    )
+    import_organization_groups = serializers.BooleanField(
+        default=False,
+        help_text="Import organization groups associations (may fail if groups don't exist)",
+    )
+    import_terms_of_service = serializers.BooleanField(
+        default=True, help_text="Import terms of service configurations"
+    )
+    import_plugin_options = serializers.BooleanField(
+        default=True, help_text="Import plugin options"
+    )
+    import_secret_options = serializers.BooleanField(
+        default=False,
+        help_text="Import secret options (WARNING: will overwrite existing secrets)",
+    )
+    overwrite_existing = serializers.BooleanField(
+        default=False,
+        help_text="Overwrite existing offering if one with the same name exists",
+    )
+    preserve_state = serializers.BooleanField(
+        default=False,
+        help_text="Preserve offering state from export, otherwise set to 'Draft'",
+    )
+    offering_data = serializers.JSONField(
+        help_text="The exported offering data to import"
+    )
+
+
+class OfferingExportResponseSerializer(serializers.Serializer):
+    """Serializer for offering export response."""
+
+    offering_uuid = serializers.UUIDField()
+    offering_name = serializers.CharField()
+    export_data = serializers.JSONField()
+    exported_components = serializers.ListField(
+        child=serializers.CharField(), help_text="List of exported component types"
+    )
+    export_timestamp = serializers.DateTimeField()
+
+
+class OfferingImportResponseSerializer(serializers.Serializer):
+    """Serializer for offering import response."""
+
+    imported_offering_uuid = serializers.UUIDField()
+    imported_offering_name = serializers.CharField()
+    imported_components = serializers.ListField(
+        child=serializers.CharField(), help_text="List of imported component types"
+    )
+    warnings = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="List of warnings encountered during import",
+    )
+    import_timestamp = serializers.DateTimeField()
