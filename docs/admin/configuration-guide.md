@@ -2179,6 +2179,14 @@ Sweden Business Register API client identifier
 
 Sweden Business Register API client secret
 
+#### ONBOARDING_BREG_API_URL
+
+**Type:** url_field
+
+**Default value:** <https://data.brreg.no/>
+
+Norway Business Register API server URL
+
 ### LLM inference settings
 
 #### LLM_CHAT_ENABLED
