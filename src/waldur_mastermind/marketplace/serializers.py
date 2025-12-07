@@ -3319,6 +3319,7 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "activation_price",
             "termination_comment",
             "backend_id",
+            "order_subtype",
         )
         extra_kwargs = {
             **BaseOrderSerializer.Meta.extra_kwargs,
@@ -3398,6 +3399,19 @@ class OrderDetailsSerializer(BaseOrderSerializer):
         source="cost",
         allow_null=True,
     )
+
+    order_subtype = serializers.SerializerMethodField()
+
+    def get_order_subtype(self, order) -> str | None:
+        if order.type != OrderTypes.UPDATE:
+            return None
+        if order.attributes.get("action") == "renew":
+            return "renew"
+        if "old_limits" in order.attributes:
+            return "update_limits"
+        if "new_options" in order.attributes:
+            return "update_options"
+        return "plan_switch"
 
     can_terminate = serializers.SerializerMethodField()
     termination_comment = serializers.ReadOnlyField()
