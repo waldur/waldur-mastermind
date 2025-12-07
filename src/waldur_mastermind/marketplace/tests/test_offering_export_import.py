@@ -79,8 +79,8 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Parse YAML response
-        export_data = yaml.safe_load(response.data["export_data"])
+        # Get structured response data
+        export_data = response.data["export_data"]
 
         # Verify offering data
         self.assertEqual(export_data["offering"]["name"], offering.name)
@@ -149,7 +149,7 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        export_data = yaml.safe_load(response.data["export_data"])
+        export_data = response.data["export_data"]
 
         # Should have components but not plans
         self.assertIn("components", export_data)
@@ -157,7 +157,7 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
         self.assertNotIn("screenshots", export_data)
 
         # Should not include secret options
-        self.assertNotIn("secret_options", export_data["offering"])
+        self.assertNotIn("secret_options", export_data)
 
     def test_export_offering_includes_secret_options(self):
         """Test exporting offering with secret options when explicitly requested."""
@@ -177,10 +177,8 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        export_data = yaml.safe_load(response.data["export_data"])
-        self.assertEqual(
-            export_data["offering"]["secret_options"], {"api_key": "secret123"}
-        )
+        export_data = response.data["export_data"]
+        self.assertEqual(export_data["secret_options"], {"api_key": "secret123"})
 
     def test_export_offering_permission_denied_for_unauthorized_user(self):
         """Test that unauthorized users cannot export offerings."""
@@ -599,7 +597,7 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
         self.assertEqual(export_response.status_code, status.HTTP_200_OK)
 
         # Modify the exported data to create a new offering
-        export_data = yaml.safe_load(export_response.data["export_data"])
+        export_data = export_response.data["export_data"]
         export_data["offering"]["name"] = "Roundtrip Test Offering"
         modified_yaml = yaml.safe_dump(export_data)
 
@@ -723,7 +721,7 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        export_data = yaml.safe_load(response.data["export_data"])
+        export_data = response.data["export_data"]
 
         # Check screenshots have base64 content or fallback URL
         if export_data.get("screenshots"):
