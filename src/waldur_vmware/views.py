@@ -40,7 +40,9 @@ class LimitViewSet(RetrieveModelMixin, GenericViewSet):
     serializer_class = serializers.VmwareLimitSerializer
 
 
-class VirtualMachineViewSet(structure_views.ResourceViewSet):
+class VirtualMachineViewSet(
+    structure_views.ResourceViewSet, structure_views.AvailabilityCheckViewMixin
+):
     queryset = models.VirtualMachine.objects.all().order_by("name")
     serializer_class = serializers.VmwareVirtualMachineSerializer
     filterset_class = filters.VirtualMachineFilter

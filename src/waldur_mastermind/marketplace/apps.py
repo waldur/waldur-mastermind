@@ -459,3 +459,8 @@ class MarketplaceConfig(AppConfig):
             sender=models.OfferingUser,
             dispatch_uid="waldur_mastermind.marketplace.notify_offering_user_about_tos_requirement",
         )
+        signals.post_save.connect(
+            handlers.update_resource_scope_availability_on_offering_state_change,
+            sender=models.Offering,
+            dispatch_uid="waldur_mastermind.marketplace.update_resource_scope_availability_on_offering_state_change",
+        )

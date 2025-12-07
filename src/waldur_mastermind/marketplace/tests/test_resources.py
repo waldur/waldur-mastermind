@@ -1081,6 +1081,12 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         response = self.update_limits(self.fixture.owner, self.resource)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_update_limit_fails_if_offering_is_unavailable(self):
+        self.resource.offering.state = OfferingStates.UNAVAILABLE
+        self.resource.offering.save()
+        response = self.update_limits(self.fixture.owner, self.resource)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class ResourceReallocateLimitsTest(test.APITransactionTestCase):
     def setUp(self):

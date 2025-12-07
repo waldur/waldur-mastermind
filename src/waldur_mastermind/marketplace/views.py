@@ -52,6 +52,7 @@ from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import ListAPIView
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import Serializer
@@ -458,7 +459,11 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
             customer=service_provider.customer,
             billable=True,
             shared=True,
-            state__in=(OfferingStates.ACTIVE, OfferingStates.PAUSED),
+            state__in=(
+                OfferingStates.ACTIVE,
+                OfferingStates.PAUSED,
+                OfferingStates.UNAVAILABLE,
+            ),
         ).count()
 
         content_type = ContentType.objects.get_for_model(support_models.Issue)
@@ -1857,6 +1862,26 @@ class ProviderOfferingViewSet(
         return self._update_state("unpause")
 
     @extend_schema(
+        summary="Mark an offering as unavailable",
+        description="Marks an active offering as unavailable, blocking all operations on its resources.",
+        responses=serializers.DetailStateSerializer,
+        request=None,
+    )
+    @action(detail=True, methods=["post"])
+    def make_unavailable(self, request, uuid=None):
+        return self._update_state("make_unavailable")
+
+    @extend_schema(
+        summary="Mark an offering as available",
+        description="Marks an unavailable offering as available.",
+        responses=serializers.DetailStateSerializer,
+        request=None,
+    )
+    @action(detail=True, methods=["post"])
+    def make_available(self, request, uuid=None):
+        return self._update_state("make_available")
+
+    @extend_schema(
         summary="Archive an offering",
         description="Archives an offering, making it permanently unavailable for new orders.",
         request=None,
@@ -1901,6 +1926,7 @@ class ProviderOfferingViewSet(
             ["*", "customer", "customer.serviceprovider"],
         )
     ]
+    make_unavailable_permissions = make_available_permissions = pause_permissions
 
     unpause_permissions = [
         permission_factory(
@@ -1921,6 +1947,7 @@ class ProviderOfferingViewSet(
     activate_validators = pause_validators = archive_validators = destroy_validators = [
         structure_utils.check_customer_blocked_or_archived
     ]
+    make_unavailable_validators = pause_validators
 
     activate_validators += [validate_offering_has_plans]
     unpause_validators = [validate_offering_has_plans]
@@ -4060,6 +4087,7 @@ class ProviderOfferingViewSet(
                 "Active": models.Offering.States.ACTIVE,
                 "Paused": models.Offering.States.PAUSED,
                 "Archived": models.Offering.States.ARCHIVED,
+                "Unavailable": models.Offering.States.UNAVAILABLE,
             }
             offering.state = state_map.get(
                 offering_data.get("state"), models.Offering.States.DRAFT
@@ -5641,6 +5669,16 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         )
     ]
 
+    def ensure_resource_operations_allowed(self, resource: models.Resource) -> None:
+        if resource.offering.state == OfferingStates.UNAVAILABLE:
+            raise rf_exceptions.ValidationError(_("Offering is unavailable."))
+
+    def get_object(self):
+        resource = super().get_object()
+        if self.request.method not in SAFE_METHODS:
+            self.ensure_resource_operations_allowed(resource)
+        return resource
+
     def list(self, request, *args, **kwargs):
         utils.refresh_integration_agent_status(
             request, models.IntegrationStatus.AgentTypes.USAGE_REPORTING
@@ -5734,6 +5772,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         switch_price=None,
         **kwargs,
     ):
+        self.ensure_resource_operations_allowed(resource)
         with transaction.atomic():
             order = models.Order(
                 project=resource.project,
@@ -6465,6 +6504,7 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
                 target_resource = models.Resource.objects.get(
                     uuid=target_data["resource_uuid"]
                 )
+                self.ensure_resource_operations_allowed(target_resource)
 
                 # Calculate new limits for target resource
                 target_new_limits = utils.calculate_new_limits(

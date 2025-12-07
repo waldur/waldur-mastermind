@@ -71,8 +71,9 @@ class OrderCreateTest(BaseOrderCreateTest):
         response = self.create_order(user)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_user_can_not_create_order_if_offering_is_not_available(self):
-        offering = factories.OfferingFactory(state=OfferingStates.ARCHIVED)
+    @data(OfferingStates.ARCHIVED, OfferingStates.UNAVAILABLE)
+    def test_user_can_not_create_order_if_offering_is_not_available(self, state):
+        offering = factories.OfferingFactory(state=state)
         response = self.create_order(self.fixture.staff, offering)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 

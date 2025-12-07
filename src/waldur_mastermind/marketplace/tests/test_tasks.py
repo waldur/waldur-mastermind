@@ -19,6 +19,7 @@ from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
     BillingTypes,
+    OfferingStates,
     OrderStates,
     OrderTypes,
     ResourceStates,
@@ -528,3 +529,33 @@ class RemoveDeletedRobotAccountsTest(test.APITransactionTestCase):
             RobotAccountStates.REQUESTED,
             f"Robot account {self.robot_account.uuid.hex} should not be removed from the database",
         )
+
+
+class UpdateResourceScopeAvailabilityTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = OpenStackFixture()
+        self.instance = self.fixture.instance
+        self.offering = factories.OfferingFactory(
+            type=OPENSTACK_INSTANCE_OFFERING, state=OfferingStates.ACTIVE
+        )
+        self.resource = factories.ResourceFactory(
+            scope=self.instance, offering=self.offering
+        )
+
+    def test_update_scope_availability_when_offering_becomes_unavailable(self):
+        self.instance.can_be_managed = True
+        self.instance.save()
+        tasks.update_resource_scope_availability(
+            self.offering.uuid.hex, can_be_managed=False
+        )
+        self.instance.refresh_from_db()
+        self.assertFalse(self.instance.can_be_managed)
+
+    def test_update_scope_availability_when_offering_becomes_available(self):
+        self.instance.can_be_managed = False
+        self.instance.save()
+        tasks.update_resource_scope_availability(
+            self.offering.uuid.hex, can_be_managed=True
+        )
+        self.instance.refresh_from_db()
+        self.assertTrue(self.instance.can_be_managed)

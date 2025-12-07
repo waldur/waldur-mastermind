@@ -143,7 +143,7 @@ class PublicIP(BaseResourceGroupModel):
         return "azure-public-ip"
 
 
-class VirtualMachine(structure_models.VirtualMachine):
+class VirtualMachine(structure_models.VirtualMachine, core_models.AvailableMixin):
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     resource_group = models.ForeignKey(on_delete=models.CASCADE, to=ResourceGroup)
@@ -182,7 +182,7 @@ class VirtualMachine(structure_models.VirtualMachine):
         return "azure-virtualmachine"
 
 
-class SQLServer(BaseResourceGroupModel):
+class SQLServer(BaseResourceGroupModel, core_models.AvailableMixin):
     name = models.CharField(
         max_length=80, validators=[validators.SQLServerNameValidator]
     )

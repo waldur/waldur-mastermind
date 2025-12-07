@@ -69,7 +69,7 @@ class UsageMixin(models.Model):
     node_usage = models.DecimalField(default=0, decimal_places=2, max_digits=20)
 
 
-class Allocation(UsageMixin, structure_models.BaseResource):
+class Allocation(UsageMixin, structure_models.BaseResource, core_models.AvailableMixin):
     is_active = models.BooleanField(default=True)
     tracker = FieldTracker()
 
@@ -159,7 +159,9 @@ class Allocation(UsageMixin, structure_models.BaseResource):
         return self.__str__()
 
 
-class RemoteAllocation(UsageMixin, structure_models.BaseResource):
+class RemoteAllocation(
+    UsageMixin, structure_models.BaseResource, core_models.AvailableMixin
+):
     is_active = models.BooleanField(default=True)
     tracker = FieldTracker()
 

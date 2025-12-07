@@ -1670,11 +1670,38 @@ class OfferingStateTest(test.APITransactionTestCase):
         self.assertEqual(offering.state, OfferingStates.ACTIVE)
 
     @data("owner", "service_manager")
+    def test_authorized_user_can_mark_offering_unavailable(self, user):
+        self.offering.state = OfferingStates.ACTIVE
+        self.offering.save()
+
+        response, offering = self.update_offering_state(user, "make_unavailable")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.state, OfferingStates.UNAVAILABLE)
+
+    @data("customer_support", "admin", "manager")
+    def test_unauthorized_user_can_not_mark_offering_unavailable(self, user):
+        self.offering.state = OfferingStates.ACTIVE
+        self.offering.save()
+
+        response, offering = self.update_offering_state(user, "make_unavailable")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.assertEqual(offering.state, OfferingStates.ACTIVE)
+
+    @data("owner", "service_manager")
     def test_authorized_user_can_unpause_offering(self, user):
         self.offering.state = OfferingStates.PAUSED
         self.offering.save()
 
         response, offering = self.update_offering_state(user, "unpause")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.state, OfferingStates.ACTIVE)
+
+    @data("owner", "service_manager")
+    def test_authorized_user_can_make_unavailable_offering_active(self, user):
+        self.offering.state = OfferingStates.UNAVAILABLE
+        self.offering.save()
+
+        response, offering = self.update_offering_state(user, "make_available")
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(offering.state, OfferingStates.ACTIVE)
 

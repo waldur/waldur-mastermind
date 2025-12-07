@@ -2310,6 +2310,27 @@ def process_billing_on_resource_save(
         MarketplaceBillingService.handle_limits_change(resource)
 
 
+def update_resource_scope_availability_on_offering_state_change(
+    sender, instance: Offering, created=False, **kwargs
+):
+    if created:
+        return
+
+    offering = instance
+
+    if not offering.tracker.has_changed("state"):
+        return
+
+    if offering.state == OfferingStates.UNAVAILABLE:
+        can_be_managed = False
+    elif offering.tracker.previous("state") == OfferingStates.UNAVAILABLE:
+        can_be_managed = True
+    else:
+        return
+
+    tasks.update_resource_scope_availability.delay(offering.uuid.hex, can_be_managed)
+
+
 def handle_user_role_revoked(
     sender, instance, current_user=None, reason=None, **kwargs
 ):

@@ -46,6 +46,7 @@ class Issue(
     core_models.BackendModelMixin,
     TimeStampedModel,
     core_models.StateMixin,
+    core_models.AvailableMixin,
 ):
     comments: models.Manager["Comment"]
     attachments: models.Manager["Attachment"]

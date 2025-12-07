@@ -520,6 +520,7 @@ def send_metrics():
             state__in=(
                 OfferingStates.ACTIVE,
                 OfferingStates.PAUSED,
+                OfferingStates.UNAVAILABLE,
             )
         ).count(),
         "types_of_offering": list(
@@ -527,6 +528,7 @@ def send_metrics():
                 state__in=(
                     OfferingStates.ACTIVE,
                     OfferingStates.PAUSED,
+                    OfferingStates.UNAVAILABLE,
                 )
             )
             .order_by()
@@ -1701,6 +1703,25 @@ def _validate_catalog_config(catalog_config):
         errors.append("Catalog name is required")
 
     return errors
+
+
+@shared_task(name="waldur_mastermind.marketplace.update_resource_scope_availability")
+def update_resource_scope_availability(offering_uuid, can_be_managed):
+    with transaction.atomic():
+        for resource in models.Resource.objects.filter(offering__uuid=offering_uuid):
+            if not resource.scope:
+                continue
+
+            if not hasattr(resource.scope, "can_be_managed"):
+                continue
+
+            resource.scope.can_be_managed = can_be_managed
+            resource.scope.save(update_fields=["can_be_managed"])
+
+    logger.info(
+        f"Updated availability for scope objects of offering {offering_uuid} "
+        f"(can_be_managed={can_be_managed})."
+    )
 
 
 @shared_task(name="waldur_mastermind.marketplace.remove_users_from_robot_accounts")

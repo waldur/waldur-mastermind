@@ -4,12 +4,15 @@ from django.db import models
 from model_utils import FieldTracker
 from model_utils.tracker import FieldInstanceTracker
 
+from waldur_core.core import models as core_models
 from waldur_core.quotas.fields import QuotaField
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
 
 
-class TestNewInstance(QuotaModelMixin, structure_models.VirtualMachine):
+class TestNewInstance(
+    QuotaModelMixin, structure_models.VirtualMachine, core_models.AvailableMixin
+):
     __test__ = False
 
     flavor_name = models.CharField(max_length=255, blank=True)

@@ -60,12 +60,14 @@ class OfferingStates:
     ACTIVE = 2
     PAUSED = 3
     ARCHIVED = 4
+    UNAVAILABLE = 5
 
     CHOICES = (
         (DRAFT, "Draft"),
         (ACTIVE, "Active"),
         (PAUSED, "Paused"),
         (ARCHIVED, "Archived"),
+        (UNAVAILABLE, "Unavailable"),
     )
 
     VALUES = [val for (_, val) in CHOICES]

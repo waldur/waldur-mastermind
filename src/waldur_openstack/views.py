@@ -506,7 +506,9 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
         description="Delete an OpenStack tenant and all its resources.",
     ),
 )
-class TenantViewSet(structure_views.ResourceViewSet):
+class TenantViewSet(
+    structure_views.ResourceViewSet, structure_views.AvailabilityCheckViewMixin
+):
     queryset = models.Tenant.objects.all().order_by("name")
     serializer_class = serializers.OpenStackTenantSerializer
     filterset_class = structure_filters.BaseResourceFilter
@@ -1572,7 +1574,9 @@ class SubNetViewSet(structure_views.ResourceViewSet):
         description="Update specific fields of a volume.",
     ),
 )
-class VolumeViewSet(structure_views.ResourceViewSet):
+class VolumeViewSet(
+    structure_views.ResourceViewSet, structure_views.AvailabilityCheckViewMixin
+):
     queryset = models.Volume.objects.all().order_by("name")
     serializer_class = serializers.OpenStackVolumeSerializer
     filterset_class = filters.VolumeFilter
@@ -1828,7 +1832,9 @@ class InstanceAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet
         description="Update specific fields of a VM instance.",
     ),
 )
-class InstanceViewSet(structure_views.ResourceViewSet):
+class InstanceViewSet(
+    structure_views.ResourceViewSet, structure_views.AvailabilityCheckViewMixin
+):
     """
     OpenStack instance permissions
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
