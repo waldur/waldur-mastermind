@@ -1,3 +1,4 @@
+import base64
 import copy
 import datetime
 import logging
@@ -7,9 +8,11 @@ from typing import cast
 
 import httpx
 import reversion
+import yaml
 from constance import config
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.base import ContentFile
 from django.db import connection, transaction
 from django.db.models import (
     Count,
@@ -43,7 +46,7 @@ from drf_spectacular.utils import (
     extend_schema_view,
 )
 from rest_framework import exceptions as rf_exceptions
-from rest_framework import generics, mixins, status, views
+from rest_framework import generics, mixins, response, status, views
 from rest_framework import permissions as rf_permissions
 from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
@@ -3547,6 +3550,840 @@ class ProviderOfferingViewSet(
             ["*", "customer", "customer.serviceprovider"],
         )
     ]
+
+    @extend_schema(
+        summary="Export offering data",
+        description="Exports an offering and all its connected parts to YAML format. Allows configuration of which components to include in the export.",
+        request=serializers.OfferingExportParametersSerializer,
+        responses=serializers.OfferingExportResponseSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def export_offering(self, request, uuid=None):
+        """Export offering data with configurable parameters."""
+
+        offering: models.Offering = self.get_object()
+        serializer = serializers.OfferingExportParametersSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        params = serializer.validated_data
+
+        # Build export data based on parameters
+        export_data = self._build_offering_export_data(offering, params)
+        exported_components = self._get_exported_components_list(offering, params)
+
+        # Convert to YAML format
+        yaml_data = yaml.safe_dump(
+            export_data, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
+
+        response_data = {
+            "offering_uuid": offering.uuid,
+            "offering_name": offering.name,
+            "export_data": yaml_data,
+            "exported_components": exported_components,
+            "export_timestamp": timezone.now(),
+        }
+
+        return response.Response(
+            serializers.OfferingExportResponseSerializer(response_data).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def _build_offering_export_data(self, offering, params):
+        """Build export data based on configuration parameters."""
+        # Start with core offering data
+        export_data = {
+            "offering": {
+                "name": offering.name,
+                "description": offering.description,
+                "full_description": offering.full_description,
+                "vendor_details": offering.vendor_details,
+                "getting_started": offering.getting_started,
+                "integration_guide": offering.integration_guide,
+                "type": offering.type,
+                "shared": offering.shared,
+                "billable": offering.billable,
+                "state": offering.get_state_display(),
+                "category_name": offering.category.title if offering.category else None,
+                "country": offering.country,
+                "latitude": float(offering.latitude) if offering.latitude else None,
+                "longitude": float(offering.longitude) if offering.longitude else None,
+                "access_url": offering.access_url,
+                "paused_reason": offering.paused_reason,
+            }
+        }
+
+        # Conditionally add offering fields based on parameters
+        if params.get("include_attributes", True):
+            export_data["offering"]["attributes"] = offering.attributes
+
+        if params.get("include_options", True):
+            export_data["offering"]["options"] = offering.options
+
+        if params.get("include_resource_options", True):
+            export_data["offering"]["resource_options"] = offering.resource_options
+
+        if params.get("include_plugin_options", True):
+            export_data["offering"]["plugin_options"] = offering.plugin_options
+
+        if params.get("include_secret_options", False):
+            export_data["offering"]["secret_options"] = offering.secret_options
+
+        # Add related entities based on parameters
+        if params.get("include_components", True):
+            export_data["components"] = self._export_offering_components(offering)
+
+        if params.get("include_plans", True):
+            export_data["plans"] = self._export_offering_plans(offering)
+
+        if params.get("include_screenshots", True):
+            export_data["screenshots"] = self._export_offering_screenshots(offering)
+
+        if params.get("include_files", True):
+            export_data["files"] = self._export_offering_files(offering)
+
+        if params.get("include_endpoints", True):
+            export_data["endpoints"] = self._export_offering_endpoints(offering)
+
+        if params.get("include_organization_groups", True):
+            export_data["organization_groups"] = self._export_organization_groups(
+                offering
+            )
+
+        if params.get("include_terms_of_service", True):
+            export_data["terms_of_service"] = self._export_terms_of_service(offering)
+
+        return export_data
+
+    def _export_offering_components(self, offering):
+        """Export offering components."""
+        components = []
+        for component in offering.components.all():
+            components.append(
+                {
+                    "type": component.type,
+                    "name": component.name,
+                    "description": component.description,
+                    "billing_type": component.billing_type,
+                    "measured_unit": component.measured_unit,
+                    "unit_factor": float(component.unit_factor)
+                    if component.unit_factor
+                    else None,
+                    "limit_period": component.limit_period,
+                    "limit_amount": component.limit_amount,
+                    "article_code": component.article_code,
+                    "backend_id": component.backend_id,
+                }
+            )
+        return components
+
+    def _export_offering_plans(self, offering):
+        """Export offering plans."""
+        plans = []
+        for plan in offering.plans.all():
+            plan_data = {
+                "name": plan.name,
+                "description": plan.description,
+                "unit_price": float(plan.unit_price) if plan.unit_price else 0,
+                "unit": plan.unit,
+                "archived": plan.archived,
+                "max_amount": plan.max_amount,
+                "article_code": plan.article_code,
+                "backend_id": plan.backend_id,
+                "components": [],
+            }
+
+            # Add plan components
+            for plan_component in plan.components.all():
+                plan_data["components"].append(
+                    {
+                        "component_type": plan_component.component.type
+                        if plan_component.component
+                        else None,
+                        "amount": plan_component.amount,
+                        "price": float(plan_component.price)
+                        if plan_component.price
+                        else 0,
+                        "future_price": float(plan_component.future_price)
+                        if plan_component.future_price
+                        else None,
+                    }
+                )
+
+            plans.append(plan_data)
+        return plans
+
+    def _export_offering_screenshots(self, offering):
+        """Export offering screenshots."""
+        screenshots = []
+        for screenshot in offering.screenshots.all():
+            screenshot_data = {
+                "name": screenshot.name,
+                "description": screenshot.description,
+            }
+
+            # Include base64 encoded image content
+            if screenshot.image:
+                try:
+                    with screenshot.image.open("rb") as image_file:
+                        image_content = image_file.read()
+                        screenshot_data["image_content"] = base64.b64encode(
+                            image_content
+                        ).decode("utf-8")
+                        screenshot_data["image_filename"] = screenshot.image.name.split(
+                            "/"
+                        )[-1]
+                        # Try to determine content type from file extension
+                        if screenshot.image.name.lower().endswith(".png"):
+                            screenshot_data["content_type"] = "image/png"
+                        elif screenshot.image.name.lower().endswith((".jpg", ".jpeg")):
+                            screenshot_data["content_type"] = "image/jpeg"
+                        elif screenshot.image.name.lower().endswith(".gif"):
+                            screenshot_data["content_type"] = "image/gif"
+                        elif screenshot.image.name.lower().endswith(".svg"):
+                            screenshot_data["content_type"] = "image/svg+xml"
+                        elif screenshot.image.name.lower().endswith(".webp"):
+                            screenshot_data["content_type"] = "image/webp"
+                        else:
+                            screenshot_data["content_type"] = "image/png"  # Default
+                except Exception:
+                    # If file access fails, fall back to URL
+                    screenshot_data["image_url"] = screenshot.image.url
+
+            screenshots.append(screenshot_data)
+        return screenshots
+
+    def _export_offering_files(self, offering):
+        """Export offering files."""
+        files = []
+        for file_obj in offering.files.all():
+            file_data = {
+                "name": file_obj.name,
+            }
+
+            # Include base64 encoded file content
+            if file_obj.file:
+                try:
+                    with file_obj.file.open("rb") as file_content:
+                        content = file_content.read()
+                        file_data["file_content"] = base64.b64encode(content).decode(
+                            "utf-8"
+                        )
+                        file_data["filename"] = file_obj.file.name.split("/")[-1]
+                        # Try to determine content type from file extension
+                        filename_lower = file_obj.file.name.lower()
+                        if filename_lower.endswith(".pdf"):
+                            file_data["content_type"] = "application/pdf"
+                        elif filename_lower.endswith((".txt", ".md")):
+                            file_data["content_type"] = "text/plain"
+                        elif filename_lower.endswith(".json"):
+                            file_data["content_type"] = "application/json"
+                        elif filename_lower.endswith((".yml", ".yaml")):
+                            file_data["content_type"] = "application/x-yaml"
+                        else:
+                            file_data["content_type"] = (
+                                "application/octet-stream"  # Default binary
+                            )
+                except Exception:
+                    # If file access fails, fall back to URL
+                    file_data["file_url"] = file_obj.file.url
+
+            files.append(file_data)
+        return files
+
+    def _export_offering_endpoints(self, offering):
+        """Export offering access endpoints."""
+        endpoints = []
+        for endpoint in offering.endpoints.all():
+            endpoints.append(
+                {
+                    "name": endpoint.name,
+                    "url": endpoint.url,
+                }
+            )
+        return endpoints
+
+    def _export_organization_groups(self, offering):
+        """Export organization groups associations."""
+        groups = []
+        for group in offering.organization_groups.all():
+            groups.append(
+                {
+                    "name": group.name,
+                    "parent_name": group.parent.name if group.parent else None,
+                }
+            )
+        return groups
+
+    def _export_terms_of_service(self, offering):
+        """Export terms of service configurations."""
+        terms_configs = []
+        for terms_config in offering.terms_of_service_configs.all():
+            terms_configs.append(
+                {
+                    "terms_of_service": terms_config.terms_of_service,
+                    "terms_of_service_link": terms_config.terms_of_service_link,
+                    "version": terms_config.version,
+                    "is_active": terms_config.is_active,
+                    "requires_reconsent": terms_config.requires_reconsent,
+                    "grace_period_days": terms_config.grace_period_days,
+                }
+            )
+        return terms_configs
+
+    def _get_exported_components_list(self, offering, params):
+        """Get list of exported component names."""
+        exported_components = []
+
+        if params.get("include_components", True):
+            exported_components.extend([c.type for c in offering.components.all()])
+
+        if params.get("include_plans", True):
+            exported_components.append("plans")
+
+        if params.get("include_screenshots", True):
+            exported_components.append("screenshots")
+
+        if params.get("include_files", True):
+            exported_components.append("files")
+
+        if params.get("include_endpoints", True):
+            exported_components.append("endpoints")
+
+        if params.get("include_organization_groups", True):
+            exported_components.append("organization_groups")
+
+        if params.get("include_terms_of_service", True):
+            exported_components.append("terms_of_service")
+
+        return exported_components
+
+    export_offering_serializer_class = serializers.OfferingExportParametersSerializer
+    export_offering_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+
+    @extend_schema(
+        summary="Import offering data",
+        description="Imports an offering and all its connected parts from YAML format. Allows configuration of which components to import and how to handle conflicts.",
+        request=serializers.OfferingImportParametersSerializer,
+        responses=serializers.OfferingImportResponseSerializer,
+    )
+    @action(detail=False, methods=["post"], permission_classes=[])
+    def import_offering(self, request):
+        """Import offering data with configurable parameters."""
+        serializer = serializers.OfferingImportParametersSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        params = serializer.validated_data
+
+        # Parse YAML data
+        try:
+            if isinstance(params["offering_data"], str):
+                import_data = yaml.safe_load(params["offering_data"])
+            else:
+                import_data = params["offering_data"]
+        except yaml.YAMLError as e:
+            raise rf_exceptions.ValidationError(f"Invalid YAML data: {str(e)}")
+
+        warnings = []
+
+        with transaction.atomic():
+            # Create or update offering
+            offering, created, offering_warnings = self._import_offering_data(
+                import_data, params, request.user
+            )
+            warnings.extend(offering_warnings)
+
+            # Import related components based on parameters
+            imported_components = []
+
+            if params.get("import_components", True) and "components" in import_data:
+                component_warnings = self._import_offering_components(
+                    offering, import_data["components"]
+                )
+                warnings.extend(component_warnings)
+                imported_components.extend(
+                    [c["type"] for c in import_data["components"]]
+                )
+
+            if params.get("import_plans", True) and "plans" in import_data:
+                plan_warnings = self._import_offering_plans(
+                    offering, import_data["plans"]
+                )
+                warnings.extend(plan_warnings)
+                imported_components.append("plans")
+
+            if params.get("import_screenshots", True) and "screenshots" in import_data:
+                screenshot_warnings = self._import_offering_screenshots(
+                    offering, import_data["screenshots"]
+                )
+                warnings.extend(screenshot_warnings)
+                imported_components.append("screenshots")
+
+            if params.get("import_files", True) and "files" in import_data:
+                file_warnings = self._import_offering_files(
+                    offering, import_data["files"]
+                )
+                warnings.extend(file_warnings)
+                imported_components.append("files")
+
+            if params.get("import_endpoints", True) and "endpoints" in import_data:
+                endpoint_warnings = self._import_offering_endpoints(
+                    offering, import_data["endpoints"]
+                )
+                warnings.extend(endpoint_warnings)
+                imported_components.append("endpoints")
+
+            if (
+                params.get("import_organization_groups", True)
+                and "organization_groups" in import_data
+            ):
+                group_warnings = self._import_organization_groups(
+                    offering, import_data["organization_groups"]
+                )
+                warnings.extend(group_warnings)
+                imported_components.append("organization_groups")
+
+            if (
+                params.get("import_terms_of_service", True)
+                and "terms_of_service" in import_data
+            ):
+                terms_warnings = self._import_terms_of_service(
+                    offering, import_data["terms_of_service"]
+                )
+                warnings.extend(terms_warnings)
+                imported_components.append("terms_of_service")
+
+        response_data = {
+            "imported_offering_uuid": offering.uuid,
+            "imported_offering_name": offering.name,
+            "imported_components": imported_components,
+            "warnings": warnings,
+            "import_timestamp": timezone.now(),
+        }
+
+        return response.Response(
+            serializers.OfferingImportResponseSerializer(response_data).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    def _import_offering_data(self, import_data, params, user):
+        """Import core offering data."""
+        offering_data = import_data.get("offering", {})
+        warnings = []
+        created = False
+
+        # Determine target customer
+        customer = params.get("customer")
+        if not customer:
+            try:
+                customer = user.customer_permissions.first().customer
+            except (AttributeError, IndexError):
+                raise rf_exceptions.ValidationError(
+                    "No target customer specified or found"
+                )
+
+        # Determine target category - prioritize explicit parameter over export data
+        category = params.get("category")  # This gets the explicitly provided category
+
+        if not category:
+            # If no explicit category provided, try to use category from export data
+            category_name = offering_data.get("category_name")
+            if category_name:
+                try:
+                    category = models.Category.objects.get(title=category_name)
+                except models.Category.DoesNotExist:
+                    warnings.append(
+                        f"Category with name '{category_name}' not found, using first available category"
+                    )
+                    category = models.Category.objects.first()
+
+        # If we still don't have a category, try to get the first available one
+        if not category:
+            category = models.Category.objects.first()
+            if category:
+                warnings.append(
+                    "No category specified or found in export data, using first available category"
+                )
+
+        if not category:
+            raise rf_exceptions.ValidationError("No target category specified or found")
+
+        # Check if offering exists
+        offering_name = offering_data.get("name")
+        existing_offering = None
+
+        if offering_name:
+            existing_offering = models.Offering.objects.filter(
+                name=offering_name, customer=customer
+            ).first()
+
+        if existing_offering:
+            if not params.get("overwrite_existing", False):
+                raise rf_exceptions.ValidationError(
+                    f"Offering '{offering_name}' already exists. Set overwrite_existing=True to update it."
+                )
+            offering = existing_offering
+        else:
+            offering = models.Offering(customer=customer, category=category)
+            created = True
+
+        # Update offering fields
+        offering.name = offering_data.get("name", offering.name)
+        offering.description = offering_data.get("description", offering.description)
+        offering.full_description = offering_data.get(
+            "full_description", offering.full_description
+        )
+        offering.vendor_details = offering_data.get(
+            "vendor_details", offering.vendor_details
+        )
+        offering.getting_started = offering_data.get(
+            "getting_started", offering.getting_started
+        )
+        offering.integration_guide = offering_data.get(
+            "integration_guide", offering.integration_guide
+        )
+        offering.type = offering_data.get("type", offering.type)
+        offering.shared = offering_data.get("shared", offering.shared)
+        offering.billable = offering_data.get("billable", offering.billable)
+        offering.country = offering_data.get("country", offering.country)
+        offering.latitude = offering_data.get("latitude", offering.latitude)
+        offering.longitude = offering_data.get("longitude", offering.longitude)
+        offering.access_url = offering_data.get("access_url", offering.access_url)
+        offering.paused_reason = offering_data.get(
+            "paused_reason", offering.paused_reason
+        )
+
+        # Set state based on preserve_state parameter
+        if not params.get("preserve_state", False):
+            offering.state = models.Offering.States.DRAFT
+        else:
+            state_map = {
+                "Draft": models.Offering.States.DRAFT,
+                "Active": models.Offering.States.ACTIVE,
+                "Paused": models.Offering.States.PAUSED,
+                "Archived": models.Offering.States.ARCHIVED,
+            }
+            offering.state = state_map.get(
+                offering_data.get("state"), models.Offering.States.DRAFT
+            )
+
+        # Set optional project
+        project = params.get("project")
+        if project:
+            offering.project = project
+
+        # Update JSON fields based on import parameters
+        if (
+            params.get("import_plugin_options", True)
+            and "plugin_options" in offering_data
+        ):
+            offering.plugin_options = offering_data["plugin_options"]
+
+        if (
+            params.get("import_secret_options", False)
+            and "secret_options" in offering_data
+        ):
+            offering.secret_options = offering_data["secret_options"]
+
+        if "attributes" in offering_data:
+            offering.attributes = offering_data["attributes"]
+
+        if "options" in offering_data:
+            offering.options = offering_data["options"]
+
+        if "resource_options" in offering_data:
+            offering.resource_options = offering_data["resource_options"]
+
+        offering.save()
+        return offering, created, warnings
+
+    def _import_offering_components(self, offering, components_data):
+        """Import offering components."""
+        warnings = []
+
+        for component_data in components_data:
+            component, created = models.OfferingComponent.objects.get_or_create(
+                offering=offering,
+                type=component_data["type"],
+                defaults={
+                    "name": component_data.get("name", ""),
+                    "description": component_data.get("description", ""),
+                    "billing_type": component_data.get("billing_type", ""),
+                    "measured_unit": component_data.get("measured_unit", ""),
+                    "unit_factor": component_data.get("unit_factor", 1),
+                    "limit_period": component_data.get("limit_period"),
+                    "limit_amount": component_data.get("limit_amount"),
+                    "article_code": component_data.get("article_code", ""),
+                    "backend_id": component_data.get("backend_id", ""),
+                },
+            )
+
+            if not created:
+                # Update existing component
+                component.name = component_data.get("name", component.name)
+                component.description = component_data.get(
+                    "description", component.description
+                )
+                component.billing_type = component_data.get(
+                    "billing_type", component.billing_type
+                )
+                component.measured_unit = component_data.get(
+                    "measured_unit", component.measured_unit
+                )
+                component.unit_factor = component_data.get(
+                    "unit_factor", component.unit_factor
+                )
+                component.limit_period = component_data.get(
+                    "limit_period", component.limit_period
+                )
+                component.limit_amount = component_data.get(
+                    "limit_amount", component.limit_amount
+                )
+                component.article_code = component_data.get(
+                    "article_code", component.article_code
+                )
+                component.backend_id = component_data.get(
+                    "backend_id", component.backend_id
+                )
+                component.save()
+
+        return warnings
+
+    def _import_offering_plans(self, offering, plans_data):
+        """Import offering plans."""
+        warnings = []
+
+        for plan_data in plans_data:
+            plan, created = models.Plan.objects.get_or_create(
+                offering=offering,
+                name=plan_data["name"],
+                defaults={
+                    "description": plan_data.get("description", ""),
+                    "unit_price": plan_data.get("unit_price", 0),
+                    "unit": plan_data.get("unit", ""),
+                    "archived": plan_data.get("archived", False),
+                    "max_amount": plan_data.get("max_amount"),
+                    "article_code": plan_data.get("article_code", ""),
+                    "backend_id": plan_data.get("backend_id", ""),
+                },
+            )
+
+            if not created:
+                # Update existing plan
+                plan.description = plan_data.get("description", plan.description)
+                plan.unit_price = plan_data.get("unit_price", plan.unit_price)
+                plan.unit = plan_data.get("unit", plan.unit)
+                plan.archived = plan_data.get("archived", plan.archived)
+                plan.max_amount = plan_data.get("max_amount", plan.max_amount)
+                plan.article_code = plan_data.get("article_code", plan.article_code)
+                plan.backend_id = plan_data.get("backend_id", plan.backend_id)
+                plan.save()
+
+            # Import plan components
+            for component_data in plan_data.get("components", []):
+                component_type = component_data.get("component_type")
+                if component_type:
+                    try:
+                        component = offering.components.get(type=component_type)
+                        plan_component, created = (
+                            models.PlanComponent.objects.get_or_create(
+                                plan=plan,
+                                component=component,
+                                defaults={
+                                    "amount": component_data.get("amount", 0),
+                                    "price": component_data.get("price", 0),
+                                    "future_price": component_data.get("future_price"),
+                                },
+                            )
+                        )
+
+                        if not created:
+                            plan_component.amount = component_data.get(
+                                "amount", plan_component.amount
+                            )
+                            plan_component.price = component_data.get(
+                                "price", plan_component.price
+                            )
+                            plan_component.future_price = component_data.get(
+                                "future_price", plan_component.future_price
+                            )
+                            plan_component.save()
+
+                    except models.OfferingComponent.DoesNotExist:
+                        warnings.append(
+                            f"Component type '{component_type}' not found for plan '{plan.name}'"
+                        )
+
+        return warnings
+
+    def _import_offering_screenshots(self, offering, screenshots_data):
+        """Import offering screenshots."""
+        warnings = []
+
+        for screenshot_data in screenshots_data:
+            screenshot_name = screenshot_data.get("name", "")
+
+            # Check if we have base64 content to import
+            if "image_content" in screenshot_data:
+                try:
+                    # Decode base64 content
+                    image_content = base64.b64decode(screenshot_data["image_content"])
+                    filename = screenshot_data.get(
+                        "image_filename", f"{screenshot_name}.png"
+                    )
+                    screenshot_data.get("content_type", "image/png")
+
+                    # Create screenshot with content
+                    screenshot, created = models.Screenshot.objects.get_or_create(
+                        offering=offering,
+                        name=screenshot_name,
+                        defaults={
+                            "description": screenshot_data.get("description", ""),
+                        },
+                    )
+
+                    # Save the image content
+                    screenshot.image.save(
+                        filename, ContentFile(image_content), save=True
+                    )
+
+                    if not created:
+                        screenshot.description = screenshot_data.get(
+                            "description", screenshot.description
+                        )
+                        screenshot.save()
+
+                except Exception as e:
+                    warnings.append(
+                        f"Failed to import screenshot '{screenshot_name}': {str(e)}"
+                    )
+            else:
+                # No base64 content, just create metadata entry
+                screenshot, created = models.Screenshot.objects.get_or_create(
+                    offering=offering,
+                    name=screenshot_name,
+                    defaults={
+                        "description": screenshot_data.get("description", ""),
+                    },
+                )
+                if not created:
+                    screenshot.description = screenshot_data.get(
+                        "description", screenshot.description
+                    )
+                    screenshot.save()
+
+                if "image_url" in screenshot_data:
+                    warnings.append(
+                        f"Screenshot '{screenshot_name}' imported without content (URL reference only)"
+                    )
+
+        return warnings
+
+    def _import_offering_files(self, offering, files_data):
+        """Import offering files."""
+        warnings = []
+
+        for file_data in files_data:
+            file_name = file_data.get("name", "")
+
+            # Check if we have base64 content to import
+            if "file_content" in file_data:
+                try:
+                    # Decode base64 content
+                    content = base64.b64decode(file_data["file_content"])
+                    filename = file_data.get("filename", file_name)
+                    file_data.get("content_type", "application/octet-stream")
+
+                    # Create or update file with content
+                    offering_file, created = models.OfferingFile.objects.get_or_create(
+                        offering=offering, name=file_name, defaults={}
+                    )
+
+                    # Save the file content
+                    offering_file.file.save(filename, ContentFile(content), save=True)
+
+                except Exception as e:
+                    warnings.append(f"Failed to import file '{file_name}': {str(e)}")
+            else:
+                # No base64 content, just create metadata entry
+                offering_file, created = models.OfferingFile.objects.get_or_create(
+                    offering=offering, name=file_name, defaults={}
+                )
+
+                if "file_url" in file_data:
+                    warnings.append(
+                        f"File '{file_name}' imported without content (URL reference only)"
+                    )
+
+        return warnings
+
+    def _import_offering_endpoints(self, offering, endpoints_data):
+        """Import offering access endpoints."""
+        warnings = []
+
+        for endpoint_data in endpoints_data:
+            endpoint, created = models.OfferingAccessEndpoint.objects.get_or_create(
+                offering=offering,
+                name=endpoint_data["name"],
+                defaults={
+                    "url": endpoint_data.get("url", ""),
+                },
+            )
+
+            if not created:
+                endpoint.url = endpoint_data.get("url", endpoint.url)
+                endpoint.save()
+
+        return warnings
+
+    def _import_organization_groups(self, offering, groups_data):
+        """Import organization groups associations."""
+        warnings = []
+
+        for group_data in groups_data:
+            group_name = group_data.get("name")
+            if group_name:
+                try:
+                    group = structure_models.OrganizationGroup.objects.get(
+                        name=group_name
+                    )
+                    offering.organization_groups.add(group)
+                except structure_models.OrganizationGroup.DoesNotExist:
+                    warnings.append(
+                        f"Organization group with name '{group_name}' not found"
+                    )
+
+        return warnings
+
+    def _import_terms_of_service(self, offering, terms_data):
+        """Import terms of service configurations."""
+        warnings = []
+
+        for terms_config_data in terms_data:
+            # Deactivate existing active terms if we're importing a new active one
+            if terms_config_data.get("is_active", False):
+                offering.terms_of_service_configs.filter(is_active=True).update(
+                    is_active=False
+                )
+
+            models.OfferingTermsOfService.objects.create(
+                offering=offering,
+                terms_of_service=terms_config_data.get("terms_of_service", ""),
+                terms_of_service_link=terms_config_data.get(
+                    "terms_of_service_link", ""
+                ),
+                version=terms_config_data.get("version", ""),
+                is_active=terms_config_data.get("is_active", False),
+                requires_reconsent=terms_config_data.get("requires_reconsent", False),
+                grace_period_days=terms_config_data.get("grace_period_days", 60),
+            )
+
+        return warnings
+
+    import_offering_serializer_class = serializers.OfferingImportParametersSerializer
 
 
 @extend_schema_view(
