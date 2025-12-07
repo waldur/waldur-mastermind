@@ -2478,7 +2478,7 @@ class ProviderOfferingDetailsSerializer(
 
     def get_state(
         self, offering: models.Offering
-    ) -> Literal["Draft", "Active", "Paused", "Archived"]:
+    ) -> Literal["Draft", "Active", "Paused", "Archived", "Unavailable"]:
         return offering.get_state_display()
 
     def get_scope_state(self, offering: models.Offering) -> CoreStateType | None:
@@ -3512,6 +3512,9 @@ def confirm_order_request_user_has_offering_consent(
 
 def validate_order(order: models.Order, request):
     structure_utils.check_customer_blocked_or_archived(order.project.customer)
+
+    if order.offering.state == OfferingStates.UNAVAILABLE:
+        raise serializers.ValidationError(_("Offering is not available."))
 
     if order.type != OrderTypes.TERMINATE:
         structure_utils.check_project_end_date(order.project)
@@ -6569,7 +6572,7 @@ class ProviderOfferingSerializer(
 
     def get_state(
         self, offering: models.Offering
-    ) -> Literal["Draft", "Active", "Paused", "Archived"]:
+    ) -> Literal["Draft", "Active", "Paused", "Archived", "Unavailable"]:
         return offering.get_state_display()
 
     def get_resources(self, offering: models.Offering):

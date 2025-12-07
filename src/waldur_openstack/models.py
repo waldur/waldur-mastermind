@@ -41,6 +41,7 @@ class Tenant(
     quotas_models.QuotaModelMixin,
     core_models.RuntimeStateMixin,
     structure_models.BaseResource,
+    core_models.AvailableMixin,
 ):
     flavors: models.Manager["Flavor"]
     images: models.Manager["Image"]
@@ -893,7 +894,12 @@ class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
         return "openstack-volume-availability-zone"
 
 
-class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage):
+class Volume(
+    core_models.ActionMixin,
+    TenantQuotaMixin,
+    structure_models.Storage,
+    core_models.AvailableMixin,
+):
     snapshots: models.Manager["Snapshot"]
     restoration: models.Manager["SnapshotRestoration"]
 
@@ -1147,7 +1153,10 @@ class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
 
 
 class Instance(
-    core_models.ActionMixin, TenantQuotaMixin, structure_models.VirtualMachine
+    core_models.ActionMixin,
+    TenantQuotaMixin,
+    structure_models.VirtualMachine,
+    core_models.AvailableMixin,
 ):
     tracker = cast(FieldInstanceTracker, FieldTracker())
 

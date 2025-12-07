@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Literal, cast
 
 from django.conf import settings
@@ -388,7 +389,7 @@ class Round(
         decimal_places=1,
         null=True,
         blank=True,
-        validators=[MinValueValidator(0)],
+        validators=[MinValueValidator(Decimal("0"))],
     )
     allocation_date = models.DateTimeField(null=True, blank=True)
     start_time = models.DateTimeField()

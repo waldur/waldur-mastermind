@@ -398,6 +398,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
             OfferingStates.DRAFT,
             OfferingStates.PAUSED,
             OfferingStates.ARCHIVED,
+            OfferingStates.UNAVAILABLE,
         ]
         valid_offerings = queryset.filter(state__in=valid_states)
         count = valid_offerings.count()

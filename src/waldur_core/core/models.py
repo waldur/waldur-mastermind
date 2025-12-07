@@ -957,3 +957,10 @@ class UserDetailsMatchMixin(models.Model):
             raise serializers.ValidationError(
                 f"Invalid regex patterns: {invalid_patterns}"
             )
+
+
+class AvailableMixin(models.Model):
+    class Meta:
+        abstract = True
+
+    can_be_managed = models.BooleanField(default=True)

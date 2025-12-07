@@ -227,3 +227,23 @@ class UpdateResourceProcessorTest(test.APITransactionTestCase):
 
         # 3. Verify renewal history is NOT created
         self.assertNotIn("renewal_history", resource.attributes)
+
+
+class ScopeModelsHasIsAvailableFieldTest(test.APITransactionTestCase):
+    def test_can_be_managed_field_exists(self):
+        all_types = list(manager.backends.keys())
+        has_not_field = []
+
+        for offering_type in all_types:
+            resource_model = manager.get_resource_model(offering_type)
+
+            if not resource_model:
+                continue
+
+            if not hasattr(resource_model, "can_be_managed"):
+                has_not_field.append(resource_model)
+
+        if has_not_field:
+            raise AssertionError(
+                f"Scope models do not have can_be_managed field: {has_not_field}"
+            )

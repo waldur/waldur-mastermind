@@ -1154,3 +1154,44 @@ class MaxConcurrentProvisionTest(test.APITransactionTestCase):
         self.assertEqual(
             5, LimitedPerTypeThrottleMixin().get_limit(self.fixture.instance)
         )
+
+
+class InstanceUpdateBlockedIfOfferingIsUnavailableTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.instance = self.fixture.instance
+
+    def test_start_action_blocked_when_can_be_managed_false(self):
+        url = factories.InstanceFactory.get_url(self.instance, action="start")
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+        self.instance.can_be_managed = False
+        self.instance.save()
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_get_request_allowed_when_can_be_managed_false(self):
+        url = factories.InstanceFactory.get_url(self.instance)
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.instance.can_be_managed = False
+        self.instance.save()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_update_blocked_when_can_be_managed_false(self):
+        url = factories.InstanceFactory.get_url(self.instance)
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        response = self.client.put(url, {"name": "VM"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.instance.can_be_managed = False
+        self.instance.save()
+        response = self.client.put(url, {"name": "VM"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

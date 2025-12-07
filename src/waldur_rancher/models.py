@@ -42,7 +42,7 @@ class SettingsMixin(models.Model):
         return self.settings.get_backend()
 
 
-class Cluster(SettingsMixin, BaseResource):
+class Cluster(SettingsMixin, BaseResource, core_models.AvailableMixin):
     class RuntimeStates:
         ACTIVE = "active"
 

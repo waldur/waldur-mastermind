@@ -48,7 +48,9 @@ class PublicIPViewSet(structure_views.ResourceViewSet):
     delete_executor = executors.PublicIPDeleteExecutor
 
 
-class VirtualMachineViewSet(structure_views.ResourceViewSet):
+class VirtualMachineViewSet(
+    structure_views.ResourceViewSet, structure_views.AvailabilityCheckViewMixin
+):
     queryset = models.VirtualMachine.objects.all().order_by("name")
     filterset_class = filters.VirtualMachineFilter
     serializer_class = serializers.AzureVirtualMachineSerializer
@@ -99,7 +101,9 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
     restart_serializer_class = EmptySerializer
 
 
-class SQLServerViewSet(structure_views.ResourceViewSet):
+class SQLServerViewSet(
+    structure_views.ResourceViewSet, structure_views.AvailabilityCheckViewMixin
+):
     queryset = models.SQLServer.objects.all().order_by("name")
     filterset_class = filters.SQLServerFilter
     serializer_class = serializers.AzureSqlServerSerializer

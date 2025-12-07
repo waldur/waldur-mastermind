@@ -148,6 +148,7 @@ def user_can_update_thumbnail(request, view, obj: models.Offering | None = None)
         OfferingStates.ACTIVE,
         OfferingStates.DRAFT,
         OfferingStates.PAUSED,
+        OfferingStates.UNAVAILABLE,
     ):
         raise exceptions.PermissionDenied(_("You are not allowed to update a logo."))
     else:

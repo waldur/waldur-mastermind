@@ -33,7 +33,10 @@ class VirtualMachineMixin(models.Model):
 
 
 class VirtualMachine(
-    VirtualMachineMixin, core_models.RuntimeStateMixin, structure_models.BaseResource
+    VirtualMachineMixin,
+    core_models.RuntimeStateMixin,
+    structure_models.BaseResource,
+    core_models.AvailableMixin,
 ):
     disks: models.Manager["Disk"]
 

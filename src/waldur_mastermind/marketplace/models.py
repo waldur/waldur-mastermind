@@ -130,7 +130,11 @@ class ServiceProvider(
     def offering_count(self) -> int:
         return Offering.objects.filter(
             customer=self.customer,
-            state__in=[OfferingStates.ACTIVE, OfferingStates.PAUSED],
+            state__in=[
+                OfferingStates.ACTIVE,
+                OfferingStates.PAUSED,
+                OfferingStates.UNAVAILABLE,
+            ],
         ).count()
 
     def generate_api_secret_code(self):
@@ -524,7 +528,9 @@ class Offering(
     software_catalogs: models.Manager["OfferingSoftwareCatalog"]
     user_consents: models.Manager["UserOfferingConsent"]
     terms_of_service_configs: models.Manager["OfferingTermsOfService"]
-    get_state_display: Callable[[], Literal["Draft", "Active", "Paused", "Archived"]]
+    get_state_display: Callable[
+        [], Literal["Draft", "Active", "Paused", "Archived", "Unavailable"]
+    ]
 
     class States(OfferingStates):
         pass
@@ -668,7 +674,7 @@ class Offering(
 
     @transition(
         field=state,
-        source=[States.DRAFT, States.PAUSED],
+        source=[States.DRAFT, States.PAUSED, States.UNAVAILABLE],
         target=States.ACTIVE,
         conditions=[offering_has_plans],
     )
@@ -686,6 +692,14 @@ class Offering(
         conditions=[offering_has_plans],
     )
     def unpause(self):
+        pass
+
+    @transition(field=state, source=States.ACTIVE, target=States.UNAVAILABLE)
+    def make_unavailable(self):
+        pass
+
+    @transition(field=state, source=States.UNAVAILABLE, target=States.ACTIVE)
+    def make_available(self):
         pass
 
     @transition(field=state, source="*", target=States.ARCHIVED)

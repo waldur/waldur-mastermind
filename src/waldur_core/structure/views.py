@@ -28,6 +28,7 @@ from rest_framework import serializers as rf_serializers
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 
 from waldur_auth_social.const import ProviderChoices
@@ -2375,3 +2376,16 @@ class CustomerProjectMetadataQuestionAnswersViewSet(
         # Attach bulk data to serializer class for efficient access
         serializer_class = self.get_serializer_class()
         serializer_class._bulk_question_data = question_data_map
+
+
+class AvailabilityCheckViewMixin(viewsets.ModelViewSet):
+    def get_object(self):
+        obj = super().get_object()
+
+        if (
+            not getattr(obj, "can_be_managed", True)
+            and self.request.method not in SAFE_METHODS
+        ):
+            raise ValidationError(_("Operation is not allowed. Object is unavailable."))
+
+        return obj

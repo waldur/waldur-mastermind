@@ -1472,7 +1472,11 @@ def clean_remote_projects():
 
     for offering in models.Offering.objects.filter(
         type=REMOTE_OFFERING,
-        state__in=(OfferingStates.ACTIVE, OfferingStates.PAUSED),
+        state__in=(
+            OfferingStates.ACTIVE,
+            OfferingStates.PAUSED,
+            OfferingStates.UNAVAILABLE,
+        ),
     ):
         if (
             "api_url" not in offering.secret_options.keys()

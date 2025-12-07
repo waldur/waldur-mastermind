@@ -25,7 +25,7 @@ class UsageMixin(models.Model):
     gpu_usage = models.BigIntegerField(default=0)
 
 
-class Allocation(UsageMixin, structure_models.BaseResource):
+class Allocation(UsageMixin, structure_models.BaseResource, core_models.AvailableMixin):
     associations: models.Manager["Association"]
 
     is_active = models.BooleanField(default=True)
