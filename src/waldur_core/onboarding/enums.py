@@ -45,11 +45,13 @@ class ValidationMethod:
     ARIREGISTER = "ariregister"
     WIRTSCHAFTSCOMPASS = "wirtschaftscompass"
     BOLAGSVERKET = "bolagsverket"
+    BRREG = "breg"
 
     CHOICES = (
         (ARIREGISTER, "Estonian Business Register (ariregister)"),
         (WIRTSCHAFTSCOMPASS, "Austrian Business Register (WirtschaftsCompass)"),
         (BOLAGSVERKET, "Swedish Business Register (Bolagsverket)"),
+        (BRREG, "Norwegian Business Register (Brreg)"),
     )
 
     VALUES = [val for (val, _) in CHOICES]

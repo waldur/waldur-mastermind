@@ -596,6 +596,11 @@ CONSTANCE_CONFIG = {
         "Sweden Business Register API client secret",
         "secret_field",
     ),
+    "ONBOARDING_BREG_API_URL": (
+        "https://data.brreg.no/",
+        "Norway Business Register API server URL",
+        "url_field",
+    ),
     # LLM inference settings
     "LLM_CHAT_ENABLED": (
         False,
@@ -848,6 +853,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ONBOARDING_BOLAGSVERKET_TOKEN_API_URL",
         "ONBOARDING_BOLAGSVERKET_CLIENT_ID",
         "ONBOARDING_BOLAGSVERKET_CLIENT_SECRET",
+        "ONBOARDING_BREG_API_URL",
     ),
     "LLM inference settings": (
         "LLM_CHAT_ENABLED",
