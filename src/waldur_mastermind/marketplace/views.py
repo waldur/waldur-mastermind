@@ -3570,15 +3570,10 @@ class ProviderOfferingViewSet(
         export_data = self._build_offering_export_data(offering, params)
         exported_components = self._get_exported_components_list(offering, params)
 
-        # Convert to YAML format
-        yaml_data = yaml.safe_dump(
-            export_data, default_flow_style=False, allow_unicode=True, sort_keys=False
-        )
-
         response_data = {
             "offering_uuid": offering.uuid,
             "offering_name": offering.name,
-            "export_data": yaml_data,
+            "export_data": export_data,
             "exported_components": exported_components,
             "export_timestamp": timezone.now(),
         }
@@ -3620,13 +3615,13 @@ class ProviderOfferingViewSet(
             export_data["offering"]["options"] = offering.options
 
         if params.get("include_resource_options", True):
-            export_data["offering"]["resource_options"] = offering.resource_options
+            export_data["resource_options"] = offering.resource_options
 
         if params.get("include_plugin_options", True):
-            export_data["offering"]["plugin_options"] = offering.plugin_options
+            export_data["plugin_options"] = offering.plugin_options
 
         if params.get("include_secret_options", False):
-            export_data["offering"]["secret_options"] = offering.secret_options
+            export_data["secret_options"] = offering.secret_options
 
         # Add related entities based on parameters
         if params.get("include_components", True):

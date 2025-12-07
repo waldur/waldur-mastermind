@@ -8419,6 +8419,129 @@ class OfferingExportParametersSerializer(serializers.Serializer):
     )
 
 
+class ExportOfferingDataSerializer(serializers.Serializer):
+    """Serializer for core offering data in export."""
+
+    name = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
+    full_description = serializers.CharField(allow_blank=True)
+    vendor_details = serializers.CharField(allow_blank=True)
+    getting_started = serializers.CharField(allow_blank=True)
+    integration_guide = serializers.CharField(allow_blank=True)
+    type = serializers.CharField()
+    shared = serializers.BooleanField()
+    billable = serializers.BooleanField()
+    state = serializers.CharField()
+    category_name = serializers.CharField(allow_null=True)
+    country = serializers.CharField(allow_blank=True)
+    latitude = serializers.FloatField(allow_null=True)
+    longitude = serializers.FloatField(allow_null=True)
+    access_url = serializers.URLField(allow_blank=True)
+    paused_reason = serializers.CharField(allow_blank=True)
+    attributes = serializers.JSONField(required=False)
+    options = serializers.JSONField(required=False)
+
+
+class ExportComponentDataSerializer(serializers.Serializer):
+    """Serializer for component data in export."""
+
+    type = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
+    billing_type = serializers.CharField()
+    measured_unit = serializers.CharField()
+    unit_factor = serializers.FloatField(allow_null=True)
+    limit_period = serializers.CharField(allow_null=True)
+    limit_amount = serializers.IntegerField(allow_null=True)
+    article_code = serializers.CharField(allow_blank=True)
+    backend_id = serializers.CharField(allow_blank=True)
+
+
+class ExportPlanComponentDataSerializer(serializers.Serializer):
+    """Serializer for plan component data in export."""
+
+    component_type = serializers.CharField(allow_null=True)
+    amount = serializers.IntegerField()
+    price = serializers.FloatField()
+    future_price = serializers.FloatField(allow_null=True)
+
+
+class ExportPlanDataSerializer(serializers.Serializer):
+    """Serializer for plan data in export."""
+
+    name = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
+    unit_price = serializers.FloatField()
+    unit = serializers.CharField()
+    archived = serializers.BooleanField()
+    max_amount = serializers.IntegerField(allow_null=True)
+    article_code = serializers.CharField(allow_blank=True)
+    backend_id = serializers.CharField(allow_blank=True)
+    components = ExportPlanComponentDataSerializer(many=True)
+
+
+class ExportScreenshotDataSerializer(serializers.Serializer):
+    """Serializer for screenshot data in export."""
+
+    name = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
+    image_content = serializers.CharField(allow_blank=True)
+    image_filename = serializers.CharField(allow_blank=True)
+    content_type = serializers.CharField(allow_blank=True)
+
+
+class ExportFileDataSerializer(serializers.Serializer):
+    """Serializer for file data in export."""
+
+    name = serializers.CharField()
+    file_content = serializers.CharField(allow_blank=True)
+    filename = serializers.CharField(allow_blank=True)
+    content_type = serializers.CharField(allow_blank=True)
+
+
+class ExportEndpointDataSerializer(serializers.Serializer):
+    """Serializer for endpoint data in export."""
+
+    name = serializers.CharField()
+    url = serializers.URLField()
+
+
+class ExportOrganizationGroupDataSerializer(serializers.Serializer):
+    """Serializer for organization group data in export."""
+
+    name = serializers.CharField()
+    parent_name = serializers.CharField(allow_null=True)
+
+
+class ExportTermsOfServiceDataSerializer(serializers.Serializer):
+    """Serializer for terms of service data in export."""
+
+    terms_of_service = serializers.CharField(allow_blank=True)
+    terms_of_service_link = serializers.URLField(allow_blank=True)
+    version = serializers.CharField(allow_blank=True)
+    is_active = serializers.BooleanField()
+    requires_reconsent = serializers.BooleanField()
+    grace_period_days = serializers.IntegerField(allow_null=True)
+
+
+class OfferingExportDataSerializer(serializers.Serializer):
+    """Complete serializer for offering export data structure."""
+
+    offering = ExportOfferingDataSerializer()
+    components = ExportComponentDataSerializer(many=True, required=False)
+    plans = ExportPlanDataSerializer(many=True, required=False)
+    screenshots = ExportScreenshotDataSerializer(many=True, required=False)
+    files = ExportFileDataSerializer(many=True, required=False)
+    endpoints = ExportEndpointDataSerializer(many=True, required=False)
+    organization_groups = ExportOrganizationGroupDataSerializer(
+        many=True, required=False
+    )
+    terms_of_service = ExportTermsOfServiceDataSerializer(many=True, required=False)
+    plugin_options = serializers.JSONField(required=False)
+    secret_options = serializers.JSONField(required=False)
+    resource_options = serializers.JSONField(required=False)
+
+
 class OfferingImportParametersSerializer(serializers.Serializer):
     """
     Serializer to configure offering import parameters.
@@ -8484,7 +8607,12 @@ class OfferingImportParametersSerializer(serializers.Serializer):
         default=False,
         help_text="Preserve offering state from export, otherwise set to 'Draft'",
     )
-    offering_data = serializers.JSONField(
+
+    @extend_schema_field(OfferingExportDataSerializer)
+    class OfferingExportDataField(serializers.JSONField):
+        pass
+
+    offering_data = OfferingExportDataField(
         help_text="The exported offering data to import"
     )
 
@@ -8494,7 +8622,9 @@ class OfferingExportResponseSerializer(serializers.Serializer):
 
     offering_uuid = serializers.UUIDField()
     offering_name = serializers.CharField()
-    export_data = serializers.JSONField()
+    export_data = OfferingExportDataSerializer(
+        help_text="Complete export data containing the offering structure"
+    )
     exported_components = serializers.ListField(
         child=serializers.CharField(), help_text="List of exported component types"
     )
