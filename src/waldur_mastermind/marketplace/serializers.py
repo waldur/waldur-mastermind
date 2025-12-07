@@ -4448,6 +4448,12 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
             )
 
         validate_plan(plan)
+
+        if plan.unit != resource.plan.unit:
+            raise rf_exceptions.ValidationError(
+                {"plan": _("Billing period of new plan must match the old one.")}
+            )
+
         return attrs
 
 

@@ -22,6 +22,7 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
+from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, models, plugins
@@ -300,6 +301,21 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_plan_switch_is_not_available_if_plan_unit_is_different(self):
+        # Arrange
+        self.plan2.unit = common_mixins.UnitPriceMixin.Units.PER_DAY
+        self.plan2.save()
+
+        # Act
+        response = self.switch_plan(self.fixture.owner, self.resource1, self.plan2)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Billing period of new plan must match the old one.",
+            response.data["plan"][0],
+        )
 
     def test_order_is_created(self):
         # Act
