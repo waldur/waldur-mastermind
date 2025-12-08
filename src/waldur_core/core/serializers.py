@@ -436,22 +436,12 @@ class RestrictedSerializerMixin:
 
         keys = query_params.getlist(self.FIELDS_PARAM_NAME)
         keys = set(key for key in keys if key in fields.keys())
-        optional_fields = set(self.get_optional_fields()) - keys
-        fields = OrderedDict(
-            (
-                (key, value)
-                for key, value in fields.items()
-                if key not in optional_fields
-            )
-        )
+        fields = OrderedDict(((key, value) for key, value in fields.items()))
         if not keys:
             return fields
         return OrderedDict(
             ((key, value) for key, value in fields.items() if key in keys)
         )
-
-    def get_optional_fields(self):
-        return []
 
 
 class UnicodeIntegerField(serializers.IntegerField):

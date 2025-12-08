@@ -543,7 +543,6 @@ class CustomerSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    projects = serializers.SerializerMethodField()
     display_name = serializers.SerializerMethodField()
     organization_groups = OrganizationGroupSerializer(many=True, read_only=True)
     projects_count = serializers.SerializerMethodField()
@@ -565,7 +564,6 @@ class CustomerSerializer(
             "created",
             "organization_groups",
             "display_name",
-            "projects",
             "backend_id",
             "image",
             "blocked",
@@ -598,14 +596,6 @@ class CustomerSerializer(
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
         }
-
-    def get_optional_fields(self):
-        # Make expensive fields optional, only rendered if requested via ?field=
-        return super().get_optional_fields() + [
-            "projects",
-            "users_count",
-            "organization_groups",
-        ]
 
     def get_fields(self):
         fields = super().get_fields()
