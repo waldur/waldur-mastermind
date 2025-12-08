@@ -697,6 +697,7 @@ td:nth-child(4) {
 | `update_openstack_tenant_usages` | `Django Signal (post_save)` | `quotas.QuotaUsage` | No description |
 | `update_order_if_issue_was_complete` | `Django Signal (post_save)` | `support.Issue` | No description |
 | `update_remote_resource_options` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
+| `update_resource_scope_availability_on_offering_state_change` | `Django Signal (post_save)` | `marketplace.Offering` | No description |
 | `update_resource_when_order_is_rejected_or_erred` | `Django Signal (post_save)` | `marketplace.Order` | Update resource state when an order is rejected or erred. |
 
 ## Application: `waldur_openportal`
@@ -774,14 +775,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 695
+Total unique handlers found: 696
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 350 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 287 handlers
+- **waldur_mastermind**: 288 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers

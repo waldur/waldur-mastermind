@@ -29,6 +29,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ScopeMixin`](#scopemixin) | `waldur_core.core.mixins` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`UpdateExecutorMixin`](#updateexecutormixin) | `waldur_core.core.mixins` | Mixin to execute update operations using background executors |
 | [`ActionMixin`](#actionmixin) | `waldur_core.core.models` | Mixin for action tracking with state management |
+| [`AvailableMixin`](#availablemixin) | `waldur_core.core.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`BackendMixin`](#backendmixin) | `waldur_core.core.models` | Mixin to add standard backend_id field |
 | [`BackendModelMixin`](#backendmodelmixin) | `waldur_core.core.models` | Mixin for models connected to backend objects |
 | [`DescendantMixin`](#descendantmixin) | `waldur_core.core.models` | Mixin to provide child-parent relationships |
@@ -79,6 +80,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`PermissionFieldFilteringMixin`](#permissionfieldfilteringmixin) | `waldur_core.structure.serializers` | Mixin allowing to filter related fields |
 | [`SshPublicKeySerializerMixin`](#sshpublickeyserializermixin) | `waldur_core.structure.serializers` | A type of `ModelSerializer` that uses hyperlinked relationships instead of pr... |
 | [`ProjectMetadataTestMixin`](#projectmetadatatestmixin) | `waldur_core.structure.tests.test_project_metadata` | Shared test setup and utilities for project metadata tests |
+| [`AvailabilityCheckViewMixin`](#availabilitycheckviewmixin) | `waldur_core.structure.views` | A viewset that provides default `create()`, `retrieve()`, `update()`, `partia... |
 | [`CheckExtensionMixin`](#checkextensionmixin) | `waldur_freeipa.views` | Raise exception if extension is disabled |
 | [`PeriodMixin`](#periodmixin) | `waldur_mastermind.invoices.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`ConnectedResourceMixin`](#connectedresourcemixin) | `waldur_mastermind.marketplace.admin` | Protects object from modification if there are connected resources |
@@ -392,6 +394,16 @@ action details (JSON), and task ID for background task tracking.
 Used for models that need to track ongoing operations.
 
 **Base classes:** `StateMixin`
+
+### AvailableMixin
+
+**Module:** `waldur_core.core.models`
+
+**Description:**
+
+Make subclasses preserve the alters_data attribute on overridden methods.
+
+**Base classes:** `Model`
 
 ### BackendMixin
 
@@ -1116,6 +1128,17 @@ of primary key relationships. Specifically:
 **Description:**
 
 Shared test setup and utilities for project metadata tests.
+
+### AvailabilityCheckViewMixin
+
+**Module:** `waldur_core.structure.views`
+
+**Description:**
+
+A viewset that provides default `create()`, `retrieve()`, `update()`,
+`partial_update()`, `destroy()` and `list()` actions.
+
+**Base classes:** `ModelViewSet`
 
 ### CheckExtensionMixin
 
