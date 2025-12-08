@@ -102,41 +102,6 @@ class CustomerListTest(CustomerBaseTest):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         self._check_customer_in_list(customer, False)
 
-    # Nested objects filtration tests
-    @data("admin", "manager", "member")
-    def test_user_can_see_project_he_has_a_role_in_within_customer(self, user):
-        self.client.force_authenticate(user=getattr(self.fixture, user))
-
-        response = self.client.get(
-            self._get_customer_url(self.fixture.customer, fields=["projects", "url"])
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        project_urls = set([project["url"] for project in response.data["projects"]])
-        self.assertIn(
-            self._get_project_url(self.fixture.project),
-            project_urls,
-            "User should see project",
-        )
-
-    @data("admin", "manager", "member")
-    def test_user_cannot_see_project_he_has_no_role_in_within_customer(self, user):
-        self.client.force_authenticate(user=getattr(self.fixture, user))
-
-        non_seen_project = factories.ProjectFactory(customer=self.fixture.customer)
-
-        response = self.client.get(
-            self._get_customer_url(self.fixture.customer, fields=["projects", "url"])
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        project_urls = set([project["url"] for project in response.data["projects"]])
-        self.assertNotIn(
-            self._get_project_url(non_seen_project),
-            project_urls,
-            "User should not see project",
-        )
-
     @data("staff", "global_support")
     def test_user_can_access_all_customers_if_he_is_staff(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))

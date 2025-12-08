@@ -193,31 +193,6 @@ To request only the `name` and `uuid` of a customer:
 
 ---
 
-### Feature 2: Optional Fields (Blacklisting by Default)
-
-Some fields can be expensive to compute (e.g., involving extra database queries, aggregations, or external API calls). You can mark these fields as "optional" by overriding the `get_optional_fields` method. These fields will **not be included** in the response unless they are explicitly requested via the `?field=` parameter.
-
-**Example:**
-Let's add `projects` (a related field) and `billing_price_estimate` (a computed field) to our serializer and mark them as optional.
-
-```python
-class CustomerSerializer(RestrictedSerializerMixin, serializers.ModelSerializer):
-    projects = ProjectSerializer(many=True, read_only=True)
-    billing_price_estimate = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Customer
-        fields = ('uuid', 'name', 'email', 'created', 'projects', 'billing_price_estimate')
-
-    def get_optional_fields(self):
-        # These fields will be excluded unless explicitly requested.
-        return ['projects', 'billing_price_estimate']
-
-    def get_billing_price_estimate(self, obj):
-        # ... some expensive calculation ...
-        return calculate_price(obj)
-```
-
 ## Behavior Examples
 
 ### Standard Request
