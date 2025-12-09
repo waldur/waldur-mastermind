@@ -129,6 +129,30 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=3, minute=0),
         "args": (),
     },
+    # User actions - update every 6 hours
+    "update-user-actions": {
+        "task": "waldur_core.user_actions.update_user_actions",
+        "schedule": crontab(hour="*/6", minute=0),
+        "args": (),
+    },
+    # Cleanup expired silenced actions - daily at 2 AM
+    "cleanup-expired-silenced-actions": {
+        "task": "waldur_core.user_actions.cleanup_expired_silenced_actions",
+        "schedule": crontab(hour=2, minute=0),
+        "args": (),
+    },
+    # Cleanup old action executions - weekly on Sunday at 1 AM
+    "cleanup-old-action-executions": {
+        "task": "waldur_core.user_actions.cleanup_old_action_executions",
+        "schedule": crontab(hour=1, minute=0, day_of_week=0),
+        "args": (),
+    },
+    # Send action digest notifications - daily at 9 AM
+    "send-action-digest-notifications": {
+        "task": "waldur_core.user_actions.send_action_digest_notifications",
+        "schedule": crontab(hour=9, minute=0),
+        "args": (),
+    },
 }
 
 for ext in WaldurExtension.get_extensions():

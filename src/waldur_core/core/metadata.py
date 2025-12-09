@@ -294,6 +294,40 @@ class WaldurCore(BaseModel):
         ]
 
 
+class WaldurUserActions(BaseModel):
+    """Configuration for user actions notification system."""
+
+    ENABLED: bool = Field(
+        False,
+        description="Enable the user actions notification system.",
+    )
+
+    MAX_ACTIONS_PER_USER: int = Field(
+        100,
+        description="Maximum number of actions to store per user.",
+    )
+
+    DEFAULT_SILENCE_DURATION_DAYS: int = Field(
+        7,
+        description="Default number of days to silence actions when no duration is specified.",
+    )
+
+    NOTIFICATION_ENABLED: bool = Field(
+        False,
+        description="Enable daily digest notifications for user actions.",
+    )
+
+    HIGH_URGENCY_NOTIFICATION_THRESHOLD: int = Field(
+        1,
+        description="Number of high urgency actions that trigger immediate notification.",
+    )
+
+    CLEANUP_EXECUTION_HISTORY_DAYS: int = Field(
+        90,
+        description="Number of days to keep action execution history.",
+    )
+
+
 class WaldurAuthSocial(BaseModel):
     REMOTE_EDUTEAMS_TOKEN_URL: str = Field(
         "https://proxy.acc.researcher-access.org/OIDC/token",
@@ -665,6 +699,7 @@ class WaldurConfiguration(BaseModel):
     WALDUR_OPENPORTAL: WaldurOpenPortal = WaldurOpenPortal()
     WALDUR_OPENSTACK: WaldurOpenstack = WaldurOpenstack()
     WALDUR_AUTH_SAML2: WaldurAuthSAML2 = WaldurAuthSAML2()
+    WALDUR_USER_ACTIONS: WaldurUserActions = WaldurUserActions()
     VERIFY_WEBHOOK_REQUESTS: bool = Field(
         True,
         description="When webook is processed, requests verifies SSL certificates for HTTPS requests, just like a web browser.",

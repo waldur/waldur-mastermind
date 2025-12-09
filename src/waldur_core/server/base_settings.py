@@ -61,6 +61,7 @@ INSTALLED_APPS = (
     "waldur_core.media",
     "waldur_core.logging",
     "waldur_core.checklist",
+    "waldur_core.user_actions",
     "rest_framework",
     "rest_framework.authtoken",
     "django_filters",
