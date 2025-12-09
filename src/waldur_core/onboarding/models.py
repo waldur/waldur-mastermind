@@ -286,38 +286,55 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
         extracted = self.extract_data_from_checklist()
         return extracted.get("customer_data", {})
 
-    def create_customer_if_verified(self):
-        """Create customer if verification is successful and no customer exists."""
+    def can_customer_be_created(self) -> tuple[bool, str | None]:
+        """
+        Check if a customer can be created from this verification.
+
+        Returns:
+            tuple: (can_create: bool, error_message: str or None)
+                   If can_create is False, error_message explains why
+        """
+        # Check verification status
         if self.status != enums.VerificationStatus.VERIFIED:
-            raise ValueError(
-                "Cannot create customer: verification status must be 'verified'"
+            return (
+                False,
+                f"Verification status must be 'verified', currently '{self.status}'",
             )
 
+        # Check if customer already exists
         if self.customer is not None:
-            raise ValueError(
-                "Cannot create customer: customer already exists for this verification"
-            )
+            return False, "Customer already exists for this verification"
 
+        # Check checklist completion for manual validations
         completion = self.get_or_create_checklist_completion()
         if completion and not completion.is_completed:
-            if self.validation_method:
-                pass
-            else:
-                raise ValueError(
-                    "Cannot create customer: checklist has required fields that are not completed. "
-                    "Please complete all required checklist questions before creating a customer."
+            if not self.validation_method:
+                return (
+                    False,
+                    "Checklist has required fields that are not completed. "
+                    "Please complete all required checklist questions before creating a customer.",
                 )
 
+        # Check if customer with same registration code already exists
         if self.legal_person_identifier:
             customer_exists = structure_models.Customer.objects.filter(
                 registration_code=self.legal_person_identifier, country=self.country
             ).exists()
 
             if customer_exists:
-                raise ValueError(
-                    f"Cannot create customer: customer with registration code "
-                    f"{self.legal_person_identifier} already exists for country {self.country}"
+                return (
+                    False,
+                    f"Customer with registration code {self.legal_person_identifier} "
+                    f"already exists for country {self.country}",
                 )
+
+        return True, None
+
+    def create_customer_if_verified(self):
+        """Create customer if verification is successful and no customer exists."""
+        can_create, error_message = self.can_customer_be_created()
+        if not can_create:
+            raise ValueError(f"Cannot create customer: {error_message}")
 
         # Extract data from checklist
         extracted = self.extract_data_from_checklist()
