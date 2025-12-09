@@ -82,9 +82,17 @@ class SwedenRegisterBackend(CompanyRegistryBackend):
             response.raise_for_status()
             return response
         except requests.exceptions.RequestException as e:
-            raise SwedenRegisterError(
-                f"Sweden Business Register API request failed: {e}"
-            )
+            try:
+                error_data = response.json()
+                error_data_detail = error_data.get("detail", str(e))
+                logger.error(
+                    f"Sweden Business Register API error detail: {error_data_detail}"
+                )
+                raise SwedenRegisterError(error_data_detail)
+            except (ValueError, AttributeError):
+                raise SwedenRegisterError(
+                    f"Sweden Business Register API request failed: {e}"
+                )
 
     @staticmethod
     def get_person_identifier_from_user(user):
