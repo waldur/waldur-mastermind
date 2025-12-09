@@ -21,6 +21,7 @@ from waldur_api_client.api.marketplace_public_offerings import (
     marketplace_public_offerings_list,
 )
 from waldur_api_client.api.marketplace_resources import (
+    marketplace_resources_partial_update,
     marketplace_resources_retrieve,
     marketplace_resources_team_list,
     marketplace_resources_update_options,
@@ -50,6 +51,9 @@ from waldur_api_client.models.order_details import (
 from waldur_api_client.models.patched_project_request import (
     PatchedProjectRequest,
 )
+from waldur_api_client.models.patched_resource_update_request import (
+    PatchedResourceUpdateRequest,
+)
 from waldur_api_client.models.project import Project
 from waldur_api_client.models.project_request import (
     ProjectRequest,
@@ -62,6 +66,7 @@ from waldur_api_client.models.resource_options_request import ResourceOptionsReq
 from waldur_api_client.models.user_role_create_request import UserRoleCreateRequest
 from waldur_api_client.models.user_role_delete_request import UserRoleDeleteRequest
 from waldur_api_client.models.user_role_update_request import UserRoleUpdateRequest
+from waldur_api_client.types import UNSET
 
 from waldur_auth_social.const import ProviderChoices
 from waldur_core.core.client import get_waldur_client
@@ -688,6 +693,79 @@ def push_resource_options(local_resource: marketplace_models.Resource):
         )
     except (UnexpectedStatus, TimeoutException) as exc:
         logger.error("Unable to push resource options: %s", exc)
+
+
+def push_resource_end_date(local_resource: marketplace_models.Resource):
+    offering = local_resource.offering
+    client = get_client_for_offering(offering)
+    try:
+        logger.info(
+            "Pushing resource %s with backend ID %s end_date %s to remote Waldur",
+            local_resource,
+            local_resource.backend_id,
+            local_resource.end_date,
+        )
+        marketplace_resources_partial_update.sync(
+            client=client,
+            uuid=uuid.UUID(local_resource.backend_id),
+            body=PatchedResourceUpdateRequest(end_date=local_resource.end_date),
+        )
+    except (UnexpectedStatus, TimeoutException) as exc:
+        logger.error("Unable to push resource end date: %s", exc)
+
+
+def reconcile_resource_end_date(local_resource: marketplace_models.Resource):
+    """
+    Compare local and remote resource end_date and push local value if they differ.
+    """
+    if (
+        local_resource.offering.type != REMOTE_OFFERING
+        or not local_resource.backend_id
+        or local_resource.state in (ResourceStates.CREATING, ResourceStates.TERMINATING)
+    ):
+        return
+    client = get_client_for_offering(local_resource.offering)
+    try:
+        remote_resource = marketplace_resources_retrieve.sync(
+            client=client, uuid=uuid.UUID(local_resource.backend_id)
+        )
+    except (UnexpectedStatus, TimeoutException) as exc:
+        logger.error(
+            "Unable to fetch remote resource end date reconciliation for resource %s: %s",
+            local_resource,
+            exc,
+        )
+        return
+
+    remote_end_date = (
+        None if remote_resource.end_date is UNSET else remote_resource.end_date
+    )
+    if remote_end_date == local_resource.end_date:
+        logger.info(
+            "Remote resource end date is in sync for resource %s", local_resource
+        )
+        return
+
+    try:
+        logger.info(
+            "Pushing local resource end date %s for resource %s to remote",
+            local_resource.end_date,
+            local_resource,
+        )
+        marketplace_resources_partial_update.sync(
+            client=client,
+            uuid=uuid.UUID(local_resource.backend_id),
+            body=PatchedResourceUpdateRequest(end_date=local_resource.end_date),
+        )
+        return
+    except (UnexpectedStatus, TimeoutException) as exc:
+        logger.error(
+            "Unable to push local resource end date %s for resource %s to remote: %s",
+            local_resource.end_date,
+            local_resource,
+            exc,
+        )
+        return
 
 
 def get_remote_offerings(

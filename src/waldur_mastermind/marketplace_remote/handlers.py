@@ -239,3 +239,18 @@ def update_remote_resource_options(sender, instance: Resource, created=False, **
         return
 
     transaction.on_commit(lambda: utils.push_resource_options(instance))
+
+
+def update_remote_resource_end_date(
+    sender, instance: Resource, created=False, **kwargs
+):
+    if not instance.tracker.has_changed("end_date"):
+        return
+
+    if not instance.backend_id:
+        return
+
+    if instance.offering.type != REMOTE_OFFERING:
+        return
+
+    transaction.on_commit(lambda: utils.push_resource_end_date(instance))

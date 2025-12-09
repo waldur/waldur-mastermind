@@ -593,6 +593,19 @@ class ResourceListPullTask(BackgroundListPullTask):
         )
 
 
+@shared_task(
+    name="waldur_mastermind.marketplace_remote.reconcile_resource_end_dates",
+)
+def reconcile_resource_end_dates():
+    resources = (
+        models.Resource.objects.filter(offering__type=REMOTE_OFFERING)
+        .exclude(backend_id="")
+        .exclude(state__in=[ResourceStates.CREATING, ResourceStates.TERMINATING])
+    )
+    for resource in resources:
+        utils.reconcile_resource_end_date(resource)
+
+
 @shared_task
 def pull_offering_resources(serialized_offering):
     """Pull resources for a specific offering.

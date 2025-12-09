@@ -1,3 +1,5 @@
+import datetime
+import json
 import uuid
 from decimal import Decimal
 from unittest import mock
@@ -798,6 +800,118 @@ class ResourceOrderImportTest(testcases.TransactionTestCase):
         self.fixture.resource.refresh_from_db()
         self.assertEqual(self.fixture.resource.effective_id, "effective_id")
         self.assertEqual(self.fixture.resource.attributes, {"sample_attr": 1})
+
+
+class ResourceEndDatePushTest(testcases.TransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.backend_id = uuid.uuid4().hex
+        self.resource.save()
+        self.resource.offering.type = REMOTE_OFFERING
+        self.api_url = "https://example.com"
+        self.resource.offering.secret_options = {
+            "api_url": self.api_url,
+            "token": uuid.uuid4().hex,
+        }
+        self.resource.offering.save()
+        respx.start()
+
+    def tearDown(self):
+        respx.stop()
+        super().tearDown()
+        mock.patch.stopall()
+
+    @respx.mock
+    def test_resource_end_date_is_pushed_to_remote(self):
+        end_date = datetime.date(2025, 1, 15)
+        canonical_uuid = str(uuid.UUID(self.resource.backend_id))
+        patch_request = respx.patch(
+            f"{self.api_url}/api/marketplace-resources/{canonical_uuid}/"
+        ).respond(200, json={"uuid": canonical_uuid, "name": "resource"})
+
+        self.resource.end_date = end_date
+        self.resource.save()
+
+        utils.push_resource_end_date(self.resource)
+
+        self.assertTrue(patch_request.called)
+        request_json = json.loads(patch_request.calls[0].request.content.decode())
+        self.assertEqual(request_json["end_date"], end_date.isoformat())
+
+    @respx.mock
+    def test_reconcile_task_updates_remote_when_end_date_differs(self):
+        local_end_date = datetime.date(2025, 2, 1)
+        with mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.push_resource_end_date"
+        ):
+            self.resource.end_date = local_end_date
+            self.resource.state = ResourceStates.OK
+            self.resource.save()
+
+        resource_uuid = str(uuid.UUID(self.resource.backend_id))
+
+        respx.get(f"{self.api_url}/api/marketplace-resources/{resource_uuid}/").respond(
+            200,
+            json={
+                "uuid": resource_uuid,
+                "name": "resource",
+                "end_date": "2025-01-01",
+            },
+        )
+        patch_request = respx.patch(
+            f"{self.api_url}/api/marketplace-resources/{resource_uuid}/"
+        ).respond(
+            200,
+            json={
+                "uuid": resource_uuid,
+                "name": "resource",
+                "end_date": local_end_date.isoformat(),
+            },
+        )
+
+        tasks.reconcile_resource_end_dates()
+
+        self.assertTrue(patch_request.called)
+        request_json = json.loads(patch_request.calls[0].request.content.decode())
+        self.assertEqual(request_json["end_date"], local_end_date.isoformat())
+
+    @respx.mock
+    def test_reconcile_task_does_not_update_when_end_date_is_same(self):
+        local_end_date = datetime.date(2025, 2, 1)
+        with mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.push_resource_end_date"
+        ):
+            self.resource.end_date = local_end_date
+            self.resource.state = ResourceStates.OK
+            self.resource.save()
+
+        canonical_uuid = str(uuid.UUID(self.resource.backend_id))
+
+        respx.get(
+            f"{self.api_url}/api/marketplace-resources/{canonical_uuid}/"
+        ).respond(
+            200,
+            json={
+                "uuid": canonical_uuid,
+                "name": "resource",
+                "end_date": local_end_date.isoformat(),
+            },
+        )
+        patch_request = respx.patch(
+            f"{self.api_url}/api/marketplace-resources/{canonical_uuid}/"
+        ).respond(
+            200,
+            json={
+                "uuid": canonical_uuid,
+                "name": "resource",
+                "end_date": local_end_date.isoformat(),
+            },
+        )
+
+        tasks.reconcile_resource_end_dates()
+
+        self.assertFalse(patch_request.called)
 
 
 class NotificationAboutPendingProjectUpdatesTest(testcases.TransactionTestCase):

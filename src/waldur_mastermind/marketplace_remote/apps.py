@@ -87,3 +87,9 @@ class MarketplaceRemoteConfig(AppConfig):
             sender=models.Resource,
             dispatch_uid="marketplace_remote.update_remote_resource_options",
         )
+
+        signals.post_save.connect(
+            handlers.update_remote_resource_end_date,
+            sender=models.Resource,
+            dispatch_uid="marketplace_remote.update_remote_resource_end_date",
+        )
