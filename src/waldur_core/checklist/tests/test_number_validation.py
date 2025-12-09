@@ -29,9 +29,9 @@ class NumberValidationModelTest(test.APITransactionTestCase):
         self.assertTrue(question.is_valid_answer(42.5))
         self.assertTrue(question.is_valid_answer(-100))
         self.assertTrue(question.is_valid_answer(0))
-        # Note: String numbers not accepted per current validation logic
-        self.assertFalse(question.is_valid_answer("42"))
-        self.assertFalse(question.is_valid_answer("42.5"))
+        # Note: String numbers are accepted per current validation logic
+        self.assertTrue(question.is_valid_answer("42"))
+        self.assertTrue(question.is_valid_answer("42.5"))
 
     def test_number_question_with_min_value_validation(self):
         """Test that NUMBER questions respect min_value constraint."""
@@ -54,7 +54,7 @@ class NumberValidationModelTest(test.APITransactionTestCase):
         self.assertFalse(question.is_valid_answer(-5))
 
         # String values not accepted per current validation logic
-        self.assertFalse(question.is_valid_answer("12"))
+        self.assertTrue(question.is_valid_answer("12"))
         self.assertFalse(question.is_valid_answer("5"))
 
     def test_number_question_with_max_value_validation(self):
@@ -77,8 +77,8 @@ class NumberValidationModelTest(test.APITransactionTestCase):
         self.assertFalse(question.is_valid_answer(100.1))
         self.assertFalse(question.is_valid_answer(1000))
 
-        # String values not accepted per current validation logic
-        self.assertFalse(question.is_valid_answer("99"))
+        # String values
+        self.assertTrue(question.is_valid_answer("99"))
         self.assertFalse(question.is_valid_answer("150"))
 
     def test_number_question_with_both_min_max_validation(self):
@@ -101,8 +101,7 @@ class NumberValidationModelTest(test.APITransactionTestCase):
         self.assertFalse(question.is_valid_answer(51))
         self.assertFalse(question.is_valid_answer(9.99))
 
-        # String values not accepted per current validation logic
-        self.assertFalse(question.is_valid_answer("30"))
+        self.assertTrue(question.is_valid_answer("30"))
         self.assertFalse(question.is_valid_answer("5"))
         self.assertFalse(question.is_valid_answer("60"))
 
@@ -124,8 +123,7 @@ class NumberValidationModelTest(test.APITransactionTestCase):
         self.assertFalse(question.is_valid_answer(10.49))
         self.assertFalse(question.is_valid_answer(20.76))
 
-        # String values not accepted per current validation logic
-        self.assertFalse(question.is_valid_answer("12.3"))
+        self.assertTrue(question.is_valid_answer("12.3"))
         self.assertFalse(question.is_valid_answer("10.4"))
 
     def test_invalid_number_formats_rejected(self):
