@@ -81,10 +81,17 @@ def _is_valid_trigger_value(
     ]:
         return True
 
-    if isinstance(answer_data, int | float) and question_type in [
-        enums.QuestionTypes.NUMBER,
-    ]:
-        return True
+    # Allow both numeric types and string representations of numbers for NUMBER type
+    if question_type == enums.QuestionTypes.NUMBER:
+        if isinstance(answer_data, int | float):
+            return True
+        # Also accept string representations of numbers
+        if isinstance(answer_data, str):
+            try:
+                float(answer_data)
+                return True
+            except (ValueError, TypeError):
+                return False
 
     if isinstance(answer_data, bool | type(None)) and question_type in [
         enums.QuestionTypes.BOOLEAN,

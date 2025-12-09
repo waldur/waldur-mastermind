@@ -243,8 +243,14 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         if self.question_type == "number" and answer_data is not None:
             # Only apply min/max validation to numeric types (int, float)
             # String values should be handled by the basic type validation first
-            if isinstance(answer_data, int | float):
-                numeric_value = float(answer_data)
+            # Convert string numbers to float for validation
+            try:
+                if isinstance(answer_data, str):
+                    numeric_value = float(answer_data)
+                elif isinstance(answer_data, int | float):
+                    numeric_value = float(answer_data)
+                else:
+                    return False
 
                 # Check minimum value
                 if self.min_value is not None and numeric_value < float(self.min_value):
@@ -253,6 +259,8 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
                 # Check maximum value
                 if self.max_value is not None and numeric_value > float(self.max_value):
                     return False
+            except (ValueError, TypeError):
+                return False
 
         # Additional validation for FILE and MULTIPLE_FILES type with constraints
         if self.question_type in ["file", "multiple_files"] and answer_data is not None:
