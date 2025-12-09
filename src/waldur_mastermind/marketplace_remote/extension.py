@@ -92,4 +92,9 @@ class MarketplaceRemoteExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "waldur-remote-reconcile-resource-end-dates": {
+                "task": "waldur_mastermind.marketplace_remote.reconcile_resource_end_dates",
+                "schedule": timedelta(days=1),
+                "args": (),
+            },
         }
