@@ -115,6 +115,12 @@ class OnboardingVerificationSerializer(serializers.ModelSerializer):
         help_text="Onboarding-specific data like intents, purposes extracted from checklist answers"
     )
     user_submitted_customer_data = serializers.SerializerMethodField()
+    can_customer_be_created = serializers.SerializerMethodField(
+        help_text="Boolean indicating if a customer can be created from this verification"
+    )
+    customer_creation_error_message = serializers.SerializerMethodField(
+        help_text="Reason why customer cannot be created (null if can be created)"
+    )
 
     class Meta:
         model = OnboardingVerification
@@ -136,6 +142,8 @@ class OnboardingVerificationSerializer(serializers.ModelSerializer):
             "customer",
             "onboarding_metadata",
             "user_submitted_customer_data",
+            "can_customer_be_created",
+            "customer_creation_error_message",
             "created",
             "modified",
         ]
@@ -152,6 +160,8 @@ class OnboardingVerificationSerializer(serializers.ModelSerializer):
             "customer",
             "onboarding_metadata",
             "user_submitted_customer_data",
+            "can_customer_be_created",
+            "customer_creation_error_message",
             "created",
             "modified",
         ]
@@ -163,6 +173,16 @@ class OnboardingVerificationSerializer(serializers.ModelSerializer):
     def get_user_submitted_customer_data(self, obj) -> dict:
         """Get customer data submitted by the user during onboarding."""
         return obj.get_user_submitted_customer_data()
+
+    def get_can_customer_be_created(self, obj) -> bool:
+        """Check if a customer can be created from this verification."""
+        can_create, _ = obj.can_customer_be_created()
+        return can_create
+
+    def get_customer_creation_error_message(self, obj) -> str | None:
+        """Get the error message explaining why a customer cannot be created."""
+        can_create, error_message = obj.can_customer_be_created()
+        return error_message if not can_create else None
 
 
 class OnboardingCompanyValidationRequestSerializer(serializers.Serializer):
