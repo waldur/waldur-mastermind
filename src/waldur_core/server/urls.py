@@ -162,6 +162,7 @@ urlpatterns += [
     re_path(r"^api/", include("waldur_core.media.urls")),
     re_path(r"^api/", include("waldur_core.structure.urls")),
     re_path(r"^api/", include("waldur_core.checklist.urls")),
+    re_path(r"^api/", include("waldur_core.user_actions.urls")),
     re_path(r"^api/", include(onboarding_urls)),
 ]
 
