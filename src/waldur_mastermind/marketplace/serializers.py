@@ -1532,6 +1532,7 @@ FIELD_TYPES = (
     "time",
     "conditional_cascade",
     "component_multiplier",
+    "multi_datacenter_k8s_config",  # alpha
 )
 
 
