@@ -12,6 +12,10 @@ Display banking related data under customer profile.
 
 Allows to hide domain field in organization detail.
 
+## customer.show_onboarding
+
+Enable onboarding functionality.
+
 ## customer.show_permission_reviews
 
 Allows to show permission reviews tab and popups for organisations.

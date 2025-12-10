@@ -2146,7 +2146,7 @@ Number of seconds to cache token introspection results.
 
 #### ONBOARDING_COUNTRY
 
-**Type:** text_field
+**Type:** str
 
 ISO 3166-1 alpha-2 country code for the deployment (e.g., 'EE' for Estonia, 'AT' for Austria). Used for onboarding and localization.
 
@@ -2168,7 +2168,7 @@ Base URL for Estonian Äriregister API endpoint.
 
 #### ONBOARDING_ARIREGISTER_USERNAME
 
-**Type:** text_field
+**Type:** str
 
 Username for Estonian Äriregister API authentication.
 
@@ -2218,7 +2218,7 @@ Bolagsverket OAuth2 token server base URL
 
 #### ONBOARDING_BOLAGSVERKET_CLIENT_ID
 
-**Type:** text_field
+**Type:** str
 
 Sweden Business Register API client identifier
 
