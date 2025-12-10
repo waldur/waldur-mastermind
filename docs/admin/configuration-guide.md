@@ -1019,6 +1019,55 @@ Path to private key file used as SSH identity file for accessing SLURM master.
 
 Prefix for SLURM account name corresponding to Waldur project.
 
+### WALDUR_USER_ACTIONS plugin
+
+Default value:
+
+```python
+WALDUR_USER_ACTIONS = {'CLEANUP_EXECUTION_HISTORY_DAYS': 90,
+ 'DEFAULT_SILENCE_DURATION_DAYS': 7,
+ 'ENABLED': False,
+ 'HIGH_URGENCY_NOTIFICATION_THRESHOLD': 1,
+ 'MAX_ACTIONS_PER_USER': 100,
+ 'NOTIFICATION_ENABLED': False}
+```
+
+#### CLEANUP_EXECUTION_HISTORY_DAYS
+
+**Type:** int
+
+Number of days to keep action execution history.
+
+#### DEFAULT_SILENCE_DURATION_DAYS
+
+**Type:** int
+
+Default number of days to silence actions when no duration is specified.
+
+#### ENABLED
+
+**Type:** bool
+
+Enable the user actions notification system.
+
+#### HIGH_URGENCY_NOTIFICATION_THRESHOLD
+
+**Type:** int
+
+Number of high urgency actions that trigger immediate notification.
+
+#### MAX_ACTIONS_PER_USER
+
+**Type:** int
+
+Maximum number of actions to store per user.
+
+#### NOTIFICATION_ENABLED
+
+**Type:** bool
+
+Enable daily digest notifications for user actions.
+
 ### Other variables
 
 #### DEFAULT_FROM_EMAIL
