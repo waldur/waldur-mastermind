@@ -545,7 +545,6 @@ CONSTANCE_CONFIG = {
     "ONBOARDING_COUNTRY": (
         "",
         "ISO 3166-1 alpha-2 country code for the deployment (e.g., 'EE' for Estonia, 'AT' for Austria). Used for onboarding and localization.",
-        "text_field",
     ),
     "ONBOARDING_VERIFICATION_EXPIRY_HOURS": (
         48,
@@ -559,7 +558,6 @@ CONSTANCE_CONFIG = {
     "ONBOARDING_ARIREGISTER_USERNAME": (
         "",
         "Username for Estonian Äriregister API authentication.",
-        "text_field",
     ),
     "ONBOARDING_ARIREGISTER_PASSWORD": (
         "",
@@ -589,7 +587,6 @@ CONSTANCE_CONFIG = {
     "ONBOARDING_BOLAGSVERKET_CLIENT_ID": (
         "",
         "Sweden Business Register API client identifier",
-        "text_field",
     ),
     "ONBOARDING_BOLAGSVERKET_CLIENT_SECRET": (
         "",
