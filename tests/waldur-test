@@ -90,7 +90,7 @@ echo "$FINAL_PYTEST_CMD"
 echo "----------------------------------------------------"
 
 pip install uv
-uv sync --extra dev
+uv sync --group dev
 uv cache prune --ci
 
 # Use `eval` to execute the command string. This is necessary to ensure that

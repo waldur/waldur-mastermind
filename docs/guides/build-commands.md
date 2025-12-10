@@ -2,7 +2,7 @@
 
 ## Development Setup
 
-- **Install dev dependencies**: `uv sync --extra dev`
+- **Install dev dependencies**: `uv sync --group dev`
 
 ## Testing Commands
 

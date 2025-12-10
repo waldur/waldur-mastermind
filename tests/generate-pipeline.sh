@@ -104,7 +104,7 @@ else
   # --- STEP 3: DISCOVER TEST COUNT FOR PARTIAL RUNS ---
   # If it's not a full run, we need to determine the exact workload.
   echo "[+] STEP 2/4: Partial run detected."
-  uv sync --extra dev
+  uv sync --group dev
 
   echo "[+] Discovering number of tests for selected paths..."
   # Run pytest in "collect-only" mode. This is a dry run that finds all test

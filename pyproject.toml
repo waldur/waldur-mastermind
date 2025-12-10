@@ -96,29 +96,6 @@ dependencies = [
 Homepage = "https://waldur.com"
 Documentation = "https://docs.waldur.com"
 
-[project.optional-dependencies]
-dev = [
-  "pytest==8.3.5",
-  "pytest-cov==6.1.1",
-  "pytest-django>=4.5.2,<5.0.0",
-  "responses==0.25.3",
-  "ddt==1.7.2",
-  "factory-boy==3.3.0",
-  "freezegun==1.2.2",
-  "mock-django==0.6.10",
-  "pre-commit>=4.2.0,<5.0.0",
-  "pytest-split-tests>=1.0.9,<2.0.0",
-  "respx>=0.22.0,<1.0.0",
-  "django-types>=0.22.0,<1.0.0",
-  "pyright>=1.1.399,<2.0.0",
-  "djangorestframework-types @ git+https://github.com/waldur/djangorestframework-types.git",
-  "celery-types>=0.23.0,<1.0.0",
-  "django-stubs-ext>=5.2.2,<6.0.0",
-  "pyparsing>=3.1.1,<4.0.0",
-  "pydot>=1.4.2,<2.0.0",
-  "django-extensions>=3.2.3,<4.0.0",
-]
-
 [project.scripts]
 waldur = "waldur_core.server.manage:main"
 
@@ -242,5 +219,20 @@ dev = [
     "ddt>=1.7.2",
     "factory-boy>=3.3.0",
     "pytest>=8.3.5",
-    "pytest-django>=4.11.1",
+    "pytest-cov==6.1.1",
+    "pytest-django>=4.5.2,<5.0.0",
+    "responses==0.25.3",
+    "freezegun==1.2.2",
+    "mock-django==0.6.10",
+    "pre-commit>=4.2.0,<5.0.0",
+    "pytest-split-tests>=1.0.9,<2.0.0",
+    "respx>=0.22.0,<1.0.0",
+    "django-types>=0.22.0,<1.0.0",
+    "pyright>=1.1.399,<2.0.0",
+    "djangorestframework-types @ git+https://github.com/waldur/djangorestframework-types.git",
+    "celery-types>=0.23.0,<1.0.0",
+    "django-stubs-ext>=5.2.2,<6.0.0",
+    "pyparsing>=3.1.1,<4.0.0",
+    "pydot>=1.4.2,<2.0.0",
+    "django-extensions>=3.2.3,<4.0.0",
 ]

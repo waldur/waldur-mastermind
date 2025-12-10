@@ -82,7 +82,7 @@ Run linters:
     - |
       echo "[+] Installing project dependencies..."
       pip install uv
-      uv sync --extra dev
+      uv sync --group dev
 
   variables:
     UV_CACHE_DIR: .uv-cache
@@ -412,7 +412,7 @@ Upload configuration guide:
   script:
     # 1. Install dependencies in the main project
     - pip install uv
-    - uv sync --extra dev
+    - uv sync --group dev
 
     # 2. Generate ALL required documentation files and store them in /tmp
     - echo "Generating documentation files..."
@@ -476,7 +476,7 @@ Upload MCP metadata:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
     - pip install uv
-    - uv sync --extra dev
+    - uv sync --group dev
     - uv run waldur export_model_metadata > /tmp/meta.yaml
     - cd /tmp/
     - git clone "https://mastermind:$MCP_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-mcp-server.git"
@@ -505,7 +505,7 @@ Generate OpenAPI schema:
     - git fetch --tags
   script:
     - pip install uv
-    - uv sync --extra dev
+    - uv sync --group dev
 
     # Determine the release version based on the trigger
     - |
@@ -767,7 +767,7 @@ Upload HomePort enums:
   script:
     # 1. Install dependencies in the main project
     - pip install uv
-    - uv sync --extra dev
+    - uv sync --group dev
 
     # 2. Generate ALL required files from the main project context and store them in /tmp
     # This is the most robust approach, as we are in the correct directory with the virtual env.
