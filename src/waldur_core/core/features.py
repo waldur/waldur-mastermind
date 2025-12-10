@@ -45,6 +45,7 @@ class CustomerSection(FeatureSection):
     )
 
     show_banking_data = Feature("Display banking related data under customer profile.")
+    show_onboarding = Feature("Enable onboarding functionality.")
 
 
 class ProjectSection(FeatureSection):
