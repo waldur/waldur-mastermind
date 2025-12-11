@@ -1532,7 +1532,8 @@ FIELD_TYPES = (
     "time",
     "conditional_cascade",
     "component_multiplier",
-    "multi_datacenter_k8s_config",  # alpha
+    "single_datacenter_k8s_config",
+    "multi_datacenter_k8s_config",
 )
 
 
@@ -1698,6 +1699,88 @@ class CascadeConfigSerializer(serializers.Serializer):
         return attrs
 
 
+class K8sDefaultConfigurationSerializer(serializers.Serializer):
+    """Serializer for Kubernetes cluster default configuration options"""
+
+    # Controller node defaults
+    default_controller_vcpus = serializers.IntegerField(
+        min_value=1, max_value=16, required=False
+    )
+    default_controller_ram_gb = serializers.IntegerField(
+        min_value=1, max_value=64, required=False
+    )
+    default_controller_system_disk_gb = serializers.IntegerField(
+        min_value=20, max_value=500, required=False
+    )
+    default_controller_etcd_disk_gb = serializers.IntegerField(
+        min_value=10, max_value=1000, required=False
+    )
+
+    # Load balancer defaults
+    default_lb_vcpus = serializers.IntegerField(
+        min_value=1, max_value=16, required=False
+    )
+    default_lb_ram_gb = serializers.IntegerField(
+        min_value=1, max_value=64, required=False
+    )
+    default_lb_system_disk_gb = serializers.IntegerField(
+        min_value=20, max_value=500, required=False
+    )
+    default_lb_logs_disk_gb = serializers.IntegerField(
+        min_value=10, max_value=1000, required=False
+    )
+
+    # Worker node requirements
+    minimal_worker_vcpus = serializers.IntegerField(
+        min_value=1, max_value=16, required=False
+    )
+    minimal_worker_ram_gb = serializers.IntegerField(
+        min_value=1, max_value=64, required=False
+    )
+
+    # Volume defaults
+    default_worker_data_disk_gb = serializers.IntegerField(
+        min_value=10, max_value=10000, required=False
+    )
+    default_storage_data_disk_gb = serializers.IntegerField(
+        min_value=10, max_value=10000, required=False
+    )
+    default_storage_san_disk_gb = serializers.IntegerField(
+        min_value=100, max_value=50000, required=False
+    )
+
+    # Configuration options
+    available_kubernetes_versions = serializers.CharField(
+        required=False,
+        help_text="Comma-separated list of Kubernetes versions (e.g., 1.32.0,1.33.0,1.34.0)",
+        allow_blank=True,
+    )
+
+    def validate_available_kubernetes_versions(self, value):
+        """Validate Kubernetes version format"""
+        if not value or not value.strip():
+            return value
+
+        versions = [v.strip() for v in value.split(",") if v.strip()]
+        if not versions:
+            return value
+
+        # Validate version format (x.y.z)
+        import re
+
+        version_pattern = re.compile(r"^\d+\.\d+\.\d+$")
+        invalid_versions = [v for v in versions if not version_pattern.match(v)]
+
+        if invalid_versions:
+            raise serializers.ValidationError(
+                {
+                    "available_kubernetes_versions": f"Invalid Kubernetes version format(s): {', '.join(invalid_versions)}. Expected format: x.y.z"
+                }
+            )
+
+        return value
+
+
 class ComponentMultiplierConfigSerializer(serializers.Serializer):
     component_type = serializers.CharField()
     factor = serializers.IntegerField(min_value=1)
@@ -1727,6 +1810,7 @@ class OptionFieldSerializer(serializers.Serializer):
     max = serializers.IntegerField(required=False)
     cascade_config = CascadeConfigSerializer(required=False)
     component_multiplier_config = ComponentMultiplierConfigSerializer(required=False)
+    default_configs = K8sDefaultConfigurationSerializer(required=False)
 
     def validate(self, attrs):
         field_type = attrs.get("type")
@@ -1742,6 +1826,14 @@ class OptionFieldSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     "component_multiplier_config is required for component_multiplier type"
                 )
+
+        if field_type in (
+            "single_datacenter_k8s_config",
+            "multi_datacenter_k8s_config",
+        ):
+            # default_configs is optional for K8s config types
+            # When not provided, the frontend will show configuration warnings
+            pass
 
         return attrs
 
