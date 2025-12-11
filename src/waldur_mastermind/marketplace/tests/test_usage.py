@@ -728,7 +728,7 @@ class UsageDateBackfillTest(test.APITransactionTestCase):
         self.assertEqual(usage.description, "Backfilled usage")
 
     def test_non_staff_cannot_backfill_usage_with_date(self):
-        """Test that non-staff users cannot specify date for backfilling usage."""
+        """Test that service providers cannot specify date for usage-based components."""
         self.client.force_authenticate(self.fixture.owner)
 
         backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
@@ -749,7 +749,8 @@ class UsageDateBackfillTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
-            "Only staff users can specify date for backfilling", str(response.data)
+            "Service providers can only specify date for limit-based billing components",
+            str(response.data),
         )
 
     def test_staff_can_backfill_user_usage_with_date(self):
@@ -796,7 +797,7 @@ class UsageDateBackfillTest(test.APITransactionTestCase):
         self.assertEqual(user_usage.usage, 25)
 
     def test_non_staff_cannot_backfill_user_usage_with_date(self):
-        """Test that non-staff users cannot specify date for backfilling user usage."""
+        """Test that service providers cannot specify date for user usage on usage-based components."""
         self.client.force_authenticate(self.fixture.owner)
 
         component_usage = models.ComponentUsage.objects.create(
@@ -822,7 +823,35 @@ class UsageDateBackfillTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
-            "Only staff users can specify date for backfilling", str(response.data)
+            "Service providers can only specify date for limit-based billing components",
+            str(response.data),
+        )
+
+    def test_future_date_validation(self):
+        """Test that future dates are rejected for all users."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Date in the future (1 year from current frozen time)
+        future_date = timezone.now() + datetime.timedelta(days=365)
+
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "date": future_date.isoformat(),
+            "usages": [
+                {
+                    "type": "cpu",
+                    "amount": 10,
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Cannot submit usage for future dates",
+            str(response.data),
         )
 
 
@@ -1127,3 +1156,310 @@ class UsageBackfillInvoiceTest(test.APITransactionTestCase):
         # The ComponentUsage should now show the updated total
         # Note: The exact behavior might depend on how user usage aggregation is implemented
         # This test documents the expected invoice behavior
+
+
+@freeze_time("2024-01-15")
+class ServiceProviderUsageDateBackfillTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        # Create service provider customer
+        self.service_provider_customer = self.fixture.customer
+
+        # Create consumer customer and project
+        self.consumer_fixture = structure_fixtures.ProjectFixture()
+        self.consumer_customer = self.consumer_fixture.customer
+        self.consumer_project = self.consumer_fixture.project
+
+        # Create offering owned by service provider
+        self.offering = factories.OfferingFactory(
+            customer=self.service_provider_customer
+        )
+        self.plan = factories.PlanFactory(offering=self.offering)
+
+        # Create limit-based component
+        self.limit_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.LIMIT,
+            type="limit_cpu",
+        )
+        self.limit_plan_component = factories.PlanComponentFactory(
+            plan=self.plan, component=self.limit_component
+        )
+
+        # Create usage-based component
+        self.usage_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.USAGE,
+            type="usage_cpu",
+        )
+        self.usage_plan_component = factories.PlanComponentFactory(
+            plan=self.plan, component=self.usage_component
+        )
+
+        # Create resource owned by consumer but on service provider's offering
+        self.resource = models.Resource.objects.create(
+            offering=self.offering,
+            plan=self.plan,
+            project=self.consumer_project,
+            state=ResourceStates.OK,
+        )
+
+        factories.OrderFactory(
+            resource=self.resource,
+            type=OrderTypes.CREATE,
+            state=OrderStates.EXECUTING,
+            plan=self.plan,
+        )
+        callbacks.resource_creation_succeeded(self.resource)
+        self.plan_period = models.ResourcePlanPeriod.objects.create(
+            resource=self.resource, plan=self.plan
+        )
+
+        # Grant service provider permission to set resource usage
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_USAGE)
+
+    def test_service_provider_can_backfill_limit_based_components(self):
+        """Test that service providers can specify date for limit-based components."""
+        # Authenticate as service provider owner
+        self.client.force_authenticate(self.fixture.owner)
+
+        # Date in December 2023
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "date": backfill_date.isoformat(),
+            "usages": [
+                {
+                    "type": "limit_cpu",  # Limit-based component
+                    "amount": 10,
+                    "description": "Service provider backfill",
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Check that usage was created with correct date and billing period
+        usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.limit_component,
+        )
+        self.assertEqual(usage.date, backfill_date)
+        self.assertEqual(usage.billing_period, datetime.date(2023, 12, 1))
+
+    def test_service_provider_cannot_backfill_usage_based_components(self):
+        """Test that service providers cannot specify date for usage-based components."""
+        # Authenticate as service provider owner
+        self.client.force_authenticate(self.fixture.owner)
+
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "date": backfill_date.isoformat(),
+            "usages": [
+                {
+                    "type": "usage_cpu",  # Usage-based component
+                    "amount": 10,
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Service providers can only specify date for limit-based billing components",
+            str(response.data),
+        )
+
+    def test_service_provider_cannot_backfill_mixed_components_with_usage_based(self):
+        """Test that service providers cannot backfill when any component is usage-based."""
+        # Authenticate as service provider owner
+        self.client.force_authenticate(self.fixture.owner)
+
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "date": backfill_date.isoformat(),
+            "usages": [
+                {
+                    "type": "limit_cpu",  # Limit-based component
+                    "amount": 10,
+                },
+                {
+                    "type": "usage_cpu",  # Usage-based component
+                    "amount": 5,
+                },
+            ],
+        }
+
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Service providers can only specify date for limit-based billing components",
+            str(response.data),
+        )
+
+    def test_service_provider_can_backfill_multiple_limit_based_components(self):
+        """Test that service providers can backfill when ALL components are limit-based."""
+        # Authenticate as service provider owner
+        self.client.force_authenticate(self.fixture.owner)
+
+        # Create another limit-based component
+        limit_component2 = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.LIMIT,
+            type="limit_memory",
+        )
+        factories.PlanComponentFactory(plan=self.plan, component=limit_component2)
+
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "date": backfill_date.isoformat(),
+            "usages": [
+                {
+                    "type": "limit_cpu",  # Limit-based component
+                    "amount": 10,
+                },
+                {
+                    "type": "limit_memory",  # Another limit-based component
+                    "amount": 8,
+                },
+            ],
+        }
+
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Both usages should be created
+        cpu_usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.limit_component,
+        )
+        memory_usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=limit_component2,
+        )
+
+        self.assertEqual(cpu_usage.date, backfill_date)
+        self.assertEqual(memory_usage.date, backfill_date)
+
+    def test_non_service_provider_cannot_backfill_date(self):
+        """Test that non-service provider users cannot specify date."""
+        # Create another customer that is not the service provider
+        other_fixture = structure_fixtures.ProjectFixture()
+        other_user = other_fixture.owner
+
+        self.client.force_authenticate(other_user)
+
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "date": backfill_date.isoformat(),
+            "usages": [
+                {
+                    "type": "limit_cpu",
+                    "amount": 10,
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Only staff users and service providers can specify date for backfilling",
+            str(response.data),
+        )
+
+    def test_service_provider_can_backfill_user_usage_for_limit_components(self):
+        """Test that service providers can specify date for user usage on limit-based components."""
+        # Authenticate as service provider owner
+        self.client.force_authenticate(self.fixture.owner)
+
+        # First create component usage for limit-based component
+        component_usage = models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.limit_component,
+            usage=100,
+            date=timezone.now(),
+            billing_period=core_utils.month_start(timezone.now()),
+        )
+
+        # Date in December 2023
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+        payload = {
+            "username": "user123",
+            "usage": 25,
+            "date": backfill_date.isoformat(),
+        }
+
+        response = self.client.post(
+            f"/api/marketplace-component-usages/{component_usage.uuid.hex}/set_user_usage/",
+            payload,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Check that a new ComponentUsage was created for December billing period
+        december_usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.limit_component,
+            billing_period=datetime.date(2023, 12, 1),
+        )
+        self.assertEqual(december_usage.date, backfill_date)
+
+        # Check that user usage was created linked to the December usage
+        user_usage = models.ComponentUserUsage.objects.get(
+            component_usage=december_usage, username="user123"
+        )
+        self.assertEqual(user_usage.usage, 25)
+
+    def test_service_provider_cannot_backfill_user_usage_for_usage_components(self):
+        """Test that service providers cannot specify date for user usage on usage-based components."""
+        # Authenticate as service provider owner
+        self.client.force_authenticate(self.fixture.owner)
+
+        # Create component usage for usage-based component
+        component_usage = models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.usage_component,  # Usage-based component
+            usage=100,
+            date=timezone.now(),
+            billing_period=core_utils.month_start(timezone.now()),
+        )
+
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+        payload = {
+            "username": "user123",
+            "usage": 25,
+            "date": backfill_date.isoformat(),
+        }
+
+        response = self.client.post(
+            f"/api/marketplace-component-usages/{component_usage.uuid.hex}/set_user_usage/",
+            payload,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Service providers can only specify date for limit-based billing components",
+            str(response.data),
+        )
