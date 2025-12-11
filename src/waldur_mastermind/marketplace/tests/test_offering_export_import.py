@@ -3,6 +3,7 @@ from ddt import data, ddt
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
@@ -26,6 +27,8 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
         self.fixture.offering.save()
         # Add user as customer owner to have permission to create offerings
         self.customer.add_user(self.user, CustomerRole.OWNER)
+        # Add CREATE_OFFERING permission to CustomerRole.OWNER for import tests
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
         # Also add as offering manager to have export permissions
         self.fixture.offering.add_user(self.user, OfferingRole.MANAGER)
 
@@ -248,7 +251,6 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
                 "import_plans": True,
                 "import_endpoints": True,
                 "overwrite_existing": False,
-                "preserve_state": False,
                 "offering_data": yaml_data,
             },
         )
@@ -358,8 +360,8 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("already exists", str(response.data))
 
-    def test_import_offering_preserves_state_when_requested(self):
-        """Test importing offering preserves original state when preserve_state is True."""
+    def test_import_offering_always_creates_draft_state(self):
+        """Test that all imported offerings are created in DRAFT state for security."""
         self.client.force_authenticate(self.user)
 
         import_data = {"offering": {"name": "State Test Offering", "state": "Active"}}
@@ -372,7 +374,6 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
             {
                 "customer": self.customer.uuid.hex,
                 "category": self.category.title,
-                "preserve_state": True,
                 "offering_data": yaml_data,
             },
         )
@@ -380,35 +381,7 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         offering = models.Offering.objects.get(name="State Test Offering")
-        self.assertEqual(offering.state, models.Offering.States.ACTIVE)
-
-    def test_import_offering_sets_draft_state_by_default(self):
-        """Test importing offering sets state to Draft by default."""
-        self.client.force_authenticate(self.user)
-
-        import_data = {
-            "offering": {
-                "name": "Draft Test Offering",
-                "state": "Active",  # This should be ignored
-            }
-        }
-
-        yaml_data = yaml.safe_dump(import_data)
-
-        url = reverse("marketplace-provider-offering-import-offering")
-        response = self.client.post(
-            url,
-            {
-                "customer": self.customer.uuid.hex,
-                "category": self.category.title,
-                "preserve_state": False,
-                "offering_data": yaml_data,
-            },
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        offering = models.Offering.objects.get(name="Draft Test Offering")
+        # Always DRAFT state regardless of input data
         self.assertEqual(offering.state, models.Offering.States.DRAFT)
 
     def test_import_offering_with_invalid_yaml(self):
@@ -529,9 +502,8 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
             },
         )
 
-        # Since we removed permission checking for simplicity, this should succeed
-        # but the offering creation will work since we specify a customer
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # Unauthorized users should be denied permission to create offerings
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data("screenshots", "files")
     def test_import_offering_with_unimplemented_components(self, component_type):
