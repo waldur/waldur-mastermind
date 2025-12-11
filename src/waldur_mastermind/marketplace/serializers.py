@@ -4985,15 +4985,42 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
     )
     date = serializers.DateTimeField(
         required=False,
-        help_text="Date for usage reporting (staff only). If not provided, current date is used.",
+        help_text="Date for usage reporting (staff and service providers for limit-based components). If not provided, current date is used.",
     )
 
     def validate_date(self, value):
-        if value and not self.context["request"].user.is_staff:
-            raise serializers.ValidationError(
-                _("Only staff users can specify date for backfilling.")
+        if not value:
+            return value
+
+        user = self.context["request"].user
+        if user.is_staff:
+            return value
+
+        # Get the component usage to check if user is service provider
+        component_usage = self.context["view"].get_object()
+        resource = component_usage.resource
+
+        # Check if user is service provider for the resource's offering
+        if has_permission(
+            self.context["request"],
+            PermissionEnum.SET_RESOURCE_USAGE,
+            resource.offering.customer,
+        ):
+            # Check if the component is limit-based
+            if component_usage.component.billing_type == BillingTypes.LIMIT:
+                return value
+            else:
+                raise serializers.ValidationError(
+                    _(
+                        "Service providers can only specify date for limit-based billing components."
+                    )
+                )
+
+        raise serializers.ValidationError(
+            _(
+                "Only staff users and service providers can specify date for backfilling."
             )
-        return value
+        )
 
     def validate(self, attrs):
         user = attrs.get("user")
@@ -5112,14 +5139,33 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
     )
     date = serializers.DateTimeField(
         required=False,
-        help_text="Date for usage reporting (staff only). If not provided, current date is used.",
+        help_text="Date for usage reporting (staff and service providers for limit-based components). If not provided, current date is used.",
     )
 
+    def _is_limit_based_component_usage(self, attrs):
+        """Check if ALL of the usage components are limit-based."""
+        plan_period = attrs.get("plan_period")
+        resource = plan_period and plan_period.resource or attrs.get("resource")
+        if not resource:
+            return False
+
+        components_map = self.get_components_map(resource.plan.offering)
+        for usage in attrs.get("usages", []):
+            component = components_map.get(usage.get("type"))
+            if component and component.billing_type != BillingTypes.LIMIT:
+                return False
+        return True
+
     def validate_date(self, value):
-        if value and not self.context["request"].user.is_staff:
-            raise serializers.ValidationError(
-                _("Only staff users can specify date for backfilling.")
-            )
+        if not value:
+            return value
+
+        user = self.context["request"].user
+        if user.is_staff:
+            return value
+
+        # Defer validation for service providers until we have access to the resource
+        # in the main validate method
         return value
 
     def validate_plan_period(self, plan_period):
@@ -5167,6 +5213,45 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             raise rf_exceptions.ValidationError(
                 _("These components are invalid: %s.") % invalid_components
             )
+
+        # Validate date field for service providers
+        date_value = attrs.get("date")
+        if date_value:
+            # Prevent submitting usage for future dates
+            now = timezone.now()
+            if date_value > now:
+                raise rf_exceptions.ValidationError(
+                    {
+                        "date": _(
+                            "Cannot submit usage for future dates. Date must be current date or earlier."
+                        )
+                    }
+                )
+
+        if date_value and not self.context["request"].user.is_staff:
+            # Check if user is service provider for the resource's offering
+            if has_permission(
+                self.context["request"],
+                PermissionEnum.SET_RESOURCE_USAGE,
+                resource.offering.customer,
+            ):
+                # Check if any of the components are limit-based
+                if not self._is_limit_based_component_usage(attrs):
+                    raise rf_exceptions.ValidationError(
+                        {
+                            "date": _(
+                                "Service providers can only specify date for limit-based billing components."
+                            )
+                        }
+                    )
+            else:
+                raise rf_exceptions.ValidationError(
+                    {
+                        "date": _(
+                            "Only staff users and service providers can specify date for backfilling."
+                        )
+                    }
+                )
 
         return attrs
 
