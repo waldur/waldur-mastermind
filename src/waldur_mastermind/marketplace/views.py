@@ -3889,11 +3889,37 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         summary="Import offering data",
-        description="Imports an offering and all its connected parts from YAML format. Allows configuration of which components to import and how to handle conflicts.",
+        description="Imports an offering and all its connected parts from YAML format. Allows configuration of which components to import and how to handle conflicts. Imported offerings are always created in DRAFT state for security.",
         request=serializers.OfferingImportParametersSerializer,
         responses=serializers.OfferingImportResponseSerializer,
     )
-    @action(detail=False, methods=["post"], permission_classes=[])
+    def check_import_offering_permissions(request, view, obj=None):
+        """Check if user has permission to create offerings via import."""
+        serializer = serializers.OfferingImportParametersSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        params = serializer.validated_data
+
+        # Determine target customer
+        customer = params.get("customer")
+        if not customer:
+            try:
+                customer = request.user.customer_permissions.first().customer
+            except (AttributeError, IndexError):
+                raise rf_exceptions.ValidationError(
+                    "No target customer specified or found"
+                )
+
+        # Check if user has permission to create offerings for this customer
+        if not has_permission(request, PermissionEnum.CREATE_OFFERING, customer):
+            raise rf_exceptions.PermissionDenied(
+                "You do not have permission to create offerings for this customer."
+            )
+
+        # Import offerings are always created in DRAFT state for security
+
+    import_offering_permissions = [check_import_offering_permissions]
+
+    @action(detail=False, methods=["post"])
     def import_offering(self, request):
         """Import offering data with configurable parameters."""
         serializer = serializers.OfferingImportParametersSerializer(data=request.data)
@@ -4078,20 +4104,9 @@ class ProviderOfferingViewSet(
             "paused_reason", offering.paused_reason
         )
 
-        # Set state based on preserve_state parameter
-        if not params.get("preserve_state", False):
-            offering.state = models.Offering.States.DRAFT
-        else:
-            state_map = {
-                "Draft": models.Offering.States.DRAFT,
-                "Active": models.Offering.States.ACTIVE,
-                "Paused": models.Offering.States.PAUSED,
-                "Archived": models.Offering.States.ARCHIVED,
-                "Unavailable": models.Offering.States.UNAVAILABLE,
-            }
-            offering.state = state_map.get(
-                offering_data.get("state"), models.Offering.States.DRAFT
-            )
+        # Always set imported offerings to DRAFT state for security
+        # Users must use proper state transition actions (activate, pause, etc.) after import
+        offering.state = models.Offering.States.DRAFT
 
         # Set optional project
         project = params.get("project")

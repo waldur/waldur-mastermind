@@ -8627,10 +8627,6 @@ class OfferingImportParametersSerializer(serializers.Serializer):
         default=False,
         help_text="Overwrite existing offering if one with the same name exists",
     )
-    preserve_state = serializers.BooleanField(
-        default=False,
-        help_text="Preserve offering state from export, otherwise set to 'Draft'",
-    )
 
     @extend_schema_field(OfferingExportDataSerializer)
     class OfferingExportDataField(serializers.JSONField):
