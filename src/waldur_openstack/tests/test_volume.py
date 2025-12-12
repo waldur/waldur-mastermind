@@ -575,3 +575,26 @@ class VolumeFilterTest(test.APITransactionTestCase):
     def test_filter_volumes_by_invalid_instance_uuid(self):
         response = self.client.get(self.url, {"attach_instance_uuid": "invalid"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class VolumeDisabledActionsTest(test.APITransactionTestCase):
+    """Tests to verify that create and destroy actions are disabled for the volume endpoint."""
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_volume_create_action_is_not_allowed(self):
+        url = factories.VolumeFactory.get_list_url()
+        data = {"name": "Test volume", "size": 1024}
+
+        response = self.client.post(url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_volume_destroy_action_is_not_allowed(self):
+        url = factories.VolumeFactory.get_url(self.fixture.volume)
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
