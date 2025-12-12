@@ -87,7 +87,7 @@ class TenantUpdateProcessor(processors.UpdateScopedResourceProcessor):
 
 
 class TenantDeleteProcessor(processors.DeleteScopedResourceProcessor):
-    viewset = openstack_views.TenantViewSet
+    viewset = views.MarketplaceTenantViewSet
 
 
 class TenantMixin:

@@ -754,11 +754,27 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         # Assert
         self.assertIsInstance(signature, Signature)
 
-    def test_delete_instance_via_openstack(self):
-        staff = structure_factories.UserFactory(is_staff=True)
-        self.client.force_authenticate(user=staff)
-        url = factories.InstanceFactory.get_url(self.instance)
+
+class InstanceDisabledActionsTest(test.APITransactionTestCase):
+    """Tests to verify that create and destroy actions are disabled for the instance endpoint."""
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_instance_create_action_is_not_allowed(self):
+        url = factories.InstanceFactory.get_list_url()
+        data = {"name": "Test instance"}
+
+        response = self.client.post(url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_instance_destroy_action_is_not_allowed(self):
+        url = factories.InstanceFactory.get_url(self.fixture.instance)
+
         response = self.client.delete(url)
+
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 

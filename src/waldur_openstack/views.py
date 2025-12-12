@@ -25,10 +25,8 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
-from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -489,10 +487,6 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
         summary="Get tenant details",
         description="Retrieve details of a specific OpenStack tenant.",
     ),
-    create=extend_schema(
-        summary="Create tenant",
-        description="Create a new OpenStack tenant.",
-    ),
     update=extend_schema(
         summary="Update tenant",
         description="Update an existing OpenStack tenant.",
@@ -500,10 +494,6 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
     partial_update=extend_schema(
         summary="Partially update tenant",
         description="Update specific fields of an OpenStack tenant.",
-    ),
-    destroy=extend_schema(
-        summary="Delete tenant",
-        description="Delete an OpenStack tenant and all its resources.",
     ),
 )
 class TenantViewSet(
@@ -513,30 +503,9 @@ class TenantViewSet(
     serializer_class = serializers.OpenStackTenantSerializer
     filterset_class = structure_filters.BaseResourceFilter
 
-    create_executor = executors.TenantCreateExecutor
     update_executor = executors.TenantUpdateExecutor
     pull_executor = executors.TenantPullExecutor
-
-    def delete_permission_check(request, view, obj=None):
-        if not obj:
-            return
-        if obj.service_settings.shared:
-            if has_permission(
-                request, PermissionEnum.APPROVE_ORDER, obj.project
-            ) or has_permission(
-                request, PermissionEnum.APPROVE_ORDER, obj.project.customer
-            ):
-                return
-            raise exceptions.PermissionDenied()
-        else:
-            structure_permissions.is_administrator(
-                request,
-                view,
-                obj,
-            )
-
-    delete_executor = executors.TenantDeleteExecutor
-    destroy_permissions = [delete_permission_check]
+    disabled_actions = ["create", "destroy"]
 
     @extend_schema(
         summary="Set tenant quotas",

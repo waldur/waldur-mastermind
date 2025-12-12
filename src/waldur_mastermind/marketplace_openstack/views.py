@@ -9,19 +9,26 @@ from drf_spectacular.utils import (
 )
 from rest_framework import response, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 
 from waldur_core.core import views as core_views
+from waldur_core.core.mixins import ExecutorMixin
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters
+from waldur_core.structure.permissions import is_administrator
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_openstack import serializers
 from waldur_openstack import models as openstack_models
 from waldur_openstack.exceptions import OpenStackBackendError
-from waldur_openstack.executors import TenantCreateExecutor
+from waldur_openstack.executors import TenantCreateExecutor, TenantDeleteExecutor
 
 
-class MarketplaceTenantViewSet(core_views.ActionsViewSet):
+class MarketplaceTenantViewSet(ExecutorMixin, core_views.ActionsViewSet):
+    queryset = openstack_models.Tenant.objects.all()
+    lookup_field = "uuid"
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -41,6 +48,27 @@ class MarketplaceTenantViewSet(core_views.ActionsViewSet):
         )
 
     serializer_class = serializers.MarketplaceTenantCreateSerializer
+
+    def delete_permission_check(request, view, obj=None):
+        if not obj:
+            return
+        if obj.service_settings.shared:
+            if has_permission(
+                request, PermissionEnum.APPROVE_ORDER, obj.project
+            ) or has_permission(
+                request, PermissionEnum.APPROVE_ORDER, obj.project.customer
+            ):
+                return
+            raise PermissionDenied()
+        else:
+            is_administrator(
+                request,
+                view,
+                obj,
+            )
+
+    delete_executor = TenantDeleteExecutor
+    destroy_permissions = [delete_permission_check]
 
 
 class MarketplaceTenantActionsViewSet(core_views.ReadOnlyActionsViewSet):
