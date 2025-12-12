@@ -348,21 +348,47 @@ def process_invitations_and_orders_when_project_start_date_is_unset(
         tasks.continue_order_processing(order)
 
 
-def update_resource_when_order_is_rejected_or_erred(
+def update_resource_state_on_order_creation(
     sender, instance: Order, created=False, **kwargs
 ):
-    """Update resource state when an order is rejected or erred."""
+    """Update resource state when an order is created."""
+    if not created:
+        return
+
+    order = instance
+    if order.state in OrderStates.TERMINAL_STATES:
+        return
+
+    if order.resource.state == ResourceStates.ERRED:
+        return
+
+    resource = order.resource
+
+    if order.type == OrderTypes.UPDATE and resource.state != ResourceStates.UPDATING:
+        resource.set_state_updating()
+        resource.save(update_fields=["state"])
+    elif order.type == OrderTypes.TERMINATE:
+        resource.set_state_terminating()
+        resource.save(update_fields=["state"])
+
+
+def update_resource_state_on_order_rejection_error_or_cancellation(
+    sender, instance: Order, created=False, **kwargs
+):
+    """Update resource state when an order is rejected, erred or canceled."""
     order: models.Order = instance
     if not order.tracker.has_changed("state"):
         return
     resource = order.resource
-    if order.state == OrderStates.REJECTED:
+    if order.state in (OrderStates.REJECTED, OrderStates.CANCELED):
         if order.type == OrderTypes.CREATE:
             resource.set_state_terminated()
             resource.save(update_fields=["state"])
+
         elif resource.state != ResourceStates.OK:
             resource.set_state_ok()
             resource.save(update_fields=["state"])
+
     elif order.state == OrderStates.ERRED:
         if resource.state != ResourceStates.CREATING:
             return
