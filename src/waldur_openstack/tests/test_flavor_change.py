@@ -250,7 +250,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         # Check all states but deleted and offline
         forbidden_states = [
             state
-            for (state, _) in CoreStates.CHOICES
+            for (state, _) in CoreStates.choices
             if state not in (CoreStates.DELETING, CoreStates.OK)
         ]
 

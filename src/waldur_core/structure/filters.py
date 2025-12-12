@@ -716,7 +716,7 @@ class ServiceTypeFilter(django_filters.Filter):
 class ServiceSettingsFilter(NameFilterSet):
     type = ServiceTypeFilter(label="Type")
     state = core_filters.MappedMultipleChoiceFilter(
-        CoreStates.CHOICES,
+        CoreStates.choices,
         label="State",
     )
     customer = django_filters.UUIDFilter(
@@ -797,7 +797,7 @@ class BaseResourceFilter(NameFilterSet):
     description = django_filters.CharFilter(
         lookup_expr="icontains", label="Description"
     )
-    state = core_filters.MappedMultipleChoiceFilter(CoreStates.CHOICES, label="State")
+    state = core_filters.MappedMultipleChoiceFilter(CoreStates.choices, label="State")
     uuid = django_filters.UUIDFilter(lookup_expr="exact", label="UUID")
     backend_id = django_filters.CharFilter(
         field_name="backend_id", lookup_expr="exact", label="Backend ID"

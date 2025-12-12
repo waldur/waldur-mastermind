@@ -13,7 +13,7 @@ from rest_framework import exceptions, serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
-from waldur_core.core.enums import CoreStateType
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.validators import BackendURLValidator
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
@@ -658,7 +658,8 @@ class RancherNodeSerializer(serializers.HyperlinkedModelSerializer):
             "cluster": {"lookup_field": "uuid", "view_name": "rancher-cluster-detail"},
         }
 
-    def get_state(self, obj) -> CoreStateType:
+    @extend_schema_field(serializers.ChoiceField(choices=CoreStates.labels))
+    def get_state(self, obj):
         return obj.get_state_display()
 
     def validate(self, attrs):

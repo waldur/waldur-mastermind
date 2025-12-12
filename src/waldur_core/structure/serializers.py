@@ -22,7 +22,7 @@ from waldur_core.checklist.models import Checklist
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
-from waldur_core.core.enums import CoreStates, CoreStateType
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
@@ -1360,8 +1360,8 @@ class ServiceSettingsSerializer(
         read_only=True, source="customer.native_name"
     )
     state = MappedChoiceField(
-        choices=[(v, k) for k, v in CoreStates.CHOICES],
-        choice_mappings={v: k for k, v in CoreStates.CHOICES},
+        choices=[(v, k) for k, v in CoreStates.choices],
+        choice_mappings={v: k for k, v in CoreStates.choices},
         read_only=True,
     )
     scope = core_serializers.GenericRelatedField(
@@ -1549,7 +1549,8 @@ class BaseResourceSerializer(
             "url": {"lookup_field": "uuid"},
         }
 
-    def get_state(self, obj) -> CoreStateType:
+    @extend_schema_field(serializers.ChoiceField(choices=CoreStates.labels))
+    def get_state(self, obj):
         return obj.get_state_display()
 
     def get_filtered_field_names(self):
