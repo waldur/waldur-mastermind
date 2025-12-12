@@ -8,7 +8,11 @@ The User Actions system provides a framework for detecting and managing user-spe
 - **Urgency Classification**: Three-tier urgency system (low, medium, high)
 - **Action Management**: Users can silence actions temporarily or permanently
 - **Corrective Actions**: Predefined actions users can take to resolve issues
+- **Bulk Operations**: Bulk silence multiple actions based on filters
+- **API Execution**: Execute corrective actions directly through API endpoints
+- **Admin Controls**: Administrative endpoints for triggering action updates
 - **Audit Trail**: Complete execution history for actions taken
+- **OpenAPI Documentation**: Fully documented API with drf-spectacular integration
 
 ## Architecture
 
@@ -22,16 +26,30 @@ Action providers inherit from `BaseActionProvider` and implement:
 
 ### Database Models
 
-- `UserAction` - Individual action items with urgency, due dates, and silencing
-- `UserActionExecution` - Audit trail for executed actions
-- `UserActionProvider` - Registry of registered providers
+- `UserAction` - Individual action items with urgency, due dates, silencing support, and corrective actions
+- `UserActionExecution` - Audit trail for executed actions with success/failure tracking
+- `UserActionProvider` - Registry of registered providers with execution status and scheduling
 
 ### API Endpoints
 
-- `GET /api/user-actions/` - List user actions (filterable by urgency)
-- `GET /api/user-actions/summary/` - Action statistics and counts
-- `POST /api/user-actions/{uuid}/silence/` - Silence actions
+#### User Action Management
+
+- `GET /api/user-actions/` - List user actions (filterable by urgency, type, silenced status)
+- `GET /api/user-actions/{uuid}/` - Get specific action details
+- `GET /api/user-actions/summary/` - Action statistics and counts by urgency and type
+- `POST /api/user-actions/{uuid}/silence/` - Silence action temporarily or permanently
+- `POST /api/user-actions/{uuid}/unsilence/` - Remove silence from an action
 - `POST /api/user-actions/{uuid}/execute_action/` - Execute corrective actions
+- `POST /api/user-actions/bulk_silence/` - Bulk silence actions based on filters
+- `POST /api/user-actions/update_actions/` - Trigger action update (admin only)
+
+#### Execution History
+
+- `GET /api/user-action-executions/` - View action execution history
+
+#### Provider Management (Admin Only)
+
+- `GET /api/user-action-providers/` - List registered action providers
 
 ## Marketplace Providers
 
@@ -110,7 +128,15 @@ Celery tasks run periodically:
 - **Cleanup**: Daily/weekly - remove expired silenced actions and old executions
 - **Notifications**: Daily at 9 AM - send action digest emails
 
-## Usage Examples
+## API Usage Examples
+
+### Listing Actions
+
+List all actions for current user:
+
+```bash
+GET /api/user-actions/
+```
 
 List high-urgency actions:
 
@@ -118,11 +144,51 @@ List high-urgency actions:
 GET /api/user-actions/?urgency=high
 ```
 
-Get action summary:
+List actions including silenced ones:
+
+```bash
+GET /api/user-actions/?include_silenced=true
+```
+
+Filter by action type:
+
+```bash
+GET /api/user-actions/?action_type=pending_order
+```
+
+### Action Summary
+
+Get action statistics:
 
 ```bash
 GET /api/user-actions/summary/
-# Returns: {"total": 5, "overdue": 2, "by_urgency": {"high": 2, "medium": 2, "low": 1}}
+```
+
+Response example:
+
+```json
+{
+  "total": 5,
+  "overdue": 2,
+  "by_urgency": {
+    "high": 2,
+    "medium": 2,
+    "low": 1
+  },
+  "by_type": {
+    "pending_order": 3,
+    "expiring_resource": 2
+  }
+}
+```
+
+### Silencing Actions
+
+Silence an action permanently:
+
+```bash
+POST /api/user-actions/{uuid}/silence/
+{}
 ```
 
 Silence an action for 7 days:
@@ -131,5 +197,76 @@ Silence an action for 7 days:
 POST /api/user-actions/{uuid}/silence/
 {"duration_days": 7}
 ```
+
+Remove silence from an action:
+
+```bash
+POST /api/user-actions/{uuid}/unsilence/
+```
+
+Bulk silence high-urgency actions for 14 days:
+
+```bash
+POST /api/user-actions/bulk_silence/?urgency=high
+{"duration_days": 14}
+```
+
+### Executing Corrective Actions
+
+Execute a specific corrective action:
+
+```bash
+POST /api/user-actions/{uuid}/execute_action/
+{"action_label": "Approve order"}
+```
+
+### Administrative Actions
+
+Trigger action update for all providers (admin only):
+
+```bash
+POST /api/user-actions/update_actions/
+{}
+```
+
+Trigger update for specific provider (admin only):
+
+```bash
+POST /api/user-actions/update_actions/
+{"provider_action_type": "pending_order"}
+```
+
+### Viewing Execution History
+
+Get execution history for current user:
+
+```bash
+GET /api/user-action-executions/
+```
+
+### Managing Providers (Admin Only)
+
+List all registered providers:
+
+```bash
+GET /api/user-action-providers/
+```
+
+## Security and Permissions
+
+- **User Actions**: Users can only view and manage their own actions
+- **Execution History**: Users can only view their own execution history
+- **Provider Management**: Requires admin permissions
+- **Update Actions**: Requires admin permissions
+- **Corrective Actions**: Subject to individual action permission requirements
+
+## OpenAPI Documentation
+
+All endpoints are fully documented with OpenAPI specifications via drf-spectacular:
+
+- Request/response schemas are automatically generated
+- Interactive API documentation available at `/api/docs/`
+- Proper error response documentation for all endpoints
+- Examples and validation rules included
 
 The system integrates with existing Waldur permissions and follows established patterns for extensibility across all Waldur applications.
