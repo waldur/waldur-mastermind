@@ -810,8 +810,10 @@ class ServiceProviderOfferingUserComplianceSerializer(serializers.ModelSerialize
 
 
 class SetOfferingsUsernameSerializer(serializers.Serializer):
-    user_uuid = serializers.UUIDField()
-    username = serializers.CharField(allow_blank=True)
+    user_uuid = serializers.UUIDField(help_text="UUID of the user")
+    username = serializers.CharField(
+        allow_blank=True, help_text="Username for offering access"
+    )
 
 
 class NestedAttributeOptionSerializer(serializers.ModelSerializer):
@@ -2225,15 +2227,18 @@ class NestedEndpointSerializer(serializers.ModelSerializer):
         model = models.OfferingAccessEndpoint
         fields = ("uuid", "name", "url")
 
-    url = serializers.CharField(validators=[core_validators.BackendURLValidator])
+    url = serializers.CharField(
+        validators=[core_validators.BackendURLValidator],
+        help_text="URL of the access endpoint",
+    )
 
 
 class EndpointUUIDSerializer(serializers.Serializer):
-    uuid = serializers.UUIDField()
+    uuid = serializers.UUIDField(help_text="UUID of the access endpoint")
 
 
 class SoftwareCatalogUUIDSerializer(serializers.Serializer):
-    uuid = serializers.UUIDField()
+    uuid = serializers.UUIDField(help_text="UUID of the software catalog")
 
 
 class NestedRoleSerializer(serializers.HyperlinkedModelSerializer):
@@ -4535,14 +4540,19 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
 
 
 class OrderUUIDSerializer(serializers.Serializer):
-    order_uuid = serializers.UUIDField(read_only=True)
+    order_uuid = serializers.UUIDField(
+        read_only=True, help_text="UUID of the created or updated order"
+    )
 
 
 class ResourceReallocateLimitsResponseSerializer(serializers.Serializer):
-    source_order_uuid = serializers.UUIDField(read_only=True)
+    source_order_uuid = serializers.UUIDField(
+        read_only=True, help_text="UUID of the source order for limit reallocation"
+    )
     target_order_uuids = serializers.ListField(
         child=serializers.UUIDField(),
         read_only=True,
+        help_text="List of UUIDs for target orders receiving the reallocated limits",
     )
 
 
@@ -5224,10 +5234,16 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
 
 
 class ComponentUsageItemSerializer(serializers.Serializer):
-    type = serializers.CharField()
-    amount = serializers.DecimalField(decimal_places=2, max_digits=20)
-    description = serializers.CharField(required=False, allow_blank=True)
-    recurring = serializers.BooleanField(default=False)
+    type = serializers.CharField(help_text="Type of the component")
+    amount = serializers.DecimalField(
+        decimal_places=2, max_digits=20, help_text="Usage amount"
+    )
+    description = serializers.CharField(
+        required=False, allow_blank=True, help_text="Optional description of usage"
+    )
+    recurring = serializers.BooleanField(
+        default=False, help_text="Whether this usage is recurring"
+    )
 
 
 class ComponentUsageCreateSerializer(serializers.Serializer):
@@ -7313,10 +7329,14 @@ core_signals.pre_serializer_fields.connect(
 
 
 class PluginComponentSerializer(serializers.Serializer):
-    type = serializers.CharField()
-    name = serializers.CharField()
-    measured_unit = serializers.CharField()
-    billing_type = serializers.ChoiceField(choices=BillingTypes.CHOICES)
+    type = serializers.CharField(help_text="Type identifier of the component")
+    name = serializers.CharField(help_text="Display name of the component")
+    measured_unit = serializers.CharField(
+        help_text="Unit of measurement for the component"
+    )
+    billing_type = serializers.ChoiceField(
+        choices=BillingTypes.CHOICES, help_text="Billing type for the component"
+    )
 
 
 class PluginOfferingTypeSerializer(serializers.Serializer):
@@ -7348,7 +7368,7 @@ class DetailStateSerializer(serializers.Serializer):
 
 
 class RemoveOfferingComponentSerializer(serializers.Serializer):
-    uuid = serializers.UUIDField()
+    uuid = serializers.UUIDField(help_text="UUID of the component to remove")
 
 
 class RemoveSoftwareCatalogSerializer(serializers.Serializer):
@@ -7374,15 +7394,21 @@ class SubresourceOfferingSerializer(serializers.Serializer):
 
 
 class ImportableResourceSerializer(serializers.Serializer):
-    backend_id = serializers.CharField()
-    name = serializers.CharField()
-    type = serializers.CharField()
-    description = serializers.CharField(allow_blank=True)
+    backend_id = serializers.CharField(help_text="Backend identifier of the resource")
+    name = serializers.CharField(help_text="Name of the resource")
+    type = serializers.CharField(help_text="Type of the resource")
+    description = serializers.CharField(
+        allow_blank=True, help_text="Description of the resource"
+    )
 
 
 class OfferingReferenceSerializer(serializers.Serializer):
-    offering_name = serializers.CharField(read_only=True)
-    offering_uuid = serializers.UUIDField(read_only=True)
+    offering_name = serializers.CharField(
+        read_only=True, help_text="Name of the offering"
+    )
+    offering_uuid = serializers.UUIDField(
+        read_only=True, help_text="UUID of the offering"
+    )
 
 
 class OfferingGroupsSerializer(serializers.Serializer):
