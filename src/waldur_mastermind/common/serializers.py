@@ -18,6 +18,24 @@ class ConditionalCascadeField(serializers.DictField):
         return super().to_internal_value(data)
 
 
+class SingleDatacenterK8sConfigField(serializers.DictField):
+    """Field for single-datacenter Kubernetes cluster configuration"""
+
+    def to_internal_value(self, data):
+        if not isinstance(data, dict):
+            self.fail("not_a_dict", input=type(data).__name__)
+        return super().to_internal_value(data)
+
+
+class MultiDatacenterK8sConfigField(serializers.DictField):
+    """Field for multi-datacenter Kubernetes cluster configuration"""
+
+    def to_internal_value(self, data):
+        if not isinstance(data, dict):
+            self.fail("not_a_dict", input=type(data).__name__)
+        return super().to_internal_value(data)
+
+
 FIELD_CLASSES = {
     "integer": serializers.IntegerField,
     "date": serializers.DateField,
@@ -33,6 +51,8 @@ FIELD_CLASSES = {
     "select_multiple_emails": EmailListSerializer,
     "conditional_cascade": ConditionalCascadeField,
     "component_multiplier": serializers.IntegerField,
+    "single_datacenter_k8s_config": SingleDatacenterK8sConfigField,
+    "multi_datacenter_k8s_config": MultiDatacenterK8sConfigField,
 }
 
 
