@@ -131,7 +131,7 @@ class Invitation(
     )
 
     state = models.CharField(
-        max_length=10, choices=InvitationState.CHOICES, default=InvitationState.PENDING
+        max_length=10, choices=InvitationState.choices, default=InvitationState.PENDING
     )
     execution_state = FSMField(
         choices=ExecutionState.CHOICES, default=ExecutionState.SCHEDULED

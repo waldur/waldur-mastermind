@@ -9,7 +9,7 @@ from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_valid_models
 from waldur_core.structure.permissions import _get_customer
 from waldur_core.users import models
-from waldur_core.users.enums import InvitationState, InvitationStateType
+from waldur_core.users.enums import InvitationState
 
 
 class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
@@ -372,7 +372,8 @@ class VisibleInvitationDetailsSerializer(BaseInvitationDetailsSerializer):
             "execution_state",
         )
 
-    def get_state(self, obj) -> InvitationStateType:
+    @extend_schema_field(serializers.ChoiceField(choices=InvitationState.values))
+    def get_state(self, obj):
         return obj.state
 
 

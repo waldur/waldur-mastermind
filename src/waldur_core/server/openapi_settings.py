@@ -50,7 +50,7 @@ SPECTACULAR_SETTINGS = {
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
         "RoleType": TYPE_MAP.keys(),
-        "InvitationState": InvitationState.VALUES,
+        "InvitationState": InvitationState.values,
         "BillingUnit": Units.CHOICES,
         "CoreStates": CoreStates.labels,
         "OfferingState": OfferingStates.VALUES,
