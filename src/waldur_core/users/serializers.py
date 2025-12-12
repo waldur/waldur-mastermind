@@ -14,20 +14,54 @@ from waldur_core.users.enums import InvitationState, InvitationStateType
 
 class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
     created_by_full_name = serializers.CharField(
-        read_only=True, source="created_by.full_name"
+        read_only=True,
+        source="created_by.full_name",
+        help_text="Full name of the user who created this invitation",
     )
     created_by_username = serializers.CharField(
-        read_only=True, source="created_by.username"
+        read_only=True,
+        source="created_by.username",
+        help_text="Username of the user who created this invitation",
     )
-    created_by_image = serializers.ImageField(read_only=True, source="created_by.image")
-    scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
-    scope_name = serializers.CharField(read_only=True, source="scope.name")
-    scope_description = serializers.SerializerMethodField()
-    scope_type = serializers.SerializerMethodField()
-    customer_uuid = serializers.UUIDField(read_only=True, source="customer.uuid")
-    customer_name = serializers.CharField(read_only=True, source="customer.name")
-    role_name = serializers.CharField(read_only=True, source="role.name")
-    role_description = serializers.CharField(read_only=True, source="role.description")
+    created_by_image = serializers.ImageField(
+        read_only=True,
+        source="created_by.image",
+        help_text="Profile image of the user who created this invitation",
+    )
+    scope_uuid = serializers.UUIDField(
+        read_only=True,
+        source="scope.uuid",
+        help_text="UUID of the invitation scope (Customer or Project)",
+    )
+    scope_name = serializers.CharField(
+        read_only=True, source="scope.name", help_text="Name of the invitation scope"
+    )
+    scope_description = serializers.SerializerMethodField(
+        help_text="Description of the invitation scope"
+    )
+    scope_type = serializers.SerializerMethodField(
+        help_text="Type of the invitation scope (e.g., 'customer', 'project')"
+    )
+    customer_uuid = serializers.UUIDField(
+        read_only=True,
+        source="customer.uuid",
+        help_text="UUID of the customer organization",
+    )
+    customer_name = serializers.CharField(
+        read_only=True,
+        source="customer.name",
+        help_text="Name of the customer organization",
+    )
+    role_name = serializers.CharField(
+        read_only=True,
+        source="role.name",
+        help_text="Name of the role being granted (e.g., 'PROJECT.ADMIN')",
+    )
+    role_description = serializers.CharField(
+        read_only=True,
+        source="role.description",
+        help_text="Description of the role being granted",
+    )
 
     class Meta:
         model = models.BaseInvitation
@@ -67,11 +101,21 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
-    scope = GenericRelatedField(get_valid_models, write_only=True)
-    role = serializers.SlugRelatedField(
-        queryset=Role.objects.filter(is_active=True), slug_field="uuid"
+    scope = GenericRelatedField(
+        get_valid_models,
+        write_only=True,
+        help_text="URL of the scope (Customer or Project) for this invitation",
     )
-    expires = serializers.DateTimeField(source="get_expiration_time", read_only=True)
+    role = serializers.SlugRelatedField(
+        queryset=Role.objects.filter(is_active=True),
+        slug_field="uuid",
+        help_text="UUID of the role to grant to the invited user",
+    )
+    expires = serializers.DateTimeField(
+        source="get_expiration_time",
+        read_only=True,
+        help_text="Expiration date and time of the invitation",
+    )
 
     class Meta:
         model = models.BaseInvitation
@@ -112,8 +156,11 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
         slug_field="uuid",
         required=False,
         allow_null=True,
+        help_text="UUID of the project role to grant if auto_create_project is enabled",
     )
-    scope_image = serializers.SerializerMethodField()
+    scope_image = serializers.SerializerMethodField(
+        help_text="Image URL of the invitation scope (Customer or Project)"
+    )
 
     def validate_user_email_patterns(self, value):
         models.GroupInvitation.validate_user_email_patterns(value)
@@ -269,7 +316,10 @@ class InvitationSerializer(BaseInvitationSerializer):
 
 class InvitationUpdateSerializer(serializers.ModelSerializer):
     role = serializers.SlugRelatedField(
-        queryset=Role.objects.filter(is_active=True), slug_field="uuid", required=False
+        queryset=Role.objects.filter(is_active=True),
+        slug_field="uuid",
+        required=False,
+        help_text="UUID of the new role to assign. Must be compatible with the invitation scope.",
     )
 
     class Meta:
@@ -305,7 +355,9 @@ class InvitationUpdateSerializer(serializers.ModelSerializer):
 
 
 class VisibleInvitationDetailsSerializer(BaseInvitationDetailsSerializer):
-    state = serializers.SerializerMethodField()
+    state = serializers.SerializerMethodField(
+        help_text="Current state of the invitation (e.g., 'pending', 'accepted', 'rejected')"
+    )
 
     class Meta:
         model = models.Invitation
@@ -392,12 +444,18 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class TokenSerializer(serializers.Serializer):
-    token = serializers.CharField()
+    token = serializers.CharField(
+        help_text="Authentication token for invitation acceptance"
+    )
 
 
 class InvitationCheckSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    civil_number_required = serializers.BooleanField(required=False)
+    email = serializers.EmailField(
+        help_text="Email address to check for existing invitations"
+    )
+    civil_number_required = serializers.BooleanField(
+        required=False, help_text="Whether civil number verification is required"
+    )
 
 
 class SubmitRequestResponseSerializer(serializers.Serializer):

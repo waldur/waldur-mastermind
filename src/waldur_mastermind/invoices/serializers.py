@@ -25,27 +25,39 @@ from . import log, models, utils
 
 
 class ResourceLimitPeriod(serializers.Serializer):
-    start = serializers.CharField()
-    end = serializers.CharField()
-    quantity = serializers.IntegerField()
-    billing_periods = serializers.IntegerField()
-    total = serializers.CharField()
+    start = serializers.CharField(help_text="Start date of the resource limit period")
+    end = serializers.CharField(help_text="End date of the resource limit period")
+    quantity = serializers.IntegerField(
+        help_text="Quantity of resources consumed during this period"
+    )
+    billing_periods = serializers.IntegerField(help_text="Number of billing periods")
+    total = serializers.CharField(help_text="Total amount for this period")
 
 
 class InvoiceItemDetailsSerializer(serializers.Serializer):
-    resource_name = serializers.CharField()
-    resource_uuid = serializers.UUIDField()
-    plan_name = serializers.CharField()
-    plan_uuid = serializers.UUIDField()
-    offering_type = serializers.CharField()
-    offering_name = serializers.CharField()
-    offering_uuid = serializers.UUIDField()
-    service_provider_name = serializers.CharField()
-    service_provider_uuid = serializers.UUIDField()
-    plan_component_id = serializers.IntegerField()
-    offering_component_type = serializers.CharField()
-    offering_component_name = serializers.CharField()
-    resource_limit_periods = ResourceLimitPeriod(many=True)
+    resource_name = serializers.CharField(help_text="Name of the marketplace resource")
+    resource_uuid = serializers.UUIDField(help_text="UUID of the marketplace resource")
+    plan_name = serializers.CharField(help_text="Name of the pricing plan")
+    plan_uuid = serializers.UUIDField(help_text="UUID of the pricing plan")
+    offering_type = serializers.CharField(help_text="Type of the offering")
+    offering_name = serializers.CharField(help_text="Name of the offering")
+    offering_uuid = serializers.UUIDField(help_text="UUID of the offering")
+    service_provider_name = serializers.CharField(
+        help_text="Name of the service provider"
+    )
+    service_provider_uuid = serializers.UUIDField(
+        help_text="UUID of the service provider"
+    )
+    plan_component_id = serializers.IntegerField(help_text="ID of the plan component")
+    offering_component_type = serializers.CharField(
+        help_text="Type of the offering component"
+    )
+    offering_component_name = serializers.CharField(
+        help_text="Name of the offering component"
+    )
+    resource_limit_periods = ResourceLimitPeriod(
+        many=True, help_text="List of resource limit periods for this invoice item"
+    )
 
 
 @extend_schema_field(InvoiceItemDetailsSerializer)
@@ -165,7 +177,9 @@ class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
 
 class InvoiceItemTotalPriceSerializer(serializers.Serializer):
     total_price = serializers.DecimalField(
-        max_digits=PRICE_MAX_DIGITS, decimal_places=PRICE_DECIMAL_PLACES
+        max_digits=PRICE_MAX_DIGITS,
+        decimal_places=PRICE_DECIMAL_PLACES,
+        help_text="Total price for the invoice item",
     )
 
 
@@ -231,7 +245,9 @@ class InvoiceItemUpdateSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class InvoiceItemCompensationSerializer(serializers.Serializer):
-    offering_component_name = serializers.CharField()
+    offering_component_name = serializers.CharField(
+        help_text="Name of the offering component for compensation"
+    )
 
 
 class InvoiceItemMigrateToSerializer(serializers.HyperlinkedModelSerializer):

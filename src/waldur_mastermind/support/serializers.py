@@ -46,9 +46,15 @@ def render_issue_template(config_name, template_name, issue):
 
 
 class NestedFeedbackSerializer(serializers.HyperlinkedModelSerializer):
-    state = serializers.ReadOnlyField(source="get_state_display")
-    evaluation = serializers.IntegerField(read_only=True)
-    evaluation_number = serializers.IntegerField(read_only=True, source="evaluation")
+    state = serializers.ReadOnlyField(
+        source="get_state_display", help_text="Current state of the feedback"
+    )
+    evaluation = serializers.IntegerField(
+        read_only=True, help_text="Customer satisfaction rating (1-5 stars)"
+    )
+    evaluation_number = serializers.IntegerField(
+        read_only=True, source="evaluation", help_text="Numeric value of the rating"
+    )
 
     class Meta:
         model = models.Feedback
@@ -543,20 +549,20 @@ class SupportUserSerializer(
 
 
 class JiraCommentSerializer(serializers.Serializer):
-    id = serializers.CharField()
+    id = serializers.CharField(help_text="Jira comment ID")
 
 
 class JiraChangelogSerializer(serializers.Serializer):
-    items = serializers.ListField()
+    items = serializers.ListField(help_text="List of changelog items")
 
 
 class JiraFieldSerializer(serializers.Serializer):
-    id = serializers.CharField()
-    name = serializers.CharField()
+    id = serializers.CharField(help_text="Jira field ID")
+    name = serializers.CharField(help_text="Jira field name")
 
 
 class JiraIssueProjectSerializer(JiraFieldSerializer):
-    key = serializers.CharField()
+    key = serializers.CharField(help_text="Jira project key")
 
 
 class JiraIssueFieldsSerializer(serializers.Serializer):
@@ -565,7 +571,7 @@ class JiraIssueFieldsSerializer(serializers.Serializer):
 
 
 class JiraIssueSerializer(serializers.Serializer):
-    key = serializers.CharField()
+    key = serializers.CharField(help_text="Jira issue key")
     fields = JiraIssueFieldsSerializer()
 
 
@@ -764,7 +770,9 @@ class AttachmentSerializer(
 
 
 class CreateAttachmentsSerializer(serializers.Serializer):
-    attachments = serializers.ListSerializer(child=serializers.FileField())
+    attachments = serializers.ListSerializer(
+        child=serializers.FileField(), help_text="List of files to attach"
+    )
 
 
 class TemplateAttachmentSerializer(serializers.ModelSerializer):

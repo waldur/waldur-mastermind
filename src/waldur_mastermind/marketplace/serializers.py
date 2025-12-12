@@ -604,8 +604,8 @@ class MergedSecretOptionsField(serializers.JSONField):
 
 
 class ReportSectionSerializer(serializers.Serializer):
-    header = serializers.CharField()
-    body = serializers.CharField()
+    header = serializers.CharField(help_text="Section header text")
+    body = serializers.CharField(help_text="Section body content")
 
 
 class ResourceReportSerializer(serializers.Serializer):
@@ -691,7 +691,10 @@ class ServiceProviderSerializer(
 
 
 class ServiceProviderApiSecretCodeSerializer(serializers.Serializer):
-    api_secret_code = serializers.CharField(read_only=True)
+    api_secret_code = serializers.CharField(
+        read_only=True,
+        help_text="API secret code for authenticating service provider requests",
+    )
 
 
 class ServiceProviderComplianceOverviewSerializer(serializers.Serializer):
