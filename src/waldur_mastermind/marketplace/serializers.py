@@ -4068,6 +4068,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     project_slug = serializers.ReadOnlyField(source="project.slug")
     customer_slug = serializers.ReadOnlyField(source="project.customer.slug")
     renewal_date = serializers.SerializerMethodField()
+    offering_state = serializers.SerializerMethodField()
 
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
@@ -4124,6 +4125,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "customer_slug",
             "user_requires_reconsent",
             "renewal_date",
+            "offering_state",
         )
         read_only_fields = (
             "backend_metadata",
@@ -4335,6 +4337,9 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
 
     def get_state(self, resource: models.Resource) -> ResourceStatesType:
         return resource.get_state_display()
+
+    def get_offering_state(self, resource: models.Resource) -> ResourceStatesType:
+        return resource.offering.get_state_display()
 
     def get_fields(self):
         fields = super().get_fields()
