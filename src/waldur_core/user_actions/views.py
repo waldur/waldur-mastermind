@@ -6,7 +6,7 @@ from rest_framework import decorators, filters, permissions, status, viewsets
 from rest_framework.response import Response
 
 from . import filters as user_action_filters
-from . import models, serializers
+from . import models, serializers, tasks
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +234,32 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response(
             {"status": "bulk_silenced", "count": count, "duration_days": duration_days}
+        )
+
+    @decorators.action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[permissions.IsAuthenticated, permissions.IsAdminUser],
+    )
+    def update_actions(self, request):
+        """Trigger update of user actions (admin only)"""
+        provider_action_type = request.data.get("provider_action_type")
+
+        # Trigger the celery task
+        tasks.update_user_actions.delay(provider_action_type=provider_action_type)
+
+        logger.info(
+            f"Admin {request.user.username} triggered user actions update "
+            f"for provider: {provider_action_type or 'all'}"
+        )
+
+        return Response(
+            {
+                "status": "scheduled",
+                "message": "User actions update has been scheduled",
+                "provider_action_type": provider_action_type,
+            },
+            status=status.HTTP_202_ACCEPTED,
         )
 
 
