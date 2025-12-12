@@ -2,6 +2,7 @@ import logging
 
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, filters, permissions, status, viewsets
 from rest_framework.response import Response
 
@@ -49,6 +50,11 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
 
         return obj
 
+    @extend_schema(
+        request=serializers.SilenceActionSerializer,
+        responses={200: serializers.SilenceActionResponseSerializer},
+        description="Silence an action temporarily or permanently",
+    )
     @decorators.action(detail=True, methods=["post"])
     def silence(self, request, uuid=None):
         """Silence an action temporarily or permanently"""
@@ -64,8 +70,15 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
             f"for {duration_days or 'permanent'} days"
         )
 
-        return Response({"status": "silenced", "duration_days": duration_days})
+        response_data = {"status": "silenced", "duration_days": duration_days}
+        response_serializer = serializers.SilenceActionResponseSerializer(response_data)
+        return Response(response_serializer.data)
 
+    @extend_schema(
+        request=None,
+        responses={200: serializers.UnsilenceActionResponseSerializer},
+        description="Remove silence from an action",
+    )
     @decorators.action(detail=True, methods=["post"])
     def unsilence(self, request, uuid=None):
         """Remove silence from an action"""
@@ -74,8 +87,16 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
 
         logger.info(f"User {request.user.username} unsilenced action {action.uuid}")
 
-        return Response({"status": "unsilenced"})
+        response_data = {"status": "unsilenced"}
+        response_serializer = serializers.UnsilenceActionResponseSerializer(
+            response_data
+        )
+        return Response(response_serializer.data)
 
+    @extend_schema(
+        responses={200: serializers.UserActionSummarySerializer},
+        description="Get action summary counts",
+    )
     @decorators.action(detail=False, methods=["get"])
     def summary(self, request):
         """Get action summary counts"""
@@ -109,6 +130,15 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = serializers.UserActionSummarySerializer(summary_data)
         return Response(serializer.data)
 
+    @extend_schema(
+        request=serializers.ExecuteActionSerializer,
+        responses={
+            200: serializers.ExecuteActionResponseSerializer,
+            404: serializers.ExecuteActionErrorResponseSerializer,
+            500: serializers.ExecuteActionErrorResponseSerializer,
+        },
+        description="Execute a corrective action",
+    )
     @decorators.action(detail=True, methods=["post"])
     def execute_action(self, request, uuid=None):
         """Execute a corrective action"""
@@ -125,10 +155,11 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
         if not corrective_action:
-            return Response(
-                {"error": "Action not found or not permitted"},
-                status=status.HTTP_404_NOT_FOUND,
+            error_data = {"error": "Action not found or not permitted"}
+            error_serializer = serializers.ExecuteActionErrorResponseSerializer(
+                error_data
             )
+            return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
 
         # Execute the action
         try:
@@ -150,7 +181,8 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
                 f"on {action.uuid}"
             )
 
-            return Response(result)
+            response_serializer = serializers.ExecuteActionResponseSerializer(result)
+            return Response(response_serializer.data)
 
         except Exception as e:
             # Log failed execution
@@ -167,8 +199,12 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
                 f"{request.user.username} on {action.uuid}: {e}"
             )
 
+            error_data = {"error": str(e)}
+            error_serializer = serializers.ExecuteActionErrorResponseSerializer(
+                error_data
+            )
             return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                error_serializer.data, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     def _execute_corrective_action(self, user, action, corrective_action):
@@ -210,6 +246,11 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
             f"API action not implemented: {corrective_action.label}"
         )
 
+    @extend_schema(
+        request=serializers.SilenceActionSerializer,
+        responses={200: serializers.BulkSilenceResponseSerializer},
+        description="Bulk silence actions by filters",
+    )
     @decorators.action(detail=False, methods=["post"])
     def bulk_silence(self, request):
         """Bulk silence actions by filters"""
@@ -232,10 +273,25 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
             f"for {duration_days or 'permanent'} days"
         )
 
-        return Response(
-            {"status": "bulk_silenced", "count": count, "duration_days": duration_days}
-        )
+        response_data = {
+            "status": "bulk_silenced",
+            "count": count,
+            "duration_days": duration_days,
+        }
+        response_serializer = serializers.BulkSilenceResponseSerializer(response_data)
+        return Response(response_serializer.data)
 
+    # Serializer class specifications for action methods
+    silence_serializer_class = serializers.SilenceActionSerializer
+    execute_action_serializer_class = serializers.ExecuteActionSerializer
+    bulk_silence_serializer_class = serializers.SilenceActionSerializer
+    update_actions_serializer_class = serializers.UpdateActionsSerializer
+
+    @extend_schema(
+        request=serializers.UpdateActionsSerializer,
+        responses={202: serializers.UpdateActionsResponseSerializer},
+        description="Trigger update of user actions (admin only)",
+    )
     @decorators.action(
         detail=False,
         methods=["post"],
@@ -253,14 +309,13 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
             f"for provider: {provider_action_type or 'all'}"
         )
 
-        return Response(
-            {
-                "status": "scheduled",
-                "message": "User actions update has been scheduled",
-                "provider_action_type": provider_action_type,
-            },
-            status=status.HTTP_202_ACCEPTED,
-        )
+        response_data = {
+            "status": "scheduled",
+            "message": "User actions update has been scheduled",
+            "provider_action_type": provider_action_type,
+        }
+        response_serializer = serializers.UpdateActionsResponseSerializer(response_data)
+        return Response(response_serializer.data, status=status.HTTP_202_ACCEPTED)
 
 
 class UserActionExecutionViewSet(viewsets.ReadOnlyModelViewSet):

@@ -178,3 +178,57 @@ class ExecuteActionSerializer(serializers.Serializer):
     action_label = serializers.CharField(
         help_text="Label of the corrective action to execute"
     )
+
+
+class UpdateActionsSerializer(serializers.Serializer):
+    """Serializer for updating user actions"""
+
+    provider_action_type = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="Optional provider action type to update. If not provided, updates all providers.",
+    )
+
+
+class UpdateActionsResponseSerializer(serializers.Serializer):
+    """Serializer for update actions response"""
+
+    status = serializers.CharField()
+    message = serializers.CharField()
+    provider_action_type = serializers.CharField(required=False, allow_null=True)
+
+
+class SilenceActionResponseSerializer(serializers.Serializer):
+    """Serializer for silence action response"""
+
+    status = serializers.CharField()
+    duration_days = serializers.IntegerField(required=False, allow_null=True)
+
+
+class UnsilenceActionResponseSerializer(serializers.Serializer):
+    """Serializer for unsilence action response"""
+
+    status = serializers.CharField()
+
+
+class ExecuteActionResponseSerializer(serializers.Serializer):
+    """Serializer for execute action response"""
+
+    action = serializers.CharField()
+    message = serializers.CharField(required=False)
+    redirect_url = serializers.URLField(required=False)
+    metadata = serializers.DictField(required=False)
+
+
+class ExecuteActionErrorResponseSerializer(serializers.Serializer):
+    """Serializer for execute action error response"""
+
+    error = serializers.CharField()
+
+
+class BulkSilenceResponseSerializer(serializers.Serializer):
+    """Serializer for bulk silence response"""
+
+    status = serializers.CharField()
+    count = serializers.IntegerField()
+    duration_days = serializers.IntegerField(required=False, allow_null=True)

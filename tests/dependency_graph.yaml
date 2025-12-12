@@ -4,6 +4,7 @@ waldur_auth_saml2:
 waldur_auth_social:
 - waldur_core.core
 - waldur_core.logging
+- waldur_core.users
 waldur_auth_valimo:
 - waldur_core.core
 waldur_autoprovisioning:
@@ -32,9 +33,12 @@ waldur_core.logging:
 - waldur_core.permissions
 - waldur_core.structure
 waldur_core.media:
+- waldur_core.checklist
 - waldur_core.core
+- waldur_core.permissions
 - waldur_mastermind.support
 waldur_core.onboarding:
+- waldur_core.checklist
 - waldur_core.core
 - waldur_core.structure
 waldur_core.permissions:
@@ -56,8 +60,11 @@ waldur_core.structure:
 - waldur_mastermind.billing
 - waldur_mastermind.marketplace
 - waldur_mastermind.proposal
+waldur_core.user_actions:
+- waldur_core.core
 waldur_core.users:
 - waldur_core.core
+- waldur_core.logging
 - waldur_core.permissions
 - waldur_core.structure
 - waldur_freeipa
@@ -121,21 +128,34 @@ waldur_mastermind.marketplace:
 - waldur_core.permissions
 - waldur_core.quotas
 - waldur_core.structure
+- waldur_core.user_actions
 - waldur_core.users
 - waldur_freeipa
+- waldur_mastermind.analytics
 - waldur_mastermind.billing
 - waldur_mastermind.google
 - waldur_mastermind.invoices
+- waldur_mastermind.marketplace_openstack
+- waldur_mastermind.marketplace_rancher
 - waldur_mastermind.notifications
 - waldur_mastermind.promotions
 - waldur_mastermind.proposal
 - waldur_mastermind.support
+- waldur_openstack
 - waldur_pid
 waldur_mastermind.marketplace_azure:
 - waldur_azure
 - waldur_core.core
 - waldur_core.structure
 - waldur_mastermind.marketplace
+waldur_mastermind.marketplace_openportal:
+- waldur_core.core
+- waldur_mastermind.marketplace
+- waldur_openportal
+waldur_mastermind.marketplace_openportal_remote:
+- waldur_core.core
+- waldur_mastermind.marketplace
+- waldur_openportal
 waldur_mastermind.marketplace_openstack:
 - waldur_core.core
 - waldur_core.permissions
@@ -147,7 +167,6 @@ waldur_mastermind.marketplace_rancher:
 - waldur_core.core
 - waldur_core.permissions
 - waldur_core.structure
-- waldur_mastermind.invoices
 - waldur_mastermind.marketplace
 - waldur_mastermind.marketplace_openstack
 - waldur_openstack
@@ -184,8 +203,6 @@ waldur_mastermind.marketplace_support:
 - waldur_mastermind.support
 waldur_mastermind.marketplace_vmware:
 - waldur_core.core
-- waldur_core.structure
-- waldur_mastermind.invoices
 - waldur_mastermind.marketplace
 - waldur_vmware
 waldur_mastermind.notifications:
@@ -223,6 +240,15 @@ waldur_mastermind.support:
 - waldur_core.structure
 - waldur_mastermind.marketplace
 - waldur_mastermind.notifications
+waldur_openportal:
+- waldur_core.core
+- waldur_core.permissions
+- waldur_core.quotas
+- waldur_core.structure
+- waldur_core.users
+- waldur_mastermind.invoices
+- waldur_mastermind.marketplace
+- waldur_slurm
 waldur_openstack:
 - waldur_core.core
 - waldur_core.logging
