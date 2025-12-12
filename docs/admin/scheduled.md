@@ -31,8 +31,8 @@ td:nth-child(4) {
 | `cancel_expired_group_invitations` | `waldur_core.users.cancel_expired_group_invitations` | 1 day | Invitation lifetime must be specified in Waldur Core settings with parameter<br> "GROUP_INVITATION_LIFETIME". If invitation creation time is less than expiration time,<br> the invitation will set as expired. |
 | `check-expired-permissions` | `waldur_core.permissions.check_expired_permissions` | 1 day | Task not found in registry |
 | `check-polices` | `waldur_mastermind.policy.check_polices` | Cron: `* * 1 * * (m/h/dM/MY/d)` | Evaluate all policies across all policy types in the system. |
-| `cleanup-expired-silenced-actions` | `waldur_core.user_actions.cleanup_expired_silenced_actions` | Cron: `0 2 * * * (m/h/dM/MY/d)` | Task not found in registry |
-| `cleanup-old-action-executions` | `waldur_core.user_actions.cleanup_old_action_executions` | Cron: `0 1 * * 0 (m/h/dM/MY/d)` | Task not found in registry |
+| `cleanup-expired-silenced-actions` | `waldur_core.user_actions.cleanup_expired_silenced_actions` | Cron: `0 2 * * * (m/h/dM/MY/d)` | Remove or unsilence actions with expired temporary silence |
+| `cleanup-old-action-executions` | `waldur_core.user_actions.cleanup_old_action_executions` | Cron: `0 1 * * 0 (m/h/dM/MY/d)` | Clean up old action execution records |
 | `cleanup-orphaned-answers` | `waldur_core.checklist.cleanup_orphaned_answers` | 1 day | Task not found in registry |
 | `cleanup_stale_offering_users` | `waldur_mastermind.marketplace.cleanup_stale_offering_users` | 1 day | Periodic task to clean up offering users who no longer have project access. |
 | `core-reset-updating-resources` | `waldur_core.reset_updating_resources` | 10 minutes | Reset resources stuck in UPDATING state when their Celery tasks are completed. |
@@ -73,7 +73,7 @@ td:nth-child(4) {
 | `reconcile_robot_account_access` | `waldur_mastermind.marketplace.reconcile_robot_account_access` | Cron: `30 2 * * * (m/h/dM/MY/d)` | Reconciliation task to ensure robot account access is properly maintained.<br><br> This task periodically checks all robot accounts and removes users who<br> no longer have active project access, serving as a backup to the<br> signal-driven cleanup. |
 | `remove_deleted_robot_accounts` | `waldur_mastermind.marketplace.remove_deleted_robot_accounts` | 1 day | Remove robot accounts that are in DELETED state.<br> This task runs daily to clean up robot accounts that have been marked for deletion. |
 | `revoke_outdated_consents` | `waldur_mastermind.marketplace.revoke_outdated_consents` | 1 day | Revoke consents for users who haven't re-consented within grace period.<br><br> Finds all active ToS with requires_reconsent=True where grace period has expired,<br> and revokes all consents that don't match the current active ToS version. |
-| `send-action-digest-notifications` | `waldur_core.user_actions.send_action_digest_notifications` | Cron: `0 9 * * * (m/h/dM/MY/d)` | Task not found in registry |
+| `send-action-digest-notifications` | `waldur_core.user_actions.send_action_digest_notifications` | Cron: `0 9 * * * (m/h/dM/MY/d)` | Send daily digest notifications to users with pending actions |
 | `send-messages-about-pending-orders` | `waldur_mastermind.marketplace_site_agent.send_messages_about_pending_orders` | 1 hour | Send a message about pending orders created 1 hour ago to MQTT |
 | `send-monthly-invoicing-reports-about-customers` | `invoices.send_monthly_invoicing_reports_about_customers` | Cron: `0 0 2 * * (m/h/dM/MY/d)` | Send monthly invoicing reports via email to configured recipients. |
 | `send-notifications-about-upcoming-ends` | `invoices.send_notifications_about_upcoming_ends` | 1 day | Send notifications about upcoming end dates of fixed payment profiles. |
@@ -91,7 +91,7 @@ td:nth-child(4) {
 | `update-invoices-total-cost` | `invoices.update_invoices_total_cost` | 1 day | Update cached total cost for current month invoices. |
 | `update-software-catalogs` | `marketplace.update_software_catalogs` | Cron: `0 3 * * * (m/h/dM/MY/d)` | Daily task to update all enabled software catalogs.<br><br> Updates EESSI, Spack, and other configured catalogs independently.<br> Each catalog is processed in isolation - if one fails, others continue. |
 | `update-standard-quotas` | `waldur_core.quotas.update_standard_quotas` | 1 day | Task not found in registry |
-| `update-user-actions` | `waldur_core.user_actions.update_user_actions` | Cron: `0 */6 * * * (m/h/dM/MY/d)` | Task not found in registry |
+| `update-user-actions` | `waldur_core.user_actions.update_user_actions` | Cron: `0 */6 * * * (m/h/dM/MY/d)` | Update actions for all providers or specific provider |
 | `update_daily_consent_history` | `waldur_mastermind.marketplace.update_daily_consent_history` | 1 day | Daily task to update consent history statistics for dashboard reporting.<br> Uses quota system + DailyQuotaHistory for historical tracking. |
 | `valimo-auth-cleanup-auth-results` | `waldur_auth_valimo.cleanup_auth_results` | 1 hour | Clean up Valimo authentication results older than 7 days. |
 | `waldur-create-invoices` | `invoices.create_monthly_invoices` | Monthly (1st day of month at midnight) | - For every customer change state of the invoices for previous months from "pending" to "billed"<br> and freeze their items.<br> - Create new invoice for every customer in current month if not created yet. |
