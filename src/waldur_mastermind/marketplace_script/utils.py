@@ -106,7 +106,13 @@ def construct_k8s_job_spec(image, command, volume_name, config_map_name, environ
             labels={"app": "waldur-marketplace-script-job"}
         ),
         spec=k8s.client.V1PodSpec(
-            restart_policy="Never", containers=[container], volumes=[script_volume]
+            restart_policy="Never",
+            containers=[container],
+            volumes=[script_volume],
+            resources=k8s.client.V1ResourceRequirements(
+                requests={"cpu": "100m", "memory": "256Mi"},
+                limits={"cpu": "500m", "memory": "512Mi"},
+            ),
         ),
     )
     spec = k8s.client.V1JobSpec(
