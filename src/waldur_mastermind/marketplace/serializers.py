@@ -285,35 +285,53 @@ class RancherPluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="List of UUID of OpenStack offerings where tenant can be created",
     )
-    managed_rancher_server_flavor_name = serializers.CharField(required=False)
+    managed_rancher_server_flavor_name = serializers.CharField(
+        required=False,
+        help_text="Flavor name for managed Rancher server instances",
+    )
     managed_rancher_server_system_volume_size_gb = serializers.IntegerField(
-        required=False
+        required=False,
+        help_text="System volume size in GB for managed Rancher server",
     )
     managed_rancher_server_system_volume_type_name = serializers.CharField(
-        required=False
+        required=False,
+        help_text="System volume type name for managed Rancher server",
     )
     managed_rancher_server_data_volume_size_gb = serializers.IntegerField(
-        required=False
+        required=False,
+        help_text="Data volume size in GB for managed Rancher server",
     )
-    managed_rancher_server_data_volume_type_name = serializers.CharField(required=False)
+    managed_rancher_server_data_volume_type_name = serializers.CharField(
+        required=False,
+        help_text="Data volume type name for managed Rancher server",
+    )
     managed_rancher_worker_system_volume_size_gb = serializers.IntegerField(
-        required=False
+        required=False,
+        help_text="System volume size in GB for managed Rancher worker nodes",
     )
     managed_rancher_worker_system_volume_type_name = serializers.CharField(
-        required=False
+        required=False,
+        help_text="System volume type name for managed Rancher worker nodes",
     )
-    managed_rancher_load_balancer_flavor_name = serializers.CharField(required=False)
+    managed_rancher_load_balancer_flavor_name = serializers.CharField(
+        required=False,
+        help_text="Flavor name for managed Rancher load balancer",
+    )
     managed_rancher_load_balancer_system_volume_size_gb = serializers.IntegerField(
-        required=False
+        required=False,
+        help_text="System volume size in GB for managed Rancher load balancer",
     )
     managed_rancher_load_balancer_system_volume_type_name = serializers.CharField(
-        required=False
+        required=False,
+        help_text="System volume type name for managed Rancher load balancer",
     )
     managed_rancher_load_balancer_data_volume_size_gb = serializers.IntegerField(
-        required=False
+        required=False,
+        help_text="Data volume size in GB for managed Rancher load balancer",
     )
     managed_rancher_load_balancer_data_volume_type_name = serializers.CharField(
-        required=False
+        required=False,
+        help_text="Data volume type name for managed Rancher load balancer",
     )
     managed_rancher_tenant_max_cpu = serializers.IntegerField(
         help_text=_("Max number of vCPUs for tenants"),
@@ -397,6 +415,7 @@ class OpenstackSecretOptionsSerializer(serializers.Serializer):
         allow_blank=True,
         required=False,
         validators=[core_validators.validate_x509_certificate],
+        help_text="TLS certificate for OpenStack API connection verification",
     )
     dns_nameservers = serializers.ListField(
         child=serializers.CharField(),
@@ -474,11 +493,15 @@ class RancherSecretOptionsSerializer(serializers.Serializer):
         help_text="UUID of organization where project can be created",
     )
 
-    cloud_init_template = serializers.CharField(required=False)
+    cloud_init_template = serializers.CharField(
+        required=False,
+        help_text="Cloud-init template for Rancher cluster node initialization",
+    )
 
     managed_rancher_load_balancer_cloud_init_template = serializers.CharField(
         required=False,
         allow_blank=True,
+        help_text="Cloud-init template for managed Rancher load balancer initialization",
     )
 
     vault_host = serializers.CharField(
@@ -1097,7 +1120,10 @@ class PricesUpdateSerializer(serializers.Serializer):
 
 
 class QuotasUpdateSerializer(serializers.Serializer):
-    quotas = serializers.DictField(child=serializers.IntegerField(min_value=0))
+    quotas = serializers.DictField(
+        child=serializers.IntegerField(min_value=0),
+        help_text="Dictionary of quotas to update",
+    )
 
     def save(self):
         new_quotas = self.validated_data["quotas"]
@@ -1424,8 +1450,12 @@ class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
 
 
 class PlanUsageRequestSerializer(serializers.Serializer):
-    offering_uuid = serializers.UUIDField(required=False)
-    customer_provider_uuid = serializers.UUIDField(required=False)
+    offering_uuid = serializers.UUIDField(
+        required=False, help_text="UUID of the offering"
+    )
+    customer_provider_uuid = serializers.UUIDField(
+        required=False, help_text="UUID of the customer provider"
+    )
     o = serializers.ChoiceField(
         choices=(
             "usage",
@@ -1436,16 +1466,21 @@ class PlanUsageRequestSerializer(serializers.Serializer):
             "-remaining",
         ),
         required=False,
+        help_text="Order by field",
     )
 
 
 class PlanUsageResponseSerializer(serializers.Serializer):
-    plan_uuid = serializers.UUIDField(read_only=True, source="uuid")
-    plan_name = serializers.CharField(read_only=True, source="name")
+    plan_uuid = serializers.UUIDField(
+        read_only=True, source="uuid", help_text="UUID of the plan"
+    )
+    plan_name = serializers.CharField(
+        read_only=True, source="name", help_text="Name of the plan"
+    )
 
-    limit = serializers.IntegerField(read_only=True)
-    usage = serializers.IntegerField(read_only=True)
-    remaining = serializers.IntegerField(read_only=True)
+    limit = serializers.IntegerField(read_only=True, help_text="Usage limit")
+    usage = serializers.IntegerField(read_only=True, help_text="Current usage count")
+    remaining = serializers.IntegerField(read_only=True, help_text="Remaining usage")
 
     offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
     offering_name = serializers.CharField(read_only=True, source="offering.name")
@@ -4786,7 +4821,9 @@ class ResourceBackendMetadataSerializer(serializers.ModelSerializer):
 
 
 class ResourceResponseStatusSerializer(serializers.Serializer):
-    status = serializers.CharField(read_only=True)
+    status = serializers.CharField(
+        read_only=True, help_text="Status of the resource response"
+    )
 
 
 class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
@@ -4831,12 +4868,16 @@ class OrderBackendIDSerializer(serializers.ModelSerializer):
 
 
 class CheckUniqueBackendIDSerializer(serializers.Serializer):
-    backend_id = serializers.CharField(required=True, max_length=255)
-    check_all_offerings = serializers.BooleanField(required=False, default=False)
+    backend_id = serializers.CharField(
+        required=True, max_length=255, help_text="Backend identifier to check"
+    )
+    check_all_offerings = serializers.BooleanField(
+        required=False, default=False, help_text="Check across all offerings"
+    )
 
 
 class CheckUniqueBackendIDResponseSerializer(serializers.Serializer):
-    is_unique = serializers.BooleanField()
+    is_unique = serializers.BooleanField(help_text="Whether the backend ID is unique")
 
 
 class ResourceSlugSerializer(serializers.ModelSerializer):
@@ -4861,10 +4902,6 @@ class ResourceRestrictMemberAccessSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Resource
         fields = ("restrict_member_access",)
-
-
-class ResourceStateSerializer(serializers.Serializer):
-    state = serializers.ChoiceField(["ok", "erred", "terminated"])
 
 
 class ResourceOptionsSerializer(serializers.ModelSerializer):
@@ -5210,9 +5247,11 @@ class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
 
 
 class ImportResourceSerializer(serializers.Serializer):
-    backend_id = serializers.CharField()
+    backend_id = serializers.CharField(help_text="Backend identifier of the resource")
     project = serializers.SlugRelatedField(
-        queryset=structure_models.Project.available_objects.all(), slug_field="uuid"
+        queryset=structure_models.Project.available_objects.all(),
+        slug_field="uuid",
+        help_text="Target project for the resource",
     )
     plan = serializers.SlugRelatedField(
         queryset=models.Plan.objects.all(), slug_field="uuid", required=False
@@ -5239,10 +5278,18 @@ class ImportResourceSerializer(serializers.Serializer):
 
 class ServiceProviderSignatureSerializer(serializers.Serializer):
     customer = serializers.SlugRelatedField(
-        queryset=structure_models.Customer.objects.all(), slug_field="uuid"
+        queryset=structure_models.Customer.objects.all(),
+        slug_field="uuid",
+        help_text="Service provider customer UUID",
     )
-    data = serializers.CharField()
-    dry_run = serializers.BooleanField(default=False, required=False)
+    data = serializers.CharField(
+        help_text="JWT-encoded data signed with the service provider's API secret code"
+    )
+    dry_run = serializers.BooleanField(
+        default=False,
+        required=False,
+        help_text="If true, validates the signature without executing the operation",
+    )
 
     def validate(self, attrs):
         customer = attrs["customer"]
@@ -5274,14 +5321,20 @@ class ComponentUsageItemSerializer(serializers.Serializer):
 
 
 class ComponentUsageCreateSerializer(serializers.Serializer):
-    usages = ComponentUsageItemSerializer(many=True)
+    usages = ComponentUsageItemSerializer(
+        many=True, help_text="List of component usage items to report"
+    )
     plan_period = serializers.SlugRelatedField(
         queryset=models.ResourcePlanPeriod.objects.all(),
         slug_field="uuid",
         required=False,
+        help_text="UUID of the specific resource plan period for usage reporting",
     )
     resource = serializers.SlugRelatedField(
-        queryset=models.Resource.objects.all(), slug_field="uuid", required=False
+        queryset=models.Resource.objects.all(),
+        slug_field="uuid",
+        required=False,
+        help_text="UUID of the resource for usage reporting (required if plan_period not provided)",
     )
     date = serializers.DateTimeField(
         required=False,
@@ -5734,7 +5787,9 @@ class OfferingUserSerializer(
 
 
 class OfferingUserUpdateRestrictionSerializer(serializers.Serializer):
-    is_restricted = serializers.BooleanField()
+    is_restricted = serializers.BooleanField(
+        help_text="Whether the offering user should be restricted from accessing resources"
+    )
 
     def validate(self, attrs):
         request = self.context["request"]
@@ -5748,8 +5803,16 @@ class OfferingUserUpdateRestrictionSerializer(serializers.Serializer):
 
 
 class OfferingUserStateTransitionSerializer(serializers.Serializer):
-    comment = core_serializers.HTMLCleanField(required=False, allow_blank=True)
-    comment_url = serializers.URLField(required=False, allow_blank=True)
+    comment = core_serializers.HTMLCleanField(
+        required=False,
+        allow_blank=True,
+        help_text="Comment explaining the state transition",
+    )
+    comment_url = serializers.URLField(
+        required=False,
+        allow_blank=True,
+        help_text="URL reference related to the state transition comment",
+    )
 
     def validate(self, attrs):
         request = self.context["request"]
@@ -6143,7 +6206,9 @@ def add_call_managing_organization_uuid(sender, fields, **kwargs):
 
 class ResourceTerminateSerializer(serializers.Serializer):
     attributes = serializers.JSONField(
-        label=_("Termination attributes"), required=False
+        label=_("Termination attributes"),
+        required=False,
+        help_text="Optional attributes/parameters to pass to the termination operation",
     )
 
 
@@ -6169,11 +6234,16 @@ class ProjectHyperlinkSerializer(serializers.Serializer):
 
 
 class MoveResourceSerializer(serializers.Serializer):
-    project = ProjectHyperlinkSerializer(write_only=True)
+    project = ProjectHyperlinkSerializer(
+        write_only=True,
+        help_text="Target project URL where the resource should be moved",
+    )
 
 
 class ResourceSetLimitsSerializer(serializers.Serializer):
-    limits = serializers.JSONField()
+    limits = serializers.JSONField(
+        help_text="Dictionary mapping component types to their new limit values"
+    )
 
     class Meta:
         model = models.Resource
@@ -6352,9 +6422,9 @@ class OfferingComponentStatSerializer(serializers.Serializer):
 
 
 class CountStatsSerializer(serializers.Serializer):
-    name = serializers.SerializerMethodField()
-    uuid = serializers.SerializerMethodField()
-    count = serializers.SerializerMethodField()
+    name = serializers.SerializerMethodField(help_text="Name from the record")
+    uuid = serializers.SerializerMethodField(help_text="UUID from the record")
+    count = serializers.SerializerMethodField(help_text="Count value from the record")
 
     def _get_value(self, record, name):
         for k in record.keys():
@@ -6384,7 +6454,9 @@ class OfferingStatsCounterSerializer(serializers.Serializer):
 
 
 class MarketplaceCustomerStatsSerializer(CountStatsSerializer):
-    abbreviation = serializers.SerializerMethodField()
+    abbreviation = serializers.SerializerMethodField(
+        help_text="Customer abbreviation from the record"
+    )
 
     def get_abbreviation(self, record) -> str:
         return self._get_value(record, "abbreviation")
@@ -6395,7 +6467,7 @@ class CustomerOecdCodeStatsSerializer(MarketplaceCustomerStatsSerializer):
 
 
 class CustomerIndustryFlagStatsSerializer(MarketplaceCustomerStatsSerializer):
-    is_industry = serializers.CharField()
+    is_industry = serializers.CharField(help_text="Industry classification flag")
 
 
 class OfferingCountryStatsSerializer(serializers.Serializer):
@@ -6481,6 +6553,7 @@ class BaseNestedUsagesSerializer(serializers.Serializer):
         child=serializers.DictField(
             child=serializers.DecimalField(decimal_places=2, max_digits=20),
         ),
+        help_text="Nested dictionary of usage values by category and component type",
     )
 
 
@@ -6489,6 +6562,7 @@ class BaseNestedLimitsSerializer(serializers.Serializer):
         child=serializers.DictField(
             child=serializers.DecimalField(decimal_places=2, max_digits=20),
         ),
+        help_text="Nested dictionary of resource limits by category and component type",
     )
 
 
@@ -6523,12 +6597,20 @@ class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderSerializer(
 
 
 class ResourcesLimitsSerializer(serializers.Serializer):
-    offering_uuid = serializers.UUIDField(read_only=True)
-    name = serializers.CharField(read_only=True)
-    value = serializers.IntegerField(read_only=True)
-    offering_country = serializers.CharField(read_only=True)
-    organization_group_name = serializers.CharField(read_only=True)
-    organization_group_uuid = serializers.CharField(read_only=True)
+    offering_uuid = serializers.UUIDField(
+        read_only=True, help_text="UUID of the offering"
+    )
+    name = serializers.CharField(read_only=True, help_text="Name of the limit")
+    value = serializers.IntegerField(read_only=True, help_text="Limit value")
+    offering_country = serializers.CharField(
+        read_only=True, help_text="Country of the offering"
+    )
+    organization_group_name = serializers.CharField(
+        read_only=True, help_text="Name of the organization group"
+    )
+    organization_group_uuid = serializers.CharField(
+        read_only=True, help_text="UUID of the organization group"
+    )
 
 
 class OfferingStatsSerializer(serializers.Serializer):
@@ -6894,8 +6976,12 @@ class MoveOfferingSerializer(serializers.Serializer):
         queryset=structure_models.Customer.objects.all(),
         view_name="customer-detail",
         lookup_field="uuid",
+        help_text="Target customer URL with service provider profile where the offering should be moved",
     )
-    preserve_permissions = serializers.BooleanField(required=True)
+    preserve_permissions = serializers.BooleanField(
+        required=True,
+        help_text="Whether to preserve existing permissions when moving the offering",
+    )
 
     def validate(self, attrs):
         customer = attrs.get("customer")
@@ -7500,8 +7586,8 @@ class CustomerMemberCountSerializer(serializers.Serializer):
 
 
 class SubresourceOfferingSerializer(serializers.Serializer):
-    uuid = serializers.UUIDField(read_only=True)
-    type = serializers.CharField(read_only=True)
+    uuid = serializers.UUIDField(read_only=True, help_text="UUID of the offering")
+    type = serializers.CharField(read_only=True, help_text="Type of the offering")
 
 
 class ImportableResourceSerializer(serializers.Serializer):
@@ -8315,8 +8401,12 @@ class CourseAccountsBulkCreateSerializer(serializers.Serializer):
 
 
 class VersionAdoptionSerializer(serializers.Serializer):
-    version = serializers.CharField(read_only=True)
-    users_count = serializers.IntegerField(read_only=True)
+    """Serializer for version adoption statistics."""
+
+    version = serializers.CharField(read_only=True, help_text="Version identifier")
+    users_count = serializers.IntegerField(
+        read_only=True, help_text="Number of users on this version"
+    )
 
 
 class TimeSeriesToSDataSerializer(serializers.Serializer):
@@ -8327,13 +8417,25 @@ class TimeSeriesToSDataSerializer(serializers.Serializer):
 class ToSConsentDashboardSerializer(serializers.Serializer):
     """Serializer for Terms of Service consent dashboard statistics."""
 
-    active_users_count = serializers.IntegerField(read_only=True)
-    total_users_count = serializers.IntegerField(read_only=True)
-    active_users_percentage = serializers.FloatField(read_only=True)
+    active_users_count = serializers.IntegerField(
+        read_only=True, help_text="Number of active users"
+    )
+    total_users_count = serializers.IntegerField(
+        read_only=True, help_text="Total number of users"
+    )
+    active_users_percentage = serializers.FloatField(
+        read_only=True, help_text="Percentage of active users"
+    )
 
-    accepted_consents_count = serializers.IntegerField(read_only=True)
-    revoked_consents_count = serializers.IntegerField(read_only=True)
-    total_consents_count = serializers.IntegerField(read_only=True)
+    accepted_consents_count = serializers.IntegerField(
+        read_only=True, help_text="Number of accepted consents"
+    )
+    revoked_consents_count = serializers.IntegerField(
+        read_only=True, help_text="Number of revoked consents"
+    )
+    total_consents_count = serializers.IntegerField(
+        read_only=True, help_text="Total number of consents"
+    )
 
     revoked_consents_over_time = serializers.ListField(
         child=TimeSeriesToSDataSerializer(), read_only=True
