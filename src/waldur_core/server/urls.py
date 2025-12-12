@@ -22,6 +22,7 @@ from waldur_core.structure.views import (
     CustomerUsersViewSet,
     ProjectOtherUsersViewSet,
 )
+from waldur_core.user_actions import urls as user_actions_urls
 from waldur_core.users import urls as users_urls
 from waldur_mastermind.marketplace.views import (
     ServiceProviderComplianceViewSet,
@@ -43,6 +44,7 @@ onboarding_urls.register_in(router)
 permissions_urls.register_in(router)
 structure_urls.register_in(router)
 users_urls.register_in(router)
+user_actions_urls.register_in(router)
 checklist_urls.register_in(router)
 
 urlpatterns = [
