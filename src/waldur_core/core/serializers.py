@@ -109,12 +109,18 @@ class ObtainAuthTokenSerializer(serializers.Serializer):
     """
 
     # Fields are both required, non-blank and don't allow nulls by default
-    username = serializers.CharField(max_length=128)
-    password = serializers.CharField(max_length=128)
+    username = serializers.CharField(
+        max_length=128, help_text="Username for authentication"
+    )
+    password = serializers.CharField(
+        max_length=128, help_text="Password for authentication"
+    )
 
 
 class CoreAuthTokenSerializer(serializers.Serializer):
-    token = serializers.CharField(read_only=True)
+    token = serializers.CharField(
+        read_only=True, help_text="Authentication token for API access"
+    )
 
 
 class Base64Field(serializers.CharField):
@@ -452,8 +458,12 @@ class UnicodeIntegerField(serializers.IntegerField):
 
 
 class DateRangeFilterSerializer(serializers.Serializer):
-    start = core_fields.YearMonthField(required=False)
-    end = core_fields.YearMonthField(required=False)
+    start = core_fields.YearMonthField(
+        required=False, help_text="Start date in YYYY-MM format"
+    )
+    end = core_fields.YearMonthField(
+        required=False, help_text="End date in YYYY-MM format"
+    )
 
     def validate(self, data):
         if "start" in data and "end" in data and data["start"] > data["end"]:
@@ -467,7 +477,9 @@ class DateRangeFilterSerializer(serializers.Serializer):
 
 
 class ReviewCommentSerializer(serializers.Serializer):
-    comment = serializers.CharField(required=False)
+    comment = serializers.CharField(
+        required=False, help_text="Optional comment for review"
+    )
 
 
 COLOR_HEX_RE = re.compile("^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")
@@ -577,7 +589,12 @@ class SlugSerializerMixin(serializers.Serializer):
     Ensures that slug is editable only by staff
     """
 
-    slug = serializers.SlugField(required=False, allow_blank=True, max_length=50)
+    slug = serializers.SlugField(
+        required=False,
+        allow_blank=True,
+        max_length=50,
+        help_text="URL-friendly identifier. Only editable by staff users.",
+    )
 
     def get_fields(self):
         fields = super().get_fields()
@@ -643,14 +660,22 @@ class EmptySerializer(rf_serializers.Serializer):
 
 
 class TableSizeSerializer(serializers.Serializer):
-    table_name = serializers.CharField(read_only=True)
-    total_size = serializers.IntegerField(read_only=True)
-    data_size = serializers.IntegerField(read_only=True)
-    external_size = serializers.IntegerField(read_only=True)
+    table_name = serializers.CharField(
+        read_only=True, help_text="Name of the database table"
+    )
+    total_size = serializers.IntegerField(
+        read_only=True, help_text="Total size of the table in bytes"
+    )
+    data_size = serializers.IntegerField(
+        read_only=True, help_text="Size of the actual data in bytes"
+    )
+    external_size = serializers.IntegerField(
+        read_only=True, help_text="Size of external data (e.g., TOAST) in bytes"
+    )
 
 
 class QuerySerializer(serializers.Serializer):
-    query = serializers.CharField()
+    query = serializers.CharField(help_text="Search query string")
 
 
 class VersionSerializer(serializers.Serializer):
@@ -663,7 +688,9 @@ class VersionSerializer(serializers.Serializer):
 
 
 class LogoutSerializer(serializers.Serializer):
-    logout_url = serializers.URLField(read_only=True)
+    logout_url = serializers.URLField(
+        read_only=True, help_text="URL to redirect to after logout"
+    )
 
 
 class HTMLCleanField(serializers.CharField):

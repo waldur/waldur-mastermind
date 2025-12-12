@@ -216,15 +216,38 @@ class ProjectSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    resources_count = serializers.SerializerMethodField()
-    oecd_fos_2007_label = serializers.ReadOnlyField(
-        source="get_oecd_fos_2007_code_display"
+    resources_count = serializers.SerializerMethodField(
+        help_text="Number of active resources in this project"
     )
-    description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
-    start_date = serializers.DateField(required=False, allow_null=True)
-    end_date = serializers.DateField(required=False, allow_null=True)
-    termination_metadata = serializers.JSONField(read_only=True, allow_null=True)
-    staff_notes = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    oecd_fos_2007_label = serializers.ReadOnlyField(
+        source="get_oecd_fos_2007_code_display",
+        help_text="Human-readable label for the OECD FOS 2007 classification code",
+    )
+    description = core_serializers.HTMLCleanField(
+        required=False,
+        allow_blank=True,
+        help_text="Project description (HTML content will be sanitized)",
+    )
+    start_date = serializers.DateField(
+        required=False,
+        allow_null=True,
+        help_text="Project start date. Cannot be edited after the start date has arrived.",
+    )
+    end_date = serializers.DateField(
+        required=False,
+        allow_null=True,
+        help_text="Project end date. Setting this field requires DELETE_PROJECT permission.",
+    )
+    termination_metadata = serializers.JSONField(
+        read_only=True,
+        allow_null=True,
+        help_text="Metadata about project termination (read-only)",
+    )
+    staff_notes = core_serializers.HTMLCleanField(
+        required=False,
+        allow_blank=True,
+        help_text="Internal notes visible only to staff and support users (HTML content will be sanitized)",
+    )
 
     class Meta:
         model = models.Project
@@ -481,9 +504,16 @@ class CountrySerializerMixin(serializers.Serializer):
         return core_fields.COUNTRIES
 
     country = serializers.ChoiceField(
-        required=False, choices=core_fields.COUNTRIES, allow_blank=True
+        required=False,
+        choices=core_fields.COUNTRIES,
+        allow_blank=True,
+        help_text="Country code (ISO 3166-1 alpha-2)",
     )
-    country_name = serializers.CharField(read_only=True, source="get_country_display")
+    country_name = serializers.CharField(
+        read_only=True,
+        source="get_country_display",
+        help_text="Human-readable country name",
+    )
 
     def get_fields(self):
         fields = super().get_fields()
@@ -498,9 +528,19 @@ class CountrySerializerMixin(serializers.Serializer):
 
 
 class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
-    parent_uuid = serializers.UUIDField(read_only=True, source="parent.uuid")
-    parent_name = serializers.CharField(read_only=True, source="parent.name")
-    customers_count = serializers.SerializerMethodField()
+    parent_uuid = serializers.UUIDField(
+        read_only=True,
+        source="parent.uuid",
+        help_text="UUID of the parent organization group",
+    )
+    parent_name = serializers.CharField(
+        read_only=True,
+        source="parent.name",
+        help_text="Name of the parent organization group",
+    )
+    customers_count = serializers.SerializerMethodField(
+        help_text="Number of customers in this organization group"
+    )
 
     class Meta:
         model = models.OrganizationGroup
@@ -543,10 +583,20 @@ class CustomerSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    display_name = serializers.SerializerMethodField()
-    organization_groups = OrganizationGroupSerializer(many=True, read_only=True)
-    projects_count = serializers.SerializerMethodField()
-    users_count = serializers.SerializerMethodField()
+    display_name = serializers.SerializerMethodField(
+        help_text="Display name of the organization (includes native name if available)"
+    )
+    organization_groups = OrganizationGroupSerializer(
+        many=True,
+        read_only=True,
+        help_text="Organization groups this customer belongs to",
+    )
+    projects_count = serializers.SerializerMethodField(
+        help_text="Number of projects in this organization"
+    )
+    users_count = serializers.SerializerMethodField(
+        help_text="Number of users with access to this organization"
+    )
     project_metadata_checklist = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=Checklist.objects.filter(
@@ -554,6 +604,7 @@ class CustomerSerializer(
         ),
         required=False,
         allow_null=True,
+        help_text="Checklist to be used for project metadata validation in this organization",
     )
 
     class Meta:
