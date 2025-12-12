@@ -4174,6 +4174,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     customer_slug = serializers.ReadOnlyField(source="project.customer.slug")
     renewal_date = serializers.SerializerMethodField()
     offering_state = serializers.SerializerMethodField()
+    offering_components = serializers.SerializerMethodField()
 
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
@@ -4231,6 +4232,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "user_requires_reconsent",
             "renewal_date",
             "offering_state",
+            "offering_components",
         )
         read_only_fields = (
             "backend_metadata",
@@ -4249,6 +4251,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "last_sync",
             "project_slug",
             "customer_slug",
+            "offering_components",
         )
         view_name = "marketplace-resource-detail"
         extra_kwargs = dict(
@@ -4445,6 +4448,22 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
 
     def get_offering_state(self, resource: models.Resource) -> ResourceStatesType:
         return resource.offering.get_state_display()
+
+    @extend_schema_field(OfferingComponentSerializer(many=True))
+    def get_offering_components(self, resource: models.Resource):
+        """
+        Get offering components with their billing type and limit period.
+
+        Returns:
+            list: List of offering components for the resource's offering
+        """
+        if not resource.offering_id:
+            return []
+
+        components = resource.offering.components.all()
+        return OfferingComponentSerializer(
+            components, many=True, context=self.context
+        ).data
 
     def get_fields(self):
         fields = super().get_fields()
