@@ -2724,9 +2724,11 @@ class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
 
 
 class OfferingComponentLimitSerializer(serializers.Serializer):
-    min = serializers.IntegerField(min_value=0)
-    max = serializers.IntegerField(min_value=0)
-    max_available_limit = serializers.IntegerField(min_value=0)
+    min = serializers.IntegerField(min_value=0, help_text="Minimum allowed value")
+    max = serializers.IntegerField(min_value=0, help_text="Maximum allowed value")
+    max_available_limit = serializers.IntegerField(
+        min_value=0, help_text="Maximum available limit across all resources"
+    )
 
 
 def create_plan(offering, plan_data):
@@ -6271,8 +6273,10 @@ class ProviderOfferingCostsSerializer(serializers.Serializer):
 
 
 class OfferingCostSerializer(serializers.Serializer):
-    offering_uuid = serializers.UUIDField(source="resource__offering__uuid")
-    cost = serializers.FloatField()
+    offering_uuid = serializers.UUIDField(
+        source="resource__offering__uuid", help_text="UUID of the offering"
+    )
+    cost = serializers.FloatField(help_text="Total cost for the offering")
 
 
 class OfferingComponentStatSerializer(serializers.Serializer):
@@ -6343,11 +6347,15 @@ class CountStatsSerializer(serializers.Serializer):
 
 
 class OfferingStatsCounterSerializer(serializers.Serializer):
-    category_uuid = serializers.UUIDField()
-    category_title = serializers.CharField()
-    service_provider_name = serializers.CharField()
-    service_provider_uuid = serializers.UUIDField()
-    count = serializers.IntegerField()
+    category_uuid = serializers.UUIDField(help_text="UUID of the category")
+    category_title = serializers.CharField(help_text="Title of the category")
+    service_provider_name = serializers.CharField(
+        help_text="Name of the service provider"
+    )
+    service_provider_uuid = serializers.UUIDField(
+        help_text="UUID of the service provider"
+    )
+    count = serializers.IntegerField(help_text="Number of offerings")
 
 
 class MarketplaceCustomerStatsSerializer(CountStatsSerializer):
@@ -6366,17 +6374,31 @@ class CustomerIndustryFlagStatsSerializer(MarketplaceCustomerStatsSerializer):
 
 
 class OfferingCountryStatsSerializer(serializers.Serializer):
-    country = serializers.CharField(source="offering__country")
-    count = serializers.IntegerField()
+    country = serializers.CharField(
+        source="offering__country", help_text="Country code of the offering"
+    )
+    count = serializers.IntegerField(help_text="Number of offerings in this country")
 
 
 class ComponentUsagesStatsSerializer(serializers.Serializer):
-    usage = serializers.DecimalField(decimal_places=2, max_digits=20)
-    offering_uuid = serializers.UUIDField(source="resource__offering__uuid")
-    component_type = serializers.CharField(source="component__type")
-    offering_country = serializers.CharField(read_only=True)
-    organization_group_name = serializers.CharField(read_only=True)
-    organization_group_uuid = serializers.CharField(read_only=True)
+    usage = serializers.DecimalField(
+        decimal_places=2, max_digits=20, help_text="Total usage amount"
+    )
+    offering_uuid = serializers.UUIDField(
+        source="resource__offering__uuid", help_text="UUID of the offering"
+    )
+    component_type = serializers.CharField(
+        source="component__type", help_text="Type of the component"
+    )
+    offering_country = serializers.CharField(
+        read_only=True, help_text="Country of the offering"
+    )
+    organization_group_name = serializers.CharField(
+        read_only=True, help_text="Name of the organization group"
+    )
+    organization_group_uuid = serializers.CharField(
+        read_only=True, help_text="UUID of the organization group"
+    )
 
 
 class ComponentUsagesPerMonthStatsSerializer(ComponentUsagesStatsSerializer):
@@ -6385,18 +6407,30 @@ class ComponentUsagesPerMonthStatsSerializer(ComponentUsagesStatsSerializer):
 
 
 class ComponentUsagesPerProjectSerializer(serializers.Serializer):
-    project_uuid = serializers.UUIDField()
-    component_type = serializers.CharField()
-    usage = serializers.IntegerField(read_only=True)
+    project_uuid = serializers.UUIDField(help_text="UUID of the project")
+    component_type = serializers.CharField(help_text="Type of the component")
+    usage = serializers.IntegerField(
+        read_only=True, help_text="Total usage for the component"
+    )
 
 
 class BaseServiceProviderStatsSerializer(serializers.Serializer):
-    service_provider_uuid = serializers.UUIDField(read_only=True)
-    customer_uuid = serializers.UUIDField(read_only=True)
-    customer_name = serializers.CharField(read_only=True)
-    customer_organization_group_uuid = serializers.CharField(read_only=True)
-    customer_organization_group_name = serializers.CharField(read_only=True)
-    count = serializers.IntegerField(read_only=True)
+    service_provider_uuid = serializers.UUIDField(
+        read_only=True, help_text="UUID of the service provider"
+    )
+    customer_uuid = serializers.UUIDField(
+        read_only=True, help_text="UUID of the customer"
+    )
+    customer_name = serializers.CharField(
+        read_only=True, help_text="Name of the customer"
+    )
+    customer_organization_group_uuid = serializers.CharField(
+        read_only=True, help_text="UUID of the customer's organization group"
+    )
+    customer_organization_group_name = serializers.CharField(
+        read_only=True, help_text="Name of the customer's organization group"
+    )
+    count = serializers.IntegerField(read_only=True, help_text="Count value")
 
 
 class CountUsersOfServiceProvidersSerializer(BaseServiceProviderStatsSerializer):
@@ -6448,9 +6482,15 @@ class ProjectsLimitsGroupedByIndustryFlagSerializer(BaseNestedLimitsSerializer):
 class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderSerializer(
     serializers.Serializer
 ):
-    customer_uuid = serializers.UUIDField(read_only=True)
-    customer_name = serializers.CharField(read_only=True)
-    count_users = serializers.IntegerField(read_only=True)
+    customer_uuid = serializers.UUIDField(
+        read_only=True, help_text="UUID of the customer"
+    )
+    customer_name = serializers.CharField(
+        read_only=True, help_text="Name of the customer"
+    )
+    count_users = serializers.IntegerField(
+        read_only=True, help_text="Number of unique users"
+    )
 
 
 class ResourcesLimitsSerializer(serializers.Serializer):
@@ -6463,10 +6503,16 @@ class ResourcesLimitsSerializer(serializers.Serializer):
 
 
 class OfferingStatsSerializer(serializers.Serializer):
-    count = serializers.IntegerField()
-    name = serializers.CharField(source="offering__name")
-    uuid = serializers.CharField(source="offering__uuid")
-    country = serializers.CharField(source="offering__country")
+    count = serializers.IntegerField(help_text="Number of resources for the offering")
+    name = serializers.CharField(
+        source="offering__name", help_text="Name of the offering"
+    )
+    uuid = serializers.CharField(
+        source="offering__uuid", help_text="UUID of the offering"
+    )
+    country = serializers.CharField(
+        source="offering__country", help_text="Country of the offering"
+    )
 
 
 class MarketplaceProviderCustomerProjectSerializer(
@@ -6833,9 +6879,13 @@ class MoveOfferingSerializer(serializers.Serializer):
 
 
 class FingerprintSerializer(serializers.Serializer):
-    md5 = serializers.CharField(read_only=True)
-    sha256 = serializers.CharField(read_only=True)
-    sha512 = serializers.CharField(read_only=True)
+    md5 = serializers.CharField(read_only=True, help_text="MD5 fingerprint of SSH key")
+    sha256 = serializers.CharField(
+        read_only=True, help_text="SHA256 fingerprint of SSH key"
+    )
+    sha512 = serializers.CharField(
+        read_only=True, help_text="SHA512 fingerprint of SSH key"
+    )
 
 
 class BaseServiceAccountSerializer(
@@ -7149,9 +7199,13 @@ class RobotAccountDetailsSerializer(
 
 
 class ServiceProviderRevenues(serializers.Serializer):
-    total = serializers.IntegerField(read_only=True)
-    year = serializers.IntegerField(read_only=True, source="invoice__year")
-    month = serializers.IntegerField(read_only=True, source="invoice__month")
+    total = serializers.IntegerField(read_only=True, help_text="Total revenue amount")
+    year = serializers.IntegerField(
+        read_only=True, source="invoice__year", help_text="Invoice year"
+    )
+    month = serializers.IntegerField(
+        read_only=True, source="invoice__month", help_text="Invoice month"
+    )
 
 
 class SectionSerializer(serializers.HyperlinkedModelSerializer):
@@ -7372,12 +7426,18 @@ class RemoveOfferingComponentSerializer(serializers.Serializer):
 
 
 class RemoveSoftwareCatalogSerializer(serializers.Serializer):
-    offering_catalog_uuid = serializers.UUIDField()
+    offering_catalog_uuid = serializers.UUIDField(
+        help_text="UUID of the offering catalog to remove"
+    )
 
 
 class RuntimeStatesSerializer(serializers.Serializer):
-    value = serializers.CharField(read_only=True)
-    label = serializers.CharField(read_only=True)
+    value = serializers.CharField(
+        read_only=True, help_text="Value of the runtime state"
+    )
+    label = serializers.CharField(
+        read_only=True, help_text="Human-readable label for the runtime state"
+    )
 
 
 class CustomerMemberCountSerializer(serializers.Serializer):
@@ -8209,8 +8269,8 @@ class VersionAdoptionSerializer(serializers.Serializer):
 
 
 class TimeSeriesToSDataSerializer(serializers.Serializer):
-    date = serializers.DateField(read_only=True)
-    count = serializers.IntegerField(read_only=True)
+    date = serializers.DateField(read_only=True, help_text="Date of the data point")
+    count = serializers.IntegerField(read_only=True, help_text="Count for the date")
 
 
 class ToSConsentDashboardSerializer(serializers.Serializer):
@@ -8868,8 +8928,12 @@ class OfferingExportResponseSerializer(serializers.Serializer):
 class OfferingImportResponseSerializer(serializers.Serializer):
     """Serializer for offering import response."""
 
-    imported_offering_uuid = serializers.UUIDField()
-    imported_offering_name = serializers.CharField()
+    imported_offering_uuid = serializers.UUIDField(
+        help_text="UUID of the imported offering"
+    )
+    imported_offering_name = serializers.CharField(
+        help_text="Name of the imported offering"
+    )
     imported_components = serializers.ListField(
         child=serializers.CharField(), help_text="List of imported component types"
     )
@@ -8878,4 +8942,6 @@ class OfferingImportResponseSerializer(serializers.Serializer):
         required=False,
         help_text="List of warnings encountered during import",
     )
-    import_timestamp = serializers.DateTimeField()
+    import_timestamp = serializers.DateTimeField(
+        help_text="Timestamp when the import was completed"
+    )
