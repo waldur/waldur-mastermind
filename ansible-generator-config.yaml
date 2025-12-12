@@ -120,6 +120,17 @@ collections:
           category: "marketplace_categories"
           customer: "customers"
 
+      - name: resource_action
+        plugin: actions
+        resource_type: "marketplace resource"
+        description: "Perform actions on a marketplace resource."
+        wait_config: *default_wait_config
+        base_operation_id: "marketplace_resources"
+        actions:
+          - pull
+          - terminate
+          - unlink
+
   - namespace: waldur
     name: openstack
     version: 1.0.0
