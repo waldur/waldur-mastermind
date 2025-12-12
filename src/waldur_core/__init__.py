@@ -42,6 +42,9 @@ def _get_version(package_name="waldur_mastermind"):
                 commit_sha = f.read().strip()
         except FileNotFoundError:
             pass
+        # Format it as short hash for better readability
+        if commit_sha != "unknown" and len(commit_sha) >= 7:
+            return f"latest-{commit_sha[:7]}"
         return commit_sha
     else:
         return package_version
