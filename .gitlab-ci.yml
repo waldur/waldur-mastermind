@@ -582,23 +582,6 @@ Generate Go SDK:
       - client.go
     expire_in: 1 day
 
-Generate Terraform SDK:
-  stage: deploy
-  interruptible: true
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image: registry.hpc.ut.ee/mirror/library/golang:tip-alpine
-  needs:
-    - Generate OpenAPI schema
-  script: |
-    go install github.com/hashicorp/terraform-plugin-codegen-openapi/cmd/tfplugingen-openapi@latest
-    go install github.com/hashicorp/terraform-plugin-codegen-framework/cmd/tfplugingen-framework@latest
-    tfplugingen-openapi generate --output waldur-terraform-provider-spec.json --config terraform-generator-config.yaml waldur-openapi-schema.yaml
-    tfplugingen-framework generate all --input waldur-terraform-provider-spec.json --output terraform-sdk/
-  artifacts:
-    paths:
-      - terraform-sdk/
-    expire_in: 1 day
 
 Upload Go SDK:
   stage: postdeploy
@@ -642,33 +625,6 @@ Upload Python SDK:
     - git push
   before_script: *build_before_script
 
-Upload Terraform SDK:
-  stage: postdeploy
-  interruptible: true
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
-      - api_failure
-      - scheduler_failure
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image:
-    name: registry.hpc.ut.ee/mirror/alpine/git:latest
-    entrypoint: [""]
-  needs:
-    - Generate Terraform SDK
-  script:
-    - cd /tmp/
-    - git clone --branch main git@github.com:waldur/terraform-sdk.git
-    - cd terraform-sdk
-    - git pull
-    - rm -rf waldur_terraform_sdk && cp -a "$CI_PROJECT_DIR/terraform-sdk/" waldur_terraform_sdk
-    - git add waldur_terraform_sdk
-    - git commit -m "Update Waldur Terraform SDK" || exit 0
-    - git push
-  before_script: *build_before_script
 
 Generate OpenAPI schema diff:
   stage: deploy

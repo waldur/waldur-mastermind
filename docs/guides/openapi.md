@@ -251,7 +251,6 @@ The generated schema artifact immediately triggers a series of parallel jobs, ea
 - `Generate TypeScript SDK`: For Waldur HomePort and other web frontends.
 - `Generate Python SDK`: For scripting, integrations, and internal tools.
 - `Generate Go SDK`: For command-line tools and backend services.
-- `Generate Terraform SDK`: Creates a Terraform provider for infrastructure-as-code management of Waldur resources.
 - `Generate Ansible modules`: Creates Ansible collections for configuration management and automation.
 
 ### 3. Continuous Delivery of SDKs
