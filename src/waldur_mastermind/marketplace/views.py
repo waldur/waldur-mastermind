@@ -3919,6 +3919,12 @@ class ProviderOfferingViewSet(
 
     import_offering_permissions = [check_import_offering_permissions]
 
+    @extend_schema(
+        summary="Import offering data",
+        description="Imports an offering and all its connected parts from YAML format. Allows configuration of which components to import and how to handle conflicts. Imported offerings are always created in DRAFT state for security.",
+        request=serializers.OfferingImportParametersSerializer,
+        responses=serializers.OfferingImportResponseSerializer,
+    )
     @action(detail=False, methods=["post"])
     def import_offering(self, request):
         """Import offering data with configurable parameters."""
