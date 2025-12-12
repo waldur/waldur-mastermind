@@ -26,7 +26,7 @@ from waldur_openstack.executors import TenantCreateExecutor, TenantDeleteExecuto
 
 
 class MarketplaceTenantViewSet(ExecutorMixin, core_views.ActionsViewSet):
-    queryset = openstack_models.Tenant.objects.all()
+    queryset = openstack_models.Tenant.objects.all().order_by("name")
     lookup_field = "uuid"
 
     def create(self, request, *args, **kwargs):
