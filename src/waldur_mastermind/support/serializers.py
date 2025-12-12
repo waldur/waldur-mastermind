@@ -10,11 +10,12 @@ from django.template import Context, Template
 from django.template import exceptions as template_exceptions
 from django.template.loader import get_template
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions, serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
-from waldur_core.core.enums import CoreStateType
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
 from waldur_core.core.utils import is_uuid_like, text2html
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
@@ -843,7 +844,8 @@ class FeedbackSerializer(serializers.HyperlinkedModelSerializer):
     issue_summary = serializers.ReadOnlyField(source="issue.summary")
     state = serializers.SerializerMethodField()
 
-    def get_state(self, obj) -> CoreStateType:
+    @extend_schema_field(serializers.ChoiceField(choices=CoreStates.labels))
+    def get_state(self, obj):
         return obj.get_state_display()
 
     class Meta:

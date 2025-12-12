@@ -47,7 +47,7 @@ class StateValidator:
             elif hasattr(resource, "States"):
                 states_names = dict(resource.States.CHOICES)
             else:
-                states_names = dict(CoreStates.CHOICES)
+                states_names = dict(CoreStates.choices)
             valid_states_names = [
                 str(states_names[state]) for state in self.valid_states
             ]

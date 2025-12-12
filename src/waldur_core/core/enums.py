@@ -1,40 +1,15 @@
-from typing import Literal
+from django.db import models
 
 
-class CoreStates:
-    CREATION_SCHEDULED = 5
-    CREATING = 6
-    UPDATE_SCHEDULED = 1
-    UPDATING = 2
-    DELETION_SCHEDULED = 7
-    DELETING = 8
-    OK = 3
-    ERRED = 4
-
-    CHOICES = (
-        (CREATION_SCHEDULED, "CREATION_SCHEDULED"),
-        (CREATING, "CREATING"),
-        (UPDATE_SCHEDULED, "UPDATE_SCHEDULED"),
-        (UPDATING, "UPDATING"),
-        (DELETION_SCHEDULED, "DELETION_SCHEDULED"),
-        (DELETING, "DELETING"),
-        (OK, "OK"),
-        (ERRED, "ERRED"),
-    )
-
-    VALUES = [val for (_, val) in CHOICES]
-
-
-CoreStateType = Literal[
-    "CREATION_SCHEDULED",
-    "CREATING",
-    "UPDATE_SCHEDULED",
-    "UPDATING",
-    "DELETION_SCHEDULED",
-    "DELETING",
-    "OK",
-    "ERRED",
-]
+class CoreStates(models.IntegerChoices):
+    CREATION_SCHEDULED = 5, "CREATION_SCHEDULED"
+    CREATING = 6, "CREATING"
+    UPDATE_SCHEDULED = 1, "UPDATE_SCHEDULED"
+    UPDATING = 2, "UPDATING"
+    DELETION_SCHEDULED = 7, "DELETION_SCHEDULED"
+    DELETING = 8, "DELETING"
+    OK = 3, "OK"
+    ERRED = 4, "ERRED"
 
 
 class ReviewStates:

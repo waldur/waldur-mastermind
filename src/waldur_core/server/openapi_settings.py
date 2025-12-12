@@ -52,7 +52,7 @@ SPECTACULAR_SETTINGS = {
         "RoleType": TYPE_MAP.keys(),
         "InvitationState": InvitationState.VALUES,
         "BillingUnit": Units.CHOICES,
-        "CoreStates": CoreStates.VALUES,
+        "CoreStates": CoreStates.labels,
         "OfferingState": OfferingStates.VALUES,
         "OrderState": OrderStates.VALUES,
         "ResourceState": ResourceStates.VALUES,

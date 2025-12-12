@@ -28,7 +28,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
-from waldur_core.core.enums import CoreStates, CoreStateType
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.mixins import GetValueMixin
 from waldur_core.core.models import NAME_LENGTH, User, get_ssh_key_fingerprints
@@ -2574,7 +2574,10 @@ class ProviderOfferingDetailsSerializer(
     ) -> Literal["Draft", "Active", "Paused", "Archived", "Unavailable"]:
         return offering.get_state_display()
 
-    def get_scope_state(self, offering: models.Offering) -> CoreStateType | None:
+    @extend_schema_field(
+        serializers.ChoiceField(choices=CoreStates.labels, allow_null=True)
+    )
+    def get_scope_state(self, offering: models.Offering):
         try:
             return offering.scope.get_state_display()
         except AttributeError:

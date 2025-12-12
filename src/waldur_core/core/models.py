@@ -721,7 +721,7 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
 
     state = FSMIntegerField(
         default=CoreStates.CREATION_SCHEDULED,
-        choices=CoreStates.CHOICES,
+        choices=CoreStates.choices,
     )
 
     @transition(
