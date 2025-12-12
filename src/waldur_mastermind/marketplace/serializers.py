@@ -4131,10 +4131,16 @@ class OrderAttachmentSerializer(serializers.ModelSerializer):
 
 
 class BackendMetadataSerializer(serializers.Serializer):
-    state = serializers.CharField(read_only=True)
-    runtime_state = serializers.CharField(read_only=True)
-    action = serializers.CharField(read_only=True)
-    instance_name = serializers.CharField(read_only=True, allow_null=True)
+    state = serializers.CharField(read_only=True, help_text="Backend resource state")
+    runtime_state = serializers.CharField(
+        read_only=True, help_text="Runtime state of the backend resource"
+    )
+    action = serializers.CharField(
+        read_only=True, help_text="Current action being performed"
+    )
+    instance_name = serializers.CharField(
+        read_only=True, allow_null=True, help_text="Name of the backend instance"
+    )
 
 
 class ResourceSuggestNameSerializer(serializers.ModelSerializer):
@@ -6273,10 +6279,10 @@ class OrganizationGroupsSerializer(serializers.Serializer):
 
 
 class ProviderOfferingCostsSerializer(serializers.Serializer):
-    period = serializers.SerializerMethodField()
-    price = serializers.SerializerMethodField()
-    tax = serializers.SerializerMethodField()
-    total = serializers.SerializerMethodField()
+    period = serializers.SerializerMethodField(help_text="Billing period (YYYY-MM)")
+    price = serializers.SerializerMethodField(help_text="Price amount excluding tax")
+    tax = serializers.SerializerMethodField(help_text="Tax amount")
+    total = serializers.SerializerMethodField(help_text="Total amount including tax")
 
     def get_period(self, record) -> str:
         return "%s-%02d" % (record["invoice__year"], record["invoice__month"])
@@ -6421,8 +6427,12 @@ class ComponentUsagesStatsSerializer(serializers.Serializer):
 
 
 class ComponentUsagesPerMonthStatsSerializer(ComponentUsagesStatsSerializer):
-    month = serializers.IntegerField(source="billing_period__month")
-    year = serializers.IntegerField(source="billing_period__year")
+    month = serializers.IntegerField(
+        source="billing_period__month", help_text="Month of the billing period"
+    )
+    year = serializers.IntegerField(
+        source="billing_period__year", help_text="Year of the billing period"
+    )
 
 
 class ComponentUsagesPerProjectSerializer(serializers.Serializer):
@@ -7419,20 +7429,38 @@ class PluginOfferingTypeSerializer(serializers.Serializer):
 
 
 class ServiceProviderStatisticsSerializer(serializers.Serializer):
-    active_campaigns = serializers.IntegerField(read_only=True)
-    current_customers = serializers.IntegerField(read_only=True)
-    customers_number_change = serializers.IntegerField(read_only=True)
-    active_resources = serializers.IntegerField(read_only=True)
-    resources_number_change = serializers.IntegerField(read_only=True)
-    active_and_paused_offerings = serializers.IntegerField(read_only=True)
-    unresolved_tickets = serializers.IntegerField(read_only=True)
-    pending_orders = serializers.IntegerField(read_only=True)
-    erred_resources = serializers.IntegerField(read_only=True)
+    active_campaigns = serializers.IntegerField(
+        read_only=True, help_text="Number of active campaigns"
+    )
+    current_customers = serializers.IntegerField(
+        read_only=True, help_text="Number of current customers"
+    )
+    customers_number_change = serializers.IntegerField(
+        read_only=True, help_text="Change in number of customers"
+    )
+    active_resources = serializers.IntegerField(
+        read_only=True, help_text="Number of active resources"
+    )
+    resources_number_change = serializers.IntegerField(
+        read_only=True, help_text="Change in number of resources"
+    )
+    active_and_paused_offerings = serializers.IntegerField(
+        read_only=True, help_text="Number of active and paused offerings"
+    )
+    unresolved_tickets = serializers.IntegerField(
+        read_only=True, help_text="Number of unresolved support tickets"
+    )
+    pending_orders = serializers.IntegerField(
+        read_only=True, help_text="Number of pending orders"
+    )
+    erred_resources = serializers.IntegerField(
+        read_only=True, help_text="Number of resources in error state"
+    )
 
 
 class NameUUIDSerializer(serializers.Serializer):
-    name = serializers.CharField(read_only=True)
-    uuid = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(read_only=True, help_text="Name of the entity")
+    uuid = serializers.UUIDField(read_only=True, help_text="UUID of the entity")
 
 
 class DetailStateSerializer(serializers.Serializer):
@@ -7460,11 +7488,15 @@ class RuntimeStatesSerializer(serializers.Serializer):
 
 
 class CustomerMemberCountSerializer(serializers.Serializer):
-    uuid = serializers.UUIDField(read_only=True)
-    name = serializers.CharField(read_only=True)
-    abbreviation = serializers.CharField(read_only=True)
-    count = serializers.IntegerField(read_only=True)
-    has_resources = serializers.BooleanField(read_only=True)
+    uuid = serializers.UUIDField(read_only=True, help_text="UUID of the customer")
+    name = serializers.CharField(read_only=True, help_text="Name of the customer")
+    abbreviation = serializers.CharField(
+        read_only=True, help_text="Abbreviation of the customer"
+    )
+    count = serializers.IntegerField(read_only=True, help_text="Number of members")
+    has_resources = serializers.BooleanField(
+        read_only=True, help_text="Whether the customer has resources"
+    )
 
 
 class SubresourceOfferingSerializer(serializers.Serializer):
@@ -8933,15 +8965,17 @@ class OfferingImportParametersSerializer(serializers.Serializer):
 class OfferingExportResponseSerializer(serializers.Serializer):
     """Serializer for offering export response."""
 
-    offering_uuid = serializers.UUIDField()
-    offering_name = serializers.CharField()
+    offering_uuid = serializers.UUIDField(help_text="UUID of the exported offering")
+    offering_name = serializers.CharField(help_text="Name of the exported offering")
     export_data = OfferingExportDataSerializer(
         help_text="Complete export data containing the offering structure"
     )
     exported_components = serializers.ListField(
         child=serializers.CharField(), help_text="List of exported component types"
     )
-    export_timestamp = serializers.DateTimeField()
+    export_timestamp = serializers.DateTimeField(
+        help_text="Timestamp when the export was completed"
+    )
 
 
 class OfferingImportResponseSerializer(serializers.Serializer):
