@@ -58,9 +58,15 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.update_resource_when_order_is_rejected_or_erred,
+            handlers.update_resource_state_on_order_creation,
             sender=models.Order,
-            dispatch_uid="waldur_mastermind.marketplace.update_resource_when_order_is_rejected_or_erred",
+            dispatch_uid="waldur_mastermind.marketplace.update_resource_state_on_order_creation",
+        )
+
+        signals.post_save.connect(
+            handlers.update_resource_state_on_order_rejection_error_or_cancellation,
+            sender=models.Order,
+            dispatch_uid="waldur_mastermind.marketplace.update_resource_state_on_order_rejection_error_or_cancellation",
         )
 
         signals.post_save.connect(

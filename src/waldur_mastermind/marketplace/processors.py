@@ -281,12 +281,6 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
                 sender=self.order.resource.__class__,
                 order=self.order,
             )
-        else:
-            # If the operation is asynchronous, just set the state to updating.
-            # The changes will be applied later by a callback or webhook.
-            with transaction.atomic():
-                self.order.resource.set_state_updating()
-                self.order.resource.save(update_fields=["state"])
 
     def _process_plan_switch(self, user):
         """
@@ -313,9 +307,7 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
                 self.order.complete()
                 self.order.save(update_fields=["state"])
         else:
-            with transaction.atomic():
-                self.order.resource.set_state_updating()
-                self.order.resource.save(update_fields=["state"])
+            pass
 
     def _process_options_update(self, user):
         """
@@ -435,9 +427,7 @@ class AbstractDeleteResourceProcessor(BaseOrderProcessor):
                 self.order.complete()
                 self.order.save(update_fields=["state"])
         else:
-            with transaction.atomic():
-                self.order.resource.set_state_terminating()
-                self.order.resource.save(update_fields=["state"])
+            pass
 
 
 class DeleteScopedResourceProcessor(AbstractDeleteResourceProcessor):

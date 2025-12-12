@@ -129,8 +129,8 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
 
     if resource.state != ResourceStates.OK:
         resource.set_state_ok()
-        resource.save(update_fields=["state"])
 
+    limits_changed = False
     if order:
         email_context.update(
             {
@@ -176,9 +176,11 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
 
         if plan_changed or limits_changed:
             resource.init_cost()
-            resource.save()
-            if limits_changed:
-                log.log_resource_limit_update_succeeded(resource)
+
+    resource.save()
+
+    if limits_changed:
+        log.log_resource_limit_update_succeeded(resource)
 
     return order
 
