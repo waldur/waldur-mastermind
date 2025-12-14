@@ -168,6 +168,10 @@ Render list of SLURM jobs as a separate tab in allocation details page.
 
 Conceal "Change request" from a selection of issue types for non-staff/non-support users.
 
+## support.enable_llm_assistant
+
+Enable LLM Assistant
+
 ## support.pricelist
 
 Render marketplace plan components pricelist in support workspace.
