@@ -160,7 +160,9 @@ def get_keystone_session(settings, tenant=None):
 
 
 def get_keystone_client(session):
-    return keystone_client.Client(session=session, interface="public")
+    return keystone_client.Client(
+        session=session, endpoint_filter={"interface": "public"}
+    )
 
 
 def get_nova_client(session: keystone_session.Session) -> "nova2_client.Client":

@@ -25,6 +25,7 @@ def if_plugin_enabled(f):
             return f(*args, **kwargs)
         else:
             logger.debug("Skipping OpenPortal handler because plugin is disabled.")
+            return
 
     return wrapped
 
