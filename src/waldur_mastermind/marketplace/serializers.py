@@ -4487,7 +4487,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     def get_state(self, resource: models.Resource) -> ResourceStatesType:
         return resource.get_state_display()
 
-    @extend_schema_field(serializers.ChoiceField(choices=OfferingStates.CHOICES))
+    @extend_schema_field(serializers.ChoiceField(choices=OfferingStates.VALUES))
     def get_offering_state(self, resource: models.Resource):
         return resource.offering.get_state_display()
 
