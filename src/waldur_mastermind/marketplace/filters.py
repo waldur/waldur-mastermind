@@ -883,7 +883,7 @@ class ResourceFilter(
     )
     has_backend_id = django_filters.BooleanFilter(
         method="filter_has_backend_id",
-        label="Exclude resources without backend ID",
+        label="Include only resources with backend_id",
     )
     lexis_links_supported = django_filters.BooleanFilter(
         method="filter_lexis_links_supported", label="LEXIS links supported"
