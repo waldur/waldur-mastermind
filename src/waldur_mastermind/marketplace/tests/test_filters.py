@@ -8,7 +8,12 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.marketplace import plugins
-from waldur_mastermind.marketplace.enums import OfferingStates, OrderTypes
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
+    OrderTypes,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
@@ -146,6 +151,49 @@ class ResourceFilterTest(test.APITransactionTestCase):
             self.url, {"visible_to_username": self.fixture.admin.username}
         )
         self.assertEqual(len(response.data), 1)
+
+    def test_filter_visible_to_providers(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Case 1: Resource is Creating, Order is Pending Provider. Should be visible.
+        resource1 = factories.ResourceFactory(state=ResourceStates.CREATING)
+        factories.OrderFactory(
+            resource=resource1,
+            state=OrderStates.PENDING_PROVIDER,
+            project=resource1.project,
+        )
+
+        # Case 2: Resource is Creating, Order is Pending Consumer. Should be hidden.
+        resource2 = factories.ResourceFactory(state=ResourceStates.CREATING)
+        factories.OrderFactory(
+            resource=resource2,
+            state=OrderStates.PENDING_CONSUMER,
+            project=resource2.project,
+        )
+
+        # Case 3: Resource is Creating, Order is Pending Project. Should be hidden.
+        resource3 = factories.ResourceFactory(state=ResourceStates.CREATING)
+        factories.OrderFactory(
+            resource=resource3,
+            state=OrderStates.PENDING_PROJECT,
+            project=resource3.project,
+        )
+
+        # Case 4: Resource is Creating, Order is Executing. Should be visible.
+        resource4 = factories.ResourceFactory(state=ResourceStates.CREATING)
+        factories.OrderFactory(
+            resource=resource4,
+            state=OrderStates.EXECUTING,
+            project=resource4.project,
+        )
+
+        response = self.client.get(self.url, {"visible_to_providers": "true"})
+
+        uuids = [r["uuid"] for r in response.data]
+        self.assertIn(resource1.uuid.hex, uuids)
+        self.assertNotIn(resource2.uuid.hex, uuids)
+        self.assertNotIn(resource3.uuid.hex, uuids)
+        self.assertIn(resource4.uuid.hex, uuids)
 
 
 class FilterByScopeUUIDTest(test.APITransactionTestCase):

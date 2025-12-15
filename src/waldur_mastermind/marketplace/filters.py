@@ -1104,7 +1104,13 @@ class ResourceFilter(
         if value:
             return queryset.exclude(
                 Q(state=ResourceStates.CREATING)
-                & Q(order__state__ne=OrderStates.PENDING_PROVIDER)
+                & Q(
+                    order__state__in=[
+                        OrderStates.PENDING_CONSUMER,
+                        OrderStates.PENDING_PROJECT,
+                        OrderStates.PENDING_START_DATE,
+                    ]
+                )
             )
         return queryset
 
