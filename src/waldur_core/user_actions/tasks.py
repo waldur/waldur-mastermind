@@ -239,6 +239,68 @@ def cleanup_old_action_executions(days_to_keep=90):
     return count
 
 
+@shared_task(name="waldur_core.user_actions.cleanup_actions_for_deleted_object")
+def cleanup_actions_for_deleted_object(content_type_id, object_id):
+    """Clean up user actions for a specific deleted object"""
+    try:
+        content_type = ContentType.objects.get(id=content_type_id)
+
+        # Find and delete all actions related to this specific object
+        actions = models.UserAction.objects.filter(
+            content_type=content_type, object_id=object_id
+        )
+
+        count = actions.count()
+        if count > 0:
+            actions.delete()
+            logger.info(
+                f"Cleaned up {count} user actions for deleted {content_type.model} "
+                f"object {object_id}"
+            )
+
+        return count
+
+    except ContentType.DoesNotExist:
+        logger.warning(f"ContentType {content_type_id} not found during cleanup")
+        return 0
+    except Exception as e:
+        logger.error(f"Error cleaning up actions for deleted object: {e}")
+        return 0
+
+
+@shared_task(name="waldur_core.user_actions.cleanup_dangling_user_actions")
+def cleanup_dangling_user_actions():
+    """Clean up user actions pointing to non-existent objects (fallback periodic cleanup)"""
+    deleted_count = 0
+
+    # Get all user actions
+    all_actions = models.UserAction.objects.select_related("content_type").all()
+
+    for action in all_actions:
+        try:
+            # Try to access the related object to check if it exists
+            if action.related_object is None:
+                # Object doesn't exist anymore, delete the action
+                action.delete()
+                deleted_count += 1
+                logger.debug(
+                    f"Deleted dangling user action {action.id} for "
+                    f"{action.content_type.model} object {action.object_id}"
+                )
+        except Exception as e:
+            # Object doesn't exist or any other error, delete the action
+            action.delete()
+            deleted_count += 1
+            logger.debug(
+                f"Deleted user action {action.id} due to error accessing related object: {e}"
+            )
+
+    if deleted_count > 0:
+        logger.info(f"Cleaned up {deleted_count} dangling user actions")
+
+    return deleted_count
+
+
 @shared_task(name="waldur_core.user_actions.send_action_digest_notifications")
 def send_action_digest_notifications():
     """Send daily digest notifications to users with pending actions"""
