@@ -2142,6 +2142,14 @@ Field name from the introspection response to identify the user (e.g., 'username
 
 Number of seconds to cache token introspection results.
 
+#### WALDUR_AUTH_SOCIAL_ROLE_CLAIM
+
+**Type:** str
+
+**Default value:** roles
+
+Name of the claim that contains user roles.
+
 ### Onboarding settings
 
 #### ONBOARDING_COUNTRY
