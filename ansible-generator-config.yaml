@@ -120,6 +120,25 @@ collections:
           category: "marketplace_categories"
           customer: "customers"
 
+      - name: resource
+        plugin: crud
+        resource_type: "marketplace resource"
+        wait_config: *default_wait_config
+        base_operation_id: "marketplace_resources"
+        operations:
+          update:
+            actions:
+              update_limits:
+                operation: "marketplace_resources_update_limits"
+                param: "limits"
+                compare_key: "limits"
+              update_options:
+                operation: "marketplace_resources_update_options"
+                param: "options"
+                compare_key: "options"
+        resolvers:
+          <<: *project_customer_resolvers
+
       - name: resource_action
         plugin: actions
         resource_type: "marketplace resource"
@@ -130,6 +149,8 @@ collections:
           - pull
           - terminate
           - unlink
+        resolvers:
+          <<: *project_customer_resolvers
 
   - namespace: waldur
     name: openstack
