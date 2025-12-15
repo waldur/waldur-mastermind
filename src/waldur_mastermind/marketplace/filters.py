@@ -881,9 +881,9 @@ class ResourceFilter(
         field_name="order__state",
         label="Order state",
     )
-    has_backend_id = django_filters.BooleanFilter(
-        method="filter_has_backend_id",
-        label="Include only resources with backend_id",
+    visible_to_providers = django_filters.BooleanFilter(
+        method="filter_visible_to_providers",
+        label="Include only resources visible to service providers",
     )
     lexis_links_supported = django_filters.BooleanFilter(
         method="filter_lexis_links_supported", label="LEXIS links supported"
@@ -1100,11 +1100,12 @@ class ResourceFilter(
 
         return queryset.filter(offering__id__in=offering_ids)
 
-    def filter_has_backend_id(self, queryset, name, value):
-        if value is True:
-            return queryset.exclude(backend_id="").exclude(backend_id=None)
-        elif value is False:
-            return queryset.filter(Q(backend_id="") | Q(backend_id=None))
+    def filter_visible_to_providers(self, queryset, name, value):
+        if value:
+            return queryset.exclude(
+                Q(state=ResourceStates.CREATING)
+                & Q(order__state__ne=OrderStates.PENDING_PROVIDER)
+            )
         return queryset
 
 
