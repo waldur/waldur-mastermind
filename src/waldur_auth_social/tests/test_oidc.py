@@ -482,3 +482,124 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
             str(response.content),
         )
         self.assertEqual(User.objects.count(), 0)
+
+    def test_user_assigned_roles_from_claims(self):
+        user_info = {
+            "sub": "test_role_user",
+            "given_name": "Role",
+            "family_name": "User",
+            "email": "role@example.com",
+            "roles": ["staff", "support"],
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_support)
+
+    def test_existing_user_assigned_roles_from_claims(self):
+        user = structure_factories.UserFactory(is_staff=False, is_support=False)
+        user_info = {
+            "sub": user.username,
+            "given_name": user.first_name,
+            "family_name": user.last_name,
+            "email": user.email,
+            "roles": ["staff", "support"],
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user.refresh_from_db()
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_support)
+
+    def test_existing_user_roles_revoked(self):
+        user = structure_factories.UserFactory(is_staff=True, is_support=True)
+        user_info = {
+            "sub": user.username,
+            "given_name": user.first_name,
+            "family_name": user.last_name,
+            "email": user.email,
+            "roles": [],
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user.refresh_from_db()
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_support)
+
+    @override_config(WALDUR_AUTH_SOCIAL_ROLE_CLAIM="custom_roles")
+    def test_custom_role_claim_name(self):
+        user_info = {
+            "sub": "test_custom_role",
+            "given_name": "Custom",
+            "family_name": "Role",
+            "email": "custom@example.com",
+            "custom_roles": ["staff", "support"],
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_support)
+
+    def test_invalid_role_claim_format(self):
+        user_info = {
+            "sub": "test_invalid_role",
+            "given_name": "Invalid",
+            "family_name": "Role",
+            "email": "invalid@example.com",
+            "roles": {"invalid": "format"},
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        with self.assertLogs("waldur_auth_social.utils", level="WARNING") as cm:
+            response = self.client.get(
+                self.url, {"state": self.state, "code": self.code}
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(
+            any(
+                "Roles claim roles is not a list or string" in output
+                for output in cm.output
+            )
+        )
+
+    @override_config(WALDUR_AUTH_SOCIAL_ROLE_CLAIM="")
+    def test_empty_role_claim_name(self):
+        # User is not staff/support initially
+        user = structure_factories.UserFactory(is_staff=False, is_support=False)
+        user_info = {
+            "sub": user.username,
+            "given_name": user.first_name,
+            "family_name": user.last_name,
+            "email": user.email,
+            "roles": ["staff", "support"],  # These should be IGNORED
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user.refresh_from_db()
+        # Should remain False because processing was skipped
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_support)
