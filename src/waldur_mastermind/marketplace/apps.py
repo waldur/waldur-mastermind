@@ -470,3 +470,10 @@ class MarketplaceConfig(AppConfig):
             sender=models.Offering,
             dispatch_uid="waldur_mastermind.marketplace.update_resource_scope_availability_on_offering_state_change",
         )
+
+        # Register user action cleanup handlers for marketplace models
+        from waldur_core.user_actions.handlers import register_cleanup_handler
+
+        register_cleanup_handler(
+            models.Order, models.Offering, models.Resource, models.OfferingUser
+        )

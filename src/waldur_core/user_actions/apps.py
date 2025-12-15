@@ -2,7 +2,6 @@ import importlib
 import logging
 
 from django.apps import AppConfig
-from django.db.models import signals
 
 logger = logging.getLogger(__name__)
 
@@ -13,16 +12,8 @@ class UserActionsConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self):
-        from . import handlers
-
         # Auto-register providers on app startup
         self.register_providers()
-
-        # Cleanup on object deletion
-        signals.post_delete.connect(
-            handlers.cleanup_actions_on_object_delete,
-            dispatch_uid="user_actions.cleanup_actions_on_object_delete",
-        )
 
     def register_providers(self):
         """Auto-discover and register action providers from all apps"""

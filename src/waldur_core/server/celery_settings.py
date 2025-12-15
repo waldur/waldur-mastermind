@@ -153,6 +153,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=9, minute=0),
         "args": (),
     },
+    # Cleanup dangling user actions - daily (fallback for missed deletions)
+    "cleanup-dangling-user-actions": {
+        "task": "waldur_core.user_actions.cleanup_dangling_user_actions",
+        "schedule": crontab(hour=3, minute=30),
+        "args": (),
+    },
 }
 
 for ext in WaldurExtension.get_extensions():
