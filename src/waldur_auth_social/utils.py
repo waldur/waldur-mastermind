@@ -85,6 +85,17 @@ def create_or_update_oauth_user(
     payload = get_user_payload(identity_provider, backend_user)
     lookup_params = get_lookup_params(identity_provider, backend_user)
 
+    roles_claim = config.WALDUR_AUTH_SOCIAL_ROLE_CLAIM
+    roles = None
+    if roles_claim:
+        roles = backend_user.get(roles_claim)
+
+    if roles and isinstance(roles, str):
+        roles = [roles]
+    elif roles is not None and not isinstance(roles, list):
+        logger.warning("Roles claim %s is not a list or string: %s", roles_claim, roles)
+        roles = None
+
     try:
         created = False
         # Use all_objects to reactivate a user who might have been deactivated
@@ -100,6 +111,17 @@ def create_or_update_oauth_user(
             if getattr(user, field) != value:
                 setattr(user, field, value)
                 update_fields.add(field)
+
+        if roles is not None:
+            should_be_staff = "staff" in roles
+            if user.is_staff != should_be_staff:
+                user.is_staff = should_be_staff
+                update_fields.add("is_staff")
+
+            should_be_support = "support" in roles
+            if user.is_support != should_be_support:
+                user.is_support = should_be_support
+                update_fields.add("is_support")
 
         if update_fields:
             user.last_sync = timezone.now()
@@ -127,6 +149,13 @@ def create_or_update_oauth_user(
             payload["username"] = uuid.uuid4().hex[:30]
 
         merged_dict = {**lookup_params, **payload}
+
+        if roles is not None:
+            if "staff" in roles:
+                merged_dict["is_staff"] = True
+            if "support" in roles:
+                merged_dict["is_support"] = True
+
         registration_method = identity_provider.provider
         if identity_provider.provider == ProviderChoices.REMOTE_EDUTEAMS:
             registration_method = ProviderChoices.EDUTEAMS

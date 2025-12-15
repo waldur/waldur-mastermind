@@ -524,6 +524,10 @@ CONSTANCE_CONFIG = {
         False,
         "Deactivate user if all roles are revoked (except staff/support)",
     ),
+    "WALDUR_AUTH_SOCIAL_ROLE_CLAIM": (
+        "roles",
+        "Name of the claim that contains user roles.",
+    ),
     "MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES": (
         60,
         "How many minutes before scheduled maintenance users should be notified.",
@@ -836,6 +840,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "OIDC_CLIENT_SECRET",
         "OIDC_USER_FIELD",
         "OIDC_CACHE_TIMEOUT",
+        "WALDUR_AUTH_SOCIAL_ROLE_CLAIM",
     ),
     "Onboarding settings": (
         "ONBOARDING_COUNTRY",
