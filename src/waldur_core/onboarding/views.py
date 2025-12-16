@@ -71,6 +71,7 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
     serializer_class = OnboardingVerificationSerializer
     lookup_field = "uuid"
     filter_backends = (core_filters.StaffOrUserFilter, DjangoFilterBackend)
+    filterset_class = filters.OnboardingVerificationFilter
 
     # Override later with correct permissions per action
     checklist_permissions = [permissions.IsAuthenticated]
@@ -230,6 +231,7 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
     serializer_class = OnboardingJustificationSerializer
     lookup_field = "uuid"
     filter_backends = (core_filters.StaffOrUserFilter, DjangoFilterBackend)
+    filterset_class = filters.OnboardingJustificationFilter
 
     @extend_schema(
         description="Create justification for failed verification.",
