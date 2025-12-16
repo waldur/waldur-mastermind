@@ -64,7 +64,7 @@ def schedule_project_sync(project):
 
 @if_plugin_enabled
 def schedule_sync_on_quota_change(sender, instance, created=False, **kwargs):
-    if instance.name != utils.QUOTA_NAME:
+    if instance.name not in utils.QUOTA_NAMES:
         return
     if created and instance.value == -1:
         return

@@ -2141,9 +2141,9 @@ class OfferingUser(
         target=OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
     )
     def set_pending_additional_validation(self, comment=None, comment_url=None):
-        if comment:
+        if comment is not None:
             self.service_provider_comment = comment
-        if comment_url:
+        if comment_url is not None:
             self.service_provider_comment_url = comment_url
 
     @transition(
@@ -2156,9 +2156,9 @@ class OfferingUser(
         target=OfferingUserStates.PENDING_ACCOUNT_LINKING,
     )
     def set_pending_account_linking(self, comment=None, comment_url=None):
-        if comment:
+        if comment is not None:
             self.service_provider_comment = comment
-        if comment_url:
+        if comment_url is not None:
             self.service_provider_comment_url = comment_url
 
     @transition(
