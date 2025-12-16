@@ -370,6 +370,33 @@ class CreatePolicyTest(test.APITransactionTestCase):
         response = self.client.patch(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_options_accepts_json_string(self):
+        """Test that options field can accept JSON string format"""
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            "limit_cost": 100,
+            "actions": "notify_external_user",
+            "scope": structure_factories.ProjectFactory.get_url(self.project),
+            "options": '{"notify_external_user": "test@example.com"}',  # JSON string format
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        policy = ProjectEstimatedCostPolicy.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(policy.options["notify_external_user"], "test@example.com")
+
+    def test_options_rejects_invalid_json_string(self):
+        """Test that invalid JSON string in options field is rejected"""
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            "limit_cost": 100,
+            "actions": "notify_external_user",
+            "scope": structure_factories.ProjectFactory.get_url(self.project),
+            "options": '{"notify_external_user": "test@example.com"',  # Invalid JSON (missing closing brace)
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Options must be a valid JSON object", str(response.data))
+
 
 @ddt
 class DeletePolicyTest(test.APITransactionTestCase):

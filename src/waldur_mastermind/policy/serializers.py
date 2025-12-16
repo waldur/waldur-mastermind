@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import cast
 
@@ -50,6 +51,17 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
         if not options:
             return {}
 
+        # Handle case where options might be passed as a string (JSON string)
+        if isinstance(options, str):
+            try:
+                options = json.loads(options)
+            except json.JSONDecodeError:
+                raise ValidationError(_("Options must be a valid JSON object."))
+
+        # Ensure options is a dictionary
+        if not isinstance(options, dict):
+            raise ValidationError(_("Options must be a dictionary."))
+
         for key, value in options.items():
             validator = getattr(POLICY_ACTIONS[key], "options_validator", None)
             if validator:
@@ -74,13 +86,18 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
                 policy.uuid.hex,
             )
 
-            for action in policy.get_immediate_actions():
-                action.method(policy)
-                logger.info(
-                    "%s action of policy %s has been triggered.",
-                    action.method.__name__,
-                    policy.uuid.hex,
-                )
+            # Execute actions after the transaction is committed to ensure
+            # the policy exists in the database when Celery tasks run
+            def execute_actions():
+                for action in policy.get_immediate_actions():
+                    action.method(policy)
+                    logger.info(
+                        "%s action of policy %s has been triggered.",
+                        action.method.__name__,
+                        policy.uuid.hex,
+                    )
+
+            transaction.on_commit(execute_actions)
 
         return policy
 

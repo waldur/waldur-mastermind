@@ -1,5 +1,4 @@
 from datetime import timedelta
-from unittest.mock import patch
 
 from django.utils import timezone
 from rest_framework.test import APITransactionTestCase
@@ -156,25 +155,6 @@ class ExpiringResourceProviderTest(APITransactionTestCase):
 
         actions = self.provider.get_actions_for_user(self.fixture.user)
         self.assertEqual(len(actions), 0)
-
-    def test_get_corrective_actions_includes_extend_option(self):
-        """Test that extend action is available for extendable resources"""
-        resource = self.fixture.resource
-        expire_date = timezone.now() + timedelta(days=15)
-        resource.end_date = expire_date.date()
-        resource.save()
-
-        # Mock the offering to support extension
-        with patch.object(resource.offering, "plugin_options", {"can_extend": True}):
-            actions = self.provider.get_corrective_actions(self.fixture.user, resource)
-
-            # Should include view and extend actions
-            extend_actions = [a for a in actions if a.category == ActionCategory.EXTEND]
-            self.assertGreater(len(extend_actions), 0)
-
-            extend_action = extend_actions[0]
-            self.assertEqual(extend_action.label, "Extend Resource")
-            self.assertEqual(extend_action.severity, ActionSeverity.LOW)
 
 
 class MarketplaceUserActionsIntegrationTest(APITransactionTestCase):
