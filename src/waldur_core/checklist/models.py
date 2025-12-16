@@ -448,6 +448,43 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
 
         return False
 
+    def get_answer_display(self, answer_data: any) -> any:
+        """
+        Convert answer data to human-readable format.
+
+        For single_select and multi_select questions, resolves UUIDs to labels.
+        For other question types, returns the answer data as-is.
+
+        Args:
+            answer_data: Raw answer data (may contain UUIDs for select-type questions)
+
+        Returns:
+            Human-readable answer data (labels for select-type questions, original data for others)
+        """
+        if self.question_type not in ["single_select", "multi_select"]:
+            return answer_data
+
+        if answer_data is None:
+            return None
+
+        options_map = {str(opt.uuid): opt.label for opt in self.question_options.all()}
+
+        if self.question_type == "single_select":
+            if isinstance(answer_data, str):
+                return options_map.get(answer_data, answer_data)
+            return options_map.get(str(answer_data), str(answer_data))
+
+        elif self.question_type == "multi_select":
+            if not isinstance(answer_data, list):
+                return answer_data
+
+            return [
+                options_map.get(str(uuid_val), str(uuid_val))
+                for uuid_val in answer_data
+            ]
+
+        return answer_data
+
     def __str__(self):
         return (
             f"{self.description[:50]}..."

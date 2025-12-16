@@ -167,8 +167,8 @@ class OnboardingVerificationSerializer(serializers.ModelSerializer):
         ]
 
     def get_onboarding_metadata(self, obj) -> dict:
-        """Get onboarding-specific metadata like intents, purposes from checklist answers."""
-        return obj.get_onboarding_metadata()
+        """Get onboarding-specific metadata with human-readable labels (UUIDs resolved to labels)."""
+        return obj.get_onboarding_metadata_display()
 
     def get_user_submitted_customer_data(self, obj) -> dict:
         """Get customer data submitted by the user during onboarding."""
@@ -261,6 +261,12 @@ class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
     error_traceback = serializers.CharField(
         source="verification.error_traceback", read_only=True
     )
+    onboarding_metadata = serializers.SerializerMethodField(
+        help_text="Onboarding-specific data like intents, purposes extracted from checklist answers"
+    )
+    user_submitted_customer_data = serializers.SerializerMethodField(
+        help_text="Customer-related data submitted by the user via checklist answers"
+    )
 
     class Meta:
         model = OnboardingJustification
@@ -280,6 +286,8 @@ class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
             "validation_decision",
             "staff_notes",
             "supporting_documentation",
+            "onboarding_metadata",
+            "user_submitted_customer_data",
             "created",
             "modified",
         ]
@@ -290,6 +298,8 @@ class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
             "validation_decision",
             "staff_notes",
             "supporting_documentation",
+            "onboarding_metadata",
+            "user_submitted_customer_data",
             "created",
             "modified",
         ]
@@ -309,6 +319,14 @@ class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
                 "read_only": True,
             },
         }
+
+    def get_onboarding_metadata(self, obj) -> dict:
+        """Get onboarding-specific metadata with human-readable labels."""
+        return obj.verification.get_onboarding_metadata_display()
+
+    def get_user_submitted_customer_data(self, obj) -> dict:
+        """Get customer data submitted by the user during onboarding."""
+        return obj.verification.get_user_submitted_customer_data()
 
 
 class OnboardingJustificationCreateSerializer(serializers.Serializer):

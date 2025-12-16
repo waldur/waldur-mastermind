@@ -267,15 +267,38 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
 
         return extracted_data
 
-    def get_onboarding_metadata(self) -> dict:
+    def get_onboarding_metadata_display(self) -> dict:
         """
-        Get onboarding-specific metadata like intents, purposes, etc.
+        Get onboarding-specific metadata with human-readable values.
+
+        For select-type questions, this resolves UUIDs to their human-readable labels.
 
         Returns:
-            dict: Onboarding metadata, e.g., {'intent': ['Research', 'Commercial'], 'purpose': 'Education'}
+            dict: Onboarding metadata with resolved labels, e.g., {'intent': ['Research', 'Commercial']}
         """
-        extracted = self.extract_data_from_checklist()
-        return extracted.get("onboarding_metadata", {})
+        completion = self.get_or_create_checklist_completion()
+        if not completion:
+            return {}
+
+        answers = completion.answers.select_related("question").all()
+
+        metadata_display = {}
+
+        for answer in answers:
+            question = answer.question
+            answer_value = answer.answer_data
+
+            try:
+                metadata = OnboardingQuestionMetadata.objects.get(question=question)
+            except OnboardingQuestionMetadata.DoesNotExist:
+                continue
+
+            # Only process intent fields (not customer fields)
+            if metadata.intent_field and not metadata.maps_to_customer_field:
+                display_value = question.get_answer_display(answer_value)
+                metadata_display[metadata.intent_field] = display_value
+
+        return metadata_display
 
     def get_user_submitted_customer_data(self) -> dict:
         """
