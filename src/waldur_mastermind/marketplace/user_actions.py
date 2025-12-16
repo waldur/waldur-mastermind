@@ -35,10 +35,6 @@ class PendingOrderProvider(BaseActionProvider):
         cutoff = timezone.now() - timedelta(hours=24)
 
         # Find orders pending consumer approval where user has admin/manager role
-        from django.contrib.contenttypes.models import ContentType
-
-        from waldur_core.permissions.models import UserRole
-
         project_ct = ContentType.objects.get_for_model(Project)
         user_projects = UserRole.objects.filter(
             user=user,
@@ -85,15 +81,14 @@ class PendingOrderProvider(BaseActionProvider):
         return actions
 
     def get_affected_users(self) -> list[User]:
-        """Get users who can approve orders (project admins/managers)"""
-        from django.contrib.contenttypes.models import ContentType
-
+        """Get users who can approve orders (have APPROVE_ORDER permission on projects)"""
         project_ct = ContentType.objects.get_for_model(Project)
-        return User.objects.filter(
-            userrole__content_type=project_ct,
-            userrole__role__name__in=["PROJECT.ADMIN", "PROJECT.MANAGER"],
-            userrole__is_active=True,
-        ).distinct()
+        user_ids = UserRole.objects.filter(
+            content_type=project_ct,
+            is_active=True,
+            role__permissions__permission=PermissionEnum.APPROVE_ORDER,
+        ).values_list("user_id", flat=True)
+        return User.objects.filter(id__in=user_ids).distinct()
 
     def get_corrective_actions(self, user: User, order) -> list[CorrectiveAction]:
         """Return corrective actions for pending orders"""
@@ -201,10 +196,6 @@ class ExpiringResourceProvider(BaseActionProvider):
         cutoff = timezone.now() + timedelta(days=30)
 
         # Find resources where user has access to the project
-        from django.contrib.contenttypes.models import ContentType
-
-        from waldur_core.permissions.models import UserRole
-
         project_ct = ContentType.objects.get_for_model(Project)
         user_projects = UserRole.objects.filter(
             user=user,
@@ -255,8 +246,6 @@ class ExpiringResourceProvider(BaseActionProvider):
 
     def get_affected_users(self) -> list[User]:
         """Get users who have access to resources with end dates"""
-        from django.contrib.contenttypes.models import ContentType
-
         project_ct = ContentType.objects.get_for_model(Project)
         project_ids_with_expiring_resources = models.Resource.objects.filter(
             end_date__isnull=False,
@@ -277,7 +266,7 @@ class ExpiringResourceProvider(BaseActionProvider):
         )
         if timezone.is_naive(end_datetime):
             end_datetime = timezone.make_aware(end_datetime)
-        days_remaining = (end_datetime - timezone.now()).days
+        (end_datetime - timezone.now()).days
 
         # View resource details (always available)
         actions.append(
@@ -293,224 +282,7 @@ class ExpiringResourceProvider(BaseActionProvider):
             )
         )
 
-        # Extend resource (if supported by offering)
-        if self._can_extend_resource(user, resource):
-            actions.append(
-                CorrectiveAction(
-                    label="Extend Resource",
-                    url=format_homeport_link(
-                        "marketplace-resource-details/{resource_uuid}/?tab=extend",
-                        project_uuid=resource.project.uuid,
-                        resource_uuid=resource.uuid,
-                    ),
-                    category=ActionCategory.EXTEND,
-                    severity=ActionSeverity.LOW,
-                    metadata={
-                        "current_end_date": resource.end_date.isoformat(),
-                        "days_remaining": days_remaining,
-                        "max_extension_days": self._get_max_extension_days(resource),
-                        "cost_impact": self._estimate_extension_cost(resource),
-                    },
-                )
-            )
-
-        # Create backup before termination (if supported)
-        if self._supports_backup(resource):
-            actions.append(
-                CorrectiveAction(
-                    label="Create Backup",
-                    url=f"/api/marketplace-resources/{resource.uuid}/create-backup/",
-                    method="POST",
-                    category=ActionCategory.BACKUP,
-                    severity=ActionSeverity.MEDIUM,
-                    api_endpoint=True,
-                    confirmation_required=True,
-                    metadata={
-                        "backup_type": self._get_backup_type(resource),
-                        "estimated_duration": "15-30 minutes",
-                        "backup_cost": self._get_backup_cost(resource),
-                    },
-                )
-            )
-
-        # Terminate early (if user wants to avoid charges)
-        if self._can_terminate_resource(user, resource):
-            actions.append(
-                CorrectiveAction(
-                    label="Terminate Now",
-                    url=format_homeport_link(
-                        "marketplace-resource-details/{resource_uuid}/?tab=terminate",
-                        project_uuid=resource.project.uuid,
-                        resource_uuid=resource.uuid,
-                    ),
-                    category=ActionCategory.TERMINATE,
-                    severity=ActionSeverity.HIGH,
-                    confirmation_required=True,
-                    metadata={
-                        "data_loss_risk": True,
-                        "cost_savings": self._calculate_early_termination_savings(
-                            resource
-                        ),
-                        "dependencies": self._get_dependent_resources(resource),
-                    },
-                )
-            )
-
-        # Migration options (if available)
-        migration_options = self._get_migration_options(resource)
-        if migration_options:
-            actions.append(
-                CorrectiveAction(
-                    label="Migrate to New Resource",
-                    url=format_homeport_link(
-                        "marketplace-resource-migrate/{resource_uuid}/",
-                        project_uuid=resource.project.uuid,
-                        resource_uuid=resource.uuid,
-                    ),
-                    category=ActionCategory.MIGRATE,
-                    severity=ActionSeverity.MEDIUM,
-                    metadata={
-                        "migration_options": migration_options,
-                        "estimated_downtime": self._estimate_migration_downtime(
-                            resource
-                        ),
-                        "data_transfer_required": True,
-                    },
-                )
-            )
-
         return actions
-
-    def _can_extend_resource(self, user: User, resource) -> bool:
-        """Check if resource can be extended"""
-        # Basic check - would need to implement offering-specific logic
-        return hasattr(
-            resource.offering, "plugin_options"
-        ) and resource.offering.plugin_options.get("can_extend", False)
-
-    def _supports_backup(self, resource) -> bool:
-        """Check if resource supports backup"""
-        # Implementation would depend on offering type
-        return resource.offering.type in ["openstack-tenant", "vmware-vm"]
-
-    def _can_terminate_resource(self, user: User, resource) -> bool:
-        """Check if user can terminate the resource"""
-        return UserRole.objects.filter(
-            user=user,
-            content_type=ContentType.objects.get_for_model(Project),
-            object_id=resource.project.id,
-            role__name__in=["PROJECT.ADMIN", "PROJECT.MANAGER"],
-            is_active=True,
-        ).exists()
-
-    def _get_max_extension_days(self, resource) -> int:
-        """Get maximum days resource can be extended"""
-        # Default to 365 days, could be offering-specific
-        return 365
-
-    def _estimate_extension_cost(self, resource):
-        """Calculate estimated cost for resource extension"""
-        if resource.plan and hasattr(resource.plan, "unit_price"):
-            return {
-                "monthly_cost": float(resource.plan.unit_price or 0),
-                "currency": getattr(resource.plan, "unit", "USD"),
-                "billing_type": getattr(resource.plan, "billing_type", "monthly"),
-            }
-        return None
-
-    def _get_backup_type(self, resource) -> str:
-        """Get backup type based on resource offering"""
-        if "openstack" in resource.offering.type:
-            return "snapshot"
-        elif "vmware" in resource.offering.type:
-            return "vm-backup"
-        return "full-backup"
-
-    def _get_backup_cost(self, resource):
-        """Estimate backup cost"""
-        # Simplified cost calculation
-        return {"estimated_cost": "5-15 USD", "currency": "USD"}
-
-    def _calculate_early_termination_savings(self, resource):
-        """Calculate savings from early termination"""
-        if not resource.end_date or not resource.plan:
-            return None
-
-        days_remaining = (resource.end_date - timezone.now()).days
-        if days_remaining <= 0:
-            return None
-
-        monthly_cost = getattr(resource.plan, "unit_price", 0) or 0
-        daily_cost = float(monthly_cost) / 30
-
-        return {
-            "total_savings": round(daily_cost * days_remaining, 2),
-            "currency": getattr(resource.plan, "unit", "USD"),
-            "days_remaining": days_remaining,
-        }
-
-    def _get_dependent_resources(self, resource):
-        """Find resources that depend on this one"""
-        # Check for child resources
-        dependent_count = (
-            resource.children.count() if hasattr(resource, "children") else 0
-        )
-
-        return {
-            "count": dependent_count,
-            "will_be_affected": dependent_count > 0,
-            "types": (
-                list(
-                    resource.children.values_list(
-                        "offering__type", flat=True
-                    ).distinct()
-                )
-                if hasattr(resource, "children")
-                else []
-            ),
-        }
-
-    def _get_migration_options(self, resource):
-        """Get available migration targets"""
-        # Find compatible offerings in the same category
-        compatible_offerings = models.Offering.objects.filter(
-            category=resource.offering.category,
-            state=models.OfferingStates.ACTIVE,
-        ).exclude(uuid=resource.offering.uuid)[:5]  # Limit to 5 options
-
-        if not compatible_offerings:
-            return []
-
-        return [
-            {
-                "offering_uuid": str(offering.uuid),
-                "offering_name": offering.name,
-                "cost_difference": self._calculate_cost_difference(resource, offering),
-                "compatibility_score": self._calculate_compatibility(
-                    resource, offering
-                ),
-            }
-            for offering in compatible_offerings
-        ]
-
-    def _calculate_cost_difference(self, current_resource, target_offering):
-        """Calculate cost difference between current and target offering"""
-        # Simplified calculation - would need more complex logic
-        return {"difference": "Similar", "currency": "USD"}
-
-    def _calculate_compatibility(self, current_resource, target_offering):
-        """Calculate compatibility score between current and target offering"""
-        # Simplified scoring - would need detailed compatibility matrix
-        return 0.8
-
-    def _estimate_migration_downtime(self, resource):
-        """Estimate migration downtime"""
-        # Default estimates based on offering type
-        if "openstack" in resource.offering.type:
-            return "2-4 hours"
-        elif "vmware" in resource.offering.type:
-            return "1-2 hours"
-        return "4-8 hours"
 
 
 # Register all providers
