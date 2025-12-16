@@ -1979,7 +1979,7 @@ class ImportStructureCommandTest(TestCase):
         )  # Both invoice and offering user sections should show 1 error each
 
     def test_user_token_lifetime_none_handling(self):
-        """Test that None values for token_lifetime don't overwrite existing user settings."""
+        """Test that explicit None values for token_lifetime are properly set to None."""
         # Create a user with an existing token_lifetime setting
         existing_user = structure_factories.UserFactory(
             email="existing@example.com",
@@ -1993,7 +1993,7 @@ class ImportStructureCommandTest(TestCase):
         existing_user.refresh_from_db()
         self.assertEqual(existing_user.token_lifetime, 7200)
 
-        # Test data with token_lifetime as None (simulating missing or null value)
+        # Test data with token_lifetime as None (explicit null value should be set)
         test_data = {
             "users": [
                 {
@@ -2002,7 +2002,7 @@ class ImportStructureCommandTest(TestCase):
                     "username": "existing_user",
                     "first_name": "Test",
                     "last_name": "User",
-                    "token_lifetime": None,  # This should not overwrite existing value
+                    "token_lifetime": None,  # This should set token_lifetime to None
                 }
             ]
         }
@@ -2010,9 +2010,9 @@ class ImportStructureCommandTest(TestCase):
         self._create_test_json(test_data)
         self._call_import_command("-i", self.test_file_path, "--update")
 
-        # Verify the existing token_lifetime was preserved
+        # Verify the token_lifetime was set to None
         existing_user.refresh_from_db()
-        self.assertEqual(existing_user.token_lifetime, 7200)
+        self.assertEqual(existing_user.token_lifetime, None)
 
         # Test data without token_lifetime key (simulating export without this field)
         test_data_no_key = {
@@ -2031,9 +2031,9 @@ class ImportStructureCommandTest(TestCase):
         self._create_test_json(test_data_no_key)
         self._call_import_command("-i", self.test_file_path, "--update")
 
-        # Verify the existing token_lifetime was preserved
+        # Verify the existing token_lifetime was preserved (None from previous import)
         existing_user.refresh_from_db()
-        self.assertEqual(existing_user.token_lifetime, 7200)
+        self.assertEqual(existing_user.token_lifetime, None)
 
     def test_user_token_lifetime_valid_value_handling(self):
         """Test that valid token_lifetime values are properly imported."""
