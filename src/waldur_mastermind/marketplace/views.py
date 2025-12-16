@@ -7698,8 +7698,8 @@ class OfferingUsersViewSet(
             data=request.data, context={"request": request}, instance=offering_user
         )
         serializer.is_valid(raise_exception=True)
-        comment = serializer.validated_data.get("comment", "")
-        comment_url = serializer.validated_data.get("comment_url", "")
+        comment = serializer.validated_data.get("comment")
+        comment_url = serializer.validated_data.get("comment_url")
         offering_user.set_pending_additional_validation(
             comment=comment, comment_url=comment_url
         )
@@ -7741,8 +7741,8 @@ class OfferingUsersViewSet(
             data=request.data, context={"request": request}, instance=offering_user
         )
         serializer.is_valid(raise_exception=True)
-        comment = serializer.validated_data.get("comment", "")
-        comment_url = serializer.validated_data.get("comment_url", "")
+        comment = serializer.validated_data.get("comment")
+        comment_url = serializer.validated_data.get("comment_url")
         offering_user.set_pending_account_linking(
             comment=comment, comment_url=comment_url
         )

@@ -181,14 +181,18 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
             "username": "testuser",
         }
         response = self.client.post(OfferingUserFactory.get_list_url(), payload)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
 
     def test_create_offering_user_with_missing_fields(self):
         """Should fail when neither URL nor UUID fields are provided."""
         self.client.force_authenticate(user=self.fixture.owner)
         payload = {"username": "testuser"}
         response = self.client.post(OfferingUserFactory.get_list_url(), payload)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
 
 
 @ddt
@@ -396,13 +400,13 @@ class OferingUserRestrictedUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.fixture.user)
         self.fixture.customer.add_user(self.fixture.user, CustomerRole.SUPPORT)
         response = self.update_restriction_status(self.offering_user)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
 
     @data("staff", "owner", "service_manager")
     def test_owner_manager_can_update_offering_user_restriction(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.update_restriction_status(self.offering_user)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertTrue(self.offering_user.is_restricted)
         self.assertTrue(
@@ -456,7 +460,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "begin_creating")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.CREATING)
 
@@ -470,7 +474,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         payload = {"comment": "Additional documents required"}
         response = self.client.post(url, payload)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(
             self.offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
@@ -489,7 +493,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         payload = {"comment": "Please link your existing account"}
         response = self.client.post(url, payload)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(
             self.offering_user.state, OfferingUserStates.PENDING_ACCOUNT_LINKING
@@ -509,7 +513,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "set_validation_complete")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
         self.assertEqual(self.offering_user.service_provider_comment, "")
@@ -522,7 +526,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "set_ok")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
 
@@ -535,7 +539,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "set_pending_additional_validation")
         response = self.client.post(url, {})
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(
             self.offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
@@ -549,7 +553,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "set_validation_complete")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
 
     def test_state_fields_in_serializer_output(self):
         """Test that state and comment fields are included in serializer output."""
@@ -564,7 +568,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertIn("state", response.data)
         self.assertIn("service_provider_comment", response.data)
         self.assertEqual(response.data["state"], "Pending additional validation")
@@ -579,7 +583,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "set_error_creating")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.ERROR_CREATING)
 
@@ -592,7 +596,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "set_error_deleting")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.ERROR_DELETING)
 
@@ -605,7 +609,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "begin_creating")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.CREATING)
 
@@ -618,7 +622,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "set_ok")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
 
@@ -631,7 +635,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "set_ok")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
 
@@ -679,7 +683,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         }
         response = self.client.post(url, payload)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(
             self.offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
@@ -703,7 +707,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "set_validation_complete")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
         self.assertEqual(self.offering_user.service_provider_comment, "")
@@ -726,7 +730,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         }
         response = self.client.patch(url, payload)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(
             self.offering_user.service_provider_comment, "Updated service comment"
@@ -748,7 +752,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         response = self.client.patch(url, payload)
 
         # Unauthorized users get 404 since they can't even see the offering user object
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
 
     def test_html_sanitization_in_comments(self):
         """Test that HTML content in comments is properly sanitized."""
@@ -765,7 +769,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "set_pending_additional_validation")
         payload = {"comment": malicious_html, "comment_url": "https://test.example.com"}
         response = self.client.post(url, payload)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         self.offering_user.refresh_from_db()
         # Should keep safe HTML but remove dangerous tags
@@ -781,7 +785,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
             "service_provider_comment": malicious_html,
         }
         response = self.client.patch(url, payload)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         self.offering_user.refresh_from_db()
         # Should keep safe HTML but remove dangerous tags
@@ -804,7 +808,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertIn("service_provider_comment", response.data)
         self.assertIn("service_provider_comment_url", response.data)
         self.assertEqual(response.data["service_provider_comment"], "Test comment")
@@ -823,7 +827,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "set_pending_additional_validation")
         payload = {"comment": "Additional documents required"}
         response = self.client.post(url, payload)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(
             self.offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
@@ -843,7 +847,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
         url = self.get_url(self.offering_user, "set_pending_account_linking")
         payload = {"comment": "Please link your existing account"}
         response = self.client.post(url, payload)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(
             self.offering_user.state, OfferingUserStates.PENDING_ACCOUNT_LINKING
@@ -864,7 +868,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
             "comment_url": "https://docs.example.com/validation",
         }
         response = self.client.post(url, payload)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(
             self.offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
@@ -908,7 +912,7 @@ class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
         }
         response = self.client.post(OfferingUserFactory.get_list_url(), payload)
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         offering_user = OfferingUser.objects.get(uuid=response.data["uuid"])
         self.assertEqual(offering_user.state, OfferingUserStates.OK)
         self.assertEqual(offering_user.username, "testuser")
@@ -922,7 +926,7 @@ class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
         }
         response = self.client.post(OfferingUserFactory.get_list_url(), payload)
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         offering_user = OfferingUser.objects.get(uuid=response.data["uuid"])
         self.assertEqual(offering_user.state, OfferingUserStates.CREATION_REQUESTED)
 
@@ -942,7 +946,7 @@ class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
         payload = {"username": "updated_username"}
         response = self.client.patch(url, payload)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         offering_user.refresh_from_db()
         self.assertEqual(offering_user.state, OfferingUserStates.OK)
         self.assertEqual(offering_user.username, "updated_username")
@@ -970,7 +974,7 @@ class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
         }  # Update same username (no actual change)
         response = self.client.patch(url, payload)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         offering_user.refresh_from_db()
         self.assertEqual(
             offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
@@ -1031,7 +1035,7 @@ class SetOfferingsUsernameBackwardCompatibilityTest(test.APITransactionTestCase)
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.post(url, payload)
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         # Check that OfferingUsers were created with OK state
         offering_users = OfferingUser.objects.filter(user=self.fixture.user)
@@ -1072,7 +1076,7 @@ class SetOfferingsUsernameBackwardCompatibilityTest(test.APITransactionTestCase)
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.post(url, payload)
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         # Check that existing OfferingUsers were updated to OK state
         offering_user1.refresh_from_db()
@@ -1113,7 +1117,7 @@ class SetOfferingsUsernameBackwardCompatibilityTest(test.APITransactionTestCase)
         response = self.client.post(url, payload)
 
         # Should still succeed but not change state
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         offering_user.refresh_from_db()
         self.assertEqual(
@@ -1169,7 +1173,7 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
             {"state": "Requested"},
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.offering_user1.uuid.hex)
 
@@ -1181,7 +1185,7 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
             {"state": ["Requested", "OK"]},
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 2)
         returned_uuids = {item["uuid"] for item in response.data}
         expected_uuids = {
@@ -1198,7 +1202,7 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
             {"state": "Pending additional validation"},
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.offering_user2.uuid.hex)
 
@@ -1210,7 +1214,9 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
             {"state": "NonexistentState"},
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
         self.assertIn("state", response.data)
 
     def test_filter_combines_with_other_filters(self):
@@ -1224,7 +1230,7 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
             },
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 2)
         # All results should be from the same offering
         for item in response.data:
@@ -1235,7 +1241,7 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.get(OfferingUserFactory.get_list_url())
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 3)
 
 
@@ -1267,7 +1273,7 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         url = OfferingUserFactory.get_url(self.offering_user, "request-deletion")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(
             self.offering_user.state, OfferingUserStates.DELETION_REQUESTED
@@ -1282,7 +1288,7 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         url = OfferingUserFactory.get_url(self.offering_user, "set-deleting")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.DELETING)
 
@@ -1295,7 +1301,7 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         url = OfferingUserFactory.get_url(self.offering_user, "set-deleted")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.DELETED)
 
@@ -1306,7 +1312,7 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         # Step 1: Request deletion
         url = OfferingUserFactory.get_url(self.offering_user, "request-deletion")
         response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(
             self.offering_user.state, OfferingUserStates.DELETION_REQUESTED
@@ -1315,14 +1321,14 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         # Step 2: Start deleting
         url = OfferingUserFactory.get_url(self.offering_user, "set-deleting")
         response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.DELETING)
 
         # Step 3: Mark as deleted
         url = OfferingUserFactory.get_url(self.offering_user, "set-deleted")
         response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.DELETED)
 
@@ -1337,7 +1343,7 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         # Should be able to retry deletion
         url = OfferingUserFactory.get_url(self.offering_user, "set-deleting")
         response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.DELETING)
 
@@ -1349,17 +1355,17 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         # Test request_deletion
         url = OfferingUserFactory.get_url(self.offering_user, "request-deletion")
         response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
 
         # Test set_deleting
         url = OfferingUserFactory.get_url(self.offering_user, "set-deleting")
         response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
 
         # Test set_deleted
         url = OfferingUserFactory.get_url(self.offering_user, "set-deleted")
         response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
 
     def test_invalid_state_transitions_return_400_not_500(self):
         """Test that invalid state transitions return HTTP 400 instead of HTTP 500."""
@@ -1375,7 +1381,9 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         response = self.client.post(url)
 
         # Should return 400 Bad Request, not 500 Internal Server Error
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
         self.assertIn("detail", response.data)
         self.assertIn(
             "Cannot transition to ERROR_DELETING from current state",
@@ -1392,7 +1400,9 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         )
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
         self.assertIn("detail", response.data)
         self.assertIn(
             "Cannot transition to ERROR_CREATING from current state",
@@ -1406,7 +1416,9 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
         url = OfferingUserFactory.get_url(self.offering_user, "set-deleted")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
         self.assertIn("detail", response.data)
         self.assertIn(
             "Cannot transition to DELETED from current state", response.data["detail"]
@@ -1475,7 +1487,7 @@ class OfferingUserChecklistTest(test.APITransactionTestCase):
         url = OfferingUserFactory.get_url(self.offering_user, "checklist")
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertIn("checklist", response.data)
         self.assertIn("questions", response.data)
         self.assertEqual(len(response.data["questions"]), 2)
@@ -1506,7 +1518,9 @@ class OfferingUserChecklistTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
         self.assertIn("No checklist configured", response.data["detail"])
 
     def test_completion_status_endpoint_returns_status(self):
@@ -1519,7 +1533,7 @@ class OfferingUserChecklistTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertIn("is_completed", response.data)
         self.assertIn("completion_percentage", response.data)
         self.assertIn("checklist_name", response.data)
@@ -1540,7 +1554,7 @@ class OfferingUserChecklistTest(test.APITransactionTestCase):
         url = OfferingUserFactory.get_url(self.offering_user, "submit-answers")
         response = self.client.post(url, answers_data, format="json")
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertIn("detail", response.data)
         self.assertEqual(response.data["detail"], "Answers submitted successfully")
 
@@ -1558,7 +1572,7 @@ class OfferingUserChecklistTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertIn("checklist", response.data)
         self.assertIn("questions", response.data)
 
@@ -1576,7 +1590,7 @@ class OfferingUserChecklistTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertIn("is_completed", response.data)
         self.assertIn(
             "requires_review", response.data
@@ -1739,7 +1753,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)  # Only offering with checklist
 
         # Check data for offering with checklist
@@ -1802,7 +1816,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         # Should only return offerings with compliance checklist
         self.assertEqual(len(response.data), 2)  # Only 2 offerings with checklist
 
@@ -1827,7 +1841,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
 
     @data("owner", "staff")
     def test_offering_users_list_authorized_users(self, user_role):
@@ -1844,7 +1858,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 3)  # Three offering users total
 
         # Check that all users are present
@@ -1878,7 +1892,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
             url, {"offering_uuid": self.offering_with_checklist.uuid.hex}
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 2)  # Two users for this offering
 
         for item in response.data:
@@ -1894,18 +1908,18 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
 
         # Filter by no_checklist
         response = self.client.get(url, {"compliance_status": "no_checklist"})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], str(self.offering_user3.uuid))
 
         # Filter by pending
         response = self.client.get(url, {"compliance_status": "pending"})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 2)  # Two users with incomplete checklists
 
         # Filter by completed (should be empty since no answers submitted yet)
         response = self.client.get(url, {"compliance_status": "completed"})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 0)
 
     def test_compliance_overview_with_completed_checklist(self):
@@ -1942,7 +1956,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         # Check data for offering with checklist
         offering_data = next(
@@ -1969,7 +1983,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
 
     def test_compliance_overview_pagination_default_page_size(self):
         """Test that compliance overview endpoint supports pagination with default page size."""
@@ -1979,7 +1993,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         # Check that response has pagination headers
         self.assertIn("X-Result-Count", response)
         self.assertEqual(
@@ -1998,7 +2012,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         # Request with page_size=1
         response = self.client.get(url, {"page_size": 1})
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertIn("X-Result-Count", response)
         self.assertEqual(
             response["X-Result-Count"], "1"
@@ -2028,7 +2042,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         # Request second page with page_size=1
         response = self.client.get(url, {"page": 2, "page_size": 1})
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertIn("X-Result-Count", response)
         self.assertEqual(
             response["X-Result-Count"], "2"
@@ -2050,7 +2064,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
         # Request with very large page_size (exceeds max_page_size=300)
         response = self.client.get(url, {"page_size": 500})
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         # Even with large page_size, we only get the available items (1 offering with checklist)
         self.assertEqual(len(response.data), 1)
 
@@ -2085,7 +2099,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
             reset_queries()
             response = self.client.get(url, {"page_size": 3})
 
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
             self.assertEqual(len(response.data), 3)  # Should return exactly 3 items
 
             # Verify pagination headers
@@ -2132,7 +2146,7 @@ class OfferingComplianceSerializerTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         # Verify compliance requirements is indicated
         self.assertTrue(response.data["has_compliance_requirements"])
@@ -2146,7 +2160,7 @@ class OfferingComplianceSerializerTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         # Verify no compliance requirements
         self.assertFalse(response.data["has_compliance_requirements"])
@@ -2256,7 +2270,7 @@ class ServiceProviderCompliancePerformanceTest(test.APITransactionTestCase):
             end_time = time.time()
 
             # Check response is successful
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
             # Get query count
             query_count = len(connection.queries)
@@ -2348,7 +2362,7 @@ class ServiceProviderCompliancePerformanceTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         # Should only have 5 offerings (only those with checklist)
         self.assertEqual(len(response.data), 5)
@@ -2598,7 +2612,7 @@ class OfferingUserComplianceFieldTest(test.APITransactionTestCase):
         self.client.force_authenticate(sample_user)
         response = self.client.get(OfferingUserFactory.get_list_url())
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(1, len(response.data))
         self.assertIn("has_compliance_checklist", response.data[0])
         self.assertTrue(response.data[0]["has_compliance_checklist"])
@@ -2623,7 +2637,158 @@ class OfferingUserComplianceFieldTest(test.APITransactionTestCase):
         self.client.force_authenticate(sample_user)
         response = self.client.get(OfferingUserFactory.get_list_url())
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(1, len(response.data))
         self.assertIn("has_compliance_checklist", response.data[0])
         self.assertFalse(response.data[0]["has_compliance_checklist"])
+
+
+@ddt
+class OfferingUserCommentUrlResetTest(test.APITransactionTestCase):
+    """Test cases for the comment_url field reset bug fix."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+        user = UserFactory()
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering,
+            user=user,
+            username="user",
+        )
+        # Force the state after creation (in case signals override it)
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save()
+        models.UserOfferingConsent.objects.create(
+            user=user,
+            offering=self.offering,
+            version="1.0",
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+
+    def get_url(self, offering_user, action):
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        return url + action + "/"
+
+    def test_set_pending_additional_validation_with_empty_comment_url(self):
+        """Test that empty string comment_url is properly set."""
+        # Set initial comment_url
+        self.offering_user.service_provider_comment_url = "https://example.com/initial"
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_pending_additional_validation")
+        payload = {
+            "comment": "Additional validation needed",
+            "comment_url": "",  # Empty string should reset the field
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment, "Additional validation needed"
+        )
+        # Bug fix: empty string should reset the comment_url field
+        self.assertEqual(self.offering_user.service_provider_comment_url, "")
+
+    def test_set_pending_additional_validation_with_none_comment_url(self):
+        """Test that None comment_url raises validation error."""
+        # Set initial comment_url
+        self.offering_user.service_provider_comment_url = "https://example.com/initial"
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_pending_additional_validation")
+        payload = {
+            "comment": "Additional validation needed",
+            "comment_url": None,  # None should raise validation error
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("comment_url", response.data)
+        self.assertIn("This field may not be null.", response.data["comment_url"])
+
+    def test_set_pending_additional_validation_without_comment_url(self):
+        """Test that omitting comment_url leaves field unchanged."""
+        # Set initial comment_url
+        initial_url = "https://example.com/initial"
+        self.offering_user.service_provider_comment_url = initial_url
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_pending_additional_validation")
+        payload = {
+            "comment": "Additional validation needed"
+            # Omit comment_url - should leave field unchanged
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        )
+        # Field should remain unchanged when not provided
+        self.assertEqual(self.offering_user.service_provider_comment_url, initial_url)
+
+    def test_set_pending_account_linking_with_empty_comment_url(self):
+        """Test that set_pending_account_linking also handles empty comment_url correctly."""
+        # Set state to valid source state for this transition
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.service_provider_comment_url = "https://example.com/initial"
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_pending_account_linking")
+        payload = {
+            "comment": "Please link your account",
+            "comment_url": "",  # Empty string should reset the field
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.PENDING_ACCOUNT_LINKING
+        )
+        # Bug fix: empty string should reset the comment_url field
+        self.assertEqual(self.offering_user.service_provider_comment_url, "")
+
+    @data(
+        ["", ""],  # Empty string to empty string
+        ["https://example.com/test", ""],  # URL to empty string
+        ["", "https://example.com/new"],  # Empty string to URL
+        ["https://example.com/old", "https://example.com/new"],  # URL to URL
+    )
+    def test_comment_url_field_transitions(self, test_data):
+        """Test various comment_url transitions work correctly."""
+        initial_url, target_url = test_data
+        self.offering_user.service_provider_comment_url = initial_url
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = self.get_url(self.offering_user, "set_pending_additional_validation")
+        payload = {"comment": "Test transition", "comment_url": target_url}
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.service_provider_comment_url, target_url)
