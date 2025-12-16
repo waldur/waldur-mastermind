@@ -140,7 +140,7 @@ def get_estimated_cost_policy_handler_for_observable_class(klass, observable_cla
         )
 
         for policy in policies:
-            if policy.get_threshold_actions() and policy.is_triggered():
+            if policy.get_threshold_actions() and policy.has_fired:
                 for action in policy.get_threshold_actions():
                     if action.ignored_fields and hasattr(observable_object, "tracker"):
                         if not set(observable_object.tracker.changed()) - set(
