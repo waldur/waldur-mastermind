@@ -36,7 +36,6 @@ td:nth-child(4) {
 | `change_email_has_been_requested` | `Django Signal (post_save)` | `core.ChangeEmailRequest` | Send a notification when a user requests to change their email. |
 | `change_users_quota` | `Custom Signal (role_granted)` | `—` | Update the user count quota for a customer when a user's role is changed. |
 | `change_users_quota` | `Custom Signal (role_revoked)` | `—` | Update the user count quota for a customer when a user's role is changed. |
-| `cleanup_actions_on_object_delete` | `Django Signal (post_delete)` | `—` | Clean up user actions when the related object is deleted |
 | `constance_updated` | `Custom Signal (config_updated)` | `—` | Clear the API configuration cache when a Constance setting is updated. |
 | `create_auth_token` | `Django Signal (post_save)` | `core.User` | Create a token for a new user. |
 | `create_existing_projects_completions` | `Django Signal (post_save)` | `structure.Customer` | Create ChecklistCompletion for existing projects when customer checklist is updated. |
@@ -378,6 +377,10 @@ td:nth-child(4) {
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_firecrest.Job` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `marketplace.Order` | Recalculate count quota when an instance is created or deleted. |
 | `revoke_roles_on_project_deletion` | `Django Signal (pre_delete)` | `structure.Project` | When project is deleted, capture user role snapshots before revoking them. |
+| `schedule_cleanup_for_deleted_object` | `Django Signal (post_delete)` | `marketplace.Order` | Signal handler to schedule cleanup of user actions for a deleted object. |
+| `schedule_cleanup_for_deleted_object` | `Django Signal (post_delete)` | `marketplace.Offering` | Signal handler to schedule cleanup of user actions for a deleted object. |
+| `schedule_cleanup_for_deleted_object` | `Django Signal (post_delete)` | `marketplace.Resource` | Signal handler to schedule cleanup of user actions for a deleted object. |
+| `schedule_cleanup_for_deleted_object` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Signal handler to schedule cleanup of user actions for a deleted object. |
 | `set_default_token_lifetime` | `Django Signal (post_save)` | `core.User` | Set the default token lifetime for a new user. |
 | `update_customer_users_count` | `Custom Signal (recalculate_quotas)` | `—` | Update the user count for all customers. |
 | `update_resource_start_time` | `Django Signal (post_save)` | `waldur_aws.Instance` | Update the start time of a resource when its runtime state changes. |
@@ -778,11 +781,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 699
+Total unique handlers found: 702
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 351 handlers
+- **waldur_core**: 354 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 290 handlers
