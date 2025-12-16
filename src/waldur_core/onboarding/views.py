@@ -143,7 +143,9 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
         # If no checklist is configured, user can still proceed with automatic validation
 
         # Return the verification result
-        response_serializer = OnboardingVerificationSerializer(verification)
+        response_serializer = OnboardingVerificationSerializer(
+            verification, context={"request": request}
+        )
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
     start_verification_serializer_class = OnboardingCompanyValidationRequestSerializer
@@ -189,7 +191,9 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
             birth_date=birth_date_str,
         )
 
-        response_serializer = OnboardingVerificationSerializer(verification)
+        response_serializer = OnboardingVerificationSerializer(
+            verification, context={"request": request}
+        )
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
     run_validation_serializer_class = OnboardingRunValidationRequestSerializer

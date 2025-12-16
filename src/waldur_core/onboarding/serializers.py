@@ -108,12 +108,13 @@ class OnboardingJustificationDocumentationSerializer(serializers.ModelSerializer
         read_only_fields = ["uuid", "created"]
 
 
-class OnboardingVerificationSerializer(serializers.ModelSerializer):
+class OnboardingVerificationSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for OnboardingVerification model."""
 
     onboarding_metadata = serializers.SerializerMethodField(
         help_text="Onboarding-specific data like intents, purposes extracted from checklist answers"
     )
+    user_full_name = serializers.CharField(source="user.get_full_name", read_only=True)
     user_submitted_customer_data = serializers.SerializerMethodField()
     can_customer_be_created = serializers.SerializerMethodField(
         help_text="Boolean indicating if a customer can be created from this verification"
@@ -127,6 +128,7 @@ class OnboardingVerificationSerializer(serializers.ModelSerializer):
         fields = [
             "uuid",
             "user",
+            "user_full_name",
             "country",
             "legal_person_identifier",
             "legal_name",
@@ -147,6 +149,22 @@ class OnboardingVerificationSerializer(serializers.ModelSerializer):
             "created",
             "modified",
         ]
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "onboarding-verification-detail",
+            },
+            "user": {
+                "view_name": "user-detail",
+                "lookup_field": "uuid",
+                "read_only": True,
+            },
+            "customer": {
+                "view_name": "customer-detail",
+                "lookup_field": "uuid",
+                "read_only": True,
+            },
+        }
         read_only_fields = [
             "uuid",
             "status",
@@ -255,6 +273,7 @@ class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
     supporting_documentation = OnboardingJustificationDocumentationSerializer(
         many=True, read_only=True
     )
+    user_full_name = serializers.CharField(source="user.get_full_name", read_only=True)
     error_message = serializers.CharField(
         source="verification.error_message", read_only=True
     )
@@ -276,6 +295,7 @@ class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
             "verification_uuid",
             "country",
             "user",
+            "user_full_name",
             "legal_person_identifier",
             "legal_name",
             "error_message",
@@ -293,6 +313,7 @@ class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
         ]
         read_only_fields = [
             "uuid",
+            "user_full_name",
             "validated_by",
             "validated_at",
             "validation_decision",
