@@ -8,6 +8,7 @@ from django.utils.translation import gettext_lazy as _
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
 from waldur_core.core.models import ErrorMessageMixin, TimeStampedModel, User, UuidMixin
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure import models as structure_models
 
 from . import enums
@@ -361,6 +362,9 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
         # Create the customer
         self.customer = structure_models.Customer.objects.create(**customer_data)
         self.save(update_fields=["customer"])
+
+        # Add user as customer owner
+        self.customer.add_user(self.user, RoleEnum.CUSTOMER_OWNER)
 
         logger.info(
             "Customer (ID=%s) created from onboarding verification (UUID=%s)",
