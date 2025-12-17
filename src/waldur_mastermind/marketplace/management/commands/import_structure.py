@@ -485,13 +485,13 @@ class Command(BaseCommand):
                                 )
                             )
                         else:
+                            # Use existing user with same username but different UUID
+                            existing_user = username_conflict
                             self.stdout.write(
                                 self.style.WARNING(
-                                    f"Skipping user {uuid}: username '{username}' already exists with UUID {username_conflict.uuid}"
+                                    f"User {uuid}: username '{username}' already exists with UUID {username_conflict.uuid}, will update existing user"
                                 )
                             )
-                            self.stats["users"]["errors"] += 1
-                            continue
 
                 if existing_user:
                     if self.update_existing:
