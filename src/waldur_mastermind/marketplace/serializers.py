@@ -355,6 +355,11 @@ class AgentPluginOptionsSerializer(serializers.Serializer):
         default=None,
         allow_null=True,
     )
+    enable_display_of_order_actions_for_service_provider = serializers.BooleanField(
+        required=False,
+        help_text="Enable display of order actions for service provider",
+        default=True,
+    )
 
 
 class OfferingResourceDisplayOptionsSerializer(serializers.Serializer):
