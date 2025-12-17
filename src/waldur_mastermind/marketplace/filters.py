@@ -760,6 +760,9 @@ class OrderFilter(
     resource_uuid = django_filters.UUIDFilter(
         field_name="resource__uuid", label="Resource UUID"
     )
+    resource_name = django_filters.CharFilter(
+        field_name="resource__name", lookup_expr="exact", label="Resource name"
+    )
     can_approve_as_consumer = django_filters.BooleanFilter(
         method="filter_can_approve_as_consumer",
         label="Can approve as consumer",
