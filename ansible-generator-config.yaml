@@ -108,9 +108,9 @@ collections:
       - name: order
         plugin: crud
         base_operation_id: "marketplace_orders"
+        name_query_param: "resource_name"
         resolvers:
-          customer: "customers"
-          project: "projects"
+          <<: *project_context_resolver
           offering: "marketplace_public_offerings"
 
       - name: offering
