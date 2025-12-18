@@ -2146,8 +2146,6 @@ Number of seconds to cache token introspection results.
 
 **Type:** str
 
-**Default value:** roles
-
 Name of the claim that contains user roles.
 
 ### Onboarding settings
