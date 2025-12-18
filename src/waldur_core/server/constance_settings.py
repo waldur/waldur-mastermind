@@ -525,7 +525,7 @@ CONSTANCE_CONFIG = {
         "Deactivate user if all roles are revoked (except staff/support)",
     ),
     "WALDUR_AUTH_SOCIAL_ROLE_CLAIM": (
-        "roles",
+        "",
         "Name of the claim that contains user roles.",
     ),
     "MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES": (
