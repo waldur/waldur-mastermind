@@ -13,6 +13,22 @@ from . import models
 logger = logging.getLogger(__name__)
 
 
+VALID_LOCATION_IDS = (
+    "europe",
+    "uk",
+    "france",
+    "germany",
+    "switzerland",
+    "norway",
+    "sweden",
+    "poland",
+    "italy",
+    "spain",
+    "austria",
+    "belgium",
+)
+
+
 class AzureBackend(ServiceBackend):
     def __init__(self, settings):
         self.settings = settings
@@ -41,7 +57,9 @@ class AzureBackend(ServiceBackend):
         }
 
         backend_locations = {
-            location.name: location for location in self.client.list_locations()
+            location.name: location
+            for location in self.client.list_locations()
+            if any(valid_id in location.name for valid_id in VALID_LOCATION_IDS)
         }
 
         resource_group_locations = self.client.get_resource_group_locations()
@@ -143,10 +161,16 @@ class AzureBackend(ServiceBackend):
                     10,
                 )
             }
-        except HttpResponseError as e:
-            if e.error.code == "NoRegisteredProviderFound":
+        except (HttpResponseError, AzureBackendError) as e:
+            # Check for the specific provider error in the exception string representation
+            if "NoRegisteredProviderFound" in str(
+                e
+            ) or "No registered resource provider found" in str(e):
                 backend_images = {}
             else:
+                # If it's already an AzureBackendError, re-raise it; otherwise wrap it
+                if isinstance(e, AzureBackendError):
+                    raise
                 raise AzureBackendError(e)
 
         new_images = {
@@ -192,11 +216,19 @@ class AzureBackend(ServiceBackend):
                 size.name: size
                 for size in self.client.list_virtual_machine_sizes(location.backend_id)
             }
-        except HttpResponseError as e:
-            if e.error.code == "NoRegisteredProviderFound":
-                logger.warning("Unable to fetch sizes for Azure, %s", e)
+        except (HttpResponseError, AzureBackendError) as e:
+            if "NoRegisteredProviderFound" in str(
+                e
+            ) or "No registered resource provider found" in str(e):
+                logger.debug(
+                    "Unable to fetch sizes for Azure location '%s': %s",
+                    location.name,
+                    e,
+                )
                 return
             else:
+                if isinstance(e, AzureBackendError):
+                    raise
                 raise AzureBackendError(e)
 
         new_sizes = {
