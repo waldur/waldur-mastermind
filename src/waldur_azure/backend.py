@@ -577,7 +577,7 @@ class AzureBackend(ServiceBackend):
 
     def pull_virtual_machine(self, local_vm: models.VirtualMachine):
         backend_vm = self.client.get_virtual_machine(
-            local_vm.resource_group.name, local_vm.name
+            local_vm.resource_group.name, local_vm.name, expand="instanceView"
         )
         new_runtime_state = self.get_virtual_machine_runtime_state(backend_vm)
         if new_runtime_state != local_vm.runtime_state:

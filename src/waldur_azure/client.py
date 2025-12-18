@@ -231,10 +231,12 @@ class AzureClient:
         except (AzureError, HttpResponseError) as exc:
             raise AzureBackendError(exc)
 
-    def get_virtual_machine(self, resource_group_name, vm_name) -> VirtualMachine:
+    def get_virtual_machine(
+        self, resource_group_name, vm_name, expand=None
+    ) -> VirtualMachine:
         try:
             return self.compute_client.virtual_machines.get(
-                resource_group_name, vm_name
+                resource_group_name, vm_name, expand=expand
             )
         except (AzureError, HttpResponseError) as exc:
             raise AzureBackendError(exc)
