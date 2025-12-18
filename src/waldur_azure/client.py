@@ -489,7 +489,14 @@ class AzureClient:
     def create_public_ip(self, location, resource_group_name, public_ip_address_name):
         try:
             return self.network_client.public_ip_addresses.begin_create_or_update(
-                resource_group_name, public_ip_address_name, {"location": location}
+                resource_group_name,
+                public_ip_address_name,
+                {
+                    "location": location,
+                    "sku": {"name": "Standard"},
+                    "public_ip_allocation_method": "Static",
+                    "public_ip_address_version": "IPv4",
+                },
             )
         except (AzureError, HttpResponseError) as exc:
             raise AzureBackendError(exc)
