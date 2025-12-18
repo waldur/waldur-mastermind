@@ -483,6 +483,7 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         )
         self.assertEqual(User.objects.count(), 0)
 
+    @override_config(WALDUR_AUTH_SOCIAL_ROLE_CLAIM="roles")
     def test_user_assigned_roles_from_claims(self):
         user_info = {
             "sub": "test_role_user",
@@ -501,6 +502,7 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_support)
 
+    @override_config(WALDUR_AUTH_SOCIAL_ROLE_CLAIM="roles")
     def test_existing_user_assigned_roles_from_claims(self):
         user = structure_factories.UserFactory(is_staff=False, is_support=False)
         user_info = {
@@ -520,6 +522,7 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_support)
 
+    @override_config(WALDUR_AUTH_SOCIAL_ROLE_CLAIM="roles")
     def test_existing_user_roles_revoked(self):
         user = structure_factories.UserFactory(is_staff=True, is_support=True)
         user_info = {
@@ -558,6 +561,7 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_support)
 
+    @override_config(WALDUR_AUTH_SOCIAL_ROLE_CLAIM="roles")
     def test_invalid_role_claim_format(self):
         user_info = {
             "sub": "test_invalid_role",
@@ -603,3 +607,25 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         # Should remain False because processing was skipped
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_support)
+
+    @override_config(WALDUR_AUTH_SOCIAL_ROLE_CLAIM="roles")
+    def test_configured_role_claim_missing_from_response(self):
+        # User is staff initially
+        user = structure_factories.UserFactory(is_staff=True, is_support=True)
+        user_info = {
+            "sub": user.username,
+            "given_name": user.first_name,
+            "family_name": user.last_name,
+            "email": user.email,
+            # "roles" claim is MISSING
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user.refresh_from_db()
+        # Should remain True because processing was skipped (roles is None)
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_support)
