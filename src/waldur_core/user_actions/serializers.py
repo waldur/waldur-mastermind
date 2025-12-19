@@ -9,7 +9,6 @@ class CorrectiveActionSerializer(serializers.Serializer):
     """Serializer for corrective actions"""
 
     label = serializers.CharField()
-    url = serializers.URLField()
     category = serializers.ChoiceField(
         choices=[(c.value, c.value) for c in providers.ActionCategory]
     )
@@ -23,6 +22,10 @@ class CorrectiveActionSerializer(serializers.Serializer):
         child=serializers.CharField(), required=False, default=list
     )
     metadata = serializers.DictField(required=False, default=dict)
+
+    # Frontend routing support
+    route_name = serializers.CharField(required=False, allow_null=True)
+    route_params = serializers.DictField(required=False, default=dict)
 
 
 class UserActionSerializer(serializers.ModelSerializer):
@@ -44,8 +47,6 @@ class UserActionSerializer(serializers.ModelSerializer):
             "description",
             "urgency",
             "due_date",
-            "action_url",
-            "metadata",
             "is_silenced",
             "silenced_until",
             "is_temporarily_silenced",
@@ -56,6 +57,15 @@ class UserActionSerializer(serializers.ModelSerializer):
             "related_object_type",
             "corrective_actions",
             "days_until_due",
+            # New typed fields
+            "route_name",
+            "route_params",
+            "project_name",
+            "project_uuid",
+            "organization_name",
+            "organization_uuid",
+            "offering_name",
+            "offering_type",
         ]
         read_only_fields = [
             "uuid",
@@ -90,7 +100,6 @@ class UserActionSerializer(serializers.ModelSerializer):
         for action in actions:
             action_dict = {
                 "label": action.label,
-                "url": action.url,
                 "category": action.category.value,
                 "severity": action.severity.value,
                 "method": action.method,
@@ -98,6 +107,8 @@ class UserActionSerializer(serializers.ModelSerializer):
                 "confirmation_required": action.confirmation_required,
                 "permissions_required": action.permissions_required,
                 "metadata": action.metadata,
+                "route_name": action.route_name,
+                "route_params": action.route_params,
             }
             action_dicts.append(action_dict)
 

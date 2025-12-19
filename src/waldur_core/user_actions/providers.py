@@ -42,7 +42,6 @@ class CorrectiveAction:
     """Represents a corrective action a user can take"""
 
     label: str
-    url: str
     category: ActionCategory
     severity: ActionSeverity = ActionSeverity.SAFE
     method: str = "GET"  # HTTP method
@@ -50,6 +49,12 @@ class CorrectiveAction:
     confirmation_required: bool = False  # Whether to show confirmation
     permissions_required: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)  # Additional semantic data
+
+    # Frontend routing support
+    route_name: str = (
+        None  # UI-Router state name (e.g., 'marketplace-resource-details')
+    )
+    route_params: dict[str, Any] = field(default_factory=dict)  # Route parameters
 
 
 class BaseActionProvider(ABC):
@@ -92,9 +97,9 @@ class BaseActionProvider(ABC):
     def get_urgency(self, obj, days_remaining: int = None) -> str:
         """Determine urgency based on due date or other factors"""
         if days_remaining is not None:
-            if days_remaining <= 1:
+            if days_remaining <= 7:
                 return "high"
-            elif days_remaining <= 7:
+            elif days_remaining <= 14:
                 return "medium"
         return "low"
 

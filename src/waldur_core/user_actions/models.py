@@ -35,8 +35,24 @@ class UserAction(UuidMixin, TimeStampedModel):
 
     # Action metadata
     due_date = models.DateTimeField(null=True, blank=True)
-    action_url = models.URLField(blank=True)  # Link to relevant page
-    metadata = JSONField(default=dict, blank=True)  # Additional context
+
+    # Navigation context
+    route_name = models.CharField(
+        max_length=100, blank=True, help_text="UI-Router state name for navigation"
+    )
+    route_params = JSONField(
+        default=dict, blank=True, help_text="Parameters for route navigation"
+    )
+
+    # Organizational context
+    project_name = models.CharField(max_length=255, blank=True)
+    project_uuid = models.UUIDField(null=True, blank=True)
+    organization_name = models.CharField(max_length=255, blank=True)
+    organization_uuid = models.UUIDField(null=True, blank=True)
+
+    # Offering context
+    offering_name = models.CharField(max_length=255, blank=True)
+    offering_type = models.CharField(max_length=100, blank=True)
 
     # User interaction
     is_silenced = models.BooleanField(default=False)

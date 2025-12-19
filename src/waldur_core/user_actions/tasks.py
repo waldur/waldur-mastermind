@@ -109,7 +109,6 @@ def update_user_actions_for_provider(user_id, action_type):
             corrective_actions_data = [
                 {
                     "label": ca.label,
-                    "url": ca.url,
                     "category": ca.category.value,
                     "severity": ca.severity.value,
                     "method": ca.method,
@@ -117,6 +116,8 @@ def update_user_actions_for_provider(user_id, action_type):
                     "confirmation_required": ca.confirmation_required,
                     "permissions_required": ca.permissions_required,
                     "metadata": ca.metadata,
+                    "route_name": ca.route_name,
+                    "route_params": ca.route_params,
                 }
                 for ca in corrective_actions
             ]
