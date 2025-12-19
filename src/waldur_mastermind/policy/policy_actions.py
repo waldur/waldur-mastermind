@@ -192,7 +192,7 @@ def block_creation_of_new_resources(policy, created):
             scopes=[],
         )
         raise PolicyException(
-            f"Creation of new resources in this project is prohibited by policy {policy.uuid.hex}."
+            f"Creation of new resources in this project is prohibited by {policy}."
         )
 
 
@@ -209,7 +209,7 @@ def block_modification_of_existing_resources(policy, created):
             scopes=[],
         )
         raise PolicyException(
-            "Modification of new resources in this project is not available due to a policy."
+            f"Modification of new resources in this project is not available due to a {policy}."
         )
 
 
