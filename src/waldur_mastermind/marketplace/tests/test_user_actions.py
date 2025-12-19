@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework.test import APITransactionTestCase
 
-from waldur_core.core.utils import format_homeport_link
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.user_actions.providers import (
     ActionCategory,
@@ -25,6 +25,9 @@ class PendingOrderProviderTest(APITransactionTestCase):
 
     def test_get_actions_for_user_with_pending_order(self):
         """Test that pending orders are detected for project admins"""
+        # Add APPROVE_ORDER permission to admin role
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
+
         # Create an order that's been pending for 25 hours
         cutoff = timezone.now() - timedelta(hours=25)
         order = self.fixture.order
@@ -41,7 +44,7 @@ class PendingOrderProviderTest(APITransactionTestCase):
         action = actions[0]
         self.assertIn("Approve pending order", action["title"])
         self.assertIn(order.offering.name, action["title"])
-        self.assertEqual(action["urgency"], "medium")
+        self.assertEqual(action["urgency"], "high")
         self.assertEqual(action["related_object"], order)
         self.assertIn("1 days", action["description"])
 
@@ -73,6 +76,9 @@ class PendingOrderProviderTest(APITransactionTestCase):
 
     def test_get_corrective_actions_for_admin(self):
         """Test corrective actions are provided for project admin"""
+        # Add APPROVE_ORDER permission to admin role
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
+
         order = self.fixture.order
         self.fixture.project.add_user(self.fixture.user, ProjectRole.ADMIN)
 
@@ -88,10 +94,8 @@ class PendingOrderProviderTest(APITransactionTestCase):
         self.assertEqual(approve_action.severity, ActionSeverity.LOW)
         self.assertEqual(approve_action.method, "POST")
         self.assertTrue(approve_action.confirmation_required)
+        # For API actions, we just verify they're properly marked as API endpoints
         self.assertTrue(approve_action.api_endpoint)
-        self.assertIn(
-            f"/api/marketplace-orders/{order.uuid}/approve/", approve_action.url
-        )
 
         # Check view action
         view_action = next(
@@ -169,32 +173,31 @@ class MarketplaceUserActionsIntegrationTest(APITransactionTestCase):
         self.assertIn("pending_order", provider_types)
         self.assertIn("expiring_resource", provider_types)
 
-    def test_action_urls_are_correctly_formatted(self):
-        """Test that action URLs use proper formatting"""
+    def test_action_routing_is_correctly_configured(self):
+        """Test that actions have proper route configuration"""
+        # Add APPROVE_ORDER permission to admin role
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
+
         order = self.fixture.order
         self.fixture.project.add_user(self.fixture.user, ProjectRole.ADMIN)
 
         provider = PendingOrderProvider()
         actions = provider.get_corrective_actions(self.fixture.user, order)
 
-        # Check that view action uses homeport link format (for frontend)
+        # Check that view action uses proper route configuration (for frontend)
         view_action = next(
             (a for a in actions if a.category == ActionCategory.VIEW), None
         )
         self.assertIsNotNone(view_action)
-        expected_url = format_homeport_link(
-            "marketplace-order-details/{order_uuid}/",
-            project_uuid=order.project.uuid,
-            order_uuid=order.uuid,
-        )
-        self.assertEqual(view_action.url, expected_url)
+        self.assertEqual(view_action.route_name, "marketplace-order-details")
+        self.assertEqual(view_action.route_params["uuid"], str(order.uuid))
 
-        # Check that approve action uses API endpoint (for backend API calls) if user has permissions
+        # Check that approve action is properly configured for API calls if user has permissions
         approve_action = next(
             (a for a in actions if a.category == ActionCategory.APPROVE), None
         )
         if approve_action:
-            self.assertIn("/api/marketplace-orders/", approve_action.url)
-            self.assertIn("/approve/", approve_action.url)
             # Backend API actions should be marked as api_endpoint
             self.assertTrue(approve_action.api_endpoint)
+            self.assertEqual(approve_action.method, "POST")
+            self.assertTrue(approve_action.confirmation_required)

@@ -6,10 +6,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
-from waldur_core.core.utils import format_homeport_link
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
-from waldur_core.structure.models import Project
+from waldur_core.permissions.utils import has_permission
+from waldur_core.structure.models import Customer, Project
 from waldur_core.user_actions.providers import (
     ActionCategory,
     ActionSeverity,
@@ -34,13 +34,13 @@ class PendingOrderProvider(BaseActionProvider):
         """Find orders pending approval for more than 24 hours"""
         cutoff = timezone.now() - timedelta(hours=24)
 
-        # Find orders pending consumer approval where user has admin/manager role
+        # Find orders pending consumer approval where user has APPROVE_ORDER permission
         project_ct = ContentType.objects.get_for_model(Project)
         user_projects = UserRole.objects.filter(
             user=user,
             content_type=project_ct,
-            role__name__in=["PROJECT.ADMIN", "PROJECT.MANAGER"],
             is_active=True,
+            role__permissions__permission=PermissionEnum.APPROVE_ORDER,
         ).values_list("object_id", flat=True)
 
         orders = models.Order.objects.filter(
@@ -59,35 +59,36 @@ class PendingOrderProvider(BaseActionProvider):
             actions.append(
                 {
                     "title": f"Approve pending order: {order.offering.name}",
-                    "description": f"Order has been pending approval for {days_pending} days. "
-                    f"Customer: {order.project.customer.name}",
+                    "description": f"Order has been pending approval for {days_pending} days.",
                     "urgency": self.get_urgency(order, days_remaining=urgency_days),
-                    "due_date": order.created + timedelta(days=7),  # 7 day SLA
-                    "action_url": format_homeport_link(
-                        "marketplace-order-details/{order_uuid}/",
-                        project_uuid=order.project.uuid,
-                        order_uuid=order.uuid,
-                    ),
+                    "due_date": order.created + timedelta(days=7),
                     "related_object": order,
-                    "metadata": {
-                        "days_pending": days_pending,
-                        "customer_name": order.project.customer.name,
-                        "offering_type": order.offering.type,
-                        "estimated_cost": str(order.cost) if order.cost else None,
-                    },
+                    # Use specific typed fields instead of metadata
+                    "route_name": "marketplace-order-details",
+                    "route_params": {"uuid": str(order.uuid)},
+                    "project_name": order.project.name,
+                    "project_uuid": order.project.uuid,
+                    "organization_name": order.project.customer.name,
+                    "organization_uuid": order.project.customer.uuid,
+                    "offering_name": order.offering.name,
+                    "offering_type": order.offering.type,
                 }
             )
 
         return actions
 
     def get_affected_users(self) -> list[User]:
-        """Get users who can approve orders (have APPROVE_ORDER permission on projects)"""
+        """Get users who can approve orders (have APPROVE_ORDER permission on projects or customers)"""
         project_ct = ContentType.objects.get_for_model(Project)
+        customer_ct = ContentType.objects.get_for_model(Customer)
+
+        # Users with APPROVE_ORDER permission on projects or customers
         user_ids = UserRole.objects.filter(
-            content_type=project_ct,
+            content_type__in=[project_ct, customer_ct],
             is_active=True,
             role__permissions__permission=PermissionEnum.APPROVE_ORDER,
         ).values_list("user_id", flat=True)
+
         return User.objects.filter(id__in=user_ids).distinct()
 
     def get_corrective_actions(self, user: User, order) -> list[CorrectiveAction]:
@@ -98,13 +99,10 @@ class PendingOrderProvider(BaseActionProvider):
         actions.append(
             CorrectiveAction(
                 label="View Order Details",
-                url=format_homeport_link(
-                    "marketplace-order-details/{order_uuid}/",
-                    project_uuid=order.project.uuid,
-                    order_uuid=order.uuid,
-                ),
                 category=ActionCategory.VIEW,
                 severity=ActionSeverity.SAFE,
+                route_name="marketplace-order-details",
+                route_params={"uuid": str(order.uuid)},
             )
         )
 
@@ -113,7 +111,6 @@ class PendingOrderProvider(BaseActionProvider):
             actions.append(
                 CorrectiveAction(
                     label="Approve Order",
-                    url=f"/api/marketplace-orders/{order.uuid}/approve/",
                     method="POST",
                     category=ActionCategory.APPROVE,
                     severity=ActionSeverity.LOW,
@@ -133,14 +130,11 @@ class PendingOrderProvider(BaseActionProvider):
             actions.append(
                 CorrectiveAction(
                     label="Reject Order",
-                    url=format_homeport_link(
-                        "marketplace-order-details/{order_uuid}/?tab=reject",
-                        project_uuid=order.project.uuid,
-                        order_uuid=order.uuid,
-                    ),
                     category=ActionCategory.REJECT,
                     severity=ActionSeverity.HIGH,
                     confirmation_required=True,
+                    route_name="marketplace-order-details",
+                    route_params={"uuid": str(order.uuid), "tab": "reject"},
                     metadata={
                         "order_type": order.type,
                         "customer_contact": (
@@ -149,35 +143,12 @@ class PendingOrderProvider(BaseActionProvider):
                     },
                 )
             )
-
-        # Contact customer
-        if hasattr(order, "created_by") and order.created_by and order.created_by.email:
-            actions.append(
-                CorrectiveAction(
-                    label="Contact Customer",
-                    url=f"mailto:{order.created_by.email}?subject=Regarding Order {order.uuid}",
-                    category=ActionCategory.CONTACT,
-                    severity=ActionSeverity.SAFE,
-                    metadata={
-                        "contact_method": "email",
-                        "contact_address": order.created_by.email,
-                        "customer_name": order.created_by.get_full_name(),
-                    },
-                )
-            )
-
         return actions
 
     def _can_approve_order(self, user: User, order) -> bool:
         """Check if user can approve the order"""
-        # Check if user has admin or manager role on the project
-        return UserRole.objects.filter(
-            user=user,
-            content_type=ContentType.objects.get_for_model(Project),
-            object_id=order.project.id,
-            role__name__in=["PROJECT.ADMIN", "PROJECT.MANAGER"],
-            is_active=True,
-        ).exists()
+        # Check if user has APPROVE_ORDER permission on the project
+        return has_permission(user, PermissionEnum.APPROVE_ORDER, order.project)
 
     def _can_reject_order(self, user: User, order) -> bool:
         """Check if user can reject the order"""
@@ -190,6 +161,17 @@ class ExpiringResourceProvider(BaseActionProvider):
 
     action_type = "expiring_resource"
     display_name = "Expiring Resources"
+
+    def get_urgency(self, obj, days_remaining: int = None) -> str:
+        """Determine urgency based on days remaining until expiration"""
+        if days_remaining is not None:
+            if days_remaining < 7:
+                return "high"
+            elif days_remaining < 14:
+                return "medium"
+            elif days_remaining < 30:
+                return "low"
+        return "low"
 
     def get_actions_for_user(self, user: User) -> list[dict[str, Any]]:
         """Find resources expiring in the next 30 days"""
@@ -220,25 +202,29 @@ class ExpiringResourceProvider(BaseActionProvider):
                 end_datetime = timezone.make_aware(end_datetime)
             days_remaining = (end_datetime - timezone.now()).days
 
+            # Create timezone-aware due_date for the action
+            due_date_aware = timezone.make_aware(
+                timezone.datetime.combine(
+                    resource.end_date, timezone.datetime.min.time()
+                )
+            )
+
             actions.append(
                 {
                     "title": f"Resource expiring: {resource.name}",
-                    "description": f"Resource will expire in {days_remaining} days. "
-                    f"Project: {resource.project.name}",
+                    "description": f"Resource will expire in {days_remaining} days.",
                     "urgency": self.get_urgency(resource, days_remaining),
-                    "due_date": resource.end_date,
-                    "action_url": format_homeport_link(
-                        "marketplace-resource-details/{resource_uuid}/",
-                        project_uuid=resource.project.uuid,
-                        resource_uuid=resource.uuid,
-                    ),
+                    "due_date": due_date_aware,
                     "related_object": resource,
-                    "metadata": {
-                        "days_remaining": days_remaining,
-                        "project_name": resource.project.name,
-                        "offering_type": resource.offering.type,
-                        "plan_name": resource.plan.name if resource.plan else None,
-                    },
+                    # Use specific typed fields instead of metadata
+                    "route_name": "marketplace-resource-details",
+                    "route_params": {"resource_uuid": str(resource.uuid)},
+                    "project_name": resource.project.name,
+                    "project_uuid": resource.project.uuid,
+                    "organization_name": resource.project.customer.name,
+                    "organization_uuid": resource.project.customer.uuid,
+                    "offering_name": resource.offering.name,
+                    "offering_type": resource.offering.type,
                 }
             )
 
@@ -248,6 +234,7 @@ class ExpiringResourceProvider(BaseActionProvider):
         """Get users who have access to resources with end dates"""
         project_ct = ContentType.objects.get_for_model(Project)
         project_ids_with_expiring_resources = models.Resource.objects.filter(
+            state=models.ResourceStates.OK,
             end_date__isnull=False,
             end_date__gt=timezone.now(),
         ).values_list("project_id", flat=True)
@@ -272,13 +259,10 @@ class ExpiringResourceProvider(BaseActionProvider):
         actions.append(
             CorrectiveAction(
                 label="View Resource",
-                url=format_homeport_link(
-                    "marketplace-resource-details/{resource_uuid}/",
-                    project_uuid=resource.project.uuid,
-                    resource_uuid=resource.uuid,
-                ),
                 category=ActionCategory.VIEW,
                 severity=ActionSeverity.SAFE,
+                route_name="marketplace-resource-details",
+                route_params={"resource_uuid": str(resource.uuid)},
             )
         )
 

@@ -4,6 +4,7 @@ from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, filters, permissions, status, viewsets
+from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 
 from . import filters as user_action_filters
@@ -22,6 +23,7 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = user_action_filters.UserActionFilter
     ordering = ["-urgency", "due_date", "-created"]
     ordering_fields = ["urgency", "due_date", "created", "modified", "action_type"]
+    lookup_field = "uuid"
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -82,7 +84,16 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
     @decorators.action(detail=True, methods=["post"])
     def unsilence(self, request, uuid=None):
         """Remove silence from an action"""
-        action = self.get_object()
+        # Override get_object for unsilence to include silenced actions
+        try:
+            # Get the original queryset without silencing filters
+            full_queryset = models.UserAction.objects.select_related(
+                "content_type"
+            ).filter(user=self.request.user)
+            action = full_queryset.get(uuid=uuid)
+        except models.UserAction.DoesNotExist:
+            raise NotFound("Action not found")
+
         action.unsilence()
 
         logger.info(f"User {request.user.username} unsilenced action {action.uuid}")
@@ -210,14 +221,22 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
     def _execute_corrective_action(self, user, action, corrective_action):
         """Execute a corrective action"""
         if not corrective_action.api_endpoint:
-            # Return URL for frontend navigation
-            return {"action": "navigate", "url": corrective_action.url}
+            # Return route info for frontend navigation
+            return {
+                "action": "navigate",
+                "route_name": corrective_action.route_name,
+                "route_params": corrective_action.route_params,
+            }
 
         # Handle API endpoint execution
         if corrective_action.method in ["POST", "PUT", "PATCH"]:
             return self._execute_api_action(user, action, corrective_action)
 
-        return {"action": "navigate", "url": corrective_action.url}
+        return {
+            "action": "navigate",
+            "route_name": corrective_action.route_name,
+            "route_params": corrective_action.route_params,
+        }
 
     def _execute_api_action(self, user, action, corrective_action):
         """Execute an API-based corrective action"""
@@ -237,7 +256,8 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
             return {
                 "action": "completed",
                 "message": "Order approval initiated",
-                "redirect_url": corrective_action.url,
+                "route_name": corrective_action.route_name,
+                "route_params": corrective_action.route_params,
                 "metadata": {"order_uuid": str(order.uuid)},
             }
 
@@ -290,22 +310,22 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
     @extend_schema(
         request=serializers.UpdateActionsSerializer,
         responses={202: serializers.UpdateActionsResponseSerializer},
-        description="Trigger update of user actions (admin only)",
+        description="Trigger update of user actions",
     )
     @decorators.action(
         detail=False,
         methods=["post"],
-        permission_classes=[permissions.IsAuthenticated, permissions.IsAdminUser],
+        permission_classes=[permissions.IsAuthenticated],
     )
     def update_actions(self, request):
-        """Trigger update of user actions (admin only)"""
+        """Trigger update of user actions"""
         provider_action_type = request.data.get("provider_action_type")
 
         # Trigger the celery task
         tasks.update_user_actions.delay(provider_action_type=provider_action_type)
 
         logger.info(
-            f"Admin {request.user.username} triggered user actions update "
+            f"User {request.user.username} triggered user actions update "
             f"for provider: {provider_action_type or 'all'}"
         )
 
