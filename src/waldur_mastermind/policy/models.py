@@ -92,6 +92,9 @@ class Policy(
             if action.action_type == enums.PolicyActionTypes.IMMEDIATE
         ]
 
+    def __str__(self):
+        return f"policy for {self.scope.__class__.__name__} {getattr(self.scope, 'name')}. UUID: {self.scope.uuid.hex}."
+
     class Meta:
         abstract = True
 
