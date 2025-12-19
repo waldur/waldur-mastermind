@@ -9106,3 +9106,41 @@ class OfferingImportResponseSerializer(serializers.Serializer):
     import_timestamp = serializers.DateTimeField(
         help_text="Timestamp when the import was completed"
     )
+
+
+class ResourceProvisioningStatsSerializer(serializers.Serializer):
+    offering_uuid = serializers.UUIDField(
+        read_only=True, help_text="UUID of the offering"
+    )
+    offering_name = serializers.CharField(
+        read_only=True, help_text="Name of the offering"
+    )
+    service_provider_uuid = serializers.UUIDField(
+        read_only=True, help_text="UUID of the service provider"
+    )
+    service_provider_name = serializers.CharField(
+        read_only=True, help_text="Name of the service provider"
+    )
+    provisioning_count = serializers.IntegerField(
+        read_only=True, help_text="Total finished provisioning attempts (DONE + ERRED)"
+    )
+    provisioning_success_count = serializers.IntegerField(
+        read_only=True, help_text="Total successful provisioning attempts (DONE)"
+    )
+    provisioning_error_count = serializers.IntegerField(
+        read_only=True, help_text="Total failed provisioning attempts (ERRED)"
+    )
+    provisioning_in_progress_count = serializers.IntegerField(
+        read_only=True, help_text="Total currently in-progress provisioning attempts"
+    )
+    provisioning_success_rate = serializers.FloatField(
+        read_only=True, help_text="Rate of successful provisioning (0.0 to 1.0)"
+    )
+    avg_provisioning_duration = serializers.FloatField(
+        read_only=True,
+        help_text="Average duration in seconds from Executing to Terminal state",
+    )
+    avg_pending_duration = serializers.FloatField(
+        read_only=True,
+        help_text="Average duration in seconds from Creation to Executing state",
+    )
