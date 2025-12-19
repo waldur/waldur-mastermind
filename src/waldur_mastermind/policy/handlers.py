@@ -130,18 +130,42 @@ def get_estimated_cost_policy_handler_for_observable_class(klass, observable_cla
         if not isinstance(instance, observable_class):
             return
 
+        logger.info(
+            "Estimated cost policy handler called for %s instance (created=%s).",
+            sender.__name__,
+            created,
+        )
+
         observable_object = instance
 
         if getattr(observable_object, "is_mocked", False):
+            logger.debug(
+                "Skipping policy handler for mocked %s instance.",
+                observable_object.__class__.__name__,
+            )
             return
 
         policies = klass.objects.filter(
             scope=klass.get_scope_from_observable_object(observable_object)
         )
 
+        logger.info(
+            "Estimated cost policy handler triggered for %s (created=%s). Found %d policies.",
+            observable_object.__class__.__name__,
+            created,
+            policies.count(),
+        )
+
         for policy in policies:
             if policy.get_threshold_actions() and policy.has_fired:
-                for action in policy.get_threshold_actions():
+                threshold_actions = policy.get_threshold_actions()
+                logger.info(
+                    "Processing policy %s (UUID: %s). Found %d threshold actions.",
+                    policy.scope.name,
+                    policy.uuid.hex,
+                    len(threshold_actions),
+                )
+                for action in threshold_actions:
                     if action.ignored_fields and hasattr(observable_object, "tracker"):
                         if not set(observable_object.tracker.changed()) - set(
                             action.ignored_fields
