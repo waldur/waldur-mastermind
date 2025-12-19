@@ -1,3 +1,5 @@
+import datetime
+
 from constance.test.unittest import override_config as override_constance_config
 from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
@@ -1084,3 +1086,89 @@ class OfferingStatsCounterTest(test.APITransactionTestCase):
             provider3_category3_stats,
             f"Expected no stats for provider {provider3.name} and category {category3.title}, but found some",
         )
+
+
+class CountResourceProvisioningStatsTest(StatsBaseTest):
+    def setUp(self):
+        super().setUp()
+        self.url = "/api/marketplace-stats/resource_provisioning_stats/"
+
+    def test_stats_aggregation(self):
+        # Create completed order
+        order = factories.OrderFactory(
+            offering=self.offering,
+            state=OrderStates.DONE,
+            type=OrderTypes.CREATE,
+            created=timezone.now() - datetime.timedelta(minutes=30),
+            completed_at=timezone.now() - datetime.timedelta(minutes=10),
+        )
+
+        # Mock event for execution start (20 mins ago)
+        from waldur_core.logging import models as logging_models
+        from waldur_core.logging.enums import EventType
+
+        ct = ContentType.objects.get_for_model(order)
+        event = logging_models.Event.objects.create(
+            event_type=EventType.MARKETPLACE_ORDER_APPROVED,
+            message="Order approved",
+            created=timezone.now() - datetime.timedelta(minutes=20),
+            context={},
+        )
+        logging_models.Feed.objects.create(
+            content_type=ct, object_id=order.id, event=event
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        data = response.data[0]
+        self.assertEqual(data["provisioning_count"], 1)
+        self.assertEqual(data["provisioning_success_count"], 1)
+        self.assertEqual(data["provisioning_error_count"], 0)
+        self.assertEqual(data["provisioning_success_rate"], 1.0)
+
+        # Pending: 30m ago created, 20m ago approved -> 10m (600s)
+        # Provisioning: 20m ago approved, 10m ago completed -> 10m (600s)
+        self.assertAlmostEqual(data["avg_pending_duration"], 600, delta=10)
+        self.assertAlmostEqual(data["avg_provisioning_duration"], 600, delta=10)
+
+    def test_failed_order(self):
+        # Create failed order
+        factories.OrderFactory(
+            offering=self.offering,
+            state=OrderStates.ERRED,
+            type=OrderTypes.CREATE,
+            created=timezone.now() - datetime.timedelta(minutes=30),
+            completed_at=timezone.now(),
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data[0]
+        self.assertEqual(data["provisioning_count"], 1)
+        self.assertEqual(data["provisioning_success_count"], 0)
+        self.assertEqual(data["provisioning_error_count"], 1)
+        self.assertEqual(data["provisioning_success_rate"], 0.0)
+
+    def test_invalid_param(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"last_minutes": "invalid"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_in_progress_order(self):
+        factories.OrderFactory(
+            offering=self.offering,
+            state=OrderStates.EXECUTING,
+            type=OrderTypes.CREATE,
+            created=timezone.now() - datetime.timedelta(minutes=5),
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # We expect one entry now because in-progress order creates an entry
+        self.assertEqual(len(response.data), 1)
+        data = response.data[0]
+        self.assertEqual(data["provisioning_count"], 0)
+        self.assertEqual(data["provisioning_in_progress_count"], 1)

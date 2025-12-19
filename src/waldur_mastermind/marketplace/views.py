@@ -76,6 +76,7 @@ from waldur_core.core.utils import (
     order_with_nulls,
 )
 from waldur_core.logging import event_logger
+from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.filters import UserPermissionFilter
@@ -8598,6 +8599,127 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             {"usages": data},
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        description="Get resource provisioning statistics.",
+        parameters=[
+            OpenApiParameter(
+                name="last_minutes",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Filter by last N minutes. Default is 60.",
+            ),
+        ],
+        responses=serializers.ResourceProvisioningStatsSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def resource_provisioning_stats(self, request, *args, **kwargs):
+        try:
+            last_minutes = int(request.query_params.get("last_minutes", 60))
+        except ValueError:
+            raise rf_exceptions.ValidationError("last_minutes must be an integer.")
+        cutoff = timezone.now() - datetime.timedelta(minutes=last_minutes)
+
+        # Get completed orders in the time window
+        completed_orders = models.Order.objects.filter(
+            type=OrderTypes.CREATE,
+            state__in=(OrderStates.DONE, OrderStates.ERRED),
+            completed_at__gte=cutoff,
+        ).select_related("offering", "offering__customer")
+
+        # Get in-progress orders (no time filter, or maybe apply cutoff to created?)
+        # For "in progress count", we usually want current snapshot.
+        in_progress_orders = models.Order.objects.filter(
+            type=OrderTypes.CREATE,
+            state__in=models.OrderStates.PENDING_STATES,
+        ).select_related("offering", "offering__customer")
+
+        stats = {}
+
+        # Process completed orders
+        completed_order_ids = [order.id for order in completed_orders]
+        order_ct = ContentType.objects.get_for_model(models.Order)
+
+        feeds = logging_models.Feed.objects.filter(
+            content_type=order_ct,
+            object_id__in=completed_order_ids,
+            event__event_type=EventType.MARKETPLACE_ORDER_APPROVED,
+        ).select_related("event")
+
+        order_executing_starts = {feed.object_id: feed.event.created for feed in feeds}
+
+        def get_or_create_entry(offering):
+            if offering.uuid not in stats:
+                stats[offering.uuid] = {
+                    "offering_uuid": offering.uuid,
+                    "offering_name": offering.name,
+                    "service_provider_uuid": offering.customer.uuid,
+                    "service_provider_name": offering.customer.name,
+                    "provisioning_count": 0,
+                    "provisioning_success_count": 0,
+                    "provisioning_error_count": 0,
+                    "provisioning_in_progress_count": 0,
+                    "total_provisioning_duration": 0.0,
+                    "total_pending_duration": 0.0,
+                    "duration_count": 0,
+                }
+            return stats[offering.uuid]
+
+        for order in completed_orders:
+            entry = get_or_create_entry(order.offering)
+            entry["provisioning_count"] += 1
+            if order.state == OrderStates.DONE:
+                entry["provisioning_success_count"] += 1
+            else:
+                entry["provisioning_error_count"] += 1
+
+            start_executing = order_executing_starts.get(order.id)
+            if not start_executing:
+                if not order.consumer_reviewed_at and not order.provider_reviewed_at:
+                    start_executing = order.created
+                else:
+                    start_executing = (
+                        order.provider_reviewed_at
+                        or order.consumer_reviewed_at
+                        or order.created
+                    )
+
+            if start_executing:
+                pending_duration = (start_executing - order.created).total_seconds()
+                completed_at = order.completed_at or timezone.now()
+                provisioning_duration = (completed_at - start_executing).total_seconds()
+
+                entry["total_pending_duration"] += max(0, pending_duration)
+                entry["total_provisioning_duration"] += max(0, provisioning_duration)
+                entry["duration_count"] += 1
+
+        # Process in-progress orders
+        for order in in_progress_orders:
+            entry = get_or_create_entry(order.offering)
+            entry["provisioning_in_progress_count"] += 1
+
+        results = []
+        for entry in stats.values():
+            count = entry["duration_count"]
+            entry["avg_provisioning_duration"] = (
+                entry["total_provisioning_duration"] / count if count else 0
+            )
+            entry["avg_pending_duration"] = (
+                entry["total_pending_duration"] / count if count else 0
+            )
+            entry["provisioning_success_rate"] = (
+                entry["provisioning_success_count"] / entry["provisioning_count"]
+                if entry["provisioning_count"]
+                else 0
+            )
+
+            entry.pop("total_provisioning_duration")
+            entry.pop("total_pending_duration")
+            entry.pop("duration_count")
+            results.append(entry)
+
+        serializer = serializers.ResourceProvisioningStatsSerializer(results, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def _projects_limits_grouped_by_field(self, field_name):
         results = {}
