@@ -93,7 +93,7 @@ class Policy(
         ]
 
     def __str__(self):
-        return f"policy for {self.scope.__class__.__name__} {getattr(self.scope, 'name')}. UUID: {self.scope.uuid.hex}."
+        return f"{self.__class__.__name__} for {self.scope.__class__.__name__} {getattr(self.scope, 'name')}. UUID: {self.scope.uuid.hex}."
 
     class Meta:
         abstract = True
@@ -135,6 +135,9 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
 
         total = sum([i.total for i in invoice_items])
         return total - compensation > self.limit_cost
+
+    def __str__(self):
+        return super().__str__() + f" Limit cost: {self.limit_cost}"
 
     class Meta:
         abstract = True
