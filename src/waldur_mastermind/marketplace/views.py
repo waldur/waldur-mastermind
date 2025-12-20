@@ -15,10 +15,12 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import connection, transaction
 from django.db.models import (
+    CharField,
     Count,
     Exists,
     ExpressionWrapper,
     F,
+    Func,
     OuterRef,
     PositiveSmallIntegerField,
     Prefetch,
@@ -114,6 +116,7 @@ from waldur_core.structure.managers import (
 )
 from waldur_core.structure.registry import SupportedServices
 from waldur_core.structure.signals import resource_imported
+from waldur_core.structure.utils import get_identity_provider_name
 from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
@@ -8599,6 +8602,85 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             {"usages": data},
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        description="Return user count grouped by authentication method.",
+        responses=serializers.UserAuthMethodCountSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def user_auth_method_count(self, request, *args, **kwargs):
+        users = (
+            core_models.User.objects.all()
+            .values("registration_method")
+            .annotate(count=Count("id"))
+        )
+        data = []
+        for user in users:
+            method = user["registration_method"]
+            label = get_identity_provider_name(method)
+            data.append({"method": label, "count": user["count"]})
+
+        return Response(data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Return user count grouped by identity source.",
+        responses=serializers.UserIdentitySourceCountSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def user_identity_source_count(self, request, *args, **kwargs):
+        users = (
+            core_models.User.objects.all()
+            .values("identity_source")
+            .annotate(count=Count("id"))
+        )
+        data = [
+            {"identity_source": user["identity_source"], "count": user["count"]}
+            for user in users
+        ]
+        return Response(data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Return user count grouped by organization.",
+        responses=serializers.UserOrganizationCountSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def user_organization_count(self, request, *args, **kwargs):
+        users = (
+            core_models.User.objects.exclude(organization="")
+            .values("organization")
+            .annotate(count=Count("id"))
+        )
+        data = [
+            {"organization": user["organization"], "count": user["count"]}
+            for user in users
+        ]
+        return Response(data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Return user count grouped by affiliation.",
+        responses=serializers.UserAffiliationCountSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def user_affiliation_count(self, request, *args, **kwargs):
+        class JsonbArrayElementsText(Func):
+            """
+            Custom function to call PostgreSQL jsonb_array_elements_text
+            """
+
+            function = "jsonb_array_elements_text"
+            output_field = CharField()
+
+        query_set = (
+            core_models.User.objects.annotate(
+                affiliation=JsonbArrayElementsText(
+                    F("affiliations"), output_field=CharField()
+                )
+            )
+            .values("affiliation")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+        return Response(query_set, status=status.HTTP_200_OK)
 
     @extend_schema(
         description="Get resource provisioning statistics.",

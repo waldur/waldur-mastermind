@@ -1172,3 +1172,41 @@ class CountResourceProvisioningStatsTest(StatsBaseTest):
         data = response.data[0]
         self.assertEqual(data["provisioning_count"], 0)
         self.assertEqual(data["provisioning_in_progress_count"], 1)
+
+
+@ddt
+class CountUserIdentitySourceStatsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = "/api/marketplace-stats/user_identity_source_count/"
+        # Create users with different identity sources
+        structure_factories.UserFactory(identity_source="google")
+        structure_factories.UserFactory(identity_source="google")
+        structure_factories.UserFactory(
+            identity_source="keycloak", registration_method="saml2"
+        )
+        structure_factories.UserFactory(identity_source="")
+
+    @data("staff", "global_support")
+    def test_user_can_get_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check expected counts
+        def get_count(source):
+            for item in response.data:
+                if item["identity_source"] == source:
+                    return item["count"]
+            return 0
+
+        self.assertEqual(get_count("google"), 2)
+        self.assertEqual(get_count("keycloak"), 1)
+
+    @data("owner", "customer_support", "admin", "manager")
+    def test_user_cannot_get_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
