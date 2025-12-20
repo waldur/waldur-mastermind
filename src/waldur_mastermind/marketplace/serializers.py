@@ -2079,6 +2079,26 @@ class ExportImportPlanComponentSerializer(serializers.ModelSerializer):
         )
 
 
+class UserAuthMethodCountSerializer(serializers.Serializer):
+    method = serializers.CharField(help_text="Authentication method")
+    count = serializers.IntegerField(help_text="Number of users")
+
+
+class UserIdentitySourceCountSerializer(serializers.Serializer):
+    identity_source = serializers.CharField(help_text="Identity source")
+    count = serializers.IntegerField(help_text="Number of users")
+
+
+class UserOrganizationCountSerializer(serializers.Serializer):
+    organization = serializers.CharField(help_text="Organization name")
+    count = serializers.IntegerField(help_text="Number of users")
+
+
+class UserAffiliationCountSerializer(serializers.Serializer):
+    affiliation = serializers.CharField(help_text="Affiliation name")
+    count = serializers.IntegerField(help_text="Number of users")
+
+
 class ExportImportPlanSerializer(serializers.ModelSerializer):
     """Serializer for export and import of plan from/to an exported offering.
     This serializer differs from PlanDetailsSerializer in methods and fields."""
