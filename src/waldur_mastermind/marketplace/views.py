@@ -8875,7 +8875,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
                 invoice__created__lte=end,
             )
             .exclude(resource__offering__isnull=True)
-            .values("resource__offering__uuid")
+            .values("resource__offering__uuid", "resource__offering__name")
             .annotate(
                 cost=Sum(
                     (Ceil(F("quantity") * F("unit_price") * 100) / 100),
