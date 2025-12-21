@@ -15,6 +15,8 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
+    IntegrationStatusAgentTypes,
+    IntegrationStatusStates,
     OfferingUserStates,
     ResourceStates,
 )
@@ -286,8 +288,8 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
             0,
             marketplace_models.IntegrationStatus.objects.filter(
                 offering=self.fixture.offering,
-                agent_type=marketplace_models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
-                status=marketplace_models.IntegrationStatus.States.ACTIVE,
+                agent_type=IntegrationStatusAgentTypes.GLAUTH_SYNC,
+                status=IntegrationStatusStates.ACTIVE,
             ).count(),
         )
         response = self.client.get(self.fixture.url)
@@ -332,14 +334,14 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
             1,
             marketplace_models.IntegrationStatus.objects.filter(
                 offering=self.fixture.offering,
-                agent_type=marketplace_models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
-                status=marketplace_models.IntegrationStatus.States.ACTIVE,
+                agent_type=IntegrationStatusAgentTypes.GLAUTH_SYNC,
+                status=IntegrationStatusStates.ACTIVE,
             ).count(),
         )
         integration_status = marketplace_models.IntegrationStatus.objects.get(
             offering=self.fixture.offering,
-            agent_type=marketplace_models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
-            status=marketplace_models.IntegrationStatus.States.ACTIVE,
+            agent_type=IntegrationStatusAgentTypes.GLAUTH_SYNC,
+            status=IntegrationStatusStates.ACTIVE,
         )
         self.assertIsNotNone(integration_status.last_request_timestamp)
 

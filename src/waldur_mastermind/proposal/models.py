@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Literal, cast
+from typing import cast
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -27,9 +27,13 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.models import SafeAttributesMixin
 from waldur_mastermind.proposal.enums import (
+    AllocationStrategy,
+    AllocationTime,
     CallStates,
     ProposalStates,
     RequestedOfferingStates,
+    ReviewState,
+    ReviewStrategy,
     RoundStatuses,
 )
 
@@ -105,9 +109,6 @@ class Call(
 ):
     """Main entity representing calls for proposals with states (draft, active, archived). Contains configuration for reviewer visibility, review settings, and fixed duration parameters."""
 
-    class States(CallStates):
-        pass
-
     manager = models.ForeignKey(CallManagingOrganisation, on_delete=models.PROTECT)
     created_by = models.ForeignKey(
         core_models.User,
@@ -116,8 +117,8 @@ class Call(
         related_name="+",
     )
     state = models.CharField(
-        default=States.DRAFT,
-        choices=States.CHOICES,
+        default=CallStates.DRAFT,
+        choices=CallStates.choices,
         db_index=True,
         max_length=10,
     )
@@ -247,9 +248,6 @@ class RequestedOffering(
     class Permissions:
         customer_path = "offering__customer"
 
-    class States(RequestedOfferingStates):
-        pass
-
     approved_by = models.ForeignKey(
         core_models.User,
         on_delete=models.SET_NULL,
@@ -264,8 +262,8 @@ class RequestedOffering(
         related_name="+",
     )
     state = models.CharField(
-        default=States.REQUESTED,
-        choices=States.CHOICES,
+        default=RequestedOfferingStates.REQUESTED,
+        choices=RequestedOfferingStates.choices,
         db_index=True,
         max_length=10,
     )
@@ -334,51 +332,21 @@ class Round(
 ):
     """Time-bounded submission periods within calls, with configurable review strategies, allocation strategies, and scoring thresholds."""
 
-    class ReviewStrategies:
-        AFTER_ROUND = "after_round"
-        AFTER_PROPOSAL = "after_proposal"
-
-        CHOICES = (
-            (AFTER_ROUND, "After round is closed"),
-            (AFTER_PROPOSAL, "After proposal submission"),
-        )
-
-    class AllocationStrategies:
-        BY_CALL_MANAGER = "by_call_manager"
-        AUTOMATIC = "automatic"
-
-        CHOICES = (
-            (BY_CALL_MANAGER, "By call manager"),
-            (AUTOMATIC, "Automatic based on review scoring"),
-        )
-
-    class AllocationTimes:
-        ON_DECISION = "on_decision"
-        FIXED_DATE = "fixed_date"
-
-        CHOICES = (
-            (ON_DECISION, "On decision"),
-            (FIXED_DATE, "Fixed date"),
-        )
-
-    class Statuses(RoundStatuses):
-        pass
-
     review_strategy = models.CharField(
-        default=ReviewStrategies.AFTER_ROUND,
-        choices=ReviewStrategies.CHOICES,
+        default=ReviewStrategy.AFTER_ROUND,
+        choices=ReviewStrategy.choices,
         db_index=True,
         max_length=15,
     )
     deciding_entity = models.CharField(
-        default=AllocationStrategies.AUTOMATIC,
-        choices=AllocationStrategies.CHOICES,
+        default=AllocationStrategy.AUTOMATIC,
+        choices=AllocationStrategy.choices,
         db_index=True,
         max_length=15,
     )
     allocation_time = models.CharField(
-        default=AllocationTimes.ON_DECISION,
-        choices=AllocationTimes.CHOICES,
+        default=AllocationTime.ON_DECISION,
+        choices=AllocationTime.choices,
         db_index=True,
         max_length=15,
     )
@@ -410,15 +378,15 @@ class Round(
         return f"Round {self.start_time.strftime('%d.%m.%Y')}-{self.cutoff_time.strftime('%d.%m.%Y')}"
 
     @property
-    def status(self) -> Literal["scheduled", "open", "ended"]:
+    def status(self) -> RoundStatuses:
         now = timezone.now()
 
         if self.start_time > now:
-            return self.Statuses.SCHEDULED
+            return RoundStatuses.SCHEDULED
         elif self.cutoff_time < now:
-            return self.Statuses.ENDED
+            return RoundStatuses.ENDED
         else:
-            return self.Statuses.OPEN
+            return RoundStatuses.OPEN
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -481,13 +449,10 @@ class Proposal(
 ):
     """Individual proposals submitted to rounds with states (draft, submitted, in_review, accepted, rejected, canceled). Links to Waldur projects and contains detailed project information."""
 
-    class States(ProposalStates):
-        pass
-
     round = models.ForeignKey(Round, on_delete=models.CASCADE)
     state = models.CharField(
-        default=States.DRAFT,
-        choices=States.CHOICES,
+        default=ProposalStates.DRAFT,
+        choices=ProposalStates.choices,
         db_index=True,
         max_length=10,
     )
@@ -649,26 +614,13 @@ class Review(
 ):
     """Peer review system with detailed scoring, public/private comments, and field-specific feedback for all proposal aspects."""
 
-    class States:
-        CREATED = "created"
-        IN_REVIEW = "in_review"
-        SUBMITTED = "submitted"
-        REJECTED = "rejected"
-
-        CHOICES = (
-            (CREATED, "Created"),
-            (IN_REVIEW, "In review"),
-            (SUBMITTED, "Submitted"),
-            (REJECTED, "Rejected"),
-        )
-
     class Permissions:
         customer_path = "proposal__round__call__manager__customer"
 
     proposal = models.ForeignKey(Proposal, on_delete=models.PROTECT)
     state = models.CharField(
-        default=States.CREATED,
-        choices=States.CHOICES,
+        default=ReviewState.CREATED,
+        choices=ReviewState.choices,
         db_index=True,
         max_length=10,
     )

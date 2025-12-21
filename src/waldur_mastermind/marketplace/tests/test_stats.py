@@ -12,7 +12,7 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.quotas.tests import factories as quotas_factories
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.common.utils import parse_date, parse_datetime
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
@@ -179,7 +179,7 @@ class CostsStatsTest(StatsBaseTest):
 
         self.plan = factories.PlanFactory(
             offering=self.offering,
-            unit=UnitPriceMixin.Units.PER_DAY,
+            unit=Units.PER_DAY,
         )
         self.plan_component = factories.PlanComponentFactory(
             plan=self.plan, component=self.offering_component, amount=10
@@ -247,7 +247,7 @@ class ComponentStatsTest(StatsBaseTest):
 
         self.plan = factories.PlanFactory(
             offering=self.offering,
-            unit=UnitPriceMixin.Units.PER_DAY,
+            unit=Units.PER_DAY,
         )
         self.plan_component = factories.PlanComponentFactory(
             plan=self.plan, component=self.offering_component, amount=10

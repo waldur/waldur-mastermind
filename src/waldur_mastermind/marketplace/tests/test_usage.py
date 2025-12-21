@@ -11,7 +11,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import callbacks, models
@@ -75,9 +75,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.service_provider = factories.ServiceProviderFactory()
         self.secret_code = self.service_provider.api_secret_code
         self.offering = factories.OfferingFactory(customer=self.fixture.customer)
-        self.plan = factories.PlanFactory(
-            unit=UnitPriceMixin.Units.PER_DAY, offering=self.offering
-        )
+        self.plan = factories.PlanFactory(unit=Units.PER_DAY, offering=self.offering)
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.offering,
             billing_type=BillingTypes.USAGE,

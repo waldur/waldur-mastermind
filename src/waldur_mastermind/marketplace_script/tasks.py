@@ -13,6 +13,7 @@ from waldur_mastermind.marketplace import serializers as marketplace_serializer
 from waldur_mastermind.marketplace.enums import SCRIPT_OFFERING, ResourceStates
 from waldur_mastermind.marketplace_script import models as marketplace_script_models
 from waldur_mastermind.marketplace_script import serializers, utils
+from waldur_mastermind.marketplace_script.enums import DryRunStates
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ def dry_run_executor(dry_run_id):
 def remove_old_dry_runs():
     """Remove old dry run records that are older than one day."""
     marketplace_script_models.DryRun.objects.filter(
-        state=marketplace_script_models.DryRun.States.DONE,
+        state=DryRunStates.DONE,
         created__lt=timezone.now() - timezone.timedelta(days=1),
     ).delete()
 

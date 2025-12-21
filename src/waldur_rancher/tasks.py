@@ -236,15 +236,15 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         pull_cluster_nodes(node.cluster_id)
         node.refresh_from_db()
 
-        if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
+        if node.runtime_state == enums.NodeRuntimeStates.ACTIVE:
             # We don't need to change the node state here as it will be done
             # in an executor.
             return
         elif (
             node.runtime_state
             in [
-                models.Node.RuntimeStates.REGISTERING,
-                models.Node.RuntimeStates.UNAVAILABLE,
+                enums.NodeRuntimeStates.REGISTERING,
+                enums.NodeRuntimeStates.UNAVAILABLE,
             ]
             or not node.runtime_state
         ):
@@ -502,7 +502,7 @@ def sync_keycloak_users():
 def sync_rancher_roles():
     """Synchronize Rancher roles with local role templates for clusters and projects."""
 
-    def create_role(remote_role, scope_type, settings):
+    def create_role(remote_role, scope_type: enums.RoleScopeType, settings):
         logger.info(
             "Creating new %s role %s for Rancher %s",
             scope_type,
@@ -519,7 +519,7 @@ def sync_rancher_roles():
 
     def sync_roles(
         remote_roles_all: list[dict],
-        scope_type: enums.CatalogScopeType,
+        scope_type: enums.RoleScopeType,
         settings: structure_models.ServiceSettings,
     ):
         # Collecting roles

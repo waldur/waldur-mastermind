@@ -26,10 +26,12 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_TYPE,
 )
 from waldur_mastermind.marketplace_rancher.const import DEPLOYMENT_MODE_MANAGED
-from waldur_mastermind.marketplace_rancher.processors import RancherCreateProcessor
+from waldur_mastermind.marketplace_rancher.processors import (
+    NodeRole,
+    RancherCreateProcessor,
+)
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests import fixtures as openstack_fixtures
-from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE
 from waldur_rancher.tests import factories as rancher_factories
 
 
@@ -870,7 +872,7 @@ class ManagedRancherIntegrationTest(test.APITransactionTestCase):
                 self.assertEqual(mock_submit.call_count, 1)
 
             # Test format_node method
-            node_data = processor.format_node(role=SERVER_ROLE, tenant=mock_tenant)
+            node_data = processor.format_node(role=NodeRole.SERVER, tenant=mock_tenant)
             self.assertIn("flavor", node_data)
             self.assertIn("subnet", node_data)
             self.assertIn("system_volume_size", node_data)
@@ -1021,7 +1023,7 @@ class ManagedRancherStorageIntegrationTest(test.APITransactionTestCase):
         openstack_factories.SubNetFactory(tenant=mock_tenant, cidr="192.168.1.0/24")
 
         # Test format_node for worker node - this is where MB values are passed to OpenStack
-        node_data = processor.format_node(role=AGENT_ROLE, tenant=mock_tenant)
+        node_data = processor.format_node(role=NodeRole.AGENT, tenant=mock_tenant)
 
         # Verify the storage values passed to OpenStack are in MB (unchanged from input)
         self.assertEqual(
@@ -1102,7 +1104,7 @@ class ManagedRancherStorageIntegrationTest(test.APITransactionTestCase):
         )
         openstack_factories.SubNetFactory(tenant=mock_tenant, cidr="192.168.1.0/24")
 
-        node_data = processor.format_node(role=AGENT_ROLE, tenant=mock_tenant)
+        node_data = processor.format_node(role=NodeRole.AGENT, tenant=mock_tenant)
 
         # Verify data volumes are in MB (OpenStack expects MB)
         data_volume = node_data["data_volumes"][0]  # Worker data volume

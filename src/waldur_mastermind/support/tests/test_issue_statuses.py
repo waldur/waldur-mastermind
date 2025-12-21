@@ -18,8 +18,6 @@ class IssueStatusTest(base.BaseTest):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["name"], "Resolved")
-        self.assertEqual(response.data["type"], models.IssueStatus.Types.RESOLVED)
-        self.assertEqual(response.data["type_display"], "Resolved")
 
     def test_support_cannot_view_issue_status(self):
         self.client.force_authenticate(self.fixture.global_support)

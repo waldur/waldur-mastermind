@@ -2,9 +2,11 @@ from collections import defaultdict
 from typing import cast
 
 from django.db import transaction
+from drf_spectacular.utils import extend_schema_field
 from netaddr import IPNetwork
 from rest_framework import serializers
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.utils import pwgen
 from waldur_core.core.validators import validate_name
 from waldur_core.structure.managers import filter_queryset_for_user
@@ -87,7 +89,7 @@ class MigrationDetailsSerializer(serializers.ModelSerializer):
         )
 
     mappings = MappingSerializer()
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.SerializerMethodField()
 
     created_by_uuid = serializers.UUIDField(read_only=True, source="created_by.uuid")
     created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
@@ -109,9 +111,19 @@ class MigrationDetailsSerializer(serializers.ModelSerializer):
         read_only=True, source="dst_resource.uuid"
     )
     dst_resource_name = serializers.ReadOnlyField(source="dst_resource.name")
-    dst_resource_state = serializers.ReadOnlyField(
-        source="dst_resource.get_state_display"
+    dst_resource_state = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ChoiceField(choices=CoreStates.labels))
+    def get_state(self, migration):
+        return migration.get_state_display()
+
+    @extend_schema_field(
+        serializers.ChoiceField(choices=CoreStates.labels, allow_null=True)
     )
+    def get_dst_resource_state(self, migration):
+        if migration.dst_resource:
+            return migration.dst_resource.get_state_display()
+        return None
 
 
 class MigrationCreateSerializer(serializers.ModelSerializer):

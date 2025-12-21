@@ -10,6 +10,7 @@ from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.promotions import models
+from waldur_mastermind.promotions.enums import CampaignState
 
 
 class CampaignOfferingSerializer(serializers.ModelSerializer):
@@ -36,7 +37,11 @@ class CampaignSerializer(
         required=False,
     )
 
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ChoiceField(choices=CampaignState.labels))
+    def get_state(self, campaign):
+        return campaign.get_state_display()
 
     def get_fields(self):
         fields = super(core_serializers.AugmentedSerializerMixin, self).get_fields()
@@ -52,7 +57,7 @@ class CampaignSerializer(
             return fields
 
         if method in ("PUT", "PATCH"):
-            if not self.instance or self.instance.state != models.Campaign.States.DRAFT:
+            if not self.instance or self.instance.state != CampaignState.DRAFT:
                 protected_fields += (
                     self.Meta.protected_fields_if_campaign_has_been_started
                 )
@@ -202,7 +207,7 @@ class CampaignSerializer(
         required_offerings = validated_data.pop("required_offerings", [])
         campaign = super().update(instance, validated_data)
 
-        if self.instance.state == models.Campaign.States.DRAFT:
+        if self.instance.state == CampaignState.DRAFT:
             campaign.offerings.clear()
             campaign.offerings.add(*offerings)
 
@@ -234,7 +239,7 @@ def get_promotion_campaigns(serializer, offering):
         offerings=offering,
         start_date__lte=today,
         end_date__gte=today,
-        state=models.Campaign.States.ACTIVE,
+        state=CampaignState.ACTIVE,
     ):
         try:
             campaigns.append(

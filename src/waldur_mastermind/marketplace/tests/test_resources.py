@@ -22,8 +22,8 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
-from waldur_mastermind.common import mixins as common_mixins
-from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.common.enums import Units
+from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, models, plugins
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -304,7 +304,7 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
 
     def test_plan_switch_is_not_available_if_plan_unit_is_different(self):
         # Arrange
-        self.plan2.unit = common_mixins.UnitPriceMixin.Units.PER_DAY
+        self.plan2.unit = Units.PER_DAY
         self.plan2.save()
 
         # Act
@@ -424,7 +424,7 @@ class ResourceRenewTest(test.APITransactionTestCase):
 
         # Create a non-prepaid resource for failure tests
         self.non_prepaid_resource = factories.ResourceFactory(
-            project=self.project, state=models.Resource.States.OK
+            project=self.project, state=ResourceStates.OK
         )
 
         # Set permissions
@@ -484,7 +484,7 @@ class ResourceRenewTest(test.APITransactionTestCase):
 
     def test_renewal_fails_if_resource_is_not_in_stable_state(self):
         # Arrange
-        self.resource.state = models.Resource.States.UPDATING
+        self.resource.state = ResourceStates.UPDATING
         self.resource.save()
         payload = {"extension_months": 12}
 
@@ -1632,7 +1632,7 @@ class ResourceMoveTest(test.APITransactionTestCase):
             customer=self.project.customer,
             year=2020,
             month=1,
-            state=invoices_models.Invoice.States.PENDING,
+            state=invoices_enums.InvoiceStates.PENDING,
         )
         invoices_factories.InvoiceItemFactory(
             invoice=start_invoice,
@@ -1644,7 +1644,7 @@ class ResourceMoveTest(test.APITransactionTestCase):
             customer=self.new_project.customer,
             year=2020,
             month=1,
-            state=invoices_models.Invoice.States.CREATED,
+            state=invoices_enums.InvoiceStates.CREATED,
         )
 
         response = self.get_response(self.fixture.staff)
@@ -2081,7 +2081,7 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
         self.assertEqual(self.resource.options, {"email": "order@example.com"})
         order.refresh_from_db()
         self.assertEqual(order.state, OrderStates.DONE)
-        self.assertEqual(self.resource.state, models.Resource.States.OK)
+        self.assertEqual(self.resource.state, ResourceStates.OK)
 
     @data("admin")
     def test_user_can_not_update_resource_options(self, user):

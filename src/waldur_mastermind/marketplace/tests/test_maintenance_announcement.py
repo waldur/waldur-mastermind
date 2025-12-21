@@ -624,7 +624,6 @@ class PublicMaintenanceAnnouncementViewSetTest(test.APITransactionTestCase):
         self.assertIn("scheduled_start", data)
         self.assertIn("scheduled_end", data)
         self.assertIn("maintenance_type", data)
-        self.assertIn("maintenance_type_display", data)
         self.assertIn("state", data)
 
         self.assertNotIn("created_by", data)

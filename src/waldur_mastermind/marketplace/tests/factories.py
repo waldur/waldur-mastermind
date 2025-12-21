@@ -11,7 +11,7 @@ from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import (
     SUPPORT_OFFERING,
@@ -334,7 +334,7 @@ class PlanFactory(
 
     offering = factory.SubFactory(OfferingFactory)
     name = factory.Sequence(lambda n: "plan-%s" % n)
-    unit = UnitPriceMixin.Units.QUANTITY
+    unit = Units.QUANTITY
 
     @classmethod
     def get_url(cls, plan=None, action=None):

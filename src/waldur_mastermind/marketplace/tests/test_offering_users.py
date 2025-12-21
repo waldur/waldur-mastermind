@@ -16,7 +16,11 @@ from waldur_core.permissions.fixtures import (
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.enums import OfferingUserStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OfferingUserStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.models import OfferingUser
 from waldur_mastermind.marketplace.tests.factories import (
     OfferingFactory,
@@ -2076,7 +2080,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
             offering = factories.OfferingFactory(
                 customer=self.service_provider.customer,
                 shared=True,
-                state=models.OfferingStates.ACTIVE,
+                state=OfferingStates.ACTIVE,
                 name=f"Test Offering {i}",
                 compliance_checklist=self.checklist,  # Add checklist so offerings are included
             )

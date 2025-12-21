@@ -1,6 +1,6 @@
 from rest_framework import status, test
 
-from waldur_openstack import models
+from waldur_openstack import enums
 
 from . import factories, fixtures
 
@@ -23,19 +23,19 @@ class TestImageUsageStats(test.APITransactionTestCase):
         self.admin = self.fixture.staff
         factories.InstanceFactory(
             volumes__image_name="Ubuntu 16.04",
-            runtime_state=models.Instance.RuntimeStates.ACTIVE,
+            runtime_state=enums.InstanceRuntimeStates.ACTIVE,
             tenant=self.fixture.tenant,
             project=self.fixture.project,
         )
         factories.InstanceFactory(
             volumes__image_name="Ubuntu 16.04",
-            runtime_state=models.Instance.RuntimeStates.SHUTOFF,
+            runtime_state=enums.InstanceRuntimeStates.SHUTOFF,
             tenant=self.fixture.tenant,
             project=self.fixture.project,
         )
         factories.InstanceFactory(
             volumes__image_name="Windows 10",
-            runtime_state=models.Instance.RuntimeStates.ACTIVE,
+            runtime_state=enums.InstanceRuntimeStates.ACTIVE,
             tenant=self.fixture.tenant,
             project=self.fixture.project,
         )
@@ -85,19 +85,19 @@ class TestFlavorUsageStats(test.APITransactionTestCase):
         self.admin = self.fixture.staff
         factories.InstanceFactory(
             flavor_name="Small",
-            runtime_state=models.Instance.RuntimeStates.ACTIVE,
+            runtime_state=enums.InstanceRuntimeStates.ACTIVE,
             tenant=self.fixture.tenant,
             project=self.fixture.project,
         )
         factories.InstanceFactory(
             flavor_name="Small",
-            runtime_state=models.Instance.RuntimeStates.SHUTOFF,
+            runtime_state=enums.InstanceRuntimeStates.SHUTOFF,
             tenant=self.fixture.tenant,
             project=self.fixture.project,
         )
         factories.InstanceFactory(
             flavor_name="Large",
-            runtime_state=models.Instance.RuntimeStates.ACTIVE,
+            runtime_state=enums.InstanceRuntimeStates.ACTIVE,
             tenant=self.fixture.tenant,
             project=self.fixture.project,
         )

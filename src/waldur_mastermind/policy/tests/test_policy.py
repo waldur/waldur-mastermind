@@ -5,6 +5,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.invoices.enums import Periods
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OrderStates
@@ -202,7 +203,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
 
         # period = 3 month
-        self.client.patch(url, {"period": ProjectEstimatedCostPolicy.Periods.MONTH_3})
+        self.client.patch(url, {"period": Periods.MONTH_3.label})
         self.policy.refresh_from_db()
         self.assertEqual(self.policy.has_fired, True)
 
@@ -214,7 +215,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
         self.assertEqual(self.policy.has_fired, False)
 
         # period = 12 month
-        self.client.patch(url, {"period": ProjectEstimatedCostPolicy.Periods.MONTH_12})
+        self.client.patch(url, {"period": Periods.MONTH_12.label})
         self.policy.refresh_from_db()
         self.assertEqual(self.policy.has_fired, True)
 
@@ -226,7 +227,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
         self.assertEqual(self.policy.has_fired, False)
 
         # period = Total
-        self.client.patch(url, {"period": ProjectEstimatedCostPolicy.Periods.TOTAL})
+        self.client.patch(url, {"period": Periods.TOTAL.label})
         self.policy.refresh_from_db()
         self.assertEqual(self.policy.has_fired, True)
 

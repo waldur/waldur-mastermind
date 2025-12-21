@@ -7,6 +7,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.utils import get_full_days
@@ -209,7 +210,7 @@ class LimitPeriodProcessor:
             plan_component=plan_component,
             project=resource.project,
             unit_price=final_unit_price,
-            unit=invoice_models.Units.QUANTITY,
+            unit=Units.QUANTITY,
             quantity=diff if diff > 0 else -diff,
             article_code=offering_component.article_code or resource.plan.article_code,
             invoice=invoice,
@@ -423,7 +424,7 @@ class LimitPeriodProcessor:
             offering_component.billing_type == BillingTypes.LIMIT
             and offering_component.limit_period == LimitPeriods.TOTAL
         ):
-            unit = invoice_models.Units.QUANTITY
+            unit = Units.QUANTITY
 
         invoice_models.InvoiceItem.objects.create(
             name=f"{get_invoice_item_name(source)} / {get_component_name(plan_component)}",
@@ -503,7 +504,7 @@ class LimitPeriodProcessor:
             plan_component=plan_component,
             project=resource.project,
             unit_price=-discount_amount,  # Negative to represent discount
-            unit=invoice_models.Units.QUANTITY,
+            unit=Units.QUANTITY,
             quantity=1,  # Quantity of 1 since discount_amount is the total
             article_code=offering_component.article_code or resource.plan.article_code,
             invoice=invoice,
@@ -576,6 +577,6 @@ class LimitPeriodProcessor:
         Returns:
             Total quantity for the billing period
         """
-        if unit == invoice_models.InvoiceItem.Units.PER_DAY:
+        if unit == Units.PER_DAY:
             return value * get_full_days(start, end)
         return value

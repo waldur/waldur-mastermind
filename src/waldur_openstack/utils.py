@@ -6,12 +6,13 @@ from waldur_openstack.models import (
     CustomerOpenStack,
     Flavor,
     Image,
-    Instance,
     SecurityGroup,
     SecurityGroupRule,
     Tenant,
     VolumeType,
 )
+
+from . import enums
 
 
 def is_flavor_valid_for_tenant(flavor: Flavor, tenant: Tenant):
@@ -78,7 +79,7 @@ def check_volume_resize_enabled(volume):
 
     if (
         volume.instance
-        and volume.instance.runtime_state != Instance.RuntimeStates.SHUTOFF
+        and volume.instance.runtime_state != enums.InstanceRuntimeStates.SHUTOFF
     ):
         raise core_exceptions.IncorrectStateException(
             _("Volume instance should be in shutoff state.")

@@ -4,30 +4,63 @@ from unittest import mock
 
 from drf_spectacular.generators import SchemaGenerator
 from drf_spectacular.openapi import AutoSchema
+from drf_spectacular.plumbing import ResolvedComponent
 
 
-def postprocess_drop_description(result, generator, **kwargs):
+def postprocess_drop_inherited_descriptions(result, generator, **kwargs):
     """
-    Remove descriptions from OpenAPI schema components.
+    Drop description from schema if it is inherited from parent class.
     """
-    for methods in result.get("components", {}).values():
-        for operation in methods.values():
-            operation["description"] = ""
+    schemas = result.get("components", {}).get("schemas", {})
+    for name, schema in schemas.items():
+        if "description" not in schema:
+            continue
+
+        description = schema["description"]
+        if (
+            "RestrictedSerializerMixin" in description
+            or "This mixin allows to specify list of fields to be rendered by serializer"
+            in description
+        ):
+            schema.pop("description", None)
+            continue
+
+        component = generator.registry._components.get((name, ResolvedComponent.SCHEMA))
+        if not component:
+            continue
+
+        obj = component.object
+        target_class = obj if isinstance(obj, type) else obj.__class__
+
+        if not target_class.__dict__.get("__doc__"):
+            schema.pop("description", None)
+
     return result
 
 
-def postprocess_fix_enum(result, generator, **kwargs):
+def postprocess_strip_description(result, generator, **kwargs):
     """
-    Replace integer enum type with string type.
+    Recursively strip leading/trailing whitespace from all description fields
+    in the OpenAPI schema. This processes descriptions in paths, operations,
+    parameters, responses, schemas, properties, and all nested objects.
     """
-    for methods in result["paths"].values():
-        for operation in methods.values():
-            for parameter in operation.get("parameters", []):
-                if (
-                    parameter["schema"]["type"] == "array"
-                    and parameter["schema"]["items"].get("type") == "integer"
-                ):
-                    parameter["schema"]["items"]["type"] = "string"
+
+    def strip_descriptions(obj):
+        """Recursively strip whitespace from 'description' field values."""
+        if isinstance(obj, dict):
+            # Strip whitespace from description if it exists and is a string
+            if "description" in obj and isinstance(obj["description"], str):
+                obj["description"] = obj["description"].strip()
+            # Recursively process all nested values
+            for value in obj.values():
+                strip_descriptions(value)
+        elif isinstance(obj, list):
+            # Recursively process list items
+            for item in obj:
+                strip_descriptions(item)
+
+    # Apply to the entire schema
+    strip_descriptions(result)
     return result
 
 
@@ -522,3 +555,144 @@ def create_offering_attributes_schema(processor_class, generator):
             if field in schema["properties"]
         }
     return schema
+
+
+def extract_enums_to_components(result, generator, **kwargs):
+    """
+    Extracts inline enums from the schema and moves them to components/schemas.
+    Naming strategy:
+    1. For components: {ComponentName}{FieldName}
+    2. For paths: {OperationId}{ParameterName}
+    """
+    if "components" not in result:
+        result["components"] = {}
+    if "schemas" not in result["components"]:
+        result["components"]["schemas"] = {}
+
+    components = result["components"]["schemas"]
+
+    def get_camel_case_name(name):
+        return "".join(part.capitalize() for part in name.replace("_", " ").split())
+
+    def register_enum(enum_schema, name_hint):
+        # Check if an identical enum already exists
+        for existing_name, existing_schema in components.items():
+            if existing_schema.get("type") == enum_schema.get(
+                "type"
+            ) and existing_schema.get("enum") == enum_schema.get("enum"):
+                return f"#/components/schemas/{existing_name}"
+
+        # If not found, create a new one
+        enum_name = name_hint
+        # Ensure name uniqueness
+        counter = 1
+        original_name = enum_name
+        while enum_name in components:
+            if components[enum_name].get("enum") == enum_schema.get("enum"):
+                return f"#/components/schemas/{enum_name}"
+            enum_name = f"{original_name}{counter}"
+            counter += 1
+
+        components[enum_name] = enum_schema
+        return f"#/components/schemas/{enum_name}"
+
+    def visit(schema, name_context):
+        if not isinstance(schema, dict):
+            return
+
+        # Check for properties
+        if "properties" in schema:
+            for prop_name, prop_schema in schema["properties"].items():
+                camel_prop = get_camel_case_name(prop_name)
+                next_context = f"{name_context}{camel_prop}"
+
+                if "enum" in prop_schema:
+                    if not next_context.endswith("Enum"):
+                        next_context += "Enum"
+                    ref = register_enum(copy.deepcopy(prop_schema), next_context)
+                    prop_schema.clear()
+                    prop_schema["$ref"] = ref
+                elif prop_schema.get("type") == "array" and "items" in prop_schema:
+                    if "enum" in prop_schema["items"]:
+                        item_context = f"{next_context}ItemEnum"
+                        ref = register_enum(
+                            copy.deepcopy(prop_schema["items"]), item_context
+                        )
+                        prop_schema["items"].clear()
+                        prop_schema["items"]["$ref"] = ref
+                    else:
+                        visit(prop_schema["items"], f"{next_context}Item")
+                else:
+                    visit(prop_schema, next_context)
+
+    # 1. Process Components
+    for schema_name in list(components.keys()):
+        visit(components[schema_name], schema_name)
+
+    # 2. Process Paths
+    for path, path_item in result.get("paths", {}).items():
+        for method, operation in path_item.items():
+            if method == "parameters":
+                continue
+            op_id = operation.get("operationId", "Unknown")
+            camel_op = get_camel_case_name(op_id)
+
+            # Parameters
+            for param in operation.get("parameters", []):
+                if "schema" in param:
+                    pname = param.get("name", "param")
+                    camel_pname = get_camel_case_name(pname)
+
+                    # Check if it's an enum directly
+                    pschema = param["schema"]
+                    if "enum" in pschema:
+                        enum_name = f"{camel_op}{camel_pname}Enum"
+                        ref = register_enum(copy.deepcopy(pschema), enum_name)
+                        pschema.clear()
+                        pschema["$ref"] = ref
+                    # Or array of enums
+                    elif pschema.get("type") == "array" and "items" in pschema:
+                        if "enum" in pschema["items"]:
+                            enum_name = f"{camel_op}{camel_pname}Enum"
+                            ref = register_enum(
+                                copy.deepcopy(pschema["items"]), enum_name
+                            )
+                            pschema["items"].clear()
+                            pschema["items"]["$ref"] = ref
+
+            # Request Body
+            if "requestBody" in operation:
+                content = operation["requestBody"].get("content", {})
+                for media_type, media_obj in content.items():
+                    if "schema" in media_obj:
+                        visit(media_obj["schema"], f"{camel_op}Request")
+
+    return result
+
+
+def validate_no_numeric_enums(result, generator, **kwargs):
+    """
+    Validation hook that raises an error if any enum in the schema contains numeric values.
+    This ensures all enums in the API contract are string-based.
+    """
+    from django.core.exceptions import ImproperlyConfigured
+
+    def _check_enum_values(obj, path=""):
+        if isinstance(obj, dict):
+            if "enum" in obj:
+                for value in obj["enum"]:
+                    if isinstance(value, int | float):
+                        raise ImproperlyConfigured(
+                            f"Numeric enum value found at {path}: {value}. "
+                            "All enums must be string-based."
+                        )
+
+            for key, value in obj.items():
+                _check_enum_values(value, f"{path}.{key}" if path else key)
+
+        elif isinstance(obj, list):
+            for i, item in enumerate(obj):
+                _check_enum_values(item, f"{path}[{i}]")
+
+    _check_enum_values(result)
+    return result

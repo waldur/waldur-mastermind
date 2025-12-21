@@ -7,6 +7,7 @@ from rest_framework import test
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.promotions import models
+from waldur_mastermind.promotions.enums import CampaignState
 from waldur_mastermind.promotions.tests import fixtures
 
 
@@ -25,7 +26,7 @@ class DiscountTest(test.APITransactionTestCase):
         self.resource.save()
 
     def test_discount_price_if_campaign_exists(self):
-        self.campaign.state = models.Campaign.States.ACTIVE
+        self.campaign.state = CampaignState.ACTIVE
         self.campaign.save()
 
         self.activate_resource()
@@ -59,7 +60,7 @@ class DiscountTest(test.APITransactionTestCase):
             ).exists()
         )
 
-        self.campaign.state = models.Campaign.States.ACTIVE
+        self.campaign.state = CampaignState.ACTIVE
         self.campaign.save()
 
         self.assertTrue(
@@ -94,7 +95,7 @@ class DiscountTest(test.APITransactionTestCase):
 
         self.campaign.start_date = datetime.date.today() + datetime.timedelta(days=30)
         self.campaign.end_date = datetime.date.today() + datetime.timedelta(days=100)
-        self.campaign.state = models.Campaign.States.ACTIVE
+        self.campaign.state = CampaignState.ACTIVE
         self.campaign.save()
 
         self.assertTrue(

@@ -23,7 +23,11 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.registry import get_resource_type
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
-from waldur_mastermind.support.enums import SupportWebhookEvent
+from waldur_mastermind.support.enums import (
+    COMMENT_ACTIONS,
+    JIRA_WEBHOOK_EVENT_MAP,
+    SupportWebhookEvent,
+)
 
 from . import backend, models, utils
 from .backend import SupportBackendType
@@ -46,9 +50,12 @@ def render_issue_template(config_name, template_name, issue):
 
 
 class NestedFeedbackSerializer(serializers.HyperlinkedModelSerializer):
-    state = serializers.ReadOnlyField(
-        source="get_state_display", help_text="Current state of the feedback"
-    )
+    state = serializers.SerializerMethodField(help_text="Current state of the feedback")
+
+    @extend_schema_field(serializers.ChoiceField(choices=CoreStates.labels))
+    def get_state(self, feedback):
+        return feedback.get_state_display()
+
     evaluation = serializers.IntegerField(
         read_only=True, help_text="Customer satisfaction rating (1-5 stars)"
     )
@@ -576,10 +583,7 @@ class JiraIssueSerializer(serializers.Serializer):
 
 
 class WebHookReceiverSerializer(serializers.Serializer):
-    class Event(SupportWebhookEvent):
-        pass
-
-    webhookEvent = serializers.ChoiceField(choices=Event.CHOICES)
+    webhookEvent = serializers.CharField()
     issue = JiraIssueSerializer()
     comment = JiraCommentSerializer(required=False)
     changelog = JiraChangelogSerializer(required=False)
@@ -590,7 +594,13 @@ class WebHookReceiverSerializer(serializers.Serializer):
     def create(self, validated_data):
         logger.debug("Processing webhook with data: %s", validated_data)
 
-        event_type = dict(self.Event.CHOICES).get(validated_data["webhookEvent"])
+        webhook_event = validated_data["webhookEvent"]
+        if webhook_event not in JIRA_WEBHOOK_EVENT_MAP:
+            raise serializers.ValidationError(
+                f"Unknown webhook event type: {webhook_event}"
+            )
+
+        event_type = JIRA_WEBHOOK_EVENT_MAP[webhook_event]
         logger.info("Processing webhook event type: %s", event_type)
 
         fields = validated_data["issue"]["fields"]
@@ -614,7 +624,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         else:
             old_jira = False
 
-        if event_type == self.Event.ISSUE_UPDATE:
+        if event_type == SupportWebhookEvent.ISSUE_UPDATE:
             logger.info("Processing issue update for key: %s", key)
             if old_jira:
                 if old_jira == "issue_commented":
@@ -643,11 +653,11 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 backend.update_issue_from_jira(issue)
                 backend.update_attachment_from_jira(issue)
 
-        elif event_type == self.Event.ISSUE_DELETE:
+        elif event_type == SupportWebhookEvent.ISSUE_DELETE:
             logger.info("Processing issue deletion for key: %s", key)
             backend.delete_issue_from_jira(issue)
 
-        elif event_type in self.Event.COMMENT_ACTIONS:
+        elif event_type in COMMENT_ACTIONS:
             logger.info("Processing comment action: %s for issue: %s", event_type, key)
             try:
                 comment_backend_id = validated_data["comment"]["id"]
@@ -657,18 +667,18 @@ class WebHookReceiverSerializer(serializers.Serializer):
                     "Request not include fields.comment.id"
                 )
 
-            create_comment = event_type == self.Event.COMMENT_CREATE
+            create_comment = event_type == SupportWebhookEvent.COMMENT_CREATE
             comment = self.get_comment(issue, comment_backend_id, create_comment)
 
             if not comment and create_comment:
                 backend.create_comment_from_jira(issue, comment_backend_id)
                 backend.update_attachment_from_jira(issue)
 
-            if event_type == self.Event.COMMENT_UPDATE:
+            if event_type == SupportWebhookEvent.COMMENT_UPDATE:
                 backend.update_comment_from_jira(comment)
                 backend.update_attachment_from_jira(issue)
 
-            if event_type == self.Event.COMMENT_DELETE:
+            if event_type == SupportWebhookEvent.COMMENT_DELETE:
                 backend.delete_comment_from_jira(comment)
                 backend.update_attachment_from_jira(issue)
 
@@ -883,16 +893,19 @@ class DeleteAttachmentsSerializer(serializers.Serializer):
 
 
 class IssueStatusSerializer(serializers.HyperlinkedModelSerializer):
-    type_display = serializers.SerializerMethodField()
+    type = serializers.SerializerMethodField()
 
     class Meta:
         model = models.IssueStatus
-        fields = ("url", "uuid", "name", "type", "type_display")
+        fields = ("url", "uuid", "name", "type")
         extra_kwargs = {
             "url": {"lookup_field": "uuid", "view_name": "support-issue-status-detail"},
         }
 
-    def get_type_display(self, obj) -> str:
+    @extend_schema_field(
+        serializers.ChoiceField(choices=models.IssueStatus.Types.labels)
+    )
+    def get_type(self, obj):
         return obj.get_type_display()
 
 

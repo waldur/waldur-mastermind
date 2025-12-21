@@ -14,7 +14,7 @@ from waldur_core.permissions.fixtures import (
     ServiceProviderRole,
 )
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.enums import ServiceAccountState
+from waldur_mastermind.marketplace.enums import ResourceStates, ServiceAccountState
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 TOKEN_URL = "http://example.com/api/token"
@@ -832,7 +832,7 @@ class ServiceAccountOfferingTest(test.APITransactionTestCase):
         self.offering = self.fixture.offering
         self.provider_owner = self.fixture.provider_owner
         self.resource = self.fixture.resource
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
 
         self.project_service_accounts = (

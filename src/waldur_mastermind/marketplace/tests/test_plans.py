@@ -8,7 +8,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
-from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.templatetags.waldur_marketplace import plan_details
@@ -84,7 +84,7 @@ class PlanCreateTest(test.APITransactionTestCase):
             "name": "plan",
             "offering": factories.OfferingFactory.get_url(self.offering),
             "customer": structure_factories.CustomerFactory.get_url(self.customer),
-            "unit": UnitPriceMixin.Units.QUANTITY,
+            "unit": Units.QUANTITY,
         }
         return self.client.post(url, payload)
 
@@ -516,7 +516,7 @@ class OfferingUpdatePlansTest(BaseOfferingUpdateTest):
             {
                 "offering": factories.OfferingFactory.get_url(self.offering),
                 "name": "small",
-                "unit": UnitPriceMixin.Units.PER_MONTH,
+                "unit": Units.PER_MONTH,
             },
         )
 

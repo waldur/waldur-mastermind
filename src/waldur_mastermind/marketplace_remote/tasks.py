@@ -91,6 +91,7 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.callbacks import sync_order_state
 from waldur_mastermind.marketplace.enums import (
+    ORDER_TERMINAL_STATES,
     REMOTE_OFFERING,
     MaintenanceState,
     OfferingStates,
@@ -111,6 +112,7 @@ from waldur_mastermind.marketplace_remote.constants import (
     PLAN_FIELDS,
     RESOURCE_FIELDS,
 )
+from waldur_mastermind.marketplace_remote.enums import RemoteSynchronisationState
 from waldur_mastermind.marketplace_remote.exceptions import RemoteWaldurError
 from waldur_mastermind.marketplace_remote.utils import (
     get_client_for_offering,
@@ -121,7 +123,7 @@ from waldur_mastermind.marketplace_remote.utils import (
 logger = logging.getLogger(__name__)
 
 # For logging purposes only
-ORDER_STATES_MAP = {key: val for key, val in OrderStates.CHOICES}
+ORDER_STATES_MAP = {key: val for key, val in OrderStates.choices}
 LOGICAL_LOCAL_ORDER_STATES_MAP = {
     "pending-project": None,
     "pending-consumer": OrderStates.EXECUTING,
@@ -666,7 +668,7 @@ class OrderStatePullTask(OrderPullTask):
     def pull(self, local_order: models.Order):
         super().pull(local_order)
         local_order.refresh_from_db()
-        if local_order.state not in OrderStates.TERMINAL_STATES:
+        if local_order.state not in ORDER_TERMINAL_STATES:
             self.retry()
 
 
@@ -684,7 +686,7 @@ class OrderListPullTask(BackgroundListPullTask):
     def get_pulled_objects(self):
         return (
             models.Order.objects.filter(offering__type=REMOTE_OFFERING)
-            .exclude(state__in=OrderStates.TERMINAL_STATES)
+            .exclude(state__in=ORDER_TERMINAL_STATES)
             .exclude(backend_id="")
         )
 
@@ -776,7 +778,7 @@ def pull_offering_orders(serialized_offering):
     offering = deserialize_instance(serialized_offering)
     orders = (
         models.Order.objects.filter(offering=offering)
-        .exclude(state__in=OrderStates.TERMINAL_STATES)
+        .exclude(state__in=ORDER_TERMINAL_STATES)
         .exclude(backend_id="")
     )
     for order in orders:
@@ -1680,7 +1682,7 @@ def remote_offerings_sync() -> None:
     """
     for sync in remote_models.RemoteSynchronisation.objects.filter(
         is_active=True,
-    ).exclude(state=remote_models.RemoteSynchronisation.States.PROCESSING):
+    ).exclude(state=RemoteSynchronisationState.PROCESSING):
         utils_sync_remote_offerings.RemoteSynchronisationRunner(sync).run()
 
 
@@ -1769,7 +1771,7 @@ class MaintenanceAnnouncementPullTask(BackgroundPullTask):
     ):
         """Create or update local maintenance announcement from remote data."""
         maintenance_state_map = {
-            label: value for value, label in MaintenanceState.CHOICES
+            label: value for value, label in MaintenanceState.choices
         }
         defaults = {
             "name": remote_maintenance.name,

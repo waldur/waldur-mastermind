@@ -60,7 +60,7 @@ class Checklist(
     )
     checklist_type = models.CharField(
         max_length=20,
-        choices=enums.ChecklistTypes.CHOICES,
+        choices=enums.ChecklistTypes.choices,
         default=enums.ChecklistTypes.PROJECT_COMPLIANCE,
         help_text=_("Type of compliance this checklist addresses"),
     )
@@ -94,7 +94,7 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
     required = models.BooleanField(default=False)
     question_type = models.CharField(
         max_length=20,
-        choices=enums.QuestionTypes.CHOICES,
+        choices=enums.QuestionTypes.choices,
         default=enums.QuestionTypes.BOOLEAN,
         help_text=_("Type of question and expected answer format"),
     )
@@ -114,7 +114,7 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
     )
     guidance_operator = models.CharField(
         max_length=20,
-        choices=enums.OPERATORS,
+        choices=enums.Operators.choices,
         default="equals",
         blank=True,
         help_text=_("Operator to use when comparing answer with guidance_answer_value"),
@@ -135,7 +135,7 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         null=True,
     )
     operator = models.CharField(
-        max_length=20, choices=enums.OPERATORS, default="equals", blank=True
+        max_length=20, choices=enums.Operators.choices, default="equals", blank=True
     )
 
     always_requires_review = models.BooleanField(
@@ -162,7 +162,7 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
     # Dependency logic operator
     dependency_logic_operator = models.CharField(
         max_length=10,
-        choices=enums.DependencyLogicOperators.CHOICES,
+        choices=enums.DependencyLogicOperators.choices,
         default=enums.DependencyLogicOperators.AND,
         help_text=_(
             "Defines how multiple dependencies are evaluated. "
@@ -522,7 +522,7 @@ class QuestionDependency(core_models.UuidMixin, TimeStampedModel):
         help_text=_("The answer value(s) that make this question visible")
     )
     operator = models.CharField(
-        max_length=20, choices=enums.OPERATORS, default="equals"
+        max_length=20, choices=enums.Operators.choices, default="equals"
     )
 
     def __str__(self):

@@ -8,6 +8,7 @@ from waldur_mastermind.marketplace.enums import (
     MaintenanceType,
 )
 from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.notifications.enums import AdminAnnouncementType
 from waldur_mastermind.notifications.models import AdminAnnouncement
 
 
@@ -46,7 +47,7 @@ class MaintenanceAnnouncementSignalsTest(TransactionTestCase):
         self.assertIn(
             "🔧 Scheduled Maintenance: Test message", admin_announcement.description
         )
-        self.assertEqual(admin_announcement.type, AdminAnnouncement.Type.INFORMATION)
+        self.assertEqual(admin_announcement.type, AdminAnnouncementType.INFORMATION)
 
         # Check timing - should be 60 minutes before scheduled start
         expected_active_from = maintenance.scheduled_start - timezone.timedelta(
@@ -67,7 +68,7 @@ class MaintenanceAnnouncementSignalsTest(TransactionTestCase):
         # Create admin announcement
         admin_announcement = AdminAnnouncement.objects.create(
             description="Test announcement",
-            type=AdminAnnouncement.Type.INFORMATION,
+            type=AdminAnnouncementType.INFORMATION,
             active_from=timezone.now(),
             active_to=timezone.now() + timezone.timedelta(hours=2),
         )
@@ -118,7 +119,7 @@ class MaintenanceAnnouncementSignalsTest(TransactionTestCase):
             "🔧 Scheduled Maintenance: System will be unavailable for upgrades"
         )
         self.assertEqual(admin_announcement.description, expected_content)
-        self.assertEqual(admin_announcement.type, AdminAnnouncement.Type.INFORMATION)
+        self.assertEqual(admin_announcement.type, AdminAnnouncementType.INFORMATION)
 
     def test_emergency_maintenance_gets_danger_priority(self):
         """Test that emergency maintenance gets DANGER priority."""
@@ -143,7 +144,7 @@ class MaintenanceAnnouncementSignalsTest(TransactionTestCase):
             "🚨 Emergency Maintenance: Critical security vulnerability fix"
         )
         self.assertEqual(admin_announcement.description, expected_content)
-        self.assertEqual(admin_announcement.type, AdminAnnouncement.Type.DANGER)
+        self.assertEqual(admin_announcement.type, AdminAnnouncementType.DANGER)
 
     def test_security_maintenance_gets_warning_priority(self):
         """Test that security maintenance gets WARNING priority."""
@@ -168,7 +169,7 @@ class MaintenanceAnnouncementSignalsTest(TransactionTestCase):
             "🔒 Security Maintenance: Installing security patches for all services"
         )
         self.assertEqual(admin_announcement.description, expected_content)
-        self.assertEqual(admin_announcement.type, AdminAnnouncement.Type.WARNING)
+        self.assertEqual(admin_announcement.type, AdminAnnouncementType.WARNING)
 
     def test_maintenance_content_updates_when_message_changes(self):
         """Test that AdminAnnouncement content updates when maintenance message changes."""
@@ -218,7 +219,7 @@ class MaintenanceAnnouncementSignalsTest(TransactionTestCase):
 
         admin_announcement = maintenance.admin_announcement
         self.assertIn("🔧 Scheduled Maintenance", admin_announcement.description)
-        self.assertEqual(admin_announcement.type, AdminAnnouncement.Type.INFORMATION)
+        self.assertEqual(admin_announcement.type, AdminAnnouncementType.INFORMATION)
 
         # Change to emergency maintenance
         maintenance.maintenance_type = MaintenanceType.EMERGENCY
@@ -232,7 +233,7 @@ class MaintenanceAnnouncementSignalsTest(TransactionTestCase):
         self.assertIn("Service maintenance required", admin_announcement.description)
 
         # Priority should be escalated to DANGER
-        self.assertEqual(admin_announcement.type, AdminAnnouncement.Type.DANGER)
+        self.assertEqual(admin_announcement.type, AdminAnnouncementType.DANGER)
 
     def test_admin_announcement_serializer_includes_affected_offerings(self):
         """Test that AdminAnnouncementSerializer includes affected offerings information."""

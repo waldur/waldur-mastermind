@@ -15,6 +15,7 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import REMOTE_OFFERING, OfferingStates
 from waldur_mastermind.marketplace_remote import models as remote_models
 from waldur_mastermind.marketplace_remote import utils
+from waldur_mastermind.marketplace_remote.enums import RemoteSynchronisationState
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +28,11 @@ class RemoteSynchronisationRunner:
         try:
             self._initialize_sync()
             self._process_sync()
-            self.sync.state = remote_models.RemoteSynchronisation.States.OK
+            self.sync.state = RemoteSynchronisationState.OK
 
         except (UnexpectedStatus, TimeoutException) as e:
             self._handle_sync_error(e)
-            self.sync.state = remote_models.RemoteSynchronisation.States.ERRED
+            self.sync.state = RemoteSynchronisationState.ERRED
 
         finally:
             self.sync.last_execution = timezone.now()
@@ -40,7 +41,7 @@ class RemoteSynchronisationRunner:
     def _initialize_sync(self) -> None:
         self.sync.error_message = ""
         self.sync.last_output = ""
-        self.sync.state = remote_models.RemoteSynchronisation.States.PROCESSING
+        self.sync.state = RemoteSynchronisationState.PROCESSING
         self.sync.save()
 
     def _process_sync(self) -> None:

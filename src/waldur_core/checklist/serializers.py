@@ -312,6 +312,16 @@ class QuestionWithAnswerReviewerSerializer(QuestionWithAnswerSerializer):
 
 
 class QuestionAdminSerializer(QuestionSerializer):
+    """
+    Serializer for managing questions in the admin interface.
+
+    This serializer handles the full configuration of questions, including:
+    - Basic properties (description, order, requirement status)
+    - Validation rules (min/max values, file types, sizes)
+    - Logic and dependencies (operators, guidance triggers)
+    - UI presentation settings
+    """
+
     question_options = QuestionOptionsAdminSerializer(many=True, read_only=True)
     checklist = serializers.HyperlinkedRelatedField(
         queryset=models.Checklist.objects.all(),
@@ -408,12 +418,13 @@ class QuestionAdminSerializer(QuestionSerializer):
             )
 
         # Validate dependency_logic_operator
-        if dependency_logic_operator and dependency_logic_operator not in [
-            choice[0] for choice in enums.DependencyLogicOperators.CHOICES
-        ]:
+        if (
+            dependency_logic_operator
+            and dependency_logic_operator not in enums.DependencyLogicOperators.values
+        ):
             raise serializers.ValidationError(
                 f"Invalid dependency logic operator: {dependency_logic_operator}. "
-                f"Must be one of: {[choice[0] for choice in enums.DependencyLogicOperators.CHOICES]}"
+                f"Must be one of: {list(enums.DependencyLogicOperators.values)}"
             )
 
         # Validate file-specific fields for FILE and MULTIPLE_FILES questions only

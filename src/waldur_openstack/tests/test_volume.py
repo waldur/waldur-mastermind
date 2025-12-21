@@ -4,9 +4,12 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
-from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
+from waldur_core.structure.tests.factories import (
+    ProjectFactory,
+    ServiceSettingsFactory,
+)
 from waldur_mastermind.common import utils as common_utils
-from waldur_openstack import models, views
+from waldur_openstack import enums, views
 from waldur_openstack.utils import volume_type_name_to_quota_name
 
 from . import factories, fixtures
@@ -138,7 +141,7 @@ class VolumeAttachTestCase(test.APITransactionTestCase):
         self.volume.save()
 
         self.instance.state = CoreStates.OK
-        self.instance.runtime_state = models.Instance.RuntimeStates.SHUTOFF
+        self.instance.runtime_state = enums.InstanceRuntimeStates.SHUTOFF
         self.instance.save()
 
         response = self.get_response()
@@ -174,7 +177,7 @@ class VolumeAttachTestCase(test.APITransactionTestCase):
         self.volume.save()
 
         self.instance.state = CoreStates.OK
-        self.instance.runtime_state = models.Instance.RuntimeStates.ACTIVE
+        self.instance.runtime_state = enums.InstanceRuntimeStates.ACTIVE
         self.instance.save()
 
         response = self.get_response()
@@ -190,7 +193,7 @@ class VolumeAttachTestCase(test.APITransactionTestCase):
         instance_az = self.fixture.instance_availability_zone
         self.instance.availability_zone = instance_az
         self.instance.state = CoreStates.OK
-        self.instance.runtime_state = models.Instance.RuntimeStates.ACTIVE
+        self.instance.runtime_state = enums.InstanceRuntimeStates.ACTIVE
         self.instance.save()
 
         shared_settings = self.fixture.tenant.service_settings

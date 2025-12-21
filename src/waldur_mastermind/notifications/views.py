@@ -8,6 +8,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ActionsViewSet
 
 from . import filters, models, serializers, tasks, utils
+from .enums import BroadcastMessageState
 
 
 class BroadcastMessageViewSet(ActionsViewSet):
@@ -18,8 +19,8 @@ class BroadcastMessageViewSet(ActionsViewSet):
     filterset_class = filters.BroadcastMessageFilterSet
     update_validators = destroy_validators = [
         core_validators.StateValidator(
-            models.BroadcastMessage.States.DRAFT,
-            models.BroadcastMessage.States.SCHEDULED,
+            BroadcastMessageState.DRAFT,
+            BroadcastMessageState.SCHEDULED,
         )
     ]
     lookup_field = "uuid"
@@ -35,7 +36,7 @@ class BroadcastMessageViewSet(ActionsViewSet):
     @decorators.action(detail=True, methods=["post"])
     def schedule(self, request, *args, **kwargs):
         broadcast_message: models.BroadcastMessage = self.get_object()
-        broadcast_message.state = models.BroadcastMessage.States.SCHEDULED
+        broadcast_message.state = BroadcastMessageState.SCHEDULED
         broadcast_message.save(update_fields=["state"])
         return Response(status=status.HTTP_200_OK)
 

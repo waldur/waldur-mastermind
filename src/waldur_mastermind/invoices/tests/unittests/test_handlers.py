@@ -8,6 +8,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.utils import move_project
 from waldur_mastermind.common.enums import Units
+from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices import models
 from waldur_mastermind.invoices.tests import factories, fixtures
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
@@ -23,7 +24,7 @@ class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
         invoice.set_created()
 
         new_invoice = models.Invoice.objects.get(
-            customer=fixture.customer, state=models.Invoice.States.CREATED
+            customer=fixture.customer, state=invoices_enums.InvoiceStates.CREATED
         )
         invoice_created_mock.send.assert_called_once_with(
             invoice=new_invoice,

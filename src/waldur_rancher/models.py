@@ -18,12 +18,7 @@ from waldur_core.core.models import BackendMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import BaseResource, ServiceSettings
 from waldur_openstack import models as openstack_models
-from waldur_rancher.enums import (
-    ROLE_CHOICES,
-    CatalogScopeType,
-    KeycloakUserGroupMembershipState,
-    RoleScopeType,
-)
+from waldur_rancher import enums
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +38,6 @@ class SettingsMixin(models.Model):
 
 
 class Cluster(SettingsMixin, BaseResource, core_models.AvailableMixin):
-    class RuntimeStates:
-        ACTIVE = "active"
-
     id: int
     tracker = cast(FieldInstanceTracker, FieldTracker())
     tenant = models.ForeignKey(
@@ -114,7 +106,9 @@ class Cluster(SettingsMixin, BaseResource, core_models.AvailableMixin):
 
 
 class RoleMixin(models.Model):
-    role = models.CharField(choices=ROLE_CHOICES, max_length=10, db_index=True)
+    role = models.CharField(
+        choices=enums.NodeRole.choices, max_length=10, db_index=True
+    )
 
     class Meta:
         abstract = True
@@ -129,11 +123,6 @@ class Node(
     structure_models.StructureLoggableMixin,
     TimeStampedModel,
 ):
-    class RuntimeStates:
-        ACTIVE = "active"
-        REGISTERING = "registering"
-        UNAVAILABLE = "unavailable"
-
     instance = models.ForeignKey(
         openstack_models.Instance,
         on_delete=models.CASCADE,
@@ -210,7 +199,7 @@ class RancherUser(
 
 class RoleTemplate(SettingsMixin, core_models.UuidMixin):
     scope_type = models.CharField(
-        choices=RoleScopeType.CHOICES, max_length=10, db_index=True
+        choices=enums.RoleScopeType.choices, max_length=10, db_index=True
     )
     name = models.CharField(max_length=50, help_text=_("Role internal name"))
     display_name = models.CharField(max_length=50, help_text=_("Role public name"))
@@ -266,7 +255,7 @@ class Catalog(
         return scope.get_backend()
 
     @property
-    def scope_type(self) -> CatalogScopeType:
+    def scope_type(self) -> enums.CatalogScopeType:
         if isinstance(self.scope, ServiceSettings):
             return "global"
         elif isinstance(self.scope, Cluster):
@@ -542,8 +531,8 @@ class KeycloakUserGroupMembership(
     username = models.CharField(max_length=255, help_text=_("Keycloak user username"))
     email = models.EmailField(help_text=_("User's email for notifications"))
     state = FSMField(
-        choices=KeycloakUserGroupMembershipState.CHOICES,
-        default=KeycloakUserGroupMembershipState.PENDING,
+        choices=enums.KeycloakUserGroupMembershipState.choices,
+        default=enums.KeycloakUserGroupMembershipState.PENDING,
     )
     last_checked = models.DateTimeField(auto_now=True)
     group = models.ForeignKey(to=KeycloakGroup, on_delete=models.CASCADE)
@@ -552,8 +541,8 @@ class KeycloakUserGroupMembership(
 
     @transition(
         field=state,
-        source=KeycloakUserGroupMembershipState.PENDING,
-        target=KeycloakUserGroupMembershipState.ACTIVE,
+        source=enums.KeycloakUserGroupMembershipState.PENDING,
+        target=enums.KeycloakUserGroupMembershipState.ACTIVE,
     )
     def activate(self):
         pass

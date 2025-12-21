@@ -75,6 +75,68 @@
   3. Validation errors for user input
 - **Function Signatures**: Document parameter behavior clearly, especially optional parameters
 
+## Django Choices (Enums)
+
+- **Use Django's Built-in Classes**: Always use `models.TextChoices` or `models.IntegerChoices` for enums
+- **Syntax**: Define choices using `VALUE = "value", "Label"` for TextChoices or `VALUE = 1, "Label"` for IntegerChoices
+- **Location**: Define enums in `enums.py` modules, not in `models.py`
+- **Forbidden Patterns**: NEVER create custom enum classes with `.CHOICES` or `.VALUES` attributes
+
+### Example
+
+```python
+# Good - in enums.py
+from django.db import models
+
+class OrderStates(models.IntegerChoices):
+    PENDING = 1, "Pending"
+    EXECUTING = 2, "Executing"
+    DONE = 3, "Done"
+    ERRED = 4, "Erred"
+
+class OfferingTypes(models.TextChoices):
+    STANDARD = "standard", "Standard"
+    PREMIUM = "premium", "Premium"
+```
+
+### Usage in Models
+
+```python
+# Good - in models.py
+from . import enums
+
+class Order(models.Model):
+    state = models.IntegerField(
+        choices=enums.OrderStates.choices,  # Use .choices
+        default=enums.OrderStates.PENDING
+    )
+```
+
+### Usage in Serializers and Filters
+
+```python
+# Good - accessing enum properties
+OrderStates.choices       # Returns tuple of (value, label) pairs
+OrderStates.labels        # Returns tuple of labels
+OrderStates.values        # Returns tuple of values
+OrderStates.names         # Returns tuple of member names
+
+# Bad - deprecated patterns
+OrderStates.CHOICES       # DON'T USE - old pattern
+OrderStates.VALUES        # DON'T USE - old pattern
+```
+
+### OpenAPI Schema
+
+```python
+# Good - in openapi_settings.py
+from waldur_core.server.openapi_utils import labels_of
+
+ENUM_NAME_OVERRIDES = {
+    "OrderState": labels_of(OrderStates),  # Use labels_of() helper
+}
+```
+
 ## Important Guidelines
 
 - **No Emojis**: Avoid emojis unless explicitly requested

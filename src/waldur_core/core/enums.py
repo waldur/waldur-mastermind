@@ -12,17 +12,16 @@ class CoreStates(models.IntegerChoices):
     ERRED = 4, "ERRED"
 
 
-class ReviewStates:
-    DRAFT = 1
-    PENDING = 2
-    APPROVED = 3
-    REJECTED = 4
-    CANCELED = 5
+class RuntimeStates:
+    ONLINE = "online"
+    OFFLINE = "offline"
 
-    CHOICES = (
-        (DRAFT, "draft"),
-        (PENDING, "pending"),
-        (APPROVED, "approved"),
-        (REJECTED, "rejected"),
-        (CANCELED, "canceled"),
-    )
+
+class ReviewStates(models.IntegerChoices):
+    """Review states for requests and workflows requiring approval."""
+
+    DRAFT = 1, "draft"
+    PENDING = 2, "pending"
+    APPROVED = 3, "approved"
+    REJECTED = 4, "rejected"
+    CANCELED = 5, "canceled"

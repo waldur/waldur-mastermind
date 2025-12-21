@@ -17,6 +17,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.invoices import (
     compensations as invoices_compensation,
 )
+from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices import (
     models as invoices_models,
 )
@@ -111,15 +112,15 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         )
         invoice_items = invoice_items.filter(
             invoice__customer__in=customers,
-        ).exclude(invoice__state=invoices_models.Invoice.States.CANCELED)
+        ).exclude(invoice__state=invoices_enums.InvoiceStates.CANCELED)
         month_start = core_utils.month_start(datetime.date.today())
         period = 0
 
-        if self.period == self.Periods.MONTH_1:
+        if self.period == invoices_enums.Periods.MONTH_1:
             period = 1
-        elif self.period == self.Periods.MONTH_3:
+        elif self.period == invoices_enums.Periods.MONTH_3:
             period = 3
-        elif self.period == self.Periods.MONTH_12:
+        elif self.period == invoices_enums.Periods.MONTH_12:
             period = 12
 
         query = Q()

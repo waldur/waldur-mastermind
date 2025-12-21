@@ -10,7 +10,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
@@ -90,7 +90,7 @@ class PlanComponentsTest(test.APITransactionTestCase):
                 {
                     "name": "small",
                     "description": "CPU 1",
-                    "unit": UnitPriceMixin.Units.PER_DAY,
+                    "unit": Units.PER_DAY,
                     "unit_price": 1010100,
                 }
             ],

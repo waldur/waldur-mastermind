@@ -3,7 +3,7 @@ import unittest
 from freezegun import freeze_time
 from rest_framework import test
 
-from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace.enums import VMWARE_VM_OFFERING
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -18,7 +18,7 @@ class InvoiceTest(test.APITransactionTestCase):
         self.offering = marketplace_factories.OfferingFactory(type=VMWARE_VM_OFFERING)
         self.plan = marketplace_factories.PlanFactory(
             offering=self.offering,
-            unit=UnitPriceMixin.Units.PER_DAY,
+            unit=Units.PER_DAY,
         )
 
         for component_type in ("cpu", "ram", "disk"):
@@ -100,7 +100,7 @@ class InvoiceTest(test.APITransactionTestCase):
         self,
     ):
         # Arrange
-        self.plan.unit = UnitPriceMixin.Units.PER_MONTH
+        self.plan.unit = Units.PER_MONTH
         self.plan.save()
         signals.vm_created.send(self.__class__, vm=self.vm)
 
@@ -120,7 +120,7 @@ class InvoiceTest(test.APITransactionTestCase):
         self,
     ):
         # Arrange
-        self.plan.unit = UnitPriceMixin.Units.PER_MONTH
+        self.plan.unit = Units.PER_MONTH
         self.plan.save()
         signals.vm_created.send(self.__class__, vm=self.vm)
 

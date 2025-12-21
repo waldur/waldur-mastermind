@@ -8,16 +8,13 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core.fields import JSONField
 from waldur_core.core.models import UuidMixin
 
+from . import enums
+
 User = get_user_model()
 
 
 class UserAction(UuidMixin, TimeStampedModel):
     """Individual action items for users"""
-
-    class UrgencyChoices(models.TextChoices):
-        LOW = "low", "Low"
-        MEDIUM = "medium", "Medium"
-        HIGH = "high", "High"
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="actions")
     action_type = models.CharField(
@@ -26,7 +23,7 @@ class UserAction(UuidMixin, TimeStampedModel):
     )
     title = models.CharField(max_length=255)
     description = models.TextField()
-    urgency = models.CharField(max_length=10, choices=UrgencyChoices.choices)
+    urgency = models.CharField(max_length=10, choices=enums.UrgencyChoices.choices)
 
     # Object reference - polymorphic support
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)

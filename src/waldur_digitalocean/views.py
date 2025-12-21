@@ -2,6 +2,7 @@ from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import decorators, response, status
 
+from waldur_core.core import enums as core_enums
 from waldur_core.core import executors as core_executors
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates
@@ -79,7 +80,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
 
     start_validators = [
         core_validators.StateValidator(CoreStates.OK),
-        core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.OFFLINE),
+        core_validators.RuntimeStateValidator(core_enums.RuntimeStates.OFFLINE),
     ]
     start_serializer_class = EmptySerializer
 
@@ -93,7 +94,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
 
     stop_validators = [
         core_validators.StateValidator(CoreStates.OK),
-        core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE),
+        core_validators.RuntimeStateValidator(core_enums.RuntimeStates.ONLINE),
     ]
     stop_serializer_class = EmptySerializer
 
@@ -107,7 +108,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
 
     restart_validators = [
         core_validators.StateValidator(CoreStates.OK),
-        core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE),
+        core_validators.RuntimeStateValidator(core_enums.RuntimeStates.ONLINE),
     ]
     restart_serializer_class = EmptySerializer
 

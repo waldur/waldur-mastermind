@@ -5,7 +5,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
 
-from waldur_mastermind.common import mixins as common_mixins
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models, utils
 from waldur_mastermind.marketplace_support.tests import fixtures as fixtures
@@ -19,7 +19,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         start_date = timezone.datetime(2017, 7, 14)
         end_date = timezone.datetime(2017, 7, 31, 23, 59, 59)
         resource = self.fixture.resource
-        self.fixture.plan.unit = common_mixins.UnitPriceMixin.Units.PER_DAY
+        self.fixture.plan.unit = Units.PER_DAY
         self.fixture.plan.save()
 
         with freeze_time(start_date):
@@ -53,7 +53,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
     def test_invoice_item_with_half_monthly_price_with_start_in_first_half(self):
         start_date = timezone.datetime(2017, 7, 14)
         resource = self.fixture.resource
-        self.fixture.plan.unit = common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH
+        self.fixture.plan.unit = Units.PER_HALF_MONTH
         self.fixture.plan.save()
 
         with freeze_time(start_date):
@@ -71,7 +71,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
     def test_invoice_item_with_half_monthly_price_with_start_in_second_half(self):
         start_date = timezone.datetime(2017, 7, 16)
         resource = self.fixture.resource
-        self.fixture.plan.unit = common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH
+        self.fixture.plan.unit = Units.PER_HALF_MONTH
         self.fixture.plan.save()
 
         with freeze_time(start_date):

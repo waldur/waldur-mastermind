@@ -12,6 +12,7 @@ from waldur_core.permissions.fixtures import (
     ServiceProviderRole,
 )
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import BackendResourceRequestState
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -236,7 +237,7 @@ class BackendResourceRequestTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource_request.refresh_from_db()
         self.assertEqual(
-            self.resource_request.state, models.BackendResourceRequest.States.PROCESSING
+            self.resource_request.state, BackendResourceRequestState.PROCESSING
         )
 
     @data("owner", "customer_support", "admin", "manager")
@@ -268,9 +269,7 @@ class BackendResourceRequestTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource_request.refresh_from_db()
-        self.assertEqual(
-            self.resource_request.state, models.BackendResourceRequest.States.DONE
-        )
+        self.assertEqual(self.resource_request.state, BackendResourceRequestState.DONE)
 
     @data("owner", "customer_support", "admin", "manager")
     def test_user_cannot_set_done_backend_resource_request(self, role):
@@ -299,9 +298,7 @@ class BackendResourceRequestTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource_request.refresh_from_db()
-        self.assertEqual(
-            self.resource_request.state, models.BackendResourceRequest.States.ERRED
-        )
+        self.assertEqual(self.resource_request.state, BackendResourceRequestState.ERRED)
         self.assertEqual(self.resource_request.error_message, payload["error_message"])
         self.assertEqual(
             self.resource_request.error_traceback, payload["error_traceback"]
@@ -337,7 +334,5 @@ class BackendResourceRequestTest(test.APITransactionTestCase):
         response = self.client.post(url, data=payload)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(
-            response.data["state"], models.BackendResourceRequest.States.SENT
-        )
+        self.assertEqual(response.data["state"], BackendResourceRequestState.SENT)
         mock_publish_messages.delay.assert_called_once()

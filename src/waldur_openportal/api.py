@@ -11,7 +11,7 @@ from rest_framework.decorators import (
 
 from waldur_core.core import utils as core_utils
 
-from . import models, tasks
+from . import enums, models, tasks
 from . import op as openportal
 from .board import OpenPortalBoard
 
@@ -94,14 +94,14 @@ def fetch_job(request):
         job_id=job_id,
         defaults={
             "job_data": job.to_json(),
-            "state": models.Job.State.PENDING,
+            "state": enums.JobState.PENDING,
         },
     )
 
     if not created:
         logger.warning(f"Job {job_id} already exists in the database... re-running?")
 
-    if job_model.state != models.Job.State.PENDING:
+    if job_model.state != enums.JobState.PENDING:
         logger.error(f"Job {job_id} is not in PENDING state, but in {job_model.state}")
         response = JsonResponse({})
         response.status_code = status.UNAUTHORIZED

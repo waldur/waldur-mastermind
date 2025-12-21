@@ -25,11 +25,9 @@ from waldur_openstack.serializers import (
     validate_security_group_rule,
 )
 from waldur_rancher.enums import (
-    AGENT_ROLE,
-    RANCHER_TEMPLATE_QUESTION_TYPE,
-    ROLE_CHOICES,
-    SERVER_ROLE,
+    NodeRole,
     RoleScopeType,
+    TemplateQuestionType,
 )
 
 from . import models, utils, validators
@@ -275,7 +273,7 @@ class RancherBaseNodeSerializer(
     data_volumes = DataVolumeSerializer(many=True, write_only=True, required=False)
     memory = serializers.IntegerField(write_only=True, required=False)
     cpu = serializers.IntegerField(write_only=True, required=False)
-    role = serializers.ChoiceField(choices=ROLE_CHOICES)
+    role = serializers.ChoiceField(choices=NodeRole.choices)
     tenant = serializers.HyperlinkedRelatedField(
         queryset=openstack_models.Tenant.objects.all(),
         view_name="openstack-tenant-detail",
@@ -546,7 +544,7 @@ class RancherClusterSerializer(
         return attrs
 
     def validate_nodes(self, nodes):
-        if len([node for node in nodes if node["role"] == SERVER_ROLE]) not in [
+        if len([node for node in nodes if node["role"] == NodeRole.SERVER]) not in [
             1,
             3,
             5,
@@ -558,7 +556,7 @@ class RancherClusterSerializer(
                 % len(nodes)
             )
 
-        if not len([node for node in nodes if node["role"] == AGENT_ROLE]):
+        if not len([node for node in nodes if node["role"] == NodeRole.AGENT]):
             raise serializers.ValidationError(_("Count of agent nodes must be min 1."))
 
         return nodes
@@ -1403,7 +1401,7 @@ class RancherFieldPropsSerializer(serializers.Serializer):
 
 
 class RancherTemplateBaseQuestionSerializer(RancherFieldPropsSerializer):
-    type = serializers.ChoiceField(choices=RANCHER_TEMPLATE_QUESTION_TYPE)
+    type = serializers.ChoiceField(choices=TemplateQuestionType.choices)
     default = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     group = serializers.CharField(required=False)
     showIf = serializers.CharField(required=False)

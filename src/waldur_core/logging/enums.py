@@ -1,5 +1,7 @@
 from enum import Enum
 
+from django.db import models
+
 
 class EventType(str, Enum):
     ACCESS_SUBNET_CREATION_SUCCEEDED = "access_subnet_creation_succeeded"
@@ -638,3 +640,8 @@ RESOURCE_CHANGE_EVENTS = (
     EventType.MARKETPLACE_RESOURCE_TERMINATE_FAILED,
     EventType.MARKETPLACE_RESOURCE_UPDATE_LIMITS_FAILED,
 )
+
+
+class WebHookContentType(models.IntegerChoices):
+    JSON = 1, "json"
+    FORM = 2, "form"

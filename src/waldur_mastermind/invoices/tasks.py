@@ -19,7 +19,15 @@ from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.tasks import copy_future_price_to_current_price
 
-from ..invoices import compensations, models, serializers, utils
+from ..invoices import (
+    compensations,
+    models,
+    serializers,
+    utils,
+)
+from ..invoices import (
+    enums as invoices_enums,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +43,9 @@ def create_monthly_invoices():
 
     local_date = timezone.localtime(timezone.now())
     old_invoices = models.Invoice.objects.filter(
-        Q(state=models.Invoice.States.PENDING, year__lt=local_date.year)
+        Q(state=invoices_enums.InvoiceStates.PENDING, year__lt=local_date.year)
         | Q(
-            state=models.Invoice.States.PENDING,
+            state=invoices_enums.InvoiceStates.PENDING,
             year=local_date.year,
             month__lt=local_date.month,
         )
@@ -225,7 +233,7 @@ def send_new_invoices_notification():
 
     # invoice notifications are not sent if customer has a fixed price payment profile
     fixed_price_profiles = models.PaymentProfile.objects.filter(
-        is_active=True, payment_type=models.PaymentType.FIXED_PRICE
+        is_active=True, payment_type=invoices_enums.PaymentType.FIXED_PRICE
     ).values_list("organization_id", flat=True)
 
     for invoice in (

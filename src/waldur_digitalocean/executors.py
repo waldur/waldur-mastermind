@@ -1,8 +1,8 @@
 from celery import chain
 
+from waldur_core.core import enums as core_enums
 from waldur_core.core import executors
 from waldur_core.core import utils as core_utils
-from waldur_core.core.models import RuntimeStateMixin
 from waldur_core.core.tasks import BackendMethodTask, StateTransitionTask
 from waldur_core.structure import executors as structure_executors
 
@@ -18,7 +18,7 @@ class DropletCreateExecutor(executors.CreateExecutor):
                 "create_droplet",
                 state_transition="begin_creating",
                 runtime_state="provisioning",
-                success_runtime_state=RuntimeStateMixin.RuntimeStates.ONLINE,
+                success_runtime_state=core_enums.RuntimeStates.ONLINE,
                 **kwargs,
             ),
             tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=30),
@@ -46,7 +46,7 @@ class DropletStopExecutor(executors.ActionExecutor):
                 serialized_droplet,
                 "stop",
                 state_transition="begin_updating",
-                success_runtime_state=models.Droplet.RuntimeStates.OFFLINE,
+                success_runtime_state=core_enums.RuntimeStates.OFFLINE,
             ),
             tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=10),
         )
@@ -60,7 +60,7 @@ class DropletStartExecutor(executors.ActionExecutor):
                 serialized_droplet,
                 "start",
                 state_transition="begin_updating",
-                success_runtime_state=models.Droplet.RuntimeStates.ONLINE,
+                success_runtime_state=core_enums.RuntimeStates.ONLINE,
             ),
             tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=10),
         )
@@ -74,7 +74,7 @@ class DropletRestartExecutor(executors.ActionExecutor):
                 serialized_droplet,
                 "restart",
                 state_transition="begin_updating",
-                success_runtime_state=models.Droplet.RuntimeStates.ONLINE,
+                success_runtime_state=core_enums.RuntimeStates.ONLINE,
             ),
             tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=10),
         )
@@ -91,7 +91,7 @@ class DropletResizeExecutor(executors.UpdateExecutor):
                 "resize",
                 state_transition="begin_updating",
                 runtime_state="resizing",
-                success_runtime_state=models.Droplet.RuntimeStates.ONLINE,
+                success_runtime_state=core_enums.RuntimeStates.ONLINE,
                 backend_size_id=size.backend_id,
                 disk=disk,
             ),

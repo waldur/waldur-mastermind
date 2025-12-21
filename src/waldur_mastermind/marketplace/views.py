@@ -101,6 +101,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
+from waldur_core.structure.enums import OECD_FOS_2007_CODES
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.executors import ServiceSettingsPullExecutor
 from waldur_core.structure.managers import (
@@ -123,9 +124,12 @@ from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
+    ORDER_PENDING_STATES,
     SITE_AGENT_OFFERING,
     SUPPORT_OFFERING,
+    BackendResourceRequestState,
     BillingTypes,
+    IntegrationStatusAgentTypes,
     MaintenanceState,
     OfferingStates,
     OfferingUserStates,
@@ -144,6 +148,7 @@ from waldur_mastermind.marketplace.utils import (
     validate_attributes,
 )
 from waldur_mastermind.promotions import models as promotions_models
+from waldur_mastermind.promotions.enums import CampaignState
 from waldur_mastermind.support import models as support_models
 from waldur_pid import models as pid_models
 
@@ -439,7 +444,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
 
         active_campaigns = promotions_models.Campaign.objects.filter(
             service_provider=service_provider,
-            state=promotions_models.Campaign.States.ACTIVE,
+            state=CampaignState.ACTIVE,
             start_date__lte=to_day,
             end_date__gte=to_day,
         ).count()
@@ -2664,7 +2669,7 @@ class ProviderOfferingViewSet(
 
         integration_status, _ = models.IntegrationStatus.objects.get_or_create(
             offering=offering,
-            agent_type=models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
+            agent_type=IntegrationStatusAgentTypes.GLAUTH_SYNC,
         )
         integration_status.set_last_request_timestamp()
         integration_status.service_name = request.headers.get("User-Agent", "")
@@ -3149,7 +3154,7 @@ class ProviderOfferingViewSet(
             models.Resource.objects.filter(
                 offering=offering,
             )
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .values_list("project_id", flat=True)
             .distinct()
         )
@@ -3183,7 +3188,7 @@ class ProviderOfferingViewSet(
             models.Resource.objects.filter(
                 offering=offering,
             )
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .values_list("project_id", flat=True)
             .distinct()
         )
@@ -3210,7 +3215,7 @@ class ProviderOfferingViewSet(
             models.Resource.objects.filter(
                 offering=offering,
             )
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .values_list("project_id", flat=True)
             .distinct()
         )
@@ -4116,7 +4121,7 @@ class ProviderOfferingViewSet(
 
         # Always set imported offerings to DRAFT state for security
         # Users must use proper state transition actions (activate, pause, etc.) after import
-        offering.state = models.Offering.States.DRAFT
+        offering.state = OfferingStates.DRAFT
 
         # Set optional project
         project = params.get("project")
@@ -5136,9 +5141,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     approve_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,
         structure_utils.check_project_end_date,
-        core_validators.StateValidator(
-            OrderStates.PENDING_CONSUMER, state_enum=OrderStates
-        ),
+        core_validators.StateValidator(OrderStates.PENDING_CONSUMER),
     ]
 
     approve_by_consumer_permissions = [
@@ -5150,19 +5153,19 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     def list(self, request, *args, **kwargs):
         utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.ORDER_PROCESSING
+            request, IntegrationStatusAgentTypes.ORDER_PROCESSING
         )
         utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.EVENT_PROCESSING
+            request, IntegrationStatusAgentTypes.EVENT_PROCESSING
         )
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
         utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.ORDER_PROCESSING
+            request, IntegrationStatusAgentTypes.ORDER_PROCESSING
         )
         utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.EVENT_PROCESSING
+            request, IntegrationStatusAgentTypes.EVENT_PROCESSING
         )
         return super().retrieve(request, *args, **kwargs)
 
@@ -5249,9 +5252,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     approve_by_provider_validators = [
         structure_utils.check_customer_blocked_or_archived,
-        core_validators.StateValidator(
-            OrderStates.PENDING_PROVIDER, state_enum=OrderStates
-        ),
+        core_validators.StateValidator(OrderStates.PENDING_PROVIDER),
     ]
 
     approve_by_provider_permissions = [
@@ -5312,9 +5313,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     reject_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,
-        core_validators.StateValidator(
-            OrderStates.PENDING_CONSUMER, state_enum=OrderStates
-        ),
+        core_validators.StateValidator(OrderStates.PENDING_CONSUMER),
     ]
 
     reject_by_consumer_permissions = [permissions.user_can_reject_order_as_consumer]
@@ -5343,9 +5342,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     reject_by_provider_validators = [
         structure_utils.check_customer_blocked_or_archived,
-        core_validators.StateValidator(
-            OrderStates.PENDING_PROVIDER, state_enum=OrderStates
-        ),
+        core_validators.StateValidator(OrderStates.PENDING_PROVIDER),
     ]
 
     reject_by_provider_permissions = [
@@ -5382,7 +5379,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             OrderStates.PENDING_PROVIDER,
             OrderStates.PENDING_START_DATE,
             OrderStates.EXECUTING,
-            state_enum=OrderStates,
         ),
         OfferingTypeValidator(BASIC_OFFERING, SUPPORT_OFFERING),
     ]
@@ -5405,7 +5401,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             OrderStates.PENDING_CONSUMER,
             OrderStates.PENDING_PROVIDER,
             OrderStates.ERRED,
-            state_enum=OrderStates,
         ),
         OfferingTypeValidator(SITE_AGENT_OFFERING),
     ]
@@ -5433,7 +5428,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     set_state_done_validators = [
         core_validators.StateValidator(
             OrderStates.EXECUTING,
-            state_enum=OrderStates,
         ),
         OfferingTypeValidator(SITE_AGENT_OFFERING, BASIC_OFFERING, SUPPORT_OFFERING),
     ]
@@ -5511,7 +5505,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         core_validators.StateValidator(
             OrderStates.PENDING_CONSUMER,
             OrderStates.PENDING_PROVIDER,
-            state_enum=OrderStates,
         ),
         structure_utils.check_customer_blocked_or_archived,
     ]
@@ -5598,7 +5591,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             OrderStates.PENDING_PROJECT,
             OrderStates.PENDING_CONSUMER,
             OrderStates.PENDING_PROVIDER,
-            state_enum=OrderStates,
         ),
     ]
 
@@ -5706,22 +5698,22 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
     def list(self, request, *args, **kwargs):
         utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.USAGE_REPORTING
+            request, IntegrationStatusAgentTypes.USAGE_REPORTING
         )
         utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.RESOURCE_SYNC
+            request, IntegrationStatusAgentTypes.RESOURCE_SYNC
         )
         utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.EVENT_PROCESSING
+            request, IntegrationStatusAgentTypes.EVENT_PROCESSING
         )
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
         utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.RESOURCE_SYNC
+            request, IntegrationStatusAgentTypes.RESOURCE_SYNC
         )
         utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.EVENT_PROCESSING
+            request, IntegrationStatusAgentTypes.EVENT_PROCESSING
         )
         return super().retrieve(request, *args, **kwargs)
 
@@ -5850,7 +5842,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
                 _("Restoring resource is not supported for this offering type.")
             )
 
-        if resource.state != models.Resource.States.TERMINATED:
+        if resource.state != ResourceStates.TERMINATED:
             raise ValidationError(
                 _("Resource must be in TERMINATED state to be restored.")
             )
@@ -6164,7 +6156,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
         integration_status, _ = models.IntegrationStatus.objects.get_or_create(
             offering=offering,
-            agent_type=models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
+            agent_type=IntegrationStatusAgentTypes.GLAUTH_SYNC,
         )
         integration_status.set_last_request_timestamp()
         integration_status.service_name = request.headers.get("User-Agent", "")
@@ -7475,7 +7467,7 @@ def validate_offering_user_state_transition(valid_states, target_state_name):
 
     def validator(offering_user):
         if offering_user.state not in valid_states:
-            states_names = dict(OfferingUserStates.CHOICES)
+            states_names = dict(OfferingUserStates.choices)
             valid_states_names = [str(states_names[state]) for state in valid_states]
             raise ValidationError(
                 {
@@ -8713,7 +8705,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
         # For "in progress count", we usually want current snapshot.
         in_progress_orders = models.Order.objects.filter(
             type=OrderTypes.CREATE,
-            state__in=models.OrderStates.PENDING_STATES,
+            state__in=ORDER_PENDING_STATES,
         ).select_related("offering", "offering__customer")
 
         stats = {}
@@ -8916,9 +8908,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
             if "oecd_fos_2007_code" in d.keys():
                 name = [
-                    c[1]
-                    for c in structure_models.Project.OECD_FOS_2007_CODES
-                    if c[0] == d["oecd_fos_2007_code"]
+                    c[1] for c in OECD_FOS_2007_CODES if c[0] == d["oecd_fos_2007_code"]
                 ]
                 if name:
                     d["oecd_fos_2007_name"] = name[0]
@@ -8934,11 +8924,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
         results = {}
         for code, value in data.items():
-            name = [
-                c[1]
-                for c in structure_models.Project.OECD_FOS_2007_CODES
-                if c[0] == code
-            ]
+            name = [c[1] for c in OECD_FOS_2007_CODES if c[0] == code]
             if name:
                 results[f"{code} {str(name[0])}"] = value
             else:
@@ -9713,30 +9699,18 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
 
     # Validators for state transitions
     set_state_creating_validators = [
-        core_validators.StateValidator(
-            RobotAccountStates.REQUESTED, state_enum=RobotAccountStates
-        )
+        core_validators.StateValidator(RobotAccountStates.REQUESTED)
     ]
     set_state_ok_validators = [
-        core_validators.StateValidator(
-            RobotAccountStates.CREATING, state_enum=RobotAccountStates
-        )
+        core_validators.StateValidator(RobotAccountStates.CREATING)
     ]
     set_state_request_deletion_validators = [
-        core_validators.StateValidator(
-            RobotAccountStates.OK, state_enum=RobotAccountStates
-        )
+        core_validators.StateValidator(RobotAccountStates.OK)
     ]
     set_state_deleted_validators = [
-        core_validators.StateValidator(
-            RobotAccountStates.REQUESTED_DELETION, state_enum=RobotAccountStates
-        )
+        core_validators.StateValidator(RobotAccountStates.REQUESTED_DELETION)
     ]
-    set_state_erred_validators = [
-        core_validators.StateValidator(
-            RobotAccountStates.OK, state_enum=RobotAccountStates
-        )
-    ]
+    set_state_erred_validators = [core_validators.StateValidator(RobotAccountStates.OK)]
 
 
 @extend_schema_view(
@@ -10285,7 +10259,7 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
         )
 
     start_processing_validators = [
-        core_validators.StateValidator(models.BackendResourceRequest.States.SENT)
+        core_validators.StateValidator(BackendResourceRequestState.SENT)
     ]
 
     @extend_schema(
@@ -10311,7 +10285,7 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
         )
 
     set_done_validators = [
-        core_validators.StateValidator(models.BackendResourceRequest.States.PROCESSING)
+        core_validators.StateValidator(BackendResourceRequestState.PROCESSING)
     ]
 
     @extend_schema(
@@ -10398,11 +10372,7 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
     filterset_class = filters.MaintenanceAnnouncementFilter
     serializer_class = serializers.MaintenanceAnnouncementSerializer
 
-    schedule_validators = [
-        core_validators.StateValidator(
-            MaintenanceState.DRAFT, state_enum=MaintenanceState
-        )
-    ]
+    schedule_validators = [core_validators.StateValidator(MaintenanceState.DRAFT)]
 
     @extend_schema(
         summary="Schedule/publish the maintenance announcement",
@@ -10421,11 +10391,7 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
-    unschedule_validators = [
-        core_validators.StateValidator(
-            MaintenanceState.SCHEDULED, state_enum=MaintenanceState
-        )
-    ]
+    unschedule_validators = [core_validators.StateValidator(MaintenanceState.SCHEDULED)]
 
     @extend_schema(
         summary="Unschedule/unpublish the maintenance announcement",
@@ -10445,9 +10411,7 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
         )
 
     start_maintenance_validators = [
-        core_validators.StateValidator(
-            MaintenanceState.SCHEDULED, state_enum=MaintenanceState
-        )
+        core_validators.StateValidator(MaintenanceState.SCHEDULED)
     ]
 
     @extend_schema(
@@ -10468,9 +10432,7 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
         )
 
     complete_maintenance_validators = [
-        core_validators.StateValidator(
-            MaintenanceState.IN_PROGRESS, state_enum=MaintenanceState
-        )
+        core_validators.StateValidator(MaintenanceState.IN_PROGRESS)
     ]
 
     @extend_schema(
@@ -10494,7 +10456,6 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
         core_validators.StateValidator(
             MaintenanceState.DRAFT,
             MaintenanceState.SCHEDULED,
-            state_enum=MaintenanceState,
         )
     ]
 

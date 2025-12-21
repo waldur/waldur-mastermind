@@ -1,8 +1,9 @@
-class AgentServiceState:
-    ACTIVE = 1
-    IDLE = 2
-    ERROR = 3
+from django.db import models
 
-    CHOICES = ((ACTIVE, "Active"), (IDLE, "Idle"), (ERROR, "Error"))
 
-    VALUES = [val for (_, val) in CHOICES]
+class AgentServiceState(models.IntegerChoices):
+    """Represents the state of an agent service (event processing, usage reporting)."""
+
+    ACTIVE = 1, "Active"
+    IDLE = 2, "Idle"
+    ERROR = 3, "Error"

@@ -1,322 +1,214 @@
-from typing import Literal
-
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 
-class BillingTypes:
-    FIXED = "fixed"
-    USAGE = "usage"
-    ONE_TIME = "one"
-    ON_PLAN_SWITCH = "few"
-    LIMIT = "limit"
+class IntegrationStatusStates(models.IntegerChoices):
+    """Defines the possible connection states for an integration, such as active or disconnected."""
 
-    CHOICES = (
-        # if billing type is fixed, service provider specifies exact values of amount field of plan component model
-        (FIXED, "Fixed-price"),
-        # if billing type is usage-based billing is applied when usage report is submitted
-        (USAGE, "Usage-based"),
-        # if billing type is limit, user specifies limit when resource is provisioned or updated
-        (LIMIT, "Limit-based"),
-        # if billing type is one-time, billing is applied once on resource activation
-        (ONE_TIME, "One-time"),
-        # applies fee on resource activation and every time a plan has changed, using pricing of a new plan
-        (ON_PLAN_SWITCH, "One-time on plan switch"),
+    UNKNOWN = 1, "Unknown"
+    ACTIVE = 2, "Active"
+    DISCONNECTED = 3, "Disconnected"
+
+
+class IntegrationStatusAgentTypes(models.IntegerChoices):
+    """Identifies the type of agent reporting the integration status (e.g. order processing, usage reporting)."""
+
+    ORDER_PROCESSING = 1, "Order processing"
+    USAGE_REPORTING = 2, "Usage reporting"
+    GLAUTH_SYNC = 3, "Glauth sync"
+    RESOURCE_SYNC = 4, "Resource sync"
+    EVENT_PROCESSING = 5, "Event processing"
+
+
+class BillingTypes(models.TextChoices):
+    """Specifies the billing model for an offering or plan, such as fixed-price or usage-based."""
+
+    # if billing type is fixed, service provider specifies exact values of amount field of plan component model
+    FIXED = "fixed", "Fixed-price"
+    # if billing type is usage-based billing is applied when usage report is submitted
+    USAGE = "usage", "Usage-based"
+    # if billing type is limit, user specifies limit when resource is provisioned or updated
+    LIMIT = "limit", "Limit-based"
+    # if billing type is one-time, billing is applied once on resource activation
+    ONE_TIME = "one", "One-time"
+    # applies fee on resource activation and every time a plan has changed, using pricing of a new plan
+    ON_PLAN_SWITCH = "few", "One-time on plan switch"
+
+
+class LimitPeriods(models.TextChoices):
+    """Defines the period over which usage limits are enforced, such as monthly or annually."""
+
+    MONTH = (
+        "month",
+        "Maximum monthly - every month service provider can report up to the amount requested by user.",
+    )
+    QUARTERLY = (
+        "quarterly",
+        "Maximum quarterly - every quarter service provider can report up to the amount requested by user.",
+    )
+    ANNUAL = (
+        "annual",
+        "Maximum annually - every year service provider can report up to the amount requested by user.",
+    )
+    TOTAL = (
+        "total",
+        "Maximum total - SP can report up to the requested amount over the whole active state of resource.",
     )
 
 
-class LimitPeriods:
-    MONTH = "month"
-    QUARTERLY = "quarterly"
-    ANNUAL = "annual"
-    TOTAL = "total"
+class OfferingStates(models.IntegerChoices):
+    """Represents the lifecycle states of a marketplace offering (e.g. Draft, Active, Archived)."""
 
-    CHOICES = (
-        (
-            MONTH,
-            "Maximum monthly - every month service provider "
-            "can report up to the amount requested by user.",
-        ),
-        (
-            QUARTERLY,
-            "Maximum quarterly - every quarter service provider "
-            "can report up to the amount requested by user.",
-        ),
-        (
-            ANNUAL,
-            "Maximum annually - every year service provider "
-            "can report up to the amount requested by user.",
-        ),
-        (
-            TOTAL,
-            "Maximum total - SP can report up to the requested "
-            "amount over the whole active state of resource.",
-        ),
-    )
+    DRAFT = 1, "Draft"
+    ACTIVE = 2, "Active"
+    PAUSED = 3, "Paused"
+    ARCHIVED = 4, "Archived"
+    UNAVAILABLE = 5, "Unavailable"
 
 
-class OfferingStates:
-    DRAFT = 1
-    ACTIVE = 2
-    PAUSED = 3
-    ARCHIVED = 4
-    UNAVAILABLE = 5
+class RobotAccountStates(models.IntegerChoices):
+    """Tracks the status of a robot account provisioning process."""
 
-    CHOICES = (
-        (DRAFT, "Draft"),
-        (ACTIVE, "Active"),
-        (PAUSED, "Paused"),
-        (ARCHIVED, "Archived"),
-        (UNAVAILABLE, "Unavailable"),
-    )
-
-    VALUES = [val for (_, val) in CHOICES]
+    REQUESTED = 1, "Requested"
+    CREATING = 2, "Creating"
+    OK = 3, "OK"
+    REQUESTED_DELETION = 4, "Requested deletion"
+    DELETED = 5, "Deleted"
+    ERROR = 6, "Error"
 
 
-class RobotAccountStates:
-    REQUESTED = 1
-    CREATING = 2
-    OK = 3
-    REQUESTED_DELETION = 4
-    DELETED = 5
-    ERROR = 6
+class OfferingUserStates(models.IntegerChoices):
+    """Tracks the status of an offering user (service provider) account creation or deletion."""
 
-    CHOICES = (
-        (REQUESTED, "Requested"),
-        (CREATING, "Creating"),
-        (OK, "OK"),
-        (REQUESTED_DELETION, "Requested deletion"),
-        (DELETED, "Deleted"),
-        (ERROR, "Error"),
-    )
-
-    VALUES = [val for (_, val) in CHOICES]
-
-
-class OfferingUserStates:
     # creation flow
-    CREATION_REQUESTED = 1
-    CREATING = 2
-    PENDING_ACCOUNT_LINKING = 3
-    PENDING_ADDITIONAL_VALIDATION = 4
-    OK = 5
+    CREATION_REQUESTED = 1, "Requested"
+    CREATING = 2, "Creating"
+    PENDING_ACCOUNT_LINKING = 3, "Pending account linking"
+    PENDING_ADDITIONAL_VALIDATION = 4, "Pending additional validation"
+    OK = 5, "OK"
     # removal flow
-    DELETION_REQUESTED = 6
-    DELETING = 7
-    DELETED = 8
+    DELETION_REQUESTED = 6, "Requested deletion"
+    DELETING = 7, "Deleting"
+    DELETED = 8, "Deleted"
     # error states
-    ERROR_CREATING = 9
-    ERROR_DELETING = 10
-
-    CHOICES = (
-        (CREATION_REQUESTED, "Requested"),
-        (CREATING, "Creating"),
-        (PENDING_ACCOUNT_LINKING, "Pending account linking"),
-        (PENDING_ADDITIONAL_VALIDATION, "Pending additional validation"),
-        (OK, "OK"),
-        (DELETION_REQUESTED, "Requested deletion"),
-        (DELETING, "Deleting"),
-        (DELETED, "Deleted"),
-        (ERROR_CREATING, "Error creating"),
-        (ERROR_DELETING, "Error deleting"),
-    )
-
-    VALUES = [val for (_, val) in CHOICES]
+    ERROR_CREATING = 9, "Error creating"
+    ERROR_DELETING = 10, "Error deleting"
 
 
-OfferingUserStatesType = Literal[
-    "Requested",
-    "Creating",
-    "Pending account linking",
-    "Pending additional validation",
-    "OK",
-    "Requested deletion",
-    "Deleting",
-    "Deleted",
-    "Error creating",
-    "Error deleting",
-]
+class OrderTypes(models.IntegerChoices):
+    """Distinguishes between different types of marketplace orders (Create, Update, Terminate, Restore)."""
+
+    CREATE = 1, "Create"
+    UPDATE = 2, "Update"
+    TERMINATE = 3, "Terminate"
+    RESTORE = 4, "Restore"
 
 
-class OrderTypes:
-    CREATE = 1
-    UPDATE = 2
-    TERMINATE = 3
-    RESTORE = 4
+class CategoryColumnWidget(models.TextChoices):
+    """Specifies the widget type used for rendering category columns in the UI."""
 
-    CHOICES = (
-        (CREATE, "Create"),
-        (UPDATE, "Update"),
-        (TERMINATE, "Terminate"),
-        (RESTORE, "Restore"),
-    )
-
-    VALUES = [val for (_, val) in CHOICES]
+    CSV = "csv", "csv"
+    FILESIZE = "filesize", "filesize"
+    ATTACHED_INSTANCE = "attached_instance", "attached_instance"
 
 
-class CategoryColumnWidget:
-    CHOICES = (
-        ("csv", "csv"),
-        ("filesize", "filesize"),
-        ("attached_instance", "attached_instance"),
-    )
+class OrderStates(models.IntegerChoices):
+    """Represents the detailed state of an order's processing workflow."""
+
+    PENDING_START_DATE = 9, "pending-start-date"
+    PENDING_PROJECT = 8, "pending-project"
+    PENDING_CONSUMER = 1, "pending-consumer"
+    PENDING_PROVIDER = 7, "pending-provider"
+    EXECUTING = 2, "executing"
+    DONE = 3, "done"
+    ERRED = 4, "erred"
+    CANCELED = 5, "canceled"
+    REJECTED = 6, "rejected"
 
 
-class OrderStates:
-    PENDING_START_DATE = 9
-    PENDING_PROJECT = 8
-    PENDING_CONSUMER = 1
-    PENDING_PROVIDER = 7
-    EXECUTING = 2
-    DONE = 3
-    ERRED = 4
-    CANCELED = 5
-    REJECTED = 6
+ORDER_TERMINAL_STATES = {
+    OrderStates.DONE,
+    OrderStates.ERRED,
+    OrderStates.CANCELED,
+    OrderStates.REJECTED,
+}
 
-    CHOICES = (
-        (PENDING_CONSUMER, "pending-consumer"),
-        (PENDING_PROVIDER, "pending-provider"),
-        (PENDING_PROJECT, "pending-project"),
-        (PENDING_START_DATE, "pending-start-date"),
-        (EXECUTING, "executing"),
-        (DONE, "done"),
-        (ERRED, "erred"),
-        (CANCELED, "canceled"),
-        (REJECTED, "rejected"),
-    )
-
-    TERMINAL_STATES = {DONE, ERRED, CANCELED, REJECTED}
-    PENDING_STATES = {
-        PENDING_CONSUMER,
-        PENDING_PROVIDER,
-        PENDING_PROJECT,
-        PENDING_START_DATE,
-        EXECUTING,
-    }
-    VALUES = [val for (_, val) in CHOICES]
+ORDER_PENDING_STATES = {
+    OrderStates.PENDING_CONSUMER,
+    OrderStates.PENDING_PROVIDER,
+    OrderStates.PENDING_PROJECT,
+    OrderStates.PENDING_START_DATE,
+    OrderStates.EXECUTING,
+}
 
 
-OrderStatesType = Literal[
-    "pending-consumer",
-    "pending-provider",
-    "pending-project",
-    "pending-start-date",
-    "executing",
-    "done",
-    "erred",
-    "canceled",
-    "rejected",
-]
+class ResourceStates(models.IntegerChoices):
+    """Represents the lifecycle state of a provisioned resource."""
+
+    CREATING = 1, "Creating"
+    OK = 2, "OK"
+    ERRED = 3, "Erred"
+    UPDATING = 4, "Updating"
+    TERMINATING = 5, "Terminating"
+    TERMINATED = 6, "Terminated"
 
 
-class ResourceStates:
-    CREATING = 1
-    OK = 2
-    ERRED = 3
-    UPDATING = 4
-    TERMINATING = 5
-    TERMINATED = 6
+class MaintenanceState(models.IntegerChoices):
+    """Tracks the progress of a maintenance window."""
 
-    CHOICES = (
-        (CREATING, "Creating"),
-        (OK, "OK"),
-        (ERRED, "Erred"),
-        (UPDATING, "Updating"),
-        (TERMINATING, "Terminating"),
-        (TERMINATED, "Terminated"),
-    )
-    VALUES = [val for (_, val) in CHOICES]
+    DRAFT = 1, "Draft"
+    SCHEDULED = 2, "Scheduled"
+    IN_PROGRESS = 3, "In progress"
+    COMPLETED = 4, "Completed"
+    CANCELLED = 5, "Cancelled"
 
 
-ResourceStatesType = Literal[
-    "Creating",
-    "OK",
-    "Erred",
-    "Updating",
-    "Terminating",
-    "Terminated",
-]
+class MaintenanceType(models.IntegerChoices):
+    """Categorizes the type of maintenance being performed."""
+
+    SCHEDULED = 1, "Scheduled maintenance"
+    EMERGENCY = 2, "Emergency maintenance"
+    SECURITY = 3, "Security maintenance"
+    UPGRADE = 4, "System upgrade"
+    PATCH = 5, "Patch deployment"
 
 
-class MaintenanceState:
-    DRAFT = 1
-    SCHEDULED = 2
-    IN_PROGRESS = 3
-    COMPLETED = 4
-    CANCELLED = 5
+class ImpactLevel(models.IntegerChoices):
+    """Indicates the expected impact of a maintenance window on service availability."""
 
-    CHOICES = (
-        (DRAFT, "Draft"),
-        (SCHEDULED, "Scheduled"),
-        (IN_PROGRESS, "In progress"),
-        (COMPLETED, "Completed"),
-        (CANCELLED, "Cancelled"),
-    )
+    NO_IMPACT = 1, "No impact"
+    DEGRADED_PERFORMANCE = 2, "Degraded performance"
+    PARTIAL_OUTAGE = 3, "Partial outage"
+    FULL_OUTAGE = 4, "Full outage"
 
 
-class MaintenanceType:
-    SCHEDULED = 1
-    EMERGENCY = 2
-    SECURITY = 3
-    UPGRADE = 4
-    PATCH = 5
+class RemoteResourceSyncStatus(models.TextChoices):
+    """Indicates the synchronization status of a remote resource."""
 
-    CHOICES = (
-        (SCHEDULED, "Scheduled maintenance"),
-        (EMERGENCY, "Emergency maintenance"),
-        (SECURITY, "Security maintenance"),
-        (UPGRADE, "System upgrade"),
-        (PATCH, "Patch deployment"),
-    )
+    IN_SYNC = "in_sync", "In sync"
+    OUT_OF_SYNC = "out_of_sync", "Out of sync"
+    SYNC_FAILED = "sync_failed", "Sync failed"
 
 
-class ImpactLevel:
-    NO_IMPACT = 1
-    DEGRADED_PERFORMANCE = 2
-    PARTIAL_OUTAGE = 3
-    FULL_OUTAGE = 4
+class CatalogType(models.TextChoices):
+    """Specifies the type of software catalog."""
 
-    CHOICES = (
-        (NO_IMPACT, "No impact"),
-        (DEGRADED_PERFORMANCE, "Degraded performance"),
-        (PARTIAL_OUTAGE, "Partial outage"),
-        (FULL_OUTAGE, "Full outage"),
-    )
+    BINARY_RUNTIME = "binary_runtime", _("Binary Runtime (EESSI)")
+    SOURCE_PACKAGE = "source_package", _("Source Package (Spack)")
+    PACKAGE_MANAGER = "package_manager", _("Package Manager (conda, pip)")
 
 
-class RemoteResourceSyncStatus:
-    IN_SYNC = "in_sync"
-    OUT_OF_SYNC = "out_of_sync"
-    SYNC_FAILED = "sync_failed"
+class ServiceAccountState(models.IntegerChoices):
+    """Tracks the status of a service account."""
 
-    CHOICES = (
-        (IN_SYNC, "In sync"),
-        (OUT_OF_SYNC, "Out of sync"),
-        (SYNC_FAILED, "Sync failed"),
-    )
-
-
-class ServiceAccountState:
-    OK = 1
-    CLOSED = 2
-    ERRED = 3
-    CHOICES = (
-        (OK, "OK"),
-        (CLOSED, "Closed"),
-        (ERRED, "Erred"),
-    )
-
-    VALUES = [val for (_, val) in CHOICES]
-
-
-ServiceAccountStatesType = Literal[
-    "OK",
-    "Closed",
-    "Erred",
-]
+    OK = 1, _("OK")
+    CLOSED = 2, _("Closed")
+    ERRED = 3, _("Erred")
 
 
 class CourseAccountState(models.IntegerChoices):
+    """Tracks the status of a course account."""
+
     OK = 1, _("OK")
     CLOSED = 2, _("Closed")
     ERRED = 3, _("Erred")
@@ -334,3 +226,10 @@ REMOTE_OFFERING = "Waldur.RemoteOffering"
 SCRIPT_OFFERING = "Marketplace.Script"
 SLURM_OFFERING = "SlurmInvoices.SlurmPackage"
 SITE_AGENT_OFFERING = "Marketplace.Slurm"
+
+
+class BackendResourceRequestState(models.TextChoices):
+    SENT = "Sent", "Sent"
+    PROCESSING = "Processing", "Processing"
+    DONE = "Done", "Done"
+    ERRED = "Erred", "Erred"

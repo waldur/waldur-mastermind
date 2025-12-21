@@ -289,10 +289,13 @@ class CategoryFilterTest(test.APITransactionTestCase):
         self.offering.save()
         response = self.client.get(
             self.url,
-            {"customer_uuid": new_customer.uuid.hex, "customers_offerings_state": 1},
+            {
+                "customer_uuid": new_customer.uuid.hex,
+                "customers_offerings_state": "Draft",
+            },
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.json()), 0)
 
     @unittest.skip("Temporary disable till counters are fixed")
