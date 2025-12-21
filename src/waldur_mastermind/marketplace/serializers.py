@@ -6397,6 +6397,9 @@ class OfferingCostSerializer(serializers.Serializer):
     offering_uuid = serializers.UUIDField(
         source="resource__offering__uuid", help_text="UUID of the offering"
     )
+    offering_name = serializers.CharField(
+        source="resource__offering__name", help_text="Name of the offering"
+    )
     cost = serializers.FloatField(help_text="Total cost for the offering")
 
 
