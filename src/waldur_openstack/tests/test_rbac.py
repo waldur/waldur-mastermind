@@ -5,7 +5,6 @@ from rest_framework import status, test
 
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_openstack import models
-from waldur_openstack.enums import NetworkShareType
 
 from . import factories, fixtures
 
@@ -48,7 +47,7 @@ class CreateRbacPolicyTest(test.APITransactionTestCase):
         payload = {
             "network": factories.NetworkFactory.get_url(self.network),
             "target_tenant": factories.TenantFactory.get_url(self.target_tenant),
-            "policy_type": NetworkShareType.SHARED,
+            "policy_type": models.NetworkRBACPolicy.NetworkShareType.SHARED,
         }
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -56,7 +55,7 @@ class CreateRbacPolicyTest(test.APITransactionTestCase):
             models.NetworkRBACPolicy.objects.filter(
                 network=self.network,
                 target_tenant=self.target_tenant,
-                policy_type=NetworkShareType.SHARED,
+                policy_type=models.NetworkRBACPolicy.NetworkShareType.SHARED,
             ).exists()
         )
 
@@ -68,7 +67,7 @@ class CreateRbacPolicyTest(test.APITransactionTestCase):
         payload = {
             "network": factories.NetworkFactory.get_url(self.network),
             "target_tenant": factories.TenantFactory.get_url(self.target_tenant),
-            "policy_type": NetworkShareType.SHARED,
+            "policy_type": models.NetworkRBACPolicy.NetworkShareType.SHARED,
         }
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -78,7 +77,7 @@ class CreateRbacPolicyTest(test.APITransactionTestCase):
         payload = {
             "network": factories.NetworkFactory.get_url(self.network),
             "target_tenant": factories.TenantFactory.get_url(self.target_tenant),
-            "policy_type": NetworkShareType.SHARED,
+            "policy_type": models.NetworkRBACPolicy.NetworkShareType.SHARED,
         }
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

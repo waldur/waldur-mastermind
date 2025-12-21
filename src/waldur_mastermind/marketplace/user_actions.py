@@ -19,7 +19,6 @@ from waldur_core.user_actions.providers import (
 )
 
 from . import models
-from .enums import OrderStates, ResourceStates
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -45,7 +44,7 @@ class PendingOrderProvider(BaseActionProvider):
         ).values_list("object_id", flat=True)
 
         orders = models.Order.objects.filter(
-            state=OrderStates.PENDING_CONSUMER,
+            state=models.OrderStates.PENDING_CONSUMER,
             created__lt=cutoff,
             project_id__in=user_projects,
         ).distinct()
@@ -235,7 +234,7 @@ class ExpiringResourceProvider(BaseActionProvider):
         """Get users who have access to resources with end dates"""
         project_ct = ContentType.objects.get_for_model(Project)
         project_ids_with_expiring_resources = models.Resource.objects.filter(
-            state=ResourceStates.OK,
+            state=models.ResourceStates.OK,
             end_date__isnull=False,
             end_date__gt=timezone.now(),
         ).values_list("project_id", flat=True)

@@ -11,9 +11,8 @@ from waldur_core.core.models import User
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import ResourceStates
 
-from . import backend, enums, models, utils
+from . import backend, models, utils
 from . import op as openportal
 from .board import OpenPortalBoard
 
@@ -1100,7 +1099,7 @@ def create_default_resources(serialized_managed_project):
             project=project,
             offering=offering,
         ):
-            if existing_resource.state != ResourceStates.ERRED:
+            if existing_resource.state != marketplace_models.Resource.States.ERRED:
                 # There is an existing resource in a non-error state. This indicates
                 # that the resource is either running, or has been removed in the
                 # remote portal. DO NOT RECREATE IT.
@@ -1210,13 +1209,13 @@ def create_default_resources(serialized_managed_project):
                 project=project,
                 offering=offering,
             ):
-                if existing_resource.state == ResourceStates.ERRED:
+                if existing_resource.state == marketplace_models.Resource.States.ERRED:
                     # remove previously failed resource creation attempts
                     logger.info(
                         f"OpenPortal - Removing previously failed resource {existing_resource} for {offering} in {project}"
                     )
                     existing_resource.delete()
-                elif existing_resource.state == ResourceStates.OK:
+                elif existing_resource.state == marketplace_models.Resource.States.OK:
                     num_successful += 1
 
                     if num_successful > 1:
@@ -1339,7 +1338,7 @@ def run_job(serialized_job):
 
     job_model = job
 
-    if job_model.state != enums.JobState.PENDING:
+    if job_model.state != models.Job.State.PENDING:
         logger.info(f"OpenPortal - Job {job.job_id} is not pending - skipping")
         return
 
@@ -1357,7 +1356,7 @@ def run_job(serialized_job):
         logger.info(f"OpenPortal - Job {job.id} is not pending - skipping")
         return
 
-    job_model.state = enums.JobState.RUNNING
+    job_model.state = models.Job.State.RUNNING
     job_model.save()
 
     board = OpenPortalBoard(job.destination)
@@ -1404,7 +1403,7 @@ def run_job(serialized_job):
         job = job.completed(result)
 
         # save the job data back to the model so that we don't repeat this job
-        job_model.state = enums.JobState.COMPLETED
+        job_model.state = models.Job.State.COMPLETED
         job_model.job_data = job.to_json()
         job_model.save()
 
@@ -1438,7 +1437,7 @@ def run_job(serialized_job):
             )
 
         # save the job model back to the database
-        job_model.state = enums.JobState.COMPLETED
+        job_model.state = models.Job.State.COMPLETED
         job_model.job_data = job.to_json()
         job_model.save()
 

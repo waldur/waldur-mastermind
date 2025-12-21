@@ -322,8 +322,8 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
                 # Check that the state change log call is made
                 self.assertEqual(len(state_change_calls), 1)
 
-                from_state = RobotAccountStates.choices[initial_state - 1][1]
-                to_state = RobotAccountStates.choices[expected_state - 1][1]
+                from_state = RobotAccountStates.CHOICES[initial_state - 1][1]
+                to_state = RobotAccountStates.CHOICES[expected_state - 1][1]
                 expected_message = f"Robot account waldur has been updated. Robot account 'waldur' state changed from '{from_state}' to '{to_state}'."
                 self.assertEqual(state_change_calls[0][0][0], expected_message)
 
@@ -429,11 +429,11 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
         self.client.force_login(self.fixture.staff)
 
         # Test filtering for OK state
-        response = self.client.get(url, {"state": "OK"})
+        response = self.client.get(url, {"state": RobotAccountStates.OK})
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK,
-            response.data,
+            f"Expected status code 200, but got {response.status_code}",
         )
         self.assertEqual(
             len(response.data),
@@ -447,11 +447,11 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
         )
 
         # Test filtering for CREATING state
-        response = self.client.get(url, {"state": "Creating"})
+        response = self.client.get(url, {"state": RobotAccountStates.CREATING})
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK,
-            response.data,
+            f"Expected status code 200, but got {response.status_code}",
         )
         self.assertEqual(
             len(response.data),
@@ -484,7 +484,7 @@ class RobotAccountAccessTest(test.APITransactionTestCase):
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK,
-            response.data,
+            f"Expected status code 200, but got {response.status_code}",
         )
         self.assertEqual(
             len(response.data),
@@ -537,7 +537,7 @@ class RobotAccountAccessTest(test.APITransactionTestCase):
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK,
-            response.data,
+            f"Expected status code 200, but got {response.status_code}",
         )
 
     def get_action_url(self, account, action):

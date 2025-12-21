@@ -14,6 +14,7 @@ from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
 from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 
 from waldur_core.core import exceptions
+from waldur_core.core.enums import CoreStates
 
 logger = logging.getLogger(__name__)
 
@@ -34,19 +35,22 @@ def validate_name(value):
 
 
 class StateValidator:
-    def __init__(self, *valid_states):
-        """
-        Validate that a resource is in one of the valid states.
-
-        Args:
-            *valid_states: The valid states for the operation (Django Choices enum values).
-        """
+    # Use state_enum to validate states of a model that has custom state field (e.g. RobotAccounts use RobotAccountStates)
+    def __init__(self, *valid_states, state_enum=None):
+        self.state_enum = state_enum
         self.valid_states = valid_states
 
     def __call__(self, resource):
         if resource.state not in self.valid_states:
-            # Django Choices enum values have a .label property
-            valid_states_names = [str(state.label) for state in self.valid_states]
+            if self.state_enum:
+                states_names = dict(self.state_enum.CHOICES)
+            elif hasattr(resource, "States"):
+                states_names = dict(resource.States.CHOICES)
+            else:
+                states_names = dict(CoreStates.choices)
+            valid_states_names = [
+                str(states_names[state]) for state in self.valid_states
+            ]
             raise exceptions.IncorrectStateException(
                 _("Valid states for operation: %s.") % ", ".join(valid_states_names)
             )

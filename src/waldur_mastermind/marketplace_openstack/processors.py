@@ -14,7 +14,6 @@ from waldur_mastermind.marketplace.processors import (
 )
 from waldur_mastermind.marketplace_openstack import views
 from waldur_mastermind.marketplace_openstack.utils import delete_instance
-from waldur_openstack import enums
 from waldur_openstack import models as openstack_models
 from waldur_openstack import views as openstack_views
 
@@ -160,12 +159,13 @@ class InstanceDeleteProcessor(processors.AbstractDeleteResourceProcessor):
             return
         if (
             instance.state == CoreStates.OK
-            and instance.runtime_state == enums.InstanceRuntimeStates.SHUTOFF
+            and instance.runtime_state
+            == openstack_models.Instance.RuntimeStates.SHUTOFF
         ):
             return
         if (
             instance.state == CoreStates.OK
-            and instance.runtime_state == enums.InstanceRuntimeStates.ACTIVE
+            and instance.runtime_state == openstack_models.Instance.RuntimeStates.ACTIVE
         ):
             raise IncorrectStateException(
                 _("Please stop the instance before its removal.")

@@ -9,7 +9,6 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.mixins import ScopeMixin
 from waldur_core.logging import models, utils
-from waldur_core.logging.enums import WebHookContentType
 from waldur_core.logging.event_logger import expand_event_groups
 
 
@@ -40,20 +39,9 @@ class BaseHookFilter(django_filters.FilterSet):
 
 
 class WebHookFilter(BaseHookFilter):
-    content_type = django_filters.ChoiceFilter(
-        choices=[(label, label) for label in WebHookContentType.labels],
-        method="filter_content_type",
-    )
-
     class Meta:
         model = models.WebHook
         fields = ("destination_url", "content_type")
-
-    def filter_content_type(self, queryset, name, value):
-        mapping = {v: k for k, v in WebHookContentType.choices}
-        if value in mapping:
-            return queryset.filter(**{name: mapping[value]})
-        return queryset.none()
 
 
 class EmailHookFilter(BaseHookFilter):

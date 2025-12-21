@@ -8,11 +8,8 @@ from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.core.mixins import ReviewMixin
-from waldur_core.structure.enums import OECD_FOS_2007_CODES_DICT
 from waldur_core.structure.models import PROJECT_NAME_LENGTH, Project
 from waldur_mastermind.marketplace import models as marketplace_models
-
-from . import enums
 
 
 class ProjectUpdateRequest(core_models.UuidMixin, ReviewMixin):
@@ -47,12 +44,10 @@ class ProjectUpdateRequest(core_models.UuidMixin, ReviewMixin):
     )
 
     def get_old_oecd_fos_2007_code_display(self):
-        if self.old_oecd_fos_2007_code:
-            return OECD_FOS_2007_CODES_DICT.get(self.old_oecd_fos_2007_code)
+        return Project.OECD_FOS_2007_CODES_DICT.get(self.old_oecd_fos_2007_code)
 
     def get_new_oecd_fos_2007_code_display(self):
-        if self.new_oecd_fos_2007_code:
-            return OECD_FOS_2007_CODES_DICT.get(self.new_oecd_fos_2007_code)
+        return Project.OECD_FOS_2007_CODES_DICT.get(self.new_oecd_fos_2007_code)
 
     class Permissions:
         customer_path = "offering__customer"
@@ -62,11 +57,20 @@ class ProjectUpdateRequest(core_models.UuidMixin, ReviewMixin):
 class RemoteSynchronisation(
     core_models.UuidMixin, core_models.ErrorMessageMixin, core_models.TimeStampedModel
 ):
-    state = FSMField(
-        choices=enums.RemoteSynchronisationState.choices,
-        default=enums.RemoteSynchronisationState.SCHEDULED,
-        editable=False,
-    )
+    class States:
+        SCHEDULED = "Scheduled"
+        PROCESSING = "Processing"
+        OK = "OK"
+        ERRED = "Erred"
+
+        CHOICES = (
+            (SCHEDULED, SCHEDULED),
+            (PROCESSING, PROCESSING),
+            (OK, OK),
+            (ERRED, ERRED),
+        )
+
+    state = FSMField(choices=States.CHOICES, default=States.SCHEDULED, editable=False)
 
     api_url = models.URLField()
     token = models.CharField(max_length=255)

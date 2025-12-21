@@ -2,8 +2,9 @@ from unittest import mock
 
 from rest_framework import status, test
 
-from waldur_core.core import enums as core_enums
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
+from waldur_digitalocean import models
 from waldur_digitalocean.tests import factories, fixtures
 
 
@@ -20,7 +21,7 @@ class DropletResizeTest(test.APITransactionTestCase):
             cores=2,
             ram=2 * 1024,
             disk=10 * 1024,
-            state=core_enums.CoreStates.UPDATING,
+            state=CoreStates.UPDATING,
         )
         new_size = factories.SizeFactory(cores=3, ram=3 * 1024, disk=20 * 1024)
 
@@ -39,8 +40,8 @@ class DropletResizeTest(test.APITransactionTestCase):
             cores=2,
             ram=2 * 1024,
             disk=10 * 1024,
-            state=core_enums.CoreStates.OK,
-            runtime_state=core_enums.RuntimeStates.OFFLINE,
+            state=CoreStates.OK,
+            runtime_state=models.Droplet.RuntimeStates.OFFLINE,
         )
         new_size = factories.SizeFactory(cores=3, ram=3 * 1024, disk=20 * 1024)
 
@@ -59,8 +60,8 @@ class DropletResizeTest(test.APITransactionTestCase):
             ram=1024,
             cores=3,
             disk=20 * 1024,
-            state=core_enums.CoreStates.OK,
-            runtime_state=core_enums.RuntimeStates.OFFLINE,
+            state=CoreStates.OK,
+            runtime_state=models.Droplet.RuntimeStates.OFFLINE,
         )
         new_size = factories.SizeFactory(ram=1024, cores=2, disk=20 * 1024)
 
@@ -79,8 +80,8 @@ class DropletResizeTest(test.APITransactionTestCase):
             cores=2,
             ram=1024,
             disk=20 * 1024,
-            state=core_enums.CoreStates.OK,
-            runtime_state=core_enums.RuntimeStates.OFFLINE,
+            state=CoreStates.OK,
+            runtime_state=models.Droplet.RuntimeStates.OFFLINE,
         )
         new_size = factories.SizeFactory(
             cores=droplet.cores, ram=droplet.ram, disk=10 * 1024
@@ -98,7 +99,7 @@ class DropletResizeTest(test.APITransactionTestCase):
     def test_droplet_resize(self, executor):
         self.client.force_authenticate(self.fixture.owner)
         droplet = self.fixture.droplet
-        droplet.runtime_state = core_enums.RuntimeStates.OFFLINE
+        droplet.runtime_state = droplet.RuntimeStates.OFFLINE
         droplet.save()
         droplet.increase_backend_quotas_usage()
         size = factories.SizeFactory(

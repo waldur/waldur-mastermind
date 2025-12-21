@@ -8,7 +8,6 @@ from django.utils import timezone
 from freezegun.api import freeze_time
 
 from waldur_core.core import utils as core_utils
-from waldur_mastermind.common.enums import Units
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models
 from waldur_mastermind.invoices.tests import factories
@@ -27,7 +26,9 @@ class BaseSupportInvoiceTest(TransactionTestCase):
         offering_component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering
         )
-        self.plan = marketplace_factories.PlanFactory(unit=Units.PER_MONTH)
+        self.plan = marketplace_factories.PlanFactory(
+            unit=marketplace_models.Plan.Units.PER_MONTH
+        )
         self.plan_component = marketplace_factories.PlanComponentFactory(
             plan=self.plan,
             component=offering_component,

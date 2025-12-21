@@ -97,9 +97,9 @@ class AgentServiceSerializer(serializers.HyperlinkedModelSerializer):
         }
 
     @extend_schema_field(
-        serializers.ChoiceField(choices=enums.AgentServiceState.labels)
+        serializers.ChoiceField(choices=enums.AgentServiceState.VALUES)
     )
-    def get_state(self, service: models.AgentService):
+    def get_state(self, service: models.AgentService) -> str:
         return service.get_state_display()
 
 

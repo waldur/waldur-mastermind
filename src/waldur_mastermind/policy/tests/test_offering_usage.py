@@ -6,7 +6,6 @@ from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.invoices.enums import Periods
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.policy.models import OfferingUsagePolicy
 from waldur_mastermind.policy.tests import factories, fixtures
@@ -210,7 +209,7 @@ class OfferingUsagePolicyTriggerTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
 
         # period = 3 month
-        self.client.patch(url, {"period": Periods.MONTH_3.label})
+        self.client.patch(url, {"period": OfferingUsagePolicy.Periods.MONTH_3})
         self.policy.refresh_from_db()
         self.assertEqual(self.policy.has_fired, True)
 
@@ -222,7 +221,7 @@ class OfferingUsagePolicyTriggerTest(test.APITransactionTestCase):
         self.assertEqual(self.policy.has_fired, False)
 
         # period = 12 month
-        self.client.patch(url, {"period": Periods.MONTH_12.label})
+        self.client.patch(url, {"period": OfferingUsagePolicy.Periods.MONTH_12})
         self.policy.refresh_from_db()
         self.assertEqual(self.policy.has_fired, True)
 
@@ -234,6 +233,6 @@ class OfferingUsagePolicyTriggerTest(test.APITransactionTestCase):
         self.assertEqual(self.policy.has_fired, False)
 
         # period = Total
-        self.client.patch(url, {"period": Periods.TOTAL.label})
+        self.client.patch(url, {"period": OfferingUsagePolicy.Periods.TOTAL})
         self.policy.refresh_from_db()
         self.assertEqual(self.policy.has_fired, True)

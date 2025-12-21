@@ -1,52 +1,54 @@
-from django.db import models
+class CallStates:
+    DRAFT = "draft"
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+
+    CHOICES = (
+        (DRAFT, "Draft"),
+        (ACTIVE, "Active"),
+        (ARCHIVED, "Archived"),
+    )
 
 
-class CallStates(models.TextChoices):
-    DRAFT = "draft", "Draft"
-    ACTIVE = "active", "Active"
-    ARCHIVED = "archived", "Archived"
+class RoundStatuses:
+    SCHEDULED = "scheduled"
+    OPEN = "open"
+    ENDED = "ended"
+
+    CHOICES = (
+        (SCHEDULED, "Round is scheduled"),
+        (OPEN, "Round is open"),
+        (ENDED, "Round is ended"),
+    )
+
+    VALUES = [val for (val, _) in CHOICES]
 
 
-class RoundStatuses(models.TextChoices):
-    """Status values for proposal rounds."""
+class RequestedOfferingStates:
+    REQUESTED = "requested"
+    ACCEPTED = "accepted"
+    CANCELED = "canceled"
 
-    SCHEDULED = "scheduled", "Round is scheduled"
-    OPEN = "open", "Round is open"
-    ENDED = "ended", "Round is ended"
-
-
-class RequestedOfferingStates(models.TextChoices):
-    REQUESTED = "requested", "Requested"
-    ACCEPTED = "accepted", "Accepted"
-    CANCELED = "canceled", "Canceled"
+    CHOICES = (
+        (REQUESTED, "Requested"),
+        (ACCEPTED, "Accepted"),
+        (CANCELED, "Canceled"),
+    )
 
 
-class ProposalStates(models.TextChoices):
-    DRAFT = "draft", "Draft"
-    SUBMITTED = "submitted", "Submitted"
-    IN_REVIEW = "in_review", "In review"
-    ACCEPTED = "accepted", "Accepted"
-    REJECTED = "rejected", "Rejected"
-    CANCELED = "canceled", "Canceled"
+class ProposalStates:
+    DRAFT = "draft"
+    SUBMITTED = "submitted"
+    IN_REVIEW = "in_review"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    CANCELED = "canceled"
 
-
-class ReviewStrategy(models.TextChoices):
-    AFTER_ROUND = "after_round", "After round is closed"
-    AFTER_PROPOSAL = "after_proposal", "After proposal submission"
-
-
-class AllocationStrategy(models.TextChoices):
-    BY_CALL_MANAGER = "by_call_manager", "By call manager"
-    AUTOMATIC = "automatic", "Automatic based on review scoring"
-
-
-class AllocationTime(models.TextChoices):
-    ON_DECISION = "on_decision", "On decision"
-    FIXED_DATE = "fixed_date", "Fixed date"
-
-
-class ReviewState(models.TextChoices):
-    CREATED = "created", "Created"
-    IN_REVIEW = "in_review", "In review"
-    SUBMITTED = "submitted", "Submitted"
-    REJECTED = "rejected", "Rejected"
+    CHOICES = (
+        (DRAFT, "Draft"),
+        (SUBMITTED, "Submitted"),
+        (IN_REVIEW, "In review"),
+        (ACCEPTED, "Accepted"),
+        (REJECTED, "Rejected"),
+        (CANCELED, "Canceled"),
+    )

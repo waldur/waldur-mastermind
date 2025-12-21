@@ -3,7 +3,7 @@ from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.fixtures import ProjectRole
-from waldur_openstack import enums, models
+from waldur_openstack.models import Instance, Tenant
 
 from . import factories, fixtures
 
@@ -50,7 +50,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         response = self.client.post(self.url, data)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
-        reread_instance = models.Instance.objects.get(pk=self.instance.pk)
+        reread_instance = Instance.objects.get(pk=self.instance.pk)
         self.assertEqual(
             reread_instance.disk,
             self.instance.disk,
@@ -63,7 +63,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         )
 
     def test_when_flavor_is_changed_related_quotas_are_updated(self):
-        Quotas = models.Tenant.Quotas
+        Quotas = Tenant.Quotas
 
         new_flavor = factories.FlavorFactory(
             settings=self.settings,
@@ -113,7 +113,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         response = self.client.post(self.url, data)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
-        reread_instance = models.Instance.objects.get(pk=self.instance.pk)
+        reread_instance = Instance.objects.get(pk=self.instance.pk)
         self.assertEqual(
             reread_instance.state,
             CoreStates.UPDATE_SCHEDULED,
@@ -145,7 +145,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         response = self.client.post(self.url, data)
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
-        reread_instance = models.Instance.objects.get(pk=self.instance.pk)
+        reread_instance = Instance.objects.get(pk=self.instance.pk)
         self.assertEqual(
             reread_instance.state,
             CoreStates.UPDATE_SCHEDULED,
@@ -200,7 +200,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
             response.data,
         )
 
-        reread_instance = models.Instance.objects.get(pk=self.instance.pk)
+        reread_instance = Instance.objects.get(pk=self.instance.pk)
 
         self.assertEqual(
             reread_instance.disk, self.instance.disk, "Instance disk not have changed"
@@ -225,7 +225,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        reread_instance = models.Instance.objects.get(pk=inaccessible_instance.pk)
+        reread_instance = Instance.objects.get(pk=inaccessible_instance.pk)
         self.assertEqual(
             reread_instance.disk,
             inaccessible_instance.disk,
@@ -250,7 +250,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         # Check all states but deleted and offline
         forbidden_states = [
             state
-            for state in CoreStates.values
+            for (state, _) in CoreStates.choices
             if state not in (CoreStates.DELETING, CoreStates.OK)
         ]
 
@@ -270,7 +270,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
             self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-            reread_instance = models.Instance.objects.get(pk=instance.pk)
+            reread_instance = Instance.objects.get(pk=instance.pk)
             self.assertEqual(
                 reread_instance.disk, instance.disk, "Instance disk not have changed"
             )
@@ -280,7 +280,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
         instance = factories.InstanceFactory(
             state=CoreStates.OK,
-            runtime_state=enums.InstanceRuntimeStates.SHUTOFF,
+            runtime_state=Instance.RuntimeStates.SHUTOFF,
         )
         project = instance.project
 

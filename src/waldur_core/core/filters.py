@@ -296,7 +296,7 @@ def filter_by_user_keyword(queryset, value):
 
 class ReviewStateFilter(MappedMultipleChoiceFilter):
     def __init__(self, *args, **kwargs):
-        kwargs["choices"] = ReviewStates.choices
+        kwargs["choices"] = ReviewStates.CHOICES
         super().__init__(*args, **kwargs)
 
 

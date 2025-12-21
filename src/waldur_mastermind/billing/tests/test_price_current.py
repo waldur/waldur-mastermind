@@ -4,7 +4,7 @@ from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_mastermind.billing.tests.utils import get_financial_report_url
-from waldur_mastermind.common.enums import Units
+from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.invoices.tests import fixtures as invoice_fixtures
 
@@ -17,14 +17,14 @@ class PriceCurrentTest(test.APITransactionTestCase):
         invoice_factories.InvoiceItemFactory(
             invoice=self.fixture.invoice,
             project=self.fixture.project,
-            unit=Units.PER_MONTH,
+            unit=invoice_models.InvoiceItem.Units.PER_MONTH,
             unit_price=100,
             quantity=1,
         )
         invoice_factories.InvoiceItemFactory(
             invoice=self.fixture.invoice,
             project=self.fixture.project,
-            unit=Units.PER_DAY,
+            unit=invoice_models.InvoiceItem.Units.PER_DAY,
             unit_price=3,
             quantity=31,
         )

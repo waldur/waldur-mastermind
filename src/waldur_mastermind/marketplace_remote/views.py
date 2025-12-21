@@ -45,7 +45,6 @@ from waldur_core.structure.models import Customer
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.enums import (
-    ORDER_TERMINAL_STATES,
     REMOTE_OFFERING,
     OfferingStates,
     OrderStates,
@@ -295,7 +294,9 @@ class ProjectUpdateRequestViewSet(ActionsViewSet):
         return Response(status=status.HTTP_200_OK)
 
     approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
-    approve_validators = reject_validators = [StateValidator(ReviewStates.PENDING)]
+    approve_validators = reject_validators = [
+        StateValidator(ReviewStates.PENDING, state_enum=ReviewStates)
+    ]
 
 
 class PullOrderView(GenericAPIView):
@@ -308,7 +309,7 @@ class PullOrderView(GenericAPIView):
         if not is_uuid_like(item_uuid):
             return Response(status=status.HTTP_400_BAD_REQUEST, data="UUID is invalid.")
         qs = models.Order.objects.filter(offering__type=REMOTE_OFFERING).exclude(
-            state__in=ORDER_TERMINAL_STATES
+            state__in=OrderStates.TERMINAL_STATES
         )
         return get_object_or_404(qs, uuid=item_uuid)
 

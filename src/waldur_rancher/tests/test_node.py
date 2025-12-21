@@ -5,12 +5,12 @@ from rest_framework import status, test
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.structure.tests.factories import SshPublicKeyFactory
-from waldur_openstack import enums as openstack_enums
 from waldur_openstack.tests import (
     factories as openstack_factories,
 )
-from waldur_rancher import enums, models, tasks
+from waldur_rancher import models, tasks
 from waldur_rancher import utils as rancher_utils
+from waldur_rancher.enums import AGENT_ROLE
 from waldur_rancher.tests import factories, fixtures, test_cluster, utils
 
 
@@ -43,7 +43,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
             "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
             "system_volume_size": 1024,
             "flavor": openstack_factories.FlavorFactory.get_url(self.flavor),
-            "role": enums.NodeRole.AGENT,
+            "role": AGENT_ROLE,
         }
 
     @mock.patch("waldur_rancher.executors.tasks")
@@ -143,7 +143,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
 
         self.fixture.node.backend_id = ""
         self.fixture.node.name = backend_node["requestedHostname"]
-        self.fixture.node.runtime_state = enums.NodeRuntimeStates.ACTIVE
+        self.fixture.node.runtime_state = models.Node.RuntimeStates.ACTIVE
         self.fixture.node.save()
         mock_client.get_cluster_nodes.return_value = [backend_node]
         tasks.PollRuntimeStateNodeTask().execute(self.fixture.node)
@@ -271,7 +271,7 @@ class NodeDeleteTest(test.APITransactionTestCase):
         self.cluster_name = self.fixture.cluster.name
         self.url = factories.NodeFactory.get_url(self.fixture.node)
         self.fixture.node.instance.runtime_state = (
-            openstack_enums.InstanceRuntimeStates.SHUTOFF
+            self.fixture.node.instance.RuntimeStates.SHUTOFF
         )
         self.fixture.node.instance.save()
 
@@ -288,7 +288,7 @@ class NodeDeleteTest(test.APITransactionTestCase):
 
     def test_prevent_delete_last_agent_node(self):
         self.client.force_authenticate(self.fixture.owner)
-        self.fixture.node.role = enums.NodeRole.AGENT
+        self.fixture.node.role = AGENT_ROLE
         self.fixture.node.save()
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

@@ -16,6 +16,7 @@ from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMixin
 from waldur_core.core import validators as core_validators
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.models import User
 from waldur_core.core.utils import SubqueryCount
@@ -53,7 +54,6 @@ from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
     RequestedOfferingStates,
-    ReviewState,
 )
 
 from .managers import get_connected_call_organizers, get_connected_calls
@@ -117,7 +117,7 @@ class CallManagingOrganisationViewSet(
             round__call__state=CallStates.ACTIVE,
         ).count()
         pending_review = models.Review.objects.filter(
-            state=ReviewState.SUBMITTED,
+            state=models.Review.States.SUBMITTED,
             proposal__round__call__manager=instance,
             proposal__round__call__state=CallStates.ACTIVE,
         ).count()
@@ -210,10 +210,10 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             # Apply state filter if provided - only filter with valid states
             state_filter = request.query_params.getlist("state")
             if state_filter:
+                # Get valid state values from the enum
+                valid_states = {choice[0] for choice in RequestedOfferingStates.CHOICES}
                 # Filter to only include valid state values
-                valid_state_filter = [
-                    s for s in state_filter if s in RequestedOfferingStates.values
-                ]
+                valid_state_filter = [s for s in state_filter if s in valid_states]
                 if valid_state_filter:
                     queryset = queryset.filter(state__in=valid_state_filter)
 
@@ -233,7 +233,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             "requestedoffering_set",
             delete_validators=[],
             update_validators=[
-                core_validators.StateValidator(RequestedOfferingStates.REQUESTED)
+                core_validators.StateValidator(
+                    models.RequestedOffering.States.REQUESTED
+                )
             ],
         )(self, request, uuid, obj_uuid)
 
@@ -982,6 +984,7 @@ class ProposalViewSet(
             ProposalStates.SUBMITTED,
             ProposalStates.IN_REVIEW,
             ProposalStates.REJECTED,
+            state_enum=ReviewStates,
         )
     ]
 
@@ -1110,7 +1113,9 @@ class ReviewViewSet(ActionsViewSet):
     queryset = models.Review.objects.all()
 
     update_validators = partial_update_validators = [
-        core_validators.StateValidator(ReviewState.CREATED, ReviewState.IN_REVIEW)
+        core_validators.StateValidator(
+            models.Review.States.CREATED, models.Review.States.IN_REVIEW
+        )
     ]
 
     def get_queryset(self):
@@ -1142,13 +1147,13 @@ class ReviewViewSet(ActionsViewSet):
         submitter_query &= Q(proposal__round__call__reviews_visible_to_submitters=True)
 
         # Only show submitted reviews to submitters (existing logic)
-        submitter_query &= Q(state=ReviewState.SUBMITTED)
+        submitter_query &= Q(state=models.Review.States.SUBMITTED)
 
         # For submitters, reviews are visible only if the proposal has a decision state
         submitter_query &= Q(
             proposal__state__in=[
-                ProposalStates.ACCEPTED,
-                ProposalStates.REJECTED,
+                models.Proposal.States.ACCEPTED,
+                models.Proposal.States.REJECTED,
             ]
         )
 
@@ -1223,7 +1228,7 @@ class ReviewViewSet(ActionsViewSet):
     @decorators.action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
         review: models.Review = self.get_object()
-        review.state = ReviewState.IN_REVIEW
+        review.state = models.Review.States.IN_REVIEW
         review.save()
         proposal_old_state = review.proposal.state
         review.proposal.state = ProposalStates.IN_REVIEW
@@ -1240,7 +1245,7 @@ class ReviewViewSet(ActionsViewSet):
         )
 
     accept_validators = [
-        core_validators.StateValidator(ReviewState.CREATED),
+        core_validators.StateValidator(models.Review.States.CREATED),
     ]
 
     @extend_schema(
@@ -1251,7 +1256,7 @@ class ReviewViewSet(ActionsViewSet):
     @decorators.action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         review: models.Review = self.get_object()
-        review.state = ReviewState.REJECTED
+        review.state = models.Review.States.REJECTED
         review.save()
         tasks.notify_call_managers_about_rejected_review.delay(review.uuid)
         return response.Response(
@@ -1260,7 +1265,9 @@ class ReviewViewSet(ActionsViewSet):
         )
 
     reject_validators = [
-        core_validators.StateValidator(ReviewState.CREATED, ReviewState.IN_REVIEW),
+        core_validators.StateValidator(
+            models.Review.States.CREATED, models.Review.States.IN_REVIEW
+        ),
     ]
 
     @extend_schema(
@@ -1275,7 +1282,7 @@ class ReviewViewSet(ActionsViewSet):
             instance=review, data=request.data, partial=True
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save(state=ReviewState.SUBMITTED)
+        serializer.save(state=models.Review.States.SUBMITTED)
         tasks.notify_call_managers_about_new_review.delay(review.uuid)
         tasks.notify_manager_when_reviews_are_completed.delay(review.proposal.uuid)
         return response.Response(
@@ -1284,7 +1291,7 @@ class ReviewViewSet(ActionsViewSet):
         )
 
     submit_validators = [
-        core_validators.StateValidator(ReviewState.IN_REVIEW),
+        core_validators.StateValidator(models.Review.States.IN_REVIEW),
     ]
     accept_permissions = reject_permissions = submit_permissions = (
         update_permissions

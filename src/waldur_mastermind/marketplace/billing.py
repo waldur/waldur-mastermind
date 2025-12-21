@@ -6,8 +6,6 @@ from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Customer
-from waldur_mastermind.common.enums import Units
-from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing_limit import LimitPeriodProcessor
@@ -150,7 +148,7 @@ class MarketplaceBillingService:
             items = invoice_models.InvoiceItem.objects.filter(
                 resource=resource,
                 invoice__customer=resource.project.customer,
-                invoice__state=invoices_enums.InvoiceStates.PENDING,
+                invoice__state=invoice_models.Invoice.States.PENDING,
                 invoice__year=now.year,
                 invoice__month=now.month,
                 end=core_utils.month_end(now),
@@ -249,7 +247,7 @@ class MarketplaceBillingService:
                 unit_price *= plan_component.amount
                 quantity = invoice_models.get_quantity(unit, start, end)
             elif is_one or is_switch:
-                unit = Units.QUANTITY
+                unit = invoice_models.Units.QUANTITY
                 quantity = 1
 
             create_discounted_resource_on_activation(resource)

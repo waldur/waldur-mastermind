@@ -8,8 +8,6 @@ from model_utils.tracker import FieldInstanceTracker
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 
-from . import enums
-
 
 class VirtualMachineMixin(models.Model):
     class Meta:
@@ -42,6 +40,45 @@ class VirtualMachine(
 ):
     disks: models.Manager["Disk"]
 
+    class RuntimeStates:
+        POWERED_OFF = "POWERED_OFF"
+        POWERED_ON = "POWERED_ON"
+        SUSPENDED = "SUSPENDED"
+
+        CHOICES = (
+            (POWERED_OFF, "Powered off"),
+            (POWERED_ON, "Powered on"),
+            (SUSPENDED, "Suspended"),
+        )
+
+    class GuestPowerStates:
+        RUNNING = "RUNNING"
+        SHUTTING_DOWN = "SHUTTING_DOWN"
+        RESETTING = "RESETTING"
+        STANDBY = "STANDBY"
+        NOT_RUNNING = "NOT_RUNNING"
+        UNAVAILABLE = "UNAVAILABLE"
+
+        CHOICES = (
+            (RUNNING, "Running"),
+            (SHUTTING_DOWN, "Shutting down"),
+            (RESETTING, "Resetting"),
+            (STANDBY, "Standby"),
+            (NOT_RUNNING, "Not running"),
+            (UNAVAILABLE, "Unavailable"),
+        )
+
+    class ToolsStates:
+        STARTING = "STARTING"
+        RUNNING = "RUNNING"
+        NOT_RUNNING = "NOT_RUNNING"
+
+        CHOICES = (
+            (STARTING, "Starting"),
+            (RUNNING, "Running"),
+            (NOT_RUNNING, "Not running"),
+        )
+
     template = models.ForeignKey["Template"](
         "Template", null=True, on_delete=models.SET_NULL
     )
@@ -61,14 +98,14 @@ class VirtualMachine(
         "The power state of the guest operating system.",
         max_length=150,
         blank=True,
-        choices=enums.VirtualMachineGuestPowerStates.choices,
+        choices=GuestPowerStates.CHOICES,
     )
     tools_installed = models.BooleanField(default=False)
     tools_state = models.CharField(
         "Current running status of VMware Tools running in the guest operating system.",
         max_length=50,
         blank=True,
-        choices=enums.VirtualMachineToolsStates.choices,
+        choices=ToolsStates.CHOICES,
     )
     tracker = cast(FieldInstanceTracker, FieldTracker())
 

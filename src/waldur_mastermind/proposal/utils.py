@@ -10,12 +10,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal import tasks
-from waldur_mastermind.proposal.enums import (
-    AllocationTime,
-    ProposalStates,
-    RequestedOfferingStates,
-    ReviewState,
-)
+from waldur_mastermind.proposal.enums import ProposalStates, RequestedOfferingStates
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +19,7 @@ def get_available_reviewer(proposal: proposal_models.Proposal):
     reviewer_ids = proposal.review_set.values_list("reviewer_id", flat=True)
     reviews = proposal_models.Review.objects.filter(
         reviewer_id=OuterRef("pk"), proposal__round__call=proposal.round.call
-    ).exclude(state=ReviewState.REJECTED)
+    ).exclude(state=proposal_models.Review.States.REJECTED)
     available_reviewer = (
         proposal.round.call.reviewers.exclude(id__in=reviewer_ids)
         .annotate(reviewers_count=SubqueryCount(reviews))
@@ -33,7 +28,10 @@ def get_available_reviewer(proposal: proposal_models.Proposal):
     number_of_needed_reviewers = max(
         0,
         proposal.round.minimum_number_of_reviewers
-        or 0 - proposal.review_set.exclude(state=ReviewState.REJECTED).count(),
+        or 0
+        - proposal.review_set.exclude(
+            state=proposal_models.Review.States.REJECTED
+        ).count(),
     )
     return available_reviewer[:number_of_needed_reviewers]
 
@@ -62,7 +60,10 @@ def allocate_proposal(proposal: proposal_models.Proposal):
         [call_prefix, proposal_round.start_time.strftime("%Y-%m-%d"), name]
     )[: structure_models.PROJECT_NAME_LENGTH]
 
-    if proposal.round.allocation_time == AllocationTime.FIXED_DATE:
+    if (
+        proposal.round.allocation_time
+        == proposal_models.Round.AllocationTimes.FIXED_DATE
+    ):
         start_date = proposal.round.allocation_date
 
     project = structure_models.Project.objects.create(
@@ -147,14 +148,18 @@ def process_closed_round(call_round: proposal_models.Round):
 def get_proposal_review_counts(proposal: proposal_models.Proposal) -> dict:
     base_queryset = proposal_models.Review.objects.filter(proposal=proposal)
 
-    submitted_reviews = base_queryset.filter(state=ReviewState.SUBMITTED).count()
+    submitted_reviews = base_queryset.filter(
+        state=proposal_models.Review.States.SUBMITTED
+    ).count()
 
-    rejected_reviews = base_queryset.filter(state=ReviewState.REJECTED).count()
+    rejected_reviews = base_queryset.filter(
+        state=proposal_models.Review.States.REJECTED
+    ).count()
 
     pending_reviews = base_queryset.filter(
         state__in=[
-            ReviewState.CREATED,
-            ReviewState.IN_REVIEW,
+            proposal_models.Review.States.CREATED,
+            proposal_models.Review.States.IN_REVIEW,
         ]
     ).count()
 

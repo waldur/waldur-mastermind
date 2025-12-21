@@ -18,7 +18,6 @@ from waldur_core.structure.managers import get_project_users
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_openportal import utils
 
-from . import enums
 from . import op as openportal
 
 logger = logging.getLogger(__name__)
@@ -1386,10 +1385,17 @@ class Job(models.Model):
         null=True,
     )
 
+    class State(models.TextChoices):
+        PENDING = "pending", _("Pending")
+        RUNNING = "running", _("Running")
+        COMPLETED = "completed", _("Completed")
+        COMMUNICATED = "communicated", _("Communicated")
+        CANCELLED = "cancelled", _("Cancelled")
+
     state = models.CharField(
         max_length=20,
-        default=enums.JobState.PENDING,
-        choices=enums.JobState.choices,
+        choices=State.choices,
+        default=State.PENDING,
         verbose_name=_("status"),
         help_text=_("The current status of the job."),
     )

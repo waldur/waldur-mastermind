@@ -26,7 +26,6 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.permissions import IsStaffOrSupportUser
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import compensations
-from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices.models import InvoiceItem
 
 from . import filters, models, serializers, tasks, utils
@@ -44,7 +43,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     filterset_class = filters.InvoiceFilter
 
     def _is_invoice_created(invoice):
-        if invoice.state != invoices_enums.InvoiceStates.CREATED:
+        if invoice.state != models.Invoice.States.CREATED:
             raise exceptions.ValidationError(
                 _("Notification only for the created invoice can be sent.")
             )
@@ -180,14 +179,12 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
                 scopes=[invoice, invoice.customer],
             )
 
-        invoice.state = invoices_enums.InvoiceStates.PAID
+        invoice.state = models.Invoice.States.PAID
         invoice.save(update_fields=["state"])
         return Response(status=status.HTTP_200_OK)
 
     paid_permissions = [structure_permissions.is_staff]
-    paid_validators = [
-        core_validators.StateValidator(invoices_enums.InvoiceStates.CREATED)
-    ]
+    paid_validators = [core_validators.StateValidator(models.Invoice.States.CREATED)]
 
     @extend_schema(
         description="Spendings grouped by offerings and filtered by provider.",
@@ -552,9 +549,9 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         self, invoices: QuerySet, period: int, month_start: datetime.date
     ) -> dict[str, str]:
         PERIOD_LENGTHS = {
-            invoices_enums.Periods.MONTH_1.label: 1,
-            invoices_enums.Periods.MONTH_3.label: 3,
-            invoices_enums.Periods.MONTH_12.label: 12,
+            models.PeriodMixin.Periods.MONTH_1: 1,
+            models.PeriodMixin.Periods.MONTH_3: 3,
+            models.PeriodMixin.Periods.MONTH_12: 12,
         }
         period_length = PERIOD_LENGTHS.get(period, 0)
 
@@ -583,7 +580,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         }
 
     def _get_costs_for_entity(self, invoices, period, month_start):
-        if period == invoices_enums.Periods.TOTAL:
+        if period == models.PeriodMixin.Periods.TOTAL:
             total_price = (
                 invoices.aggregate(total_price=Sum(F("unit_price") * F("quantity")))[
                     "total_price"

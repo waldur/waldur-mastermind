@@ -22,7 +22,6 @@ def safe_create_monthly_invoices(apps, schema_editor):
 
         from waldur_core.core import utils as core_utils
         from waldur_core.structure import models as structure_models
-        from waldur_mastermind.invoices.enums import InvoiceStates
         from waldur_mastermind.marketplace import models
         from waldur_mastermind.marketplace.tasks import (
             copy_future_price_to_current_price,
@@ -46,9 +45,9 @@ def safe_create_monthly_invoices(apps, schema_editor):
 
         # Process old invoices
         old_invoices = models.Invoice.objects.filter(
-            Q(state=InvoiceStates.PENDING, year__lt=date.year)
+            Q(state=models.Invoice.States.PENDING, year__lt=date.year)
             | Q(
-                state=InvoiceStates.PENDING,
+                state=models.Invoice.States.PENDING,
                 year=date.year,
                 month__lt=date.month,
             )

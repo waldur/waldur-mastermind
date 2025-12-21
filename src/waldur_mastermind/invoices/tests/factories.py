@@ -6,7 +6,6 @@ from rest_framework.reverse import reverse
 
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices import models
 
 
@@ -64,7 +63,7 @@ class PaymentProfileFactory(
         model = models.PaymentProfile
 
     organization = factory.SubFactory(structure_factories.CustomerFactory)
-    payment_type = invoices_enums.PaymentType.MONTHLY_INVOICES
+    payment_type = models.PaymentType.MONTHLY_INVOICES
 
     @classmethod
     def get_url(cls, profile=None, action=None):

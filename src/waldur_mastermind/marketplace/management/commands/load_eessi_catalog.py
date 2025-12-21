@@ -132,7 +132,6 @@ class Command(BaseCommand):
         from django.db import transaction
         from django.utils import timezone
 
-        from waldur_mastermind.marketplace.enums import CatalogType
         from waldur_mastermind.marketplace.models import (
             SoftwareCatalog,
             SoftwarePackage,
@@ -206,7 +205,7 @@ class Command(BaseCommand):
                 name=catalog_name,
                 version=catalog_version,
                 defaults={
-                    "catalog_type": CatalogType.BINARY_RUNTIME,
+                    "catalog_type": "binary_runtime",
                     "source_url": "https://software.eessi.io/",
                     "description": f"European Environment for Scientific Software Installations {catalog_version}",
                     "metadata": {"architectures": architectures},

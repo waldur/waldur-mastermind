@@ -17,9 +17,8 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.serializers import ConsoleUrlSerializer
 from waldur_vmware.apps import VMwareConfig
-from waldur_vmware.enums import VirtualMachineToolsStates
 
-from . import enums, executors, filters, models, serializers
+from . import executors, filters, models, serializers
 
 logger = logging.getLogger(__name__)
 
@@ -54,13 +53,13 @@ class VirtualMachineViewSet(
     update_validators = partial_update_validators = [
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
-            enums.VirtualMachineRuntimeStates.POWERED_OFF
+            models.VirtualMachine.RuntimeStates.POWERED_OFF
         ),
     ]
 
     destroy_validators = structure_views.ResourceViewSet.destroy_validators + [
         core_validators.RuntimeStateValidator(
-            enums.VirtualMachineRuntimeStates.POWERED_OFF
+            models.VirtualMachine.RuntimeStates.POWERED_OFF
         )
     ]
 
@@ -75,8 +74,8 @@ class VirtualMachineViewSet(
     start_validators = [
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
-            enums.VirtualMachineRuntimeStates.POWERED_OFF,
-            enums.VirtualMachineRuntimeStates.SUSPENDED,
+            models.VirtualMachine.RuntimeStates.POWERED_OFF,
+            models.VirtualMachine.RuntimeStates.SUSPENDED,
         ),
     ]
     start_serializer_class = EmptySerializer
@@ -92,8 +91,8 @@ class VirtualMachineViewSet(
     stop_validators = [
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
-            enums.VirtualMachineRuntimeStates.POWERED_ON,
-            enums.VirtualMachineRuntimeStates.SUSPENDED,
+            models.VirtualMachine.RuntimeStates.POWERED_ON,
+            models.VirtualMachine.RuntimeStates.SUSPENDED,
         ),
     ]
     stop_serializer_class = EmptySerializer
@@ -109,7 +108,7 @@ class VirtualMachineViewSet(
     reset_validators = [
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
-            enums.VirtualMachineRuntimeStates.POWERED_ON,
+            models.VirtualMachine.RuntimeStates.POWERED_ON,
         ),
     ]
     reset_serializer_class = EmptySerializer
@@ -125,13 +124,13 @@ class VirtualMachineViewSet(
     suspend_validators = [
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
-            enums.VirtualMachineRuntimeStates.POWERED_ON,
+            models.VirtualMachine.RuntimeStates.POWERED_ON,
         ),
     ]
     suspend_serializer_class = EmptySerializer
 
     def vm_tools_are_running(vm):
-        if vm.tools_state != VirtualMachineToolsStates.RUNNING:
+        if vm.tools_state != models.VirtualMachine.ToolsStates.RUNNING:
             raise rf_serializers.ValidationError("VMware Tools are not running.")
 
     @action(detail=True, methods=["post"])
@@ -145,7 +144,7 @@ class VirtualMachineViewSet(
     shutdown_guest_validators = reboot_guest_validators = [
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
-            enums.VirtualMachineRuntimeStates.POWERED_ON,
+            models.VirtualMachine.RuntimeStates.POWERED_ON,
         ),
         vm_tools_are_running,
     ]
@@ -247,7 +246,7 @@ class VirtualMachineViewSet(
     web_console_validators = [
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(
-            enums.VirtualMachineRuntimeStates.POWERED_ON
+            models.VirtualMachine.RuntimeStates.POWERED_ON
         ),
     ]
 

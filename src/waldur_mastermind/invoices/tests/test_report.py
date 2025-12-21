@@ -7,8 +7,7 @@ from freezegun import freeze_time
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_mastermind.common.enums import Units
-from waldur_mastermind.invoices import enums as invoices_enums
-from waldur_mastermind.invoices import tasks
+from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.invoices import utils as invoices_utils
 from waldur_mastermind.invoices.tasks import format_invoice_csv
 from waldur_mastermind.invoices.tests import factories, fixtures, utils
@@ -226,18 +225,18 @@ class MonthlyReportTaskTest(TransactionTestCase):
         invoice_3 = factories.InvoiceFactory()
         factories.PaymentProfileFactory(
             organization=invoice_1.customer,
-            payment_type=invoices_enums.PaymentType.FIXED_PRICE,
+            payment_type=models.PaymentType.FIXED_PRICE,
             is_active=True,
             attributes={"end_date": "2017-10-01", "contract_sum": 100},
         )
         factories.PaymentProfileFactory(
             organization=invoice_2.customer,
-            payment_type=invoices_enums.PaymentType.FIXED_PRICE,
+            payment_type=models.PaymentType.FIXED_PRICE,
             is_active=True,
         )
         factories.PaymentProfileFactory(
             organization=invoice_2.customer,
-            payment_type=invoices_enums.PaymentType.FIXED_PRICE,
+            payment_type=models.PaymentType.FIXED_PRICE,
             is_active=False,
         )
         context = invoices_utils.get_monthly_invoicing_reports_context()

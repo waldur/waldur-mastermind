@@ -494,8 +494,8 @@ class Meta:
 description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 options = serializers.DictField()
 state = MappedChoiceField(
-    choices=[(v, k) for k, v in CoreStates.choices],
-    choice_mappings={v: k for k, v in CoreStates.choices},
+    choices=[(v, k) for k, v in CoreStates.CHOICES],
+    choice_mappings={v: k for k, v in CoreStates.CHOICES},
     read_only=True,
 )
 ```

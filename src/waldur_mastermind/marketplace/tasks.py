@@ -35,7 +35,6 @@ from waldur_mastermind.marketplace import exceptions, models, plugins, utils
 from waldur_mastermind.marketplace.catalog_loaders.eessi import EESSICatalogLoader
 from waldur_mastermind.marketplace.catalog_loaders.spack import SpackCatalogLoader
 from waldur_mastermind.marketplace.enums import (
-    CatalogType,
     OfferingStates,
     OfferingUserStates,
     OrderStates,
@@ -607,7 +606,7 @@ def continue_order_processing(order: models.Order):
     """
     if utils.order_should_not_be_reviewed_by_provider(order):
         if order.start_date and order.start_date > timezone.now().date():
-            order.state = OrderStates.PENDING_START_DATE
+            order.state = models.OrderStates.PENDING_START_DATE
             order.save(update_fields=["state"])
         else:
             order.set_state_executing()
@@ -616,7 +615,7 @@ def continue_order_processing(order: models.Order):
                 lambda: process_order_on_commit(order, order.created_by)
             )
     else:
-        order.state = OrderStates.PENDING_PROVIDER
+        order.state = models.OrderStates.PENDING_PROVIDER
         order.save(update_fields=["state"])
         transaction.on_commit(
             lambda: notify_provider_about_pending_order.delay(order.uuid)
@@ -1494,7 +1493,7 @@ def update_software_catalogs():
                 "api_base_url": config.SOFTWARE_CATALOG_EESSI_API_URL,
                 "include_extensions": config.SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS,
             },
-            "catalog_type": CatalogType.BINARY_RUNTIME,
+            "catalog_type": "binary_runtime",
         },
         {
             "name": "Spack",
@@ -1505,7 +1504,7 @@ def update_software_catalogs():
                 "catalog_version": config.SOFTWARE_CATALOG_SPACK_VERSION or "auto",
                 "data_url": config.SOFTWARE_CATALOG_SPACK_DATA_URL,
             },
-            "catalog_type": CatalogType.SOURCE_PACKAGE,
+            "catalog_type": "source_package",
         },
     ]
 

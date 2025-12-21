@@ -20,7 +20,7 @@ from waldur_core.core.validators import validate_name, validate_template_syntax
 from waldur_core.media import models as media_models
 from waldur_core.structure import models as structure_models
 
-from . import enums, managers
+from . import managers
 
 logger = logging.getLogger(__name__)
 
@@ -405,11 +405,22 @@ class Template(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
     issues: models.Manager["Issue"]
     attachments: models.Manager["TemplateAttachment"]
 
-    IssueTypes = enums.SupportIssueType
+    class IssueTypes:
+        INFORMATIONAL = "INFORMATIONAL"
+        SERVICE_REQUEST = "SERVICE_REQUEST"
+        CHANGE_REQUEST = "CHANGE_REQUEST"
+        INCIDENT = "INCIDENT"
+
+        CHOICES = (
+            (INFORMATIONAL, "Informational"),
+            (SERVICE_REQUEST, "Service request"),
+            (CHANGE_REQUEST, "Change request"),
+            (INCIDENT, "Incident"),
+        )
 
     description = models.TextField()
     issue_type = models.CharField(
-        max_length=30, choices=IssueTypes.choices, default=IssueTypes.INFORMATIONAL
+        max_length=30, choices=IssueTypes.CHOICES, default=IssueTypes.INFORMATIONAL
     )
 
     @classmethod
@@ -478,12 +489,19 @@ class IssueStatus(core_models.UuidMixin, models.Model):
     The field of resolution does not give an exact answer since may be the same in both cases.
     """
 
-    Types = enums.SupportIssueStatusType
+    class Types:
+        RESOLVED = 0
+        CANCELED = 1
+
+    TYPE_CHOICES = (
+        (Types.RESOLVED, "Resolved"),
+        (Types.CANCELED, "Canceled"),
+    )
 
     name = models.CharField(
         max_length=255, help_text="Status name in Jira.", unique=True
     )
-    type = FSMIntegerField(default=Types.RESOLVED, choices=Types.choices)
+    type = FSMIntegerField(default=Types.RESOLVED, choices=TYPE_CHOICES)
 
     @classmethod
     def check_success_status(cls, status):

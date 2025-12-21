@@ -4,7 +4,7 @@ from django.urls import reverse
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 
-from .. import enums, models
+from .. import models
 
 
 class BroadcastMessageFactory(
@@ -32,7 +32,7 @@ class AdminAnnouncementFactory(
         model = models.AdminAnnouncement
 
     description = factory.Sequence(lambda n: "description-%s" % n)
-    type = enums.AdminAnnouncementType.INFORMATION
+    type = models.AdminAnnouncement.Type.INFORMATION
     active_from = "2025-01-01T00:00:00Z"
     active_to = "2026-01-02T00:00:00Z"
 

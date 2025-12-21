@@ -46,7 +46,7 @@ class AgentService(core_models.UuidMixin, TimeStampedModel, core_models.NameMixi
     identity = models.ForeignKey(AgentIdentity, on_delete=models.CASCADE)
     mode = models.CharField(max_length=100, blank=True, null=True)
     state = FSMIntegerField(
-        choices=enums.AgentServiceState.choices,
+        choices=enums.AgentServiceState.CHOICES,
         default=enums.AgentServiceState.ACTIVE,
     )
     statistics = models.JSONField(default=dict)

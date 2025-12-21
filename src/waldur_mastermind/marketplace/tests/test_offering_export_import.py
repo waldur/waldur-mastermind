@@ -7,7 +7,6 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -264,7 +263,7 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
         self.assertEqual(offering.type, "TEST_TYPE")
         self.assertEqual(offering.customer, self.customer)
         self.assertEqual(offering.category, self.category)
-        self.assertEqual(offering.state, OfferingStates.DRAFT)
+        self.assertEqual(offering.state, models.Offering.States.DRAFT)
         self.assertEqual(offering.attributes, {"key": "value"})
 
         # Verify components were created
@@ -383,7 +382,7 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
 
         offering = models.Offering.objects.get(name="State Test Offering")
         # Always DRAFT state regardless of input data
-        self.assertEqual(offering.state, OfferingStates.DRAFT)
+        self.assertEqual(offering.state, models.Offering.States.DRAFT)
 
     def test_import_offering_with_invalid_yaml(self):
         """Test import fails with invalid YAML data."""

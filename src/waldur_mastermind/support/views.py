@@ -32,7 +32,6 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import (
     permissions as structure_permissions,
 )
-from waldur_mastermind.notifications.enums import BroadcastMessageState
 from waldur_mastermind.notifications.models import BroadcastMessage
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
@@ -247,7 +246,7 @@ class SupportStatsViewSet(CheckExtensionMixin, generics.GenericAPIView):
         ).count()
 
         recent_broadcasts = BroadcastMessage.objects.filter(
-            state=BroadcastMessageState.SENT, created__month=current_month
+            state=BroadcastMessage.States.SENT, created__month=current_month
         )
         recent_broadcasts_count = recent_broadcasts.count()
 

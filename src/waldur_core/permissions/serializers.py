@@ -1,6 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
-from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
@@ -10,7 +9,7 @@ from waldur_core.core.serializers import (
     TranslatedModelSerializerMixin,
 )
 from waldur_core.core.utils import is_uuid_like
-from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
+from waldur_core.permissions.enums import TYPE_KEYS, TYPE_MAP, PermissionEnum
 from waldur_core.permissions.utils import (
     get_create_permission,
     get_delete_permission,
@@ -56,8 +55,7 @@ class RoleDetailsSerializer(RestrictedSerializerMixin, TranslatedModelSerializer
             return None
         return models.UserRole.objects.filter(is_active=True, role=role).count()
 
-    @extend_schema_field(serializers.ChoiceField(choices=TYPE_MAP.keys()))
-    def get_content_type(self, role: models.Role):
+    def get_content_type(self, role: models.Role) -> TYPE_KEYS:
         for external_ct_id, (app_label, model) in TYPE_MAP.items():
             if (
                 role.content_type.app_label == app_label

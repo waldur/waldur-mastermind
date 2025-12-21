@@ -5,7 +5,7 @@ import digitalocean
 from django.db import IntegrityError, transaction
 from django.utils import dateparse
 
-from waldur_core.core.enums import CoreStates, RuntimeStates
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import SshPublicKey
 from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.exceptions import ServiceBackendError
@@ -268,6 +268,8 @@ class DigitalOceanBackend(ServiceBackend):
             nc_droplet.save()
 
     def _get_droplet_states(self, droplet):
+        RuntimeStates = models.Droplet.RuntimeStates
+
         digitalocean_to_waldur = {
             "new": (CoreStates.CREATING, "provisioning"),
             "active": (CoreStates.OK, RuntimeStates.ONLINE),

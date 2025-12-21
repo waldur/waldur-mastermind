@@ -12,7 +12,6 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack import models
-from waldur_openstack.enums import NetworkShareType
 
 
 class SettingsFactory(structure_factories.ServiceSettingsFactory):
@@ -607,4 +606,4 @@ class NetworkRBACPolicyFactory(
 
     network = factory.SubFactory(NetworkFactory)
     target_tenant = factory.SubFactory(TenantFactory)
-    policy_type = NetworkShareType.SHARED
+    policy_type = models.NetworkRBACPolicy.NetworkShareType.SHARED

@@ -3,8 +3,7 @@ from unittest import mock
 import ddt
 from rest_framework import status, test
 
-from waldur_vmware import enums, models
-from waldur_vmware.enums import VirtualMachineToolsStates
+from waldur_vmware import models
 from waldur_vmware.tests.utils import override_plugin_settings
 
 from . import factories, fixtures
@@ -418,14 +417,14 @@ class VirtualMachineDeleteTest(test.APITransactionTestCase):
         self.url = factories.VirtualMachineFactory.get_url(self.vm)
 
     def test_when_vm_is_powered_off_deletion_is_allowed(self):
-        self.vm.runtime_state = enums.VirtualMachineRuntimeStates.POWERED_OFF
+        self.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_OFF
         self.vm.save()
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_when_vm_is_powered_on_deletion_is_not_allowed(self):
-        self.vm.runtime_state = enums.VirtualMachineRuntimeStates.POWERED_ON
+        self.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_ON
         self.vm.save()
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.delete(self.url)
@@ -611,7 +610,7 @@ class GuestPowerTest(test.APITransactionTestCase):
     @ddt.data("reboot_guest", "shutdown_guest")
     def test_if_vm_tools_are_running_guest_power_management_is_allowed(self, action):
         # Arrange
-        self.vm.tools_state = VirtualMachineToolsStates.RUNNING
+        self.vm.tools_state = models.VirtualMachine.ToolsStates.RUNNING
         self.vm.save()
 
         # Act
@@ -627,7 +626,7 @@ class GuestPowerTest(test.APITransactionTestCase):
         self, action
     ):
         # Arrange
-        self.vm.tools_state = VirtualMachineToolsStates.NOT_RUNNING
+        self.vm.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
         self.vm.save()
 
         # Act

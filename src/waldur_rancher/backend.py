@@ -23,7 +23,9 @@ from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_openstack import models as openstack_models
 from waldur_openstack.models import Instance
-from waldur_rancher import enums
+from waldur_rancher.enums import (
+    SERVER_ROLE,
+)
 from waldur_rancher.exceptions import NotFound, RancherException, VaultException
 
 from . import client, models, utils
@@ -530,7 +532,7 @@ class RancherBackend(ServiceBackend):
         if tenant_uuid:
             tenant = openstack_models.Tenant.objects.filter(uuid=tenant_uuid).first()
 
-        if not backend_cluster.get("state", "") == enums.ClusterRuntimeStates.ACTIVE:
+        if not backend_cluster.get("state", "") == models.Cluster.RuntimeStates.ACTIVE:
             raise RancherException("Cannot import K8s cluster in non-active state.")
 
         cluster = models.Cluster.objects.create(
@@ -601,11 +603,11 @@ class RancherBackend(ServiceBackend):
     def check_cluster_nodes(self, cluster: models.Cluster):
         self.pull_cluster_details(cluster)
 
-        if cluster.runtime_state == enums.ClusterRuntimeStates.ACTIVE:
+        if cluster.runtime_state == models.Cluster.RuntimeStates.ACTIVE:
             # We don't need change cluster state here, because it will make in an executor.
             return
 
-        for node in cluster.node_set.filter(role=enums.NodeRole.SERVER):
+        for node in cluster.node_set.filter(role=SERVER_ROLE):
             vm = cast(Instance, node.instance)
             if vm.state not in [
                 CoreStates.ERRED,
@@ -629,7 +631,7 @@ class RancherBackend(ServiceBackend):
 
     def node_is_active(self, backend_id):
         backend_node = self.client.get_node(backend_id)
-        return backend_node["state"] == enums.NodeRuntimeStates.ACTIVE
+        return backend_node["state"] == models.Node.RuntimeStates.ACTIVE
 
     def pull_node(self, node: models.Node):
         if not node.backend_id:

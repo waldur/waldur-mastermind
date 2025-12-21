@@ -82,8 +82,8 @@ Located in `openapi_extensions.py`, these classes provide a modular way to handl
   - **Problem**: `drf-spectacular` doesn't know how to represent our custom `GenericRelatedField`.
   - **Solution**: This extension tells the generator to simply represent it as a `string` (which, in our case, is a URL). This avoids schema generation errors and provides a simple, accurate representation.
 - **`OpenStackNestedSecurityGroupSerializerExtension`**:
-  - **Problem**: A specific nested serializer is overly complex, and for the API schema, we only want to show a simplified version of it.
-  - **Solution**: This extension bypasses introspection of the serializer entirely and provides a fixed, hardcoded schema (`{"type": "object", "properties": {"url": ...}}`). This is an excellent technique for simplifying complex nested objects in the API documentation.
+    - **Problem**: A specific nested serializer is overly complex, and for the API schema, we only want to show a simplified version of it.
+    - **Solution**: This extension bypasses introspection of the serializer entirely and provides a fixed, hardcoded schema (`{"type": "object", "properties": {"url": ...}}`). This is an excellent technique for simplifying complex nested objects in the API documentation.
 
 ---
 
@@ -108,26 +108,26 @@ Located in `schema_hooks.py`, these functions perform powerful, sweeping modific
 - **`refactor_pagination_parameters`**:
   - **Best Practice**: This hook implements the DRY (Don't Repeat Yourself) principle. It finds all instances of `page` and `page_size` parameters, moves their definition to the global `#/components/parameters/` section, and replaces the inline definitions with `$ref` pointers. This reduces schema size and improves consistency.
 - **`add_result_count_header`**:
-  - **Purpose**: To document that all our paginated list endpoints return the `x-result-count` header.
-  - **Mechanism**: It identifies list endpoints (by checking if `operationId` ends in `_list`), defines a reusable header in `#/components/headers/`, and adds a reference to it in the `2xx` responses of those endpoints.
+    - **Purpose**: To document that all our paginated list endpoints return the `x-result-count` header.
+    - **Mechanism**: It identifies list endpoints (by checking if `operationId` ends in `_list`), defines a reusable header in `#/components/headers/`, and adds a reference to it in the `2xx` responses of those endpoints.
 - **`make_fields_optional`**:
-  - **Problem**: Endpoints using `RestrictedSerializerMixin` can return a variable subset of fields. How do we represent this?
-  - **Solution**: This hook finds any operation that has a `field` query parameter. For those operations, it recursively traverses their response schemas and removes the `required` property from all objects. This correctly signals to API consumers that any field might be absent if not explicitly requested.
+    - **Problem**: Endpoints using `RestrictedSerializerMixin` can return a variable subset of fields. How do we represent this?
+    - **Solution**: This hook finds any operation that has a `field` query parameter. For those operations, it recursively traverses their response schemas and removes the `required` property from all objects. This correctly signals to API consumers that any field might be absent if not explicitly requested.
 - **`transform_paginated_arrays`**:
-  - **Purpose**: To simplify the schema structure for paginated responses.
-  - **Mechanism**: `drf-spectacular` often creates named components like `PaginatedUserList`. This hook finds all such components, inlines their array definition wherever they are referenced, and then removes the original component definition. The result is a slightly more verbose but flatter and often easier-to-understand schema for the end-user.
+    - **Purpose**: To simplify the schema structure for paginated responses.
+    - **Mechanism**: `drf-spectacular` often creates named components like `PaginatedUserList`. This hook finds all such components, inlines their array definition wherever they are referenced, and then removes the original component definition. The result is a slightly more verbose but flatter and often easier-to-understand schema for the end-user.
 - **`add_polymorphic_attributes_schema`**:
-  - **This is the most advanced and powerful hook in our arsenal.**
-  - **Problem**: The `attributes` field on the "Create Order" endpoint is polymorphic. Its structure depends entirely on the `offering_type` of the marketplace offering.
-  - **Solution**: We use OpenAPI's `oneOf` keyword to represent this polymorphism.
-  - **Mechanism**: The hook acts as a pre-processing step. It dynamically:
+    - **This is the most advanced and powerful hook in our arsenal.**
+    - **Problem**: The `attributes` field on the "Create Order" endpoint is polymorphic. Its structure depends entirely on the `offering_type` of the marketplace offering.
+    - **Solution**: We use OpenAPI's `oneOf` keyword to represent this polymorphism.
+    - **Mechanism**: The hook acts as a pre-processing step. It dynamically:
         1. Iterates through all registered marketplace plugins (`waldur_mastermind.marketplace.plugins`).
         2. For each plugin, it finds the serializer responsible for validating the `attributes` field.
         3. It uses a temporary `AutoSchema` instance to generate a schema for that specific serializer's fields.
         4. It adds this generated schema to `#/components/schemas/` with a unique name (e.g., `OpenStackInstanceCreateOrderAttributes`).
         5. Finally, it modifies the `OrderCreateRequest` schema to replace the `attributes` field with a `oneOf` that references all the dynamically generated schemas, plus a generic fallback.
-  - **Architectural Significance**: This demonstrates how hooks can be used to generate schema fragments dynamically by introspecting parts of the application (in this case, the plugin system) that are outside the immediate scope of a DRF view.
-- **Other Hooks**: `postprocess_strip_description`, `postprocess_fix_enum`, `remove_waldur_cookie_auth`, `adjust_request_body_content_types` are utility hooks for cleaning up and standardizing the final output.
+    - **Architectural Significance**: This demonstrates how hooks can be used to generate schema fragments dynamically by introspecting parts of the application (in this case, the plugin system) that are outside the immediate scope of a DRF view.
+- **Other Hooks**: `postprocess_drop_description`, `postprocess_fix_enum`, `remove_waldur_cookie_auth`, `adjust_request_body_content_types` are utility hooks for cleaning up and standardizing the final output.
 
 ---
 
@@ -218,12 +218,10 @@ def filter_invoice_items(items, ordering=None):
 
 1. **Docstrings are the Source of Truth**: Write clear docstrings on viewset *action methods*. They become the official API descriptions.
 2. **Use the Right Tool for the Job**:
-
-- **View-specific logic?** Use the `WaldurOpenApiInspector`.
-- **Reusable custom class?** Create an `Extension`.
-- **Global rule for filtering endpoints?** Modify the `WaldurEndpointEnumerator`.
-- **Schema-wide refactoring or complex polymorphism?** Write a `postprocessing_hook`.
-
+  - **View-specific logic?** Use the `WaldurOpenApiInspector`.
+  - **Reusable custom class?** Create an `Extension`.
+  - **Global rule for filtering endpoints?** Modify the `WaldurEndpointEnumerator`.
+  - **Schema-wide refactoring or complex polymorphism?** Write a `postprocessing_hook`.
 3. **Leverage View Attributes for Metadata**: We use view attributes like `create_permissions` and `disabled_actions` to control schema generation. This co-locates API behavior and its documentation, making the code easier to maintain.
 4. **Define Explicit Enums for Query Parameters**: For parameters like ordering (`o`), filtering, or status selection, always define explicit enum values in the schema instead of generic string types. This provides better documentation, client generation, and validation.
 5. **Embrace Vendor Extensions (`x-`)**: For custom metadata that doesn't fit the OpenAPI standard (like our `x-permissions`), vendor extensions are the correct and standard way to include it.

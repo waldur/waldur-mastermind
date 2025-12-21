@@ -2,7 +2,7 @@ import logging
 from collections.abc import Callable
 from datetime import timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ValidationError
@@ -37,11 +37,8 @@ from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.mixins import CoordinatesMixin
-from waldur_mastermind.marketplace import enums
 from waldur_mastermind.marketplace.enums import (
-    ORDER_PENDING_STATES,
     BillingTypes,
-    CatalogType,
     CategoryColumnWidget,
     CourseAccountState,
     ImpactLevel,
@@ -313,7 +310,7 @@ class CategoryColumn(
         null=True,
         max_length=255,
         help_text=_("Widget field allows to customise table cell rendering."),
-        choices=CategoryColumnWidget.choices,
+        choices=CategoryColumnWidget.CHOICES,
     )
 
     def __str__(self):
@@ -531,7 +528,12 @@ class Offering(
     software_catalogs: models.Manager["OfferingSoftwareCatalog"]
     user_consents: models.Manager["UserOfferingConsent"]
     terms_of_service_configs: models.Manager["OfferingTermsOfService"]
-    get_state_display: Callable[[], str]
+    get_state_display: Callable[
+        [], Literal["Draft", "Active", "Paused", "Archived", "Unavailable"]
+    ]
+
+    class States(OfferingStates):
+        pass
 
     thumbnail = models.FileField(
         upload_to="marketplace_service_offering_thumbnails",
@@ -608,9 +610,7 @@ class Offering(
     privacy_policy_link = models.URLField(blank=True)
     country = models.CharField(max_length=2, blank=True)
     type = models.CharField(max_length=100)
-    state = FSMIntegerField(
-        default=OfferingStates.DRAFT, choices=OfferingStates.choices
-    )
+    state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
     paused_reason = models.TextField(blank=True)
     organization_groups = models.ManyToManyField(
         structure_models.OrganizationGroup, related_name="offerings", blank=True
@@ -674,47 +674,39 @@ class Offering(
 
     @transition(
         field=state,
-        source=[
-            OfferingStates.DRAFT,
-            OfferingStates.PAUSED,
-            OfferingStates.UNAVAILABLE,
-        ],
-        target=OfferingStates.ACTIVE,
+        source=[States.DRAFT, States.PAUSED, States.UNAVAILABLE],
+        target=States.ACTIVE,
         conditions=[offering_has_plans],
     )
     def activate(self):
         pass
 
-    @transition(field=state, source=OfferingStates.ACTIVE, target=OfferingStates.PAUSED)
+    @transition(field=state, source=States.ACTIVE, target=States.PAUSED)
     def pause(self):
         pass
 
     @transition(
         field=state,
-        source=OfferingStates.PAUSED,
-        target=OfferingStates.ACTIVE,
+        source=States.PAUSED,
+        target=States.ACTIVE,
         conditions=[offering_has_plans],
     )
     def unpause(self):
         pass
 
-    @transition(
-        field=state, source=OfferingStates.ACTIVE, target=OfferingStates.UNAVAILABLE
-    )
+    @transition(field=state, source=States.ACTIVE, target=States.UNAVAILABLE)
     def make_unavailable(self):
         pass
 
-    @transition(
-        field=state, source=OfferingStates.UNAVAILABLE, target=OfferingStates.ACTIVE
-    )
+    @transition(field=state, source=States.UNAVAILABLE, target=States.ACTIVE)
     def make_available(self):
         pass
 
-    @transition(field=state, source="*", target=OfferingStates.ARCHIVED)
+    @transition(field=state, source="*", target=States.ARCHIVED)
     def archive(self):
         pass
 
-    @transition(field=state, source="*", target=OfferingStates.DRAFT)
+    @transition(field=state, source="*", target=States.DRAFT)
     def draft(self):
         pass
 
@@ -926,11 +918,11 @@ class OfferingComponent(
         on_delete=models.CASCADE, to=CategoryComponent, null=True, blank=True
     )
     billing_type = models.CharField(
-        choices=BillingTypes.choices, default=BillingTypes.FIXED, max_length=5
+        choices=BillingTypes.CHOICES, default=BillingTypes.FIXED, max_length=5
     )
     # limit_period and limit_amount fields are used if billing_type is USAGE or LIMIT
     limit_period = models.CharField(
-        choices=LimitPeriods.choices, blank=True, null=True, max_length=10
+        choices=LimitPeriods.CHOICES, blank=True, null=True, max_length=10
     )
     limit_amount = models.IntegerField(blank=True, null=True)
     # unit_factor is for metadata only and is not involved in any computations in Mastermind
@@ -1355,6 +1347,9 @@ class Resource(
     users: models.Manager["ResourceUser"]
     get_state_display: Callable[[], str]
 
+    class States(ResourceStates):
+        pass
+
     class Permissions:
         customer_path = "project__customer"
         project_path = "project"
@@ -1368,9 +1363,7 @@ class Resource(
             Index(fields=["project", "state"], name="mp_resource_project_state_idx"),
         ]
 
-    state = FSMIntegerField(
-        default=ResourceStates.CREATING, choices=ResourceStates.choices
-    )
+    state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     parent = models.ForeignKey["Resource"](
         on_delete=models.SET_NULL,
@@ -1410,38 +1403,33 @@ class Resource(
 
     @transition(
         field=state,
-        source=[
-            ResourceStates.ERRED,
-            ResourceStates.CREATING,
-            ResourceStates.UPDATING,
-            ResourceStates.TERMINATING,
-        ],
-        target=ResourceStates.OK,
+        source=[States.ERRED, States.CREATING, States.UPDATING, States.TERMINATING],
+        target=States.OK,
     )
     def set_state_ok(self):
         pass
 
     @transition(
         field=state,
-        source=[ResourceStates.TERMINATED],
-        target=ResourceStates.CREATING,
+        source=[States.TERMINATED],
+        target=States.CREATING,
     )
     def set_state_creating(self):
         pass
 
-    @transition(field=state, source="*", target=ResourceStates.ERRED)
+    @transition(field=state, source="*", target=States.ERRED)
     def set_state_erred(self):
         pass
 
-    @transition(field=state, source="*", target=ResourceStates.UPDATING)
+    @transition(field=state, source="*", target=States.UPDATING)
     def set_state_updating(self):
         pass
 
-    @transition(field=state, source="*", target=ResourceStates.TERMINATING)
+    @transition(field=state, source="*", target=States.TERMINATING)
     def set_state_terminating(self):
         pass
 
-    @transition(field=state, source="*", target=ResourceStates.TERMINATED)
+    @transition(field=state, source="*", target=States.TERMINATED)
     def set_state_terminated(self):
         pass
 
@@ -1511,7 +1499,7 @@ class Resource(
 
     @property
     def order_in_progress(self) -> "Order | None":
-        return self.order_set.filter(state__in=ORDER_PENDING_STATES).first()
+        return self.order_set.filter(state__in=OrderStates.PENDING_STATES).first()
 
     def get_prepaid_balance(
         self, offering_component: "OfferingComponent", excluded_ids: list | None = None
@@ -1695,7 +1683,7 @@ class Order(
     """
 
     type = models.PositiveSmallIntegerField(
-        choices=OrderTypes.choices, default=OrderTypes.CREATE
+        choices=OrderTypes.CHOICES, default=OrderTypes.CREATE
     )
 
     old_plan = models.ForeignKey(
@@ -1704,7 +1692,7 @@ class Order(
     project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project)
     resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource)
     state = FSMIntegerField(
-        default=OrderStates.PENDING_CONSUMER, choices=OrderStates.choices
+        default=OrderStates.PENDING_CONSUMER, choices=OrderStates.CHOICES
     )
     output = models.TextField(blank=True)
     tracker = cast(FieldInstanceTracker, FieldTracker())
@@ -2081,7 +2069,7 @@ class OfferingUser(
     )
     state = FSMIntegerField(
         default=OfferingUserStates.CREATION_REQUESTED,
-        choices=OfferingUserStates.choices,
+        choices=OfferingUserStates.CHOICES,
     )
     service_provider_comment = models.TextField(
         blank=True,
@@ -2329,9 +2317,9 @@ class BaseServiceAccount(
     description = models.TextField(blank=True)
     state = FSMIntegerField(
         default=ServiceAccountState.OK,
-        choices=ServiceAccountState.choices,
+        choices=ServiceAccountState.CHOICES,
     )
-    get_state_display: Callable[[], str]
+    get_state_display: Callable[[], Literal["OK", "Closed", "Erred"]]
 
     class Meta:
         abstract = True
@@ -2472,7 +2460,7 @@ class RobotAccount(
     type = models.CharField(max_length=5, help_text=_("Type of the robot account."))
 
     state = FSMIntegerField(
-        default=RobotAccountStates.REQUESTED, choices=RobotAccountStates.choices
+        default=RobotAccountStates.REQUESTED, choices=RobotAccountStates.CHOICES
     )
 
     @transition(
@@ -2577,6 +2565,12 @@ class SoftwareCatalog(core_models.UuidMixin, TimeStampedModel):
     - package_manager: Package manager repos (conda-forge, PyPI)
     """
 
+    CATALOG_TYPE_CHOICES = [
+        ("binary_runtime", _("Binary Runtime (EESSI)")),
+        ("source_package", _("Source Package (Spack)")),
+        ("package_manager", _("Package Manager (conda, pip)")),
+    ]
+
     name = models.CharField(
         max_length=100, help_text=_("Catalog name (e.g., EESSI, Spack)")
     )
@@ -2585,8 +2579,8 @@ class SoftwareCatalog(core_models.UuidMixin, TimeStampedModel):
     )
     catalog_type = models.CharField(
         max_length=50,
-        choices=CatalogType.choices,
-        default=CatalogType.BINARY_RUNTIME,  # Default to EESSI-like for existing catalogs
+        choices=CATALOG_TYPE_CHOICES,
+        default="binary_runtime",  # Default to EESSI-like for existing catalogs
         help_text=_("Type of software catalog"),
     )
     source_url = models.URLField(blank=True, help_text=_("Catalog source URL"))
@@ -2973,19 +2967,40 @@ class IntegrationStatus(core_models.UuidMixin):
     connectivity status.
     """
 
+    class States:
+        UNKNOWN = 1
+        ACTIVE = 2
+        DISCONNECTED = 3
+
+        CHOICES = (
+            (UNKNOWN, "Unknown"),
+            (ACTIVE, "Active"),
+            (DISCONNECTED, "Disconnected"),
+        )
+
+    class AgentTypes:
+        ORDER_PROCESSING = 1
+        USAGE_REPORTING = 2
+        GLAUTH_SYNC = 3
+        RESOURCE_SYNC = 4
+        EVENT_PROCESSING = 5
+
+        CHOICES = (
+            (ORDER_PROCESSING, "Order processing"),
+            (USAGE_REPORTING, "Usage reporting"),
+            (GLAUTH_SYNC, "Glauth sync"),
+            (RESOURCE_SYNC, "Resource sync"),
+            (EVENT_PROCESSING, "Event processing"),
+        )
+
     agent_type = models.CharField(
-        max_length=20,
-        choices=enums.IntegrationStatusAgentTypes.choices,
-        default=enums.IntegrationStatusAgentTypes.ORDER_PROCESSING,
+        max_length=20, choices=AgentTypes.CHOICES, default=AgentTypes.ORDER_PROCESSING
     )
     offering = models.ForeignKey(
         Offering,
         on_delete=models.CASCADE,
     )
-    status = FSMIntegerField(
-        default=enums.IntegrationStatusStates.UNKNOWN,
-        choices=enums.IntegrationStatusStates.choices,
-    )
+    status = FSMIntegerField(default=States.UNKNOWN, choices=States.CHOICES)
     last_request_timestamp = models.DateTimeField(
         _("time of latest backend request"), null=True, blank=True, editable=False
     )
@@ -2997,15 +3012,15 @@ class IntegrationStatus(core_models.UuidMixin):
     @transition(
         field=status,
         source="*",
-        target=enums.IntegrationStatusStates.ACTIVE,
+        target=States.ACTIVE,
     )
     def set_backend_active(self):
         pass
 
     @transition(
         field=status,
-        source=enums.IntegrationStatusStates.ACTIVE,
-        target=enums.IntegrationStatusStates.DISCONNECTED,
+        source=States.ACTIVE,
+        target=States.DISCONNECTED,
     )
     def set_backend_disconnected(self):
         pass
@@ -3046,6 +3061,19 @@ class BackendResourceRequest(
     backend operations and resource processing.
     """
 
+    class States:
+        SENT = "Sent"
+        PROCESSING = "Processing"
+        DONE = "Done"
+        ERRED = "Erred"
+
+        CHOICES = (
+            (SENT, SENT),
+            (PROCESSING, PROCESSING),
+            (DONE, DONE),
+            (ERRED, ERRED),
+        )
+
     started = models.DateTimeField(
         blank=True, null=True, help_text=_("Time when request processing started")
     )
@@ -3053,29 +3081,18 @@ class BackendResourceRequest(
         blank=True, null=True, help_text=_("Time when request processing finished")
     )
 
-    state = FSMField(
-        choices=enums.BackendResourceRequestState.choices,
-        default=enums.BackendResourceRequestState.SENT,
-    )
+    state = FSMField(choices=States.CHOICES, default=States.SENT)
     offering = models.ForeignKey(to=Offering, on_delete=models.CASCADE)
 
-    @transition(
-        field=state,
-        source=enums.BackendResourceRequestState.SENT,
-        target=enums.BackendResourceRequestState.PROCESSING,
-    )
+    @transition(field=state, source=States.SENT, target=States.PROCESSING)
     def start_processing(self):
         self.started = timezone.now()
 
-    @transition(
-        field=state,
-        source=enums.BackendResourceRequestState.PROCESSING,
-        target=enums.BackendResourceRequestState.DONE,
-    )
+    @transition(field=state, source=States.PROCESSING, target=States.DONE)
     def set_done(self):
         self.finished = timezone.now()
 
-    @transition(field=state, source="*", target=enums.BackendResourceRequestState.ERRED)
+    @transition(field=state, source="*", target=States.ERRED)
     def set_erred(self):
         self.finished = timezone.now()
 
@@ -3097,13 +3114,13 @@ class MaintenanceAnnouncement(
     message = models.CharField(_("message"), max_length=2000, blank=True)
     internal_notes = models.CharField(_("internal notes"), max_length=2000, blank=True)
     maintenance_type = models.PositiveSmallIntegerField(
-        choices=MaintenanceType.choices,
+        choices=MaintenanceType.CHOICES,
         default=MaintenanceType.SCHEDULED,
         help_text=_("Type of maintenance being performed"),
     )
 
     state = FSMIntegerField(
-        default=MaintenanceState.DRAFT, choices=MaintenanceState.choices
+        default=MaintenanceState.DRAFT, choices=MaintenanceState.CHOICES
     )
 
     scheduled_start = models.DateTimeField(
@@ -3228,7 +3245,7 @@ class MaintenanceAnnouncementOffering(core_models.UuidMixin, TimeStampedModel):
         Offering, on_delete=models.CASCADE, related_name="maintenance_announcements"
     )
     impact_level = models.PositiveSmallIntegerField(
-        choices=ImpactLevel.choices,
+        choices=ImpactLevel.CHOICES,
         default=ImpactLevel.DEGRADED_PERFORMANCE,
         help_text=_("Expected impact on this offering"),
     )
@@ -3254,7 +3271,7 @@ class MaintenanceAnnouncementTemplate(
 ):
     message = models.CharField(_("message"), max_length=2000, blank=True)
     maintenance_type = models.PositiveSmallIntegerField(
-        choices=MaintenanceType.choices,
+        choices=MaintenanceType.CHOICES,
         default=MaintenanceType.SCHEDULED,
         help_text=_("Type of maintenance being performed"),
     )
@@ -3288,7 +3305,7 @@ class MaintenanceAnnouncementOfferingTemplate(core_models.UuidMixin, TimeStamped
     )
     offering = models.ForeignKey(Offering, on_delete=models.CASCADE, related_name="+")
     impact_level = models.PositiveSmallIntegerField(
-        choices=ImpactLevel.choices,
+        choices=ImpactLevel.CHOICES,
         default=ImpactLevel.DEGRADED_PERFORMANCE,
         help_text=_("Expected impact on this offering"),
     )
@@ -3335,7 +3352,7 @@ class CourseAccount(
         FieldInstanceTracker,
         FieldTracker(fields=["email", "description", "state", "user"]),
     )
-    get_state_display: Callable[[], str]
+    get_state_display: Callable[[], Literal["OK", "Closed", "Erred"]]
 
     class Meta:
         verbose_name = _("Course account")

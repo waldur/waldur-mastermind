@@ -12,7 +12,6 @@ from waldur_core.structure import filters as structure_filters
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.promotions import filters, models, serializers, validators
-from waldur_mastermind.promotions.enums import CampaignState
 
 
 class CampaignViewSet(core_views.ActionsViewSet):
@@ -31,7 +30,9 @@ class CampaignViewSet(core_views.ActionsViewSet):
     ]
     destroy_validators = [validators.check_resources]
     update_validators = [
-        core_validators.StateValidator(CampaignState.ACTIVE, CampaignState.DRAFT)
+        core_validators.StateValidator(
+            models.Campaign.States.ACTIVE, models.Campaign.States.DRAFT
+        )
     ]
     disabled_actions = ["partial_update"]
 
@@ -47,7 +48,7 @@ class CampaignViewSet(core_views.ActionsViewSet):
         campaign.save()
         return Response("Campaign has been activated", status=status.HTTP_200_OK)
 
-    activate_validators = [core_validators.StateValidator(CampaignState.DRAFT)]
+    activate_validators = [core_validators.StateValidator(models.Campaign.States.DRAFT)]
 
     @extend_schema(
         request=None,
@@ -62,7 +63,9 @@ class CampaignViewSet(core_views.ActionsViewSet):
         return Response("Campaign has been terminated", status=status.HTTP_200_OK)
 
     terminate_validators = [
-        core_validators.StateValidator(CampaignState.ACTIVE, CampaignState.DRAFT)
+        core_validators.StateValidator(
+            models.Campaign.States.ACTIVE, models.Campaign.States.DRAFT
+        )
     ]
 
     @extend_schema(

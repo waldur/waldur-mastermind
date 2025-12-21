@@ -16,7 +16,7 @@ from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace_openstack.utils import (
     delete_instance,
 )
-from waldur_openstack import enums, executors, models, views
+from waldur_openstack import executors, models, views
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.models import Port
 from waldur_openstack.tasks import LimitedPerTypeThrottleMixin
@@ -591,7 +591,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         super().setUp()
         self.instance = factories.InstanceFactory(
             state=CoreStates.OK,
-            runtime_state=enums.InstanceRuntimeStates.SHUTOFF,
+            runtime_state=models.Instance.RuntimeStates.SHUTOFF,
             backend_id="VALID_ID",
         )
         self.instance.increase_backend_quotas_usage()

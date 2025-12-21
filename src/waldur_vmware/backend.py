@@ -14,7 +14,6 @@ from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_vmware.client import VMwareClient
-from waldur_vmware.enums import VirtualMachineToolsStates
 from waldur_vmware.exceptions import VMwareError
 from waldur_vmware.utils import is_basic_mode
 
@@ -742,7 +741,7 @@ class VMwareBackend(ServiceBackend):
         from RUNNING to NOT RUNNING twice when optimistic update is used.
         """
         tools_state = self.get_vm_tools_state(vm.backend_id)
-        result = tools_state == VirtualMachineToolsStates.RUNNING
+        result = tools_state == models.VirtualMachine.ToolsStates.RUNNING
         if result:
             vm.tools_state = tools_state
             vm.save(update_fields=["tools_state"])
@@ -762,7 +761,7 @@ class VMwareBackend(ServiceBackend):
 
     def is_virtual_machine_tools_not_running(self, vm):
         tools_state = self.get_vm_tools_state(vm.backend_id)
-        result = tools_state == VirtualMachineToolsStates.NOT_RUNNING
+        result = tools_state == models.VirtualMachine.ToolsStates.NOT_RUNNING
         if result:
             vm.tools_state = tools_state
             vm.save(update_fields=["tools_state"])
@@ -1077,11 +1076,11 @@ class VMwareBackend(ServiceBackend):
         backend_vm = self._get_backend_vm(backend_id)
         backend_tools_state = backend_vm.guest.toolsRunningStatus
         if backend_tools_state == "guestToolsExecutingScripts":
-            return VirtualMachineToolsStates.STARTING
+            return models.VirtualMachine.ToolsStates.STARTING
         elif backend_tools_state == "guestToolsNotRunning":
-            return VirtualMachineToolsStates.NOT_RUNNING
+            return models.VirtualMachine.ToolsStates.NOT_RUNNING
         elif backend_tools_state == "guestToolsRunning":
-            return VirtualMachineToolsStates.RUNNING
+            return models.VirtualMachine.ToolsStates.RUNNING
 
     def get_vm_tools_installed(self, backend_id):
         """

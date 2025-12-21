@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Literal
 
 
 class RoleEnum(str, Enum):
@@ -41,7 +42,15 @@ TYPE_MAP = {
     "proposal": ("proposal", "proposal"),
 }
 
-TYPE_KEYS = list(TYPE_MAP.keys())
+TYPE_KEYS = Literal[
+    "customer",
+    "service_provider",
+    "call_organizer",
+    "project",
+    "offering",
+    "call",
+    "proposal",
+]
 
 
 class PermissionEnum(str, Enum):

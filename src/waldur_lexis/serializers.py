@@ -1,10 +1,8 @@
-from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import models
-from .enums import LexisLinkStates
 
 
 class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
@@ -73,11 +71,7 @@ class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
     robot_account_type = serializers.CharField(
         read_only=True, source="robot_account.type"
     )
-    state = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.ChoiceField(choices=LexisLinkStates.labels))
-    def get_state(self, lexis_link):
-        return lexis_link.get_state_display()
+    state = serializers.CharField(read_only=True, source="get_state_display")
 
 
 class LexisLinkCreateSerializer(serializers.HyperlinkedModelSerializer):

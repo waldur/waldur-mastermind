@@ -3,7 +3,7 @@ import logging
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import RobotAccountStates
 
-from . import enums, executors, models
+from . import executors, models
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def request_ssh_key_for_heappe_robot_account(
         return
 
     # if a linked Lexis link exists and it has the PENDING state, only then we should start LexisLink processing
-    if lexis_link.state != enums.LexisLinkStates.PENDING:
+    if lexis_link.state != models.LexisLink.States.PENDING:
         logger.info(
             "The lexis link %s is not in PENDING state, skipping ssh key request",
             lexis_link,

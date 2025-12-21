@@ -153,7 +153,7 @@ class OrderEndDateCreateTest(BaseOrderCreateTest):
 class OrderCreatePrepaidTest(BaseOrderCreateTest):
     def setUp(self):
         super().setUp()
-        self.offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        self.offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         self.prepaid_component = factories.OfferingComponentFactory(
             offering=self.offering,
             is_prepaid=True,

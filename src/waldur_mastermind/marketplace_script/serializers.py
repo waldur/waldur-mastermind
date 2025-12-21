@@ -1,10 +1,9 @@
-from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import OrderTypes
 from waldur_mastermind.marketplace_script import models as marketplace_script_models
-from waldur_mastermind.marketplace_script.enums import DryRunStates, DryRunTypes
 
 
 class CommonSerializer(serializers.Serializer):
@@ -42,6 +41,19 @@ class ResourceSerializer(CommonSerializer):
     resource_backend_metadata = serializers.ReadOnlyField(source="backend_metadata")
 
 
+class DryRunTypes(OrderTypes):
+    PULL = 5
+    CHOICES = OrderTypes.CHOICES + ((PULL, "Pull"),)
+
+    @classmethod
+    def get_type_display(cls, index):
+        for choice in cls.CHOICES:
+            if index == choice[0]:
+                return choice[1].lower()
+
+        return index
+
+
 class DryRunSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
@@ -54,13 +66,12 @@ class DryRunSerializer(
         required=False,
     )
     type = NaturalChoiceField(
-        choices=DryRunTypes.choices,
+        choices=DryRunTypes.CHOICES,
         required=False,
         default=DryRunTypes.CREATE,
         write_only=True,
     )
     attributes = serializers.JSONField(required=False, write_only=True)
-    state = serializers.SerializerMethodField()
 
     class Meta:
         model = marketplace_script_models.DryRun
@@ -74,6 +85,7 @@ class DryRunSerializer(
             "order_type",
             "order_offering",
             "state",
+            "get_state_display",
             "output",
             "created",
         )
@@ -97,10 +109,6 @@ class DryRunSerializer(
                 "view_name": "marketplace-provider-offering-detail",
             },
         }
-
-    @extend_schema_field(serializers.ChoiceField(choices=DryRunStates.labels))
-    def get_state(self, obj):
-        return obj.get_state_display()
 
 
 class PullMarketplaceScriptResourceSerializer(serializers.Serializer):

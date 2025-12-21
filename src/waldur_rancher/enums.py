@@ -1,49 +1,41 @@
-from django.db import models
+from typing import Literal
 
 
-class TemplateQuestionType(models.TextChoices):
-    """Template question types for Rancher templates."""
-
-    BOOLEAN = "boolean", "boolean"
-    STRING = "string", "string"
-    ENUM = "enum", "enum"
-    SECRET = "secret", "secret"
+class GlobalRoles:
+    user_base = "user-base"
 
 
-class CatalogScopeType(models.TextChoices):
-    """Catalog scope types for Rancher catalogs."""
+RANCHER_TEMPLATE_QUESTION_TYPE = ["boolean", "string", "enum", "secret"]
 
-    GLOBAL = "global", "global"
-    CLUSTER = "cluster", "cluster"
-    PROJECT = "project", "project"
+NodeRoleType = Literal["agent", "server"]
 
+CatalogScopeType = Literal["global", "cluster", "project"]
 
-class NodeRole(models.TextChoices):
-    """Node role types for Rancher nodes."""
-
-    AGENT = "agent", "agent"
-    SERVER = "server", "server"
+CatalogScopeTypeChoices = ["global", "cluster", "project"]
 
 
-class RoleScopeType(models.TextChoices):
-    """Role scope types for Rancher roles."""
+AGENT_ROLE = "agent"
 
-    CLUSTER = "cluster", "cluster"
-    PROJECT = "project", "project"
+SERVER_ROLE = "server"
 
-
-class KeycloakUserGroupMembershipState(models.TextChoices):
-    """Keycloak user group membership states."""
-
-    PENDING = "pending", "pending"
-    ACTIVE = "active", "active"
+ROLE_CHOICES = ((AGENT_ROLE, AGENT_ROLE), (SERVER_ROLE, SERVER_ROLE))
 
 
-class ClusterRuntimeStates:
+class RoleScopeType:
+    CLUSTER = "cluster"
+    PROJECT = "project"
+
+    CHOICES = [
+        (CLUSTER, "cluster"),
+        (PROJECT, "project"),
+    ]
+
+
+class KeycloakUserGroupMembershipState:
+    PENDING = "pending"
     ACTIVE = "active"
 
-
-class NodeRuntimeStates:
-    ACTIVE = "active"
-    REGISTERING = "registering"
-    UNAVAILABLE = "unavailable"
+    CHOICES = (
+        (PENDING, "pending"),
+        (ACTIVE, "active"),
+    )

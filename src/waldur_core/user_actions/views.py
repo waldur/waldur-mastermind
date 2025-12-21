@@ -7,8 +7,8 @@ from rest_framework import decorators, filters, permissions, status, viewsets
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 
-from . import enums, models, serializers, tasks
 from . import filters as user_action_filters
+from . import models, serializers, tasks
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,7 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Count by urgency
         urgency_counts = {}
-        for choice in enums.UrgencyChoices:
+        for choice in models.UserAction.UrgencyChoices:
             urgency_counts[choice.value] = queryset.filter(urgency=choice.value).count()
 
         # Count by action type

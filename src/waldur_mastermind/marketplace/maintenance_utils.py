@@ -1,7 +1,7 @@
 """Utilities for MaintenanceAnnouncement -> AdminAnnouncement integration."""
 
 from waldur_mastermind.marketplace.enums import MaintenanceType
-from waldur_mastermind.notifications.enums import AdminAnnouncementType
+from waldur_mastermind.notifications.models import AdminAnnouncement
 
 
 class MaintenanceAnnouncementTemplate:
@@ -27,8 +27,8 @@ class MaintenanceAnnouncementTemplate:
         """Get AdminAnnouncement priority based on maintenance type."""
         # For now, use simple mapping based on type
         if maintenance.maintenance_type == MaintenanceType.EMERGENCY:
-            return AdminAnnouncementType.DANGER
+            return AdminAnnouncement.Type.DANGER
         elif maintenance.maintenance_type == MaintenanceType.SECURITY:
-            return AdminAnnouncementType.WARNING
+            return AdminAnnouncement.Type.WARNING
         else:  # SCHEDULED, UPGRADE, PATCH
-            return AdminAnnouncementType.INFORMATION
+            return AdminAnnouncement.Type.INFORMATION

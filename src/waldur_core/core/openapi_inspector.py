@@ -7,6 +7,7 @@ from drf_spectacular.plumbing import (
     OpenApiTypes,
     build_array_type,
     build_basic_type,
+    get_doc,
 )
 from drf_spectacular.utils import OpenApiParameter
 from rest_framework.serializers import ListSerializer
@@ -62,6 +63,12 @@ class WaldurOpenApiInspector(AutoSchema):
             operation["x-permissions"] = permissions_data
 
         return operation
+
+    def get_description(self) -> str:
+        action_or_method = getattr(
+            self.view, getattr(self.view, "action", self.method.lower()), None
+        )
+        return get_doc(action_or_method)
 
     def get_operation_id(self) -> str:
         path = self._tokenize_path()

@@ -9,8 +9,7 @@ from rest_framework import test
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import REMOTE_OFFERING, OfferingStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_remote import tasks
-from waldur_mastermind.marketplace_remote.enums import RemoteSynchronisationState
+from waldur_mastermind.marketplace_remote import models, tasks
 from waldur_mastermind.marketplace_remote.tests import factories, fixtures
 
 
@@ -90,7 +89,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         self.fixture.remote_synchronisation.refresh_from_db()
         self.assertEqual(
             self.fixture.remote_synchronisation.state,
-            RemoteSynchronisationState.OK,
+            models.RemoteSynchronisation.States.OK,
         )
         self.assertEqual(offering.name, self.remote_offering["name"])
 
@@ -104,7 +103,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         self.fixture.remote_synchronisation.refresh_from_db()
         self.assertEqual(
             self.fixture.remote_synchronisation.state,
-            RemoteSynchronisationState.OK,
+            models.RemoteSynchronisation.States.OK,
         )
         self.assertTrue(
             marketplace_models.Offering.objects.filter(
@@ -122,7 +121,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         self.fixture.remote_synchronisation.refresh_from_db()
         self.assertEqual(
             self.fixture.remote_synchronisation.state,
-            RemoteSynchronisationState.ERRED,
+            models.RemoteSynchronisation.States.ERRED,
         )
         self.assertEqual(
             "Internal Server Error", self.fixture.remote_synchronisation.error_message
@@ -143,7 +142,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         self.fixture.remote_synchronisation.refresh_from_db()
         self.assertEqual(
             self.fixture.remote_synchronisation.state,
-            RemoteSynchronisationState.OK,
+            models.RemoteSynchronisation.States.OK,
         )
 
     def test_category_of_remote_offering_has_been_changed(self):
@@ -159,7 +158,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         self.fixture.remote_synchronisation.refresh_from_db()
         self.assertEqual(
             self.fixture.remote_synchronisation.state,
-            RemoteSynchronisationState.OK,
+            models.RemoteSynchronisation.States.OK,
         )
 
     def test_category_of_sync_has_been_changed(self):
@@ -180,7 +179,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         self.fixture.remote_synchronisation.refresh_from_db()
         self.assertEqual(
             self.fixture.remote_synchronisation.state,
-            RemoteSynchronisationState.OK,
+            models.RemoteSynchronisation.States.OK,
         )
 
     def test_two_service_providers_import_the_same_offerings(self):
@@ -201,7 +200,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         self.fixture.remote_synchronisation.refresh_from_db()
         self.assertEqual(
             self.fixture.remote_synchronisation.state,
-            RemoteSynchronisationState.OK,
+            models.RemoteSynchronisation.States.OK,
         )
 
         self.assertEqual(
@@ -228,7 +227,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         self.fixture.remote_synchronisation.refresh_from_db()
         self.assertEqual(
             self.fixture.remote_synchronisation.state,
-            RemoteSynchronisationState.OK,
+            models.RemoteSynchronisation.States.OK,
             self.fixture.remote_synchronisation.error_message,
         )
         self.assertTrue(

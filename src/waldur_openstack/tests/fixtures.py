@@ -3,11 +3,11 @@ from unittest import mock
 import factory
 from django.utils.functional import cached_property
 
-from waldur_core.core.enums import CoreStates, RuntimeStates
+from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests.fixtures import ProjectFixture
-from waldur_openstack import enums
+from waldur_openstack import models
 from waldur_openstack.tests import factories
 
 
@@ -147,7 +147,7 @@ class OpenStackFixture(ProjectFixture):
             project=self.project,
             tenant=self.tenant,
             state=CoreStates.OK,
-            runtime_state=RuntimeStates.OFFLINE,
+            runtime_state=models.Volume.RuntimeStates.OFFLINE,
             type=self.volume_type,
             availability_zone=self.volume_availability_zone,
         )
@@ -162,7 +162,7 @@ class OpenStackFixture(ProjectFixture):
             project=self.project,
             tenant=self.tenant,
             state=CoreStates.OK,
-            runtime_state=enums.InstanceRuntimeStates.SHUTOFF,
+            runtime_state=models.Instance.RuntimeStates.SHUTOFF,
         )
 
     @cached_property
@@ -171,7 +171,7 @@ class OpenStackFixture(ProjectFixture):
             project=self.project,
             tenant=self.tenant,
             state=CoreStates.OK,
-            runtime_state=RuntimeStates.OFFLINE,
+            runtime_state=models.Volume.RuntimeStates.OFFLINE,
             source_volume=self.volume,
         )
 

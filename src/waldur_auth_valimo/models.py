@@ -7,8 +7,6 @@ from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
 
-from . import enums
-
 
 def _default_message():
     return f"{randint(0, 9999):4.0f}".replace(" ", "0")  # noqa: S311
@@ -17,6 +15,21 @@ def _default_message():
 class AuthResult(
     core_models.UuidMixin, core_models.ErrorMessageMixin, TimeStampedModel
 ):
+    class States:
+        SCHEDULED = "Scheduled"
+        PROCESSING = "Processing"
+        OK = "OK"
+        CANCELED = "Canceled"
+        ERRED = "Erred"
+
+        CHOICES = (
+            (SCHEDULED, SCHEDULED),
+            (PROCESSING, PROCESSING),
+            (OK, OK),
+            (CANCELED, CANCELED),
+            (ERRED, ERRED),
+        )
+
     user = models.ForeignKey[core_models.User](
         on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,
@@ -29,38 +42,24 @@ class AuthResult(
         default=_default_message,
         help_text="This message will be shown to user.",
     )
-    state = FSMField(
-        choices=enums.AuthResultStates.choices, default=enums.AuthResultStates.SCHEDULED
-    )
+    state = FSMField(choices=States.CHOICES, default=States.SCHEDULED)
     details = models.CharField(
         max_length=255, blank=True, help_text="Cancellation details."
     )
     backend_transaction_id = models.CharField(max_length=100, blank=True)
 
-    @transition(
-        field=state,
-        source=enums.AuthResultStates.SCHEDULED,
-        target=enums.AuthResultStates.PROCESSING,
-    )
+    @transition(field=state, source=States.SCHEDULED, target=States.PROCESSING)
     def begin_processing(self):
         pass
 
-    @transition(
-        field=state,
-        source=enums.AuthResultStates.PROCESSING,
-        target=enums.AuthResultStates.OK,
-    )
+    @transition(field=state, source=States.PROCESSING, target=States.OK)
     def set_ok(self):
         pass
 
-    @transition(
-        field=state,
-        source=enums.AuthResultStates.PROCESSING,
-        target=enums.AuthResultStates.CANCELED,
-    )
+    @transition(field=state, source=States.PROCESSING, target=States.CANCELED)
     def set_canceled(self):
         pass
 
-    @transition(field=state, source="*", target=enums.AuthResultStates.ERRED)
+    @transition(field=state, source="*", target=States.ERRED)
     def set_erred(self):
         pass

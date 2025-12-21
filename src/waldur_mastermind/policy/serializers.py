@@ -6,15 +6,12 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
-from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.permissions import _get_customer
-from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes
@@ -131,12 +128,7 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
 
 
 class EstimatedCostPolicySerializer(PolicySerializer):
-    period = NaturalChoiceField(choices=invoices_enums.Periods.choices, required=False)
-    period_name = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.ChoiceField(choices=invoices_enums.Periods.labels))
-    def get_period_name(self, policy):
-        return policy.get_period_display()
+    period_name = serializers.ReadOnlyField(source="get_period_display")
 
     class Meta(PolicySerializer.Meta):
         fields = PolicySerializer.Meta.fields + (
@@ -310,11 +302,7 @@ class OfferingPolicySerializerMixin(core_serializers.AugmentedSerializerMixin):
 class OfferingEstimatedCostPolicySerializer(
     OfferingPolicySerializerMixin, EstimatedCostPolicySerializer
 ):
-    period_name = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.ChoiceField(choices=invoices_enums.Periods.labels))
-    def get_period_name(self, policy):
-        return policy.get_period_display()
+    period_name = serializers.ReadOnlyField(source="get_period_display")
 
     class Meta(EstimatedCostPolicySerializer.Meta):
         fields = (
@@ -338,12 +326,7 @@ class NestedOfferingComponentLimitSerializer(serializers.ModelSerializer):
 
 class OfferingUsagePolicySerializer(OfferingPolicySerializerMixin, PolicySerializer):
     component_limits_set = NestedOfferingComponentLimitSerializer(many=True)
-    period = NaturalChoiceField(choices=invoices_enums.Periods.choices, required=False)
-    period_name = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.ChoiceField(choices=invoices_enums.Periods.labels))
-    def get_period_name(self, policy):
-        return policy.get_period_display()
+    period_name = serializers.ReadOnlyField(source="get_period_display")
 
     class Meta(PolicySerializer.Meta):
         fields = (
@@ -400,13 +383,7 @@ class OfferingUsagePolicySerializer(OfferingPolicySerializerMixin, PolicySeriali
 
 class NestedCustomerUsagePolicyComponentSerializer(serializers.ModelSerializer):
     type = serializers.CharField(source="component.type", read_only=True)
-    period = NaturalChoiceField(choices=invoices_enums.Periods.choices, required=False)
-    period_name = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.ChoiceField(choices=invoices_enums.Periods.labels))
-    def get_period_name(self, limit):
-        return limit.get_period_display()
-
+    period_name = serializers.ReadOnlyField(source="get_period_display", read_only=True)
     component = serializers.UUIDField(source="component.uuid")
 
     class Meta:

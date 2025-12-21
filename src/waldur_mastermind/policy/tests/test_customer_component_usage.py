@@ -5,7 +5,6 @@ from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.invoices.enums import Periods
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -105,7 +104,7 @@ class CustomerComponentUsagePolicyUpdateTest(test.APITransactionTestCase):
                 {
                     "component": self.component.uuid.hex,
                     "limit": 10,
-                    "period": Periods.MONTH_1.label,
+                    "period": 2,
                 }
             ]
         }
@@ -113,7 +112,8 @@ class CustomerComponentUsagePolicyUpdateTest(test.APITransactionTestCase):
         self.assertEqual(update_response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(update_response.data["component_limits_set"]), 1)
         updated_limit = update_response.data["component_limits_set"][0]
-        self.assertEqual(updated_limit.get("period"), Periods.MONTH_1.label)
+        self.assertEqual(updated_limit.get("period"), 2)
+        self.assertEqual(updated_limit.get("period_name"), "1 month")
 
         # Add a second limit for the same component with a different period (3)
         # Expect two limits in the response and correct periods and limits
@@ -122,12 +122,12 @@ class CustomerComponentUsagePolicyUpdateTest(test.APITransactionTestCase):
                 {
                     "component": self.component.uuid.hex,
                     "limit": 2,
-                    "period": Periods.MONTH_1.label,
+                    "period": 2,
                 },
                 {
                     "component": self.component.uuid.hex,
                     "limit": 5,
-                    "period": Periods.MONTH_3.label,
+                    "period": 3,
                 },
             ]
         }
@@ -140,7 +140,7 @@ class CustomerComponentUsagePolicyUpdateTest(test.APITransactionTestCase):
         limits = sorted(
             [i.get("limit") for i in add_response.data["component_limits_set"]]
         )
-        self.assertEqual(periods, [Periods.MONTH_1.label, Periods.MONTH_3.label])
+        self.assertEqual(periods, [2, 3])
         self.assertEqual(limits, [2, 5])
 
         # Try adding a limit for a component with invalid billing type (FIXED)
@@ -157,7 +157,7 @@ class CustomerComponentUsagePolicyUpdateTest(test.APITransactionTestCase):
                 {
                     "component": fixed_component.uuid.hex,
                     "limit": 2,
-                    "period": Periods.MONTH_1.label,
+                    "period": 2,
                 },
             ]
         }
@@ -173,12 +173,12 @@ class CustomerComponentUsagePolicyUpdateTest(test.APITransactionTestCase):
                 {
                     "component": self.component.uuid.hex,
                     "limit": 10,
-                    "period": Periods.TOTAL.label,
+                    "period": 1,
                 },
                 {
                     "component": self.component.uuid.hex,
                     "limit": 10,
-                    "period": Periods.TOTAL.label,
+                    "period": 1,
                 },
             ]
         }
@@ -240,7 +240,7 @@ class CustomerComponentUsagePolicyValidationTest(test.APITransactionTestCase):
                 {
                     "component": component.uuid.hex,
                     "limit": 10,
-                    "period": Periods.TOTAL.label,
+                    "period": 1,
                 }
             ],
         }

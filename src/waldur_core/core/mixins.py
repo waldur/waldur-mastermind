@@ -139,7 +139,7 @@ class ReviewStateMixin(django_models.Model):
     class Meta:
         abstract = True
 
-    state = FSMIntegerField(default=ReviewStates.DRAFT, choices=ReviewStates.choices)
+    state = FSMIntegerField(default=ReviewStates.DRAFT, choices=ReviewStates.CHOICES)
 
     def submit(self):
         self.state = ReviewStates.PENDING

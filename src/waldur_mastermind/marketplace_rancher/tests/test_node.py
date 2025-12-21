@@ -25,7 +25,7 @@ from waldur_mastermind.marketplace_openstack import (
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests import fixtures as openstack_fixtures
 from waldur_rancher import models as rancher_models
-from waldur_rancher.enums import NodeRole
+from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE
 from waldur_rancher.tests import factories as rancher_factories
 
 
@@ -107,7 +107,7 @@ class TestManagedRancherNodeCreate(APITransactionTestCase):
         )
         # Create Rancher node
         rancher_factories.NodeFactory(
-            instance=instance, cluster=self.cluster, role=NodeRole.SERVER
+            instance=instance, cluster=self.cluster, role=SERVER_ROLE
         )
 
         self.url = (
@@ -120,7 +120,7 @@ class TestManagedRancherNodeCreate(APITransactionTestCase):
         )
 
         self.payload = {
-            "role": NodeRole.AGENT,
+            "role": AGENT_ROLE,
             "subnet": openstack_factories.SubNetFactory.get_url(subnet),
             "flavor": openstack_factories.FlavorFactory.get_url(self.flavor),
             "system_volume_size": self.volume.size,
@@ -171,7 +171,7 @@ class TestManagedRancherNodeCreate(APITransactionTestCase):
             rancher_models.Node.objects.filter(uuid=response.json()["uuid"]).exists()
         )
         new_node = rancher_models.Node.objects.get(uuid=response.json()["uuid"])
-        self.assertEqual(new_node.role, NodeRole.AGENT)
+        self.assertEqual(new_node.role, AGENT_ROLE)
         self.assertEqual(CoreStates.OK, new_node.state)
 
     def test_managed_rancher_node_creation_forbidden(self):

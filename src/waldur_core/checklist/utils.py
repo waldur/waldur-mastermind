@@ -9,30 +9,30 @@ from . import enums
 def is_valid_operator_for_question_type(question_type, operator):
     """Validates if a comparison operator is compatible with a specific question type."""
     valid_operators = {
-        enums.Operators.EQUALS: [
+        "equals": [
             enums.QuestionTypes.NUMBER,
             enums.QuestionTypes.DATE,
             enums.QuestionTypes.BOOLEAN,
             enums.QuestionTypes.FILE,
         ],
-        enums.Operators.NOT_EQUALS: [
+        "not_equals": [
             enums.QuestionTypes.NUMBER,
             enums.QuestionTypes.DATE,
             enums.QuestionTypes.BOOLEAN,
             enums.QuestionTypes.FILE,
         ],
-        enums.Operators.CONTAINS: [
+        "contains": [
             enums.QuestionTypes.TEXT_INPUT,
             enums.QuestionTypes.TEXT_AREA,
             enums.QuestionTypes.FILE,
             enums.QuestionTypes.MULTIPLE_FILES,
         ],
-        enums.Operators.IN: [
+        "in": [
             enums.QuestionTypes.MULTI_SELECT,
             enums.QuestionTypes.SINGLE_SELECT,
             enums.QuestionTypes.MULTIPLE_FILES,
         ],
-        enums.Operators.NOT_IN: [
+        "not_in": [
             enums.QuestionTypes.MULTI_SELECT,
             enums.QuestionTypes.SINGLE_SELECT,
             enums.QuestionTypes.MULTIPLE_FILES,
@@ -182,17 +182,17 @@ def apply_operator(user_answer: any, required_value: any, operator: str) -> bool
         except (ValueError, TypeError):
             return False
 
-    if operator == enums.Operators.EQUALS:
+    if operator == "equals":
         return user_answer == required_value
-    elif operator == enums.Operators.NOT_EQUALS:
+    elif operator == "not_equals":
         return user_answer != required_value
-    elif operator == enums.Operators.CONTAINS:
+    elif operator == "contains":
         return any(substr in user_answer for substr in required_value)
-    elif operator == enums.Operators.IN:
+    elif operator == "in":
         if isinstance(required_value, list):
             return any([a in required_value for a in user_answer])
         return user_answer == required_value
-    elif operator == enums.Operators.NOT_IN:
+    elif operator == "not_in":
         if isinstance(required_value, list):
             return not any([a in required_value for a in user_answer])
         return user_answer != required_value

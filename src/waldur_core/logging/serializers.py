@@ -8,7 +8,6 @@ from rest_framework import serializers
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import RestrictedSerializerMixin
 from waldur_core.logging import backend, event_logger, models, utils
-from waldur_core.logging.enums import WebHookContentType
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +108,9 @@ class SummaryHookSerializer(serializers.Serializer):
 
 
 class WebHookSerializer(BaseHookSerializer):
-    content_type = NaturalChoiceField(WebHookContentType.choices, required=False)
+    content_type = NaturalChoiceField(
+        models.WebHook.ContentTypeChoices.CHOICES, required=False
+    )
 
     class Meta(BaseHookSerializer.Meta):
         model = models.WebHook

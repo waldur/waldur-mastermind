@@ -212,7 +212,7 @@ class KeycloakUserGroupMembershipFilter(django_filters.FilterSet):
     first_name = django_filters.CharFilter()
     last_name = django_filters.CharFilter()
     state = django_filters.MultipleChoiceFilter(
-        choices=enums.KeycloakUserGroupMembershipState.choices
+        choices=enums.KeycloakUserGroupMembershipState.CHOICES
     )
 
     class Meta:

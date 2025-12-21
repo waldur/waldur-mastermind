@@ -5,7 +5,6 @@ from django.db.models import Q
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.promotions import models
-from waldur_mastermind.promotions.enums import CampaignState
 from waldur_mastermind.promotions.models import Campaign
 
 logger = logging.getLogger(__name__)
@@ -15,7 +14,6 @@ def apply_campaign_to_pending_invoices(
     sender, instance: Campaign, created=False, **kwargs
 ):
     """Apply campaign discounts to pending invoices and create discounted resources."""
-    from waldur_mastermind.invoices import enums as invoices_enums
     from waldur_mastermind.invoices import models as invoices_models
     from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -27,7 +25,7 @@ def apply_campaign_to_pending_invoices(
     if not campaign.tracker.has_changed("state"):
         return
 
-    if campaign.state != CampaignState.ACTIVE:
+    if campaign.state != models.Campaign.States.ACTIVE:
         return
 
     if not campaign.auto_apply:
@@ -48,7 +46,7 @@ def apply_campaign_to_pending_invoices(
     # otherwise we only create an object of the DiscountedResource model,
     # and the discount will be created when the invoice is created.
     for invoice_item in invoices_models.InvoiceItem.objects.filter(
-        invoice__state=invoices_enums.InvoiceStates.PENDING,
+        invoice__state=invoices_models.Invoice.States.PENDING,
         invoice__year=campaign.start_date.year,
         invoice__month=campaign.start_date.month,
     ):
@@ -82,7 +80,7 @@ def create_discounted_resource_on_activation(instance: Resource):
 
     # Find all active campaigns that could potentially apply
     applicable_campaigns = models.Campaign.objects.filter(
-        state=CampaignState.ACTIVE,
+        state=models.Campaign.States.ACTIVE,
         start_date__lte=instance.created,
         end_date__gte=instance.created,
     ).filter(Q(coupon__isnull=True) | Q(coupon="") | Q(coupon=coupon_code))

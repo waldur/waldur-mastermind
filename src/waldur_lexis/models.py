@@ -8,7 +8,7 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core import models as core_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import backend, enums, exceptions, structures
+from . import backend, exceptions, structures
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +62,25 @@ def get_heappe_config(offering):
 
 
 class LexisLink(core_models.UuidMixin, core_models.ErrorMessageMixin, TimeStampedModel):
+    class States:
+        PENDING = 1
+        EXECUTING = 2
+        OK = 3
+        ERRED = 4
+
+        CHOICES = (
+            (PENDING, "pending"),
+            (EXECUTING, "executing"),
+            (OK, "OK"),
+            (ERRED, "erred"),
+        )
+
     robot_account = models.OneToOneField(
         to=marketplace_models.RobotAccount,
         on_delete=models.CASCADE,
         related_name="lexis_link",
     )
-    state = FSMIntegerField(
-        default=enums.LexisLinkStates.PENDING, choices=enums.LexisLinkStates.choices
-    )
+    state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     heappe_project_id = models.PositiveIntegerField(blank=True, null=True)
 
     class Meta:
@@ -77,22 +88,16 @@ class LexisLink(core_models.UuidMixin, core_models.ErrorMessageMixin, TimeStampe
         ordering = ("created",)
 
     @transition(
-        field=state,
-        source=[enums.LexisLinkStates.PENDING, enums.LexisLinkStates.ERRED],
-        target=enums.LexisLinkStates.EXECUTING,
+        field=state, source=[States.PENDING, States.ERRED], target=States.EXECUTING
     )
     def set_state_executing(self):
         pass
 
-    @transition(
-        field=state,
-        source=enums.LexisLinkStates.EXECUTING,
-        target=enums.LexisLinkStates.OK,
-    )
+    @transition(field=state, source=States.EXECUTING, target=States.OK)
     def set_ok(self):
         pass
 
-    @transition(field=state, source="*", target=enums.LexisLinkStates.ERRED)
+    @transition(field=state, source="*", target=States.ERRED)
     def set_erred(self):
         pass
 

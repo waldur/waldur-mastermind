@@ -6,7 +6,6 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices import models, tasks, utils
 from waldur_mastermind.invoices.tests import factories
 
@@ -103,7 +102,7 @@ class ProfileCreateTest(test.APITransactionTestCase):
             "organization": structure_factories.CustomerFactory.get_url(
                 customer=self.fixture.customer
             ),
-            "payment_type": invoices_enums.PaymentType.MONTHLY_INVOICES,
+            "payment_type": models.PaymentType.MONTHLY_INVOICES,
             "name": "default",
         }
 
@@ -212,7 +211,7 @@ class ProfileModelTest(test.APITransactionTestCase):
 class ProfileProcessingTest(test.APITransactionTestCase):
     def setUp(self):
         self.profile = factories.PaymentProfileFactory(
-            payment_type=invoices_enums.PaymentType.FIXED_PRICE
+            payment_type=models.PaymentType.FIXED_PRICE
         )
 
     def create_invoice(self):
@@ -220,7 +219,7 @@ class ProfileProcessingTest(test.APITransactionTestCase):
         invoice = models.Invoice.objects.get(
             year="2020", month="01", customer=self.profile.organization
         )
-        self.assertEqual(invoice.state, invoices_enums.InvoiceStates.PENDING)
+        self.assertEqual(invoice.state, models.Invoice.States.PENDING)
         return invoice
 
     def test_if_customer_has_a_fixed_price_payment_profile_then_invoice_are_created_as_paid(
@@ -232,7 +231,7 @@ class ProfileProcessingTest(test.APITransactionTestCase):
         with freeze_time("2020-02-01"):
             tasks.create_monthly_invoices()
             invoice.refresh_from_db()
-            self.assertEqual(invoice.state, invoices_enums.InvoiceStates.PAID)
+            self.assertEqual(invoice.state, models.Invoice.States.PAID)
 
     @mock.patch("waldur_mastermind.invoices.tasks.send_invoice_notification")
     def test_that_invoice_notifications_are_not_sent_if_customer_has_a_fixed_price_payment_profile(
@@ -254,17 +253,17 @@ class ProfileProcessingTest(test.APITransactionTestCase):
 class ProfileNotificationTest(test.APITransactionTestCase):
     def setUp(self):
         self.profile = factories.PaymentProfileFactory(
-            payment_type=invoices_enums.PaymentType.FIXED_PRICE,
+            payment_type=models.PaymentType.FIXED_PRICE,
             attributes={"end_date": "2020-01-31"},
         )
 
         factories.PaymentProfileFactory(
-            payment_type=invoices_enums.PaymentType.FIXED_PRICE,
+            payment_type=models.PaymentType.FIXED_PRICE,
             attributes={"end_date": "2020-02-15"},
         )
 
         factories.PaymentProfileFactory(
-            payment_type=invoices_enums.PaymentType.FIXED_PRICE,
+            payment_type=models.PaymentType.FIXED_PRICE,
         )
 
     def test_notification_only_if_end_exists_and_contact_will_end_in_30_days(self):

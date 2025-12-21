@@ -1,63 +1,8 @@
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 
 class ProjectKind(models.TextChoices):
-    DEFAULT = "default", "Default"
-    COURSE = "course", "Course"
-    PUBLIC = "public", "Public"
-
-
-OECD_FOS_2007_CODES = (
-    ("1.1", "Mathematics"),
-    ("1.2", "Computer and information sciences"),
-    ("1.3", "Physical sciences"),
-    ("1.4", "Chemical sciences"),
-    ("1.5", "Earth and related environmental sciences"),
-    ("1.6", "Biological sciences"),
-    ("1.7", "Other natural sciences"),
-    ("2.1", "Civil engineering"),
-    ("2.2", "Electrical engineering, electronic engineering, information engineering"),
-    ("2.3", "Mechanical engineering"),
-    ("2.4", "Chemical engineering"),
-    ("2.5", "Materials engineering"),
-    ("2.6", "Medical engineering"),
-    ("2.7", "Environmental engineering"),
-    ("2.8", "Systems engineering"),
-    ("2.9", "Environmental biotechnology"),
-    ("2.10", "Industrial biotechnology"),
-    ("2.11", "Nano technology"),
-    ("2.12", "Other engineering and technologies"),
-    ("3.1", "Basic medicine"),
-    ("3.2", "Clinical medicine"),
-    ("3.3", "Health sciences"),
-    ("3.4", "Health biotechnology"),
-    ("3.5", "Other medical sciences"),
-    ("4.1", "Agriculture, forestry, and fisheries"),
-    ("4.2", "Animal and dairy science"),
-    ("4.3", "Veterinary science"),
-    ("4.4", "Agricultural biotechnology"),
-    ("4.5", "Other agricultural sciences"),
-    ("5.1", "Psychology"),
-    ("5.2", "Economics and business"),
-    ("5.3", "Educational sciences"),
-    ("5.4", "Sociology"),
-    ("5.5", "Law"),
-    ("5.6", "Political science"),
-    ("5.7", "Social and economic geography"),
-    ("5.8", "Media and communications"),
-    ("5.9", "Other social sciences"),
-    ("6.1", "History and archaeology"),
-    ("6.2", "Languages and literature"),
-    ("6.3", "Philosophy, ethics and religion"),
-    ("6.4", "Arts (arts, history of arts, performing arts, music)"),
-    ("6.5", "Other humanities"),
-)
-
-OECD_FOS_2007_CODES_DICT = dict(OECD_FOS_2007_CODES)
-
-OECD_FOS_2007_LABELS = list(OECD_FOS_2007_CODES_DICT.values())
-
-
-class UserAgreements(models.TextChoices):
-    TOS = "TOS", "Terms of services"
-    PP = "PP", "Privacy policy"
+    DEFAULT = "default", _("Default")
+    COURSE = "course", _("Course")
+    PUBLIC = "public", _("Public")

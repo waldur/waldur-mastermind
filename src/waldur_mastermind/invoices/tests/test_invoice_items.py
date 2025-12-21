@@ -7,10 +7,10 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.common.enums import Units
 from waldur_mastermind.common.utils import parse_date
-from waldur_mastermind.invoices.enums import Periods
+from waldur_mastermind.invoices.models import PeriodMixin
 from waldur_mastermind.invoices.tests import factories, fixtures
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
@@ -119,7 +119,9 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
             offering=offering,
             billing_type=BillingTypes.FIXED,
         )
-        plan = marketplace_factories.PlanFactory(offering=offering, unit=Units.PER_DAY)
+        plan = marketplace_factories.PlanFactory(
+            offering=offering, unit=marketplace_models.Plan.Units.PER_DAY
+        )
         plan_component = marketplace_factories.PlanComponentFactory(
             plan=plan, component=offering_component
         )
@@ -329,26 +331,22 @@ class InvoiceItemCostsForPeriodTest(test.APITransactionTestCase):
 
     def test_project_costs_for_3_months_period(self):
         self.client.force_authenticate(self.fixture.staff)
+        period = PeriodMixin.Periods.MONTH_3
         response = self.client.get(
             self.project_costs_url,
-            {
-                "project_uuid": self.fixture.project.uuid.hex,
-                "period": Periods.MONTH_3.label,
-            },
+            {"project_uuid": self.fixture.project.uuid.hex, "period": period},
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["total_price"], "200.00")
 
     def test_project_costs_for_total_period(self):
         self.client.force_authenticate(self.fixture.staff)
+        period = PeriodMixin.Periods.TOTAL
         response = self.client.get(
             self.project_costs_url,
-            {
-                "project_uuid": self.fixture.project.uuid.hex,
-                "period": Periods.TOTAL.label,
-            },
+            {"project_uuid": self.fixture.project.uuid.hex, "period": period},
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["total_price"], "290.00")
 
     def test_uuid_is_not_connected_to_any_project(self):
@@ -366,7 +364,7 @@ class InvoiceItemCostsForPeriodTest(test.APITransactionTestCase):
 
     def test_customer_costs_for_3_months_period(self):
         self.client.force_authenticate(self.fixture.staff)
-        period = Periods.MONTH_3.label
+        period = PeriodMixin.Periods.MONTH_3
         response = self.client.get(
             self.customer_costs_url,
             {"customer_uuid": self.fixture.customer.uuid.hex, "period": period},

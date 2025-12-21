@@ -8,7 +8,8 @@ from django.utils import timezone
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import tasks, utils
-from waldur_mastermind.proposal.enums import CallStates, ProposalStates, ReviewStrategy
+from waldur_mastermind.proposal.enums import CallStates, ProposalStates
+from waldur_mastermind.proposal.models import Round
 from waldur_mastermind.proposal.tests import factories as proposal_factories
 from waldur_mastermind.proposal.tests import fixtures
 
@@ -124,7 +125,7 @@ class PeriodicTaskDuplicateNotificationTest(TestCase):
     ):
         """Test that create_reviews_if_strategy_is_after_proposal doesn't send duplicate notifications."""
         # Setup: Set round to use AFTER_PROPOSAL strategy
-        self.round.review_strategy = ReviewStrategy.AFTER_PROPOSAL
+        self.round.review_strategy = Round.ReviewStrategies.AFTER_PROPOSAL
         self.round.save()
 
         # Set call to ACTIVE state
@@ -176,7 +177,7 @@ class PeriodicTaskDuplicateNotificationTest(TestCase):
         """Test that create_reviews_if_strategy_is_after_round doesn't send duplicate notifications."""
         # Setup: Set round to use AFTER_ROUND strategy and make it closed
         now = timezone.now()
-        self.round.review_strategy = ReviewStrategy.AFTER_ROUND
+        self.round.review_strategy = Round.ReviewStrategies.AFTER_ROUND
         self.round.start_time = now - timedelta(days=2)
         self.round.cutoff_time = now - timedelta(hours=1)  # Round ended 1 hour ago
         self.round.save()
@@ -239,7 +240,7 @@ class PeriodicTaskDuplicateNotificationTest(TestCase):
         )
 
         # Setup round for AFTER_PROPOSAL strategy
-        self.round.review_strategy = ReviewStrategy.AFTER_PROPOSAL
+        self.round.review_strategy = Round.ReviewStrategies.AFTER_PROPOSAL
         self.round.save()
 
         # Set call to ACTIVE

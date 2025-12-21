@@ -26,7 +26,6 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.common.utils import quantize_price
-from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices.structures import InvoiceDetailsDict
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
@@ -62,6 +61,19 @@ class Invoice(
             ),
         ]
 
+    class States:
+        PENDING = "pending"
+        CREATED = "created"
+        PAID = "paid"
+        CANCELED = "canceled"
+
+        CHOICES = (
+            (PENDING, _("Pending")),
+            (CREATED, _("Created")),
+            (PAID, _("Paid")),
+            (CANCELED, _("Canceled")),
+        )
+
     month = models.PositiveSmallIntegerField(
         default=utils.get_current_month,
         validators=[MinValueValidator(1), MaxValueValidator(12)],
@@ -69,9 +81,7 @@ class Invoice(
     year = models.PositiveSmallIntegerField(default=utils.get_current_year)
     created = models.DateField(null=True, blank=True, default=get_created_date)
     state = models.CharField(
-        max_length=30,
-        choices=invoices_enums.InvoiceStates.choices,
-        default=invoices_enums.InvoiceStates.PENDING,
+        max_length=30, choices=States.CHOICES, default=States.PENDING
     )
     customer = models.ForeignKey(
         structure_models.Customer,
@@ -200,15 +210,15 @@ class Invoice(
         """
         Change state from pending to created or paid
         """
-        if self.state != invoices_enums.InvoiceStates.PENDING:
+        if self.state != self.States.PENDING:
             raise IncorrectStateException(_("Invoice must be in pending state."))
 
         if self.customer.paymentprofile_set.filter(
-            is_active=True, payment_type=invoices_enums.PaymentType.FIXED_PRICE
+            is_active=True, payment_type=PaymentType.FIXED_PRICE
         ).count():
-            self.state = invoices_enums.InvoiceStates.PAID
+            self.state = self.States.PAID
         else:
-            self.state = invoices_enums.InvoiceStates.CREATED
+            self.state = self.States.CREATED
 
         self.invoice_date = timezone.now().date()
         self.save(update_fields=["state", "invoice_date"])
@@ -355,11 +365,11 @@ class InvoiceItem(
         """
         quantity = self.quantity
         if current:
-            if self.unit == Units.PER_HOUR:
+            if self.unit == self.Units.PER_HOUR:
                 quantity = utils.get_full_hours(
                     self.start, min(self.end, timezone.now())
                 )
-            if self.unit == Units.PER_DAY:
+            if self.unit == self.Units.PER_DAY:
                 quantity = utils.get_full_days(
                     self.start, min(self.end, timezone.now())
                 )
@@ -375,7 +385,7 @@ class InvoiceItem(
 
         plural = self.quantity > 1
 
-        if self.unit == Units.QUANTITY:
+        if self.unit == self.Units.QUANTITY:
             if not self.resource or not self.resource.scope:
                 return ""
 
@@ -388,11 +398,11 @@ class InvoiceItem(
                 if plural
                 else str(meta.verbose_name).lower()
             )
-        elif self.unit == Units.PER_HOUR:
+        elif self.unit == self.Units.PER_HOUR:
             return _("hours") if plural else _("hour")
-        elif self.unit == Units.PER_DAY:
+        elif self.unit == self.Units.PER_DAY:
             return _("days") if plural else _("day")
-        elif self.unit == Units.PER_HALF_MONTH:
+        elif self.unit == self.Units.PER_HALF_MONTH:
             return _("percents from half a month")
         else:
             return _("percents from a month")
@@ -487,14 +497,28 @@ class InvoiceItem(
         return ("uuid", "invoice")
 
 
+class PaymentType(models.CharField):
+    FIXED_PRICE = "fixed_price"
+    MONTHLY_INVOICES = "invoices"
+    PAYMENT_GW_MONTHLY = "payment_gw_monthly"
+
+    CHOICES = (
+        (FIXED_PRICE, "Fixed-price contract"),
+        (MONTHLY_INVOICES, "Monthly invoices"),
+        (PAYMENT_GW_MONTHLY, "Payment gateways (monthly)"),
+    )
+
+    def __init__(self, *args, **kwargs):
+        kwargs["max_length"] = 30
+        kwargs["choices"] = self.CHOICES
+        super().__init__(*args, **kwargs)
+
+
 class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model):
     organization = models.ForeignKey(
         structure_models.Customer, on_delete=models.PROTECT
     )
-    payment_type = models.CharField(
-        max_length=30,
-        choices=invoices_enums.PaymentType.choices,
-    )
+    payment_type = PaymentType()
     attributes = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(null=True, default=True)
 
@@ -550,7 +574,14 @@ class Payment(core_models.UuidMixin, core_models.TimeStampedModel):
 
 
 class BaseCredit(core_models.UuidMixin, core_models.TimeStampedModel):
-    MinimalConsumptionLogic = invoices_enums.MinimalConsumptionLogic
+    class MinimalConsumptionLogic:
+        FIXED = "fixed"
+        LINEAR = "linear"
+
+        CHOICES = (
+            (FIXED, "Fixed"),
+            (LINEAR, "Linear"),
+        )
 
     expected_consumption = models.DecimalField(
         default=0,
@@ -560,7 +591,7 @@ class BaseCredit(core_models.UuidMixin, core_models.TimeStampedModel):
     )
     minimal_consumption_logic = models.CharField(
         max_length=10,
-        choices=MinimalConsumptionLogic.choices,
+        choices=MinimalConsumptionLogic.CHOICES,
         default=MinimalConsumptionLogic.FIXED,
     )
     grace_coefficient = models.DecimalField(
@@ -727,23 +758,34 @@ class ProjectCredit(BaseCredit):
 
 
 class PeriodMixin(models.Model):
-    period = FSMIntegerField(
-        default=invoices_enums.Periods.MONTH_1, choices=invoices_enums.Periods.choices
-    )
+    class Periods:
+        TOTAL = 1
+        MONTH_1 = 2
+        MONTH_3 = 3
+        MONTH_12 = 4
+
+        CHOICES = (
+            (TOTAL, "Total"),
+            (MONTH_1, "1 month"),
+            (MONTH_3, "3 month"),
+            (MONTH_12, "12 month"),
+        )
+
+    period = FSMIntegerField(default=Periods.MONTH_1, choices=Periods.CHOICES)
 
     def get_start_date(self):
         if self.period in (
-            invoices_enums.Periods.MONTH_1,
-            invoices_enums.Periods.MONTH_3,
-            invoices_enums.Periods.MONTH_12,
+            self.Periods.MONTH_1,
+            self.Periods.MONTH_3,
+            self.Periods.MONTH_12,
         ):
             start = core_utils.month_start(datetime.date.today())
 
-            if self.period == invoices_enums.Periods.MONTH_3:
+            if self.period == self.Periods.MONTH_3:
                 start = core_utils.month_start(
                     datetime.date.today() - relativedelta(months=2)
                 )
-            elif self.period == invoices_enums.Periods.MONTH_12:
+            elif self.period == self.Periods.MONTH_12:
                 start = core_utils.month_start(
                     datetime.date.today() - relativedelta(months=11)
                 )

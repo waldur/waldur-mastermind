@@ -5,7 +5,6 @@ from django.utils import timezone
 from waldur_core.core.utils import send_mail
 
 from . import models
-from .enums import BroadcastMessageState
 
 
 @shared_task(name="waldur_mastermind.notifications.send_broadcast_message_email")
@@ -22,7 +21,7 @@ def send_broadcast_message_email(broadcast_message_uuid):
             bcc=part,
         )
 
-    broadcast_message.state = BroadcastMessageState.SENT
+    broadcast_message.state = models.BroadcastMessage.States.SENT
     if not broadcast_message.send_at:
         broadcast_message.send_at = timezone.now()
     broadcast_message.save()
@@ -32,7 +31,7 @@ def send_broadcast_message_email(broadcast_message_uuid):
 def send_scheduled_broadcast_messages():
     """Send broadcast messages that have been scheduled for delivery."""
     messages = models.BroadcastMessage.objects.filter(
-        state=BroadcastMessageState.SCHEDULED, send_at__lte=timezone.now()
+        state=models.BroadcastMessage.States.SCHEDULED, send_at__lte=timezone.now()
     )
     for message in messages:
         send_broadcast_message_email.delay(message.uuid.hex)

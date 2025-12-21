@@ -2,7 +2,6 @@ from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ServiceFixture
-from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -28,7 +27,7 @@ class MoveResourceCommandTest(test.APITransactionTestCase):
             customer=self.project.customer,
             year=2020,
             month=1,
-            state=invoices_enums.InvoiceStates.PENDING,
+            state=invoices_models.Invoice.States.PENDING,
         )
 
         invoices_factories.InvoiceItemFactory(
@@ -41,7 +40,7 @@ class MoveResourceCommandTest(test.APITransactionTestCase):
             customer=self.new_project.customer,
             year=2020,
             month=1,
-            state=invoices_enums.InvoiceStates.PENDING,
+            state=invoices_models.Invoice.States.PENDING,
         )
 
     def test_move_resource(self):
@@ -61,7 +60,7 @@ class MoveResourceCommandTest(test.APITransactionTestCase):
     def test_resource_moving_is_not_possible_if_invoice_items_moving_is_not_possible(
         self,
     ):
-        self.target_invoice.state = invoices_enums.InvoiceStates.CREATED
+        self.target_invoice.state = invoices_models.Invoice.States.CREATED
         self.target_invoice.save()
         self.assertRaises(
             MoveResourceException, move_resource, self.resource, self.new_project
@@ -75,7 +74,7 @@ class MoveResourceCommandTest(test.APITransactionTestCase):
             customer=self.new_project.customer,
             year=2020,
             month=1,
-            state=invoices_enums.InvoiceStates.PENDING,
+            state=invoices_models.Invoice.States.PENDING,
         )
 
         self.fixture.volume.refresh_from_db()

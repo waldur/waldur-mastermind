@@ -7,7 +7,6 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
@@ -40,7 +39,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
             offering=self.offering,
             name="Standard plan",
             unit_price=0,
-            unit=Units.PER_MONTH,
+            unit=marketplace_models.Plan.Units.PER_MONTH,
         )
         return plan
 

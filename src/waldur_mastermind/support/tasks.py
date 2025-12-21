@@ -11,7 +11,6 @@ from django.template.loader import get_template
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
-from waldur_core.core.enums import CoreStates
 from waldur_core.core.utils import text2html
 
 from . import backend, models
@@ -270,7 +269,7 @@ def send_issue_feedback_notification(serialized_issue):
 @shared_task(name="waldur_mastermind.support.sync_feedback")
 def sync_feedback(serialized_feedback):
     feedback = core_utils.deserialize_instance(serialized_feedback)
-    feedback.state = CoreStates.CREATING
+    feedback.state = feedback.States.CREATING
     feedback.save()
     backend.get_active_backend().create_feedback(feedback)
 

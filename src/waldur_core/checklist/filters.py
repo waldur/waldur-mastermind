@@ -6,11 +6,11 @@ from . import enums, models
 class ChecklistFilter(django_filters.FilterSet):
     checklist_type = django_filters.ChoiceFilter(
         field_name="checklist_type",
-        choices=enums.ChecklistTypes.choices,
+        choices=enums.ChecklistTypes.CHOICES,
     )
     checklist_type__in = django_filters.MultipleChoiceFilter(
         field_name="checklist_type",
-        choices=enums.ChecklistTypes.choices,
+        choices=enums.ChecklistTypes.CHOICES,
         help_text="Filter by multiple checklist types",
     )
 
@@ -23,7 +23,7 @@ class QuestionFilter(django_filters.FilterSet):
     checklist_uuid = django_filters.UUIDFilter(field_name="checklist__uuid")
     checklist_type = django_filters.ChoiceFilter(
         field_name="checklist__checklist_type",
-        choices=enums.ChecklistTypes.choices,
+        choices=enums.ChecklistTypes.CHOICES,
     )
 
     class Meta:

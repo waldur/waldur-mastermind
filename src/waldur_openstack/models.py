@@ -22,7 +22,6 @@ from waldur_core.quotas.fields import QuotaField
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import filter_queryset_for_user
-from waldur_openstack import enums
 
 if TYPE_CHECKING:
     from django.db.models.manager import RelatedManager
@@ -1166,6 +1165,28 @@ class Instance(
     volumes: "RelatedManager[Volume]"
     backups: "RelatedManager[Backup]"
 
+    class RuntimeStates:
+        # All possible OpenStack Instance states on backend.
+        # See https://docs.openstack.org/developer/nova/vmstates.html
+        ACTIVE = "ACTIVE"
+        BUILDING = "BUILDING"
+        DELETED = "DELETED"
+        SOFT_DELETED = "SOFT_DELETED"
+        ERROR = "ERROR"
+        UNKNOWN = "UNKNOWN"
+        HARD_REBOOT = "HARD_REBOOT"
+        REBOOT = "REBOOT"
+        REBUILD = "REBUILD"
+        PASSWORD = "PASSWORD"
+        PAUSED = "PAUSED"
+        RESCUED = "RESCUED"
+        RESIZED = "RESIZED"
+        REVERT_RESIZE = "REVERT_RESIZE"
+        SHUTOFF = "SHUTOFF"
+        STOPPED = "STOPPED"
+        SUSPENDED = "SUSPENDED"
+        VERIFY_RESIZE = "VERIFY_RESIZE"
+
     tenant = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Tenant,
@@ -1307,11 +1328,11 @@ class Instance(
 
     @classmethod
     def get_online_state(cls):
-        return enums.InstanceRuntimeStates.ACTIVE
+        return Instance.RuntimeStates.ACTIVE
 
     @classmethod
     def get_offline_state(cls):
-        return enums.InstanceRuntimeStates.SHUTOFF
+        return Instance.RuntimeStates.SHUTOFF
 
 
 class Backup(structure_models.BaseResource):
@@ -1389,6 +1410,15 @@ class NetworkRBACPolicy(
         customer_path = "network__tenant__project__customer"
         project_path = "network__tenant__project"
 
+    class NetworkShareType:
+        SHARED = "access_as_shared"
+        EXTERNAL = "access_as_external"
+
+        CHOICES = (
+            (SHARED, "Shared"),
+            (EXTERNAL, "External"),
+        )
+
     network = models.ForeignKey(
         Network,
         on_delete=models.CASCADE,
@@ -1405,8 +1435,8 @@ class NetworkRBACPolicy(
 
     policy_type = models.CharField(
         max_length=255,
-        default=enums.NetworkShareType.SHARED,
-        choices=enums.NetworkShareType.choices,
+        default=NetworkShareType.SHARED,
+        choices=NetworkShareType.CHOICES,
         help_text=_(
             "Type of access granted - either shared access or external network access"
         ),

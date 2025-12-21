@@ -4,11 +4,8 @@ from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.marketplace.enums import (
-    BillingTypes,
-    LimitPeriods,
-    ResourceStates,
-)
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 
 from . import fixtures
 
@@ -37,7 +34,7 @@ class VolumeDiscountTest(test.APITransactionTestCase):
 
     def _trigger_billing_and_get_items(self):
         # Transition resource to OK state to trigger invoice creation
-        self.resource.state = ResourceStates.CREATING
+        self.resource.state = marketplace_models.ResourceStates.CREATING
         self.resource.save()
         self.resource.set_state_ok()
         self.resource.save()

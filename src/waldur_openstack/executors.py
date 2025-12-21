@@ -9,7 +9,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import executors as structure_executors
 from waldur_openstack import executors as openstack_executors
 
-from . import enums, models, tasks, utils
+from . import models, tasks, utils
 
 logger = logging.getLogger(__name__)
 
@@ -1258,8 +1258,8 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
             core_tasks.PollRuntimeStateTask().si(
                 serialized_instance,
                 backend_pull_method="pull_instance_runtime_state",
-                success_state=enums.InstanceRuntimeStates.ACTIVE,
-                erred_state=enums.InstanceRuntimeStates.ERROR,
+                success_state=models.Instance.RuntimeStates.ACTIVE,
+                erred_state=models.Instance.RuntimeStates.ERROR,
             )
         )
         return _tasks

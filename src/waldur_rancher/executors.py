@@ -6,7 +6,7 @@ from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
-from waldur_rancher import enums
+from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE
 
 from . import models, tasks
 
@@ -37,7 +37,7 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
             .si(
                 serialized_instance,
                 backend_pull_method="check_cluster_nodes",
-                success_state=enums.ClusterRuntimeStates.ACTIVE,
+                success_state=models.Cluster.RuntimeStates.ACTIVE,
                 erred_state="error",
             )
             .set(countdown=120)
@@ -67,8 +67,8 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
         _tasks = []
         # Schedule all the nodes to be created in parallel
         # TODO: need to validate once controlled deployment is working
-        server_nodes = nodes.filter(role=enums.NodeRole.SERVER)
-        agent_nodes = nodes.filter(role=enums.NodeRole.AGENT)
+        server_nodes = nodes.filter(role=SERVER_ROLE)
+        agent_nodes = nodes.filter(role=AGENT_ROLE)
 
         # Create the server nodes in parallel
         for node in server_nodes:

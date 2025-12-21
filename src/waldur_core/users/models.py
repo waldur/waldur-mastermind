@@ -17,7 +17,6 @@ from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import add_user
 from waldur_core.structure.models import Customer
 from waldur_core.structure.signals import permissions_request_approved
-from waldur_core.users import enums
 from waldur_core.users.enums import InvitationState
 
 
@@ -110,7 +109,18 @@ class Invitation(
     class Permissions:
         customer_path = "customer"
 
-    ExecutionState = enums.InvitationExecutionState
+    class ExecutionState:
+        SCHEDULED = "Scheduled"
+        PROCESSING = "Processing"
+        OK = "OK"
+        ERRED = "Erred"
+
+        CHOICES = (
+            (SCHEDULED, SCHEDULED),
+            (PROCESSING, PROCESSING),
+            (OK, OK),
+            (ERRED, ERRED),
+        )
 
     approved_by = models.ForeignKey[core_models.User](
         on_delete=models.CASCADE,
@@ -124,7 +134,7 @@ class Invitation(
         max_length=10, choices=InvitationState.choices, default=InvitationState.PENDING
     )
     execution_state = FSMField(
-        choices=ExecutionState.choices, default=ExecutionState.SCHEDULED
+        choices=ExecutionState.CHOICES, default=ExecutionState.SCHEDULED
     )
     email = models.EmailField(
         help_text=_(

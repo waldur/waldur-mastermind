@@ -2,34 +2,56 @@
 Enums for onboarding app.
 """
 
-from django.db import models
 
-
-class VerificationStatus(models.TextChoices):
+class VerificationStatus:
     """Status choices for onboarding verification."""
 
-    PENDING = "pending", "Pending"
-    VERIFIED = "verified", "Verified"
-    FAILED = "failed", "Failed"
-    ESCALATED = "escalated", "Escalated for manual validation"
-    EXPIRED = "expired", "Expired"
+    PENDING = "pending"
+    VERIFIED = "verified"
+    FAILED = "failed"
+    ESCALATED = "escalated"
+    EXPIRED = "expired"
+
+    CHOICES = (
+        (PENDING, "Pending"),
+        (VERIFIED, "Verified"),
+        (FAILED, "Failed"),
+        (ESCALATED, "Escalated for manual validation"),
+        (EXPIRED, "Expired"),
+    )
+
+    VALUES = [val for (val, _) in CHOICES]
 
 
-class ReviewDecision(models.TextChoices):
+class ReviewDecision:
     """Review decision choices for justifications."""
 
-    APPROVED = "approved", "Approved"
-    REJECTED = "rejected", "Rejected"
-    PENDING = "pending", "Pending Review"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    PENDING = "pending"
+
+    CHOICES = (
+        (APPROVED, "Approved"),
+        (REJECTED, "Rejected"),
+        (PENDING, "Pending Review"),
+    )
+
+    VALUES = [val for (val, _) in CHOICES]
 
 
-class ValidationMethod(models.TextChoices):
+class ValidationMethod:
     """Automatic validation method choices for onboarding verification."""
 
-    ARIREGISTER = "ariregister", "Estonian Business Register (ariregister)"
-    WIRTSCHAFTSCOMPASS = (
-        "wirtschaftscompass",
-        "Austrian Business Register (WirtschaftsCompass)",
+    ARIREGISTER = "ariregister"
+    WIRTSCHAFTSCOMPASS = "wirtschaftscompass"
+    BOLAGSVERKET = "bolagsverket"
+    BRREG = "breg"
+
+    CHOICES = (
+        (ARIREGISTER, "Estonian Business Register (ariregister)"),
+        (WIRTSCHAFTSCOMPASS, "Austrian Business Register (WirtschaftsCompass)"),
+        (BOLAGSVERKET, "Swedish Business Register (Bolagsverket)"),
+        (BRREG, "Norwegian Business Register (Brreg)"),
     )
-    BOLAGSVERKET = "bolagsverket", "Swedish Business Register (Bolagsverket)"
-    BRREG = "breg", "Norwegian Business Register (Brreg)"
+
+    VALUES = [val for (val, _) in CHOICES]

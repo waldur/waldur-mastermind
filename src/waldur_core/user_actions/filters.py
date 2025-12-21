@@ -1,14 +1,16 @@
 import django_filters
 from django.utils import timezone
 
-from . import enums, models
+from . import models
 
 
 class UserActionFilter(django_filters.FilterSet):
     """Filter for user actions"""
 
     action_type = django_filters.CharFilter()
-    urgency = django_filters.ChoiceFilter(choices=enums.UrgencyChoices.choices)
+    urgency = django_filters.ChoiceFilter(
+        choices=models.UserAction.UrgencyChoices.choices
+    )
     is_silenced = django_filters.BooleanFilter()
     include_silenced = django_filters.BooleanFilter(method="filter_include_silenced")
     overdue = django_filters.BooleanFilter(method="filter_overdue")

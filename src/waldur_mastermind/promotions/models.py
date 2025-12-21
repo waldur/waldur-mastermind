@@ -11,10 +11,35 @@ from waldur_core.core.models import DescribableMixin, NameMixin
 from waldur_core.logging.models import UuidMixin
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import ResourceStates
-from waldur_mastermind.promotions.enums import CampaignState, DiscountType
+
+
+class DiscountType(django_models.CharField):
+    DISCOUNT = "discount"
+    SPECIAL_PRICE = "special_price"
+
+    CHOICES = (
+        (DISCOUNT, "Discount"),
+        (SPECIAL_PRICE, "Special price"),
+    )
+
+    def __init__(self, *args, **kwargs):
+        kwargs["max_length"] = 30
+        kwargs["choices"] = self.CHOICES
+        super().__init__(*args, **kwargs)
 
 
 class Campaign(UuidMixin, DescribableMixin, NameMixin):
+    class States:
+        DRAFT = 1
+        ACTIVE = 2
+        TERMINATED = 3
+
+        CHOICES = (
+            (DRAFT, "Draft"),
+            (ACTIVE, "Active"),
+            (TERMINATED, "Terminated"),
+        )
+
     start_date = django_models.DateField(
         help_text="Starting from this date, the campaign is active.",
     )
@@ -27,7 +52,7 @@ class Campaign(UuidMixin, DescribableMixin, NameMixin):
         max_length=255,
         help_text="If coupon is empty, campaign is available to all users.",
     )
-    discount_type = django_models.CharField(max_length=30, choices=DiscountType.choices)
+    discount_type = DiscountType()
     discount = django_models.IntegerField()
     offerings = django_models.ManyToManyField(
         marketplace_models.Offering, related_name="+"
@@ -43,7 +68,7 @@ class Campaign(UuidMixin, DescribableMixin, NameMixin):
         "(0 for indefinitely until active)",
     )
     auto_apply = django_models.BooleanField(default=True, blank=True)
-    state = FSMIntegerField(default=CampaignState.DRAFT, choices=CampaignState.choices)
+    state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
     service_provider = django_models.ForeignKey(
         marketplace_models.ServiceProvider, on_delete=django_models.CASCADE
     )
@@ -56,11 +81,11 @@ class Campaign(UuidMixin, DescribableMixin, NameMixin):
     def get_url_name(cls):
         return "promotions-campaign"
 
-    @transition(field=state, source=CampaignState.DRAFT, target=CampaignState.ACTIVE)
+    @transition(field=state, source=States.DRAFT, target=States.ACTIVE)
     def activate(self):
         pass
 
-    @transition(field=state, source="*", target=CampaignState.TERMINATED)
+    @transition(field=state, source="*", target=States.TERMINATED)
     def terminate(self):
         pass
 

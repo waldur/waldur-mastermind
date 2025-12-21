@@ -8,7 +8,7 @@ from rest_framework import status, test
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models
-from waldur_mastermind.proposal.enums import ProposalStates, ReviewState
+from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.tests import fixtures
 
 from . import factories
@@ -45,7 +45,7 @@ class ReviewGetTest(test.APITransactionTestCase):
     def test_submitted_review_for_decided_proposal_should_be_visible(self, user):
         self.fixture.review.proposal.state = ProposalStates.ACCEPTED
         self.fixture.review.proposal.save()
-        self.fixture.review.state = ReviewState.SUBMITTED
+        self.fixture.review.state = models.Review.States.SUBMITTED
         self.fixture.review.save()
         response = self._get_review_request(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -53,7 +53,7 @@ class ReviewGetTest(test.APITransactionTestCase):
 
     @data("proposal_submitted_creator")
     def test_submitted_review_for_undecided_proposal_should_not_be_visible(self, user):
-        self.fixture.review.state = ReviewState.SUBMITTED
+        self.fixture.review.state = models.Review.States.SUBMITTED
         self.fixture.review.save()
         response = self._get_review_request(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -211,7 +211,7 @@ class ActionTest(test.APITransactionTestCase):
         response = self.client.post(self.url_accept)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.review.refresh_from_db()
-        self.assertTrue(self.review.state, ReviewState.IN_REVIEW)
+        self.assertTrue(self.review.state, models.Review.States.IN_REVIEW)
         self.assertTrue(self.review.proposal.state, ProposalStates.IN_REVIEW)
 
     @data(
@@ -226,7 +226,7 @@ class ActionTest(test.APITransactionTestCase):
 
     def _submit_review(self, user):
         url = factories.ReviewFactory.get_url(self.review, "submit")
-        self.review.state = ReviewState.IN_REVIEW
+        self.review.state = models.Review.States.IN_REVIEW
         self.review.save()
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -251,7 +251,7 @@ class ActionTest(test.APITransactionTestCase):
         response = self._submit_review(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.review.refresh_from_db()
-        self.assertTrue(self.review.state, ReviewState.SUBMITTED)
+        self.assertTrue(self.review.state, models.Review.States.SUBMITTED)
         self.assertTrue(self.review.summary_score, 4)
         self.assertTrue(self.review.summary_public_comment, "summary public")
         self.assertTrue(self.review.summary_private_comment, "summary private")
@@ -366,7 +366,7 @@ class ActionTest(test.APITransactionTestCase):
         factories.ReviewFactory(
             proposal=self.review.proposal,
             reviewer=self.fixture.reviewer_2,
-            state=ReviewState.IN_REVIEW,
+            state=models.Review.States.IN_REVIEW,
         )
         response = self._submit_review(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)

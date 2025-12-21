@@ -52,7 +52,7 @@ from waldur_openstack.utils import (
     volume_type_name_to_quota_name,
 )
 
-from . import enums, models
+from . import models
 
 logger = logging.getLogger(__name__)
 
@@ -2494,7 +2494,7 @@ class VolumeAttachSerializer(
     def validate_instance(self, instance):
         States, RuntimeStates = (
             CoreStates,
-            enums.InstanceRuntimeStates,
+            models.Instance.RuntimeStates,
         )
         if instance.state != States.OK or instance.runtime_state not in (
             RuntimeStates.SHUTOFF,
@@ -2579,11 +2579,7 @@ class OpenStackSnapshotRestorationSerializer(
     description = serializers.CharField(
         required=False, help_text=_("New volume description.")
     )
-    volume_state = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.ChoiceField(choices=CoreStates.labels))
-    def get_volume_state(self, snapshot_restoration):
-        return snapshot_restoration.volume.get_state_display()
+    volume_state = serializers.ReadOnlyField(source="volume.get_state_display")
 
     class Meta:
         model = models.SnapshotRestoration
@@ -2698,12 +2694,7 @@ class OpenStackNestedVolumeSerializer(
     serializers.HyperlinkedModelSerializer,
     structure_serializers.BasicResourceSerializer,
 ):
-    state = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.ChoiceField(choices=CoreStates.labels))
-    def get_state(self, volume):
-        return volume.get_state_display()
-
+    state = serializers.ReadOnlyField(source="get_state_display")
     type_name = serializers.CharField(source="type.name", read_only=True)
 
     class Meta:
@@ -2757,11 +2748,7 @@ class OpenStackNestedSecurityGroupSerializer(
         many=True,
         read_only=True,
     )
-    state = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.ChoiceField(choices=CoreStates.labels))
-    def get_state(self, security_group):
-        return security_group.get_state_display()
+    state = serializers.ReadOnlyField(source="get_state_display")
 
     class Meta:
         model = models.SecurityGroup
@@ -2796,11 +2783,7 @@ class OpenStackNestedServerGroupSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    state = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.ChoiceField(choices=CoreStates.labels))
-    def get_state(self, server_group):
-        return server_group.get_state_display()
+    state = serializers.ReadOnlyField(source="get_state_display")
 
     class Meta:
         model = models.ServerGroup
@@ -3989,11 +3972,7 @@ class OpenStackConsoleLogSerializer(serializers.Serializer):
 
 class OpenStackBackendInstanceSerializer(serializers.ModelSerializer):
     availability_zone = serializers.ReadOnlyField(source="availability_zone.name")
-    state = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.ChoiceField(choices=CoreStates.labels))
-    def get_state(self, instance):
-        return instance.get_state_display()
+    state = serializers.ReadOnlyField(source="get_state_display")
 
     class Meta:
         model = models.Instance
@@ -4012,12 +3991,7 @@ class OpenStackBackendInstanceSerializer(serializers.ModelSerializer):
 
 class OpenStackBackendVolumesSerializer(serializers.ModelSerializer):
     availability_zone = serializers.ReadOnlyField(source="availability_zone.name")
-    state = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.ChoiceField(choices=CoreStates.labels))
-    def get_state(self, volume):
-        return volume.get_state_display()
-
+    state = serializers.ReadOnlyField(source="get_state_display")
     type = serializers.ReadOnlyField(source="type.name")
 
     class Meta:

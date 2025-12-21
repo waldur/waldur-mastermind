@@ -7,6 +7,7 @@ import model_utils.fields
 from django.db import migrations, models
 
 import waldur_core.core.fields
+import waldur_mastermind.promotions.models
 
 
 class Migration(migrations.Migration):
@@ -57,7 +58,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "discount_type",
-                    models.CharField(
+                    waldur_mastermind.promotions.models.DiscountType(
                         choices=[
                             ("discount", "Discount"),
                             ("special_price", "Special price"),

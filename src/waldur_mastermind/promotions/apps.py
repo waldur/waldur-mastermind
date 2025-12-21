@@ -2,7 +2,7 @@ from django.apps import AppConfig
 from django.db.models import signals
 
 
-class PromotionsConfig(AppConfig):
+class BookingConfig(AppConfig):
     name = "waldur_mastermind.promotions"
     verbose_name = "Promotions"
 

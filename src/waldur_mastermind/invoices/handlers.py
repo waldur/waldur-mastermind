@@ -12,7 +12,6 @@ from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Project
-from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices import models
 from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -31,13 +30,12 @@ def log_invoice_state_transition(
         return
 
     state = instance.state
-    if (
-        state == invoices_enums.InvoiceStates.PENDING
-        or state == instance.tracker.previous("state")
+    if state == models.Invoice.States.PENDING or state == instance.tracker.previous(
+        "state"
     ):
         return
 
-    if state == invoices_enums.InvoiceStates.CREATED:
+    if state == models.Invoice.States.CREATED:
         event_logger.emit(
             "Invoice for customer {customer_name} has been created.",
             event_type=EventType.INVOICE_CREATED,
@@ -49,7 +47,7 @@ def log_invoice_state_transition(
             },
             scopes=[instance, instance.customer],
         )
-    elif state == invoices_enums.InvoiceStates.PAID:
+    elif state == models.Invoice.States.PAID:
         event_logger.emit(
             "Invoice for customer {customer_name} has been paid.",
             event_type=EventType.INVOICE_PAID,
@@ -61,7 +59,7 @@ def log_invoice_state_transition(
             },
             scopes=[instance, instance.customer],
         )
-    elif state == invoices_enums.InvoiceStates.CANCELED:
+    elif state == models.Invoice.States.CANCELED:
         event_logger.emit(
             "Invoice for customer {customer_name} has been canceled.",
             event_type=EventType.INVOICE_CANCELED,
@@ -99,7 +97,7 @@ def update_invoice_item_on_project_name_update(sender, instance: Project, **kwar
     if not project.tracker.has_changed("name"):
         return
 
-    query = Q(project=project, invoice__state=invoices_enums.InvoiceStates.PENDING)
+    query = Q(project=project, invoice__state=models.Invoice.States.PENDING)
     for item in models.InvoiceItem.objects.filter(query).only("pk"):
         item.project_name = project.name
         item.save(update_fields=["project_name"])
@@ -111,9 +109,8 @@ def emit_invoice_created_event(sender, instance: Invoice, created=False, **kwarg
         return
 
     state = instance.state
-    if (
-        state != invoices_enums.InvoiceStates.CREATED
-        or state == instance.tracker.previous("state")
+    if state != models.Invoice.States.CREATED or state == instance.tracker.previous(
+        "state"
     ):
         return
 
@@ -157,7 +154,7 @@ def projects_customer_has_been_changed(
 
         invoice = models.Invoice.objects.get(
             customer=old_customer,
-            state=invoices_enums.InvoiceStates.PENDING,
+            state=models.Invoice.States.PENDING,
             month=date.month,
             year=date.year,
         )

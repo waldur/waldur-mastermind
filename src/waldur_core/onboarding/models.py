@@ -135,12 +135,12 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
 
     status = models.CharField(
         max_length=20,
-        choices=enums.VerificationStatus.choices,
+        choices=enums.VerificationStatus.CHOICES,
         default=enums.VerificationStatus.PENDING,
     )
     validation_method = models.CharField(
         max_length=50,
-        choices=enums.ValidationMethod.choices,
+        choices=enums.ValidationMethod.CHOICES,
         blank=True,
         help_text=_("Method used for validation"),
     )
@@ -429,7 +429,7 @@ class OnboardingJustification(UuidMixin, TimeStampedModel):
     validated_at = models.DateTimeField(null=True, blank=True)
     validation_decision = models.CharField(
         max_length=20,
-        choices=enums.ReviewDecision.choices,
+        choices=enums.ReviewDecision.CHOICES,
         default=enums.ReviewDecision.PENDING,
     )
     staff_notes = models.TextField(

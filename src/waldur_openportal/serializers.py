@@ -2,12 +2,10 @@ import logging
 
 from django.core.validators import MinValueValidator
 from django.utils.translation import gettext_lazy as _
-from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers as rf_serializers
 
 from waldur_core.core import serializers as core_serializers
-from waldur_core.core.enums import ReviewStates
 from waldur_core.permissions import serializers as permissions_serializers
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
@@ -446,11 +444,7 @@ class ManagedProjectSerializer(
     structure_serializers.PermissionFieldFilteringMixin,
     rf_serializers.ModelSerializer,
 ):
-    state = rf_serializers.SerializerMethodField()
-
-    @extend_schema_field(rf_serializers.ChoiceField(choices=ReviewStates.labels))
-    def get_state(self, managed_project):
-        return managed_project.get_state_display()
+    state = rf_serializers.ReadOnlyField(source="get_state_display")
 
     reviewed_by_full_name = rf_serializers.CharField(
         read_only=True, source="reviewed_by.full_name"

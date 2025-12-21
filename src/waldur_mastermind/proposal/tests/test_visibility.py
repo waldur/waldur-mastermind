@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from waldur_mastermind.proposal.enums import ProposalStates, ReviewState
+from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.tests import factories
 from waldur_mastermind.proposal.tests import fixtures as proposal_fixtures
 
@@ -12,7 +12,7 @@ class ProposalReviewVisibilityTestCase(APITestCase):
 
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
-        self.proposal.state = ProposalStates.ACCEPTED
+        self.proposal.state = models.Proposal.States.ACCEPTED
         self.proposal.save()
         self.review = factories.ReviewFactory(proposal=self.proposal)
 
@@ -27,7 +27,7 @@ class ProposalReviewVisibilityTestCase(APITestCase):
         self.call.reviews_visible_to_submitters = True
         self.call.save()
 
-        self.review.state = ReviewState.SUBMITTED
+        self.review.state = models.Review.States.SUBMITTED
         self.review.save()
 
         self.client.force_authenticate(self.proposal_submitter)
@@ -44,7 +44,7 @@ class ProposalReviewVisibilityTestCase(APITestCase):
         self.call.reviewer_identity_visible_to_submitters = True
         self.call.reviews_visible_to_submitters = True
         self.call.save()
-        self.review.state = ReviewState.SUBMITTED
+        self.review.state = models.Review.States.SUBMITTED
         self.review.save()
 
         self.client.force_authenticate(self.proposal_submitter)
@@ -59,7 +59,7 @@ class ProposalReviewVisibilityTestCase(APITestCase):
         """Test that when reviews_visible_to_submitters=False, submitters cannot access reviews at all"""
         self.call.reviews_visible_to_submitters = False
         self.call.save()
-        self.review.state = ReviewState.SUBMITTED
+        self.review.state = models.Review.States.SUBMITTED
         self.review.save()
 
         self.client.force_authenticate(self.proposal_submitter)
@@ -71,7 +71,7 @@ class ProposalReviewVisibilityTestCase(APITestCase):
         """Test that when reviews_visible_to_submitters=True, submitters can access review instances"""
         self.call.reviews_visible_to_submitters = True
         self.call.save()
-        self.review.state = ReviewState.SUBMITTED
+        self.review.state = models.Review.States.SUBMITTED
         self.review.save()
 
         self.client.force_authenticate(self.proposal_submitter)
@@ -114,7 +114,7 @@ class ProposalReviewVisibilityTestCase(APITestCase):
         """Test that proposal list endpoint respects review visibility settings"""
         self.call.reviews_visible_to_submitters = False
         self.call.save()
-        self.review.state = ReviewState.SUBMITTED
+        self.review.state = models.Review.States.SUBMITTED
         self.review.save()
 
         self.client.force_authenticate(self.proposal_submitter)
@@ -135,7 +135,7 @@ class ProposalReviewVisibilityTestCase(APITestCase):
         self.call.save()
 
         for review in [self.review, second_review]:
-            review.state = ReviewState.SUBMITTED
+            review.state = models.Review.States.SUBMITTED
             review.save()
 
         self.client.force_authenticate(self.proposal_submitter)
@@ -171,7 +171,7 @@ class ProposalReviewVisibilityTestCase(APITestCase):
         """Test that only submitted reviews are visible to submitters"""
         self.call.reviews_visible_to_submitters = True
         self.call.save()
-        self.review.state = ReviewState.IN_REVIEW  # Not submitted
+        self.review.state = models.Review.States.IN_REVIEW  # Not submitted
         self.review.save()
 
         self.client.force_authenticate(self.proposal_submitter)

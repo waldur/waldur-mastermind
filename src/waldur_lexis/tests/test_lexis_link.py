@@ -6,7 +6,6 @@ from rest_framework import test
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_lexis import models
-from waldur_lexis.enums import LexisLinkStates
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
@@ -144,7 +143,7 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
         lexis_link.refresh_from_db()
         self.assertEqual(1, len(robot_account.keys))
         self.assertEqual(self.ssh_key, robot_account.keys[0])
-        self.assertEqual(LexisLinkStates.OK, lexis_link.state)
+        self.assertEqual(models.LexisLink.States.OK, lexis_link.state)
 
     @override_settings(task_always_eager=True)
     def test_lexis_link_deletion_triggers_ssh_key_revoke(self):
@@ -183,7 +182,7 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
         )
 
         lexis_link = models.LexisLink.objects.create(
-            robot_account=robot_account, state=LexisLinkStates.OK
+            robot_account=robot_account, state=models.LexisLink.States.OK
         )
         url = "http://testserver" + reverse(
             "lexis-link-detail", kwargs={"uuid": lexis_link.uuid.hex}

@@ -5,7 +5,6 @@ from django.utils import timezone
 from freezegun import freeze_time
 
 from waldur_mastermind.billing import utils
-from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.tests.factories import (
     InvoiceFactory,
@@ -99,7 +98,7 @@ class BillingUtilsTest(TransactionTestCase):
             invoice=self.invoice,
             start=start_time,
             end=end_time,
-            unit=Units.PER_HOUR,
+            unit=invoice_models.InvoiceItem.Units.PER_HOUR,
             unit_price=decimal.Decimal("10.00"),
         )
 
@@ -119,7 +118,7 @@ class BillingUtilsTest(TransactionTestCase):
             invoice=self.invoice,
             start=start_time,
             end=end_time,
-            unit=Units.PER_HOUR,
+            unit=invoice_models.InvoiceItem.Units.PER_HOUR,
             unit_price=decimal.Decimal("10.00"),
         )
 
@@ -139,7 +138,7 @@ class BillingUtilsTest(TransactionTestCase):
             invoice=self.invoice,
             start=start_time,
             end=end_time,
-            unit=Units.PER_DAY,
+            unit=invoice_models.InvoiceItem.Units.PER_DAY,
             unit_price=decimal.Decimal("100.00"),
         )
 
@@ -159,7 +158,7 @@ class BillingUtilsTest(TransactionTestCase):
             invoice=self.invoice,
             start=start_time,
             end=end_time,
-            unit=Units.PER_DAY,
+            unit=invoice_models.InvoiceItem.Units.PER_DAY,
             unit_price=decimal.Decimal("100.00"),
         )
 
@@ -179,7 +178,7 @@ class BillingUtilsTest(TransactionTestCase):
             invoice=self.invoice,
             start=start_time,
             end=end_time,
-            unit=Units.PER_HOUR,
+            unit=invoice_models.InvoiceItem.Units.PER_HOUR,
             unit_price=decimal.Decimal("10.00"),
         )
 
@@ -198,7 +197,7 @@ class BillingUtilsTest(TransactionTestCase):
             invoice=self.invoice,
             start=start_time,
             end=timezone.now() + timezone.timedelta(hours=1),
-            unit=Units.PER_HOUR,
+            unit=invoice_models.InvoiceItem.Units.PER_HOUR,
             unit_price=decimal.Decimal("50.00"),
         )
 
@@ -252,7 +251,7 @@ class BillingUtilsTest(TransactionTestCase):
                 invoice=self.invoice,
                 start=start_time,
                 end=timezone.now() + timezone.timedelta(hours=1),
-                unit=Units.PER_HOUR,
+                unit=invoice_models.InvoiceItem.Units.PER_HOUR,
                 unit_price=decimal.Decimal("60.00"),
             )
 

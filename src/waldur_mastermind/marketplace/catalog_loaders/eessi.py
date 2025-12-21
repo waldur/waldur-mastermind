@@ -10,8 +10,6 @@ from datetime import datetime
 
 import requests
 
-from waldur_mastermind.marketplace.enums import CatalogType
-
 from .base import (
     BaseCatalogLoader,
     CatalogData,
@@ -40,7 +38,7 @@ class EESSICatalogLoader(BaseCatalogLoader):
         include_extensions: bool = True,
     ):
         # Initialize base class first to get logger
-        super().__init__(catalog_name, "temp_version", CatalogType.BINARY_RUNTIME)
+        super().__init__(catalog_name, "temp_version", "binary_runtime")
 
         # Auto-detect version from API data
         if catalog_version == "auto":

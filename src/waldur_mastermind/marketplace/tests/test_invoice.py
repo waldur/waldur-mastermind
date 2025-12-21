@@ -6,9 +6,9 @@ from freezegun import freeze_time
 from rest_framework import test
 from rest_framework.reverse import reverse
 
-from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tasks import create_monthly_invoices
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing import (
     LimitPeriodProcessor,
 )
@@ -17,7 +17,6 @@ from waldur_mastermind.marketplace.enums import (
     LimitPeriods,
     OrderStates,
     OrderTypes,
-    ResourceStates,
 )
 from waldur_mastermind.marketplace.models import Order
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -1144,13 +1143,13 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
             offering=self.fixture.offering,
             name="Old Plan",
             unit_price=0,
-            unit=Units.PER_MONTH,
+            unit=marketplace_models.Plan.Units.PER_MONTH,
         )
         new_plan = marketplace_factories.PlanFactory(
             offering=self.fixture.offering,
             name="New Plan",
             unit_price=0,
-            unit=Units.PER_MONTH,
+            unit=marketplace_models.Plan.Units.PER_MONTH,
         )
 
         old_plan_component = marketplace_factories.PlanComponentFactory(
@@ -1169,7 +1168,7 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
             offering=self.fixture.offering,
             plan=old_plan,
             limits={offering_component.type: 100},
-            state=ResourceStates.OK,
+            state=marketplace_models.ResourceStates.OK,
         )
 
         october_invoice = invoices_models.Invoice.objects.create(

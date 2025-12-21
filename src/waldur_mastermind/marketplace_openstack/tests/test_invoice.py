@@ -4,7 +4,6 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
 
-from waldur_mastermind.common.enums import Units
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import callbacks
@@ -53,7 +52,7 @@ class BaseTenantInvoiceTest(test.APITransactionTestCase):
                 billing_type=BillingTypes.LIMIT,
             )
 
-    def create_plan(self, prices, unit=Units.PER_DAY):
+    def create_plan(self, prices, unit=marketplace_models.Plan.Units.PER_DAY):
         plan = marketplace_factories.PlanFactory(offering=self.offering, unit=unit)
         for ct in prices.keys():
             marketplace_factories.PlanComponentFactory(
@@ -64,7 +63,7 @@ class BaseTenantInvoiceTest(test.APITransactionTestCase):
         return plan
 
     def create_resource(
-        self, prices, limits, unit=Units.PER_DAY
+        self, prices, limits, unit=marketplace_models.Plan.Units.PER_DAY
     ) -> marketplace_models.Resource:
         plan = self.create_plan(prices, unit)
         resource = marketplace_factories.ResourceFactory(

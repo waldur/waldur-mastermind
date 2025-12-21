@@ -1,18 +1,17 @@
 from django.utils.translation import gettext_lazy as _
-from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
-from waldur_core.core.enums import ReviewStates
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.enums import OECD_FOS_2007_LABELS
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
     OrderStates,
+    OrderStatesType,
     RemoteResourceSyncStatus,
     ResourceStates,
+    ResourceStatesType,
 )
 from waldur_mastermind.marketplace_remote import constants, models
 
@@ -34,12 +33,7 @@ class RemoteOfferingCreateResponseSerializer(serializers.Serializer):
 
 
 class RemoteProjectUpdateRequestSerializer(serializers.ModelSerializer):
-    state = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.ChoiceField(choices=ReviewStates.labels))
-    def get_state(self, request):
-        return request.get_state_display()
-
+    state = serializers.ReadOnlyField(source="get_state_display")
     customer_name = serializers.CharField(
         read_only=True, source="project.customer.name"
     )
@@ -54,27 +48,12 @@ class RemoteProjectUpdateRequestSerializer(serializers.ModelSerializer):
     )
     reviewed_by_uuid = serializers.UUIDField(read_only=True, source="reviewed_by.uuid")
 
-    old_oecd_fos_2007_label = serializers.SerializerMethodField()
-
-    @extend_schema_field(
-        serializers.ChoiceField(
-            choices=OECD_FOS_2007_LABELS,
-            allow_null=True,
-        )
+    old_oecd_fos_2007_label = serializers.CharField(
+        read_only=True, source="get_old_oecd_fos_2007_code_display"
     )
-    def get_old_oecd_fos_2007_label(self, request: models.ProjectUpdateRequest):
-        return request.get_old_oecd_fos_2007_code_display()
-
-    new_oecd_fos_2007_label = serializers.SerializerMethodField()
-
-    @extend_schema_field(
-        serializers.ChoiceField(
-            choices=OECD_FOS_2007_LABELS,
-            allow_null=True,
-        )
+    new_oecd_fos_2007_label = serializers.CharField(
+        read_only=True, source="get_new_oecd_fos_2007_code_display"
     )
-    def get_new_oecd_fos_2007_label(self, request):
-        return request.get_new_oecd_fos_2007_code_display()
 
     class Meta:
         model = models.ProjectUpdateRequest
@@ -296,22 +275,26 @@ class RemoteOfferingSerializer(serializers.Serializer):
 class RemoteResourceSyncStatusSerializer(serializers.Serializer):
     """Serializer for remote resource sync status"""
 
-    local_state = serializers.ChoiceField(
-        read_only=True,
-        help_text="Local resource state",
-        choices=ResourceStates.labels,
+    local_state = serializers.SerializerMethodField(
+        read_only=True, help_text="Local resource state"
     )
     remote_state = serializers.ChoiceField(
-        read_only=True, help_text="Remote resource state", choices=ResourceStates.labels
+        read_only=True,
+        choices=ResourceStates.CHOICES,
+        allow_null=True,
+        help_text="Remote resource state",
     )
     sync_status = serializers.ChoiceField(
         read_only=True,
-        choices=RemoteResourceSyncStatus.choices,
-        help_text="Sync status",
+        choices=RemoteResourceSyncStatus.CHOICES,
+        help_text="Sync status: in_sync, out_of_sync, sync_failed",
     )
     last_sync = serializers.DateTimeField(
         read_only=True, allow_null=True, help_text="Last sync timestamp"
     )
+
+    def get_local_state(self, obj) -> ResourceStatesType:
+        return obj.get("local_state")
 
 
 class RemoteResourceOrderSerializer(serializers.Serializer):
@@ -319,17 +302,19 @@ class RemoteResourceOrderSerializer(serializers.Serializer):
 
     order_uuid = serializers.UUIDField(read_only=True, help_text="Order UUID")
     remote_state = serializers.ChoiceField(
-        read_only=True, help_text="Remote order state", choices=OrderStates.labels
+        read_only=True, choices=OrderStates.CHOICES, help_text="Remote order state"
     )
-    local_state = serializers.ChoiceField(
-        read_only=True, help_text="Local order state", choices=OrderStates.labels
+    local_state = serializers.SerializerMethodField(
+        read_only=True, help_text="Local order state"
     )
-
     sync_status = serializers.ChoiceField(
         read_only=True,
-        choices=RemoteResourceSyncStatus.choices,
-        help_text="Sync status",
+        choices=RemoteResourceSyncStatus.CHOICES,
+        help_text="Sync status: in_sync, out_of_sync, sync_failed",
     )
+
+    def get_local_state(self, obj) -> OrderStatesType:
+        return obj.get("local_state")
 
 
 class RemoteResourceTeamMemberSerializer(serializers.Serializer):
@@ -340,6 +325,6 @@ class RemoteResourceTeamMemberSerializer(serializers.Serializer):
     remote_role = serializers.CharField(read_only=True, help_text="Remote role")
     sync_status = serializers.ChoiceField(
         read_only=True,
-        choices=RemoteResourceSyncStatus.choices,
-        help_text="Sync status",
+        choices=RemoteResourceSyncStatus.CHOICES,
+        help_text="Sync status: in_sync, out_of_sync, sync_failed",
     )

@@ -3,7 +3,6 @@ from celery import chain
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
-from waldur_vmware.enums import VirtualMachineToolsStates
 
 from . import models, signals
 
@@ -140,7 +139,7 @@ class VirtualMachineResetExecutor(core_executors.ActionExecutor):
     @classmethod
     def pre_apply(cls, instance, **kwargs):
         super().pre_apply(instance, **kwargs)
-        instance.tools_state = VirtualMachineToolsStates.NOT_RUNNING
+        instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
         instance.save(update_fields=["tools_state"])
 
     @classmethod
@@ -196,7 +195,7 @@ class VirtualMachineShutdownGuestExecutor(core_executors.ActionExecutor):
     @classmethod
     def pre_apply(cls, instance, **kwargs):
         super().pre_apply(instance, **kwargs)
-        instance.tools_state = VirtualMachineToolsStates.NOT_RUNNING
+        instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
         instance.save(update_fields=["tools_state"])
 
     @classmethod
@@ -221,7 +220,7 @@ class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
     @classmethod
     def pre_apply(cls, instance, **kwargs):
         super().pre_apply(instance, **kwargs)
-        instance.tools_state = VirtualMachineToolsStates.NOT_RUNNING
+        instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
         instance.save(update_fields=["tools_state"])
 
     @classmethod
