@@ -10,7 +10,7 @@ from django.utils import timezone
 from novaclient.v2.flavors import Flavor
 from novaclient.v2.servers import Server
 
-from waldur_core.core.models import CoreStates
+from waldur_core.core.enums import CoreStates
 from waldur_openstack import models
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.models import Port

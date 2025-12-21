@@ -2,7 +2,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.invoices import models
+from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices.tests import factories
 
 
@@ -123,7 +123,7 @@ class PaymentActionsTest(test.APITransactionTestCase):
         )
         self.payment = factories.PaymentFactory(profile=self.profile)
         self.invoice = factories.InvoiceFactory(
-            customer=self.fixture.customer, state=models.Invoice.States.PAID
+            customer=self.fixture.customer, state=invoices_enums.InvoiceStates.PAID
         )
         self.url = factories.PaymentFactory.get_url(
             payment=self.payment, action="link_to_invoice"
@@ -143,14 +143,14 @@ class PaymentActionsTest(test.APITransactionTestCase):
 
     def test_do_not_link_payment_to_invoice_if_customers_are_different(self):
         self.client.force_authenticate(self.fixture.staff)
-        invoice = factories.InvoiceFactory(state=models.Invoice.States.PAID)
+        invoice = factories.InvoiceFactory(state=invoices_enums.InvoiceStates.PAID)
         payload = {"invoice": factories.InvoiceFactory.get_url(invoice=invoice)}
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_do_not_link_payment_to_invoice_if_invoice_is_not_paid(self):
         self.client.force_authenticate(self.fixture.staff)
-        self.invoice.state = models.Invoice.States.PENDING
+        self.invoice.state = invoices_enums.InvoiceStates.PENDING
         self.invoice.save()
         payload = {"invoice": factories.InvoiceFactory.get_url(self.invoice)}
         response = self.client.post(self.url, payload)

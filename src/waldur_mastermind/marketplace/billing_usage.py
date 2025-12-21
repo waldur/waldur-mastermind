@@ -6,7 +6,7 @@ from django.db import transaction
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.middleware import get_skip_side_effects
-from waldur_mastermind.common import mixins as common_mixins
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing_utils import (
@@ -239,7 +239,7 @@ class BillingUsageProcessor:
                 details=details,
                 unit_price=plan_component.price,
                 quantity=converted_usage,
-                unit=common_mixins.UnitPriceMixin.Units.QUANTITY,
+                unit=Units.QUANTITY,
                 measured_unit=offering_component.measured_unit,
                 article_code=offering_component.article_code or plan.article_code,
                 name=item_name,

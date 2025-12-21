@@ -19,6 +19,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
     OfferingStates,
+    ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
@@ -341,7 +342,7 @@ class OrderCreateTest(BaseOrderCreateTest):
             project=self.project,
             offering=offering,
             plan=plan,
-            state=models.Resource.States.TERMINATED,
+            state=ResourceStates.TERMINATED,
         )
 
         response = self.create_order(user, offering)

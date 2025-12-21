@@ -41,7 +41,7 @@ from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.models import Instance, Network, Volume
 
-from . import executors, filters, models, serializers, utils
+from . import enums, executors, filters, models, serializers, utils
 from . import permissions as openstack_permissions
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class UsageReporter:
         if self.request.query_params:
             self.query = self.parse_query(self.request)
 
-        running_stats = self.get_stats(Instance.RuntimeStates.ACTIVE)
+        running_stats = self.get_stats(enums.InstanceRuntimeStates.ACTIVE)
         created_stats = self.get_stats()
         qs = self.get_initial_queryset().values_list("name", flat=True).distinct()
 
@@ -1869,7 +1869,7 @@ class InstanceViewSet(
     def _can_change_flavor(instance):
         if (
             instance.state == CoreStates.OK
-            and instance.runtime_state == models.Instance.RuntimeStates.ACTIVE
+            and instance.runtime_state == enums.InstanceRuntimeStates.ACTIVE
         ):
             raise core_exceptions.IncorrectStateException(
                 _("Please stop the instance before changing its flavor.")
@@ -1879,7 +1879,7 @@ class InstanceViewSet(
     change_flavor_validators = [
         _can_change_flavor,
         core_validators.StateValidator(CoreStates.OK),
-        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF),
+        core_validators.RuntimeStateValidator(enums.InstanceRuntimeStates.SHUTOFF),
     ]
     change_flavor_permissions = [openstack_permissions.can_manage_openstack_instance]
 
@@ -1900,7 +1900,7 @@ class InstanceViewSet(
     def _can_start_instance(instance):
         if (
             instance.state == CoreStates.OK
-            and instance.runtime_state == models.Instance.RuntimeStates.ACTIVE
+            and instance.runtime_state == enums.InstanceRuntimeStates.ACTIVE
         ):
             raise core_exceptions.IncorrectStateException(
                 _("Instance is already active.")
@@ -1909,7 +1909,7 @@ class InstanceViewSet(
     start_validators = [
         _can_start_instance,
         core_validators.StateValidator(CoreStates.OK),
-        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF),
+        core_validators.RuntimeStateValidator(enums.InstanceRuntimeStates.SHUTOFF),
     ]
     start_permissions = [openstack_permissions.can_manage_openstack_instance_power]
     start_serializer_class = EmptySerializer
@@ -1931,7 +1931,7 @@ class InstanceViewSet(
     def _can_stop_instance(instance):
         if (
             instance.state == CoreStates.OK
-            and instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF
+            and instance.runtime_state == enums.InstanceRuntimeStates.SHUTOFF
         ):
             raise core_exceptions.IncorrectStateException(
                 _("Instance is already stopped.")
@@ -1940,7 +1940,7 @@ class InstanceViewSet(
     stop_validators = [
         _can_stop_instance,
         core_validators.StateValidator(CoreStates.OK),
-        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE),
+        core_validators.RuntimeStateValidator(enums.InstanceRuntimeStates.ACTIVE),
     ]
     stop_permissions = [openstack_permissions.can_manage_openstack_instance_power]
     stop_serializer_class = EmptySerializer
@@ -1962,7 +1962,7 @@ class InstanceViewSet(
     def _can_restart_instance(instance):
         if (
             instance.state == CoreStates.OK
-            and instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF
+            and instance.runtime_state == enums.InstanceRuntimeStates.SHUTOFF
         ):
             raise core_exceptions.IncorrectStateException(
                 _("Please start instance first.")
@@ -1971,7 +1971,7 @@ class InstanceViewSet(
     restart_validators = [
         _can_restart_instance,
         core_validators.StateValidator(CoreStates.OK),
-        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE),
+        core_validators.RuntimeStateValidator(enums.InstanceRuntimeStates.ACTIVE),
     ]
     restart_permissions = [openstack_permissions.can_manage_openstack_instance_power]
     restart_serializer_class = EmptySerializer

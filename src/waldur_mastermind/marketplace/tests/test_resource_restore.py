@@ -2,6 +2,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import enums, models
+from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories
 
 
@@ -15,7 +16,7 @@ class ResourceRestoreTest(test.APITransactionTestCase):
             project=self.project,
             offering=self.offering,
             plan=self.plan,
-            state=models.Resource.States.TERMINATED,
+            state=ResourceStates.TERMINATED,
         )
 
         # Allow restore by default
@@ -29,7 +30,7 @@ class ResourceRestoreTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.state, models.Resource.States.CREATING)
+        self.assertEqual(self.resource.state, ResourceStates.CREATING)
 
         order = models.Order.objects.get(
             resource=self.resource, type=enums.OrderTypes.RESTORE
@@ -44,7 +45,7 @@ class ResourceRestoreTest(test.APITransactionTestCase):
         )
 
     def test_restore_active_resource_fails(self):
-        self.resource.state = models.Resource.States.OK
+        self.resource.state = ResourceStates.OK
         self.resource.save()
 
         self.client.force_authenticate(self.fixture.staff)

@@ -3,6 +3,7 @@ from django.utils.functional import cached_property
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     SUPPORT_OFFERING,
@@ -43,7 +44,7 @@ class MarketplaceSupportApprovedFixture(SupportFixture):
     @cached_property
     def plan(self):
         return marketplace_factories.PlanFactory(
-            unit=marketplace_models.Plan.Units.PER_MONTH,
+            unit=Units.PER_MONTH,
             offering=self.marketplace_offering,
         )
 
@@ -91,7 +92,7 @@ class SupportFixture(structure_fixtures.ProjectFixture):
             offering=self.offering,
             name="Standard plan",
             unit_price=0,
-            unit=marketplace_models.Plan.Units.PER_MONTH,
+            unit=Units.PER_MONTH,
         )
         return plan
 
@@ -143,7 +144,7 @@ class SupportFixture(structure_fixtures.ProjectFixture):
             offering=self.offering,
             unit_price=0,
             name="Small plan",
-            unit=marketplace_models.Plan.Units.PER_MONTH,
+            unit=Units.PER_MONTH,
         )
         return new_plan
 

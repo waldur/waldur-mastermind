@@ -34,6 +34,7 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
+    ORDER_TERMINAL_STATES,
     MaintenanceState,
     OfferingStates,
     OfferingUserStates,
@@ -356,7 +357,7 @@ def update_resource_state_on_order_creation(
         return
 
     order = instance
-    if order.state in OrderStates.TERMINAL_STATES:
+    if order.state in ORDER_TERMINAL_STATES:
         return
 
     if order.resource.state == ResourceStates.ERRED:
@@ -1613,10 +1614,7 @@ def notify_user_about_rejected_order(sender, instance: Order, created=False, **k
     if order.completed_at is not None:
         return
 
-    if (
-        order.tracker.has_changed("state")
-        and order.state in OrderStates.TERMINAL_STATES
-    ):
+    if order.tracker.has_changed("state") and order.state in ORDER_TERMINAL_STATES:
         if order.state == OrderStates.REJECTED:
             tasks.notify_user_that_order_been_rejected.delay(order.uuid.hex)
 

@@ -3,7 +3,8 @@ from rest_framework import test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import enums, models
+from waldur_mastermind.marketplace.enums import IntegrationStatusStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -27,7 +28,7 @@ class IntegrationStatusCreationTest(test.APITransactionTestCase):
             0,
             models.IntegrationStatus.objects.filter(
                 offering=self.offering,
-                agent_type=models.IntegrationStatus.AgentTypes.ORDER_PROCESSING,
+                agent_type=enums.IntegrationStatusAgentTypes.ORDER_PROCESSING,
             ).count(),
         )
         response = self.client.get(
@@ -39,17 +40,15 @@ class IntegrationStatusCreationTest(test.APITransactionTestCase):
             1,
             models.IntegrationStatus.objects.filter(
                 offering=self.offering,
-                agent_type=models.IntegrationStatus.AgentTypes.ORDER_PROCESSING,
+                agent_type=enums.IntegrationStatusAgentTypes.ORDER_PROCESSING,
             ).count(),
         )
 
         integration_status = models.IntegrationStatus.objects.get(
             offering=self.offering,
-            agent_type=models.IntegrationStatus.AgentTypes.ORDER_PROCESSING,
+            agent_type=enums.IntegrationStatusAgentTypes.ORDER_PROCESSING,
         )
-        self.assertEqual(
-            models.IntegrationStatus.States.ACTIVE, integration_status.status
-        )
+        self.assertEqual(IntegrationStatusStates.ACTIVE, integration_status.status)
         self.assertIsNotNone(integration_status.last_request_timestamp)
 
     @data("offering_owner", "service_manager")
@@ -64,7 +63,7 @@ class IntegrationStatusCreationTest(test.APITransactionTestCase):
             0,
             models.IntegrationStatus.objects.filter(
                 offering=self.offering,
-                agent_type=models.IntegrationStatus.AgentTypes.USAGE_REPORTING,
+                agent_type=enums.IntegrationStatusAgentTypes.USAGE_REPORTING,
             ).count(),
         )
         response = self.client.get(
@@ -76,17 +75,15 @@ class IntegrationStatusCreationTest(test.APITransactionTestCase):
             1,
             models.IntegrationStatus.objects.filter(
                 offering=self.offering,
-                agent_type=models.IntegrationStatus.AgentTypes.USAGE_REPORTING,
+                agent_type=enums.IntegrationStatusAgentTypes.USAGE_REPORTING,
             ).count(),
         )
 
         integration_status = models.IntegrationStatus.objects.get(
             offering=self.offering,
-            agent_type=models.IntegrationStatus.AgentTypes.USAGE_REPORTING,
+            agent_type=enums.IntegrationStatusAgentTypes.USAGE_REPORTING,
         )
-        self.assertEqual(
-            models.IntegrationStatus.States.ACTIVE, integration_status.status
-        )
+        self.assertEqual(IntegrationStatusStates.ACTIVE, integration_status.status)
         self.assertIsNotNone(integration_status.last_request_timestamp)
 
     @data("offering_manager", "offering_admin")
@@ -101,7 +98,7 @@ class IntegrationStatusCreationTest(test.APITransactionTestCase):
             0,
             models.IntegrationStatus.objects.filter(
                 offering=self.offering,
-                agent_type=models.IntegrationStatus.AgentTypes.USAGE_REPORTING,
+                agent_type=enums.IntegrationStatusAgentTypes.USAGE_REPORTING,
             ).count(),
         )
         response = self.client.get(
@@ -113,7 +110,7 @@ class IntegrationStatusCreationTest(test.APITransactionTestCase):
             0,
             models.IntegrationStatus.objects.filter(
                 offering=self.offering,
-                agent_type=models.IntegrationStatus.AgentTypes.USAGE_REPORTING,
+                agent_type=enums.IntegrationStatusAgentTypes.USAGE_REPORTING,
             ).count(),
         )
 
@@ -126,20 +123,20 @@ class IntegrationStatusGetTest(test.APITransactionTestCase):
         self.waldur_site_agent_name = "waldur-site-agent/1.0.0"
         factories.IntegrationStatusFactory(
             offering=self.offering,
-            agent_type=models.IntegrationStatus.AgentTypes.ORDER_PROCESSING,
+            agent_type=enums.IntegrationStatusAgentTypes.ORDER_PROCESSING,
             service_name=self.waldur_site_agent_name,
-            status=models.IntegrationStatus.States.ACTIVE,
+            status=IntegrationStatusStates.ACTIVE,
         )
         factories.IntegrationStatusFactory(
             offering=self.offering,
-            agent_type=models.IntegrationStatus.AgentTypes.USAGE_REPORTING,
+            agent_type=enums.IntegrationStatusAgentTypes.USAGE_REPORTING,
             service_name=self.waldur_site_agent_name,
-            status=models.IntegrationStatus.States.ACTIVE,
+            status=IntegrationStatusStates.ACTIVE,
         )
         factories.IntegrationStatusFactory(
             offering=self.offering,
-            agent_type=models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
-            status=models.IntegrationStatus.States.ACTIVE,
+            agent_type=enums.IntegrationStatusAgentTypes.GLAUTH_SYNC,
+            status=IntegrationStatusStates.ACTIVE,
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)

@@ -1,7 +1,7 @@
 import datetime
 import logging
 from decimal import Decimal
-from typing import Literal, cast
+from typing import cast
 
 import jwt
 from constance import config
@@ -66,19 +66,18 @@ from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
     BillingTypes,
+    CatalogType,
     CourseAccountState,
+    IntegrationStatusAgentTypes,
+    IntegrationStatusStates,
     LimitPeriods,
     OfferingStates,
     OfferingUserStates,
-    OfferingUserStatesType,
     OrderStates,
-    OrderStatesType,
     OrderTypes,
     ResourceStates,
-    ResourceStatesType,
     RobotAccountStates,
     ServiceAccountState,
-    ServiceAccountStatesType,
 )
 from waldur_mastermind.marketplace.fields import PublicPlanField
 from waldur_mastermind.marketplace.managers import ResourceQuerySet
@@ -760,6 +759,7 @@ class ServiceProviderOfferingUserComplianceSerializer(serializers.ModelSerialize
     completion_percentage = serializers.SerializerMethodField()
     compliance_status = serializers.SerializerMethodField()
     last_updated = serializers.SerializerMethodField()
+    state = serializers.SerializerMethodField()
 
     class Meta:
         model = models.OfferingUser
@@ -777,6 +777,10 @@ class ServiceProviderOfferingUserComplianceSerializer(serializers.ModelSerialize
             "created",
         )
         read_only_fields = fields
+
+    @extend_schema_field(serializers.ChoiceField(choices=OfferingUserStates.labels))
+    def get_state(self, offering_user: models.OfferingUser):
+        return offering_user.get_state_display()
 
     def _get_checklist_completion(self, obj):
         """
@@ -2617,9 +2621,8 @@ class ProviderOfferingDetailsSerializer(
         except AttributeError:
             return None
 
-    def get_state(
-        self, offering: models.Offering
-    ) -> Literal["Draft", "Active", "Paused", "Archived", "Unavailable"]:
+    @extend_schema_field(serializers.ChoiceField(choices=OfferingStates.labels))
+    def get_state(self, offering: models.Offering):
         return offering.get_state_display()
 
     @extend_schema_field(
@@ -3391,7 +3394,7 @@ class BaseOrderSerializer(BaseItemSerializer):
         )
 
     type = NaturalChoiceField(
-        choices=OrderTypes.CHOICES,
+        choices=OrderTypes.choices,
         required=False,
         default=OrderTypes.CREATE,
     )
@@ -3411,7 +3414,8 @@ class BaseOrderSerializer(BaseItemSerializer):
         required=False, write_only=True
     )
 
-    def get_state(self, obj) -> OrderStatesType:
+    @extend_schema_field(serializers.ChoiceField(choices=OrderStates.labels))
+    def get_state(self, obj):
         return obj.get_state_display()
 
     def get_fields(self):
@@ -4015,7 +4019,7 @@ class OrderCreateSerializer(
         # Count non-terminated resources for this project and offering
         current_count = (
             models.Resource.objects.filter(project=project, offering=offering)
-            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(state=ResourceStates.TERMINATED)
             .count()
         )
 
@@ -4489,10 +4493,11 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
                 instance=resource.creation_order, context=self.context
             ).data
 
-    def get_state(self, resource: models.Resource) -> ResourceStatesType:
+    @extend_schema_field(serializers.ChoiceField(choices=ResourceStates.labels))
+    def get_state(self, resource: models.Resource):
         return resource.get_state_display()
 
-    @extend_schema_field(serializers.ChoiceField(choices=OfferingStates.VALUES))
+    @extend_schema_field(serializers.ChoiceField(choices=OfferingStates.labels))
     def get_offering_state(self, resource: models.Resource):
         return resource.offering.get_state_display()
 
@@ -5647,8 +5652,8 @@ class OfferingUserSerializer(
             },
         )
 
-    @extend_schema_field(serializers.ChoiceField(choices=OfferingUserStates.VALUES))
-    def get_state(self, offering_user: models.OfferingUser) -> OfferingUserStatesType:
+    @extend_schema_field(serializers.ChoiceField(choices=OfferingUserStates.labels))
+    def get_state(self, offering_user: models.OfferingUser):
         return offering_user.get_state_display()
 
     def to_internal_value(self, data):
@@ -6731,9 +6736,9 @@ class ProjectUserSerializer(serializers.ModelSerializer):
         return permission and permission.expiration_time
 
     @extend_schema_field(
-        serializers.ChoiceField(choices=OfferingUserStates.VALUES, allow_null=True)
+        serializers.ChoiceField(choices=OfferingUserStates.labels, allow_null=True)
     )
-    def get_offering_user_state(self, user: User) -> OfferingUserStatesType | None:
+    def get_offering_user_state(self, user: User):
         offering = self.context["offering"]
         offering_user = models.OfferingUser.objects.filter(
             user=user, offering=offering
@@ -6938,9 +6943,8 @@ class ProviderOfferingSerializer(
     plans = BaseProviderPlanSerializer(many=True, required=False)
     secret_options = MergedSecretOptionsField(read_only=True)
 
-    def get_state(
-        self, offering: models.Offering
-    ) -> Literal["Draft", "Active", "Paused", "Archived", "Unavailable"]:
+    @extend_schema_field(serializers.ChoiceField(choices=OfferingStates.labels))
+    def get_state(self, offering: models.Offering):
         return offering.get_state_display()
 
     def get_resources(self, offering: models.Offering):
@@ -7034,10 +7038,8 @@ class BaseServiceAccountSerializer(
             "error_traceback",
         ]
 
-    @extend_schema_field(serializers.ChoiceField(choices=ServiceAccountState.VALUES))
-    def get_state(
-        self, service_account: models.BaseServiceAccount
-    ) -> ServiceAccountStatesType:
+    @extend_schema_field(serializers.ChoiceField(choices=ServiceAccountState.labels))
+    def get_state(self, service_account: models.BaseServiceAccount):
         return service_account.get_state_display()
 
 
@@ -7136,17 +7138,8 @@ class RobotAccountSerializer(BaseServiceAccountSerializer):
     )
     state = serializers.SerializerMethodField()
 
-    @extend_schema_field(serializers.ChoiceField(choices=RobotAccountStates.VALUES))
-    def get_state(
-        self, robot_account: models.RobotAccount
-    ) -> Literal[
-        "Requested",
-        "Creating",
-        "OK",
-        "Requested deletion",
-        "Deleted",
-        "Error",
-    ]:
+    @extend_schema_field(serializers.ChoiceField(choices=RobotAccountStates.labels))
+    def get_state(self, robot_account: models.RobotAccount):
         return robot_account.get_state_display()
 
     class Meta:
@@ -7357,7 +7350,14 @@ class SectionSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class IntegrationStatusSerializer(serializers.ModelSerializer):
-    status = serializers.CharField(read_only=True, source="get_status_display")
+    status = serializers.SerializerMethodField()
+
+    @extend_schema_field(
+        serializers.ChoiceField(choices=IntegrationStatusStates.labels)
+    )
+    def get_status(self, integration_status):
+        return integration_status.get_status_display()
+
     agent_type = serializers.SerializerMethodField()
 
     class Meta:
@@ -7369,17 +7369,11 @@ class IntegrationStatusSerializer(serializers.ModelSerializer):
             "service_name",
         )
 
-    def get_agent_type(
-        self, integration_status: models.IntegrationStatus
-    ) -> Literal[
-        "Order processing",
-        "Usage reporting",
-        "Glauth sync",
-        "Resource sync",
-        "Event processing",
-        "unknown",
-    ]:
-        agent_type_map = {k: v for k, v in models.IntegrationStatus.AgentTypes.CHOICES}
+    @extend_schema_field(
+        serializers.ChoiceField(choices=IntegrationStatusAgentTypes.labels)
+    )
+    def get_agent_type(self, integration_status: models.IntegrationStatus):
+        agent_type_map = {k: v for k, v in IntegrationStatusAgentTypes.choices}
         return agent_type_map.get(int(integration_status.agent_type), "unknown")
 
 
@@ -7510,7 +7504,7 @@ class PluginComponentSerializer(serializers.Serializer):
         help_text="Unit of measurement for the component"
     )
     billing_type = serializers.ChoiceField(
-        choices=BillingTypes.CHOICES, help_text="Billing type for the component"
+        choices=BillingTypes.choices, help_text="Billing type for the component"
     )
 
 
@@ -7736,17 +7730,11 @@ class BackendResourceRequestSetErredSerializer(
 
 
 class MaintenanceAnnouncementOfferingSerializer(serializers.HyperlinkedModelSerializer):
-    impact_level_display = serializers.SerializerMethodField()
+    impact_level = serializers.SerializerMethodField()
     offering_name = serializers.CharField(read_only=True, source="offering.name")
 
-    def get_impact_level_display(
-        self, obj: models.MaintenanceAnnouncement
-    ) -> Literal[
-        "No impact",
-        "Degraded performance",
-        "Partial outage",
-        "Full outage",
-    ]:
+    @extend_schema_field(serializers.ChoiceField(choices=models.ImpactLevel.labels))
+    def get_impact_level(self, obj):
         return obj.get_impact_level_display()
 
     class Meta:
@@ -7757,7 +7745,6 @@ class MaintenanceAnnouncementOfferingSerializer(serializers.HyperlinkedModelSeri
             "maintenance",
             "offering",
             "impact_level",
-            "impact_level_display",
             "impact_description",
             "offering_name",
         ]
@@ -7802,17 +7789,17 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True, source="service_provider.customer.name"
     )
     state = serializers.SerializerMethodField()
+    maintenance_type = serializers.SerializerMethodField()
 
-    def get_state(
-        self, obj: models.MaintenanceAnnouncement
-    ) -> Literal[
-        "Draft",
-        "Scheduled",
-        "In progress",
-        "Completed",
-        "Cancelled",
-    ]:
+    @extend_schema_field(
+        serializers.ChoiceField(choices=models.MaintenanceState.labels)
+    )
+    def get_state(self, obj: models.MaintenanceAnnouncement):
         return obj.get_state_display()
+
+    @extend_schema_field(serializers.ChoiceField(choices=models.MaintenanceType.labels))
+    def get_maintenance_type(self, obj):
+        return obj.get_maintenance_type_display()
 
     class Meta:
         model = models.MaintenanceAnnouncement
@@ -7833,7 +7820,6 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
             "created_by",
             "affected_offerings",
             "service_provider_name",
-            "state",
             "backend_id",
         ]
         read_only_fields = (
@@ -7883,18 +7869,17 @@ class PublicMaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerial
         read_only=True, source="service_provider.customer.name"
     )
     state = serializers.SerializerMethodField()
-    maintenance_type_display = serializers.CharField(
-        read_only=True, source="get_maintenance_type_display"
-    )
+    maintenance_type = serializers.SerializerMethodField()
 
-    def get_state(
-        self, obj: models.MaintenanceAnnouncement
-    ) -> Literal[
-        "Scheduled",
-        "In progress",
-        "Completed",
-    ]:
+    @extend_schema_field(
+        serializers.ChoiceField(choices=models.MaintenanceState.labels)
+    )
+    def get_state(self, obj: models.MaintenanceAnnouncement):
         return obj.get_state_display()
+
+    @extend_schema_field(serializers.ChoiceField(choices=models.MaintenanceType.labels))
+    def get_maintenance_type(self, obj):
+        return obj.get_maintenance_type_display()
 
     class Meta:
         model = models.MaintenanceAnnouncement
@@ -7904,7 +7889,6 @@ class PublicMaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerial
             "name",
             "message",
             "maintenance_type",
-            "maintenance_type_display",
             "external_reference_url",
             "state",
             "scheduled_start",
@@ -8459,9 +8443,11 @@ class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for unified SoftwareCatalog model."""
 
     package_count = serializers.SerializerMethodField()
-    catalog_type_display = serializers.CharField(
-        source="get_catalog_type_display", read_only=True
-    )
+    catalog_type_display = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ChoiceField(choices=CatalogType.labels))
+    def get_catalog_type_display(self, catalog):
+        return catalog.get_catalog_type_display()
 
     class Meta:
         model = models.SoftwareCatalog
@@ -8542,9 +8528,12 @@ class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
     catalog_name = serializers.CharField(source="catalog.name", read_only=True)
     catalog_version = serializers.CharField(source="catalog.version", read_only=True)
     catalog_type = serializers.CharField(source="catalog.catalog_type", read_only=True)
-    catalog_type_display = serializers.CharField(
-        source="catalog.get_catalog_type_display", read_only=True
-    )
+    catalog_type_display = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ChoiceField(choices=CatalogType.labels))
+    def get_catalog_type_display(self, package):
+        return package.catalog.get_catalog_type_display()
+
     version_count = serializers.SerializerMethodField()
     extension_count = serializers.SerializerMethodField()
     versions = NestedSoftwareVersionSerializer(many=True, read_only=True)

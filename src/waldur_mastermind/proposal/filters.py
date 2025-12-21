@@ -8,6 +8,7 @@ from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
     RequestedOfferingStates,
+    ReviewState,
 )
 
 from . import models
@@ -59,7 +60,7 @@ class CallFilter(django_filters.FilterSet):
     customer_uuid = django_filters.UUIDFilter(field_name="manager__customer__uuid")
     customer_keyword = django_filters.CharFilter(method="filter_customer_keyword")
     offering_uuid = django_filters.UUIDFilter(method="filter_offering_uuid")
-    state = django_filters.MultipleChoiceFilter(choices=CallStates.CHOICES)
+    state = django_filters.MultipleChoiceFilter(choices=CallStates.choices)
     o = django_filters.OrderingFilter(
         fields=("manager__customer__name", "created", "name")
     )
@@ -93,7 +94,7 @@ class CallFilter(django_filters.FilterSet):
 
 class ProposalFilter(django_filters.FilterSet):
     round = django_filters.UUIDFilter(field_name="round__uuid")
-    state = django_filters.MultipleChoiceFilter(choices=ProposalStates.CHOICES)
+    state = django_filters.MultipleChoiceFilter(choices=ProposalStates.choices)
     name = django_filters.CharFilter(lookup_expr="icontains")
     call_uuid = django_filters.UUIDFilter(field_name="round__call__uuid")
     organization_uuid = django_filters.UUIDFilter(
@@ -129,7 +130,7 @@ class ReviewFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(fields=("created", "state"))
     call_uuid = django_filters.UUIDFilter(field_name="proposal__round__call__uuid")
     reviewer_uuid = django_filters.UUIDFilter(field_name="reviewer__uuid")
-    state = django_filters.MultipleChoiceFilter(choices=models.Review.States.CHOICES)
+    state = django_filters.MultipleChoiceFilter(choices=ReviewState.choices)
 
     class Meta:
         model = models.Review
@@ -158,7 +159,7 @@ class RequestedOfferingFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(
         fields=("created", "state", "offering__name", "call__name")
     )
-    state = django_filters.MultipleChoiceFilter(choices=RequestedOfferingStates.CHOICES)
+    state = django_filters.MultipleChoiceFilter(choices=RequestedOfferingStates.choices)
 
     class Meta:
         model = models.RequestedOffering

@@ -2,6 +2,7 @@ import django_filters
 from django.utils import timezone
 
 from waldur_core.core import filters as core_filters
+from waldur_mastermind.notifications.enums import AdminAnnouncementType
 
 from . import models
 
@@ -28,9 +29,7 @@ class MessageTemplateFilterSet(django_filters.FilterSet):
 
 class AdminAnnouncementFilterSet(django_filters.FilterSet):
     description = django_filters.CharFilter(lookup_expr="icontains")
-    type = django_filters.MultipleChoiceFilter(
-        choices=models.AdminAnnouncement.Type.CHOICES
-    )
+    type = django_filters.MultipleChoiceFilter(choices=AdminAnnouncementType.choices)
     is_active = django_filters.BooleanFilter(method="filter_is_active")
 
     o = core_filters.ExtendedOrderingFilter(

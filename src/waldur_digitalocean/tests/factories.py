@@ -2,6 +2,7 @@ import factory
 from django.urls import reverse
 from factory import fuzzy
 
+from waldur_core.core import enums as core_enums
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.models import ServiceSettings
@@ -97,7 +98,7 @@ class DropletFactory(
     project = factory.SubFactory(ProjectFactory)
 
     state = CoreStates.OK
-    runtime_state = models.Droplet.RuntimeStates.ONLINE
+    runtime_state = core_enums.RuntimeStates.ONLINE
     cores = fuzzy.FuzzyInteger(1, 8, step=2)
     ram = fuzzy.FuzzyInteger(1024, 10240, step=1024)
     disk = fuzzy.FuzzyInteger(1024, 102400, step=1024)

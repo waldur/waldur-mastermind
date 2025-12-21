@@ -9,6 +9,7 @@ from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.promotions import models
+from waldur_mastermind.promotions.enums import CampaignState
 from waldur_mastermind.promotions.tests import factories, fixtures
 
 
@@ -175,7 +176,7 @@ class OfferingPublicEndpointTest(test.APITransactionTestCase):
     def test_unactive_campaigns_are_not_displayed(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 
-        self.campaign.state = models.Campaign.States.DRAFT
+        self.campaign.state = CampaignState.DRAFT
         self.campaign.save()
 
         response = self.client.get(self.url)

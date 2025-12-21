@@ -18,6 +18,8 @@ from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Customer
+from waldur_mastermind.common.enums import Units
+from waldur_mastermind.invoices import enums as invoices_enums
 
 from . import models
 
@@ -199,7 +201,7 @@ def get_upcoming_ends_of_fixed_payment_profiles():
     upcoming_ends = []
 
     for profile in models.PaymentProfile.objects.filter(
-        is_active=True, payment_type=models.PaymentType.FIXED_PRICE
+        is_active=True, payment_type=invoices_enums.PaymentType.FIXED_PRICE
     ):
         end = get_end_date_for_profile(profile)
 
@@ -220,7 +222,7 @@ def get_monthly_invoicing_reports_context():
     }
 
     for profile in models.PaymentProfile.objects.filter(
-        payment_type=models.PaymentType.FIXED_PRICE, is_active=True
+        payment_type=invoices_enums.PaymentType.FIXED_PRICE, is_active=True
     ).order_by("organization__abbreviation", "organization__name"):
         ids_fixed.append(profile.organization.id)
         name = profile.organization.abbreviation or profile.organization.name
@@ -349,7 +351,7 @@ def get_billing_price_estimate_for_provider(
                 Sum(
                     Case(
                         When(
-                            unit=models.InvoiceItem.Units.PER_HOUR,
+                            unit=Units.PER_HOUR,
                             then=F("unit_price")
                             * (
                                 Extract(F("end"), "epoch")
@@ -358,7 +360,7 @@ def get_billing_price_estimate_for_provider(
                             / seconds_in_hour,
                         ),
                         When(
-                            unit=models.InvoiceItem.Units.PER_DAY,
+                            unit=Units.PER_DAY,
                             then=F("unit_price")
                             * (
                                 Extract(F("end"), "epoch")
@@ -379,7 +381,7 @@ def get_billing_price_estimate_for_provider(
                 Sum(
                     Case(
                         When(
-                            unit=models.InvoiceItem.Units.PER_HOUR,
+                            unit=Units.PER_HOUR,
                             then=F("unit_price")
                             * (
                                 Extract(F("end"), "epoch")
@@ -390,7 +392,7 @@ def get_billing_price_estimate_for_provider(
                             / 100,
                         ),
                         When(
-                            unit=models.InvoiceItem.Units.PER_DAY,
+                            unit=Units.PER_DAY,
                             then=F("unit_price")
                             * (
                                 Extract(F("end"), "epoch")

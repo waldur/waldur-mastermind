@@ -8,6 +8,7 @@ from reversion.admin import VersionAdmin
 
 from waldur_core.core import admin as core_admin
 from waldur_core.core.admin import JsonWidget
+from waldur_mastermind.invoices import enums as invoices_enums
 
 from . import models, tasks
 
@@ -41,7 +42,7 @@ class PaymentTypeFilter(admin.SimpleListFilter):
     parameter_name = "payment_type"
 
     def lookups(self, request, model_admin):
-        return models.PaymentType.CHOICES
+        return invoices_enums.PaymentType.choices
 
     def queryset(self, request, queryset):
         payment_type = self.value()

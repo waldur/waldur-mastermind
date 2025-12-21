@@ -12,7 +12,8 @@ from rest_framework import status, test
 from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.common.enums import Units
+from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.invoices.tests import factories, fixtures
 from waldur_mastermind.marketplace.enums import (
@@ -71,7 +72,7 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         self.url = factories.InvoiceFactory.get_url(
             self.fixture.invoice, action="send_notification"
         )
-        self.fixture.invoice.state = models.Invoice.States.CREATED
+        self.fixture.invoice.state = invoices_enums.InvoiceStates.CREATED
         self.fixture.invoice.save(update_fields=["state"])
 
     @data("staff")
@@ -104,7 +105,7 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         self.assertEqual(self.fixture.owner.email, mail.outbox[0].to[0])
 
     def test_user_cannot_send_invoice_notification_in_invalid_state(self):
-        self.fixture.invoice.state = models.Invoice.States.PENDING
+        self.fixture.invoice.state = invoices_enums.InvoiceStates.PENDING
         self.fixture.invoice.save(update_fields=["state"])
         self.client.force_authenticate(self.fixture.staff)
 
@@ -134,7 +135,7 @@ class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
         self.check_invoice_item()
 
     def test_invoice_item_updated_for_pending_invoice_only(self):
-        self.invoice.state = models.Invoice.States.CANCELED
+        self.invoice.state = invoices_enums.InvoiceStates.CANCELED
         self.invoice.save()
         old_name = self.fixture.project.name
         self.fixture.project.name = "New name"
@@ -166,29 +167,29 @@ class MeasuredUnitTest(test.APITransactionTestCase):
         )
 
     def test_offering_component(self):
-        item = self.get_invoice_item(UnitPriceMixin.Units.PER_DAY, "kG")
+        item = self.get_invoice_item(Units.PER_DAY, "kG")
         self.assertEqual(item.get_measured_unit(), _("kG"))
 
     def test_days(self):
-        item = self.get_invoice_item(UnitPriceMixin.Units.PER_DAY)
+        item = self.get_invoice_item(Units.PER_DAY)
         self.assertEqual(item.get_measured_unit(), _("days"))
 
     def test_hours(self):
-        item = self.get_invoice_item(UnitPriceMixin.Units.PER_HOUR)
+        item = self.get_invoice_item(Units.PER_HOUR)
         self.assertEqual(item.get_measured_unit(), _("hours"))
 
     def test_half_month(self):
-        item = self.get_invoice_item(UnitPriceMixin.Units.PER_HALF_MONTH)
+        item = self.get_invoice_item(Units.PER_HALF_MONTH)
         self.assertEqual(item.get_measured_unit(), _("percents from half a month"))
 
     def test_month(self):
-        item = self.get_invoice_item(UnitPriceMixin.Units.PER_MONTH)
+        item = self.get_invoice_item(Units.PER_MONTH)
         self.assertEqual(item.get_measured_unit(), _("percents from a month"))
 
     def test_quantity(self):
         from waldur_slurm.tests.factories import AllocationFactory
 
-        item = self.get_invoice_item(UnitPriceMixin.Units.QUANTITY)
+        item = self.get_invoice_item(Units.QUANTITY)
         resource = marketplace_factories.ResourceFactory()
         resource.scope = AllocationFactory()
         resource.save()
@@ -211,7 +212,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         )
         self.plan = marketplace_factories.PlanFactory(
             offering=self.offering,
-            unit=UnitPriceMixin.Units.PER_DAY,
+            unit=Units.PER_DAY,
         )
         self.component = marketplace_factories.PlanComponentFactory(
             component=self.offering_component, price=Decimal(5), plan=self.plan
@@ -226,7 +227,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         )
         self.plan_2 = marketplace_factories.PlanFactory(
             offering=self.offering_2,
-            unit=UnitPriceMixin.Units.PER_DAY,
+            unit=Units.PER_DAY,
         )
         self.component_2 = marketplace_factories.PlanComponentFactory(
             component=self.offering_component_2, price=Decimal(7), plan=self.plan_2
@@ -268,7 +269,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         )
         self.marketplace_support_plan = marketplace_factories.PlanFactory(
             offering=self.marketplace_support_offering,
-            unit=UnitPriceMixin.Units.PER_DAY,
+            unit=Units.PER_DAY,
         )
         self.component = marketplace_factories.PlanComponentFactory(
             component=self.support_offering_component,
@@ -392,7 +393,7 @@ class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
     def test_staff_can_delete_customer_with_active_invoice(self):
-        self.invoice.state = models.Invoice.States.CREATED
+        self.invoice.state = invoices_enums.InvoiceStates.CREATED
         self.invoice.save()
 
         self.client.force_authenticate(self.fixture.staff)
@@ -406,7 +407,7 @@ class InvoicePaidTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.invoice = self.fixture.invoice
-        self.invoice.state = models.Invoice.States.CREATED
+        self.invoice.state = invoices_enums.InvoiceStates.CREATED
         self.invoice.save()
         self.url = factories.InvoiceFactory.get_url(self.invoice, "paid")
 
@@ -415,7 +416,7 @@ class InvoicePaidTest(test.APITransactionTestCase):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.state, models.Invoice.States.PAID)
+        self.assertEqual(self.invoice.state, invoices_enums.InvoiceStates.PAID)
 
     @data("owner", "manager", "admin", "user")
     def test_other_users_cannot_mark_invoice_as_paid(self, user):
@@ -424,7 +425,7 @@ class InvoicePaidTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_staff_cannot_mark_invoice_as_paid_if_current_state_is_not_created(self):
-        self.invoice.state = models.Invoice.States.PENDING
+        self.invoice.state = invoices_enums.InvoiceStates.PENDING
         self.invoice.save()
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url)
@@ -442,7 +443,7 @@ class InvoicePaidTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.state, models.Invoice.States.PAID)
+        self.assertEqual(self.invoice.state, invoices_enums.InvoiceStates.PAID)
         self.assertEqual(
             models.Payment.objects.filter(
                 date_of_payment=date, profile=profile

@@ -20,6 +20,7 @@ from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.models import Role
+from waldur_core.structure.enums import OECD_FOS_2007_CODES_DICT, OECD_FOS_2007_LABELS
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.serializers import (
@@ -31,6 +32,7 @@ from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
     RequestedOfferingStates,
+    ReviewState,
     RoundStatuses,
 )
 
@@ -387,9 +389,9 @@ class ProposalReviewSerializer(
             proposal=proposal,
             reviewer=reviewer,
             state__in=[
-                models.Review.States.SUBMITTED,
-                models.Review.States.CREATED,
-                models.Review.States.IN_REVIEW,
+                ReviewState.SUBMITTED,
+                ReviewState.CREATED,
+                ReviewState.IN_REVIEW,
             ],
         ).exists()
 
@@ -475,11 +477,11 @@ class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
             obj.created_by == user
             and obj.round.call.reviews_visible_to_submitters
             and (
-                obj.state == models.Proposal.States.ACCEPTED
-                or obj.state == models.Proposal.States.REJECTED
+                obj.state == ProposalStates.ACCEPTED
+                or obj.state == ProposalStates.REJECTED
             )
         ):
-            submitted_reviews = reviews_qs.filter(state=models.Review.States.SUBMITTED)
+            submitted_reviews = reviews_qs.filter(state=ReviewState.SUBMITTED)
             return ProposalReviewSerializer(
                 submitted_reviews, many=True, context=self.context
             ).data
@@ -488,6 +490,8 @@ class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
+    status = serializers.ChoiceField(choices=RoundStatuses.choices, read_only=True)
+
     class Meta:
         model = models.Round
         fields = [
@@ -1144,11 +1148,28 @@ class ProposalUpdateProjectDetailsSerializer(serializers.ModelSerializer):
         ]
 
 
+class ProposalComplianceStatusSerializer(serializers.Serializer):
+    has_checklist = serializers.BooleanField()
+    is_completed = serializers.BooleanField()
+    requires_review = serializers.BooleanField()
+    completion_percentage = serializers.FloatField()
+    reviewed_by = serializers.CharField(allow_null=True)
+    reviewed_at = serializers.DateTimeField(allow_null=True)
+    checklist_name = serializers.CharField()
+    unanswered_required_count = serializers.IntegerField()
+    error = serializers.CharField(required=False, allow_null=True)
+
+
+class ProposalCanSubmitSerializer(serializers.Serializer):
+    can_submit = serializers.BooleanField()
+    error = serializers.CharField(allow_null=True)
+
+
 class ProposalSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    state = serializers.ReadOnlyField()
+    state = serializers.ChoiceField(choices=ProposalStates.choices, read_only=True)
     round = NestedRoundSerializer(read_only=True)
     round_uuid = serializers.UUIDField(write_only=True, required=True)
     call_uuid = serializers.UUIDField(source="round.call.uuid", read_only=True)
@@ -1159,9 +1180,17 @@ class ProposalSerializer(
     supporting_documentation = ProposalDocumentationSerializer(
         many=True, read_only=True, source="proposaldocumentation_set"
     )
-    oecd_fos_2007_label = serializers.ReadOnlyField(
-        source="get_oecd_fos_2007_code_display"
+    oecd_fos_2007_label = serializers.SerializerMethodField(
+        help_text="Human-readable label for the OECD FOS 2007 classification code"
     )
+
+    @extend_schema_field(
+        serializers.ChoiceField(choices=OECD_FOS_2007_LABELS, allow_null=True)
+    )
+    def get_oecd_fos_2007_label(self, proposal: models.Proposal):
+        if proposal.oecd_fos_2007_code:
+            return OECD_FOS_2007_CODES_DICT.get(proposal.oecd_fos_2007_code)
+
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_uuid = serializers.UUIDField(source="created_by.uuid", read_only=True)
     project_name = serializers.ReadOnlyField(source="project.name")
@@ -1291,7 +1320,7 @@ class ProposalSerializer(
 
         return fields
 
-    @extend_schema_field(serializers.DictField(allow_null=True))
+    @extend_schema_field(ProposalComplianceStatusSerializer(allow_null=True))
     def get_compliance_status(self, obj):
         """Get compliance checklist status."""
         if not obj.round.call.compliance_checklist:
@@ -1320,7 +1349,7 @@ class ProposalSerializer(
             "unanswered_required_count": completion.get_unanswered_required_questions().count(),
         }
 
-    @extend_schema_field(serializers.DictField())
+    @extend_schema_field(ProposalCanSubmitSerializer)
     def get_can_submit(self, obj):
         """Get whether proposal can be submitted."""
         can_submit, error = obj.can_submit()
@@ -1345,6 +1374,7 @@ class ProposalApproveSerializer(serializers.Serializer):
 class CallRoundSerializer(serializers.HyperlinkedModelSerializer):
     call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="call.name")
+    status = serializers.ChoiceField(choices=RoundStatuses.choices, read_only=True)
 
     class Meta:
         model = models.Round
@@ -1475,13 +1505,40 @@ ProposalComplianceChecklistResponseSerializer = (
 )
 
 
+class ChecklistSchemaSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
+    total_questions = serializers.IntegerField()
+    required_questions = serializers.IntegerField()
+
+
+class ComplianceSchemaSerializer(serializers.Serializer):
+    is_completed = serializers.BooleanField()
+    requires_review = serializers.BooleanField()
+    completion_percentage = serializers.FloatField()
+    reviewed_by = serializers.CharField(allow_null=True)
+    reviewed_at = serializers.DateTimeField(allow_null=True)
+    review_triggers = serializers.ListField(child=serializers.CharField())
+    unanswered_required_count = serializers.IntegerField()
+
+
+class ProposalComplianceOverviewSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    state = serializers.CharField()  # Or use a ChoiceField if states are defined
+    created_by = serializers.CharField(allow_null=True)
+    created_by_uuid = serializers.UUIDField(allow_null=True)
+    compliance = ComplianceSchemaSerializer(allow_null=True)
+
+
 class CallComplianceOverviewSerializer(serializers.Serializer):
     """Serializer for call manager compliance overview."""
 
     checklist = serializers.SerializerMethodField()
     proposals = serializers.SerializerMethodField()
 
-    @extend_schema_field(serializers.DictField(allow_null=True))
+    @extend_schema_field(ChecklistSchemaSerializer(many=False, allow_null=True))
     def get_checklist(self, call):
         """Get checklist information."""
         if not call.compliance_checklist:
@@ -1497,7 +1554,7 @@ class CallComplianceOverviewSerializer(serializers.Serializer):
             ).count(),
         }
 
-    @extend_schema_field(serializers.ListField())
+    @extend_schema_field(ProposalComplianceOverviewSerializer(many=True))
     def get_proposals(self, call):
         """Get proposal compliance status."""
         proposals_data = []

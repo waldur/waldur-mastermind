@@ -8,6 +8,7 @@ from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Project
 from waldur_mastermind.common.enums import Units
 
+from . import enums as invoices_enums
 from . import log, models
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ class MonthlyCompensation:
         self.customer = customer
         self.invoice = (
             models.Invoice.objects.filter(
-                state=models.Invoice.States.PENDING, customer=customer
+                state=invoices_enums.InvoiceStates.PENDING, customer=customer
             )
             .order_by("-year", "-month")
             .first()
@@ -197,7 +198,7 @@ class MonthlyCompensation:
         if (
             self.credit
             and self.credit.minimal_consumption_logic
-            == models.CustomerCredit.MinimalConsumptionLogic.LINEAR
+            == invoices_enums.MinimalConsumptionLogic.LINEAR
             and self.credit.end_date
         ):
             new_expected_consumption = (
@@ -221,7 +222,7 @@ class MonthlyCompensation:
         for project_credit, tail in self._project_tails.items():
             if (
                 project_credit.minimal_consumption_logic
-                == models.ProjectCredit.MinimalConsumptionLogic.LINEAR
+                == invoices_enums.MinimalConsumptionLogic.LINEAR
                 and project_credit.end_date
             ):
                 new_expected_consumption = (

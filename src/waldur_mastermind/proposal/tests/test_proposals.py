@@ -12,7 +12,12 @@ from waldur_core.permissions.fixtures import CallRole, ProposalRole
 from waldur_core.permissions.utils import has_user
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models, tasks
-from waldur_mastermind.proposal.enums import CallStates, ProposalStates
+from waldur_mastermind.proposal.enums import (
+    AllocationTime,
+    CallStates,
+    ProposalStates,
+    ReviewState,
+)
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 
@@ -335,7 +340,7 @@ class ActionTest(test.APITransactionTestCase):
         )
         allocation_date = datetime.datetime.now() + datetime.timedelta(weeks=1)
         new_proposal.round.allocation_date = allocation_date
-        new_proposal.round.allocation_time = models.Round.AllocationTimes.FIXED_DATE
+        new_proposal.round.allocation_time = AllocationTime.FIXED_DATE
         new_proposal.round.save()
 
         new_url_approve = factories.ProposalFactory.get_url(new_proposal, "approve")
@@ -349,7 +354,7 @@ class ActionTest(test.APITransactionTestCase):
         factories.ReviewFactory(
             proposal=self.proposal,
             reviewer=self.fixture.reviewer_1,
-            state=models.Review.States.SUBMITTED,
+            state=ReviewState.SUBMITTED,
         )
 
         self.proposal.state = ProposalStates.IN_REVIEW

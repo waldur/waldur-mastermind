@@ -5,6 +5,7 @@ from django.db.models import Case, F, Sum, When
 from django.db.models.functions import Ceil, Extract, Least
 from django.utils import timezone
 
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices.models import InvoiceItem
 
@@ -39,11 +40,11 @@ def get_current_expression():
 
     return Case(
         When(
-            unit=InvoiceItem.Units.PER_HOUR,
+            unit=Units.PER_HOUR,
             then=Ceil(duration_in_seconds / decimal.Decimal(SECONDS_IN_HOUR)),
         ),
         When(
-            unit=InvoiceItem.Units.PER_DAY,
+            unit=Units.PER_DAY,
             then=Ceil(duration_in_seconds / decimal.Decimal(SECONDS_IN_DAY)),
         ),
         default=F("quantity"),

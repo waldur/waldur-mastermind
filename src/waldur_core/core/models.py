@@ -22,8 +22,8 @@ from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 from reversion import revisions as reversion
 
+from waldur_core.core import enums as core_enums
 from waldur_core.core import managers as core_managers
-from waldur_core.core.enums import CoreStates
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
@@ -689,10 +689,6 @@ class RuntimeStateMixin(models.Model):
     Used to track the current operational status of resources.
     """
 
-    class RuntimeStates:
-        ONLINE = "online"
-        OFFLINE = "offline"
-
     class Meta:
         abstract = True
 
@@ -700,14 +696,20 @@ class RuntimeStateMixin(models.Model):
 
     @classmethod
     def get_online_state(cls):
-        return cls.RuntimeStates.ONLINE
+        return core_enums.RuntimeStates.ONLINE
 
     @classmethod
     def get_offline_state(cls):
-        return cls.RuntimeStates.OFFLINE
+        return core_enums.RuntimeStates.OFFLINE
 
 
 class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
+    """
+    Mixin to provide state tracking.
+
+    Adds a state field with predefined states.
+    """
+
     """
     Mixin implementing finite state machine (FSM) functionality.
 
@@ -720,54 +722,62 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
         abstract = True
 
     state = FSMIntegerField(
-        default=CoreStates.CREATION_SCHEDULED,
-        choices=CoreStates.choices,
+        default=core_enums.CoreStates.CREATION_SCHEDULED,
+        choices=core_enums.CoreStates.choices,
     )
 
     @transition(
-        field=state, source=CoreStates.CREATION_SCHEDULED, target=CoreStates.CREATING
+        field=state,
+        source=core_enums.CoreStates.CREATION_SCHEDULED,
+        target=core_enums.CoreStates.CREATING,
     )
     def begin_creating(self):
         pass
 
     @transition(
-        field=state, source=CoreStates.UPDATE_SCHEDULED, target=CoreStates.UPDATING
+        field=state,
+        source=core_enums.CoreStates.UPDATE_SCHEDULED,
+        target=core_enums.CoreStates.UPDATING,
     )
     def begin_updating(self):
         if hasattr(self, "update_triggered"):
             self.update_triggered = django_timezone.now()
 
     @transition(
-        field=state, source=CoreStates.DELETION_SCHEDULED, target=CoreStates.DELETING
+        field=state,
+        source=core_enums.CoreStates.DELETION_SCHEDULED,
+        target=core_enums.CoreStates.DELETING,
     )
     def begin_deleting(self):
         pass
 
     @transition(
         field=state,
-        source=[CoreStates.OK, CoreStates.ERRED],
-        target=CoreStates.UPDATE_SCHEDULED,
+        source=[core_enums.CoreStates.OK, core_enums.CoreStates.ERRED],
+        target=core_enums.CoreStates.UPDATE_SCHEDULED,
     )
     def schedule_updating(self):
         pass
 
     @transition(
         field=state,
-        source=[CoreStates.OK, CoreStates.ERRED],
-        target=CoreStates.DELETION_SCHEDULED,
+        source=[core_enums.CoreStates.OK, core_enums.CoreStates.ERRED],
+        target=core_enums.CoreStates.DELETION_SCHEDULED,
     )
     def schedule_deleting(self):
         pass
 
-    @transition(field=state, source="*", target=CoreStates.OK)
+    @transition(field=state, source="*", target=core_enums.CoreStates.OK)
     def set_ok(self):
         pass
 
-    @transition(field=state, source="*", target=CoreStates.ERRED)
+    @transition(field=state, source="*", target=core_enums.CoreStates.ERRED)
     def set_erred(self):
         pass
 
-    @transition(field=state, source=CoreStates.ERRED, target=CoreStates.OK)
+    @transition(
+        field=state, source=core_enums.CoreStates.ERRED, target=core_enums.CoreStates.OK
+    )
     def recover(self):
         pass
 

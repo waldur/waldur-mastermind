@@ -502,20 +502,20 @@ def collect_local_permissions(
 
 
 def parse_resource_state(serialized_state: str) -> int:
-    return {v: k for (k, v) in ResourceStates.CHOICES}[serialized_state]
+    return {v: k for (k, v) in ResourceStates.choices}[serialized_state]
 
 
 def parse_order_state(serialized_state: str) -> int:
-    return {v: k for (k, v) in OrderStates.CHOICES}[serialized_state]
+    return {v: k for (k, v) in OrderStates.choices}[serialized_state]
 
 
 def parse_order_type(serialized_state: str) -> int:
-    return {v: k for (k, v) in OrderTypes.CHOICES}[serialized_state]
+    return {v: k for (k, v) in OrderTypes.choices}[serialized_state]
 
 
 def parse_offering_state(serialized_state: str) -> int:
     return {
-        state_name: state_id for state_id, state_name in OfferingStates.CHOICES
+        state_name: state_id for state_id, state_name in OfferingStates.choices
     }.get(serialized_state, OfferingStates.DRAFT)
 
 

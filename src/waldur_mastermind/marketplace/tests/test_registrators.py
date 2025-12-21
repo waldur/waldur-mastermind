@@ -7,7 +7,7 @@ from rest_framework import test
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
-from waldur_mastermind.marketplace.enums import OrderTypes
+from waldur_mastermind.marketplace.enums import OrderTypes, ResourceStates
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 
@@ -87,11 +87,11 @@ class TestPrepaidCreationBilling(PrepaidBillingTestBase):
             plan=self.plan,
             project=self.fixture.project,
             limits={"storage-prepaid": 100},
-            state=models.Resource.States.CREATING,
+            state=ResourceStates.CREATING,
         )
 
         # Act
-        new_resource.state = models.Resource.States.OK
+        new_resource.state = ResourceStates.OK
         new_resource.save()
 
         # Assert

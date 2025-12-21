@@ -1,6 +1,6 @@
 from rest_framework import status, test
 
-from waldur_vmware import models
+from waldur_vmware import enums
 
 from . import factories, fixtures
 
@@ -71,7 +71,7 @@ class VirtualDiskExtendTest(test.APITransactionTestCase):
         self.fixture = fixtures.VMwareFixture()
         self.disk = self.fixture.disk
         self.url = factories.DiskFactory.get_url(self.disk, "extend")
-        self.disk.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_OFF
+        self.disk.vm.runtime_state = enums.VirtualMachineRuntimeStates.POWERED_OFF
         self.disk.vm.save()
 
     def test_max_disk_is_not_exceeded(self):
@@ -126,7 +126,7 @@ class VirtualDiskExtendTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_extension_is_allowed_when_vm_is_running(self):
-        self.disk.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_ON
+        self.disk.vm.runtime_state = enums.VirtualMachineRuntimeStates.POWERED_ON
         self.disk.vm.save()
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(self.url, {"size": 10 * 1024})

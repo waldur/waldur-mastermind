@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.core.validators import MinValueValidator
 from django.db import models
 
-from . import enums
+from waldur_mastermind.common.enums import Units
 
 PRICE_MAX_DIGITS = 22
 
@@ -18,16 +18,13 @@ class UnitPriceMixin(models.Model):
     class Meta:
         abstract = True
 
-    class Units(enums.Units):
-        pass
-
     unit_price = models.DecimalField(
         default=0,
         max_digits=PRICE_MAX_DIGITS,
         decimal_places=PRICE_DECIMAL_PLACES,
         validators=[MinValueValidator(Decimal("0"))],
     )
-    unit = models.CharField(default=Units.PER_DAY, max_length=30, choices=Units.CHOICES)
+    unit = models.CharField(default=Units.PER_DAY, max_length=30, choices=Units.choices)
 
 
 class ProductCodeMixin(models.Model):

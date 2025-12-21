@@ -642,5 +642,5 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
         core_serializers.ReviewCommentSerializer
     )
     approve_validators = reject_validators = [
-        core_validators.StateValidator(ReviewStates.PENDING, state_enum=ReviewStates)
+        core_validators.StateValidator(ReviewStates.PENDING)
     ]

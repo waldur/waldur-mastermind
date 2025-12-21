@@ -4,6 +4,7 @@ from django_filters.widgets import BooleanWidget
 from rest_framework import filters
 
 from waldur_core.core import filters as core_filters
+from waldur_mastermind.invoices import enums as invoices_enums
 
 from . import models
 
@@ -13,7 +14,9 @@ class InvoiceFilter(django_filters.FilterSet):
         view_name="customer-detail", field_name="customer__uuid"
     )
     customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
-    state = django_filters.MultipleChoiceFilter(choices=models.Invoice.States.CHOICES)
+    state = django_filters.MultipleChoiceFilter(
+        choices=invoices_enums.InvoiceStates.choices
+    )
     start_date = django_filters.DateFilter(field_name="created", lookup_expr="gt")
     end_date = django_filters.DateFilter(field_name="created", lookup_expr="lt")
     o = django_filters.OrderingFilter(fields=("created", "year", "month"))
@@ -59,7 +62,7 @@ class PaymentProfileFilter(django_filters.FilterSet):
     )
     organization_uuid = django_filters.UUIDFilter(field_name="organization__uuid")
     payment_type = django_filters.MultipleChoiceFilter(
-        choices=models.PaymentType.CHOICES
+        choices=invoices_enums.PaymentType.choices
     )
     o = django_filters.OrderingFilter(fields=("name", "payment_type", "is_active"))
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)

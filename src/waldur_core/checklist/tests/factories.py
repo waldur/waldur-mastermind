@@ -56,7 +56,7 @@ class QuestionFactory(
     checklist = factory.SubFactory(ChecklistFactory)
     order = factory.Sequence(int)
     question_type = enums.QuestionTypes.TEXT_INPUT
-    operator = enums.OPERATORS[2][0]  # contains
+    operator = enums.Operators.CONTAINS
 
     @classmethod
     def get_admin_url(cls, question=None, action=None):
@@ -103,7 +103,7 @@ class QuestionDependencyFactory(factory.django.DjangoModelFactory):
     question = factory.SubFactory(QuestionFactory)
     depends_on_question = factory.SubFactory(QuestionFactory)
     required_answer_value = ["first", "second"]
-    operator = enums.OPERATORS[2][0]
+    operator = enums.Operators.CONTAINS
 
     @classmethod
     def get_admin_url(cls, dependency=None, action=None):

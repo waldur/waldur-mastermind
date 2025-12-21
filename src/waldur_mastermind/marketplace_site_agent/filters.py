@@ -1,5 +1,6 @@
 import django_filters
 
+from waldur_core.core.filters import MappedMultipleChoiceFilter
 from waldur_mastermind.marketplace_site_agent import models
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
 
@@ -20,7 +21,7 @@ class AgentIdentityFilter(django_filters.FilterSet):
 class AgentServiceFilter(django_filters.FilterSet):
     identity_uuid = django_filters.UUIDFilter(field_name="identity__uuid")
     mode = django_filters.CharFilter(field_name="mode", lookup_expr="exact")
-    state = django_filters.MultipleChoiceFilter(choices=AgentServiceState.CHOICES)
+    state = MappedMultipleChoiceFilter(choices=AgentServiceState.choices)
 
     class Meta:
         model = models.AgentService

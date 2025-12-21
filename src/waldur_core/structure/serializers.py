@@ -30,7 +30,11 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.serializers import PermissionSerializer
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import models, utils
-from waldur_core.structure.enums import ProjectKind
+from waldur_core.structure.enums import (
+    OECD_FOS_2007_CODES_DICT,
+    OECD_FOS_2007_LABELS,
+    ProjectKind,
+)
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.managers import (
     count_customer_users,
@@ -219,10 +223,17 @@ class ProjectSerializer(
     resources_count = serializers.SerializerMethodField(
         help_text="Number of active resources in this project"
     )
-    oecd_fos_2007_label = serializers.ReadOnlyField(
-        source="get_oecd_fos_2007_code_display",
-        help_text="Human-readable label for the OECD FOS 2007 classification code",
+    oecd_fos_2007_label = serializers.SerializerMethodField(
+        help_text="Human-readable label for the OECD FOS 2007 classification code"
     )
+
+    @extend_schema_field(
+        serializers.ChoiceField(choices=OECD_FOS_2007_LABELS, allow_null=True)
+    )
+    def get_oecd_fos_2007_label(self, project: models.Project):
+        if project.oecd_fos_2007_code:
+            return OECD_FOS_2007_CODES_DICT.get(project.oecd_fos_2007_code)
+
     description = core_serializers.HTMLCleanField(
         required=False,
         allow_blank=True,
@@ -509,11 +520,11 @@ class CountrySerializerMixin(serializers.Serializer):
         allow_blank=True,
         help_text="Country code (ISO 3166-1 alpha-2)",
     )
-    country_name = serializers.CharField(
-        read_only=True,
-        source="get_country_display",
-        help_text="Human-readable country name",
-    )
+    country_name = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_blank=True))
+    def get_country_name(self, customer):
+        return customer.get_country_display() if customer.country else ""
 
     def get_fields(self):
         fields = super().get_fields()
@@ -1522,9 +1533,12 @@ class BaseResourceSerializer(
     service_settings_uuid = serializers.UUIDField(
         read_only=True, source="service_settings.uuid"
     )
-    service_settings_state = serializers.CharField(
-        read_only=True, source="service_settings.get_state_display"
-    )
+    service_settings_state = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ChoiceField(choices=CoreStates.labels))
+    def get_service_settings_state(self, resource):
+        return resource.service_settings.get_state_display()
+
     service_settings_error_message = serializers.CharField(
         read_only=True, source="service_settings.error_message"
     )

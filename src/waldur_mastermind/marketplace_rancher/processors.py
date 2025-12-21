@@ -38,7 +38,7 @@ from waldur_openstack import views as os_views
 from waldur_openstack.utils import volume_type_name_to_quota_name
 from waldur_rancher import exceptions
 from waldur_rancher import models as rancher_models
-from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE, NodeRoleType
+from waldur_rancher.enums import NodeRole
 from waldur_rancher.executors import ClusterCreateExecutor, ClusterDeleteExecutor
 from waldur_rancher.serializers import RancherClusterCreateSerializer
 from waldur_rancher.validators import related_vm_can_be_deleted
@@ -208,12 +208,12 @@ class RancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         for tenant in tenants:
             for _ in range(server_nodes_count):
                 nodes.append(
-                    self.format_node(role=SERVER_ROLE, tenant=tenant),
+                    self.format_node(role=NodeRole.SERVER, tenant=tenant),
                 )
 
             for _ in range(worker_nodes_count):
                 nodes.append(
-                    self.format_node(role=AGENT_ROLE, tenant=tenant),
+                    self.format_node(role=NodeRole.AGENT, tenant=tenant),
                 )
 
         attributes = {
@@ -226,7 +226,7 @@ class RancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
     def format_node(
         self,
-        role: NodeRoleType,
+        role: NodeRole,
         tenant: os_models.Tenant,
     ):
         rancher_offering = self.order.offering
@@ -239,7 +239,7 @@ class RancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             or STORAGE_MODE_FIXED
         )
 
-        if role == SERVER_ROLE:
+        if role == NodeRole.SERVER:
             flavor = os_models.Flavor.objects.get(
                 settings=os_service_settings,
                 name=rancher_offering.plugin_options[
@@ -289,7 +289,7 @@ class RancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             "filesystem": "btrfs",
         }
         if storage_mode == STORAGE_MODE_DYNAMIC:
-            if role == SERVER_ROLE:
+            if role == NodeRole.SERVER:
                 system_volume_type_name = rancher_offering.plugin_options.get(
                     "managed_rancher_server_system_volume_type_name"
                 )
@@ -328,7 +328,7 @@ class RancherCreateProcessor(processors.AbstractCreateResourceProcessor):
 
         # Setup Longhorn volume if needed
         install_longhorn = self.order.attributes.get("install_longhorn", False)
-        if install_longhorn and role == AGENT_ROLE:
+        if install_longhorn and role == NodeRole.AGENT:
             longhorn_volume_size = self.order.attributes[
                 "worker_nodes_longhorn_volume_size"
             ]

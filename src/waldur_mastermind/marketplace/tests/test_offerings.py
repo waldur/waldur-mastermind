@@ -33,7 +33,7 @@ from waldur_core.permissions.fixtures import (
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import UserFactory
-from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, serializers, utils
 from waldur_mastermind.marketplace.enums import (
@@ -862,7 +862,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             "plans": [
                 {
                     "name": "Small",
-                    "unit": UnitPriceMixin.Units.PER_MONTH,
+                    "unit": Units.PER_MONTH,
                 }
             ],
         }

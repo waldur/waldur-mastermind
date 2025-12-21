@@ -8,7 +8,11 @@ from rest_framework import status, test
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models, tasks
-from waldur_mastermind.proposal.enums import ProposalStates
+from waldur_mastermind.proposal.enums import (
+    AllocationStrategy,
+    ProposalStates,
+    ReviewStrategy,
+)
 from waldur_mastermind.proposal.tests import fixtures
 
 from . import factories
@@ -158,8 +162,8 @@ class RoundCreateTest(test.APITransactionTestCase):
             "cutoff_time": (
                 datetime.date.today() + datetime.timedelta(days=2)
             ).strftime("%Y-%m-%dT%H:%M:%S"),
-            "review_strategy": models.Round.ReviewStrategies.AFTER_PROPOSAL,
-            "deciding_entity": models.Round.AllocationStrategies.BY_CALL_MANAGER,
+            "review_strategy": ReviewStrategy.AFTER_PROPOSAL,
+            "deciding_entity": AllocationStrategy.BY_CALL_MANAGER,
             "review_duration_in_days": 2,
             "minimum_number_of_reviewers": 3,
             "minimal_average_scoring": 3.0,

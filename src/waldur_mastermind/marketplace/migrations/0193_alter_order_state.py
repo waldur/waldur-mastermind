@@ -15,10 +15,10 @@ class Migration(migrations.Migration):
             name="state",
             field=django_fsm.FSMIntegerField(
                 choices=[
+                    (9, "pending-start-date"),
+                    (8, "pending-project"),
                     (1, "pending-consumer"),
                     (7, "pending-provider"),
-                    (8, "pending-project"),
-                    (9, "pending-start-date"),
                     (2, "executing"),
                     (3, "done"),
                     (4, "erred"),

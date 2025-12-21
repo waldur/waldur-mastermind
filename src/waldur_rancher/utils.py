@@ -23,11 +23,7 @@ from waldur_openstack.utils import (
     is_volume_type_valid_for_tenant,
 )
 from waldur_openstack.views import InstanceViewSet
-from waldur_rancher.enums import (
-    KeycloakUserGroupMembershipState,
-    NodeRoleType,
-    RoleScopeType,
-)
+from waldur_rancher import enums
 
 from . import models
 
@@ -96,7 +92,7 @@ def expand_added_nodes(
                 )
         subnet = cast(SubNet, node.pop("subnet"))
         flavor = cast(Flavor, node.pop("flavor"))
-        role = cast(NodeRoleType, node.pop("role"))
+        role = cast(enums.NodeRole, node.pop("role"))
         system_volume_size = node.pop("system_volume_size", None)
         system_volume_type = node.pop("system_volume_type", None)
         data_volumes = node.pop("data_volumes", [])
@@ -177,7 +173,7 @@ def validate_data_volumes(data_volumes, tenant):
 
 def validate_flavor(
     flavor: Flavor,
-    role: NodeRoleType,
+    role: enums.NodeRole,
     tenant: Tenant,
 ):
     if not is_flavor_valid_for_tenant(flavor, tenant):
@@ -327,13 +323,13 @@ def update_cluster_nodes_states(cluster_id):
     for node in cluster.node_set.exclude(backend_id=""):
         old_state = node.state
 
-        if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
+        if node.runtime_state == enums.NodeRuntimeStates.ACTIVE:
             node.state = CoreStates.OK
         elif (
             node.runtime_state
             in [
-                models.Node.RuntimeStates.REGISTERING,
-                models.Node.RuntimeStates.UNAVAILABLE,
+                enums.NodeRuntimeStates.REGISTERING,
+                enums.NodeRuntimeStates.UNAVAILABLE,
             ]
             or not node.runtime_state
         ):
@@ -392,7 +388,7 @@ def send_user_membership_notification_email(
         "scope_type": user.group.role.scope_type.capitalize(),  # 'cluster' or 'project'
         "scope_name": scope.name,
         "role": user.group.role,
-        "user_exists": user.state == KeycloakUserGroupMembershipState.ACTIVE,
+        "user_exists": user.state == enums.KeycloakUserGroupMembershipState.ACTIVE,
         "sync_frequency_minutes": sync_frequency_minutes,
     }
 
@@ -404,7 +400,7 @@ def send_user_membership_notification_email(
 def get_keycloak_group_scope_and_settings(group: models.KeycloakGroup):
     scope_type = group.role.scope_type
     scope_uuid = group.scope_uuid
-    if scope_type == RoleScopeType.CLUSTER:
+    if scope_type == enums.RoleScopeType.CLUSTER:
         scope = models.Cluster.objects.get(uuid=scope_uuid)
         return scope, scope.settings
     else:

@@ -1,10 +1,12 @@
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.validators import BackendURLValidator
 from waldur_core.structure import serializers as structure_serializers
+from waldur_vmware.enums import VirtualMachineToolsStates
 from waldur_vmware.utils import is_basic_mode
 
 from . import constants, models
@@ -194,13 +196,14 @@ class VmwareVirtualMachineSerializer(structure_serializers.BaseResourceSerialize
         write_only=True,
     )
 
-    runtime_state = serializers.CharField(
-        source="get_runtime_state_display", read_only=True
-    )
+    runtime_state = serializers.ReadOnlyField()
+    tools_state = serializers.SerializerMethodField()
 
-    tools_state = serializers.CharField(
-        source="get_tools_state_display", read_only=True
+    @extend_schema_field(
+        serializers.ChoiceField(choices=VirtualMachineToolsStates.labels)
     )
+    def get_tools_state(self, vm):
+        return vm.get_tools_state_display()
 
     def get_guest_os_name(self, vm: models.VirtualMachine) -> str:
         return constants.GUEST_OS_CHOICES.get(vm.guest_os)

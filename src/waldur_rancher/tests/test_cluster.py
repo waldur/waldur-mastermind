@@ -13,8 +13,12 @@ from waldur_core.structure.tests.factories import (
     SshPublicKeyFactory,
     UserFactory,
 )
-from waldur_mastermind.marketplace.enums import RANCHER_OFFERING, OrderTypes
-from waldur_mastermind.marketplace.models import Order, Resource
+from waldur_mastermind.marketplace.enums import (
+    RANCHER_OFFERING,
+    OrderTypes,
+    ResourceStates,
+)
+from waldur_mastermind.marketplace.models import Order
 from waldur_mastermind.marketplace.tests.factories import (
     OfferingFactory,
     OrderFactory,
@@ -706,7 +710,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         self.resource = ResourceFactory(
             project=self.fixture.project,
             offering=OfferingFactory(type=RANCHER_OFFERING),
-            state=Resource.States.OK,
+            state=ResourceStates.OK,
             scope=self.cluster,
         )
 
@@ -734,7 +738,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         self.cluster.state = CoreStates.CREATION_SCHEDULED
         self.cluster.save()
-        self.resource.state = Resource.States.CREATING
+        self.resource.state = ResourceStates.CREATING
         self.resource.save()
 
         response = self.client.post(self.url)

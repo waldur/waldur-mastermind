@@ -25,6 +25,7 @@ from waldur_mastermind.marketplace.utils import (
 )
 from waldur_mastermind.marketplace_openstack.processors import InstanceDeleteProcessor
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
+from waldur_openstack import enums
 from waldur_openstack import models as openstack_models
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests import (
@@ -704,7 +705,7 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         self.resource.state = ResourceStates.OK
         self.resource.save()
         self.instance.state = CoreStates.OK
-        self.instance.runtime_state = openstack_models.Instance.RuntimeStates.ACTIVE
+        self.instance.runtime_state = enums.InstanceRuntimeStates.ACTIVE
         self.instance.save()
         self.order.state = OrderStates.DONE
         self.order.save()

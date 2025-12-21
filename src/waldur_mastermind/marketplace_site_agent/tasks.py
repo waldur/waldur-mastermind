@@ -12,6 +12,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
+    IntegrationStatusStates,
     OfferingStates,
     OrderStates,
     ResourceStates,
@@ -65,7 +66,7 @@ def sync_offering_users():
 def mark_offering_backend_as_disconnected_after_timeout():
     one_hour_ago = timezone.now() - datetime.timedelta(hours=1)
     integration_statuses = marketplace_models.IntegrationStatus.objects.filter(
-        status=marketplace_models.IntegrationStatus.States.ACTIVE,
+        status=IntegrationStatusStates.ACTIVE,
         offering__type=SITE_AGENT_OFFERING,
         last_request_timestamp__lt=one_hour_ago,
     )

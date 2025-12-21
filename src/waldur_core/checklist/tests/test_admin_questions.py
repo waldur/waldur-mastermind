@@ -66,13 +66,13 @@ class QuestionAdminCreateTest(test.APITransactionTestCase):
         user = self.fixture.staff
         self.client.force_authenticate(user)
         payload = self._get_payload()
-        payload["operator"] = enums.OPERATORS[2][0]
+        payload["operator"] = enums.Operators.CONTAINS
         payload["review_answer_value"] = ["answer"]
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         payload = self._get_payload()
-        payload["operator"] = enums.OPERATORS[2][0]
+        payload["operator"] = enums.Operators.CONTAINS
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Both", response.json()["non_field_errors"][0])
@@ -81,7 +81,7 @@ class QuestionAdminCreateTest(test.APITransactionTestCase):
         user = self.fixture.staff
         self.client.force_authenticate(user)
         payload = self._get_payload()
-        payload["operator"] = enums.OPERATORS[3][0]
+        payload["operator"] = enums.Operators.IN
         payload["review_answer_value"] = ["answer"]
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -91,7 +91,7 @@ class QuestionAdminCreateTest(test.APITransactionTestCase):
         user = self.fixture.staff
         self.client.force_authenticate(user)
         payload = self._get_payload()
-        payload["operator"] = enums.OPERATORS[2][0]
+        payload["operator"] = enums.Operators.CONTAINS
         payload["review_answer_value"] = "answer"
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

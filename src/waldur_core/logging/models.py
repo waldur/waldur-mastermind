@@ -19,6 +19,8 @@ from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.utils import send_mail
 
+from . import enums
+
 logger = logging.getLogger(__name__)
 
 
@@ -100,14 +102,9 @@ class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
 
 
 class WebHook(BaseHook):
-    class ContentTypeChoices:
-        JSON = 1
-        FORM = 2
-        CHOICES = ((JSON, "json"), (FORM, "form"))
-
     destination_url = models.URLField()
     content_type = models.SmallIntegerField(
-        choices=ContentTypeChoices.CHOICES, default=ContentTypeChoices.JSON
+        choices=enums.WebHookContentType.choices, default=enums.WebHookContentType.JSON
     )
 
     def process(self, event):
@@ -122,7 +119,7 @@ class WebHook(BaseHook):
         )
 
         # encode event as JSON
-        if self.content_type == WebHook.ContentTypeChoices.JSON:
+        if self.content_type == enums.ContentTypeChoices.JSON:
             requests.post(
                 self.destination_url,
                 json=payload,
@@ -130,7 +127,7 @@ class WebHook(BaseHook):
             )
 
         # encode event as form
-        elif self.content_type == WebHook.ContentTypeChoices.FORM:
+        elif self.content_type == enums.ContentTypeChoices.FORM:
             requests.post(
                 self.destination_url,
                 data=payload,

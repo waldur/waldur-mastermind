@@ -35,8 +35,10 @@ from waldur_core.structure.managers import (
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.enums import (
+    BackendResourceRequestState,
     BillingTypes,
     CourseAccountState,
+    IntegrationStatusStates,
     OfferingStates,
     OfferingUserStates,
     OrderStates,
@@ -116,7 +118,7 @@ class OfferingFilter(
         method="filter_attributes", label="Offering attributes (JSON)"
     )
     state = core_filters.MappedMultipleChoiceFilter(
-        OfferingStates.CHOICES, label="Offering state"
+        OfferingStates.choices, label="Offering state"
     )
     organization_group_uuid = LooseMultipleChoiceFilter(
         field_name="organization_groups__uuid",
@@ -747,10 +749,10 @@ class OrderFilter(
         method="filter_service_manager", label="Service manager UUID"
     )
     state = core_filters.MappedMultipleChoiceFilter(
-        OrderStates.CHOICES, label="Order state"
+        OrderStates.choices, label="Order state"
     )
     type = core_filters.MappedMultipleChoiceFilter(
-        OrderTypes.CHOICES, label="Order type"
+        OrderTypes.choices, label="Order type"
     )
     resource = core_filters.URLFilter(
         view_name="marketplace-resource-detail",
@@ -867,7 +869,7 @@ class ResourceFilter(
     )
     backend_id = django_filters.CharFilter(label="Backend ID")
     state = core_filters.MappedMultipleChoiceFilter(
-        ResourceStates.CHOICES, label="Resource state"
+        ResourceStates.choices, label="Resource state"
     )
     runtime_state = django_filters.CharFilter(
         field_name="backend_metadata__runtime_state", label="Runtime state"
@@ -880,7 +882,7 @@ class ResourceFilter(
     )
     paused = django_filters.BooleanFilter(field_name="paused", label="Paused")
     order_state = core_filters.MappedMultipleChoiceFilter(
-        choices=OrderStates.CHOICES,
+        choices=OrderStates.choices,
         field_name="order__state",
         label="Order state",
     )
@@ -1130,7 +1132,7 @@ class BaseScopedServiceAccountFilter(django_filters.FilterSet):
     username = django_filters.CharFilter(field_name="username", label="Username")
     email = django_filters.CharFilter(lookup_expr="icontains", label="Email contains")
     state = core_filters.MappedMultipleChoiceFilter(
-        ServiceAccountState.CHOICES, label="Service account state"
+        ServiceAccountState.choices, label="Service account state"
     )
 
     class Meta:
@@ -1187,8 +1189,16 @@ class RobotAccountFilter(core_filters.CreatedModifiedFilter, django_filters.Filt
         field_name="resource__offering__customer__uuid", label="Provider UUID"
     )
     state = django_filters.ChoiceFilter(
-        choices=RobotAccountStates.CHOICES, label="Robot account state"
+        choices=[(label, label) for label in RobotAccountStates.labels],
+        label="Robot account state",
+        method="filter_state",
     )
+
+    def filter_state(self, queryset, name, value):
+        mapping = {label: val for val, label in RobotAccountStates.choices}
+        if value in mapping:
+            return queryset.filter(state=mapping[value])
+        return queryset.none()
 
     class Meta:
         model = models.RobotAccount
@@ -1466,7 +1476,7 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
         field_name="is_restricted", label="Is restricted"
     )
     state = core_filters.MappedMultipleChoiceFilter(
-        OfferingUserStates.CHOICES, label="Offering user state"
+        OfferingUserStates.choices, label="Offering user state"
     )
     has_consent = django_filters.BooleanFilter(
         method="filter_has_consent",
@@ -1587,7 +1597,7 @@ class CategoryFilter(django_filters.FilterSet):
     title = django_filters.CharFilter(lookup_expr="icontains", label="Title contains")
 
     customers_offerings_state = django_filters.MultipleChoiceFilter(
-        choices=OfferingStates.CHOICES,
+        choices=[(label, label) for label in OfferingStates.labels],
         label="Customers offerings state",
         method="filter_customers_offerings_state",
     )
@@ -1614,7 +1624,9 @@ class CategoryFilter(django_filters.FilterSet):
         offerings = models.Offering.objects.filter(customer__uuid=value)
 
         if states:
-            offerings = offerings.filter(state__in=states)
+            state_map = {label: val for val, label in OfferingStates.choices}
+            integer_states = [state_map[s] for s in states if s in state_map]
+            offerings = offerings.filter(state__in=integer_states)
 
         category_ids = offerings.values_list("category_id", flat=True)
 
@@ -1734,7 +1746,7 @@ class IntegrationStatusFilter(OfferingFilterMixin, django_filters.FilterSet):
     o = django_filters.OrderingFilter(fields=["last_request_timestamp"])
     agent_type = django_filters.CharFilter(field_name="agent_type", label="Agent type")
     status = core_filters.MappedMultipleChoiceFilter(
-        models.IntegrationStatus.States.CHOICES, label="Integration status"
+        IntegrationStatusStates.choices, label="Integration status"
     )
     customer_uuid = django_filters.CharFilter(
         field_name="offering__customer__uuid", label="Customer UUID"
@@ -1788,7 +1800,7 @@ class BackendResourceRequestFilter(
     started = django_filters.DateTimeFilter(lookup_expr="gte", label="Created after")
     finished = django_filters.DateTimeFilter(lookup_expr="gte", label="Modified after")
     state = core_filters.MappedMultipleChoiceFilter(
-        models.BackendResourceRequest.States.CHOICES,
+        BackendResourceRequestState.choices,
         label="Backend resource request state",
     )
 
@@ -1819,7 +1831,7 @@ class MaintenanceAnnouncementFilter(django_filters.FilterSet):
         field_name="maintenance_type", label="Maintenance type"
     )
     state = core_filters.MappedMultipleChoiceFilter(
-        models.MaintenanceState.CHOICES, label="Maintenance state"
+        models.MaintenanceState.choices, label="Maintenance state"
     )
     scheduled_start_after = django_filters.DateTimeFilter(
         field_name="scheduled_start", lookup_expr="gte", label="Scheduled start after"

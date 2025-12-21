@@ -660,9 +660,7 @@ class ManagedProjectViewSet(core_views.ActionsViewSet):
     detach_serializer_class = EmptySerializer
     approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
 
-    approve_validators = reject_validators = [
-        StateValidator(ReviewStates.PENDING, state_enum=ReviewStates)
-    ]
+    approve_validators = reject_validators = [StateValidator(ReviewStates.PENDING)]
 
     filter_backends = [GenericRoleFilter, DjangoFilterBackend]
     filterset_class = filters.ManagedProjectFilter

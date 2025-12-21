@@ -147,7 +147,7 @@ class Migration(migrations.Migration):
                 ("uuid", waldur_core.core.fields.UUIDField()),
                 (
                     "payment_type",
-                    waldur_mastermind.invoices.models.PaymentType(
+                    models.CharField(
                         choices=[
                             ("fixed_price", "Fixed-price contract"),
                             ("invoices", "Monthly invoices"),

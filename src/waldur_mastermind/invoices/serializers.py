@@ -18,6 +18,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.common.mixins import PRICE_DECIMAL_PLACES, PRICE_MAX_DIGITS
 from waldur_mastermind.common.utils import quantize_price
+from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes
 
@@ -263,7 +264,11 @@ class InvoiceItemMigrateToSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class CustomerDetailsSerializer(serializers.ModelSerializer):
-    country_name = serializers.ReadOnlyField(source="get_country_display")
+    country_name = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_blank=True))
+    def get_country_name(self, customer):
+        return customer.get_country_display() if customer.country else ""
 
     class Meta:
         model = structure_models.Customer
@@ -360,8 +365,8 @@ class InvoiceSerializer(
 
 class InvoiceItemCostsForPeriodSerializer(serializers.Serializer):
     period = serializers.ChoiceField(
-        choices=models.PeriodMixin.Periods.CHOICES,
-        default=models.PeriodMixin.Periods.TOTAL,
+        choices=invoices_enums.Periods.labels,
+        default=invoices_enums.Periods.TOTAL,
         help_text="Period for which statistics should be calculated.",
     )
 
@@ -794,7 +799,12 @@ class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
     organization_uuid = serializers.UUIDField(
         read_only=True, source="organization.uuid"
     )
-    payment_type_display = serializers.ReadOnlyField(source="get_payment_type_display")
+    payment_type_display = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField())
+    def get_payment_type_display(self, profile):
+        return profile.get_payment_type_display()
+
     attributes = PaymentProfileAttributesField(required=False)
 
     class Meta:
@@ -873,7 +883,7 @@ class LinkToInvoiceSerializer(serializers.Serializer):
     invoice = serializers.HyperlinkedRelatedField(
         view_name="invoice-detail",
         lookup_field="uuid",
-        queryset=models.Invoice.objects.filter(state=models.Invoice.States.PAID),
+        queryset=models.Invoice.objects.filter(state=invoices_enums.InvoiceStates.PAID),
     )
 
 

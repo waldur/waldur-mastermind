@@ -13,7 +13,12 @@ from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal import utils
-from waldur_mastermind.proposal.enums import CallStates, ProposalStates
+from waldur_mastermind.proposal.enums import (
+    CallStates,
+    ProposalStates,
+    ReviewState,
+    ReviewStrategy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +32,7 @@ def create_reviews_if_strategy_is_after_round():
         start_time__lte=timezone.now(),
         cutoff_time__lt=timezone.now(),
         call__state=CallStates.ACTIVE,
-        review_strategy=proposal_models.Round.ReviewStrategies.AFTER_ROUND,
+        review_strategy=ReviewStrategy.AFTER_ROUND,
     )
 
     for r in rounds:
@@ -41,7 +46,7 @@ def create_reviews_if_strategy_is_after_proposal():
     """Create reviews for active rounds with 'after proposal' review strategy."""
     rounds = proposal_models.Round.objects.filter(
         call__state=CallStates.ACTIVE,
-        review_strategy=proposal_models.Round.ReviewStrategies.AFTER_PROPOSAL,
+        review_strategy=ReviewStrategy.AFTER_PROPOSAL,
     )
 
     for r in rounds:
@@ -91,12 +96,12 @@ def expired_reviews_should_be_cancelled():
     """Cancel reviews that have expired."""
     for review in proposal_models.Review.objects.filter(
         state__in=(
-            proposal_models.Review.States.IN_REVIEW,
-            proposal_models.Review.States.CREATED,
+            ReviewState.IN_REVIEW,
+            ReviewState.CREATED,
         )
     ):
         if review.review_end_date <= timezone.now():
-            review.state = proposal_models.Review.States.REJECTED
+            review.state = ReviewState.REJECTED
             review.save(update_fields=["state"])
 
             event_logger.emit(
@@ -349,7 +354,7 @@ def notify_reviewer_about_assignment(review_uuid):
 @shared_task(name="waldur_mastermind.proposal.notify_reviewer_on_proposal_decision")
 def notify_reviewer_on_proposal_decision(proposal_uuid):
     proposal = proposal_models.Proposal.objects.get(uuid=proposal_uuid)
-    reviews = proposal.review_set.filter(state=proposal_models.Review.States.SUBMITTED)
+    reviews = proposal.review_set.filter(state=ReviewState.SUBMITTED)
 
     proposal_link = core_utils.format_homeport_link(
         "proposals/{proposal_uuid}/",
@@ -493,9 +498,7 @@ def notify_manager_on_round_cutoff():
             total_proposals=Count("proposal"),
             total_reviews=Count(
                 "proposal__review",
-                filter=~Q(
-                    proposal__review__state=proposal_models.Review.States.REJECTED
-                ),
+                filter=~Q(proposal__review__state=ReviewState.REJECTED),
             ),
         )
         .distinct()
@@ -545,13 +548,11 @@ def notify_manager_on_round_cutoff():
 )
 def notify_manager_when_reviews_are_completed(proposal_uuid):
     proposal = proposal_models.Proposal.objects.get(uuid=proposal_uuid)
-    completed_reviews = proposal.review_set.filter(
-        state=proposal_models.Review.States.SUBMITTED
-    )
+    completed_reviews = proposal.review_set.filter(state=ReviewState.SUBMITTED)
     incomplete_reviews = proposal.review_set.filter(
         state__in=(
-            proposal_models.Review.States.CREATED,
-            proposal_models.Review.States.IN_REVIEW,
+            ReviewState.CREATED,
+            ReviewState.IN_REVIEW,
         )
     )
 

@@ -30,6 +30,7 @@ from django.db.models.functions.math import Ceil
 from django.urls import get_resolver
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from PIL import Image
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers, status
@@ -60,6 +61,7 @@ from waldur_core.structure.managers import (
 )
 from waldur_freeipa import models as freeipa_models
 from waldur_mastermind.common.utils import create_request, mb_to_gb
+from waldur_mastermind.invoices import enums as invoices_enums
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.structures import InvoiceResourceLimitPeriodDict
 from waldur_mastermind.invoices.utils import get_full_days
@@ -583,7 +585,10 @@ def get_marketplace_plan_uuid(serializer, scope) -> str | None:
         return
 
 
-def get_marketplace_resource_state(serializer, scope) -> str | None:
+@extend_schema_field(
+    serializers.ChoiceField(choices=ResourceStates.labels, allow_null=True)
+)
+def get_marketplace_resource_state(serializer, scope):
     try:
         return models.Resource.objects.get(scope=scope).get_state_display()
     except ObjectDoesNotExist:
@@ -738,7 +743,7 @@ def move_resource(resource: models.Resource, project):
 
     for invoice_item in invoice_models.InvoiceItem.objects.filter(
         resource=resource,
-        invoice__state=invoice_models.Invoice.States.PENDING,
+        invoice__state=invoices_enums.InvoiceStates.PENDING,
         project=old_project,
     ):
         start_invoice = invoice_item.invoice
@@ -750,7 +755,7 @@ def move_resource(resource: models.Resource, project):
             ),
         )
 
-        if target_invoice.state != invoice_models.Invoice.States.PENDING:
+        if target_invoice.state != invoices_enums.InvoiceStates.PENDING:
             raise MoveResourceException(
                 "Resource moving is not possible, "
                 "because invoice items moving is not possible."

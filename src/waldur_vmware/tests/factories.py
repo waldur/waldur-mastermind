@@ -9,7 +9,7 @@ from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import ProjectFactory
-from waldur_vmware import models
+from waldur_vmware import enums, models
 
 
 class VMwareServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
@@ -93,7 +93,7 @@ class VirtualMachineFactory(
     cluster = factory.SubFactory(ClusterFactory)
 
     state = CoreStates.OK
-    runtime_state = models.VirtualMachine.RuntimeStates.POWERED_ON
+    runtime_state = enums.VirtualMachineRuntimeStates.POWERED_ON
     cores = factory.fuzzy.FuzzyInteger(1, 8, step=2)
     ram = factory.fuzzy.FuzzyInteger(1024, 10240, step=1024)
     disk = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)

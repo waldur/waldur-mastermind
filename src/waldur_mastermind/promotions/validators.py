@@ -1,9 +1,9 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
-from waldur_mastermind.promotions import models
+from waldur_mastermind.promotions.enums import CampaignState
 
 
 def check_resources(campaign):
-    if campaign.state != models.Campaign.States.DRAFT:
+    if campaign.state != CampaignState.DRAFT:
         raise ValidationError(_("You can delete draft campaigns only."))

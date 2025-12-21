@@ -3,6 +3,7 @@ import re
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.permissions.models import Role
@@ -391,7 +392,12 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
     reviewed_by_username = serializers.CharField(
         read_only=True, source="reviewed_by.username"
     )
-    state = serializers.CharField(read_only=True, source="get_state_display")
+    state = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ChoiceField(choices=ReviewStates.labels))
+    def get_state(self, permission_request):
+        return permission_request.get_state_display()
+
     scope_uuid = serializers.UUIDField(read_only=True, source="invitation.scope.uuid")
     scope_name = serializers.CharField(read_only=True, source="invitation.scope.name")
     customer_uuid = serializers.UUIDField(
