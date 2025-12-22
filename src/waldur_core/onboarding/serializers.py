@@ -108,6 +108,97 @@ class OnboardingJustificationDocumentationSerializer(serializers.ModelSerializer
         read_only_fields = ["uuid", "created"]
 
 
+class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
+    """Serializer for OnboardingJustification model."""
+
+    verification_uuid = serializers.UUIDField(
+        source="verification.uuid", read_only=True
+    )
+    legal_person_identifier = serializers.CharField(
+        source="verification.legal_person_identifier", read_only=True
+    )
+    legal_name = serializers.CharField(source="verification.legal_name", read_only=True)
+    country = serializers.CharField(source="verification.country", read_only=True)
+    supporting_documentation = OnboardingJustificationDocumentationSerializer(
+        many=True, read_only=True
+    )
+    user_full_name = serializers.CharField(source="user.get_full_name", read_only=True)
+    error_message = serializers.CharField(
+        source="verification.error_message", read_only=True
+    )
+    error_traceback = serializers.CharField(
+        source="verification.error_traceback", read_only=True
+    )
+    onboarding_metadata = serializers.SerializerMethodField(
+        help_text="Onboarding-specific data like intents, purposes extracted from checklist answers"
+    )
+    user_submitted_customer_data = serializers.SerializerMethodField(
+        help_text="Customer-related data submitted by the user via checklist answers"
+    )
+
+    class Meta:
+        model = OnboardingJustification
+        fields = [
+            "uuid",
+            "verification",
+            "verification_uuid",
+            "country",
+            "user",
+            "user_full_name",
+            "legal_person_identifier",
+            "legal_name",
+            "error_message",
+            "error_traceback",
+            "user_justification",
+            "validated_by",
+            "validated_at",
+            "validation_decision",
+            "staff_notes",
+            "supporting_documentation",
+            "onboarding_metadata",
+            "user_submitted_customer_data",
+            "created",
+            "modified",
+        ]
+        read_only_fields = [
+            "uuid",
+            "user_full_name",
+            "validated_by",
+            "validated_at",
+            "validation_decision",
+            "staff_notes",
+            "supporting_documentation",
+            "onboarding_metadata",
+            "user_submitted_customer_data",
+            "created",
+            "modified",
+        ]
+        extra_kwargs = {
+            "verification": {
+                "lookup_field": "uuid",
+                "view_name": "onboarding-verification-detail",
+            },
+            "user": {
+                "view_name": "user-detail",
+                "lookup_field": "uuid",
+                "read_only": True,
+            },
+            "validated_by": {
+                "view_name": "user-detail",
+                "lookup_field": "uuid",
+                "read_only": True,
+            },
+        }
+
+    def get_onboarding_metadata(self, obj) -> dict:
+        """Get onboarding-specific metadata with human-readable labels."""
+        return obj.verification.get_onboarding_metadata_display()
+
+    def get_user_submitted_customer_data(self, obj) -> dict:
+        """Get customer data submitted by the user during onboarding."""
+        return obj.verification.get_user_submitted_customer_data()
+
+
 class OnboardingVerificationSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for OnboardingVerification model."""
 
@@ -122,6 +213,7 @@ class OnboardingVerificationSerializer(serializers.HyperlinkedModelSerializer):
     customer_creation_error_message = serializers.SerializerMethodField(
         help_text="Reason why customer cannot be created (null if can be created)"
     )
+    justifications = OnboardingJustificationSerializer(many=True, read_only=True)
 
     class Meta:
         model = OnboardingVerification
@@ -133,6 +225,7 @@ class OnboardingVerificationSerializer(serializers.HyperlinkedModelSerializer):
             "legal_person_identifier",
             "legal_name",
             "status",
+            "justifications",
             "validation_method",
             "verified_user_roles",
             "verified_company_data",
@@ -257,97 +350,6 @@ class OnboardingRunValidationRequestSerializer(serializers.Serializer):
         allow_null=True,
         help_text="User's birth date (temporary workaround for Austrian validation)",
     )
-
-
-class OnboardingJustificationSerializer(serializers.HyperlinkedModelSerializer):
-    """Serializer for OnboardingJustification model."""
-
-    verification_uuid = serializers.UUIDField(
-        source="verification.uuid", read_only=True
-    )
-    legal_person_identifier = serializers.CharField(
-        source="verification.legal_person_identifier", read_only=True
-    )
-    legal_name = serializers.CharField(source="verification.legal_name", read_only=True)
-    country = serializers.CharField(source="verification.country", read_only=True)
-    supporting_documentation = OnboardingJustificationDocumentationSerializer(
-        many=True, read_only=True
-    )
-    user_full_name = serializers.CharField(source="user.get_full_name", read_only=True)
-    error_message = serializers.CharField(
-        source="verification.error_message", read_only=True
-    )
-    error_traceback = serializers.CharField(
-        source="verification.error_traceback", read_only=True
-    )
-    onboarding_metadata = serializers.SerializerMethodField(
-        help_text="Onboarding-specific data like intents, purposes extracted from checklist answers"
-    )
-    user_submitted_customer_data = serializers.SerializerMethodField(
-        help_text="Customer-related data submitted by the user via checklist answers"
-    )
-
-    class Meta:
-        model = OnboardingJustification
-        fields = [
-            "uuid",
-            "verification",
-            "verification_uuid",
-            "country",
-            "user",
-            "user_full_name",
-            "legal_person_identifier",
-            "legal_name",
-            "error_message",
-            "error_traceback",
-            "user_justification",
-            "validated_by",
-            "validated_at",
-            "validation_decision",
-            "staff_notes",
-            "supporting_documentation",
-            "onboarding_metadata",
-            "user_submitted_customer_data",
-            "created",
-            "modified",
-        ]
-        read_only_fields = [
-            "uuid",
-            "user_full_name",
-            "validated_by",
-            "validated_at",
-            "validation_decision",
-            "staff_notes",
-            "supporting_documentation",
-            "onboarding_metadata",
-            "user_submitted_customer_data",
-            "created",
-            "modified",
-        ]
-        extra_kwargs = {
-            "verification": {
-                "lookup_field": "uuid",
-                "view_name": "onboarding-verification-detail",
-            },
-            "user": {
-                "view_name": "user-detail",
-                "lookup_field": "uuid",
-                "read_only": True,
-            },
-            "validated_by": {
-                "view_name": "user-detail",
-                "lookup_field": "uuid",
-                "read_only": True,
-            },
-        }
-
-    def get_onboarding_metadata(self, obj) -> dict:
-        """Get onboarding-specific metadata with human-readable labels."""
-        return obj.verification.get_onboarding_metadata_display()
-
-    def get_user_submitted_customer_data(self, obj) -> dict:
-        """Get customer data submitted by the user during onboarding."""
-        return obj.verification.get_user_submitted_customer_data()
 
 
 class OnboardingJustificationCreateSerializer(serializers.Serializer):
