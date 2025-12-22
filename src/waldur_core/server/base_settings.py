@@ -248,6 +248,10 @@ import logging
 logging.getLogger("xmlschema").propagate = False
 logging.getLogger("axes").propagate = False
 
+# Disable excessive Celery task registration logging
+logging.getLogger("celery.utils.imports").setLevel(logging.WARNING)
+logging.getLogger("celery.app.autodiscover").setLevel(logging.WARNING)
+
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 LANGUAGES = (
