@@ -482,7 +482,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
             models.PermissionRequest.objects.filter(
                 invitation=invitation, created_by=user
             )
-            .exclude(state=ReviewStates.REJECTED)
+            .exclude(state__in=(ReviewStates.REJECTED, ReviewStates.CANCELED))
             .exists()
         ):
             raise ValidationError(_("Request has been created already."))
