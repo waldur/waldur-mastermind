@@ -1758,7 +1758,7 @@ class GroupInvitationSubmitRequestTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Verify response has exactly the expected fields from SubmitRequestResponseSerializer
-        expected_fields = {"uuid", "scope_name", "scope_uuid"}
+        expected_fields = {"uuid", "scope_name", "scope_uuid", "auto_approved"}
         actual_fields = set(response.data.keys())
         self.assertEqual(actual_fields, expected_fields)
 
@@ -1766,6 +1766,7 @@ class GroupInvitationSubmitRequestTest(test.APITransactionTestCase):
         self.assertIsInstance(response.data["uuid"], str)
         self.assertIsInstance(response.data["scope_name"], str)
         self.assertIsInstance(response.data["scope_uuid"], str)
+        self.assertIsInstance(response.data["auto_approved"], bool)
 
 
 class PermissionRequestCancelTest(test.APITransactionTestCase):

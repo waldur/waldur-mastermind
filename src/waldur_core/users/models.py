@@ -64,6 +64,10 @@ class GroupInvitation(
         blank=True,
         help_text="Role to grant in the auto-created project. If not specified, uses invitation.role",
     )
+    auto_approve = models.BooleanField(
+        default=False,
+        help_text="Automatically approve permission requests from users matching email patterns or affiliations",
+    )
 
     class Permissions:
         customer_path = "customer"
