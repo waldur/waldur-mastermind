@@ -51,4 +51,3 @@ def register_cleanup_handler(*model_classes):
             sender=model_class,
             dispatch_uid=f"cleanup_user_actions_for_{model_class._meta.label_lower}",
         )
-        logger.debug(f"Registered cleanup handler for {model_class._meta.label}")

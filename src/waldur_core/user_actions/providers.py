@@ -121,7 +121,6 @@ def register_provider(provider_class: BaseActionProvider):
 
     provider = provider_class()
     _providers[provider.action_type] = provider
-    logger.debug(f"Registered action provider: {provider.action_type}")
 
 
 def get_provider(action_type: str) -> BaseActionProvider | None:
