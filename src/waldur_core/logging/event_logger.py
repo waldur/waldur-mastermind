@@ -63,7 +63,7 @@ def emit(
     context = compile_context(**event_context)
     msg = str(message_template).format(**context)
     log = getattr(event_logger, level)
-    log(msg, extra={"event_type": event_type, "event_context": context})
+    log(f"EVENT_LOG: {msg}", extra={"event_type": event_type, "event_context": context})
 
     event = models.Event.objects.create(
         event_type=event_type,
