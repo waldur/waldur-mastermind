@@ -336,6 +336,37 @@ def get_generic_field_filter(
             )
     """
 
+    def get_lookup_path(model_class: type[Model]) -> str | None:
+        """
+        Determine the lookup path for the target field on a model.
+
+        Returns the lookup path string if the field can be queried, or None if the
+        model should be skipped. Supports auto-fallback to customer__<field_name>
+        for models that don't have the field directly but have a 'customer' FK
+        (e.g., ServiceProvider, CallManagingOrganisation).
+        """
+        # First, check if the model has the field as a direct database field
+        try:
+            model_class._meta.get_field(field_name)
+            return f"{field_name}__{lookup_expr}"
+        except Exception:
+            pass
+
+        # Fallback: check if model has a 'customer' FK and the target field
+        # can be accessed via customer (e.g., customer__name)
+        try:
+            customer_field = model_class._meta.get_field("customer")
+            if (
+                hasattr(customer_field, "related_model")
+                and customer_field.related_model
+            ):
+                customer_field.related_model._meta.get_field(field_name)
+                return f"customer__{field_name}__{lookup_expr}"
+        except Exception:
+            pass
+
+        return None
+
     def generic_field_filter(queryset: QuerySet, name: str, value: str) -> QuerySet:
         """
         The actual filter function that will be executed by django-filter.
@@ -347,14 +378,12 @@ def get_generic_field_filter(
 
         # This Q object will aggregate all the conditions with OR.
         query = Q()
-        lookup = (
-            f"{field_name}__{lookup_expr}"  # e.g., "uuid__exact" or "name__icontains"
-        )
 
         # Iterate over the list of models provided to the factory.
         for model_class in models_to_search:
-            # Robustness: Skip any model that doesn't have the target field.
-            if not hasattr(model_class, field_name):
+            # Determine the lookup path for this model
+            lookup = get_lookup_path(model_class)
+            if lookup is None:
                 continue
 
             # Find the primary keys of all instances of this model
