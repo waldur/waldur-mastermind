@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import serializers as checklist_serializers
+from waldur_core.structure.models import Customer
 
 from . import enums
 from .models import (
@@ -94,6 +95,23 @@ class OnboardingQuestionMetadataSerializer(serializers.HyperlinkedModelSerialize
             },
         }
         read_only_fields = ["uuid", "created", "modified"]
+
+    def validate_maps_to_customer_field(self, value):
+        """
+        Validate that the field name is a valid Customer model field
+        """
+        if not value:
+            return value
+
+        customer_field_names = [field.name for field in Customer._meta.get_fields()]
+
+        if value not in customer_field_names:
+            raise serializers.ValidationError(
+                f"'{value}' is not a valid Customer model field. "
+                f"Available fields: {', '.join(sorted(customer_field_names))}"
+            )
+
+        return value
 
 
 class OnboardingJustificationDocumentationSerializer(serializers.ModelSerializer):
