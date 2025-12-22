@@ -24,7 +24,6 @@ class UserActionsConfig(AppConfig):
                 # Try to import user_actions module from each app
                 module_name = f"{app_config.name}.user_actions"
                 importlib.import_module(module_name)
-                logger.debug(f"Loaded user action providers from {module_name}")
             except ImportError:
                 # Module doesn't exist, which is fine
                 continue
