@@ -8,6 +8,7 @@ from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_TENANT_OFFERING,
     SCRIPT_OFFERING,
     SITE_AGENT_OFFERING,
     OrderStates,
@@ -46,7 +47,11 @@ def send_pending_order_to_message_queue(
     order = instance
 
     offering = order.offering
-    if offering.type not in [SITE_AGENT_OFFERING, SCRIPT_OFFERING]:
+    if offering.type not in [
+        SITE_AGENT_OFFERING,
+        SCRIPT_OFFERING,
+        OPENSTACK_TENANT_OFFERING,
+    ]:
         return
 
     if not order.tracker.has_changed("state") or order.state not in [
