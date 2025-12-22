@@ -205,6 +205,7 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
             "is_active",
             "is_public",
             "auto_create_project",
+            "auto_approve",
             "project_name_template",
             "project_role",
             "user_affiliations",
@@ -463,6 +464,9 @@ class SubmitRequestResponseSerializer(serializers.Serializer):
     uuid = serializers.CharField(help_text="UUID of the created permission request")
     scope_name = serializers.CharField(help_text="Name of the invitation scope")
     scope_uuid = serializers.CharField(help_text="UUID of the invitation scope")
+    auto_approved = serializers.BooleanField(
+        help_text="Whether the request was automatically approved"
+    )
 
 
 class CancelRequestResponseSerializer(serializers.Serializer):

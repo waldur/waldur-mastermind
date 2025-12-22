@@ -464,7 +464,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
 
     @extend_schema(
         summary="Submit a permission request",
-        description="Creates a permission request based on a group invitation for the currently authenticated user.",
+        description="Creates a permission request based on a group invitation for the currently authenticated user. If the invitation has auto_approve enabled and the user matches the required patterns, the request is automatically approved.",
         request=None,
         responses=serializers.SubmitRequestResponseSerializer,
     )
@@ -504,6 +504,12 @@ class GroupInvitationViewSet(ProtectedViewSet):
 
         permission_request.submit()
 
+        # Auto-approve if invitation is configured for auto-approval
+        auto_approved = False
+        if invitation.auto_approve:
+            permission_request.approve(request.user)
+            auto_approved = True
+
         # Get scope details safely
         scope_name = ""
         scope_uuid = ""
@@ -517,6 +523,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
                 "uuid": permission_request.uuid.hex,
                 "scope_name": scope_name,
                 "scope_uuid": scope_uuid,
+                "auto_approved": auto_approved,
             }
         )
         response_serializer.is_valid(raise_exception=True)

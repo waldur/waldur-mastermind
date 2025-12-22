@@ -774,3 +774,128 @@ class GroupInvitationPatternTest(BaseGroupInvitationTest):
         self.client.force_authenticate(user=user)
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class GroupInvitationAutoApprovalTest(BaseGroupInvitationTest):
+    def setUp(self):
+        super().setUp()
+        self.auto_approve_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_approve=True,
+            user_email_patterns=[".*@example.com"],
+            user_affiliations=["staff"],
+        )
+        self.url = factories.CustomerGroupInvitationFactory.get_url(
+            self.auto_approve_invitation, "submit_request"
+        )
+
+    def test_matching_user_request_is_auto_approved(self):
+        """Test that permission requests from matching users are automatically approved."""
+        user = structure_factories.UserFactory(email="user@example.com")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that the response indicates auto-approval
+        self.assertTrue(response.data["auto_approved"])
+
+        # Check that the permission request was created and approved
+        permission_request = models.PermissionRequest.objects.get(
+            invitation=self.auto_approve_invitation, created_by=user
+        )
+        self.assertEqual(permission_request.state, ReviewStates.APPROVED)
+
+        # Check that user has been granted the role
+        self.assertTrue(
+            has_user(self.customer, user, self.auto_approve_invitation.role)
+        )
+
+    def test_matching_user_by_affiliation_request_is_auto_approved(self):
+        """Test that permission requests from users with matching affiliations are auto-approved."""
+        user = structure_factories.UserFactory(
+            email="other@different.com", affiliations=["staff"]
+        )
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that the response indicates auto-approval
+        self.assertTrue(response.data["auto_approved"])
+
+        # Check that the permission request was created and approved
+        permission_request = models.PermissionRequest.objects.get(
+            invitation=self.auto_approve_invitation, created_by=user
+        )
+        self.assertEqual(permission_request.state, ReviewStates.APPROVED)
+
+        # Check that user has been granted the role
+        self.assertTrue(
+            has_user(self.customer, user, self.auto_approve_invitation.role)
+        )
+
+    def test_auto_approval_disabled_requires_manual_approval(self):
+        """Test that when auto_approve is False, requests require manual approval."""
+        manual_approval_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_approve=False,
+            user_email_patterns=[".*@example.com"],
+            user_affiliations=["staff"],
+        )
+        url = factories.CustomerGroupInvitationFactory.get_url(
+            manual_approval_invitation, "submit_request"
+        )
+
+        user = structure_factories.UserFactory(email="user@example.com")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that the response indicates manual approval is needed
+        self.assertFalse(response.data["auto_approved"])
+
+        # Check that the permission request was created but NOT approved
+        permission_request = models.PermissionRequest.objects.get(
+            invitation=manual_approval_invitation, created_by=user
+        )
+        self.assertEqual(permission_request.state, ReviewStates.PENDING)
+
+        # Check that user has NOT been granted the role yet
+        self.assertFalse(has_user(self.customer, user, manual_approval_invitation.role))
+
+    def test_auto_approval_with_project_creation(self):
+        """Test auto-approval works with auto_create_project enabled."""
+        project_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_approve=True,
+            auto_create_project=True,
+            user_email_patterns=[".*@example.com"],
+            role=ProjectRole.ADMIN,
+            project_role=ProjectRole.ADMIN,
+        )
+        url = factories.CustomerGroupInvitationFactory.get_url(
+            project_invitation, "submit_request"
+        )
+
+        user = structure_factories.UserFactory(email="user@example.com")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that the response indicates auto-approval
+        self.assertTrue(response.data["auto_approved"])
+
+        # Check that the permission request was created and approved
+        permission_request = models.PermissionRequest.objects.get(
+            invitation=project_invitation, created_by=user
+        )
+        self.assertEqual(permission_request.state, ReviewStates.APPROVED)
+
+        # Check that a project was created and user has role in it
+        created_project = structure_models.Project.objects.get(
+            customer=self.customer, name=user.username
+        )
+        self.assertTrue(has_user(created_project, user, ProjectRole.ADMIN))
