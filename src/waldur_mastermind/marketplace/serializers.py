@@ -3599,7 +3599,7 @@ class OrderDetailsSerializer(BaseOrderSerializer):
 set_override(OrderDetailsSerializer, "optional_fields", ["error_traceback"])
 
 
-class OrderSetStateErredSerializer(
+class OrderErrorDetailsSerializer(
     serializers.ModelSerializer, core_serializers.AugmentedSerializerMixin
 ):
     class Meta:
