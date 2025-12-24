@@ -5319,15 +5319,19 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     reject_by_consumer_permissions = [permissions.user_can_reject_order_as_consumer]
 
+    reject_by_consumer_serializer_class = serializers.OrderErrorDetailsSerializer
+
     @extend_schema(
         summary="Reject an order (consumer)",
         description="Rejects a pending order from the consumer's side. This moves the order to the 'rejected' state.",
-        request=None,
+        request=serializers.OrderErrorDetailsSerializer,
         responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def reject_by_consumer(self, request, uuid=None):
         order: models.Order = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         if permissions.order_should_not_be_reviewed_by_consumer(order):
             raise rf_exceptions.ValidationError(
                 "Review of order by consumer is not required."
@@ -5336,6 +5340,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             raise rf_exceptions.ValidationError(
                 "Order is already reviewed by consumer."
             )
+        order.error_message = serializer.validated_data.get("error_message", "")
+        order.error_traceback = serializer.validated_data.get("error_traceback", "")
         order.review_by_consumer(request.user)
         order.reject()
         order.save()
@@ -5471,7 +5477,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     @extend_schema(
         summary="Set order state to erred (agent)",
         description="Used by external agents to report a failure during order processing. An error message and traceback can be provided.",
-        request=serializers.OrderSetStateErredSerializer,
+        request=serializers.OrderErrorDetailsSerializer,
         responses={200: None},
         examples=[
             OpenApiExample(
@@ -5498,7 +5504,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         order.save(update_fields=["error_message", "error_traceback"])
         return Response(status=status.HTTP_200_OK)
 
-    set_state_erred_serializer_class = serializers.OrderSetStateErredSerializer
+    set_state_erred_serializer_class = serializers.OrderErrorDetailsSerializer
 
     destroy_permissions = [
         permission_factory(

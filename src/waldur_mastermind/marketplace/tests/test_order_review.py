@@ -354,10 +354,10 @@ class OrderRejectByConsumerTest(test.APITransactionTestCase):
         ProjectRole.MANAGER.add_permission(PermissionEnum.REJECT_ORDER)
         ProjectRole.ADMIN.add_permission(PermissionEnum.REJECT_ORDER)
 
-    def reject_order(self, user):
+    def reject_order(self, user, data=None):
         url = factories.OrderFactory.get_url(self.order, "reject_by_consumer")
         self.client.force_authenticate(user)
-        return self.client.post(url)
+        return self.client.post(url, data=data)
 
     @data("staff", "manager", "admin", "owner")
     def test_authorized_user_can_reject_order(self, user):
@@ -384,6 +384,41 @@ class OrderRejectByConsumerTest(test.APITransactionTestCase):
         self.order.project.customer.save()
         response = self.reject_order(self.fixture.manager)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_error_details_are_saved_when_provided(self):
+        error_data = {
+            "error_message": "Test error message",
+            "error_traceback": "Test stack trace",
+        }
+        response = self.reject_order(self.fixture.staff, data=error_data)
+
+        self.order.refresh_from_db()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.order.state, OrderStates.REJECTED)
+        self.assertEqual(self.order.error_message, "Test error message")
+        self.assertEqual(self.order.error_traceback, "Test stack trace")
+
+    def test_empty_request_still_works(self):
+        response = self.reject_order(self.fixture.staff)
+
+        self.order.refresh_from_db()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.order.state, OrderStates.REJECTED)
+        self.assertEqual(self.order.error_message, "")
+        self.assertEqual(self.order.error_traceback, "")
+
+    def test_partial_error_data_works(self):
+        error_data = {"error_message": "Only message provided"}
+        response = self.reject_order(self.fixture.staff, data=error_data)
+
+        self.order.refresh_from_db()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.order.state, OrderStates.REJECTED)
+        self.assertEqual(self.order.error_message, "Only message provided")
+        self.assertEqual(self.order.error_traceback, "")
 
 
 @ddt
