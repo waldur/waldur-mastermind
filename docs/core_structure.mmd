@@ -15,6 +15,9 @@ classDiagram
         +string name
         +string slug
         +string uuid
+        +JSONField user_affiliations
+        +JSONField user_email_patterns
+        +JSONField user_identity_sources
         +float latitude
         +float longitude
         +string vat_code
@@ -64,6 +67,9 @@ classDiagram
         +string slug
         +string uuid
         +string backend_id
+        +JSONField user_affiliations
+        +JSONField user_email_patterns
+        +JSONField user_identity_sources
         +int max_service_accounts
         +string oecd_fos_2007_code
         +string name
