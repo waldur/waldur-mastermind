@@ -20,7 +20,7 @@ from waldur_core.core.views import ProtectedViewSet, ReadOnlyActionsViewSet
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import has_user
+from waldur_core.permissions.utils import has_user, validate_user_restrictions
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import Customer, Project
@@ -342,6 +342,9 @@ class InvitationViewSet(viewsets.ModelViewSet):
             ).exists():
                 raise ValidationError(_("User already has role within this scope."))
 
+        # Validate user against scope's email/affiliation restrictions
+        validate_user_restrictions(invitation.scope, request.user)
+
         invitation.accept(request.user)
 
         return Response(
@@ -496,6 +499,9 @@ class GroupInvitationViewSet(ProtectedViewSet):
                 "You are not allowed to accept this invitation. "
                 "Your email or organization must match the invitation restrictions."
             )
+
+        # Validate user against scope's email/affiliation restrictions
+        validate_user_restrictions(invitation.scope, user)
 
         permission_request = models.PermissionRequest.objects.create(
             invitation=invitation,

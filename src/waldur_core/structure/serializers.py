@@ -283,6 +283,9 @@ class ProjectSerializer(
             "termination_metadata",
             "staff_notes",
             "grace_period_days",
+            "user_email_patterns",
+            "user_affiliations",
+            "user_identity_sources",
         )
         read_only_fields = (
             "end_date_requested_by",
@@ -365,6 +368,32 @@ class ProjectSerializer(
                 if field_name not in self.Meta.read_only_fields:
                     field.read_only = True
 
+        # Handle user_email_patterns, user_affiliations, and user_identity_sources permissions
+        # Only users with CREATE_PROJECT permission on customer can edit these
+        restriction_fields = (
+            "user_email_patterns",
+            "user_affiliations",
+            "user_identity_sources",
+        )
+        for field_name in restriction_fields:
+            if field_name in fields:
+                user = self.context["request"].user
+                is_schema_generation = getattr(
+                    self.context.get("view"), "swagger_fake_view", False
+                )
+                if not is_schema_generation:
+                    customer = (
+                        self.instance.customer
+                        if isinstance(self.instance, models.Project)
+                        else None
+                    )
+                    if customer and not has_permission(
+                        self.context["request"],
+                        PermissionEnum.CREATE_PROJECT,
+                        customer,
+                    ):
+                        fields[field_name].read_only = True
+
         return fields
 
     def validate_start_date(self, start_date):
@@ -390,6 +419,11 @@ class ProjectSerializer(
                 {"end_date": _("Cannot be earlier than the current date.")}
             )
         return end_date
+
+    def validate_user_email_patterns(self, patterns):
+        """Validate that email patterns are valid regex patterns."""
+        core_models.UserDetailsMatchMixin.validate_user_email_patterns(patterns)
+        return patterns
 
     @staticmethod
     def eager_load(queryset, request=None):
@@ -629,6 +663,9 @@ class CustomerSerializer(
             "max_service_accounts",
             "project_metadata_checklist",
             "grace_period_days",
+            "user_email_patterns",
+            "user_affiliations",
+            "user_identity_sources",
         ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
             "access_subnets",
@@ -643,6 +680,9 @@ class CustomerSerializer(
             "sponsor_number",
             "max_service_accounts",
             "project_metadata_checklist",
+            "user_email_patterns",
+            "user_affiliations",
+            "user_identity_sources",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -732,6 +772,11 @@ class CustomerSerializer(
                 _("Checklist must be of type PROJECT_METADATA")
             )
         return checklist
+
+    def validate_user_email_patterns(self, patterns):
+        """Validate that email patterns are valid regex patterns."""
+        core_models.UserDetailsMatchMixin.validate_user_email_patterns(patterns)
+        return patterns
 
     def get_display_name(self, customer) -> str:
         return customer.get_display_name()
