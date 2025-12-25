@@ -25,6 +25,17 @@ class QuestionFilter(django_filters.FilterSet):
         field_name="checklist__checklist_type",
         choices=enums.ChecklistTypes.CHOICES,
     )
+    has_onboarding_mapping = django_filters.BooleanFilter(
+        help_text="Filter questions that have onboarding metadata mapping",
+        method="filter_has_onboarding_mapping",
+    )
+
+    def filter_has_onboarding_mapping(self, queryset, name, value):
+        """Filter questions based on whether they have onboarding metadata."""
+        if value:
+            return queryset.filter(onboarding_metadata__isnull=False)
+        else:
+            return queryset.filter(onboarding_metadata__isnull=True)
 
     class Meta:
         model = models.Question
