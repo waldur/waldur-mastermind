@@ -20,6 +20,7 @@ class Project(
     core_models.DescendantMixin,          # Hierarchical relationships
     core_models.BackendMixin,             # Backend integration
     core_models.SlugMixin,                # URL-friendly slug
+    core_models.UserDetailsMatchMixin,    # User email/affiliation restrictions
     quotas_models.ExtendableQuotaModelMixin, # Quota management
     PermissionMixin,                      # Access control
     StructureLoggableMixin,               # Event logging
@@ -42,6 +43,9 @@ class Project(
 | `type` | ForeignKey(ProjectType) | Project categorization |
 | `kind` | CharField | Project kind (DEFAULT, COURSE, PUBLIC) |
 | `termination_metadata` | JSONField | Recovery metadata for terminated projects |
+| `user_email_patterns` | JSONField | Regex patterns for allowed user emails |
+| `user_affiliations` | JSONField | List of allowed user affiliations |
+| `user_identity_sources` | JSONField | List of allowed identity providers |
 
 ## Project Lifecycle
 
@@ -171,6 +175,35 @@ Projects use the permissions system through generic foreign keys:
 
 - **Scope**: Project instance
 - **Roles**: PROJECT_ADMIN, PROJECT_MANAGER, PROJECT_MEMBER
+
+### User Restrictions
+
+Projects can restrict which users can be added as members based on email patterns, affiliations, or identity sources. These restrictions are enforced during:
+
+- Direct membership via API (`add_user` endpoint)
+- Invitation acceptance
+- GroupInvitation request approval
+
+**Restriction Fields**:
+
+| Field | Description |
+|-------|-------------|
+| `user_email_patterns` | Regex patterns for allowed emails (e.g., `[".*@university.edu"]`) |
+| `user_affiliations` | List of allowed affiliations (e.g., `["staff", "faculty"]`) |
+| `user_identity_sources` | List of allowed identity providers (e.g., `["eduGAIN", "SAML"]`) |
+
+**Validation Logic**:
+
+- **OR within restrictions**: User matches if ANY email pattern OR ANY affiliation OR ANY identity source matches
+- **AND with parent**: Project restrictions are checked AFTER customer restrictions pass
+- **Empty allows all**: If no restrictions are set, any user is allowed
+- **Staff NOT exempt**: Restrictions apply to all users including staff
+
+**Permission to Set Restrictions**:
+
+Only users with `CREATE_PROJECT` permission on the customer can set or modify project user restrictions.
+
+For detailed documentation on user restrictions, see [Invitations - User Restrictions](invitations.md#user-restrictions).
 
 ### Resource Management
 

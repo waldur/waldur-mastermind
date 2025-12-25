@@ -210,6 +210,7 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
             "project_role",
             "user_affiliations",
             "user_email_patterns",
+            "user_identity_sources",
             "scope_image",
         )
         read_only_fields = BaseInvitationSerializer.Meta.read_only_fields + (

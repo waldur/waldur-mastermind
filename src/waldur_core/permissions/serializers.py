@@ -16,6 +16,7 @@ from waldur_core.permissions.utils import (
     get_update_permission,
     has_permission,
     has_user,
+    validate_user_restrictions,
 )
 from waldur_core.structure.permissions import _get_customer
 
@@ -287,6 +288,10 @@ class UserRoleCreateSerializer(UserRoleMutateSerializer):
 
         if not role.is_active:
             raise ValidationError("Role is not active.")
+
+        # Validate user against scope's email/affiliation restrictions
+        validate_user_restrictions(scope, target_user)
+
         return attrs
 
 

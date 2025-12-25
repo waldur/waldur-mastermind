@@ -193,6 +193,7 @@ class GroupInvitation(BaseInvitation):
     # User pattern matching
     user_email_patterns: JSONField  # Email patterns for matching users
     user_affiliations: JSONField    # Affiliation patterns
+    user_identity_sources: JSONField  # Allowed identity providers (e.g., eduGAIN, SAML)
 
     # Project creation alternative
     auto_create_project: BooleanField      # Create project instead of customer role
@@ -249,6 +250,125 @@ def can_manage_invitation_with(request, scope):
 - **GroupInvitationFilterBackend**: Controls group invitation visibility, allows public invitations for unauthenticated users
 - **PendingInvitationFilter**: Filters invitations user can accept
 - **VisibleInvitationFilter**: Controls invitation detail visibility
+
+## User Restrictions
+
+Customers and Projects can define user restrictions that control which users can be added as members. These restrictions apply to both direct membership (via `add_user` API) and invitation acceptance. GroupInvitations can add additional restrictions on top of scope restrictions but cannot bypass them.
+
+### Restriction Fields
+
+Both Customer and Project models support the following restriction fields:
+
+```python
+# Available on Customer and Project models
+user_email_patterns: JSONField   # Regex patterns for allowed emails
+user_affiliations: JSONField     # List of allowed affiliations
+user_identity_sources: JSONField # List of allowed identity providers
+```
+
+### Validation Logic
+
+Restrictions use **OR logic within a level** and **AND logic across levels**:
+
+- **Within a level**: User matches if ANY email pattern OR ANY affiliation OR ANY identity source matches
+- **Across levels**: User must pass ALL levels that have restrictions set
+
+```mermaid
+flowchart TD
+    A[User attempts to join] --> B{Customer has restrictions?}
+    B -->|Yes| C{User matches Customer restrictions?}
+    B -->|No| D{Project has restrictions?}
+    C -->|No| REJECT[Rejected - Customer restrictions not met]
+    C -->|Yes| D
+    D -->|Yes| E{User matches Project restrictions?}
+    D -->|No| F{GroupInvitation has restrictions?}
+    E -->|No| REJECT2[Rejected - Project restrictions not met]
+    E -->|Yes| F
+    F -->|Yes| G{User matches GroupInvitation restrictions?}
+    F -->|No| ALLOW[Allowed]
+    G -->|No| REJECT3[Rejected - GroupInvitation restrictions not met]
+    G -->|Yes| ALLOW
+```
+
+### Cascade Validation Table
+
+| Customer | Project | GroupInvitation | User Must Match |
+|----------|---------|-----------------|-----------------|
+| No restrictions | No restrictions | No restrictions | Anyone allowed |
+| Has restrictions | No restrictions | No restrictions | Customer only |
+| No restrictions | Has restrictions | No restrictions | Project only |
+| Has restrictions | Has restrictions | No restrictions | Customer AND Project |
+| Has restrictions | Has restrictions | Has restrictions | Customer AND Project AND GroupInvitation |
+
+### Permission to Set Restrictions
+
+| Scope | Who Can Set Restrictions |
+|-------|-------------------------|
+| Customer | Staff users only (`is_staff=True`) |
+| Project | Users with `CREATE_PROJECT` permission on customer |
+| GroupInvitation | Invitation creator (must respect scope restrictions) |
+
+### Examples
+
+#### Customer-Level Email Restriction
+
+```python
+# Only users from specific domains can join this customer
+customer.user_email_patterns = [".*@university.edu", ".*@research.org"]
+customer.save()
+
+# User with email "john@university.edu" can be added - matches pattern
+# User with email "jane@gmail.com" cannot be added - no pattern match
+```
+
+#### Project-Level Affiliation Restriction
+
+```python
+# Project requires staff or faculty affiliation
+project.user_affiliations = ["staff", "faculty"]
+project.save()
+
+# User with affiliations=["staff"] can be added
+# User with affiliations=["student"] cannot be added
+```
+
+#### Identity Source Restriction
+
+```python
+# Only allow users authenticated via specific identity providers
+customer.user_identity_sources = ["eduGAIN", "SAML"]
+customer.save()
+
+# User with identity_source="eduGAIN" can be added
+# User with identity_source="local" cannot be added
+```
+
+#### Combined Customer and Project Restrictions
+
+```python
+# Customer requires university email
+customer.user_email_patterns = [".*@university.edu"]
+customer.save()
+
+# Project within customer requires staff affiliation
+project.user_affiliations = ["staff"]
+project.save()
+
+# User must match BOTH:
+# - Email must match .*@university.edu
+# - Affiliation must include "staff"
+```
+
+### Important Notes
+
+1. **Staff users are NOT exempt**: Restrictions apply to all users including staff
+2. **Empty restrictions allow all**: If no restrictions are set, any user is allowed
+3. **GroupInvitation inherits scope restrictions**: GroupInvitation cannot bypass Customer/Project restrictions
+4. **Validation occurs at multiple points**:
+   - Direct membership via `POST /customers/{uuid}/add_user/` or `POST /projects/{uuid}/add_user/`
+   - Invitation acceptance via `POST /invitations/{uuid}/accept/`
+   - GroupInvitation request via `POST /group-invitations/{uuid}/submit_request/`
+   - PermissionRequest approval
 
 ## Background Processing
 
@@ -364,13 +484,17 @@ project_name_template = "{user.full_name} Project"
 Group invitations support sophisticated user matching:
 
 ```python
-# Email patterns
-user_email_patterns = ["*@company.com", "*@university.edu"]
+# Email patterns (regex)
+user_email_patterns = [".*@company.com", ".*@university.edu"]
 
-# Affiliation patterns
-user_affiliations = ["ACME Corp", "State University"]
+# Affiliation patterns (exact match)
+user_affiliations = ["staff", "student", "faculty"]
+
+# Identity sources (exact match)
+user_identity_sources = ["eduGAIN", "SAML", "local"]
 
 # Validation logic in GroupInvitation.get_objects_by_user_patterns()
+# Uses OR logic: user matches if ANY email pattern OR ANY affiliation OR ANY identity source matches
 ```
 
 ### Token-Based Security

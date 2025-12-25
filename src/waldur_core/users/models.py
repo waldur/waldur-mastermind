@@ -14,7 +14,7 @@ from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core.mixins import ProjectNameTemplateMixin
 from waldur_core.permissions.models import Role
-from waldur_core.permissions.utils import add_user
+from waldur_core.permissions.utils import add_user, validate_user_restrictions
 from waldur_core.structure.models import Customer
 from waldur_core.structure.signals import permissions_request_approved
 from waldur_core.users.enums import InvitationState
@@ -222,6 +222,9 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
     @transaction.atomic
     def approve(self, user: core_models.User, comment: str = None):
         super().approve(user, comment)
+
+        # Validate the requesting user against scope's email/affiliation restrictions
+        validate_user_restrictions(self.invitation.scope, self.created_by)
 
         if self.invitation.auto_create_project:
             # Create project and grant project permission instead of customer permission

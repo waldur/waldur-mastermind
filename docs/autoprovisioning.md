@@ -30,9 +30,10 @@ The `Rule` model (`src/waldur_autoprovisioning/models.py:11`) defines auto-provi
 Rules use the `UserDetailsMatchMixin` for pattern matching:
 
 - **user_email_patterns**: Regex patterns for email matching (e.g., `[".+@example.com"]`)
-- **user_affiliations**: Organization affiliations for matching
+- **user_affiliations**: Organization affiliations for matching (e.g., `["staff", "faculty"]`)
+- **user_identity_sources**: Identity provider matching (e.g., `["eduGAIN", "SAML"]`)
 
-Pattern matching supports standard regex syntax and handles invalid patterns gracefully.
+Pattern matching uses OR logic: a user matches if ANY email pattern OR ANY affiliation OR ANY identity source matches. Pattern matching supports standard regex syntax for email patterns and handles invalid patterns gracefully.
 
 ## Organization Mapping Feature
 
@@ -113,6 +114,8 @@ else:
     "name": "University Users Rule",
     "uuid": "...",
     "user_email_patterns": [".+@university\\.edu"],
+    "user_affiliations": ["staff", "faculty"],
+    "user_identity_sources": ["eduGAIN"],
     "customer": "customer-uuid",
     "use_user_organization_as_customer_name": false,
     "project_role": "role-uuid",

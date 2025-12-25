@@ -910,6 +910,11 @@ class UserDetailsMatchMixin(models.Model):
         default=list,
         blank=True,
     )
+    user_identity_sources = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of allowed identity sources (identity providers).",
+    )
 
     @classmethod
     def get_objects_by_user_patterns(cls, user: User, required=True):
@@ -919,12 +924,20 @@ class UserDetailsMatchMixin(models.Model):
                 not required
                 and not item.user_email_patterns
                 and not item.user_affiliations
+                and not item.user_identity_sources
             ):
                 items.append(item)
 
-            if set(user.affiliations or []) & set(item.user_affiliations) or any(
-                cls._is_pattern_match(pattern, user.email)
-                for pattern in item.user_email_patterns
+            if (
+                set(user.affiliations or []) & set(item.user_affiliations)
+                or any(
+                    cls._is_pattern_match(pattern, user.email)
+                    for pattern in item.user_email_patterns
+                )
+                or (
+                    item.user_identity_sources
+                    and user.identity_source in item.user_identity_sources
+                )
             ):
                 items.append(item)
 

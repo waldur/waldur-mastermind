@@ -2,8 +2,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.db.models.query import QuerySet
 from rest_framework import exceptions
+from rest_framework.exceptions import ValidationError
 
-from waldur_core.core.models import User
+from waldur_core.core.models import User, UserDetailsMatchMixin
 
 from . import enums, models, signals
 
@@ -249,3 +250,54 @@ def get_delete_permission(model_class):
 
 def get_update_permission(model_class):
     return enums.UPDATE_PERMISSIONS.get(model_class._meta.model_name)
+
+
+def validate_user_restrictions(scope, user):
+    """
+    Validate user matches scope's email/affiliation/identity_source restrictions.
+
+    For Projects, also validates against parent Customer restrictions.
+    User must match restrictions at each level (AND logic across levels).
+    Within a level, user must match any email pattern OR any affiliation
+    OR any identity source (OR logic).
+
+    Raises ValidationError if user doesn't match restrictions.
+    """
+    # Check if scope supports restrictions
+    if not hasattr(scope, "user_email_patterns"):
+        return
+
+    # For projects, first check customer restrictions
+    if hasattr(scope, "customer"):
+        validate_user_restrictions(scope.customer, user)
+
+    # If no restrictions set on this scope, allow
+    if (
+        not scope.user_email_patterns
+        and not scope.user_affiliations
+        and not getattr(scope, "user_identity_sources", None)
+    ):
+        return
+
+    # Check affiliation match (OR logic within affiliations)
+    if scope.user_affiliations:
+        if set(user.affiliations or []) & set(scope.user_affiliations):
+            return  # Affiliation matches
+
+    # Check email pattern match (OR logic within patterns)
+    if scope.user_email_patterns:
+        for pattern in scope.user_email_patterns:
+            if UserDetailsMatchMixin._is_pattern_match(pattern, user.email):
+                return  # Email matches
+
+    # Check identity source match (OR logic within identity sources)
+    identity_sources = getattr(scope, "user_identity_sources", None)
+    if identity_sources:
+        if user.identity_source and user.identity_source in identity_sources:
+            return  # Identity source matches
+
+    # No match found
+    scope_name = scope._meta.model_name
+    raise ValidationError(
+        f"User email, affiliation, or identity source does not match the {scope_name} restrictions."
+    )
