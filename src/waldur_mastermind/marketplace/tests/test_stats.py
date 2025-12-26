@@ -433,6 +433,117 @@ class CustomerStatsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]["count"], quota_1.delta + quota_2.delta)
 
+    def _find_customer_data(self, response_data, customer):
+        """Helper to find customer data in response by UUID."""
+        customer_uuid = str(customer.uuid)
+        return next((c for c in response_data if str(c["uuid"]) == customer_uuid), None)
+
+    def test_has_resources_is_true_when_customer_has_active_resources(self):
+        customer = self.fixture.customer
+        factories.ResourceFactory(
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get("/api/marketplace-stats/customer_member_count/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        customer_data = self._find_customer_data(response.data, customer)
+        self.assertIsNotNone(customer_data)
+        self.assertTrue(customer_data["has_resources"])
+
+    def test_has_resources_is_true_when_customer_has_updating_resources(self):
+        customer = self.fixture.customer
+        factories.ResourceFactory(
+            project=self.fixture.project,
+            state=ResourceStates.UPDATING,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get("/api/marketplace-stats/customer_member_count/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        customer_data = self._find_customer_data(response.data, customer)
+        self.assertIsNotNone(customer_data)
+        self.assertTrue(customer_data["has_resources"])
+
+    def test_has_resources_is_false_when_customer_has_no_resources(self):
+        customer = self.fixture.customer
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get("/api/marketplace-stats/customer_member_count/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        customer_data = self._find_customer_data(response.data, customer)
+        self.assertIsNotNone(customer_data)
+        self.assertFalse(customer_data["has_resources"])
+
+    def test_has_resources_is_false_when_customer_has_only_terminated_resources(self):
+        customer = self.fixture.customer
+        factories.ResourceFactory(
+            project=self.fixture.project,
+            state=ResourceStates.TERMINATED,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get("/api/marketplace-stats/customer_member_count/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        customer_data = self._find_customer_data(response.data, customer)
+        self.assertIsNotNone(customer_data)
+        self.assertFalse(customer_data["has_resources"])
+
+    def test_count_is_none_when_customer_has_no_quotas(self):
+        customer = self.fixture.customer
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get("/api/marketplace-stats/customer_member_count/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        customer_data = self._find_customer_data(response.data, customer)
+        self.assertIsNotNone(customer_data)
+        self.assertIsNone(customer_data["count"])
+
+    def test_response_includes_all_required_fields(self):
+        customer = self.fixture.customer
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get("/api/marketplace-stats/customer_member_count/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        customer_data = self._find_customer_data(response.data, customer)
+        self.assertIsNotNone(customer_data)
+        self.assertIn("uuid", customer_data)
+        self.assertIn("name", customer_data)
+        self.assertIn("abbreviation", customer_data)
+        self.assertIn("count", customer_data)
+        self.assertIn("has_resources", customer_data)
+
+    def test_multiple_customers_with_different_states(self):
+        # Create a second customer with resources and quotas
+        fixture2 = structure_fixtures.ProjectFixture()
+        customer2 = fixture2.customer
+        quotas_factories.QuotaFactory(
+            object_id=customer2.id,
+            content_type=ContentType.objects.get_for_model(customer2.__class__),
+            name="nc_user_count",
+            delta=7,
+        )
+        factories.ResourceFactory(
+            project=fixture2.project,
+            state=ResourceStates.OK,
+        )
+
+        # First customer has no resources and no quotas
+        customer1 = self.fixture.customer
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get("/api/marketplace-stats/customer_member_count/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        customer1_data = self._find_customer_data(response.data, customer1)
+        customer2_data = self._find_customer_data(response.data, customer2)
+
+        self.assertIsNotNone(customer1_data)
+        self.assertIsNotNone(customer2_data)
+
+        # Customer 1: no resources, no quotas
+        self.assertFalse(customer1_data["has_resources"])
+        self.assertIsNone(customer1_data["count"])
+
+        # Customer 2: has resources, has quotas
+        self.assertTrue(customer2_data["has_resources"])
+        self.assertEqual(customer2_data["count"], 7)
+
 
 @ddt
 class LimitsStatsTest(test.APITransactionTestCase):

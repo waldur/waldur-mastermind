@@ -17,7 +17,6 @@ from django.db import connection, transaction
 from django.db.models import (
     CharField,
     Count,
-    Exists,
     ExpressionWrapper,
     F,
     Func,
@@ -8297,23 +8296,45 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["get"])
     def customer_member_count(self, request, *args, **kwargs):
-        has_resources = models.Resource.objects.filter(
-            state__in=(ResourceStates.OK, ResourceStates.UPDATING),
-            project__customer_id=OuterRef("pk"),
+        # Pre-compute customer IDs that have active resources (single query)
+        customers_with_resources = set(
+            models.Resource.objects.filter(
+                state__in=(ResourceStates.OK, ResourceStates.UPDATING),
+            )
+            .values_list("project__customer_id", flat=True)
+            .distinct()
         )
 
-        users_count = QuotaUsage.objects.filter(
-            object_id=OuterRef("pk"),
-            content_type=ContentType.objects.get_for_model(structure_models.Customer),
-            name="nc_user_count",
+        # Pre-aggregate user counts per customer (single query with GROUP BY)
+        customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+        user_counts = dict(
+            QuotaUsage.objects.filter(
+                content_type=customer_ct,
+                name="nc_user_count",
+            )
+            .values("object_id")
+            .annotate(total=Sum("delta"))
+            .values_list("object_id", "total")
         )
 
-        customers = structure_models.Customer.objects.annotate(
-            count=core_utils.SubquerySum(users_count, "delta"),
-            has_resources=Exists(has_resources),
-        ).values("uuid", "name", "abbreviation", "count", "has_resources")
+        # Simple query for customers without correlated subqueries
+        customers = structure_models.Customer.objects.values(
+            "id", "uuid", "name", "abbreviation"
+        )
 
-        return Response(customers)
+        # Combine results in Python (very fast for reasonable customer counts)
+        result = [
+            {
+                "uuid": c["uuid"],
+                "name": c["name"],
+                "abbreviation": c["abbreviation"],
+                "count": user_counts.get(c["id"]),
+                "has_resources": c["id"] in customers_with_resources,
+            }
+            for c in customers
+        ]
+
+        return Response(result)
 
     @extend_schema(
         description="Return resources limits per offering.",
