@@ -412,3 +412,118 @@ class HasUserUtilTest(TestCase):
 
         result = utils.has_user(self.customer, self.user, self.role)
         self.assertFalse(result)
+
+
+class BulkPermissionTest(TestCase):
+    """Tests for has_any_permission and has_all_permissions utilities."""
+
+    def setUp(self):
+        self.fixture = fixtures.CustomerFixture()
+        self.customer = self.fixture.customer
+        self.owner = self.fixture.owner
+        self.user = factories.UserFactory()
+        self.staff_user = factories.UserFactory(is_staff=True)
+        # Add specific permissions to customer owner role
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+
+    def test_has_any_permission_returns_true_when_user_has_one(self):
+        """Test that has_any_permission returns True when user has at least one permission."""
+        permissions = [PermissionEnum.CREATE_OFFERING, PermissionEnum.DELETE_OFFERING]
+        result = utils.has_any_permission(self.owner, permissions, self.customer)
+        self.assertTrue(result)
+
+    def test_has_any_permission_returns_false_when_user_has_none(self):
+        """Test that has_any_permission returns False when user has no permissions."""
+        permissions = [PermissionEnum.CREATE_OFFERING, PermissionEnum.DELETE_OFFERING]
+        result = utils.has_any_permission(self.user, permissions, self.customer)
+        self.assertFalse(result)
+
+    def test_has_all_permissions_returns_true_when_user_has_all(self):
+        """Test that has_all_permissions returns True when user has all permissions."""
+        permissions = [PermissionEnum.CREATE_OFFERING, PermissionEnum.UPDATE_OFFERING]
+        result = utils.has_all_permissions(self.owner, permissions, self.customer)
+        self.assertTrue(result)
+
+    def test_has_all_permissions_returns_false_when_user_lacks_one(self):
+        """Test that has_all_permissions returns False when user lacks any permission."""
+        permissions = [PermissionEnum.CREATE_OFFERING, PermissionEnum.DELETE_OFFERING]
+        result = utils.has_all_permissions(self.owner, permissions, self.customer)
+        self.assertFalse(result)
+
+    def test_staff_user_passes_any_permission_check(self):
+        """Test that staff users pass all bulk permission checks."""
+        permissions = [PermissionEnum.CREATE_OFFERING, PermissionEnum.DELETE_OFFERING]
+        self.assertTrue(
+            utils.has_any_permission(self.staff_user, permissions, self.customer)
+        )
+        self.assertTrue(
+            utils.has_all_permissions(self.staff_user, permissions, self.customer)
+        )
+
+    def test_has_any_permission_with_none_scope(self):
+        """Test that has_any_permission returns False for None scope."""
+        permissions = [PermissionEnum.CREATE_OFFERING]
+        result = utils.has_any_permission(self.owner, permissions, None)
+        self.assertFalse(result)
+
+    def test_has_all_permissions_with_none_scope(self):
+        """Test that has_all_permissions returns False for None scope."""
+        permissions = [PermissionEnum.CREATE_OFFERING]
+        result = utils.has_all_permissions(self.owner, permissions, None)
+        self.assertFalse(result)
+
+    def test_inactive_user_fails_any_permission_check(self):
+        """Test that inactive users fail all bulk permission checks."""
+        self.owner.is_active = False
+        self.owner.save()
+
+        permissions = [PermissionEnum.CREATE_OFFERING]
+        self.assertFalse(
+            utils.has_any_permission(self.owner, permissions, self.customer)
+        )
+        self.assertFalse(
+            utils.has_all_permissions(self.owner, permissions, self.customer)
+        )
+
+    def test_has_any_permission_accepts_request_object(self):
+        """Test that has_any_permission accepts request object."""
+        mock_request = Mock()
+        mock_request.user = self.owner
+
+        permissions = [PermissionEnum.CREATE_OFFERING]
+        result = utils.has_any_permission(mock_request, permissions, self.customer)
+        self.assertTrue(result)
+
+
+class PermissionFactoryValidationTest(TestCase):
+    """Tests for permission_factory input validation."""
+
+    def test_raises_value_error_for_invalid_permission_type(self):
+        """Test that permission_factory raises ValueError for invalid permission type."""
+        with self.assertRaises(ValueError) as context:
+            utils.permission_factory("OFFERING.CREATE")
+        self.assertIn("permission must be PermissionEnum", str(context.exception))
+
+    def test_raises_value_error_for_invalid_sources_type(self):
+        """Test that permission_factory raises ValueError for invalid sources type."""
+        with self.assertRaises(ValueError) as context:
+            utils.permission_factory(PermissionEnum.CREATE_OFFERING, sources="customer")
+        self.assertIn("sources must be a list or None", str(context.exception))
+
+    def test_accepts_valid_permission_enum(self):
+        """Test that permission_factory accepts valid PermissionEnum."""
+        result = utils.permission_factory(PermissionEnum.CREATE_OFFERING)
+        self.assertIsNotNone(result)
+
+    def test_accepts_none_sources(self):
+        """Test that permission_factory accepts None sources."""
+        result = utils.permission_factory(PermissionEnum.CREATE_OFFERING, sources=None)
+        self.assertIsNotNone(result)
+
+    def test_accepts_list_sources(self):
+        """Test that permission_factory accepts list sources."""
+        result = utils.permission_factory(
+            PermissionEnum.CREATE_OFFERING, sources=["customer"]
+        )
+        self.assertIsNotNone(result)

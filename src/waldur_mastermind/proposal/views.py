@@ -394,7 +394,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         except models.Round.DoesNotExist:
             return response.Response(status=status.HTTP_404_NOT_FOUND)
 
-        permissions_utils.permission_factory(PermissionEnum.CLOSE_ROUNDS, "*")(
+        permissions_utils.permission_factory(PermissionEnum.CLOSE_ROUNDS, ["*"])(
             request, self, call
         )
 

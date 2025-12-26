@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.db.models.query import QuerySet
@@ -8,8 +10,16 @@ from waldur_core.core.models import User, UserDetailsMatchMixin
 
 from . import enums, models, signals
 
+if TYPE_CHECKING:
+    from django.db.models import Model
+    from django.http import HttpRequest
 
-def has_permission(request, permission, scope):
+
+def has_permission(
+    request: "HttpRequest | User",
+    permission: enums.PermissionEnum,
+    scope: "Model | None",
+) -> bool:
     if isinstance(request, User):
         user = request
     else:
@@ -26,17 +36,58 @@ def has_permission(request, permission, scope):
     if scope is None:
         return False
 
-    roles = models.UserRole.objects.filter(
-        user=user, is_active=True, scope=scope
-    ).values_list("role", flat=True)
-    if not roles:
-        return False
-    return models.RolePermission.objects.filter(
-        role__in=roles, permission=permission
+    # Single query with join instead of two separate queries
+    return models.UserRole.objects.filter(
+        user=user,
+        is_active=True,
+        scope=scope,
+        role__permissions__permission=permission,
     ).exists()
 
 
+def has_any_permission(
+    request: "HttpRequest | User",
+    permissions: list[enums.PermissionEnum],
+    scope: "Model | None",
+) -> bool:
+    """Check if user has any of the given permissions in scope."""
+    if isinstance(request, User):
+        user = request
+    else:
+        user = request.user
+
+    if not user.is_active:
+        return False
+
+    if user.is_staff:
+        return True
+
+    if scope is None:
+        return False
+
+    return models.UserRole.objects.filter(
+        user=user,
+        is_active=True,
+        scope=scope,
+        role__permissions__permission__in=permissions,
+    ).exists()
+
+
+def has_all_permissions(
+    request: "HttpRequest | User",
+    permissions: list[enums.PermissionEnum],
+    scope: "Model | None",
+) -> bool:
+    """Check if user has all of the given permissions in scope."""
+    return all(has_permission(request, p, scope) for p in permissions)
+
+
 def permission_factory(permission, sources=None):
+    if not isinstance(permission, enums.PermissionEnum):
+        raise ValueError(f"permission must be PermissionEnum, got {type(permission)}")
+    if sources is not None and not isinstance(sources, list):
+        raise ValueError(f"sources must be a list or None, got {type(sources)}")
+
     def permission_function(request, view, scope=None):
         if not scope:
             return
@@ -186,7 +237,9 @@ def add_user(scope, user, role, created_by=None, expiration_time=None):
     return permission
 
 
-def update_user(scope, user, role, expiration_time=None, current_user=None):
+def update_user(
+    scope, user, role, expiration_time=None, current_user=None, reason=None
+):
     try:
         permission = models.UserRole.objects.get(
             user=user,
@@ -196,7 +249,7 @@ def update_user(scope, user, role, expiration_time=None, current_user=None):
         )
     except models.UserRole.DoesNotExist:
         return False
-    permission.set_expiration_time(expiration_time, current_user)
+    permission.set_expiration_time(expiration_time, current_user, reason=reason)
     return permission
 
 
