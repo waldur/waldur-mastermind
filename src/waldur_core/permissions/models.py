@@ -74,13 +74,19 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
     )
     objects = UserRoleManager()
 
-    def set_expiration_time(self, expiration_time, current_user=None):
+    def set_expiration_time(self, expiration_time, current_user=None, reason=None):
         self.expiration_time = expiration_time
         self.save(update_fields=["expiration_time"])
+        if not reason:
+            if current_user:
+                reason = "Manual role update via API"
+            else:
+                reason = "System-initiated role update"
         signals.role_updated.send(
             sender=self.__class__,
             instance=self,
             current_user=current_user,
+            reason=reason,
         )
 
     def revoke(self, current_user=None, reason=None):
