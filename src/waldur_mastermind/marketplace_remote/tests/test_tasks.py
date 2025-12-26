@@ -1641,6 +1641,34 @@ class RobotAccountStatesTest(testcases.TestCase):
         state = RobotAccountStates("Error")
         self.assertEqual(state, RobotAccountStates.VALUE_6)
 
+    def test_robot_account_states_enum_handles_numeric_string_values(self):
+        """
+        Test that the monkey-patched RobotAccountStates enum can handle
+        numeric string values like "3" returned by some API versions.
+
+        Fixes PUHURI-PORTALS-DC4: ValueError: 3 is not a valid RobotAccountStates
+        """
+        from waldur_api_client.models.robot_account_states import RobotAccountStates
+
+        # Test with numeric string values (new patched behavior)
+        state = RobotAccountStates("1")
+        self.assertEqual(state, RobotAccountStates.VALUE_1)
+
+        state = RobotAccountStates("2")
+        self.assertEqual(state, RobotAccountStates.VALUE_2)
+
+        state = RobotAccountStates("3")
+        self.assertEqual(state, RobotAccountStates.VALUE_3)
+
+        state = RobotAccountStates("4")
+        self.assertEqual(state, RobotAccountStates.VALUE_4)
+
+        state = RobotAccountStates("5")
+        self.assertEqual(state, RobotAccountStates.VALUE_5)
+
+        state = RobotAccountStates("6")
+        self.assertEqual(state, RobotAccountStates.VALUE_6)
+
     def test_robot_account_states_enum_handles_invalid_string_values(self):
         """
         Test that the monkey-patched RobotAccountStates enum handles invalid string values gracefully.

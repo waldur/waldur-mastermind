@@ -1021,7 +1021,11 @@ def _patched_new(cls, value):
             "Deleted": 5,
             "Error": 6,
         }
-        value = state_mapping.get(value, value)
+        if value in state_mapping:
+            value = state_mapping[value]
+        elif value.isdigit():
+            # Handle numeric strings like "3" returned by some API versions
+            value = int(value)
     return _original_new(cls, value)
 
 
