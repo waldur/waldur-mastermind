@@ -128,7 +128,18 @@ for extension_name in extensions:
     # optionally load extension configurations
     extension_conf_file_path = os.path.join(conf_dir, extension_name)
     if os.path.isfile(extension_conf_file_path):
-        exec(open(extension_conf_file_path, encoding="utf-8").read())  # nosec
+        try:
+            exec(  # nosec
+                compile(
+                    open(extension_conf_file_path, encoding="utf-8").read(),
+                    extension_conf_file_path,
+                    "exec",
+                )
+            )
+        except Exception as e:
+            raise type(e)(
+                f"Error loading extension config '{extension_conf_file_path}': {e}"
+            ) from e
 
 if not SECRET_KEY:
     raise Exception("GLOBAL_SECRET_KEY is not set")
