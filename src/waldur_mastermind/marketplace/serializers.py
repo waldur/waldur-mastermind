@@ -1749,35 +1749,35 @@ class K8sDefaultConfigurationSerializer(serializers.Serializer):
 
     # Controller node defaults
     default_controller_vcpus = serializers.IntegerField(
-        min_value=1, max_value=16, required=False
-    )
-    default_controller_ram_gb = serializers.IntegerField(
         min_value=1, max_value=64, required=False
     )
+    default_controller_ram_gb = serializers.IntegerField(
+        min_value=1, max_value=128, required=False
+    )
     default_controller_system_disk_gb = serializers.IntegerField(
-        min_value=20, max_value=500, required=False
+        min_value=1, max_value=500, required=False
     )
     default_controller_etcd_disk_gb = serializers.IntegerField(
-        min_value=10, max_value=1000, required=False
+        min_value=1, max_value=1000, required=False
     )
 
     # Load balancer defaults
     default_lb_vcpus = serializers.IntegerField(
-        min_value=1, max_value=16, required=False
+        min_value=1, max_value=32, required=False
     )
     default_lb_ram_gb = serializers.IntegerField(
-        min_value=1, max_value=64, required=False
+        min_value=1, max_value=256, required=False
     )
     default_lb_system_disk_gb = serializers.IntegerField(
-        min_value=20, max_value=500, required=False
+        min_value=1, max_value=500, required=False
     )
     default_lb_logs_disk_gb = serializers.IntegerField(
-        min_value=10, max_value=1000, required=False
+        min_value=1, max_value=2000, required=False
     )
 
     # Worker node requirements
     minimal_worker_vcpus = serializers.IntegerField(
-        min_value=1, max_value=16, required=False
+        min_value=1, max_value=32, required=False
     )
     minimal_worker_ram_gb = serializers.IntegerField(
         min_value=1, max_value=64, required=False
@@ -1785,13 +1785,13 @@ class K8sDefaultConfigurationSerializer(serializers.Serializer):
 
     # Volume defaults
     default_worker_data_disk_gb = serializers.IntegerField(
-        min_value=10, max_value=10000, required=False
+        min_value=1, max_value=10000, required=False
     )
     default_storage_data_disk_gb = serializers.IntegerField(
-        min_value=10, max_value=10000, required=False
+        min_value=1, max_value=10000, required=False
     )
     default_storage_san_disk_gb = serializers.IntegerField(
-        min_value=100, max_value=50000, required=False
+        min_value=1, max_value=50000, required=False
     )
 
     # Configuration options
