@@ -1,22 +1,49 @@
-# Valimo authentication plugin
+# Valimo Authentication Plugin
 
-Valimo endpoint allows to get Waldur authentication token using mobile
-PKI from Valimo. Please note, that only authentication is supported - no
-auto-registration is currently available.
+The Valimo plugin enables Waldur authentication using mobile PKI (Public Key Infrastructure) from Valimo.
 
-- To initiate a login process, please issue POST request against
-  `/api/auth-valimo/` endpoint providing phone number as an input.
+**Note:** Only authentication is supported - auto-registration is not available.
 
-- On that request Waldur will create a result object (`AuthResult`)
-  and request authentication from the Valimo PKI service. The result
-  object contains all the metadata about the request, including field
-  `message` - text that is sent to the user via SMS. This text is
-  typically shown to the user for validation purposes.
+## Authentication Flow
 
-- The client is expected to poll for the authentication process by
-  issuing POST requests against `/api/auth-valimo/result/` with UUID
-  in the payload of a request. Please see details in the API
-  documentation.
+### 1. Initiate Login
 
-- After a successful login, endpoint `/api/auth-valimo/result/` will
-  contain authentication token.
+Issue a POST request to `/api/auth-valimo/` with the user's phone number:
+
+```json
+{
+  "phone": "1234567890"
+}
+```
+
+Waldur will create an `AuthResult` object and request authentication from the Valimo PKI service. The response includes a `message` field containing the verification code sent to the user via SMS.
+
+### 2. Poll for Result
+
+Poll the authentication status by issuing POST requests to `/api/auth-valimo/result/` with the UUID from step 1:
+
+```json
+{
+  "uuid": "e42473f39c844333a80107e139a4dd06"
+}
+```
+
+### 3. Check Authentication State
+
+The response will contain one of the following states:
+
+| State | Description |
+|-------|-------------|
+| `Scheduled` | Login process is scheduled |
+| `Processing` | Login is in progress |
+| `OK` | Login was successful. Response will contain token. |
+| `Canceled` | Login was canceled by user or timed out. Check `details` field for more info. |
+| `Erred` | Unexpected exception during login process |
+
+### 4. Retrieve Token
+
+After successful login (`state: OK`), the `/api/auth-valimo/result/` response will contain the authentication token.
+
+## Configuration
+
+The Valimo authentication method must be enabled in Waldur settings. See the [Configuration Guide](../admin/configuration-guide.md) for details on enabling authentication methods.

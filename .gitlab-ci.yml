@@ -73,6 +73,22 @@ Run linters:
     - pip install pre-commit
     - pre-commit run --all
 
+Validate documentation:
+  image: registry.hpc.ut.ee/mirror/library/python:3.11-bullseye
+  stage: test
+  interruptible: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - docs/**/*
+        - scripts/validate_docs.py
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - docs/**/*
+        - scripts/validate_docs.py
+  script:
+    - python scripts/validate_docs.py
+
 .Unit test runner:
   image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   stage: test
