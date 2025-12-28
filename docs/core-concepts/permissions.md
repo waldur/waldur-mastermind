@@ -5,8 +5,8 @@
 Waldur implements a comprehensive Role-Based Access Control (RBAC) system that determines what actions users can perform within the platform. The authorization system consists of three core components:
 
 1. **Permissions** - Unique strings that designate specific actions (e.g., `OFFERING.CREATE`, `PROJECT.UPDATE`)
-2. **Roles** - Named collections of permissions (e.g., `CUSTOMER.OWNER`, `PROJECT.ADMIN`)
-3. **User Roles** - Assignments linking users to roles within specific scopes
+1. **Roles** - Named collections of permissions (e.g., `CUSTOMER.OWNER`, `PROJECT.ADMIN`)
+1. **User Roles** - Assignments linking users to roles within specific scopes
 
 This functionality is implemented in the `waldur_core.permissions` application and provides fine-grained access control across all platform resources.
 
@@ -330,6 +330,7 @@ except ValidationError:
 ```
 
 The function checks:
+
 - **Email patterns**: User email must match at least one pattern (e.g., `*@example.com`)
 - **Affiliations**: User must have at least one matching affiliation
 - **Identity sources**: User must have a matching identity source
@@ -507,10 +508,10 @@ All role change logs now include:
 
 - **`initiated_by`**: Shows either "System" (for automatic operations) or "User Name (username)" (for manual operations)
 - **`reason`**: Specific reason for the change, with automatic defaults:
-  - Manual API operations: `"Manual role assignment/removal/update via API"`
-  - Automatic expiration: `"Automatic expiration"` or `"Automatic expiration cleanup task"`
-  - Project deletion: `"Project deletion cascade"`
-  - Scope changes: `"Project moved to different customer"`, `"Offering moved to different provider"`
+   - Manual API operations: `"Manual role assignment/removal/update via API"`
+   - Automatic expiration: `"Automatic expiration"` or `"Automatic expiration cleanup task"`
+   - Project deletion: `"Project deletion cascade"`
+   - Scope changes: `"Project moved to different customer"`, `"Offering moved to different provider"`
 
 #### Common Automatic Reasons
 
@@ -623,9 +624,9 @@ When designing permission-related APIs:
 
 - **Default parameters** should match the most common use case
 - **Error types** should be consistent:
-  - `AttributeError` for configuration/code errors (invalid attribute paths)
-  - `PermissionDenied` for access control failures
-  - `ValidationError` for user input errors
+   - `AttributeError` for configuration/code errors (invalid attribute paths)
+   - `PermissionDenied` for access control failures
+   - `ValidationError` for user input errors
 
 ## Testing and Debugging Permissions
 
@@ -699,7 +700,7 @@ When debugging permission problems:
    print(f"User roles: {[(r.content_object, r.role.name) for r in roles]}")
    ```
 
-2. **Verify permission assignments**:
+1. **Verify permission assignments**:
 
    ```python
    # Check if role has required permissions
@@ -708,7 +709,7 @@ When debugging permission problems:
    print(f"Role permissions: {list(permissions)}")
    ```
 
-3. **Test permission paths**:
+1. **Test permission paths**:
 
    ```python
    # Test attribute path resolution
@@ -721,7 +722,7 @@ When debugging permission problems:
        print(f"Path resolution failed: {e}")
    ```
 
-4. **Enable verbose logging**:
+1. **Enable verbose logging**:
 
    ```python
    import logging
