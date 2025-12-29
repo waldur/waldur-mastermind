@@ -1,5 +1,8 @@
 from functools import cached_property
 
+from rest_framework import status, test
+
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_mastermind.marketplace.enums import (
     SUPPORT_OFFERING,
@@ -103,3 +106,146 @@ class IssueStatusHandlerTest(BaseTest):
 
         self.fixture.issue.status = self.fixture.second_success_issue_status.name
         self.fixture.issue.save()
+
+    def test_processing_log_is_populated_on_successful_resolution(self):
+        """Test that processing_log captures status change and callback events."""
+        self.fixture.issue.status = self.fixture.success_issue_status.name
+        self.fixture.issue.save()
+
+        self.fixture.issue.refresh_from_db()
+        processing_log = self.fixture.issue.processing_log
+
+        self.assertIsInstance(processing_log, list)
+        self.assertGreaterEqual(len(processing_log), 2)
+
+        # Check for status_changed event
+        status_changed_events = [
+            e for e in processing_log if e.get("event") == "status_changed"
+        ]
+        self.assertEqual(len(status_changed_events), 1)
+        self.assertEqual(
+            status_changed_events[0]["details"]["new_status"],
+            self.fixture.success_issue_status.name,
+        )
+        self.assertTrue(status_changed_events[0]["details"]["resolved_value"])
+
+        # Check for callback events
+        callback_events = [
+            e for e in processing_log if e.get("event") == "callback_invoked"
+        ]
+        self.assertEqual(len(callback_events), 1)
+        self.assertEqual(
+            callback_events[0]["details"]["callback"], "resource_creation_succeeded"
+        )
+
+    def test_processing_log_is_populated_on_cancellation(self):
+        """Test that processing_log captures cancellation events."""
+        self.fixture.issue.status = self.fixture.fail_issue_status.name
+        self.fixture.issue.save()
+
+        self.fixture.issue.refresh_from_db()
+        processing_log = self.fixture.issue.processing_log
+
+        self.assertIsInstance(processing_log, list)
+        self.assertGreaterEqual(len(processing_log), 2)
+
+        # Check for status_changed event with resolved=False
+        status_changed_events = [
+            e for e in processing_log if e.get("event") == "status_changed"
+        ]
+        self.assertEqual(len(status_changed_events), 1)
+        self.assertFalse(status_changed_events[0]["details"]["resolved_value"])
+
+        # Check for callback events
+        callback_events = [
+            e for e in processing_log if e.get("event") == "callback_invoked"
+        ]
+        self.assertEqual(len(callback_events), 1)
+        self.assertEqual(
+            callback_events[0]["details"]["callback"], "resource_creation_canceled"
+        )
+
+    def test_processing_log_captures_skipped_processing(self):
+        """Test that processing_log captures when processing is skipped due to missing IssueStatus."""
+        # Delete all IssueStatus to simulate misconfiguration
+        support_models.IssueStatus.objects.all().delete()
+
+        self.fixture.issue.status = "Unknown Status"
+        self.fixture.issue.save()
+
+        self.fixture.issue.refresh_from_db()
+        processing_log = self.fixture.issue.processing_log
+
+        self.assertIsInstance(processing_log, list)
+        self.assertGreaterEqual(len(processing_log), 1)
+
+        # Check for processing_skipped event
+        skipped_events = [
+            e for e in processing_log if e.get("event") == "processing_skipped"
+        ]
+        self.assertEqual(len(skipped_events), 1)
+        self.assertIn("resolved_is_none", skipped_events[0]["details"]["reasons"])
+
+
+class ProcessingLogVisibilityTest(test.APITransactionTestCase):
+    """Test that processing_log is only visible to staff users."""
+
+    def setUp(self):
+        # Create IssueStatus entries
+        support_models.IssueStatus.objects.create(
+            name="done", type=support_models.IssueStatus.Types.RESOLVED
+        )
+        support_models.IssueStatus.objects.create(
+            name="rejected", type=support_models.IssueStatus.Types.CANCELED
+        )
+
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.support = structure_factories.UserFactory(is_support=True)
+        self.regular_user = structure_factories.UserFactory()
+
+        self.customer = structure_factories.CustomerFactory()
+        self.project = structure_factories.ProjectFactory(customer=self.customer)
+
+        # Create issue with processing_log data
+        self.issue = support_factories.IssueFactory(
+            customer=self.customer,
+            project=self.project,
+            caller=self.regular_user,
+            processing_log=[
+                {
+                    "timestamp": "2024-01-15T10:00:00Z",
+                    "event": "status_changed",
+                    "details": {"old_status": "Open", "new_status": "Done"},
+                }
+            ],
+        )
+
+    def _get_issue_url(self):
+        return f"/api/support-issues/{self.issue.uuid}/"
+
+    def test_staff_can_see_processing_log(self):
+        """Staff users should see the processing_log field."""
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(self._get_issue_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("processing_log", response.data)
+        self.assertEqual(len(response.data["processing_log"]), 1)
+        self.assertEqual(response.data["processing_log"][0]["event"], "status_changed")
+
+    def test_support_can_see_processing_log(self):
+        """Support users should see the processing_log field."""
+        self.client.force_authenticate(self.support)
+        response = self.client.get(self._get_issue_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("processing_log", response.data)
+        self.assertEqual(len(response.data["processing_log"]), 1)
+
+    def test_regular_user_cannot_see_processing_log(self):
+        """Regular users should not see the processing_log field."""
+        self.client.force_authenticate(self.regular_user)
+        response = self.client.get(self._get_issue_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("processing_log", response.data)

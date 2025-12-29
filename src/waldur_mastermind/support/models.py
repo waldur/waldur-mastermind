@@ -138,6 +138,11 @@ class Issue(
         default=True,
         help_text="Request feedback from the issue creator after resolution of the issue",
     )
+    processing_log = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Internal processing log for debugging order lifecycle events. Visible only to staff.",
+    )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
@@ -202,6 +207,27 @@ class Issue(
         )
         self.state = CoreStates.OK
         self.save()
+
+    def append_processing_log(self, event: str, details: dict | None = None):
+        """
+        Append an entry to the processing log for debugging.
+
+        Args:
+            event: Event type (e.g., "status_changed", "callback_invoked", "condition_failed")
+            details: Optional dictionary with event-specific details
+        """
+        from django.utils import timezone
+
+        entry = {
+            "timestamp": timezone.now().isoformat(),
+            "event": event,
+        }
+        if details:
+            entry["details"] = details
+
+        if self.processing_log is None:
+            self.processing_log = []
+        self.processing_log.append(entry)
 
     def __str__(self):
         return "{}: {}".format(self.key or "???", self.summary)
@@ -511,24 +537,56 @@ class IssueStatus(core_models.UuidMixin, models.Model):
         False if an issue canceled.
         None in all other cases.
         """
-        if (
-            not cls.objects.filter(type=cls.Types.RESOLVED).exists()
-            or not cls.objects.filter(type=cls.Types.CANCELED).exists()
-        ):
-            logger.critical(
-                "There is no information about statuses of an issue. "
-                "Please, add resolved and canceled statuses in admin. "
-                "Otherwise, you cannot use processes that need this information."
+        logger.debug("Checking success status for: %s", status)
+
+        has_resolved = cls.objects.filter(type=cls.Types.RESOLVED).exists()
+        has_canceled = cls.objects.filter(type=cls.Types.CANCELED).exists()
+
+        if not has_resolved or not has_canceled:
+            available_statuses = list(
+                cls.objects.values_list("name", "type").order_by("name")
             )
-            return
+            logger.critical(
+                "IssueStatus configuration incomplete. "
+                "RESOLVED type exists: %s, CANCELED type exists: %s. "
+                "Available statuses: %s. "
+                "Please add both RESOLVED and CANCELED status types in admin.",
+                has_resolved,
+                has_canceled,
+                available_statuses,
+            )
+            return None
+
         try:
             issue_status = cls.objects.get(name=status)
+            logger.debug(
+                "Found IssueStatus: name=%s, type=%s (%s)",
+                issue_status.name,
+                issue_status.type,
+                "RESOLVED" if issue_status.type == cls.Types.RESOLVED else "CANCELED",
+            )
             if issue_status.type == cls.Types.RESOLVED:
                 return True
             if issue_status.type == cls.Types.CANCELED:
                 return False
+            # Status exists but has unexpected type
+            logger.warning(
+                "IssueStatus '%s' has unexpected type: %s",
+                status,
+                issue_status.type,
+            )
+            return None
         except cls.DoesNotExist:
-            return
+            available_statuses = list(
+                cls.objects.values_list("name", flat=True).order_by("name")
+            )
+            logger.warning(
+                "IssueStatus not found for status name: '%s'. "
+                "Available status names: %s",
+                status,
+                available_statuses,
+            )
+            return None
 
     class Meta:
         verbose_name = _("Issue status")
