@@ -92,10 +92,6 @@ def slurm_periodic_usage_policy_trigger_handler(
                 f"Queued SLURM policy evaluation for resource {resource.uuid} "
                 f"(usage: {component_usage.usage})"
             )
-        else:
-            logger.debug(
-                f"No SLURM policies found for offering {resource.offering.uuid}"
-            )
     else:
         logger.warning(
             "ComponentUsage signal received without valid resource/offering context"
