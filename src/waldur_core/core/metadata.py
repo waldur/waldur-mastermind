@@ -43,10 +43,6 @@ class WaldurCore(BaseModel):
     INVITATION_LIFETIME: timedelta = Field(
         timedelta(weeks=1), description="Defines for how long invitation remains valid."
     )
-    GROUP_INVITATION_LIFETIME: timedelta = Field(
-        timedelta(weeks=1),
-        description="Defines for how long group invitation remains valid.",
-    )
     BACKEND_FIELDS_EDITABLE: bool = Field(
         True,
         description="Allows to control /admin writable fields. "

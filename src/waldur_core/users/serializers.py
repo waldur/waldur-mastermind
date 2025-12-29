@@ -111,11 +111,6 @@ class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
         slug_field="uuid",
         help_text="UUID of the role to grant to the invited user",
     )
-    expires = serializers.DateTimeField(
-        source="get_expiration_time",
-        read_only=True,
-        help_text="Expiration date and time of the invitation",
-    )
 
     class Meta:
         model = models.BaseInvitation
@@ -125,13 +120,11 @@ class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
             "role",
             "scope",
             "created",
-            "expires",
         )
         read_only_fields = (
             "url",
             "uuid",
             "created",
-            "expires",
         )
 
     def validate(self, attrs):
@@ -287,9 +280,16 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
 
 
 class InvitationSerializer(BaseInvitationSerializer):
+    expires = serializers.DateTimeField(
+        source="get_expiration_time",
+        read_only=True,
+        help_text="Expiration date and time of the invitation",
+    )
+
     class Meta:
         model = models.Invitation
         fields = BaseInvitationSerializer.Meta.fields + (
+            "expires",
             "full_name",
             "native_name",
             "phone_number",
@@ -304,6 +304,7 @@ class InvitationSerializer(BaseInvitationSerializer):
             "error_message",
         )
         read_only_fields = BaseInvitationSerializer.Meta.read_only_fields + (
+            "expires",
             "state",
             "error_message",
             "execution_state",

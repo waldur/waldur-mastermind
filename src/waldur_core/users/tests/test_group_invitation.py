@@ -1,9 +1,6 @@
-from datetime import timedelta
 from unittest import mock
 
 from ddt import data, ddt
-from django.conf import settings
-from django.utils import timezone
 from rest_framework import status
 
 from waldur_core.core.enums import ReviewStates
@@ -14,7 +11,7 @@ from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import has_user
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_core.users import models, tasks
+from waldur_core.users import models
 from waldur_core.users.tests import factories
 
 from .test_invitation import BaseInvitationTest
@@ -398,19 +395,104 @@ class GroupInvitationCancelTest(BaseGroupInvitationTest):
         # Users without permission get 404 because invitation existence is hidden
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_invitation_is_canceled_after_expiration_date(self):
-        waldur_section = settings.WALDUR_CORE.copy()
-        waldur_section["GROUP_INVITATION_LIFETIME"] = timedelta(weeks=1)
 
-        with self.settings(WALDUR_CORE=waldur_section):
-            invitation = factories.ProjectGroupInvitationFactory(
-                created=timezone.now() - timedelta(weeks=1)
+@ddt
+class GroupInvitationDeleteTest(BaseGroupInvitationTest):
+    @data("staff", "customer_owner")
+    def test_user_with_access_can_delete_inactive_project_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        self.project_group_invitation.cancel()
+
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.delete(
+            factories.ProjectGroupInvitationFactory.get_url(
+                self.project_group_invitation
             )
-            tasks.cancel_expired_group_invitations()
-
-        self.assertEqual(
-            models.GroupInvitation.objects.get(uuid=invitation.uuid).is_active, False
         )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(
+            models.GroupInvitation.objects.filter(
+                uuid=self.project_group_invitation.uuid
+            ).exists()
+        )
+
+    @data("staff", "customer_owner")
+    def test_user_with_access_cannot_delete_active_project_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.delete(
+            factories.ProjectGroupInvitationFactory.get_url(
+                self.project_group_invitation
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(
+            models.GroupInvitation.objects.filter(
+                uuid=self.project_group_invitation.uuid
+            ).exists()
+        )
+
+    @data("project_admin", "user")
+    def test_user_without_access_cannot_delete_project_invitation(self, user):
+        self.project_group_invitation.cancel()
+
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.delete(
+            factories.ProjectGroupInvitationFactory.get_url(
+                self.project_group_invitation
+            )
+        )
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_project_manager_can_delete_inactive_project_invitation(self):
+        self.project_group_invitation.cancel()
+
+        self.client.force_authenticate(user=self.project_manager)
+        response = self.client.delete(
+            factories.ProjectGroupInvitationFactory.get_url(
+                self.project_group_invitation
+            )
+        )
+        # Project managers have CREATE_PROJECT_PERMISSION so they can delete invitations
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(
+            models.GroupInvitation.objects.filter(
+                uuid=self.project_group_invitation.uuid
+            ).exists()
+        )
+
+    @data("staff", "customer_owner")
+    def test_user_with_access_can_delete_inactive_customer_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        self.customer_group_invitation.cancel()
+
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.delete(
+            factories.CustomerGroupInvitationFactory.get_url(
+                self.customer_group_invitation
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(
+            models.GroupInvitation.objects.filter(
+                uuid=self.customer_group_invitation.uuid
+            ).exists()
+        )
+
+    def test_owner_cannot_delete_customer_invitation_without_permission(self):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        self.customer_group_invitation.cancel()
+
+        self.client.force_authenticate(user=self.customer_owner)
+        response = self.client.delete(
+            factories.CustomerGroupInvitationFactory.get_url(
+                self.customer_group_invitation
+            )
+        )
+        # Users without permission get 404 because invitation existence is hidden
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 @ddt

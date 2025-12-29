@@ -16,7 +16,10 @@ from rest_framework.response import Response
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import ReviewStates
-from waldur_core.core.views import ProtectedViewSet, ReadOnlyActionsViewSet
+from waldur_core.core.views import (
+    ActionsViewSet,
+    ReadOnlyActionsViewSet,
+)
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.models import UserRole
@@ -399,8 +402,12 @@ class InvitationViewSet(viewsets.ModelViewSet):
         summary="Create group invitation",
         description="Create a new group invitation, which acts as a template for users to request permissions.",
     ),
+    destroy=extend_schema(
+        summary="Delete a group invitation",
+        description="Deletes an inactive group invitation. Only invitations that have been canceled (is_active=False) can be deleted.",
+    ),
 )
-class GroupInvitationViewSet(ProtectedViewSet):
+class GroupInvitationViewSet(ActionsViewSet):
     queryset = models.GroupInvitation.objects.all().order_by("-created")
     serializer_class = serializers.GroupInvitationSerializer
     filter_backends = (
@@ -411,6 +418,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
     permission_classes = (rf_permissions.IsAuthenticated,)
     filterset_class = filters.GroupInvitationFilter
     lookup_field = "uuid"
+    disabled_actions = ["update", "partial_update"]
 
     def get_permissions(self):
         """Allow unauthenticated access for list and retrieve of public invitations."""
@@ -464,6 +472,18 @@ class GroupInvitationViewSet(ProtectedViewSet):
             {"detail": _("Invitation has been successfully canceled.")},
             status=status.HTTP_200_OK,
         )
+
+    def destroy(self, request, uuid=None):
+        invitation: models.GroupInvitation = self.get_object()
+
+        if not can_manage_invitation_with(request, invitation.scope):
+            # Raise NotFound instead of PermissionDenied to hide invitation existence
+            raise NotFound()
+        elif invitation.is_active:
+            raise ValidationError(_("Only canceled invitation can be deleted."))
+
+        invitation.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(
         summary="Submit a permission request",

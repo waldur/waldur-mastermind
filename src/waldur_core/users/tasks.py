@@ -249,21 +249,6 @@ def process_invitation(invitation_uuid, sender):
         send_invitation_created(invitation_uuid, sender)
 
 
-@shared_task(name="waldur_core.users.cancel_expired_group_invitations")
-def cancel_expired_group_invitations():
-    """
-    Invitation lifetime must be specified in Waldur Core settings with parameter
-    "GROUP_INVITATION_LIFETIME". If invitation creation time is less than expiration time,
-    the invitation will set as expired.
-    """
-    expiration_date = timezone.now() - settings.WALDUR_CORE["GROUP_INVITATION_LIFETIME"]
-    invitations = models.GroupInvitation.objects.filter(
-        is_active=True,
-        created__lte=expiration_date,
-    )
-    invitations.update(is_active=False)
-
-
 @shared_task(
     name="waldur_core.users.send_mail_notification_about_permission_request_has_been_submitted"
 )
