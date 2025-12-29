@@ -5209,15 +5209,22 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
             PermissionEnum.SET_RESOURCE_USAGE,
             resource.offering.customer,
         ):
-            # Check if the component is limit-based
-            if component_usage.component.billing_type == BillingTypes.LIMIT:
-                return value
-            else:
-                raise serializers.ValidationError(
-                    _(
-                        "Service providers can only specify date for limit-based billing components."
+            # Check if date is in the current billing period
+            current_billing_period = core_utils.month_start(timezone.now())
+            date_billing_period = core_utils.month_start(value)
+
+            # If date is in a past billing period (historical backfilling),
+            # only allow for limit-based components
+            if date_billing_period < current_billing_period:
+                if component_usage.component.billing_type != BillingTypes.LIMIT:
+                    raise serializers.ValidationError(
+                        _(
+                            "Service providers can only specify date for limit-based billing components when backfilling past billing periods."
+                        )
                     )
-                )
+            # If date is in current billing period, allow for all component types
+            # (service provider is just specifying the measurement timestamp)
+            return value
 
         raise serializers.ValidationError(
             _(
@@ -5460,15 +5467,23 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 PermissionEnum.SET_RESOURCE_USAGE,
                 resource.offering.customer,
             ):
-                # Check if any of the components are limit-based
-                if not self._is_limit_based_component_usage(attrs):
-                    raise rf_exceptions.ValidationError(
-                        {
-                            "date": _(
-                                "Service providers can only specify date for limit-based billing components."
-                            )
-                        }
-                    )
+                # Check if date is in the current billing period
+                current_billing_period = core_utils.month_start(timezone.now())
+                date_billing_period = core_utils.month_start(date_value)
+
+                # If date is in a past billing period (historical backfilling),
+                # only allow for limit-based components
+                if date_billing_period < current_billing_period:
+                    if not self._is_limit_based_component_usage(attrs):
+                        raise rf_exceptions.ValidationError(
+                            {
+                                "date": _(
+                                    "Service providers can only specify date for limit-based billing components when backfilling past billing periods."
+                                )
+                            }
+                        )
+                # If date is in current billing period, allow for all component types
+                # (service provider is just specifying the measurement timestamp)
             else:
                 raise rf_exceptions.ValidationError(
                     {
