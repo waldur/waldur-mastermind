@@ -160,7 +160,7 @@ def send_invitation_rejected(invitation_uuid, sender):
 def send_reminder_for_pending_invitations():
     """Send reminder emails for pending invitations that are about to expire."""
     expiration_date = (
-        timezone.now() - settings.WALDUR_CORE["INVITATION_LIFETIME"] - timedelta(days=1)
+        timezone.now() - settings.WALDUR_CORE["INVITATION_LIFETIME"] + timedelta(days=1)
     )
     pending_invitations = models.Invitation.objects.filter(
         state=InvitationState.PENDING, created__lte=expiration_date
