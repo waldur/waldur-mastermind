@@ -813,7 +813,7 @@ class InvitationCancelTest(BaseInvitationTest):
             factories.ProjectInvitationFactory(
                 created=timezone.now()
                 - settings.WALDUR_CORE["INVITATION_LIFETIME"]
-                - timedelta(days=1),
+                + timedelta(days=1),
                 created_by=self.project_admin,
             )
             tasks.send_reminder_for_pending_invitations()
