@@ -113,7 +113,7 @@ waldur cleanup_structure --skip-rabbitmq-messages
 ```bash
 
 usage: waldur cleanup_structure [--skip-users] [--skip-roles] [--dry-run]
-                                [--skip-rabbitmq-messages]
+                                [--skip-rabbitmq-messages] [--fast]
 
 options:
   --skip-users          Skip deleting users.
@@ -122,6 +122,8 @@ options:
   --skip-rabbitmq-messages
                         Skip sending RabbitMQ messages during cleanup
                         (recommended for large cleanups).
+  --fast                Use fast raw SQL DELETE (bypasses all Django signals,
+                        much faster for large datasets).
 
 ```
 
@@ -165,6 +167,43 @@ options:
   -u USERNAME, --username USERNAME
   -p PASSWORD, --password PASSWORD
   -e EMAIL, --email EMAIL
+
+```
+
+## demo_presets
+
+Manage demo data presets for Waldur.
+
+  Available subcommands:
+
+```yaml
+list  - List all available presets
+info  - Show detailed information about a preset
+load  - Load a preset into the database
+export - Export current database state as a preset
+```
+
+  Examples:
+
+```yaml
+waldur demo_presets list
+waldur demo_presets info minimal_quickstart
+waldur demo_presets load minimal_quickstart --dry-run
+waldur demo_presets load hpc_ai_platform
+waldur demo_presets export my_custom_preset --description "My setup"
+```
+
+```bash
+
+usage: waldur demo_presets {list,info,load,export} ...
+
+positional arguments:
+  {list,info,load,export}
+                        Available subcommands
+    list                List all available demo presets
+    info                Show detailed information about a preset
+    load                Load a preset into the database
+    export              Export current database state as a preset
 
 ```
 
