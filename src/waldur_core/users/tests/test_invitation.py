@@ -1,5 +1,6 @@
 import datetime
 from datetime import timedelta
+from unittest import mock
 
 from constance.test.unittest import override_config
 from ddt import data, ddt
@@ -2136,3 +2137,62 @@ class InvitationUpdateTest(BaseInvitationTest):
         self.invitation.refresh_from_db()
         self.assertEqual(self.invitation.email, new_email)
         self.assertEqual(self.invitation.role, CustomerRole.SUPPORT)
+
+
+class InvitationResendStuckTaskTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.sender = structure_factories.UserFactory()
+
+    def test_reconciles_pending_scheduled_invitation(self):
+        invitation = factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            execution_state=models.Invitation.ExecutionState.SCHEDULED,
+            created_by=self.sender,
+        )
+
+        with mock.patch("waldur_core.users.tasks.process_invitation") as process:
+            tasks.resend_stuck_invitations()
+
+            process.delay.assert_called_once_with(
+                invitation.uuid.hex,
+                self.sender.full_name or self.sender.username,
+            )
+
+    def test_reconciles_pending_erred_invitation(self):
+        invitation = factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            execution_state=models.Invitation.ExecutionState.ERRED,
+            created_by=self.sender,
+        )
+
+        with mock.patch("waldur_core.users.tasks.process_invitation") as process:
+            tasks.resend_stuck_invitations()
+            process.delay.assert_called_once_with(
+                invitation.uuid.hex,
+                self.sender.full_name or self.sender.username,
+            )
+
+    def test_does_not_resend_invitation_in_ok_state(self):
+        factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            execution_state=models.Invitation.ExecutionState.OK,
+            created_by=self.sender,
+        )
+
+        with mock.patch("waldur_core.users.tasks.process_invitation") as process:
+            tasks.resend_stuck_invitations()
+            process.delay.assert_not_called()
+
+    def test_skips_expired_invitations(self):
+        factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            execution_state=models.Invitation.ExecutionState.SCHEDULED,
+            created_by=self.sender,
+            created=timezone.now()
+            - settings.WALDUR_CORE["INVITATION_LIFETIME"]
+            - timedelta(days=1),
+        )
+
+        with mock.patch("waldur_core.users.tasks.process_invitation") as process:
+            tasks.resend_stuck_invitations()
+            process.delay.assert_not_called()
