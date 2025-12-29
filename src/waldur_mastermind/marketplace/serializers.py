@@ -9167,3 +9167,63 @@ class ResourceProvisioningStatsSerializer(serializers.Serializer):
         read_only=True,
         help_text="Average duration in seconds from Creation to Executing state",
     )
+
+
+# Demo Presets Serializers
+
+
+class DemoPresetSerializer(serializers.Serializer):
+    """Serializer for demo preset metadata."""
+
+    name = serializers.CharField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    description = serializers.CharField(read_only=True)
+    version = serializers.CharField(read_only=True)
+    entity_counts = serializers.DictField(
+        child=serializers.IntegerField(),
+        read_only=True,
+    )
+    scenarios = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True,
+    )
+
+
+class DemoPresetLoadRequestSerializer(serializers.Serializer):
+    """Request serializer for loading a demo preset."""
+
+    dry_run = serializers.BooleanField(
+        default=False,
+        help_text="Preview changes without applying them",
+    )
+    cleanup_first = serializers.BooleanField(
+        default=True,
+        help_text="Clean up existing data before loading the preset",
+    )
+    skip_users = serializers.BooleanField(
+        default=False,
+        help_text="Skip user import/cleanup",
+    )
+    skip_roles = serializers.BooleanField(
+        default=False,
+        help_text="Skip role import/cleanup",
+    )
+
+
+class DemoPresetUserSerializer(serializers.Serializer):
+    """Serializer for demo preset user credentials."""
+
+    username = serializers.CharField()
+    password = serializers.CharField()
+    email = serializers.CharField(required=False, allow_blank=True)
+    is_staff = serializers.BooleanField(default=False)
+    is_support = serializers.BooleanField(default=False)
+
+
+class DemoPresetLoadResponseSerializer(serializers.Serializer):
+    """Response serializer for demo preset loading."""
+
+    success = serializers.BooleanField()
+    message = serializers.CharField()
+    output = serializers.CharField(required=False, allow_blank=True)
+    users = DemoPresetUserSerializer(many=True, required=False)

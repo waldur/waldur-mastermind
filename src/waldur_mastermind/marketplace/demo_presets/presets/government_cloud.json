@@ -1,0 +1,1295 @@
+{
+  "_metadata": {
+    "title": "Government Cloud",
+    "description": "Government and public sector cloud configuration with compliance-focused offerings, multi-agency structure, and security controls.",
+    "version": "1.0.0",
+    "scenarios": [
+      "Government cloud procurement",
+      "Multi-agency resource sharing",
+      "Compliance and security demo",
+      "Public sector IT modernization",
+      "E-government services platform"
+    ]
+  },
+  "users": [
+    {
+      "uuid": "00000000000000000000000000000001",
+      "username": "staff",
+      "email": "staff@demo.waldur.com",
+      "first_name": "Staff",
+      "last_name": "User",
+      "is_staff": true,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001001",
+      "organization": "Government Cloud Authority",
+      "job_title": "System Administrator"
+    },
+    {
+      "uuid": "00000000000000000000000000000002",
+      "username": "support",
+      "email": "support@demo.waldur.com",
+      "first_name": "Support",
+      "last_name": "User",
+      "is_support": true,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001002",
+      "organization": "Government Cloud Authority",
+      "job_title": "Support Engineer"
+    },
+    {
+      "uuid": "00000000000000000000000000000003",
+      "username": "owner",
+      "email": "owner@demo.waldur.com",
+      "first_name": "Organization",
+      "last_name": "Owner",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001003",
+      "organization": "Ministry of Digital Affairs",
+      "job_title": "IT Director"
+    },
+    {
+      "uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "email": "manager@demo.waldur.com",
+      "first_name": "Project",
+      "last_name": "Manager",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001004",
+      "organization": "Ministry of Digital Affairs",
+      "job_title": "Project Manager"
+    },
+    {
+      "uuid": "00000000000000000000000000000005",
+      "username": "member",
+      "email": "member@demo.waldur.com",
+      "first_name": "Project",
+      "last_name": "Member",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001005",
+      "organization": "Ministry of Digital Affairs",
+      "job_title": "Software Developer"
+    },
+    {
+      "uuid": "a1000000000000000000000000000001",
+      "username": "gov_admin",
+      "email": "admin@gov.cloud",
+      "first_name": "Government",
+      "last_name": "Administrator",
+      "is_staff": true,
+      "is_active": true,
+      "phone_number": "+37256002001",
+      "organization": "Government Cloud Authority",
+      "job_title": "Chief Cloud Architect"
+    },
+    {
+      "uuid": "a1000000000000000000000000000002",
+      "username": "security_officer",
+      "email": "security@gov.cloud",
+      "first_name": "Security",
+      "last_name": "Officer",
+      "is_support": true,
+      "is_active": true,
+      "phone_number": "+37256002002",
+      "organization": "Government Cloud Authority",
+      "job_title": "Information Security Officer"
+    }
+  ],
+  "ssh_public_keys": [
+    {
+      "uuid": "f1000000000000000000000000000001",
+      "user_uuid": "a1000000000000000000000000000001",
+      "name": "gov-admin-secure",
+      "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF5JjGyQiH7xGDmTv1GfxPNrYbRzlGcKfqNLcnNmC5hR gov_admin@gov.cloud"
+    },
+    {
+      "uuid": "f1000000000000000000000000000002",
+      "user_uuid": "a1000000000000000000000000000002",
+      "name": "security-officer-key",
+      "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG2xPqW8vZR1kHNfL4mJd3YtQnKvS5bMcDpE9hTwU6aX security@gov.cloud"
+    },
+    {
+      "uuid": "f1000000000000000000000000000003",
+      "user_uuid": "00000000000000000000000000000003",
+      "name": "owner-government",
+      "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHkL7rS9fN5mYdQ2xV3pW4cZ8jKbT6nE1gRvH0iU5aXw owner@demo.waldur.com"
+    }
+  ],
+  "customers": [
+    {
+      "uuid": "b1000000000000000000000000000001",
+      "name": "Government Cloud Authority",
+      "abbreviation": "GCA",
+      "description": "Central government cloud infrastructure provider responsible for secure, compliant cloud services for all government agencies.",
+      "email": "authority@gov.cloud",
+      "country": "EE"
+    },
+    {
+      "uuid": "b1000000000000000000000000000002",
+      "name": "Ministry of Digital Affairs",
+      "abbreviation": "MDA",
+      "description": "Ministry responsible for digital transformation, e-government services, and IT policy for the government sector.",
+      "email": "contact@ministry.gov",
+      "country": "EE"
+    },
+    {
+      "uuid": "b1000000000000000000000000000003",
+      "name": "Tax and Revenue Authority",
+      "abbreviation": "TRA",
+      "description": "Government agency handling tax collection, revenue management, and financial compliance systems.",
+      "email": "it@tax.gov",
+      "country": "EE"
+    }
+  ],
+  "projects": [
+    {
+      "uuid": "c1000000000000000000000000000001",
+      "name": "E-Government Portal",
+      "description": "Citizen-facing e-government services platform",
+      "customer_uuid": "b1000000000000000000000000000002"
+    },
+    {
+      "uuid": "c1000000000000000000000000000002",
+      "name": "Tax Processing System",
+      "description": "High-security tax processing and analytics",
+      "customer_uuid": "b1000000000000000000000000000003"
+    }
+  ],
+  "categories": [
+    {
+      "uuid": "d1000000000000000000000000000001",
+      "title": "Secure Compute",
+      "description": "Government-certified secure virtual machines"
+    },
+    {
+      "uuid": "d1000000000000000000000000000002",
+      "title": "Encrypted Storage",
+      "description": "GDPR and government-compliant encrypted storage"
+    },
+    {
+      "uuid": "d1000000000000000000000000000003",
+      "title": "Managed Databases",
+      "description": "Managed database services with compliance features"
+    },
+    {
+      "uuid": "d1000000000000000000000000000004",
+      "title": "Secure Container Orchestration",
+      "description": "Government-certified Kubernetes clusters with security hardening"
+    }
+  ],
+  "service_providers": [
+    {
+      "uuid": "e1000000000000000000000000000001",
+      "customer_uuid": "b1000000000000000000000000000001",
+      "description": "Government Cloud Authority - Certified government cloud services"
+    }
+  ],
+  "offerings": [
+    {
+      "uuid": "f1000000000000000000000000000001",
+      "name": "Secure Government VM",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d1000000000000000000000000000001",
+      "customer_uuid": "b1000000000000000000000000000001",
+      "description": "Government-certified virtual machines with security controls and audit logging",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with Secure Government VM\n\n### Security Requirements\n1. **Use government-issued SSH keys only**\n2. All access is logged and audited\n3. MFA is required for console access\n\n### Connection\n```\nssh -i ~/.ssh/gov_key user@<vm-ip>\n```\n\n### Compliance\n- All VMs are ISO 27001 certified\n- Audit logs are retained for 7 years\n- Data residency: Estonia (EU)\n\nContact security@gov.cloud for compliance questions."
+    },
+    {
+      "uuid": "f1000000000000000000000000000002",
+      "name": "GDPR-Compliant Object Storage",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d1000000000000000000000000000002",
+      "customer_uuid": "b1000000000000000000000000000001",
+      "description": "Encrypted object storage with GDPR compliance and data residency guarantees",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with GDPR-Compliant Storage\n\n### Access Configuration\n1. Generate access credentials from the dashboard\n2. Configure your S3 client:\n   ```\n   aws configure --profile gov-storage\n   ```\n\n### GDPR Features\n- **Encryption**: AES-256 at rest, TLS 1.3 in transit\n- **Data Residency**: All data stored in EU\n- **Right to Erasure**: Automated deletion workflows available\n\n### Usage\n```\naws s3 cp file.txt s3://your-bucket/ --profile gov-storage\n```"
+    },
+    {
+      "uuid": "f1000000000000000000000000000003",
+      "name": "Managed PostgreSQL",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d1000000000000000000000000000003",
+      "customer_uuid": "b1000000000000000000000000000001",
+      "description": "Managed PostgreSQL with automated backups and compliance auditing",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with Managed PostgreSQL\n\n### Connection\n```\npsql -h <db-host> -U <username> -d <database>\n```\n\n### Features\n- **Automated Backups**: Daily at 02:00 UTC, 30-day retention\n- **Point-in-Time Recovery**: Available within retention period\n- **Audit Logging**: All queries logged for compliance\n\n### Best Practices\n1. Use connection pooling (PgBouncer included)\n2. Enable SSL for all connections\n3. Use read replicas for reporting queries"
+    },
+    {
+      "uuid": "f1000000000000000000000000000010",
+      "name": "Secure Kubernetes Cluster",
+      "type": "Support.OfferingTemplate",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d1000000000000000000000000000004",
+      "customer_uuid": "b1000000000000000000000000000001",
+      "description": "Government-certified Kubernetes cluster with security hardening, audit logging, and GDPR compliance. Deployed in a single secure datacenter.",
+      "options": {
+        "order": ["cluster_config"],
+        "options": {
+          "cluster_config": {
+            "type": "single_datacenter_k8s_config",
+            "label": "Secure Cluster Configuration",
+            "help_text": "Configure your security-hardened Kubernetes cluster with government compliance requirements",
+            "required": true,
+            "default_configs": {
+              "default_controller_vcpus": 4,
+              "default_controller_ram_gb": 16,
+              "default_controller_system_disk_gb": 100,
+              "default_controller_etcd_disk_gb": 50,
+              "default_lb_vcpus": 2,
+              "default_lb_ram_gb": 8,
+              "default_lb_system_disk_gb": 50,
+              "default_lb_logs_disk_gb": 100,
+              "minimal_worker_vcpus": 4,
+              "minimal_worker_ram_gb": 8,
+              "default_worker_data_disk_gb": 200,
+              "default_storage_data_disk_gb": 500,
+              "default_storage_san_disk_gb": 1000,
+              "available_kubernetes_versions": "1.28.0,1.29.0,1.30.0"
+            }
+          }
+        }
+      },
+      "plugin_options": {
+        "backend_type": "k8s-secure-gov",
+        "service_type": "kubernetes-cluster",
+        "deployment_mode": "managed",
+        "security_hardening": true,
+        "audit_logging": true,
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with Secure Kubernetes Cluster\n\n### Security Requirements\n1. **Government-issued SSH keys required**\n2. All API access is logged and audited\n3. Pod Security Standards enforced (restricted mode)\n\n### Access\n```\nexport KUBECONFIG=~/Downloads/kubeconfig-secure.yaml\nkubectl get nodes\n```\n\n### Compliance Features\n- ISO 27001 certified infrastructure\n- GDPR-compliant data residency (EU only)\n- Audit logs retained for 7 years\n- Network policies enforced by default\n\nContact security@gov.cloud for compliance questions."
+    },
+    {
+      "uuid": "f1000000000000000000000000000020",
+      "name": "High-Availability Government Kubernetes",
+      "type": "Support.OfferingTemplate",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d1000000000000000000000000000004",
+      "customer_uuid": "b1000000000000000000000000000001",
+      "description": "Multi-datacenter Kubernetes cluster for critical government workloads with disaster recovery and geographic redundancy across EU datacenters.",
+      "options": {
+        "order": ["cluster_config"],
+        "options": {
+          "cluster_config": {
+            "type": "multi_datacenter_k8s_config",
+            "label": "Multi-DC Government Cluster Configuration",
+            "help_text": "Configure your disaster-recovery enabled Kubernetes cluster across multiple secure EU datacenters",
+            "required": true,
+            "default_configs": {
+              "default_controller_vcpus": 8,
+              "default_controller_ram_gb": 16,
+              "default_controller_system_disk_gb": 100,
+              "default_controller_etcd_disk_gb": 50,
+              "default_lb_vcpus": 4,
+              "default_lb_ram_gb": 8,
+              "default_lb_system_disk_gb": 50,
+              "default_lb_logs_disk_gb": 200,
+              "minimal_worker_vcpus": 4,
+              "minimal_worker_ram_gb": 8,
+              "default_worker_data_disk_gb": 200,
+              "default_storage_data_disk_gb": 500,
+              "default_storage_san_disk_gb": 2000,
+              "available_kubernetes_versions": "1.28.0,1.29.0,1.30.0"
+            }
+          }
+        }
+      },
+      "plugin_options": {
+        "backend_type": "k8s-ha-gov",
+        "service_type": "kubernetes-cluster",
+        "deployment_mode": "managed",
+        "high_availability": true,
+        "disaster_recovery": true,
+        "security_hardening": true,
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with HA Government Kubernetes\n\n### Multi-Datacenter Architecture\n- Primary: Tallinn, Estonia\n- Secondary: Frankfurt, Germany\n- Automatic failover with 99.99% SLA\n\n### Access\n```\nexport KUBECONFIG=~/Downloads/kubeconfig-ha-gov.yaml\nkubectl get nodes --label-columns=topology.kubernetes.io/zone\n```\n\n### Disaster Recovery\n- RPO: 5 minutes\n- RTO: 15 minutes\n- Automatic cross-DC replication\n\n### Compliance\n- All traffic encrypted with government-approved algorithms\n- Data sovereignty guaranteed (EU only)\n\nContact security@gov.cloud for DR testing requests."
+    }
+  ],
+  "offering_endpoints": [
+    {
+      "uuid": "a1000000000000000000000000000001",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "name": "Secure Console",
+      "url": "https://console.gov.cloud/secure-vm/"
+    },
+    {
+      "uuid": "a1000000000000000000000000000002",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "name": "Security Audit Portal",
+      "url": "https://audit.gov.cloud/"
+    },
+    {
+      "uuid": "a1000000000000000000000000000003",
+      "offering_uuid": "f1000000000000000000000000000002",
+      "name": "Storage Dashboard",
+      "url": "https://storage.gov.cloud/dashboard/"
+    },
+    {
+      "uuid": "a1000000000000000000000000000004",
+      "offering_uuid": "f1000000000000000000000000000002",
+      "name": "S3 API Endpoint",
+      "url": "https://s3.gov.cloud/"
+    },
+    {
+      "uuid": "a1000000000000000000000000000005",
+      "offering_uuid": "f1000000000000000000000000000003",
+      "name": "Database Console",
+      "url": "https://db.gov.cloud/console/"
+    },
+    {
+      "uuid": "a1000000000000000000000000000010",
+      "offering_uuid": "f1000000000000000000000000000010",
+      "name": "Secure Kubernetes Dashboard",
+      "url": "https://k8s-secure.gov.cloud/dashboard/"
+    },
+    {
+      "uuid": "a1000000000000000000000000000011",
+      "offering_uuid": "f1000000000000000000000000000010",
+      "name": "Security Audit Portal",
+      "url": "https://k8s-audit.gov.cloud/"
+    },
+    {
+      "uuid": "a1000000000000000000000000000020",
+      "offering_uuid": "f1000000000000000000000000000020",
+      "name": "HA Cluster Dashboard",
+      "url": "https://k8s-ha.gov.cloud/dashboard/"
+    },
+    {
+      "uuid": "a1000000000000000000000000000021",
+      "offering_uuid": "f1000000000000000000000000000020",
+      "name": "DR Status Portal",
+      "url": "https://dr-status.gov.cloud/"
+    }
+  ],
+  "offering_components": [
+    {
+      "uuid": "c1000000000000000000000000000001",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "type": "cpu",
+      "name": "Secure CPU Cores",
+      "description": "Isolated CPU cores with hardware security",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c1000000000000000000000000000002",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "type": "ram",
+      "name": "Encrypted RAM",
+      "description": "Memory with encryption at rest",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c1000000000000000000000000000003",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "type": "storage",
+      "name": "Secure Storage",
+      "description": "Encrypted block storage",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c1000000000000000000000000000004",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "type": "security_monitoring",
+      "name": "Security Monitoring",
+      "description": "24/7 security monitoring and audit logging",
+      "billing_type": "fixed",
+      "measured_unit": "month"
+    },
+    {
+      "uuid": "c1000000000000000000000000000005",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "type": "network_traffic",
+      "name": "Network Traffic",
+      "description": "Outbound network data transfer",
+      "billing_type": "usage",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c1000000000000000000000000000010",
+      "offering_uuid": "f1000000000000000000000000000002",
+      "type": "storage",
+      "name": "Object Storage Capacity",
+      "description": "GDPR-compliant encrypted object storage",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c1000000000000000000000000000011",
+      "offering_uuid": "f1000000000000000000000000000002",
+      "type": "data_transfer",
+      "name": "Data Transfer",
+      "description": "Outbound data transfer",
+      "billing_type": "usage",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c1000000000000000000000000000020",
+      "offering_uuid": "f1000000000000000000000000000003",
+      "type": "cpu",
+      "name": "Database CPU",
+      "description": "Dedicated database CPU cores",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c1000000000000000000000000000021",
+      "offering_uuid": "f1000000000000000000000000000003",
+      "type": "ram",
+      "name": "Database Memory",
+      "description": "Database memory allocation",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c1000000000000000000000000000022",
+      "offering_uuid": "f1000000000000000000000000000003",
+      "type": "storage",
+      "name": "Database Storage",
+      "description": "SSD storage for database",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c1000000000000000000000000000023",
+      "offering_uuid": "f1000000000000000000000000000003",
+      "type": "backup",
+      "name": "Automated Backups",
+      "description": "Daily automated backups with 30-day retention",
+      "billing_type": "fixed",
+      "measured_unit": "month"
+    },
+    {
+      "uuid": "c1000000000000000000000000000024",
+      "offering_uuid": "f1000000000000000000000000000003",
+      "type": "queries",
+      "name": "Database Queries",
+      "description": "Number of database queries executed",
+      "billing_type": "usage",
+      "measured_unit": "thousand"
+    },
+    {
+      "uuid": "c1000000000000000000000000000101",
+      "offering_uuid": "f1000000000000000000000000000010",
+      "type": "vcpu",
+      "name": "Secure vCPU",
+      "description": "Isolated virtual CPU cores with security hardening",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c1000000000000000000000000000102",
+      "offering_uuid": "f1000000000000000000000000000010",
+      "type": "ram",
+      "name": "Encrypted Memory",
+      "description": "RAM with memory encryption",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c1000000000000000000000000000103",
+      "offering_uuid": "f1000000000000000000000000000010",
+      "type": "storage",
+      "name": "Secure Storage",
+      "description": "Encrypted persistent storage",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c1000000000000000000000000000104",
+      "offering_uuid": "f1000000000000000000000000000010",
+      "type": "audit_events",
+      "name": "Audit Events",
+      "description": "Security audit events logged",
+      "billing_type": "usage",
+      "measured_unit": "thousand"
+    },
+    {
+      "uuid": "c1000000000000000000000000000201",
+      "offering_uuid": "f1000000000000000000000000000020",
+      "type": "vcpu",
+      "name": "HA vCPU",
+      "description": "Virtual CPU cores across datacenters",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c1000000000000000000000000000202",
+      "offering_uuid": "f1000000000000000000000000000020",
+      "type": "ram",
+      "name": "HA Memory",
+      "description": "RAM with cross-DC replication",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c1000000000000000000000000000203",
+      "offering_uuid": "f1000000000000000000000000000020",
+      "type": "storage",
+      "name": "Replicated Storage",
+      "description": "Storage replicated across datacenters",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c1000000000000000000000000000204",
+      "offering_uuid": "f1000000000000000000000000000020",
+      "type": "cross_dc_traffic",
+      "name": "Cross-DC Traffic",
+      "description": "Data transfer between datacenters",
+      "billing_type": "usage",
+      "measured_unit": "GB"
+    }
+  ],
+  "plans": [
+    {
+      "uuid": "11000000000000000000000000000001",
+      "name": "Standard Secure VM",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "unit": "month"
+    },
+    {
+      "uuid": "11000000000000000000000000000002",
+      "name": "High-Security VM",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "unit": "month"
+    },
+    {
+      "uuid": "11000000000000000000000000000003",
+      "name": "Standard Object Storage",
+      "offering_uuid": "f1000000000000000000000000000002",
+      "unit": "month"
+    },
+    {
+      "uuid": "11000000000000000000000000000004",
+      "name": "PostgreSQL Standard",
+      "offering_uuid": "f1000000000000000000000000000003",
+      "unit": "month"
+    },
+    {
+      "uuid": "11000000000000000000000000000010",
+      "name": "Secure K8s Standard",
+      "offering_uuid": "f1000000000000000000000000000010",
+      "unit": "month",
+      "description": "Standard government-certified Kubernetes cluster"
+    },
+    {
+      "uuid": "11000000000000000000000000000011",
+      "name": "Secure K8s Premium",
+      "offering_uuid": "f1000000000000000000000000000010",
+      "unit": "month",
+      "description": "Premium secure Kubernetes with enhanced monitoring"
+    },
+    {
+      "uuid": "11000000000000000000000000000020",
+      "name": "HA K8s Standard",
+      "offering_uuid": "f1000000000000000000000000000020",
+      "unit": "month",
+      "description": "Standard multi-datacenter Kubernetes cluster"
+    },
+    {
+      "uuid": "11000000000000000000000000000021",
+      "name": "HA K8s Critical",
+      "offering_uuid": "f1000000000000000000000000000020",
+      "unit": "month",
+      "description": "Mission-critical multi-DC cluster with 99.99% SLA"
+    }
+  ],
+  "plan_components": [
+    {
+      "plan_uuid": "11000000000000000000000000000001",
+      "component_uuid": "c1000000000000000000000000000001",
+      "price": "15.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000001",
+      "component_uuid": "c1000000000000000000000000000002",
+      "price": "8.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000001",
+      "component_uuid": "c1000000000000000000000000000003",
+      "price": "0.20",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000001",
+      "component_uuid": "c1000000000000000000000000000004",
+      "price": "50.00",
+      "amount": 1
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000001",
+      "component_uuid": "c1000000000000000000000000000005",
+      "price": "0.08",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000002",
+      "component_uuid": "c1000000000000000000000000000001",
+      "price": "25.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000002",
+      "component_uuid": "c1000000000000000000000000000002",
+      "price": "12.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000002",
+      "component_uuid": "c1000000000000000000000000000003",
+      "price": "0.30",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000002",
+      "component_uuid": "c1000000000000000000000000000004",
+      "price": "100.00",
+      "amount": 1
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000002",
+      "component_uuid": "c1000000000000000000000000000005",
+      "price": "0.06",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000003",
+      "component_uuid": "c1000000000000000000000000000010",
+      "price": "0.05",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000003",
+      "component_uuid": "c1000000000000000000000000000011",
+      "price": "0.10",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000004",
+      "component_uuid": "c1000000000000000000000000000020",
+      "price": "30.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000004",
+      "component_uuid": "c1000000000000000000000000000021",
+      "price": "10.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000004",
+      "component_uuid": "c1000000000000000000000000000022",
+      "price": "0.15",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000004",
+      "component_uuid": "c1000000000000000000000000000023",
+      "price": "25.00",
+      "amount": 1
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000004",
+      "component_uuid": "c1000000000000000000000000000024",
+      "price": "0.005",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000010",
+      "component_uuid": "c1000000000000000000000000000101",
+      "price": "8.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000010",
+      "component_uuid": "c1000000000000000000000000000102",
+      "price": "4.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000010",
+      "component_uuid": "c1000000000000000000000000000103",
+      "price": "0.12",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000010",
+      "component_uuid": "c1000000000000000000000000000104",
+      "price": "0.001",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000011",
+      "component_uuid": "c1000000000000000000000000000101",
+      "price": "10.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000011",
+      "component_uuid": "c1000000000000000000000000000102",
+      "price": "5.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000011",
+      "component_uuid": "c1000000000000000000000000000103",
+      "price": "0.15",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000011",
+      "component_uuid": "c1000000000000000000000000000104",
+      "price": "0.0005",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000020",
+      "component_uuid": "c1000000000000000000000000000201",
+      "price": "12.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000020",
+      "component_uuid": "c1000000000000000000000000000202",
+      "price": "6.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000020",
+      "component_uuid": "c1000000000000000000000000000203",
+      "price": "0.18",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000020",
+      "component_uuid": "c1000000000000000000000000000204",
+      "price": "0.08",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000021",
+      "component_uuid": "c1000000000000000000000000000201",
+      "price": "15.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000021",
+      "component_uuid": "c1000000000000000000000000000202",
+      "price": "7.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000021",
+      "component_uuid": "c1000000000000000000000000000203",
+      "price": "0.20",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000021",
+      "component_uuid": "c1000000000000000000000000000204",
+      "price": "0.05",
+      "amount": 0
+    }
+  ],
+  "resources": [
+    {
+      "uuid": "d1000000000000000000000000000001",
+      "name": "Portal Web Server",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "11000000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu": 4,
+        "ram": 16,
+        "storage": 100
+      }
+    },
+    {
+      "uuid": "d1000000000000000000000000000002",
+      "name": "Tax System Database",
+      "offering_uuid": "f1000000000000000000000000000003",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "11000000000000000000000000000004",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu": 8,
+        "ram": 32,
+        "storage": 500
+      }
+    },
+    {
+      "uuid": "d1000000000000000000000000000003",
+      "name": "Document Storage",
+      "offering_uuid": "f1000000000000000000000000000002",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "11000000000000000000000000000003",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 2000
+      }
+    }
+  ],
+  "user_roles": [
+    {
+      "uuid": "01000000000000000000000000000001",
+      "user_uuid": "a1000000000000000000000000000001",
+      "user_username": "gov_admin",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b1000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "01000000000000000000000000000002",
+      "user_uuid": "a1000000000000000000000000000002",
+      "user_username": "security_officer",
+      "role_name": "CUSTOMER.SUPPORT",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b1000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "01000000000000000000000000000003",
+      "user_uuid": "00000000000000000000000000000003",
+      "user_username": "owner",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b1000000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "01000000000000000000000000000004",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "manager",
+      "role_name": "PROJECT.MANAGER",
+      "scope_type": "structure.project",
+      "scope_uuid": "c1000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "01000000000000000000000000000005",
+      "user_uuid": "00000000000000000000000000000005",
+      "user_username": "member",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "c1000000000000000000000000000001",
+      "is_active": true
+    }
+  ],
+  "offering_users": [
+    {
+      "uuid": "0a100000000000000000000000000001",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "user_uuid": "a1000000000000000000000000000001",
+      "username": "gov_admin",
+      "state": 5
+    },
+    {
+      "uuid": "0a100000000000000000000000000002",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "user_uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "state": 5
+    },
+    {
+      "uuid": "0a100000000000000000000000000003",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "user_uuid": "00000000000000000000000000000005",
+      "username": "member",
+      "state": 5
+    },
+    {
+      "uuid": "0a100000000000000000000000000004",
+      "offering_uuid": "f1000000000000000000000000000002",
+      "user_uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "state": 5
+    },
+    {
+      "uuid": "0a100000000000000000000000000005",
+      "offering_uuid": "f1000000000000000000000000000002",
+      "user_uuid": "00000000000000000000000000000005",
+      "username": "member",
+      "state": 5
+    },
+    {
+      "uuid": "0a100000000000000000000000000006",
+      "offering_uuid": "f1000000000000000000000000000003",
+      "user_uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "state": 5
+    },
+    {
+      "uuid": "0a100000000000000000000000000007",
+      "offering_uuid": "f1000000000000000000000000000003",
+      "user_uuid": "00000000000000000000000000000005",
+      "username": "member",
+      "state": 5
+    }
+  ],
+  "component_usages": [
+    {
+      "uuid": "ca100000000000000000000000000001",
+      "resource_uuid": "d1000000000000000000000000000003",
+      "component_uuid": "c1000000000000000000000000000011",
+      "usage": "320.00",
+      "date": "2025-09-10T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Data transfer for September 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000002",
+      "resource_uuid": "d1000000000000000000000000000003",
+      "component_uuid": "c1000000000000000000000000000011",
+      "usage": "380.00",
+      "date": "2025-10-10T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Data transfer for October 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000003",
+      "resource_uuid": "d1000000000000000000000000000003",
+      "component_uuid": "c1000000000000000000000000000011",
+      "usage": "410.00",
+      "date": "2025-11-10T10:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "Data transfer for November 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000004",
+      "resource_uuid": "d1000000000000000000000000000003",
+      "component_uuid": "c1000000000000000000000000000011",
+      "usage": "450.00",
+      "date": "2025-12-10T10:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Data transfer for December 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000005",
+      "resource_uuid": "d1000000000000000000000000000001",
+      "component_uuid": "c1000000000000000000000000000005",
+      "usage": "185.50",
+      "date": "2025-09-15T12:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Network traffic for September 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000006",
+      "resource_uuid": "d1000000000000000000000000000001",
+      "component_uuid": "c1000000000000000000000000000005",
+      "usage": "210.25",
+      "date": "2025-10-15T12:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Network traffic for October 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000007",
+      "resource_uuid": "d1000000000000000000000000000001",
+      "component_uuid": "c1000000000000000000000000000005",
+      "usage": "245.75",
+      "date": "2025-11-15T12:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "Network traffic for November 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000008",
+      "resource_uuid": "d1000000000000000000000000000001",
+      "component_uuid": "c1000000000000000000000000000005",
+      "usage": "280.00",
+      "date": "2025-12-15T12:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Network traffic for December 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000009",
+      "resource_uuid": "d1000000000000000000000000000002",
+      "component_uuid": "c1000000000000000000000000000024",
+      "usage": "1250.00",
+      "date": "2025-09-20T09:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Database queries (thousands) for September 2025"
+    },
+    {
+      "uuid": "ca10000000000000000000000000000a",
+      "resource_uuid": "d1000000000000000000000000000002",
+      "component_uuid": "c1000000000000000000000000000024",
+      "usage": "1480.00",
+      "date": "2025-10-20T09:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Database queries (thousands) for October 2025"
+    },
+    {
+      "uuid": "ca10000000000000000000000000000b",
+      "resource_uuid": "d1000000000000000000000000000002",
+      "component_uuid": "c1000000000000000000000000000024",
+      "usage": "1720.00",
+      "date": "2025-11-20T09:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "Database queries (thousands) for November 2025"
+    },
+    {
+      "uuid": "ca10000000000000000000000000000c",
+      "resource_uuid": "d1000000000000000000000000000002",
+      "component_uuid": "c1000000000000000000000000000024",
+      "usage": "1950.00",
+      "date": "2025-12-20T09:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Database queries (thousands) for December 2025"
+    },
+    {
+      "uuid": "ca10000000000000000000000000000d",
+      "resource_uuid": "d1000000000000000000000000000001",
+      "component_uuid": "c1000000000000000000000000000001",
+      "usage": "3.75",
+      "date": "2025-12-15T12:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Secure CPU cores usage for December 2025"
+    },
+    {
+      "uuid": "ca10000000000000000000000000000e",
+      "resource_uuid": "d1000000000000000000000000000001",
+      "component_uuid": "c1000000000000000000000000000002",
+      "usage": "14.50",
+      "date": "2025-12-15T12:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Encrypted RAM usage for December 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000011",
+      "resource_uuid": "d1000000000000000000000000000001",
+      "component_uuid": "c1000000000000000000000000000003",
+      "usage": "78.00",
+      "date": "2025-12-15T12:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Secure storage usage for December 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000012",
+      "resource_uuid": "d1000000000000000000000000000002",
+      "component_uuid": "c1000000000000000000000000000020",
+      "usage": "7.20",
+      "date": "2025-12-20T09:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Database CPU usage for December 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000013",
+      "resource_uuid": "d1000000000000000000000000000002",
+      "component_uuid": "c1000000000000000000000000000021",
+      "usage": "28.50",
+      "date": "2025-12-20T09:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Database memory usage for December 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000014",
+      "resource_uuid": "d1000000000000000000000000000002",
+      "component_uuid": "c1000000000000000000000000000022",
+      "usage": "385.00",
+      "date": "2025-12-20T09:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Database storage usage for December 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000015",
+      "resource_uuid": "d1000000000000000000000000000003",
+      "component_uuid": "c1000000000000000000000000000010",
+      "usage": "1650.00",
+      "date": "2025-12-10T10:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Object storage capacity usage for December 2025"
+    }
+  ],
+  "component_user_usages": [
+    {
+      "uuid": "cb100000000000000000000000000001",
+      "component_usage_uuid": "ca100000000000000000000000000005",
+      "user_uuid": "0a100000000000000000000000000002",
+      "username": "manager",
+      "usage": "85.50",
+      "description": "Network traffic by manager"
+    },
+    {
+      "uuid": "cb100000000000000000000000000002",
+      "component_usage_uuid": "ca100000000000000000000000000005",
+      "user_uuid": "0a100000000000000000000000000003",
+      "username": "member",
+      "usage": "100.00",
+      "description": "Network traffic by member"
+    },
+    {
+      "uuid": "cb100000000000000000000000000003",
+      "component_usage_uuid": "ca100000000000000000000000000006",
+      "user_uuid": "0a100000000000000000000000000002",
+      "username": "manager",
+      "usage": "95.25",
+      "description": "Network traffic by manager"
+    },
+    {
+      "uuid": "cb100000000000000000000000000004",
+      "component_usage_uuid": "ca100000000000000000000000000006",
+      "user_uuid": "0a100000000000000000000000000003",
+      "username": "member",
+      "usage": "115.00",
+      "description": "Network traffic by member"
+    },
+    {
+      "uuid": "cb100000000000000000000000000005",
+      "component_usage_uuid": "ca100000000000000000000000000007",
+      "user_uuid": "0a100000000000000000000000000002",
+      "username": "manager",
+      "usage": "110.75",
+      "description": "Network traffic by manager"
+    },
+    {
+      "uuid": "cb100000000000000000000000000006",
+      "component_usage_uuid": "ca100000000000000000000000000007",
+      "user_uuid": "0a100000000000000000000000000003",
+      "username": "member",
+      "usage": "135.00",
+      "description": "Network traffic by member"
+    },
+    {
+      "uuid": "cb100000000000000000000000000007",
+      "component_usage_uuid": "ca100000000000000000000000000008",
+      "user_uuid": "0a100000000000000000000000000002",
+      "username": "manager",
+      "usage": "125.00",
+      "description": "Network traffic by manager"
+    },
+    {
+      "uuid": "cb100000000000000000000000000008",
+      "component_usage_uuid": "ca100000000000000000000000000008",
+      "user_uuid": "0a100000000000000000000000000003",
+      "username": "member",
+      "usage": "155.00",
+      "description": "Network traffic by member"
+    },
+    {
+      "uuid": "cb100000000000000000000000000009",
+      "component_usage_uuid": "ca100000000000000000000000000009",
+      "user_uuid": "0a100000000000000000000000000006",
+      "username": "manager",
+      "usage": "550.00",
+      "description": "Database queries by manager"
+    },
+    {
+      "uuid": "cb10000000000000000000000000000a",
+      "component_usage_uuid": "ca100000000000000000000000000009",
+      "user_uuid": "0a100000000000000000000000000007",
+      "username": "member",
+      "usage": "700.00",
+      "description": "Database queries by member"
+    },
+    {
+      "uuid": "cb10000000000000000000000000000b",
+      "component_usage_uuid": "ca10000000000000000000000000000a",
+      "user_uuid": "0a100000000000000000000000000006",
+      "username": "manager",
+      "usage": "650.00",
+      "description": "Database queries by manager"
+    },
+    {
+      "uuid": "cb10000000000000000000000000000c",
+      "component_usage_uuid": "ca10000000000000000000000000000a",
+      "user_uuid": "0a100000000000000000000000000007",
+      "username": "member",
+      "usage": "830.00",
+      "description": "Database queries by member"
+    },
+    {
+      "uuid": "cb10000000000000000000000000000d",
+      "component_usage_uuid": "ca10000000000000000000000000000b",
+      "user_uuid": "0a100000000000000000000000000006",
+      "username": "manager",
+      "usage": "750.00",
+      "description": "Database queries by manager"
+    },
+    {
+      "uuid": "cb10000000000000000000000000000e",
+      "component_usage_uuid": "ca10000000000000000000000000000b",
+      "user_uuid": "0a100000000000000000000000000007",
+      "username": "member",
+      "usage": "970.00",
+      "description": "Database queries by member"
+    },
+    {
+      "uuid": "cb10000000000000000000000000000f",
+      "component_usage_uuid": "ca10000000000000000000000000000c",
+      "user_uuid": "0a100000000000000000000000000006",
+      "username": "manager",
+      "usage": "850.00",
+      "description": "Database queries by manager"
+    },
+    {
+      "uuid": "cb100000000000000000000000000010",
+      "component_usage_uuid": "ca10000000000000000000000000000c",
+      "user_uuid": "0a100000000000000000000000000007",
+      "username": "member",
+      "usage": "1100.00",
+      "description": "Database queries by member"
+    }
+  ],
+  "constance_settings": {
+    "SITE_NAME": "Government Cloud Portal",
+    "SITE_DESCRIPTION": "Secure government cloud infrastructure platform providing GDPR-compliant virtual machines, object storage, and managed database services for public sector organizations.",
+    "MARKETPLACE_LANDING_PAGE": "Government Services",
+    "CURRENCY_NAME": "EUR",
+    "ANONYMOUS_USER_CAN_VIEW_OFFERINGS": false,
+    "ANONYMOUS_USER_CAN_VIEW_PLANS": false
+  }
+}

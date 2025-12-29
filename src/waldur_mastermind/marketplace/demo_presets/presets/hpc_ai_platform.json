@@ -1,0 +1,1015 @@
+{
+  "_metadata": {
+    "title": "HPC & AI Platform",
+    "description": "High-performance computing and AI/ML platform with GPU clusters, model training, and inference services.",
+    "version": "1.0.0",
+    "scenarios": [
+      "AI/ML model training",
+      "GPU computing services",
+      "Deep learning infrastructure"
+    ]
+  },
+  "users": [
+    {
+      "uuid": "00000000000000000000000000000001",
+      "username": "staff",
+      "email": "staff@demo.waldur.com",
+      "first_name": "Staff",
+      "last_name": "User",
+      "is_staff": true,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001001",
+      "organization": "AI Platform Services",
+      "job_title": "Platform Administrator"
+    },
+    {
+      "uuid": "00000000000000000000000000000002",
+      "username": "support",
+      "email": "support@demo.waldur.com",
+      "first_name": "Support",
+      "last_name": "User",
+      "is_support": true,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001002",
+      "organization": "AI Platform Services",
+      "job_title": "ML Infrastructure Support"
+    },
+    {
+      "uuid": "00000000000000000000000000000003",
+      "username": "owner",
+      "email": "owner@demo.waldur.com",
+      "first_name": "Organization",
+      "last_name": "Owner",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001003",
+      "organization": "AI Startup Inc",
+      "job_title": "Chief Technology Officer"
+    },
+    {
+      "uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "email": "manager@demo.waldur.com",
+      "first_name": "Project",
+      "last_name": "Manager",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001004",
+      "organization": "AI Startup Inc",
+      "job_title": "ML Team Lead"
+    },
+    {
+      "uuid": "00000000000000000000000000000005",
+      "username": "member",
+      "email": "member@demo.waldur.com",
+      "first_name": "Project",
+      "last_name": "Member",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001005",
+      "organization": "AI Startup Inc",
+      "job_title": "Data Scientist"
+    },
+    {
+      "uuid": "a3000000000000000000000000000001",
+      "username": "ai_admin",
+      "email": "admin@aiplatform.com",
+      "first_name": "Platform",
+      "last_name": "Administrator",
+      "is_staff": true,
+      "is_active": true,
+      "phone_number": "+37256004001",
+      "organization": "AI Platform Services",
+      "job_title": "GPU Infrastructure Manager"
+    },
+    {
+      "uuid": "a3000000000000000000000000000002",
+      "username": "ml_engineer",
+      "email": "ml@startup.com",
+      "first_name": "ML",
+      "last_name": "Engineer",
+      "is_active": true,
+      "phone_number": "+37256004002",
+      "organization": "AI Startup Inc",
+      "job_title": "Senior ML Engineer"
+    }
+  ],
+  "ssh_public_keys": [
+    {
+      "uuid": "f3000000000000000000000000000101",
+      "user_uuid": "a3000000000000000000000000000001",
+      "name": "ai-admin-gpu-access",
+      "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO9pQ0rS1tU2vW3xY4zA5bC6dD7eF8gH9iJ0kL1mN2oP admin@aiplatform.com"
+    },
+    {
+      "uuid": "f3000000000000000000000000000102",
+      "user_uuid": "a3000000000000000000000000000002",
+      "name": "ml-engineer-workstation",
+      "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPaQ1rS2tU3vW4xY5zA6bC7dD8eF9gH0iJ1kL2mN3oP4 ml@startup.com"
+    },
+    {
+      "uuid": "f3000000000000000000000000000103",
+      "user_uuid": "00000000000000000000000000000005",
+      "name": "data-scientist-laptop",
+      "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIQbR2sT3uV4wX5yZ6aB7cD8eF9gH0iJ1kL2mN3oP4qR5 member@demo.waldur.com"
+    }
+  ],
+  "customers": [
+    {
+      "uuid": "b3000000000000000000000000000001",
+      "name": "AI Platform Services",
+      "abbreviation": "APS",
+      "description": "Enterprise AI/ML infrastructure provider offering GPU clusters, model training services, and high-performance ML workflows.",
+      "email": "services@aiplatform.com",
+      "country": "EE"
+    },
+    {
+      "uuid": "b3000000000000000000000000000002",
+      "name": "AI Startup Inc",
+      "abbreviation": "ASI",
+      "description": "Innovative AI startup developing next-generation language models and conversational AI applications.",
+      "email": "compute@startup.com",
+      "country": "EE"
+    },
+    {
+      "uuid": "b3000000000000000000000000000003",
+      "name": "Enterprise ML Team",
+      "abbreviation": "EML",
+      "description": "Corporate machine learning team focused on computer vision, predictive analytics, and production ML systems.",
+      "email": "ml@enterprise.com",
+      "country": "EE"
+    }
+  ],
+  "projects": [
+    {
+      "uuid": "c3000000000000000000000000000001",
+      "name": "LLM Training Pipeline",
+      "description": "Large language model pre-training and fine-tuning",
+      "customer_uuid": "b3000000000000000000000000000002"
+    },
+    {
+      "uuid": "c3000000000000000000000000000002",
+      "name": "Computer Vision Models",
+      "description": "Image classification and object detection models",
+      "customer_uuid": "b3000000000000000000000000000003"
+    }
+  ],
+  "categories": [
+    {
+      "uuid": "d3000000000000000000000000000001",
+      "title": "GPU Compute",
+      "description": "GPU clusters for AI/ML workloads"
+    },
+    {
+      "uuid": "d3000000000000000000000000000002",
+      "title": "Model Storage",
+      "description": "High-speed storage for ML datasets and models"
+    },
+    {
+      "uuid": "d3000000000000000000000000000003",
+      "title": "AI/ML Kubernetes",
+      "description": "Kubernetes clusters optimized for AI/ML workloads with GPU support"
+    }
+  ],
+  "service_providers": [
+    {
+      "uuid": "e3000000000000000000000000000001",
+      "customer_uuid": "b3000000000000000000000000000001",
+      "description": "AI Platform Services - Enterprise AI/ML infrastructure"
+    }
+  ],
+  "offerings": [
+    {
+      "uuid": "f3000000000000000000000000000001",
+      "name": "GPU Training Cluster",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "b3000000000000000000000000000001",
+      "description": "NVIDIA A100 GPU cluster for model training",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with GPU Training Cluster\n\n### Access\n```\nssh username@gpu-cluster.aiplatform.com\n```\n\n### Environment Setup\n```bash\n# Load CUDA and Python\nmodule load cuda/12.0 python/3.11\n\n# Activate your conda environment\nconda activate myenv\n\n# Check GPU availability\nnvidia-smi\n```\n\n### Job Submission (SLURM)\n```bash\n#!/bin/bash\n#SBATCH --gres=gpu:a100:4\n#SBATCH --time=48:00:00\n\npython train_model.py\n```\n\n### Best Practices\n- Use mixed precision training (FP16/BF16)\n- Enable gradient checkpointing for large models\n- Use distributed training for multi-GPU workloads"
+    },
+    {
+      "uuid": "f3000000000000000000000000000002",
+      "name": "ML Dataset Storage",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000002",
+      "customer_uuid": "b3000000000000000000000000000001",
+      "description": "High-throughput storage for ML datasets and checkpoints",
+      "getting_started": "## Getting Started with ML Dataset Storage\n\n### Storage Paths\n- **Datasets**: `/ml-storage/datasets/`\n- **Checkpoints**: `/ml-storage/checkpoints/`\n- **Models**: `/ml-storage/models/`\n\n### Data Loading\nUse our optimized PyTorch DataLoader:\n```python\nfrom ml_storage import FastDataLoader\n\nloader = FastDataLoader(\n    path='/ml-storage/datasets/imagenet',\n    batch_size=256,\n    num_workers=8\n)\n```\n\n### Checkpoint Management\n```python\nimport torch\ntorch.save(model.state_dict(), '/ml-storage/checkpoints/model_v1.pt')\n```\n\n### Performance Tips\n- Use memory-mapped files for large datasets\n- Prefetch data during training\n- Compress checkpoints with zstd"
+    },
+    {
+      "uuid": "f3000000000000000000000000000010",
+      "name": "AI/ML Kubernetes Cluster",
+      "type": "Support.OfferingTemplate",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000003",
+      "customer_uuid": "b3000000000000000000000000000001",
+      "description": "Kubernetes cluster optimized for AI/ML workloads with NVIDIA GPU operator, Kubeflow, and high-speed networking for distributed training.",
+      "options": {
+        "order": ["cluster_config"],
+        "options": {
+          "cluster_config": {
+            "type": "single_datacenter_k8s_config",
+            "label": "AI/ML Cluster Configuration",
+            "help_text": "Configure your GPU-accelerated Kubernetes cluster for AI/ML workloads",
+            "required": true,
+            "default_configs": {
+              "default_controller_vcpus": 8,
+              "default_controller_ram_gb": 32,
+              "default_controller_system_disk_gb": 200,
+              "default_controller_etcd_disk_gb": 100,
+              "default_lb_vcpus": 4,
+              "default_lb_ram_gb": 8,
+              "default_lb_system_disk_gb": 50,
+              "default_lb_logs_disk_gb": 100,
+              "minimal_worker_vcpus": 16,
+              "minimal_worker_ram_gb": 64,
+              "default_worker_data_disk_gb": 2000,
+              "default_storage_data_disk_gb": 5000,
+              "default_storage_san_disk_gb": 20000,
+              "available_kubernetes_versions": "1.28.0,1.29.0,1.30.0"
+            }
+          }
+        }
+      },
+      "plugin_options": {
+        "backend_type": "k8s-ai-ml",
+        "service_type": "kubernetes-cluster",
+        "deployment_mode": "managed",
+        "gpu_operator": true,
+        "kubeflow_enabled": true,
+        "infiniband_support": true,
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with AI/ML Kubernetes\n\n### Access\n```\nexport KUBECONFIG=~/Downloads/kubeconfig-aiml.yaml\nkubectl get nodes -l nvidia.com/gpu.present=true\n```\n\n### GPU Workloads\n```yaml\napiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: cuda-container\n    resources:\n      limits:\n        nvidia.com/gpu: 8\n```\n\n### Kubeflow\nAccess the Kubeflow dashboard for:\n- Jupyter notebooks\n- Training operators (PyTorch, TensorFlow)\n- Model serving (KServe)\n\n### Distributed Training\n- Use PyTorchJob for multi-node training\n- NCCL over InfiniBand for high bandwidth\n\n### Support\nEmail: ai-support@aiplatform.com"
+    },
+    {
+      "uuid": "f3000000000000000000000000000020",
+      "name": "Multi-Region AI Training Platform",
+      "type": "Support.OfferingTemplate",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000003",
+      "customer_uuid": "b3000000000000000000000000000001",
+      "description": "Global multi-region Kubernetes platform for distributed AI training across datacenters with federated learning and model synchronization.",
+      "options": {
+        "order": ["cluster_config"],
+        "options": {
+          "cluster_config": {
+            "type": "multi_datacenter_k8s_config",
+            "label": "Multi-Region AI Platform Configuration",
+            "help_text": "Configure your globally distributed AI training platform with GPU nodes across regions",
+            "required": true,
+            "default_configs": {
+              "default_controller_vcpus": 16,
+              "default_controller_ram_gb": 64,
+              "default_controller_system_disk_gb": 500,
+              "default_controller_etcd_disk_gb": 200,
+              "default_lb_vcpus": 8,
+              "default_lb_ram_gb": 16,
+              "default_lb_system_disk_gb": 100,
+              "default_lb_logs_disk_gb": 200,
+              "minimal_worker_vcpus": 32,
+              "minimal_worker_ram_gb": 128,
+              "default_worker_data_disk_gb": 5000,
+              "default_storage_data_disk_gb": 20000,
+              "default_storage_san_disk_gb": 100000,
+              "available_kubernetes_versions": "1.28.0,1.29.0,1.30.0"
+            }
+          }
+        }
+      },
+      "plugin_options": {
+        "backend_type": "k8s-global-ai",
+        "service_type": "kubernetes-cluster",
+        "deployment_mode": "managed",
+        "high_availability": true,
+        "gpu_operator": true,
+        "federated_learning": true,
+        "model_registry": true,
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with Multi-Region AI Platform\n\n### Global Architecture\n- **Primary**: US-East (NVIDIA H100)\n- **Secondary**: EU-West (NVIDIA A100)\n- **Tertiary**: APAC (NVIDIA A100)\n\n### Access\n```\nexport KUBECONFIG=~/Downloads/kubeconfig-global-ai.yaml\nkubectl get nodes --label-columns=topology.kubernetes.io/region\n```\n\n### Federated Learning\n```yaml\napiVersion: fl.aiplatform.com/v1\nkind: FederatedLearningJob\nspec:\n  regions: [us-east, eu-west, apac]\n  aggregationStrategy: FedAvg\n```\n\n### Model Registry\nPush models to global registry for serving across regions.\n\n### Support\n24/7 AI Platform Support: ai-enterprise@aiplatform.com"
+    }
+  ],
+  "offering_endpoints": [
+    {
+      "uuid": "a3000000000000000000000000000001",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "name": "GPU Dashboard",
+      "url": "https://gpu.aiplatform.com/dashboard/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000002",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "name": "Job Monitor",
+      "url": "https://gpu.aiplatform.com/jobs/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000003",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "name": "GPU Metrics",
+      "url": "https://metrics.aiplatform.com/gpu/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000004",
+      "offering_uuid": "f3000000000000000000000000000002",
+      "name": "Storage Console",
+      "url": "https://storage.aiplatform.com/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000005",
+      "offering_uuid": "f3000000000000000000000000000002",
+      "name": "Model Registry",
+      "url": "https://models.aiplatform.com/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000010",
+      "offering_uuid": "f3000000000000000000000000000010",
+      "name": "AI/ML K8s Dashboard",
+      "url": "https://k8s-aiml.aiplatform.com/dashboard/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000011",
+      "offering_uuid": "f3000000000000000000000000000010",
+      "name": "Kubeflow Dashboard",
+      "url": "https://kubeflow.aiplatform.com/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000020",
+      "offering_uuid": "f3000000000000000000000000000020",
+      "name": "Global AI Platform Dashboard",
+      "url": "https://global-ai.aiplatform.com/dashboard/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000021",
+      "offering_uuid": "f3000000000000000000000000000020",
+      "name": "Federated Learning Console",
+      "url": "https://fl.aiplatform.com/"
+    }
+  ],
+  "offering_components": [
+    {
+      "uuid": "c3000000000000000000000000000001",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "type": "gpu",
+      "name": "A100 GPUs",
+      "description": "NVIDIA A100 80GB GPU allocation",
+      "billing_type": "limit",
+      "measured_unit": "GPUs"
+    },
+    {
+      "uuid": "c3000000000000000000000000000002",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "type": "cpu",
+      "name": "CPU Cores",
+      "description": "AMD EPYC CPU cores",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c3000000000000000000000000000003",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "type": "ram",
+      "name": "System Memory",
+      "description": "DDR5 ECC memory",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c3000000000000000000000000000004",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "type": "nvme_storage",
+      "name": "NVMe Storage",
+      "description": "Local NVMe SSD storage",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c3000000000000000000000000000005",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "type": "platform_fee",
+      "name": "Platform Fee",
+      "description": "Platform access and support",
+      "billing_type": "fixed",
+      "measured_unit": "month"
+    },
+    {
+      "uuid": "c3000000000000000000000000000010",
+      "offering_uuid": "f3000000000000000000000000000002",
+      "type": "storage",
+      "name": "Storage Capacity",
+      "description": "High-speed parallel filesystem",
+      "billing_type": "limit",
+      "measured_unit": "TB"
+    },
+    {
+      "uuid": "c3000000000000000000000000000011",
+      "offering_uuid": "f3000000000000000000000000000002",
+      "type": "data_transfer",
+      "name": "Data Transfer",
+      "description": "Data transfer bandwidth",
+      "billing_type": "usage",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c3000000000000000000000000000101",
+      "offering_uuid": "f3000000000000000000000000000010",
+      "type": "gpu",
+      "name": "GPU Allocation",
+      "description": "NVIDIA GPU devices for ML workloads",
+      "billing_type": "limit",
+      "measured_unit": "GPUs"
+    },
+    {
+      "uuid": "c3000000000000000000000000000102",
+      "offering_uuid": "f3000000000000000000000000000010",
+      "type": "vcpu",
+      "name": "vCPU Cores",
+      "description": "Virtual CPU cores",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c3000000000000000000000000000103",
+      "offering_uuid": "f3000000000000000000000000000010",
+      "type": "ram",
+      "name": "Memory",
+      "description": "RAM for containers",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c3000000000000000000000000000104",
+      "offering_uuid": "f3000000000000000000000000000010",
+      "type": "storage",
+      "name": "Fast Storage",
+      "description": "NVMe storage for training",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c3000000000000000000000000000201",
+      "offering_uuid": "f3000000000000000000000000000020",
+      "type": "gpu",
+      "name": "Global GPU Pool",
+      "description": "GPU allocation across regions",
+      "billing_type": "limit",
+      "measured_unit": "GPUs"
+    },
+    {
+      "uuid": "c3000000000000000000000000000202",
+      "offering_uuid": "f3000000000000000000000000000020",
+      "type": "vcpu",
+      "name": "Global vCPU",
+      "description": "CPU cores across regions",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c3000000000000000000000000000203",
+      "offering_uuid": "f3000000000000000000000000000020",
+      "type": "ram",
+      "name": "Global Memory",
+      "description": "RAM across regions",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c3000000000000000000000000000204",
+      "offering_uuid": "f3000000000000000000000000000020",
+      "type": "cross_region_traffic",
+      "name": "Cross-Region Traffic",
+      "description": "Data transfer between regions",
+      "billing_type": "usage",
+      "measured_unit": "GB"
+    }
+  ],
+  "plans": [
+    {
+      "uuid": "13000000000000000000000000000001",
+      "name": "GPU Cluster - Standard",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "unit": "month"
+    },
+    {
+      "uuid": "13000000000000000000000000000002",
+      "name": "GPU Cluster - Enterprise",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "unit": "month"
+    },
+    {
+      "uuid": "13000000000000000000000000000003",
+      "name": "ML Storage - Standard",
+      "offering_uuid": "f3000000000000000000000000000002",
+      "unit": "month"
+    },
+    {
+      "uuid": "13000000000000000000000000000010",
+      "name": "AI/ML K8s - Standard",
+      "offering_uuid": "f3000000000000000000000000000010",
+      "unit": "month",
+      "description": "Standard AI/ML Kubernetes cluster"
+    },
+    {
+      "uuid": "13000000000000000000000000000011",
+      "name": "AI/ML K8s - Enterprise",
+      "offering_uuid": "f3000000000000000000000000000010",
+      "unit": "month",
+      "description": "Enterprise AI/ML cluster with priority scheduling"
+    },
+    {
+      "uuid": "13000000000000000000000000000020",
+      "name": "Global AI - Standard",
+      "offering_uuid": "f3000000000000000000000000000020",
+      "unit": "month",
+      "description": "Standard multi-region AI platform"
+    },
+    {
+      "uuid": "13000000000000000000000000000021",
+      "name": "Global AI - Enterprise",
+      "offering_uuid": "f3000000000000000000000000000020",
+      "unit": "month",
+      "description": "Enterprise global AI platform with SLA"
+    }
+  ],
+  "plan_components": [
+    {
+      "plan_uuid": "13000000000000000000000000000001",
+      "component_uuid": "c3000000000000000000000000000001",
+      "price": "2500.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000001",
+      "component_uuid": "c3000000000000000000000000000002",
+      "price": "10.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000001",
+      "component_uuid": "c3000000000000000000000000000003",
+      "price": "5.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000001",
+      "component_uuid": "c3000000000000000000000000000004",
+      "price": "0.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000001",
+      "component_uuid": "c3000000000000000000000000000005",
+      "price": "500.00",
+      "amount": 1
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000002",
+      "component_uuid": "c3000000000000000000000000000001",
+      "price": "2000.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000002",
+      "component_uuid": "c3000000000000000000000000000002",
+      "price": "8.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000002",
+      "component_uuid": "c3000000000000000000000000000003",
+      "price": "4.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000002",
+      "component_uuid": "c3000000000000000000000000000004",
+      "price": "0.40",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000002",
+      "component_uuid": "c3000000000000000000000000000005",
+      "price": "1000.00",
+      "amount": 1
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000003",
+      "component_uuid": "c3000000000000000000000000000010",
+      "price": "50.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000003",
+      "component_uuid": "c3000000000000000000000000000011",
+      "price": "0.02",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000010",
+      "component_uuid": "c3000000000000000000000000000101",
+      "price": "2000.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000010",
+      "component_uuid": "c3000000000000000000000000000102",
+      "price": "8.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000010",
+      "component_uuid": "c3000000000000000000000000000103",
+      "price": "4.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000010",
+      "component_uuid": "c3000000000000000000000000000104",
+      "price": "0.20",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000011",
+      "component_uuid": "c3000000000000000000000000000101",
+      "price": "2500.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000011",
+      "component_uuid": "c3000000000000000000000000000102",
+      "price": "10.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000011",
+      "component_uuid": "c3000000000000000000000000000103",
+      "price": "5.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000011",
+      "component_uuid": "c3000000000000000000000000000104",
+      "price": "0.25",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000020",
+      "component_uuid": "c3000000000000000000000000000201",
+      "price": "3000.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000020",
+      "component_uuid": "c3000000000000000000000000000202",
+      "price": "12.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000020",
+      "component_uuid": "c3000000000000000000000000000203",
+      "price": "6.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000020",
+      "component_uuid": "c3000000000000000000000000000204",
+      "price": "0.10",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000021",
+      "component_uuid": "c3000000000000000000000000000201",
+      "price": "3500.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000021",
+      "component_uuid": "c3000000000000000000000000000202",
+      "price": "15.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000021",
+      "component_uuid": "c3000000000000000000000000000203",
+      "price": "7.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000021",
+      "component_uuid": "c3000000000000000000000000000204",
+      "price": "0.05",
+      "amount": 0
+    }
+  ],
+  "resources": [
+    {
+      "uuid": "d3000000000000000000000000000001",
+      "name": "LLM Training Cluster",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000002",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "gpu": 8,
+        "cpu": 128,
+        "ram": 512,
+        "nvme_storage": 10000
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000002",
+      "name": "Vision Model Storage",
+      "offering_uuid": "f3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000003",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 50
+      }
+    }
+  ],
+  "user_roles": [
+    {
+      "uuid": "03000000000000000000000000000001",
+      "user_uuid": "a3000000000000000000000000000001",
+      "user_username": "ai_admin",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b3000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "03000000000000000000000000000002",
+      "user_uuid": "00000000000000000000000000000003",
+      "user_username": "owner",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b3000000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "03000000000000000000000000000003",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "manager",
+      "role_name": "PROJECT.MANAGER",
+      "scope_type": "structure.project",
+      "scope_uuid": "c3000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "03000000000000000000000000000004",
+      "user_uuid": "00000000000000000000000000000005",
+      "user_username": "member",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "c3000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "03000000000000000000000000000005",
+      "user_uuid": "a3000000000000000000000000000002",
+      "user_username": "ml_engineer",
+      "role_name": "PROJECT.ADMIN",
+      "scope_type": "structure.project",
+      "scope_uuid": "c3000000000000000000000000000001",
+      "is_active": true
+    }
+  ],
+  "offering_users": [
+    {
+      "uuid": "0a300000000000000000000000000001",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "user_uuid": "a3000000000000000000000000000002",
+      "username": "ml_engineer",
+      "state": 5
+    },
+    {
+      "uuid": "0a300000000000000000000000000002",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "user_uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "state": 5
+    },
+    {
+      "uuid": "0a300000000000000000000000000003",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "user_uuid": "00000000000000000000000000000005",
+      "username": "member",
+      "state": 5
+    }
+  ],
+  "component_usages": [
+    {
+      "uuid": "ca300000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "component_uuid": "c3000000000000000000000000000011",
+      "usage": "1800.00",
+      "date": "2025-09-20T14:30:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Data transfer for September 2025"
+    },
+    {
+      "uuid": "ca300000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "component_uuid": "c3000000000000000000000000000011",
+      "usage": "2100.00",
+      "date": "2025-10-20T14:30:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Data transfer for October 2025"
+    },
+    {
+      "uuid": "ca300000000000000000000000000003",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "component_uuid": "c3000000000000000000000000000011",
+      "usage": "2350.00",
+      "date": "2025-11-20T14:30:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "Data transfer for November 2025"
+    },
+    {
+      "uuid": "ca300000000000000000000000000004",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "component_uuid": "c3000000000000000000000000000011",
+      "usage": "2500.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Data transfer for December 2025"
+    },
+    {
+      "uuid": "ca300000000000000000000000000005",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "component_uuid": "c3000000000000000000000000000001",
+      "usage": "7.50",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "A100 GPU usage for December 2025"
+    },
+    {
+      "uuid": "ca300000000000000000000000000006",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "component_uuid": "c3000000000000000000000000000002",
+      "usage": "118.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "CPU cores usage for December 2025"
+    },
+    {
+      "uuid": "ca300000000000000000000000000007",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "component_uuid": "c3000000000000000000000000000003",
+      "usage": "485.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "System memory usage for December 2025"
+    },
+    {
+      "uuid": "ca300000000000000000000000000008",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "component_uuid": "c3000000000000000000000000000004",
+      "usage": "8500.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "NVMe storage usage for December 2025"
+    },
+    {
+      "uuid": "ca300000000000000000000000000009",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "component_uuid": "c3000000000000000000000000000010",
+      "usage": "42.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Storage capacity usage for December 2025"
+    }
+  ],
+  "component_user_usages": [
+    {
+      "uuid": "cb300000000000000000000000000001",
+      "component_usage_uuid": "ca300000000000000000000000000001",
+      "user_uuid": "0a300000000000000000000000000001",
+      "username": "ml_engineer",
+      "usage": "950.00",
+      "description": "Data transfer by ml_engineer"
+    },
+    {
+      "uuid": "cb300000000000000000000000000002",
+      "component_usage_uuid": "ca300000000000000000000000000001",
+      "user_uuid": "0a300000000000000000000000000002",
+      "username": "manager",
+      "usage": "350.00",
+      "description": "Data transfer by manager"
+    },
+    {
+      "uuid": "cb300000000000000000000000000003",
+      "component_usage_uuid": "ca300000000000000000000000000001",
+      "user_uuid": "0a300000000000000000000000000003",
+      "username": "member",
+      "usage": "500.00",
+      "description": "Data transfer by member"
+    },
+    {
+      "uuid": "cb300000000000000000000000000004",
+      "component_usage_uuid": "ca300000000000000000000000000002",
+      "user_uuid": "0a300000000000000000000000000001",
+      "username": "ml_engineer",
+      "usage": "1100.00",
+      "description": "Data transfer by ml_engineer"
+    },
+    {
+      "uuid": "cb300000000000000000000000000005",
+      "component_usage_uuid": "ca300000000000000000000000000002",
+      "user_uuid": "0a300000000000000000000000000002",
+      "username": "manager",
+      "usage": "400.00",
+      "description": "Data transfer by manager"
+    },
+    {
+      "uuid": "cb300000000000000000000000000006",
+      "component_usage_uuid": "ca300000000000000000000000000002",
+      "user_uuid": "0a300000000000000000000000000003",
+      "username": "member",
+      "usage": "600.00",
+      "description": "Data transfer by member"
+    },
+    {
+      "uuid": "cb300000000000000000000000000007",
+      "component_usage_uuid": "ca300000000000000000000000000003",
+      "user_uuid": "0a300000000000000000000000000001",
+      "username": "ml_engineer",
+      "usage": "1250.00",
+      "description": "Data transfer by ml_engineer"
+    },
+    {
+      "uuid": "cb300000000000000000000000000008",
+      "component_usage_uuid": "ca300000000000000000000000000003",
+      "user_uuid": "0a300000000000000000000000000002",
+      "username": "manager",
+      "usage": "450.00",
+      "description": "Data transfer by manager"
+    },
+    {
+      "uuid": "cb300000000000000000000000000009",
+      "component_usage_uuid": "ca300000000000000000000000000003",
+      "user_uuid": "0a300000000000000000000000000003",
+      "username": "member",
+      "usage": "650.00",
+      "description": "Data transfer by member"
+    },
+    {
+      "uuid": "cb30000000000000000000000000000a",
+      "component_usage_uuid": "ca300000000000000000000000000004",
+      "user_uuid": "0a300000000000000000000000000001",
+      "username": "ml_engineer",
+      "usage": "1300.00",
+      "description": "Data transfer by ml_engineer"
+    },
+    {
+      "uuid": "cb30000000000000000000000000000b",
+      "component_usage_uuid": "ca300000000000000000000000000004",
+      "user_uuid": "0a300000000000000000000000000002",
+      "username": "manager",
+      "usage": "500.00",
+      "description": "Data transfer by manager"
+    },
+    {
+      "uuid": "cb30000000000000000000000000000c",
+      "component_usage_uuid": "ca300000000000000000000000000004",
+      "user_uuid": "0a300000000000000000000000000003",
+      "username": "member",
+      "usage": "700.00",
+      "description": "Data transfer by member"
+    }
+  ],
+  "constance_settings": {
+    "SITE_NAME": "HPC & AI Platform",
+    "SITE_DESCRIPTION": "Enterprise-grade high-performance computing and AI/ML platform offering GPU clusters, Kubernetes workloads, and scalable storage for machine learning and scientific computing.",
+    "MARKETPLACE_LANDING_PAGE": "AI & HPC Services",
+    "CURRENCY_NAME": "EUR"
+  }
+}

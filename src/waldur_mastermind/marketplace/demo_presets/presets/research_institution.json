@@ -1,0 +1,1094 @@
+{
+  "_metadata": {
+    "title": "Research Institution",
+    "description": "Academic and research computing environment with HPC clusters, research storage, and collaboration tools.",
+    "version": "1.0.0",
+    "scenarios": [
+      "University HPC services",
+      "Research data management",
+      "Academic cloud computing"
+    ]
+  },
+  "users": [
+    {
+      "uuid": "00000000000000000000000000000001",
+      "username": "staff",
+      "email": "staff@demo.waldur.com",
+      "first_name": "Staff",
+      "last_name": "User",
+      "is_staff": true,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001001",
+      "organization": "University Computing Center",
+      "job_title": "System Administrator"
+    },
+    {
+      "uuid": "00000000000000000000000000000002",
+      "username": "support",
+      "email": "support@demo.waldur.com",
+      "first_name": "Support",
+      "last_name": "User",
+      "is_support": true,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001002",
+      "organization": "University Computing Center",
+      "job_title": "HPC Support Specialist"
+    },
+    {
+      "uuid": "00000000000000000000000000000003",
+      "username": "owner",
+      "email": "owner@demo.waldur.com",
+      "first_name": "Organization",
+      "last_name": "Owner",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001003",
+      "organization": "Physics Department",
+      "job_title": "Department Head"
+    },
+    {
+      "uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "email": "manager@demo.waldur.com",
+      "first_name": "Project",
+      "last_name": "Manager",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001004",
+      "organization": "Physics Department",
+      "job_title": "Research Coordinator"
+    },
+    {
+      "uuid": "00000000000000000000000000000005",
+      "username": "member",
+      "email": "member@demo.waldur.com",
+      "first_name": "Project",
+      "last_name": "Member",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001005",
+      "organization": "Physics Department",
+      "job_title": "PhD Researcher"
+    },
+    {
+      "uuid": "a2000000000000000000000000000001",
+      "username": "hpc_admin",
+      "email": "hpc@university.edu",
+      "first_name": "HPC",
+      "last_name": "Administrator",
+      "is_staff": true,
+      "is_active": true,
+      "phone_number": "+37256003001",
+      "organization": "University Computing Center",
+      "job_title": "HPC Systems Manager"
+    },
+    {
+      "uuid": "a2000000000000000000000000000002",
+      "username": "researcher",
+      "email": "researcher@physics.edu",
+      "first_name": "Principal",
+      "last_name": "Investigator",
+      "is_active": true,
+      "phone_number": "+37256003002",
+      "organization": "Physics Department",
+      "job_title": "Professor of Particle Physics"
+    }
+  ],
+  "ssh_public_keys": [
+    {
+      "uuid": "f2000000000000000000000000000101",
+      "user_uuid": "a2000000000000000000000000000001",
+      "name": "hpc-admin-key",
+      "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ1mN4pR5sT7vX2yZ3aB8cD6eF9gH0iJ1kL4mN5oP6qS hpc@university.edu"
+    },
+    {
+      "uuid": "f2000000000000000000000000000102",
+      "user_uuid": "a2000000000000000000000000000002",
+      "name": "researcher-workstation",
+      "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKxY2zW4vU5sR6qP7oN8mL3kJ2iH1gF9eD8cB7aZ0yXw researcher@physics.edu"
+    },
+    {
+      "uuid": "f2000000000000000000000000000103",
+      "user_uuid": "00000000000000000000000000000005",
+      "name": "phd-laptop",
+      "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM3bN5cV6dW7eX8fY9gZ0hA1iB2jC3kD4lE5mF6nG7oH member@demo.waldur.com"
+    }
+  ],
+  "customers": [
+    {
+      "uuid": "b2000000000000000000000000000001",
+      "name": "University Computing Center",
+      "abbreviation": "UCC",
+      "description": "Central computing facility providing HPC, cloud computing, and research storage services to all university departments.",
+      "email": "computing@university.edu",
+      "country": "EE"
+    },
+    {
+      "uuid": "b2000000000000000000000000000002",
+      "name": "Physics Department",
+      "abbreviation": "PHY",
+      "description": "Department of Physics conducting research in particle physics, astrophysics, and computational physics simulations.",
+      "email": "physics@university.edu",
+      "country": "EE"
+    },
+    {
+      "uuid": "b2000000000000000000000000000003",
+      "name": "Bioinformatics Lab",
+      "abbreviation": "BIO",
+      "description": "Research laboratory specializing in computational biology, genome sequencing, and large-scale biological data analysis.",
+      "email": "bio@university.edu",
+      "country": "EE"
+    }
+  ],
+  "projects": [
+    {
+      "uuid": "c2000000000000000000000000000001",
+      "name": "Particle Physics Simulation",
+      "description": "Large-scale particle physics Monte Carlo simulations",
+      "customer_uuid": "b2000000000000000000000000000002"
+    },
+    {
+      "uuid": "c2000000000000000000000000000002",
+      "name": "Genome Sequencing Pipeline",
+      "description": "High-throughput genome sequencing and analysis",
+      "customer_uuid": "b2000000000000000000000000000003"
+    }
+  ],
+  "categories": [
+    {
+      "uuid": "d2000000000000000000000000000001",
+      "title": "HPC Compute",
+      "description": "High-performance computing clusters"
+    },
+    {
+      "uuid": "d2000000000000000000000000000002",
+      "title": "Research Storage",
+      "description": "High-capacity research data storage"
+    },
+    {
+      "uuid": "d2000000000000000000000000000003",
+      "title": "Research Kubernetes",
+      "description": "Kubernetes clusters for research workloads and containerized applications"
+    }
+  ],
+  "service_providers": [
+    {
+      "uuid": "e2000000000000000000000000000001",
+      "customer_uuid": "b2000000000000000000000000000001",
+      "description": "University Computing Center - Academic HPC and cloud services"
+    }
+  ],
+  "offerings": [
+    {
+      "uuid": "f2000000000000000000000000000001",
+      "name": "HPC Cluster Access",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d2000000000000000000000000000001",
+      "customer_uuid": "b2000000000000000000000000000001",
+      "description": "Access to university HPC cluster with CPU and GPU nodes",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with HPC Cluster\n\n### Login\n```\nssh username@hpc.university.edu\n```\n\n### Module System\nLoad software modules:\n```\nmodule avail\nmodule load python/3.11\nmodule load cuda/12.0\n```\n\n### Job Submission (SLURM)\n```bash\n#!/bin/bash\n#SBATCH --job-name=myjob\n#SBATCH --nodes=1\n#SBATCH --ntasks=32\n#SBATCH --time=24:00:00\n\nsrun ./my_simulation\n```\n\n### Resources\n- Documentation: https://docs.hpc.university.edu\n- Support: hpc-support@university.edu"
+    },
+    {
+      "uuid": "f2000000000000000000000000000002",
+      "name": "Research Data Storage",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d2000000000000000000000000000002",
+      "customer_uuid": "b2000000000000000000000000000001",
+      "description": "High-performance parallel filesystem for research data",
+      "getting_started": "## Getting Started with Research Storage\n\n### Access Paths\n- **Home**: `/home/username` (50GB, backed up)\n- **Scratch**: `/scratch/project` (fast, not backed up)\n- **Archive**: `/archive/project` (long-term storage)\n\n### Data Transfer\nUse Globus for large transfers:\n```\nglobus-url-copy source destination\n```\n\nOr rsync for smaller files:\n```\nrsync -avz data/ hpc:/scratch/myproject/\n```\n\n### Quotas\nCheck your usage:\n```\nquota -s\ndf -h /scratch/myproject\n```"
+    },
+    {
+      "uuid": "f2000000000000000000000000000010",
+      "name": "Research Kubernetes Cluster",
+      "type": "Support.OfferingTemplate",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d2000000000000000000000000000003",
+      "customer_uuid": "b2000000000000000000000000000001",
+      "description": "Kubernetes cluster optimized for research workloads including Jupyter notebooks, ML frameworks, and scientific computing containers.",
+      "options": {
+        "order": ["cluster_config"],
+        "options": {
+          "cluster_config": {
+            "type": "single_datacenter_k8s_config",
+            "label": "Research Cluster Configuration",
+            "help_text": "Configure your research Kubernetes cluster with GPU support and high-memory nodes",
+            "required": true,
+            "default_configs": {
+              "default_controller_vcpus": 4,
+              "default_controller_ram_gb": 16,
+              "default_controller_system_disk_gb": 100,
+              "default_controller_etcd_disk_gb": 50,
+              "default_lb_vcpus": 2,
+              "default_lb_ram_gb": 4,
+              "default_lb_system_disk_gb": 20,
+              "default_lb_logs_disk_gb": 50,
+              "minimal_worker_vcpus": 4,
+              "minimal_worker_ram_gb": 16,
+              "default_worker_data_disk_gb": 500,
+              "default_storage_data_disk_gb": 1000,
+              "default_storage_san_disk_gb": 2000,
+              "available_kubernetes_versions": "1.28.0,1.29.0,1.30.0"
+            }
+          }
+        }
+      },
+      "plugin_options": {
+        "backend_type": "k8s-research",
+        "service_type": "kubernetes-cluster",
+        "deployment_mode": "managed",
+        "gpu_support": true,
+        "jupyter_integration": true,
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with Research Kubernetes\n\n### Access\n```\nexport KUBECONFIG=~/Downloads/kubeconfig.yaml\nkubectl get nodes\n```\n\n### JupyterHub\nAccess JupyterHub at the dashboard endpoint with your university credentials.\n\n### GPU Workloads\nRequest GPU nodes:\n```yaml\nresources:\n  limits:\n    nvidia.com/gpu: 1\n```\n\n### Storage\n- **Scratch**: Fast NVMe for temporary data\n- **Project**: Persistent storage backed up daily\n\n### Support\nEmail: research-k8s@university.edu"
+    },
+    {
+      "uuid": "f2000000000000000000000000000020",
+      "name": "Multi-Site Research Kubernetes",
+      "type": "Support.OfferingTemplate",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d2000000000000000000000000000003",
+      "customer_uuid": "b2000000000000000000000000000001",
+      "description": "Federated Kubernetes cluster spanning multiple research institutions for collaborative projects and distributed computing.",
+      "options": {
+        "order": ["cluster_config"],
+        "options": {
+          "cluster_config": {
+            "type": "multi_datacenter_k8s_config",
+            "label": "Multi-Site Research Cluster Configuration",
+            "help_text": "Configure your federated research cluster across multiple university sites",
+            "required": true,
+            "default_configs": {
+              "default_controller_vcpus": 8,
+              "default_controller_ram_gb": 32,
+              "default_controller_system_disk_gb": 200,
+              "default_controller_etcd_disk_gb": 100,
+              "default_lb_vcpus": 4,
+              "default_lb_ram_gb": 8,
+              "default_lb_system_disk_gb": 50,
+              "default_lb_logs_disk_gb": 100,
+              "minimal_worker_vcpus": 8,
+              "minimal_worker_ram_gb": 32,
+              "default_worker_data_disk_gb": 1000,
+              "default_storage_data_disk_gb": 5000,
+              "default_storage_san_disk_gb": 10000,
+              "available_kubernetes_versions": "1.28.0,1.29.0,1.30.0"
+            }
+          }
+        }
+      },
+      "plugin_options": {
+        "backend_type": "k8s-multi-site",
+        "service_type": "kubernetes-cluster",
+        "deployment_mode": "managed",
+        "high_availability": true,
+        "federation_enabled": true,
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with Multi-Site Research Kubernetes\n\n### Federation Overview\nThis cluster spans multiple research sites for:\n- Distributed ML training\n- Cross-site data processing\n- Collaborative research workloads\n\n### Access\n```\nexport KUBECONFIG=~/Downloads/kubeconfig-federation.yaml\nkubectl get nodes --label-columns=topology.kubernetes.io/zone\n```\n\n### Site-Specific Scheduling\n```yaml\nnodeSelector:\n  topology.kubernetes.io/zone: site-a\n```\n\n### Data Locality\nPrefer data-local scheduling for large datasets.\n\n### Support\nEmail: federation-support@research-network.edu"
+    }
+  ],
+  "offering_endpoints": [
+    {
+      "uuid": "a2000000000000000000000000000001",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "name": "HPC Portal",
+      "url": "https://hpc.university.edu/portal/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000002",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "name": "Job Monitoring",
+      "url": "https://hpc.university.edu/jobs/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000003",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "name": "Documentation",
+      "url": "https://docs.hpc.university.edu/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000004",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "name": "Globus Endpoint",
+      "url": "https://globus.university.edu/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000005",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "name": "Storage Dashboard",
+      "url": "https://storage.university.edu/dashboard/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000010",
+      "offering_uuid": "f2000000000000000000000000000010",
+      "name": "Research K8s Dashboard",
+      "url": "https://k8s.university.edu/dashboard/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000011",
+      "offering_uuid": "f2000000000000000000000000000010",
+      "name": "JupyterHub",
+      "url": "https://jupyter.university.edu/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000020",
+      "offering_uuid": "f2000000000000000000000000000020",
+      "name": "Federation Dashboard",
+      "url": "https://federation.research-network.edu/dashboard/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000021",
+      "offering_uuid": "f2000000000000000000000000000020",
+      "name": "Multi-Site Monitoring",
+      "url": "https://monitoring.research-network.edu/"
+    }
+  ],
+  "offering_components": [
+    {
+      "uuid": "c2000000000000000000000000000001",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "type": "cpu_hours",
+      "name": "CPU Core Hours",
+      "description": "CPU compute time allocation",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "c2000000000000000000000000000002",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "type": "gpu_hours",
+      "name": "GPU Hours",
+      "description": "GPU compute time allocation",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "c2000000000000000000000000000003",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "type": "storage",
+      "name": "Scratch Storage",
+      "description": "Fast scratch storage allocation",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000004",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "type": "support",
+      "name": "Technical Support",
+      "description": "Access to HPC support team",
+      "billing_type": "fixed",
+      "measured_unit": "month"
+    },
+    {
+      "uuid": "c2000000000000000000000000000010",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "type": "storage",
+      "name": "Storage Capacity",
+      "description": "Research data storage",
+      "billing_type": "limit",
+      "measured_unit": "TB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000011",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "type": "backup",
+      "name": "Backup Service",
+      "description": "Automated backup and replication",
+      "billing_type": "fixed",
+      "measured_unit": "month"
+    },
+    {
+      "uuid": "c2000000000000000000000000000101",
+      "offering_uuid": "f2000000000000000000000000000010",
+      "type": "vcpu",
+      "name": "vCPU Cores",
+      "description": "Virtual CPU cores for containers",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c2000000000000000000000000000102",
+      "offering_uuid": "f2000000000000000000000000000010",
+      "type": "ram",
+      "name": "Memory",
+      "description": "RAM for container workloads",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000103",
+      "offering_uuid": "f2000000000000000000000000000010",
+      "type": "storage",
+      "name": "Persistent Storage",
+      "description": "Storage for research data",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000104",
+      "offering_uuid": "f2000000000000000000000000000010",
+      "type": "gpu_hours",
+      "name": "GPU Hours",
+      "description": "GPU compute time for ML workloads",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "c2000000000000000000000000000201",
+      "offering_uuid": "f2000000000000000000000000000020",
+      "type": "vcpu",
+      "name": "Federation vCPU",
+      "description": "vCPU cores across sites",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c2000000000000000000000000000202",
+      "offering_uuid": "f2000000000000000000000000000020",
+      "type": "ram",
+      "name": "Federation Memory",
+      "description": "RAM across sites",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000203",
+      "offering_uuid": "f2000000000000000000000000000020",
+      "type": "storage",
+      "name": "Distributed Storage",
+      "description": "Storage replicated across sites",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000204",
+      "offering_uuid": "f2000000000000000000000000000020",
+      "type": "cross_site_traffic",
+      "name": "Cross-Site Traffic",
+      "description": "Data transfer between research sites",
+      "billing_type": "usage",
+      "measured_unit": "GB"
+    }
+  ],
+  "plans": [
+    {
+      "uuid": "12000000000000000000000000000001",
+      "name": "Standard HPC Access",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "unit": "month"
+    },
+    {
+      "uuid": "12000000000000000000000000000002",
+      "name": "Premium HPC Access",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "unit": "month"
+    },
+    {
+      "uuid": "12000000000000000000000000000003",
+      "name": "Research Storage - Standard",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "unit": "month"
+    },
+    {
+      "uuid": "12000000000000000000000000000010",
+      "name": "Research K8s - Standard",
+      "offering_uuid": "f2000000000000000000000000000010",
+      "unit": "month",
+      "description": "Standard research Kubernetes cluster"
+    },
+    {
+      "uuid": "12000000000000000000000000000011",
+      "name": "Research K8s - GPU Enabled",
+      "offering_uuid": "f2000000000000000000000000000010",
+      "unit": "month",
+      "description": "GPU-enabled cluster for ML workloads"
+    },
+    {
+      "uuid": "12000000000000000000000000000020",
+      "name": "Multi-Site K8s - Standard",
+      "offering_uuid": "f2000000000000000000000000000020",
+      "unit": "month",
+      "description": "Standard federated research cluster"
+    },
+    {
+      "uuid": "12000000000000000000000000000021",
+      "name": "Multi-Site K8s - Premium",
+      "offering_uuid": "f2000000000000000000000000000020",
+      "unit": "month",
+      "description": "Premium multi-site cluster with priority scheduling"
+    }
+  ],
+  "plan_components": [
+    {
+      "plan_uuid": "12000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000001",
+      "price": "0.05",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000002",
+      "price": "0.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000003",
+      "price": "0.01",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000004",
+      "price": "50.00",
+      "amount": 1
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000002",
+      "component_uuid": "c2000000000000000000000000000001",
+      "price": "0.03",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000002",
+      "component_uuid": "c2000000000000000000000000000002",
+      "price": "0.35",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000002",
+      "component_uuid": "c2000000000000000000000000000003",
+      "price": "0.008",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000002",
+      "component_uuid": "c2000000000000000000000000000004",
+      "price": "100.00",
+      "amount": 1
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000010",
+      "price": "20.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000011",
+      "price": "10.00",
+      "amount": 1
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000010",
+      "component_uuid": "c2000000000000000000000000000101",
+      "price": "2.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000010",
+      "component_uuid": "c2000000000000000000000000000102",
+      "price": "1.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000010",
+      "component_uuid": "c2000000000000000000000000000103",
+      "price": "0.05",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000010",
+      "component_uuid": "c2000000000000000000000000000104",
+      "price": "0.30",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000011",
+      "component_uuid": "c2000000000000000000000000000101",
+      "price": "3.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000011",
+      "component_uuid": "c2000000000000000000000000000102",
+      "price": "1.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000011",
+      "component_uuid": "c2000000000000000000000000000103",
+      "price": "0.08",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000011",
+      "component_uuid": "c2000000000000000000000000000104",
+      "price": "0.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000020",
+      "component_uuid": "c2000000000000000000000000000201",
+      "price": "4.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000020",
+      "component_uuid": "c2000000000000000000000000000202",
+      "price": "2.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000020",
+      "component_uuid": "c2000000000000000000000000000203",
+      "price": "0.10",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000020",
+      "component_uuid": "c2000000000000000000000000000204",
+      "price": "0.05",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000021",
+      "component_uuid": "c2000000000000000000000000000201",
+      "price": "5.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000021",
+      "component_uuid": "c2000000000000000000000000000202",
+      "price": "2.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000021",
+      "component_uuid": "c2000000000000000000000000000203",
+      "price": "0.12",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000021",
+      "component_uuid": "c2000000000000000000000000000204",
+      "price": "0.03",
+      "amount": 0
+    }
+  ],
+  "resources": [
+    {
+      "uuid": "d2000000000000000000000000000001",
+      "name": "Physics Simulation Cluster",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "project_uuid": "c2000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000002",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 5000
+      }
+    },
+    {
+      "uuid": "d2000000000000000000000000000002",
+      "name": "Genomics Data Storage",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "project_uuid": "c2000000000000000000000000000002",
+      "plan_uuid": "12000000000000000000000000000003",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 100
+      }
+    }
+  ],
+  "user_roles": [
+    {
+      "uuid": "02000000000000000000000000000001",
+      "user_uuid": "a2000000000000000000000000000001",
+      "user_username": "hpc_admin",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b2000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "02000000000000000000000000000002",
+      "user_uuid": "00000000000000000000000000000003",
+      "user_username": "owner",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b2000000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "02000000000000000000000000000003",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "manager",
+      "role_name": "PROJECT.MANAGER",
+      "scope_type": "structure.project",
+      "scope_uuid": "c2000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "02000000000000000000000000000004",
+      "user_uuid": "00000000000000000000000000000005",
+      "user_username": "member",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "c2000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "02000000000000000000000000000005",
+      "user_uuid": "a2000000000000000000000000000002",
+      "user_username": "researcher",
+      "role_name": "PROJECT.ADMIN",
+      "scope_type": "structure.project",
+      "scope_uuid": "c2000000000000000000000000000001",
+      "is_active": true
+    }
+  ],
+  "offering_users": [
+    {
+      "uuid": "0a200000000000000000000000000001",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "user_uuid": "a2000000000000000000000000000002",
+      "username": "researcher",
+      "state": 5
+    },
+    {
+      "uuid": "0a200000000000000000000000000002",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "user_uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "state": 5
+    },
+    {
+      "uuid": "0a200000000000000000000000000003",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "user_uuid": "00000000000000000000000000000005",
+      "username": "member",
+      "state": 5
+    }
+  ],
+  "component_usages": [
+    {
+      "uuid": "ca200000000000000000000000000001",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000001",
+      "usage": "8500.00",
+      "date": "2025-09-15T08:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "CPU core hours for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000002",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000002",
+      "usage": "520.00",
+      "date": "2025-09-15T08:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "GPU hours for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000003",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000001",
+      "usage": "10200.00",
+      "date": "2025-10-15T08:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "CPU core hours for October 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000004",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000002",
+      "usage": "680.00",
+      "date": "2025-10-15T08:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "GPU hours for October 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000005",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000001",
+      "usage": "11800.00",
+      "date": "2025-11-15T08:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "CPU core hours for November 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000006",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000002",
+      "usage": "760.00",
+      "date": "2025-11-15T08:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "GPU hours for November 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000007",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000001",
+      "usage": "12500.00",
+      "date": "2025-12-15T08:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "CPU core hours for December 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000008",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000002",
+      "usage": "840.00",
+      "date": "2025-12-15T08:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "GPU hours for December 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000009",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000003",
+      "usage": "4250.00",
+      "date": "2025-12-15T08:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Scratch storage usage for December 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000000a",
+      "resource_uuid": "d2000000000000000000000000000002",
+      "component_uuid": "c2000000000000000000000000000010",
+      "usage": "82.50",
+      "date": "2025-12-15T08:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Storage capacity usage for December 2025"
+    }
+  ],
+  "component_user_usages": [
+    {
+      "uuid": "cb200000000000000000000000000001",
+      "component_usage_uuid": "ca200000000000000000000000000001",
+      "user_uuid": "0a200000000000000000000000000001",
+      "username": "researcher",
+      "usage": "4500.00",
+      "description": "CPU hours by researcher"
+    },
+    {
+      "uuid": "cb200000000000000000000000000002",
+      "component_usage_uuid": "ca200000000000000000000000000001",
+      "user_uuid": "0a200000000000000000000000000002",
+      "username": "manager",
+      "usage": "1500.00",
+      "description": "CPU hours by manager"
+    },
+    {
+      "uuid": "cb200000000000000000000000000003",
+      "component_usage_uuid": "ca200000000000000000000000000001",
+      "user_uuid": "0a200000000000000000000000000003",
+      "username": "member",
+      "usage": "2500.00",
+      "description": "CPU hours by member"
+    },
+    {
+      "uuid": "cb200000000000000000000000000004",
+      "component_usage_uuid": "ca200000000000000000000000000002",
+      "user_uuid": "0a200000000000000000000000000001",
+      "username": "researcher",
+      "usage": "280.00",
+      "description": "GPU hours by researcher"
+    },
+    {
+      "uuid": "cb200000000000000000000000000005",
+      "component_usage_uuid": "ca200000000000000000000000000002",
+      "user_uuid": "0a200000000000000000000000000002",
+      "username": "manager",
+      "usage": "80.00",
+      "description": "GPU hours by manager"
+    },
+    {
+      "uuid": "cb200000000000000000000000000006",
+      "component_usage_uuid": "ca200000000000000000000000000002",
+      "user_uuid": "0a200000000000000000000000000003",
+      "username": "member",
+      "usage": "160.00",
+      "description": "GPU hours by member"
+    },
+    {
+      "uuid": "cb200000000000000000000000000007",
+      "component_usage_uuid": "ca200000000000000000000000000003",
+      "user_uuid": "0a200000000000000000000000000001",
+      "username": "researcher",
+      "usage": "5400.00",
+      "description": "CPU hours by researcher"
+    },
+    {
+      "uuid": "cb200000000000000000000000000008",
+      "component_usage_uuid": "ca200000000000000000000000000003",
+      "user_uuid": "0a200000000000000000000000000002",
+      "username": "manager",
+      "usage": "1800.00",
+      "description": "CPU hours by manager"
+    },
+    {
+      "uuid": "cb200000000000000000000000000009",
+      "component_usage_uuid": "ca200000000000000000000000000003",
+      "user_uuid": "0a200000000000000000000000000003",
+      "username": "member",
+      "usage": "3000.00",
+      "description": "CPU hours by member"
+    },
+    {
+      "uuid": "cb20000000000000000000000000000a",
+      "component_usage_uuid": "ca200000000000000000000000000004",
+      "user_uuid": "0a200000000000000000000000000001",
+      "username": "researcher",
+      "usage": "360.00",
+      "description": "GPU hours by researcher"
+    },
+    {
+      "uuid": "cb20000000000000000000000000000b",
+      "component_usage_uuid": "ca200000000000000000000000000004",
+      "user_uuid": "0a200000000000000000000000000002",
+      "username": "manager",
+      "usage": "120.00",
+      "description": "GPU hours by manager"
+    },
+    {
+      "uuid": "cb20000000000000000000000000000c",
+      "component_usage_uuid": "ca200000000000000000000000000004",
+      "user_uuid": "0a200000000000000000000000000003",
+      "username": "member",
+      "usage": "200.00",
+      "description": "GPU hours by member"
+    },
+    {
+      "uuid": "cb20000000000000000000000000000d",
+      "component_usage_uuid": "ca200000000000000000000000000005",
+      "user_uuid": "0a200000000000000000000000000001",
+      "username": "researcher",
+      "usage": "6200.00",
+      "description": "CPU hours by researcher"
+    },
+    {
+      "uuid": "cb20000000000000000000000000000e",
+      "component_usage_uuid": "ca200000000000000000000000000005",
+      "user_uuid": "0a200000000000000000000000000002",
+      "username": "manager",
+      "usage": "2100.00",
+      "description": "CPU hours by manager"
+    },
+    {
+      "uuid": "cb20000000000000000000000000000f",
+      "component_usage_uuid": "ca200000000000000000000000000005",
+      "user_uuid": "0a200000000000000000000000000003",
+      "username": "member",
+      "usage": "3500.00",
+      "description": "CPU hours by member"
+    },
+    {
+      "uuid": "cb200000000000000000000000000010",
+      "component_usage_uuid": "ca200000000000000000000000000006",
+      "user_uuid": "0a200000000000000000000000000001",
+      "username": "researcher",
+      "usage": "400.00",
+      "description": "GPU hours by researcher"
+    },
+    {
+      "uuid": "cb200000000000000000000000000011",
+      "component_usage_uuid": "ca200000000000000000000000000006",
+      "user_uuid": "0a200000000000000000000000000002",
+      "username": "manager",
+      "usage": "140.00",
+      "description": "GPU hours by manager"
+    },
+    {
+      "uuid": "cb200000000000000000000000000012",
+      "component_usage_uuid": "ca200000000000000000000000000006",
+      "user_uuid": "0a200000000000000000000000000003",
+      "username": "member",
+      "usage": "220.00",
+      "description": "GPU hours by member"
+    },
+    {
+      "uuid": "cb200000000000000000000000000013",
+      "component_usage_uuid": "ca200000000000000000000000000007",
+      "user_uuid": "0a200000000000000000000000000001",
+      "username": "researcher",
+      "usage": "6500.00",
+      "description": "CPU hours by researcher"
+    },
+    {
+      "uuid": "cb200000000000000000000000000014",
+      "component_usage_uuid": "ca200000000000000000000000000007",
+      "user_uuid": "0a200000000000000000000000000002",
+      "username": "manager",
+      "usage": "2200.00",
+      "description": "CPU hours by manager"
+    },
+    {
+      "uuid": "cb200000000000000000000000000015",
+      "component_usage_uuid": "ca200000000000000000000000000007",
+      "user_uuid": "0a200000000000000000000000000003",
+      "username": "member",
+      "usage": "3800.00",
+      "description": "CPU hours by member"
+    },
+    {
+      "uuid": "cb200000000000000000000000000016",
+      "component_usage_uuid": "ca200000000000000000000000000008",
+      "user_uuid": "0a200000000000000000000000000001",
+      "username": "researcher",
+      "usage": "440.00",
+      "description": "GPU hours by researcher"
+    },
+    {
+      "uuid": "cb200000000000000000000000000017",
+      "component_usage_uuid": "ca200000000000000000000000000008",
+      "user_uuid": "0a200000000000000000000000000002",
+      "username": "manager",
+      "usage": "160.00",
+      "description": "GPU hours by manager"
+    },
+    {
+      "uuid": "cb200000000000000000000000000018",
+      "component_usage_uuid": "ca200000000000000000000000000008",
+      "user_uuid": "0a200000000000000000000000000003",
+      "username": "member",
+      "usage": "240.00",
+      "description": "GPU hours by member"
+    }
+  ],
+  "constance_settings": {
+    "SITE_NAME": "Research Computing Platform",
+    "SITE_DESCRIPTION": "Academic research computing platform providing high-performance computing clusters, GPU resources, and scientific software for universities and research institutions.",
+    "MARKETPLACE_LANDING_PAGE": "Research Services",
+    "CURRENCY_NAME": "EUR"
+  }
+}

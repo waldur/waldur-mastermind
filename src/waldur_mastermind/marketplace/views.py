@@ -147,6 +147,7 @@ from waldur_mastermind.support import models as support_models
 from waldur_pid import models as pid_models
 
 from . import filters, log, models, permissions, plugins, serializers, tasks, utils
+from .demo_presets.manifest import DemoPresetManager
 from .handlers import get_plan_scopes
 
 logger = logging.getLogger(__name__)
@@ -11225,3 +11226,111 @@ class SoftwareTargetViewSet(
     filterset_class = filters.SoftwareTargetFilter
 
     unsafe_methods_permissions = [structure_permissions.is_staff]
+
+
+class DemoPresetViewSet(rf_viewsets.GenericViewSet):
+    """
+    ViewSet for managing demo data presets.
+
+    Provides read-only access to demo presets stored in the repository,
+    plus a load action to apply presets to the database.
+
+    Staff access only.
+    """
+
+    # Required for OpenAPI schema generation (no model, using ServiceProvider as placeholder)
+    queryset = models.ServiceProvider.objects.none()
+
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+    serializer_class = serializers.DemoPresetSerializer
+
+    @extend_schema(
+        summary="List demo presets",
+        description="Returns a list of available demo data presets. Staff access only.",
+        responses={status.HTTP_200_OK: serializers.DemoPresetSerializer(many=True)},
+    )
+    @action(detail=False, methods=["GET"], url_path="list")
+    def list_presets(self, request):
+        """List all available demo presets."""
+        presets = DemoPresetManager.list_presets()
+        serializer = serializers.DemoPresetSerializer(presets, many=True)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Get demo preset details",
+        description="Returns detailed information about a specific demo preset. Staff access only.",
+        parameters=[
+            OpenApiParameter(
+                "name",
+                OpenApiTypes.STR,
+                OpenApiParameter.PATH,
+                description="Name of the preset",
+            ),
+        ],
+        responses={
+            status.HTTP_200_OK: serializers.DemoPresetSerializer,
+            status.HTTP_404_NOT_FOUND: None,
+        },
+    )
+    @action(detail=False, methods=["GET"], url_path=r"info/(?P<name>[\w_-]+)")
+    def get_preset(self, request, name=None):
+        """Get details of a specific preset."""
+        preset = DemoPresetManager.get_preset_info(name)
+
+        if not preset:
+            raise rf_exceptions.NotFound(f"Preset '{name}' not found")
+
+        serializer = serializers.DemoPresetSerializer(preset)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Load demo preset",
+        description=(
+            "Load a demo preset into the database. "
+            "This operation will optionally clean up existing data before loading. "
+            "Staff access only."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "name",
+                OpenApiTypes.STR,
+                OpenApiParameter.PATH,
+                description="Name of the preset to load",
+            ),
+        ],
+        request=serializers.DemoPresetLoadRequestSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.DemoPresetLoadResponseSerializer,
+            status.HTTP_400_BAD_REQUEST: None,
+            status.HTTP_404_NOT_FOUND: None,
+        },
+    )
+    @action(detail=False, methods=["POST"], url_path=r"load/(?P<name>[\w_-]+)")
+    def load_preset(self, request, name=None):
+        """Load a preset into the database."""
+        # Verify preset exists
+        preset = DemoPresetManager.get_preset_info(name)
+        if not preset:
+            raise rf_exceptions.NotFound(f"Preset '{name}' not found")
+
+        serializer = serializers.DemoPresetLoadRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        dry_run = serializer.validated_data.get("dry_run", False)
+        cleanup_first = serializer.validated_data.get("cleanup_first", True)
+        skip_users = serializer.validated_data.get("skip_users", False)
+        skip_roles = serializer.validated_data.get("skip_roles", False)
+
+        result = DemoPresetManager.load_preset(
+            name=name,
+            cleanup_first=cleanup_first,
+            dry_run=dry_run,
+            skip_users=skip_users,
+            skip_roles=skip_roles,
+        )
+
+        if not result["success"]:
+            raise rf_exceptions.ValidationError(result["message"])
+
+        response_serializer = serializers.DemoPresetLoadResponseSerializer(result)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)

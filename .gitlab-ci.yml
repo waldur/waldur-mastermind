@@ -179,6 +179,63 @@ Run migration tests:
     POSTGRES_PASSWORD: waldur
     DJANGO_SETTINGS_MODULE: waldur_mastermind.test_settings
 
+Run demo presets tests:
+  extends: .Unit test runner
+  rules:
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - src/waldur_mastermind/marketplace/demo_presets/**/*
+        - src/waldur_mastermind/marketplace/management/commands/import_structure.py
+        - src/waldur_mastermind/marketplace/management/commands/cleanup_structure.py
+  script:
+    - |
+      echo "[+] Setting up test database configuration..."
+      cat > src/waldur_mastermind/test_settings.py <<-EOF
+      from waldur_core.server.test_settings import *
+      from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+
+      # Using UNLOGGED tables in PostgreSQL is a significant performance boost for
+      # tests, as it reduces disk I/O by not writing to the WAL.
+      BaseDatabaseSchemaEditor.sql_create_table = "CREATE UNLOGGED TABLE %(table)s (%(definition)s)"
+
+      DATABASES = {
+          'default': {
+              'ENGINE': 'django.db.backends.postgresql',
+              'NAME': 'test_waldur',
+              'USER': 'runner',
+              'HOST': 'postgres',
+              'PORT': 5432,
+              'PASSWORD': 'waldur',
+          }
+      }
+      EOF
+    - uv run pytest src/waldur_mastermind/marketplace/tests/test_demo_presets.py::DemoPresetLoadTest -v
+  services:
+    - name: "registry.hpc.ut.ee/mirror/library/postgres:15-alpine"
+      alias: postgres
+      command:
+        [
+          "postgres",
+          "-cfsync=off",
+          "-cfull_page_writes=off",
+          "-cmax_connections=1000",
+          "-cshared_buffers=1GB",
+          "-ceffective_cache_size=4GB",
+          "-cwork_mem=32MB",
+          "-cmaintenance_work_mem=32MB",
+          "-ctemp_buffers=16MB",
+          "-cwal_buffers=48MB",
+        ]
+  variables:
+    POSTGRES_DB: test_waldur
+    POSTGRES_USER: runner
+    POSTGRES_PASSWORD: waldur
+    DJANGO_SETTINGS_MODULE: waldur_mastermind.test_settings
+
 # This is the "preparation" job. It's not parallelized.
 # Its only responsibilities are to check for merge conflicts and generate the dynamic
 # child pipeline configuration based on the code changes.
