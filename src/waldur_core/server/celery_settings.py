@@ -141,6 +141,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=2, minute=0),
         "args": (),
     },
+    # Reconcile stuck invitations that were never sent because of errors or celery downtime.
+    "resend-stuck-invitations": {
+        "task": "waldur_core.users.resend_stuck_invitations",
+        "schedule": timedelta(hours=1),
+        "args": (),
+    },
     # Cleanup old action executions - weekly on Sunday at 1 AM
     "cleanup-old-action-executions": {
         "task": "waldur_core.user_actions.cleanup_old_action_executions",

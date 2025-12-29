@@ -189,6 +189,29 @@ def send_reminder_for_pending_invitations():
         )
 
 
+@shared_task(name="waldur_core.users.resend_stuck_invitations")
+def resend_stuck_invitations():
+    """
+    Reconcile stuck invitations that were never sent due to errors or broker/worker downtime.
+    """
+    expiration_date = timezone.now() - settings.WALDUR_CORE["INVITATION_LIFETIME"]
+
+    stuck_invitations = models.Invitation.objects.filter(
+        state=InvitationState.PENDING,
+        created__gte=expiration_date,
+        execution_state__in=[
+            models.Invitation.ExecutionState.SCHEDULED,
+            models.Invitation.ExecutionState.ERRED,
+        ],
+    )
+
+    for invitation in stuck_invitations:
+        sender = invitation.created_by and (
+            invitation.created_by.full_name or invitation.created_by.username
+        )
+        process_invitation.delay(invitation.uuid.hex, sender)
+
+
 @shared_task(name="waldur_core.users.get_or_create_user")
 def get_or_create_user(invitation_uuid, sender):
     invitation = models.Invitation.objects.get(uuid=invitation_uuid)
