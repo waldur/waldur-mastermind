@@ -480,9 +480,7 @@ class VolumeAvailabilityZoneFilter(
         model = models.VolumeAvailabilityZone
 
 
-class NetworkRBACPolicyFilter(
-    structure_filters.NameFilterSet, django_filters.FilterSet
-):
+class NetworkRBACPolicyFilter(django_filters.FilterSet):
     tenant_uuid = django_filters.UUIDFilter(
         field_name="network__tenant__uuid", label="Tenant UUID"
     )
