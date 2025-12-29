@@ -157,6 +157,7 @@ class IssueSerializer(
             "destroy_is_available",
             "add_comment_is_available",
             "add_attachment_is_available",
+            "processing_log",
         )
         read_only_fields = (
             "key",
@@ -166,6 +167,7 @@ class IssueSerializer(
             "backend_name",
             "link",
             "feedback",
+            "processing_log",
         )
         protected_fields = (
             "customer",
@@ -216,6 +218,9 @@ class IssueSerializer(
         user = self.context["request"].user
         if user.is_authenticated and not user.is_staff and not user.is_support:
             del fields["link"]
+            # Hide processing_log from non-staff users
+            if "processing_log" in fields:
+                del fields["processing_log"]
 
         if "type" in fields:
             fields["type"] = serializers.ChoiceField(

@@ -4,6 +4,7 @@ from datetime import datetime
 from django.db import transaction
 from django.template import Context, Template
 from django.template.loader import get_template
+from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.models import UserRole
@@ -119,29 +120,198 @@ def _update_order_output_safely(order: marketplace_models.Order, issue: Issue):
 def update_order_if_issue_was_complete(
     sender, instance: Issue, created=False, **kwargs
 ):
+    issue = instance
+    old_status = issue.tracker.previous("status")
+
+    # Prevent recursion: if only processing_log or backend_name changed, skip processing
+    # backend_name can be set by BackendNameMixin.save() after our processing_log save
+    update_fields = kwargs.get("update_fields")
+    if update_fields is not None:
+        update_fields_set = set(update_fields)
+        # Skip if this is just a processing_log or backend_name update (not a real status change)
+        if update_fields_set and not update_fields_set - {
+            "processing_log",
+            "backend_name",
+        }:
+            return
+
+    logger.info(
+        "update_order_if_issue_was_complete triggered. "
+        "Issue key=%s, status=%s (was %s), created=%s, has_resource=%s",
+        issue.key,
+        issue.status,
+        old_status,
+        created,
+        bool(issue.resource),
+    )
+
     if created:
         return
-
-    issue = instance
 
     if not issue.tracker.has_changed("status"):
         return
 
+    # Check all conditions and log detailed info
+    has_resource = bool(issue.resource)
+    is_order = (
+        isinstance(issue.resource, marketplace_models.Order) if has_resource else False
+    )
+    offering_type = issue.resource.offering.type if is_order else None
+    is_support_offering = offering_type == SUPPORT_OFFERING if offering_type else False
+    resolved_value = issue.resolved
+
+    logger.info(
+        "Condition check for issue %s: has_resource=%s, is_order=%s, "
+        "offering_type=%s, is_support_offering=%s, resolved=%s",
+        issue.key,
+        has_resource,
+        is_order,
+        offering_type,
+        is_support_offering,
+        resolved_value,
+    )
+
+    # Log to processing_log for staff visibility
+    # Build all log entries first, then save once at the end to avoid multiple saves
+    log_entries = []
+
+    log_entries.append(
+        {
+            "event": "status_changed",
+            "old_status": old_status,
+            "new_status": issue.status,
+            "has_resource": has_resource,
+            "is_order": is_order,
+            "offering_type": str(offering_type) if offering_type else None,
+            "is_support_offering": is_support_offering,
+            "resolved_value": resolved_value,
+            "resolved_type": type(resolved_value).__name__,
+        }
+    )
+
     if not (
-        issue.resource
-        and isinstance(issue.resource, marketplace_models.Order)
-        and issue.resource.offering.type == SUPPORT_OFFERING
-        and issue.resolved is not None
+        has_resource and is_order and is_support_offering and resolved_value is not None
     ):
+        reason = []
+        if not has_resource:
+            reason.append("no_resource")
+        if not is_order:
+            reason.append("not_an_order")
+        if not is_support_offering:
+            reason.append(f"wrong_offering_type({offering_type})")
+        if resolved_value is None:
+            reason.append("resolved_is_none")
+
+        logger.warning(
+            "Skipping order processing for issue %s: conditions not met. Reasons: %s",
+            issue.key,
+            ", ".join(reason),
+        )
+        log_entries.append(
+            {
+                "event": "processing_skipped",
+                "reasons": reason,
+            }
+        )
+
+        # Save all log entries using direct update to avoid triggering signals
+        for entry in log_entries:
+            event = entry.pop("event")
+            log_entry = {
+                "timestamp": timezone.now().isoformat(),
+                "event": event,
+                "details": entry if entry else None,
+            }
+            if issue.processing_log is None:
+                issue.processing_log = []
+            issue.processing_log.append(log_entry)
+
+        Issue.objects.filter(pk=issue.pk).update(processing_log=issue.processing_log)
         return
 
     order = issue.resource
 
+    logger.info(
+        "Processing order %s (uuid=%s, type=%s, state=%s) for issue %s with resolved=%s",
+        order.id,
+        order.uuid,
+        order.type,
+        order.state,
+        issue.key,
+        resolved_value,
+    )
+
     # Update order output (fail-safe - won't stop callback)
     _update_order_output_safely(order, issue)
 
-    callback = RESOURCE_CALLBACKS[(order.type, issue.resolved)]
-    callback(order.resource)
+    callback_key = (order.type, resolved_value)
+    callback = RESOURCE_CALLBACKS[callback_key]
+
+    logger.info(
+        "Invoking callback %s for order %s (key=%s)",
+        callback.__name__,
+        order.uuid,
+        callback_key,
+    )
+
+    log_entries.append(
+        {
+            "event": "callback_invoked",
+            "order_uuid": str(order.uuid),
+            "order_type": order.type,
+            "order_state_before": order.state,
+            "callback": callback.__name__,
+            "callback_key": str(callback_key),
+        }
+    )
+
+    try:
+        result = callback(order.resource)
+        order.refresh_from_db()
+
+        logger.info(
+            "Callback %s completed for order %s. Order state after: %s, result: %s",
+            callback.__name__,
+            order.uuid,
+            order.state,
+            result,
+        )
+
+        log_entries.append(
+            {
+                "event": "callback_completed",
+                "order_state_after": order.state,
+                "result_order_uuid": str(result.uuid) if result else None,
+            }
+        )
+    except Exception as e:
+        logger.exception(
+            "Callback %s failed for order %s: %s",
+            callback.__name__,
+            order.uuid,
+            str(e),
+        )
+        log_entries.append(
+            {
+                "event": "callback_failed",
+                "error": str(e),
+            }
+        )
+
+    # Save all log entries at once using direct update to avoid triggering signals
+    for entry in log_entries:
+        event = entry.pop("event")
+        log_entry = {
+            "timestamp": timezone.now().isoformat(),
+            "event": event,
+            "details": entry if entry else None,
+        }
+        if issue.processing_log is None:
+            issue.processing_log = []
+        issue.processing_log.append(log_entry)
+
+    # Use update() to avoid triggering post_save signal
+    Issue.objects.filter(pk=issue.pk).update(processing_log=issue.processing_log)
 
 
 def notify_about_request_based_item_creation(
