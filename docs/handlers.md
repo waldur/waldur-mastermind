@@ -585,6 +585,7 @@ td:nth-child(4) {
 | `offering_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.Offering` | Log offering creation and state updates. |
 | `plan_component_has_been_updated` | `Django Signal (post_save)` | `marketplace.PlanComponent` | Log plan component updates. |
 | `plan_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.Plan` | Log plan creation, update, and archiving events. |
+| `populate_volume_metadata_on_resource_creation` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
 | `process_billing_on_resource_save` | `Django Signal (post_save)` | `marketplace.Resource` | Handle resource state changes and billing events. |
 | `process_invitations_and_orders_when_project_start_date_is_unset` | `Django Signal (post_save)` | `structure.Project` | Process pending invitations and orders when a project's start date is unset. |
 | `process_invoice_item` | `Django Signal (post_save)` | `invoices.InvoiceItem` | Process invoice item changes and update related price estimates. |
@@ -661,6 +662,7 @@ td:nth-child(4) {
 | `synchronize_router_backend_metadata` | `Django Signal (post_save)` | `openstack.Router` | No description |
 | `synchronize_tenant_name` | `Django Signal (post_save)` | `openstack.Tenant` | No description |
 | `synchronize_volume_metadata_on_pull` | `Custom Signal (resource_pulled)` | `openstack.Volume` | No description |
+| `synchronize_volume_metadata_on_resource_post_save` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
 | `synchronize_volume_metadata_on_save` | `Django Signal (post_save)` | `openstack.Volume` | No description |
 | `tenant_does_not_exist_in_backend` | `Custom Signal (tenant_does_not_exist_in_backend)` | `openstack.Tenant` | No description |
 | `terminate_resource` | `Django Signal (pre_delete)` | `waldur_azure.VirtualMachine` | Terminate a resource. |
@@ -781,14 +783,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 702
+Total unique handlers found: 704
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 354 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 290 handlers
+- **waldur_mastermind**: 292 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
