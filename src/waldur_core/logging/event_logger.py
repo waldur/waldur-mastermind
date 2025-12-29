@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from constance import config
 
+from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.logging import models
 from waldur_core.logging.enums import (
     EVENT_GROUP_MAPPING,
@@ -54,6 +55,10 @@ def emit(
     scopes=None,
     level="info",
 ):
+    # Skip event logging during bulk operations (e.g., cleanup, import)
+    if get_skip_side_effects():
+        return
+
     if not config.NOTIFY_ABOUT_RESOURCE_CHANGE and event_type in RESOURCE_CHANGE_EVENTS:
         return
 

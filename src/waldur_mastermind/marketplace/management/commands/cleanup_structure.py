@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import signals
 
 from waldur_core.checklist.models import (
@@ -127,16 +127,29 @@ class Command(BaseCommand):
             action="store_true",
             help="Skip sending RabbitMQ messages during cleanup (recommended for large cleanups).",
         )
+        parser.add_argument(
+            "--fast",
+            action="store_true",
+            help="Use fast raw SQL DELETE (bypasses all Django signals, much faster for large datasets).",
+        )
 
     def handle(self, **options):
         self.dry_run = options["dry_run"]
         skip_users = options["skip_users"]
         skip_roles = options["skip_roles"]
         skip_side_effects_flag = options["skip_rabbitmq_messages"]
+        fast_mode = options["fast"]
 
         if self.dry_run:
             self.stdout.write(
                 self.style.WARNING("DRY RUN MODE - No changes will be made")
+            )
+
+        if fast_mode:
+            self.stdout.write(
+                self.style.WARNING(
+                    "FAST MODE - Using raw SQL DELETE (bypasses Django signals)"
+                )
             )
 
         if skip_side_effects_flag:
@@ -152,7 +165,9 @@ class Command(BaseCommand):
         )
 
         try:
-            if skip_side_effects_flag:
+            if fast_mode:
+                self._perform_fast_cleanup(skip_users, skip_roles)
+            elif skip_side_effects_flag:
                 with skip_side_effects():
                     self._perform_cleanup(skip_users, skip_roles)
             else:
@@ -241,6 +256,95 @@ class Command(BaseCommand):
 
             if self.dry_run:
                 # Rollback transaction in dry-run mode
+                raise Exception("Dry run - rolling back transaction")
+
+    def _perform_fast_cleanup(self, skip_users, skip_roles):
+        """
+        Perform fast cleanup using TRUNCATE CASCADE.
+
+        This bypasses Django signals entirely for maximum speed.
+        CASCADE handles foreign key dependencies automatically.
+        """
+        # Define tables to truncate (stat_key, table_name)
+        tables = [
+            # Logging first
+            ("feeds", "logging_feed"),
+            ("events", "logging_event"),
+            # Offering users
+            ("offering_users", "marketplace_offeringuser"),
+            # Checklists
+            ("answers", "checklist_answer"),
+            ("checklist_completions", "checklist_checklistcompletion"),
+            ("questions", "checklist_question"),
+            ("checklists", "checklist_checklist"),
+            ("checklist_categories", "checklist_category"),
+            # Credits
+            ("project_credits", "invoices_projectcredit"),
+            ("customer_credits", "invoices_customercredit"),
+            # Invoices
+            ("invoice_items", "invoices_invoiceitem"),
+            ("invoices", "invoices_invoice"),
+            # Accounts
+            ("course_accounts", "marketplace_courseaccount"),
+            ("customer_service_accounts", "marketplace_customerserviceaccount"),
+            ("project_service_accounts", "marketplace_projectserviceaccount"),
+            # User roles
+            ("user_roles", "permissions_userrole"),
+            # User management
+            ("permission_requests", "users_permissionrequest"),
+            ("invitations", "users_invitation"),
+            ("group_invitations", "users_groupinvitation"),
+            # Orders
+            ("orders", "marketplace_order"),
+            # Component usages
+            ("component_usages", "marketplace_componentusage"),
+            # Resources
+            ("resources", "marketplace_resource"),
+            # Marketplace components and plans
+            ("plan_components", "marketplace_plancomponent"),
+            ("offering_components", "marketplace_offeringcomponent"),
+            ("plans", "marketplace_plan"),
+            # Offerings, service providers, projects, customers, categories
+            ("offerings", "marketplace_offering"),
+            ("service_providers", "marketplace_serviceprovider"),
+            ("projects", "structure_project"),
+            ("categories", "marketplace_category"),
+            ("customers", "structure_customer"),
+        ]
+
+        # Add roles if not skipped
+        if not skip_roles:
+            tables.append(("role_permissions", "permissions_rolepermission"))
+            tables.append(("roles", "permissions_role"))
+
+        # Add users if not skipped
+        if not skip_users:
+            tables.append(("users", "core_user"))
+
+        with transaction.atomic():
+            cursor = connection.cursor()
+
+            for stat_key, table_name in tables:
+                self.stdout.write(f"Deleting {stat_key}...")
+                try:
+                    # Get count first
+                    cursor.execute(f"SELECT COUNT(*) FROM {table_name}")  # noqa: S608
+                    count = cursor.fetchone()[0]
+
+                    if not self.dry_run:
+                        # Use TRUNCATE CASCADE for speed and to handle FK dependencies
+                        cursor.execute(
+                            f"TRUNCATE TABLE {table_name} CASCADE"  # noqa: S608
+                        )
+
+                    self.stats[stat_key]["deleted"] = count
+                except Exception as e:
+                    self.stdout.write(
+                        self.style.WARNING(f"Failed to delete {stat_key}: {e}")
+                    )
+                    self.stats[stat_key]["errors"] += 1
+
+            if self.dry_run:
                 raise Exception("Dry run - rolling back transaction")
 
     def cleanup_feeds(self):

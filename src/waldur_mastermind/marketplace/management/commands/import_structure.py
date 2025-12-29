@@ -20,7 +20,9 @@ from waldur_core.checklist.models import (
     Category as ChecklistCategory,
 )
 from waldur_core.core.middleware import skip_side_effects
-from waldur_core.core.models import User
+from waldur_core.core.models import SshPublicKey, User
+from waldur_core.core.serializers import ConstanceSettingsSerializer
+from waldur_core.logging.models import Event
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.permissions.tasks import sync_user_deactivation_status
 from waldur_core.structure.models import Customer, Project
@@ -34,9 +36,11 @@ from waldur_mastermind.invoices.models import (
 from waldur_mastermind.marketplace.models import (
     Category,
     ComponentUsage,
+    ComponentUserUsage,
     CourseAccount,
     CustomerServiceAccount,
     Offering,
+    OfferingAccessEndpoint,
     OfferingComponent,
     OfferingUser,
     Order,
@@ -125,6 +129,12 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "component_usages": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "component_user_usages": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "orders": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "invoices": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "invoice_items": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
@@ -159,6 +169,20 @@ class Command(BaseCommand):
             },
             "customer_credits": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "project_credits": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "events": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "ssh_public_keys": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "offering_endpoints": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "constance_settings": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
         }
         self.dry_run = False
         self.update_existing = False
@@ -277,6 +301,10 @@ class Command(BaseCommand):
                 "auth_tokens",
                 lambda: self.import_auth_tokens(data.get("auth_tokens", [])),
             )
+            self._safe_import(
+                "ssh_public_keys",
+                lambda: self.import_ssh_public_keys(data.get("ssh_public_keys", [])),
+            )
 
         self._safe_import(
             "customers", lambda: self.import_customers(data.get("customers", []))
@@ -293,6 +321,10 @@ class Command(BaseCommand):
         )
         self._safe_import(
             "offerings", lambda: self.import_offerings(data.get("offerings", []))
+        )
+        self._safe_import(
+            "offering_endpoints",
+            lambda: self.import_offering_endpoints(data.get("offering_endpoints", [])),
         )
 
         # Import marketplace components and plans
@@ -325,6 +357,12 @@ class Command(BaseCommand):
         self._safe_import(
             "component_usages",
             lambda: self.import_component_usages(data.get("component_usages", [])),
+        )
+        self._safe_import(
+            "component_user_usages",
+            lambda: self.import_component_user_usages(
+                data.get("component_user_usages", [])
+            ),
         )
 
         # Import orders (depends on resources, projects, users, plans)
@@ -420,6 +458,18 @@ class Command(BaseCommand):
         self._safe_import(
             "project_credits",
             lambda: self.import_project_credits(data.get("project_credits", [])),
+        )
+
+        # Import events last (after all entities exist)
+        self._safe_import(
+            "events",
+            lambda: self.import_events(data.get("events", [])),
+        )
+
+        # Import constance settings (system configuration)
+        self._safe_import(
+            "constance_settings",
+            lambda: self.import_constance_settings(data.get("constance_settings", {})),
         )
 
     def _safe_import(self, import_type, import_func):
@@ -631,8 +681,12 @@ class Command(BaseCommand):
                     if "token_lifetime" in user_data:
                         user.token_lifetime = user_data.get("token_lifetime")
 
-                    # Set unusable password for security
-                    user.set_unusable_password()
+                    # Set password if provided, otherwise set unusable password
+                    password = user_data.get("password")
+                    if password:
+                        user.set_password(password)
+                    else:
+                        user.set_unusable_password()
 
                     if not self.dry_run:
                         user.save()
@@ -750,6 +804,74 @@ class Command(BaseCommand):
                 )
                 self.stats["auth_tokens"]["errors"] += 1
 
+    def import_ssh_public_keys(self, keys_data):
+        """Import user SSH public keys."""
+        self.stdout.write("Importing SSH public keys...")
+
+        for key_data in keys_data:
+            try:
+                uuid = key_data.get("uuid")
+                user_uuid = key_data.get("user_uuid")
+                public_key = key_data.get("public_key")
+
+                if not uuid or not user_uuid or not public_key:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping SSH key without UUID, user_uuid, or public_key"
+                        )
+                    )
+                    self.stats["ssh_public_keys"]["errors"] += 1
+                    continue
+
+                # Find user
+                user = User.all_objects.filter(uuid=user_uuid).first()
+                if not user:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping SSH key {uuid}: user {user_uuid} not found"
+                        )
+                    )
+                    self.stats["ssh_public_keys"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "user": user,
+                    "name": key_data.get("name", ""),
+                    "public_key": public_key,
+                    "is_shared": key_data.get("is_shared", False),
+                }
+
+                if not self.dry_run:
+                    existing_key = SshPublicKey.objects.filter(uuid=uuid).first()
+
+                    if existing_key:
+                        if self.update_existing:
+                            SshPublicKey.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["ssh_public_keys"]["updated"] += 1
+                        else:
+                            self.stats["ssh_public_keys"]["skipped"] += 1
+                    else:
+                        SshPublicKey.objects.create(uuid=uuid, **defaults)
+                        self.stats["ssh_public_keys"]["created"] += 1
+                else:
+                    # Dry run
+                    existing = SshPublicKey.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["ssh_public_keys"]["updated"] += 1
+                        else:
+                            self.stats["ssh_public_keys"]["skipped"] += 1
+                    else:
+                        self.stats["ssh_public_keys"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import SSH key {key_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["ssh_public_keys"]["errors"] += 1
+
     def import_customers(self, customers_data):
         """Import customer/organization data."""
         self.stdout.write("Importing customers...")
@@ -809,6 +931,7 @@ class Command(BaseCommand):
                     "name": name,
                     "native_name": customer_data.get("native_name", ""),
                     "abbreviation": customer_data.get("abbreviation", ""),
+                    "description": customer_data.get("description", ""),
                     "email": customer_data.get("email", ""),
                     "phone_number": customer_data.get("phone_number", ""),
                     "country": customer_data.get("country", ""),
@@ -1255,6 +1378,78 @@ class Command(BaseCommand):
                 )
                 self.stats["offerings"]["errors"] += 1
 
+    def import_offering_endpoints(self, endpoints_data):
+        """Import offering access endpoints."""
+        self.stdout.write("Importing offering endpoints...")
+
+        for endpoint_data in endpoints_data:
+            try:
+                uuid = endpoint_data.get("uuid")
+                offering_uuid = endpoint_data.get("offering_uuid")
+                name = endpoint_data.get("name")
+                url = endpoint_data.get("url")
+
+                if not uuid or not offering_uuid or not name or not url:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping endpoint without UUID, offering_uuid, name, or url"
+                        )
+                    )
+                    self.stats["offering_endpoints"]["errors"] += 1
+                    continue
+
+                # Find offering
+                offering = Offering.objects.filter(uuid=offering_uuid).first()
+                if not offering:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping endpoint {uuid}: offering {offering_uuid} not found"
+                        )
+                    )
+                    self.stats["offering_endpoints"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "offering": offering,
+                    "name": name,
+                    "url": url,
+                }
+
+                if not self.dry_run:
+                    existing_endpoint = OfferingAccessEndpoint.objects.filter(
+                        uuid=uuid
+                    ).first()
+
+                    if existing_endpoint:
+                        if self.update_existing:
+                            OfferingAccessEndpoint.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["offering_endpoints"]["updated"] += 1
+                        else:
+                            self.stats["offering_endpoints"]["skipped"] += 1
+                    else:
+                        OfferingAccessEndpoint.objects.create(uuid=uuid, **defaults)
+                        self.stats["offering_endpoints"]["created"] += 1
+                else:
+                    # Dry run
+                    existing = OfferingAccessEndpoint.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["offering_endpoints"]["updated"] += 1
+                        else:
+                            self.stats["offering_endpoints"]["skipped"] += 1
+                    else:
+                        self.stats["offering_endpoints"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import endpoint {endpoint_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["offering_endpoints"]["errors"] += 1
+
     def import_roles(self, roles_data):
         """Import role definitions."""
         self.stdout.write("Importing roles...")
@@ -1419,13 +1614,14 @@ class Command(BaseCommand):
                 uuid = user_role_data.get("uuid")
                 user_uuid = user_role_data.get("user_uuid")
                 role_uuid = user_role_data.get("role_uuid")
+                role_name = user_role_data.get("role_name")
                 scope_type = user_role_data.get("scope_type")
                 scope_uuid = user_role_data.get("scope_uuid")
 
-                if not uuid or not user_uuid or not role_uuid:
+                if not uuid or not user_uuid or (not role_uuid and not role_name):
                     self.stdout.write(
                         self.style.WARNING(
-                            "Skipping user role without UUID, user_uuid, or role_uuid"
+                            "Skipping user role without UUID, user_uuid, or role_uuid/role_name"
                         )
                     )
                     self.stats["user_roles"]["errors"] += 1
@@ -1442,18 +1638,7 @@ class Command(BaseCommand):
                     self.stats["user_roles"]["errors"] += 1
                     continue
 
-                # Find role
-                role = Role.objects.filter(uuid=role_uuid).first()
-                if not role:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f"Skipping user role {uuid}: role {role_uuid} not found"
-                        )
-                    )
-                    self.stats["user_roles"]["errors"] += 1
-                    continue
-
-                # Resolve scope
+                # Resolve scope first (needed for system role creation)
                 content_type = None
                 object_id = None
 
@@ -1463,29 +1648,6 @@ class Command(BaseCommand):
                         content_type = ContentType.objects.get(
                             app_label=app_label, model=model
                         )
-                        # Get the model class and find the object by UUID
-                        model_class = content_type.model_class()
-                        if not model_class:
-                            self.stdout.write(
-                                self.style.WARNING(
-                                    f"Skipping user role {uuid}: could not get model class for {scope_type}"
-                                )
-                            )
-                            self.stats["user_roles"]["errors"] += 1
-                            continue
-                        scope_object = model_class.objects.filter(
-                            uuid=scope_uuid
-                        ).first()
-                        if not scope_object:
-                            self.stdout.write(
-                                self.style.WARNING(
-                                    f"Skipping user role {uuid}: scope object {scope_uuid} not found"
-                                )
-                            )
-                            self.stats["user_roles"]["errors"] += 1
-                            continue
-                        # Use the id field instead of UUID
-                        object_id = scope_object.id  # type: ignore[attr-defined]
                     except (ValueError, ContentType.DoesNotExist):
                         self.stdout.write(
                             self.style.WARNING(
@@ -1494,6 +1656,48 @@ class Command(BaseCommand):
                         )
                         self.stats["user_roles"]["errors"] += 1
                         continue
+
+                # Find role by UUID or by name (create system role if needed)
+                role = None
+                if role_uuid:
+                    role = Role.objects.filter(uuid=role_uuid).first()
+                if not role and role_name:
+                    role = Role.objects.filter(name=role_name).first()
+                    # If role not found and we have a content_type, create it as a system role
+                    if not role and content_type:
+                        role = Role.objects.get_system_role(role_name, content_type)
+                if not role:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping user role {uuid}: role {role_uuid or role_name} not found"
+                        )
+                    )
+                    self.stats["user_roles"]["errors"] += 1
+                    continue
+
+                # Resolve scope object
+                if scope_type and scope_uuid and content_type:
+                    # Get the model class and find the object by UUID
+                    model_class = content_type.model_class()
+                    if not model_class:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Skipping user role {uuid}: could not get model class for {scope_type}"
+                            )
+                        )
+                        self.stats["user_roles"]["errors"] += 1
+                        continue
+                    scope_object = model_class.objects.filter(uuid=scope_uuid).first()
+                    if not scope_object:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Skipping user role {uuid}: scope object {scope_uuid} not found"
+                            )
+                        )
+                        self.stats["user_roles"]["errors"] += 1
+                        continue
+                    # Use the id field instead of UUID
+                    object_id = scope_object.id  # type: ignore[attr-defined]
 
                 # Parse expiration time
                 expiration_time = None
@@ -2366,6 +2570,118 @@ class Command(BaseCommand):
                 )
                 self.stats["component_usages"]["errors"] += 1
 
+    def import_component_user_usages(self, user_usages_data):
+        """Import component user usage data."""
+        self.stdout.write("Importing component user usages...")
+
+        for user_usage_data in user_usages_data:
+            try:
+                uuid = user_usage_data.get("uuid")
+                component_usage_uuid = user_usage_data.get("component_usage_uuid")
+                username = user_usage_data.get("username")
+
+                if not uuid or not component_usage_uuid or not username:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping component user usage without UUID, component_usage_uuid, or username"
+                        )
+                    )
+                    self.stats["component_user_usages"]["errors"] += 1
+                    continue
+
+                # Find component usage
+                component_usage = ComponentUsage.objects.filter(
+                    uuid=component_usage_uuid
+                ).first()
+                if not component_usage:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping component user usage {uuid}: component_usage {component_usage_uuid} not found"
+                        )
+                    )
+                    self.stats["component_user_usages"]["errors"] += 1
+                    continue
+
+                # Find offering user if user_uuid provided
+                offering_user = None
+                user_uuid = user_usage_data.get("user_uuid")
+                if user_uuid:
+                    offering_user = OfferingUser.objects.filter(uuid=user_uuid).first()
+
+                defaults = {
+                    "component_usage": component_usage,
+                    "username": username,
+                    "usage": user_usage_data.get("usage", 0),
+                    "user": offering_user,
+                    "description": user_usage_data.get("description", ""),
+                    "backend_id": user_usage_data.get("backend_id", ""),
+                }
+
+                if not self.dry_run:
+                    existing_user_usage = ComponentUserUsage.objects.filter(
+                        uuid=uuid
+                    ).first()
+
+                    if existing_user_usage:
+                        if self.update_existing:
+                            ComponentUserUsage.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["component_user_usages"]["updated"] += 1
+                        else:
+                            self.stats["component_user_usages"]["skipped"] += 1
+                    else:
+                        # Check for duplicate by unique constraint
+                        duplicate = ComponentUserUsage.objects.filter(
+                            username=username,
+                            component_usage=component_usage,
+                        ).first()
+
+                        if duplicate:
+                            if self.update_existing:
+                                ComponentUserUsage.objects.filter(
+                                    pk=duplicate.pk
+                                ).update(uuid=uuid, **defaults)
+                                self.stats["component_user_usages"]["updated"] += 1
+                            else:
+                                self.stdout.write(
+                                    self.style.WARNING(
+                                        f"Skipping component user usage {uuid}: duplicate exists with UUID {duplicate.uuid}"
+                                    )
+                                )
+                                self.stats["component_user_usages"]["skipped"] += 1
+                        else:
+                            ComponentUserUsage.objects.create(uuid=uuid, **defaults)
+                            self.stats["component_user_usages"]["created"] += 1
+                else:
+                    existing = ComponentUserUsage.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["component_user_usages"]["updated"] += 1
+                        else:
+                            self.stats["component_user_usages"]["skipped"] += 1
+                    else:
+                        duplicate_exists = ComponentUserUsage.objects.filter(
+                            username=username,
+                            component_usage=component_usage,
+                        ).exists()
+
+                        if duplicate_exists:
+                            if self.update_existing:
+                                self.stats["component_user_usages"]["updated"] += 1
+                            else:
+                                self.stats["component_user_usages"]["skipped"] += 1
+                        else:
+                            self.stats["component_user_usages"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import component user usage {user_usage_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["component_user_usages"]["errors"] += 1
+
     def import_invoices(self, invoices_data):
         """Import invoice data."""
         self.stdout.write("Importing invoices...")
@@ -2544,12 +2860,16 @@ class Command(BaseCommand):
                     "measured_unit": item_data.get("measured_unit", ""),
                     "unit_price": item_data.get("unit_price", 0),
                     "article_code": item_data.get("article_code", ""),
-                    "start": start,
-                    "end": end,
                     "backend_uuid": backend_uuid,
                     "details": item_data.get("details", {}),
                     "plan_component": plan_component,
                 }
+
+                # Only set start/end if provided, otherwise let model use defaults
+                if start is not None:
+                    defaults["start"] = start
+                if end is not None:
+                    defaults["end"] = end
 
                 if not self.dry_run:
                     existing_item = InvoiceItem.objects.filter(uuid=uuid).first()
@@ -4021,6 +4341,146 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["project_credits"]["errors"] += 1
+
+    def import_events(self, events_data):
+        """Import event log data."""
+        self.stdout.write("Importing events...")
+        for event_data in events_data:
+            try:
+                uuid = event_data.get("uuid")
+                event_type = event_data.get("event_type")
+                message = event_data.get("message")
+
+                if not uuid or not event_type or not message:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping event without required fields (uuid, event_type, message)"
+                        )
+                    )
+                    self.stats["events"]["errors"] += 1
+                    continue
+
+                # Parse created timestamp
+                created = None
+                if event_data.get("created"):
+                    try:
+                        created = datetime.fromisoformat(event_data["created"])
+                        if timezone.is_naive(created):
+                            created = timezone.make_aware(created)
+                    except (ValueError, TypeError):
+                        pass
+
+                defaults = {
+                    "event_type": event_type,
+                    "message": message,
+                    "context": event_data.get("context", {}),
+                }
+
+                if not self.dry_run:
+                    existing_event = Event.objects.filter(uuid=uuid).first()
+                    if existing_event:
+                        if self.update_existing:
+                            Event.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["events"]["updated"] += 1
+                        else:
+                            self.stats["events"]["skipped"] += 1
+                    else:
+                        event = Event.objects.create(uuid=uuid, **defaults)
+                        # Update created timestamp if provided
+                        if created:
+                            Event.objects.filter(pk=event.pk).update(created=created)
+                        self.stats["events"]["created"] += 1
+                else:
+                    existing = Event.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["events"]["updated"] += 1
+                        else:
+                            self.stats["events"]["skipped"] += 1
+                    else:
+                        self.stats["events"]["created"] += 1
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import event {event_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["events"]["errors"] += 1
+
+    def import_constance_settings(self, settings_data):
+        """
+        Import constance settings (system configuration).
+
+        Settings are applied using the ConstanceSettingsSerializer which handles
+        validation and type conversion for all supported setting types.
+        """
+        if not settings_data:
+            self.stdout.write("No constance settings to import.")
+            return
+
+        self.stdout.write("Importing constance settings...")
+
+        # Normalize keys to uppercase (constance uses uppercase keys)
+        normalized_settings = {
+            key.upper(): value for key, value in settings_data.items()
+        }
+
+        if not normalized_settings:
+            self.stdout.write("No constance settings to import after normalization.")
+            return
+
+        try:
+            serializer = ConstanceSettingsSerializer(data=normalized_settings)
+            if serializer.is_valid():
+                if not self.dry_run:
+                    serializer.save()
+
+                for key in normalized_settings:
+                    # Count each setting as updated (constance always overwrites)
+                    self.stats["constance_settings"]["updated"] += 1
+                    value = normalized_settings[key]
+                    # Redact sensitive values in output
+                    if any(
+                        s in key.lower() for s in ["password", "token", "secret", "key"]
+                    ):
+                        value = "<redacted>"
+                    self.stdout.write(f"  Set {key} = {value}")
+            else:
+                # Handle validation errors - log each one but continue with valid settings
+                valid_settings = {}
+                for key, value in normalized_settings.items():
+                    if key not in serializer.errors:
+                        valid_settings[key] = value
+
+                if valid_settings:
+                    # Retry with valid settings only
+                    retry_serializer = ConstanceSettingsSerializer(data=valid_settings)
+                    if retry_serializer.is_valid():
+                        if not self.dry_run:
+                            retry_serializer.save()
+
+                        for key in valid_settings:
+                            self.stats["constance_settings"]["updated"] += 1
+                            value = valid_settings[key]
+                            if any(
+                                s in key.lower()
+                                for s in ["password", "token", "secret", "key"]
+                            ):
+                                value = "<redacted>"
+                            self.stdout.write(f"  Set {key} = {value}")
+
+                # Log errors for invalid settings
+                for key, errors in serializer.errors.items():
+                    self.stats["constance_settings"]["errors"] += 1
+                    self.stdout.write(
+                        self.style.WARNING(f"  Failed to set {key}: {errors}")
+                    )
+
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to import constance settings: {e}")
+            )
+            self.stats["constance_settings"]["errors"] += 1
 
     def _sync_user_activation_status(self):
         """
