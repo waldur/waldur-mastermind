@@ -40,6 +40,7 @@ waldur_core.media:
 waldur_core.onboarding:
 - waldur_core.checklist
 - waldur_core.core
+- waldur_core.permissions
 - waldur_core.structure
 waldur_core.permissions:
 - waldur_core.core
@@ -110,6 +111,8 @@ waldur_mastermind.booking:
 - waldur_core.structure
 - waldur_mastermind.google
 - waldur_mastermind.marketplace
+waldur_mastermind.chat:
+- waldur_core.core
 waldur_mastermind.google:
 - waldur_core.core
 - waldur_core.structure

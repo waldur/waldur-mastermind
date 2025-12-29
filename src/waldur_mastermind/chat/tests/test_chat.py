@@ -70,15 +70,14 @@ class StreamEndpointSseTest(ChatBaseTest):
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
     def test_stream_proxies_sse_and_strips_metadata(self, post_mock):
-        payload = {
+        # Upstream LLM API sends "content", we transform it to "c" for bandwidth
+        upstream_payload = {
             "content": "Hello",
             "additional_kwargs": {"foo": "bar", "unused": 1},
         }
 
-        # Mimics data: event from SSE stream
         fake_stream = [
-            "data: " + json.dumps(payload),
-            "",
+            "data: " + json.dumps(upstream_payload),
         ]
 
         post_mock.return_value.__enter__.return_value = mock.Mock(
@@ -96,12 +95,27 @@ class StreamEndpointSseTest(ChatBaseTest):
 
         body = b"".join(chunk for chunk in response.streaming_content).decode("utf-8")
 
-        first_line = next(
-            line for line in body.splitlines() if line.startswith("data: ")
-        )
-        payload_str = first_line[len("data: ") :]
-        obj = json.loads(payload_str)
+        data_lines = [line for line in body.splitlines() if line.startswith("data: ")]
 
-        self.assertEqual(obj["content"], "Hello")
-        self.assertIn("foo", obj["additional_kwargs"])
-        self.assertIn("unused", obj["additional_kwargs"])
+        self.assertTrue(
+            len(data_lines) >= 2, "Expected at least separate content and kwargs events"
+        )
+
+        content_found = False
+        kwargs_found = False
+
+        for line in data_lines:
+            data = json.loads(line[len("data: ") :])
+
+            # Content is transformed from "content" to "c" for bandwidth optimization
+            if "c" in data:
+                self.assertEqual(data["c"], "Hello")
+                content_found = True
+
+            if "additional_kwargs" in data:
+                self.assertIn("foo", data["additional_kwargs"])
+                self.assertIn("unused", data["additional_kwargs"])
+                kwargs_found = True
+
+        self.assertTrue(content_found, "Did not find chunk with key 'c'")
+        self.assertTrue(kwargs_found, "Did not find chunk with 'additional_kwargs'")
