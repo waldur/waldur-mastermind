@@ -195,6 +195,32 @@ class ResourceFilterTest(test.APITransactionTestCase):
         self.assertNotIn(resource3.uuid.hex, uuids)
         self.assertIn(resource4.uuid.hex, uuids)
 
+    def test_is_attached_filter(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Create attached resource
+        attached_resource = factories.ResourceFactory(
+            backend_metadata={"instance_name": "VM-1"}
+        )
+
+        # Create unattached resource
+        unattached_resource = factories.ResourceFactory(
+            backend_metadata={"volume_size": 100}
+        )
+
+        # Filter by is_attached=true
+        response = self.client.get(self.url, {"is_attached": "true"})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], attached_resource.uuid.hex)
+
+        # Filter by is_attached=false
+        # Note: self.resource_1 and fixture resources are also unattached
+        response = self.client.get(self.url, {"is_attached": "false"})
+
+        uuids = [r["uuid"] for r in response.data]
+        self.assertIn(unattached_resource.uuid.hex, uuids)
+        self.assertNotIn(attached_resource.uuid.hex, uuids)
+
 
 class FilterByScopeUUIDTest(test.APITransactionTestCase):
     def setUp(self):

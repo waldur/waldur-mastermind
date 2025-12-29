@@ -922,6 +922,10 @@ class ResourceFilter(
         method="filter_limit_component_count",
         label="Filter by exact number of limit-based components",
     )
+    is_attached = django_filters.BooleanFilter(
+        method="filter_is_attached",
+        label="Filter by attached state",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -1102,6 +1106,11 @@ class ResourceFilter(
         )
 
         return queryset.filter(offering__id__in=offering_ids)
+
+    def filter_is_attached(self, queryset: ResourceQuerySet, name, value):
+        if value:
+            return queryset.filter(backend_metadata__has_key="instance_name")
+        return queryset.exclude(backend_metadata__has_key="instance_name")
 
     def filter_visible_to_providers(self, queryset, name, value):
         if value:
