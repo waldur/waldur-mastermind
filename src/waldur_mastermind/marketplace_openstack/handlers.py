@@ -646,3 +646,37 @@ def handle_openstack_tenant_order_termination(
         )
     ):
         utils.set_ports_status_for_order(order, "DOWN")
+
+
+def synchronize_volume_metadata_on_resource_post_save(
+    sender, instance: marketplace_models.Resource, created=False, **kwargs
+):
+    if created:
+        return
+
+    update_fields = kwargs.get("update_fields")
+    if update_fields is not None and "object_id" not in update_fields:
+        return
+
+    if not instance.tracker.has_changed("object_id"):
+        return
+
+    if isinstance(instance.scope, openstack_models.Volume):
+        utils.import_volume_metadata(instance)
+
+
+def populate_volume_metadata_on_resource_creation(
+    sender, instance: marketplace_models.Resource, created=False, **kwargs
+):
+    if not created:
+        return
+
+    if instance.offering.type != OPENSTACK_VOLUME_OFFERING:
+        return
+
+    size = instance.attributes.get("size")
+    if not size:
+        return
+
+    instance.backend_metadata["size"] = size
+    instance.save(update_fields=["backend_metadata"])

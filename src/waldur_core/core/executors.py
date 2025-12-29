@@ -151,7 +151,9 @@ class DeleteExecutorMixin:
         if force:
             return tasks.DeletionTask().si(serialized_instance)
         else:
-            return tasks.ErrorStateTransitionTask().s(serialized_instance)
+            return tasks.StateTransitionTask().si(
+                serialized_instance, state_transition="set_erred"
+            )
 
 
 class EmptyExecutor(BaseExecutor):

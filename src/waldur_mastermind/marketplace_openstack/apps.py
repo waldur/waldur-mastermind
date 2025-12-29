@@ -288,3 +288,15 @@ class MarketplaceOpenStackConfig(AppConfig):
             sender=marketplace_models.Order,
             dispatch_uid="waldur_mastermind.marketplace_openstack.handle_openstack_tenant_order_termination",
         )
+
+        signals.post_save.connect(
+            handlers.synchronize_volume_metadata_on_resource_post_save,
+            sender=marketplace_models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_volume_metadata_on_resource_post_save",
+        )
+
+        signals.post_save.connect(
+            handlers.populate_volume_metadata_on_resource_creation,
+            sender=marketplace_models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace_openstack.populate_volume_metadata_on_resource_creation",
+        )
