@@ -420,8 +420,8 @@ The system provides robust error tracking:
 ```python
 # Invitation lifecycle
 INVITATION_LIFETIME = timedelta(weeks=1)        # Individual invitation expiration
-GROUP_INVITATION_LIFETIME = timedelta(weeks=4)  # Group invitation expiration
 INVITATION_MAX_AGE = 60 * 60 * 24 * 7          # Token validity period
+# Note: Group invitations do not expire
 
 # User creation
 INVITATION_CREATE_MISSING_USER = False         # Auto-create user accounts

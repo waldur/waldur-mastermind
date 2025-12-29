@@ -94,9 +94,6 @@ class GroupInvitation(
                 }
             )
 
-    def get_expiration_time(self):
-        return self.created + settings.WALDUR_CORE["GROUP_INVITATION_LIFETIME"]
-
     def cancel(self):
         self.is_active = False
         self.save(update_fields=["is_active"])

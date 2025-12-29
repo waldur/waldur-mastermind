@@ -68,11 +68,6 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(hours=24),
         "args": (),
     },
-    "cancel_expired_group_invitations": {
-        "task": "waldur_core.users.cancel_expired_group_invitations",
-        "schedule": timedelta(hours=24),
-        "args": (),
-    },
     "send-reminder-for-pending-invitations": {
         "task": "waldur_core.users.send_reminder_for_pending_invitations",
         "schedule": timedelta(hours=24),

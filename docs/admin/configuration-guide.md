@@ -329,7 +329,6 @@ WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
  'ENABLE_PROJECT_KIND_COURSE': False,
  'EXTENSIONS_AUTOREGISTER': True,
  'EXTERNAL_LINKS': [],
- 'GROUP_INVITATION_LIFETIME': datetime.timedelta(days=7),
  'HOMEPORT_SENTRY_DSN': None,
  'HOMEPORT_SENTRY_ENVIRONMENT': 'waldur-production',
  'HOMEPORT_SENTRY_TRACES_SAMPLE_RATE': 0.01,
@@ -474,12 +473,6 @@ Defines whether extensions should be automatically registered.
 **Type:** List[ExternalLink]
 
 Render external links in dropdown in header. Each item should be object with label and url fields. For example: {"label": "Helpdesk", "url": "`https://example.com/`"}
-
-#### GROUP_INVITATION_LIFETIME
-
-**Type:** timedelta
-
-Defines for how long group invitation remains valid.
 
 #### HOMEPORT_SENTRY_DSN
 

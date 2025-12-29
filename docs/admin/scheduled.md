@@ -28,7 +28,6 @@ td:nth-child(4) {
 | Job Name | Task | Schedule | Description |
 |----------|------|----------|-------------|
 | `cancel-expired-invitations` | `waldur_core.users.cancel_expired_invitations` | 1 day | Invitation lifetime must be specified in Waldur Core settings with parameter<br> "INVITATION_LIFETIME". If invitation creation time is less than expiration time, the invitation will set as expired. |
-| `cancel_expired_group_invitations` | `waldur_core.users.cancel_expired_group_invitations` | 1 day | Invitation lifetime must be specified in Waldur Core settings with parameter<br> "GROUP_INVITATION_LIFETIME". If invitation creation time is less than expiration time,<br> the invitation will set as expired. |
 | `check-expired-permissions` | `waldur_core.permissions.check_expired_permissions` | 1 day | Task not found in registry |
 | `check-polices` | `waldur_mastermind.policy.check_polices` | Cron: `* * 1 * * (m/h/dM/MY/d)` | Evaluate all policies across all policy types in the system. |
 | `cleanup-dangling-user-actions` | `waldur_core.user_actions.cleanup_dangling_user_actions` | Cron: `30 3 * * * (m/h/dM/MY/d)` | Clean up user actions pointing to non-existent objects (fallback periodic cleanup) |
