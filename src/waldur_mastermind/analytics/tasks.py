@@ -11,7 +11,8 @@ from . import models
 def sync_daily_quotas():
     date = timezone.now().date()
     for model in (structure_models.Project, structure_models.Customer):
-        for scope in model.objects.all():
+        # Use iterator() with chunk_size to prevent loading all instances into memory
+        for scope in model.objects.all().iterator(chunk_size=100):
             for name, value in scope.quota_usages.items():
                 models.DailyQuotaHistory.objects.update_or_create_quota(
                     scope, name, date, value

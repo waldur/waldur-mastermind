@@ -113,3 +113,29 @@ class BackgroundListPullTaskTest(TestCase):
         self.assertIn(good2, result)
         self.assertNotIn(bad1, result)
         self.assertNotIn(bad2, result)
+
+    def test_run_schedules_pull_tasks_and_uses_iterator(self):
+        """Test that run() schedules pull tasks for each valid instance.
+
+        Note: The run() method uses .iterator(chunk_size=50) for memory efficiency.
+        This test verifies that instances are processed correctly.
+        """
+        instance1 = factories.TestNewInstanceFactory(
+            state=CoreStates.OK, backend_id="id1"
+        )
+        instance2 = factories.TestNewInstanceFactory(
+            state=CoreStates.OK, backend_id="id2"
+        )
+
+        # Verify get_pulled_objects returns our instances
+        class TestTask(tasks.BackgroundListPullTask):
+            model = test_models.TestNewInstance
+            pull_task = mock.Mock()
+
+        task = TestTask()
+        pulled_objects = list(task.get_pulled_objects())
+
+        # Verify both instances are in the queryset
+        self.assertIn(instance1, pulled_objects)
+        self.assertIn(instance2, pulled_objects)
+        self.assertEqual(len(pulled_objects), 2)

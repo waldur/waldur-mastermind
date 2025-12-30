@@ -13,5 +13,6 @@ def update_custom_quotas():
 def update_standard_quotas():
     for model in get_models_with_quotas():
         for field in model.get_quotas_fields():
-            for instance in model.objects.all():
+            # Use iterator() with chunk_size to prevent loading all instances into memory
+            for instance in model.objects.all().iterator(chunk_size=100):
                 field.recalculate(scope=instance)
