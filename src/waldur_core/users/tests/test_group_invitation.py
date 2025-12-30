@@ -494,6 +494,39 @@ class GroupInvitationDeleteTest(BaseGroupInvitationTest):
         # Users without permission get 404 because invitation existence is hidden
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_deleting_group_invitation_cascades_to_permission_requests(self):
+        """Test that deleting a group invitation also deletes related permission requests."""
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+
+        # Create a permission request for the invitation
+        permission_request = factories.PermissionRequestFactory(
+            invitation=self.project_group_invitation
+        )
+
+        # Cancel the invitation (required before deletion)
+        self.project_group_invitation.cancel()
+
+        # Delete the invitation
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.delete(
+            factories.ProjectGroupInvitationFactory.get_url(
+                self.project_group_invitation
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        # Verify both invitation and permission request are deleted
+        self.assertFalse(
+            models.GroupInvitation.objects.filter(
+                uuid=self.project_group_invitation.uuid
+            ).exists()
+        )
+        self.assertFalse(
+            models.PermissionRequest.objects.filter(
+                uuid=permission_request.uuid
+            ).exists()
+        )
+
 
 @ddt
 class RequestCreateTest(BaseInvitationTest):
