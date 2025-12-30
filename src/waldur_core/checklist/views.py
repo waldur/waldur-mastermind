@@ -48,11 +48,19 @@ class ChecklistAdminView(core_views.ActionsViewSet):
     @action(detail=True, methods=["get"])
     def questions(self, request, uuid=None):
         checklist = self.get_object()
-        questions = checklist.questions.all()
-        data = serializers.QuestionAdminSerializer(
+        questions = checklist.questions.all().order_by("order")
+
+        page = self.paginate_queryset(questions)
+        if page is not None:
+            serializer = serializers.QuestionAdminSerializer(
+                page, context={"request": request}, many=True
+            )
+            return self.get_paginated_response(serializer.data)
+
+        serializer = serializers.QuestionAdminSerializer(
             questions, context={"request": request}, many=True
-        ).data
-        return Response(data, status=status.HTTP_200_OK)
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class QuestionsAdminView(core_views.ActionsViewSet):
