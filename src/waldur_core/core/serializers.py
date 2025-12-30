@@ -693,6 +693,191 @@ class LogoutSerializer(serializers.Serializer):
     )
 
 
+class CeleryTaskSerializer(serializers.Serializer):
+    """Serializer for a single Celery task."""
+
+    id = serializers.CharField(read_only=True, help_text="Unique task identifier")
+    name = serializers.CharField(read_only=True, help_text="Name of the task")
+    args = serializers.ListField(
+        child=serializers.JSONField(),
+        read_only=True,
+        help_text="Positional arguments passed to the task",
+        required=False,
+    )
+    kwargs = serializers.DictField(
+        read_only=True,
+        help_text="Keyword arguments passed to the task",
+        required=False,
+    )
+    type = serializers.CharField(read_only=True, help_text="Task type", required=False)
+    hostname = serializers.CharField(
+        read_only=True, help_text="Worker hostname executing the task", required=False
+    )
+    time_start = serializers.FloatField(
+        read_only=True, help_text="Unix timestamp when task started", required=False
+    )
+    acknowledged = serializers.BooleanField(
+        read_only=True, help_text="Whether task has been acknowledged", required=False
+    )
+    delivery_info = serializers.DictField(
+        read_only=True, help_text="Message delivery information", required=False
+    )
+    worker_pid = serializers.IntegerField(
+        read_only=True, help_text="Worker process ID", required=False
+    )
+
+
+class CeleryScheduledTaskSerializer(serializers.Serializer):
+    """Serializer for a scheduled Celery task with ETA information."""
+
+    eta = serializers.CharField(
+        read_only=True, help_text="Estimated time of arrival for the task"
+    )
+    priority = serializers.IntegerField(
+        read_only=True, help_text="Task priority level", required=False
+    )
+    request = CeleryTaskSerializer(read_only=True, help_text="Task request details")
+
+
+class CeleryWorkerPoolSerializer(serializers.Serializer):
+    """Serializer for Celery worker pool statistics."""
+
+    max_concurrency = serializers.IntegerField(
+        read_only=True, help_text="Maximum number of concurrent processes"
+    )
+    processes = serializers.ListField(
+        child=serializers.IntegerField(),
+        read_only=True,
+        help_text="List of worker process IDs",
+    )
+    max_tasks_per_child = serializers.IntegerField(
+        read_only=True, help_text="Maximum tasks per child process", required=False
+    )
+    put_guarded_by_semaphore = serializers.BooleanField(read_only=True, required=False)
+    timeouts = serializers.ListField(
+        child=serializers.IntegerField(),
+        read_only=True,
+        help_text="Timeout values",
+        required=False,
+    )
+    writes = serializers.DictField(
+        read_only=True, help_text="Write statistics", required=False
+    )
+
+
+class CeleryBrokerSerializer(serializers.Serializer):
+    """Serializer for Celery broker connection information."""
+
+    hostname = serializers.CharField(
+        read_only=True, help_text="Broker hostname", required=False
+    )
+    userid = serializers.CharField(
+        read_only=True, help_text="Broker user ID", required=False
+    )
+    virtual_host = serializers.CharField(
+        read_only=True, help_text="Virtual host", required=False
+    )
+    port = serializers.IntegerField(
+        read_only=True, help_text="Broker port", required=False
+    )
+    insist = serializers.BooleanField(read_only=True, required=False)
+    ssl = serializers.BooleanField(read_only=True, required=False)
+    transport = serializers.CharField(
+        read_only=True, help_text="Transport protocol", required=False
+    )
+    connect_timeout = serializers.IntegerField(
+        read_only=True, help_text="Connection timeout in seconds", required=False
+    )
+    transport_options = serializers.DictField(
+        read_only=True, help_text="Additional transport options", required=False
+    )
+    login_method = serializers.CharField(
+        read_only=True, help_text="Authentication method", required=False
+    )
+    uri_prefix = serializers.CharField(read_only=True, required=False)
+    heartbeat = serializers.FloatField(
+        read_only=True, help_text="Heartbeat interval", required=False
+    )
+    failover_strategy = serializers.CharField(read_only=True, required=False)
+    alternates = serializers.ListField(
+        child=serializers.CharField(), read_only=True, required=False
+    )
+
+
+class CeleryWorkerStatsSerializer(serializers.Serializer):
+    """Serializer for individual Celery worker statistics."""
+
+    broker = CeleryBrokerSerializer(
+        read_only=True, help_text="Broker connection information", required=False
+    )
+    clock = serializers.CharField(
+        read_only=True, help_text="Logical clock value", required=False
+    )
+    uptime = serializers.FloatField(
+        read_only=True, help_text="Worker uptime in seconds", required=False
+    )
+    pid = serializers.IntegerField(
+        read_only=True, help_text="Worker process ID", required=False
+    )
+    pool = CeleryWorkerPoolSerializer(
+        read_only=True, help_text="Worker pool statistics", required=False
+    )
+    prefetch_count = serializers.IntegerField(
+        read_only=True, help_text="Number of tasks prefetched", required=False
+    )
+    rusage = serializers.DictField(
+        read_only=True, help_text="Resource usage statistics", required=False
+    )
+    total = serializers.DictField(
+        read_only=True, help_text="Total task counts by type", required=False
+    )
+
+
+class CeleryStatsResponseSerializer(serializers.Serializer):
+    """
+    Response serializer for Celery worker statistics.
+
+    Each field is a dictionary where keys are worker names (e.g., 'celery@hostname')
+    and values contain the respective task or statistics information.
+    """
+
+    active = serializers.DictField(
+        child=serializers.ListField(child=CeleryTaskSerializer()),
+        read_only=True,
+        allow_null=True,
+        help_text="Currently executing tasks per worker. Keys are worker names, values are lists of active tasks.",
+    )
+    scheduled = serializers.DictField(
+        child=serializers.ListField(child=CeleryScheduledTaskSerializer()),
+        read_only=True,
+        allow_null=True,
+        help_text="Tasks scheduled for future execution per worker. Keys are worker names, values are lists of scheduled tasks with ETA.",
+    )
+    reserved = serializers.DictField(
+        child=serializers.ListField(child=CeleryTaskSerializer()),
+        read_only=True,
+        allow_null=True,
+        help_text="Tasks that have been received but not yet started per worker. Keys are worker names, values are lists of reserved tasks.",
+    )
+    revoked = serializers.DictField(
+        child=serializers.ListField(child=serializers.CharField()),
+        read_only=True,
+        allow_null=True,
+        help_text="IDs of revoked (cancelled) tasks per worker. Keys are worker names, values are lists of task IDs.",
+    )
+    query_task = serializers.DictField(
+        read_only=True,
+        allow_null=True,
+        help_text="Query results for specific tasks. May be null if no query was performed.",
+    )
+    stats = serializers.DictField(
+        child=CeleryWorkerStatsSerializer(),
+        read_only=True,
+        allow_null=True,
+        help_text="Detailed statistics per worker including uptime, pool info, and resource usage. Keys are worker names.",
+    )
+
+
 class HTMLCleanField(serializers.CharField):
     """
     A CharField that automatically cleans HTML content using the clean_html utility.
