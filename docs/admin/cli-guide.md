@@ -74,6 +74,21 @@ positional arguments:
 
 ```
 
+## clean_celery_results
+
+Clean up old Celery task results from the database to prevent bloat.
+
+```bash
+
+usage: waldur clean_celery_results [--hours HOURS] [--dry-run]
+
+options:
+  --hours HOURS  Delete results older than this many hours (default: 24)
+  --dry-run      Show how many results would be deleted without actually
+                 deleting
+
+```
+
 ## clean_settings_cache
 
 Clean API configuration settings cache.
