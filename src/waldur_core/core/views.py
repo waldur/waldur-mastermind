@@ -51,6 +51,7 @@ from waldur_core.core.metadata_schemas import (
 )
 from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.serializers import (
+    CeleryStatsResponseSerializer,
     ConstanceSettingsSerializer,
     CoreAuthTokenSerializer,
     EmptySerializer,
@@ -692,16 +693,109 @@ class UpdateReversionMixin:
 
 
 class CeleryStatsViewSet(generics.GenericAPIView):
+    """
+    API endpoint for monitoring Celery worker status and task queues.
+
+    This endpoint provides real-time information about Celery workers,
+    including currently executing tasks, scheduled tasks, and worker statistics.
+    """
+
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
     filter_backends = []
     serializer_class = EmptySerializer
 
     @extend_schema(
         summary="Get Celery worker statistics",
-        description="Provides a snapshot of the Celery workers' status, including active, scheduled, reserved, and revoked tasks, as well as worker-specific statistics. Requires support user permissions.",
-        responses={status.HTTP_200_OK: dict},
+        description="""Provides a comprehensive snapshot of all Celery workers' status.
+
+This endpoint returns detailed information about:
+- **active**: Tasks currently being executed by workers
+- **scheduled**: Tasks scheduled for future execution (with ETA)
+- **reserved**: Tasks received by workers but not yet started
+- **revoked**: Task IDs that have been cancelled/revoked
+- **query_task**: Results of task queries (if any)
+- **stats**: Detailed worker statistics including uptime, pool info, and broker connection
+
+Each field is a dictionary where keys are worker names (e.g., 'celery@hostname').
+If no workers are available, fields will be `null`.
+
+Requires support user permissions.""",
+        responses={status.HTTP_200_OK: CeleryStatsResponseSerializer},
+        examples=[
+            OpenApiExample(
+                "Celery stats with active workers",
+                summary="Response when Celery workers are running",
+                description="Example showing active workers with tasks in various states.",
+                value={
+                    "active": {
+                        "celery@worker1": [
+                            {
+                                "id": "e3a95109-acd5-4f5a-b4c4-65f2f4e5d123",
+                                "name": "waldur_core.tasks.send_email",
+                                "args": ["user@example.com"],
+                                "kwargs": {"subject": "Welcome"},
+                                "type": "waldur_core.tasks.send_email",
+                                "hostname": "celery@worker1",
+                                "time_start": 1703952000.123456,
+                                "acknowledged": True,
+                                "worker_pid": 12345,
+                            }
+                        ]
+                    },
+                    "scheduled": {"celery@worker1": []},
+                    "reserved": {"celery@worker1": []},
+                    "revoked": {"celery@worker1": []},
+                    "query_task": None,
+                    "stats": {
+                        "celery@worker1": {
+                            "broker": {
+                                "hostname": "redis",
+                                "port": 6379,
+                                "transport": "redis",
+                                "virtual_host": "0",
+                            },
+                            "clock": "12345",
+                            "uptime": 86400,
+                            "pid": 1234,
+                            "pool": {
+                                "max_concurrency": 4,
+                                "processes": [12345, 12346, 12347, 12348],
+                            },
+                            "prefetch_count": 16,
+                            "total": {
+                                "waldur_core.tasks.send_email": 150,
+                                "waldur_core.tasks.cleanup": 42,
+                            },
+                        }
+                    },
+                },
+                response_only=True,
+                status_codes=[200],
+            ),
+            OpenApiExample(
+                "No workers available",
+                summary="Response when no Celery workers are running",
+                description="All fields are null when workers are offline or unreachable.",
+                value={
+                    "active": None,
+                    "scheduled": None,
+                    "reserved": None,
+                    "revoked": None,
+                    "query_task": None,
+                    "stats": None,
+                },
+                response_only=True,
+                status_codes=[200],
+            ),
+        ],
     )
     def get(self, request, *args, **kwargs):
+        """
+        Retrieve current Celery worker statistics and task information.
+
+        Returns a snapshot of all registered Celery workers, their active tasks,
+        scheduled tasks, reserved tasks, revoked task IDs, and detailed statistics.
+        """
         from waldur_core.server.celeryconf import app
 
         inspect = app.control.inspect()
