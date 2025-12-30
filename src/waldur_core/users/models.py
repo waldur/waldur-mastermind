@@ -208,7 +208,7 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
         customer_path = "invitation__customer"
         build_query = filter_own_requests
 
-    invitation = models.ForeignKey(on_delete=models.PROTECT, to=GroupInvitation)
+    invitation = models.ForeignKey(on_delete=models.CASCADE, to=GroupInvitation)
 
     created_by = models.ForeignKey[core_models.User](
         on_delete=models.CASCADE,
