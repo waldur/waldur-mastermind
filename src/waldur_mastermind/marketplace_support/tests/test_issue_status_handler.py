@@ -187,16 +187,17 @@ class IssueStatusHandlerTest(BaseTest):
         self.assertIn("resolved_is_none", skipped_events[0]["details"]["reasons"])
 
 
-class ProcessingLogVisibilityTest(test.APITransactionTestCase):
+class ProcessingLogVisibilityTest(test.APITestCase):
     """Test that processing_log is only visible to staff users."""
 
     def setUp(self):
         # Create IssueStatus entries
-        support_models.IssueStatus.objects.create(
-            name="done", type=support_models.IssueStatus.Types.RESOLVED
+        support_models.IssueStatus.objects.get_or_create(
+            name="done", defaults={"type": support_models.IssueStatus.Types.RESOLVED}
         )
-        support_models.IssueStatus.objects.create(
-            name="rejected", type=support_models.IssueStatus.Types.CANCELED
+        support_models.IssueStatus.objects.get_or_create(
+            name="rejected",
+            defaults={"type": support_models.IssueStatus.Types.CANCELED},
         )
 
         self.staff = structure_factories.UserFactory(is_staff=True)
