@@ -34,6 +34,24 @@ CELERY_SEND_EVENTS = True
 # Fix for Celery 6.0 deprecation warning
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
+# Memory management - restart workers after N tasks to prevent memory leaks
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 100
+
+# Time limits - prevent runaway tasks
+CELERY_TASK_SOFT_TIME_LIMIT = (
+    1200  # 20 minutes soft limit (raises SoftTimeLimitExceeded)
+)
+CELERY_TASK_TIME_LIMIT = 1800  # 30 minutes hard kill
+
+# Prefetch - process one task at a time for better memory control
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+
+# Result expiration - auto-delete old task results after 1 hour
+CELERY_RESULT_EXPIRES = 3600
+
+# Memory optimization for RabbitMQ connection pool
+CELERY_BROKER_POOL_LIMIT = 10
+
 # Prevent Celery from auto-declaring exchanges/queues to avoid type conflicts
 # Only use explicitly defined queues and exchanges
 CELERY_CREATE_MISSING_QUEUES = False

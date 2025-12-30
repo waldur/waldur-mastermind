@@ -111,7 +111,8 @@ class BackgroundListPullTask(core_tasks.BackgroundTask):
         ).exclude(backend_id="")
 
     def run(self):
-        for instance in self.get_pulled_objects():
+        # Use iterator() with chunk_size to prevent loading all instances into memory
+        for instance in self.get_pulled_objects().iterator(chunk_size=50):
             serialized = core_utils.serialize_instance(instance)
             self.pull_task().apply_async(args=(serialized,), kwargs={})
 
