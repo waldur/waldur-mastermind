@@ -355,11 +355,14 @@ collections:
         resource_type: "OpenStack network RBAC policy"
         description: "Manage OpenStack Network RBAC policies in Waldur."
         base_operation_id: "openstack_network_rbac_policies"
+        composite_keys: ["network", "target_tenant"]
         resolvers:
           tenant:
             base: "openstack_tenants"
             check_filter_key: "tenant_uuid"
-          target_tenant: "openstack_tenants"
+          target_tenant:
+            base: "openstack_tenants"
+            check_filter_key: "target_tenant_uuid"
           network:
             base: "openstack_networks"
             filter_by: *tenant_filter
