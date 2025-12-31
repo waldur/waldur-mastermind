@@ -1600,6 +1600,43 @@ class UserAgreementsViewSet(ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.UserAgreement.objects.all()
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        language = self.request.query_params.get("language")
+
+        if not language:
+            return queryset
+
+        agreement_type = self.request.query_params.get("agreement_type")
+
+        if agreement_type:
+            # Single agreement type requested - try exact match, then fallback
+            exact_match = queryset.filter(
+                agreement_type=agreement_type, language=language
+            )
+            if exact_match.exists():
+                return exact_match
+            # Fallback to default (empty language)
+            return queryset.filter(agreement_type=agreement_type, language="")
+
+        # Multiple agreement types - get language version or default for each
+        result_ids = []
+        for at in models.UserAgreement.UserAgreements.CHOICES:
+            agreement_type_code = at[0]
+            match = queryset.filter(
+                agreement_type=agreement_type_code, language=language
+            ).first()
+            if match:
+                result_ids.append(match.id)
+            else:
+                default = queryset.filter(
+                    agreement_type=agreement_type_code, language=""
+                ).first()
+                if default:
+                    result_ids.append(default.id)
+
+        return queryset.filter(id__in=result_ids)
+
 
 class NotificationViewSet(ActionsViewSet):
     queryset = core_models.Notification.objects.all().order_by("id")

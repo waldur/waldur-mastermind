@@ -908,6 +908,7 @@ class OrganizationGroupFilter(NameFilterSet):
 
 
 class UserAgreementsFilter(django_filters.FilterSet):
+    # Note: language filtering is handled in the viewset with fallback logic
     class Meta:
         model = models.UserAgreement
         fields = [

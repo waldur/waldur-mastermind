@@ -1406,6 +1406,9 @@ class UserAgreement(core_models.UuidMixin, LoggableMixin, TimeStampedModel):
     Stores different types of user agreements such as Terms of Service
     and Privacy Policy with content and agreement type classification.
     Used for legal compliance and user consent tracking.
+
+    Supports multiple language versions per agreement type.
+    If language is empty, it's the default/fallback version.
     """
 
     class UserAgreements:
@@ -1419,14 +1422,24 @@ class UserAgreement(core_models.UuidMixin, LoggableMixin, TimeStampedModel):
 
     content = models.TextField(blank=True)
     agreement_type = models.CharField(
-        max_length=5, choices=UserAgreements.CHOICES, unique=True
+        max_length=5,
+        choices=UserAgreements.CHOICES,
+    )
+    language = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="ISO 639-1 language code (e.g., 'en', 'de', 'et'). "
+        "Leave empty for the default version.",
     )
 
     class Meta:
         ordering = ["created"]
+        unique_together = [("agreement_type", "language")]
 
     def __str__(self):
-        return self.agreement_type
+        if self.language:
+            return f"{self.agreement_type} ({self.language})"
+        return f"{self.agreement_type} (default)"
 
 
 reversion.register(Customer)

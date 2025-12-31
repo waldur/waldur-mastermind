@@ -411,3 +411,30 @@ class ProjectPermissionReviewFactory(
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("project-permissions-review-list")
+
+
+class UserAgreementFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.UserAgreement],
+):
+    class Meta:
+        model = models.UserAgreement
+
+    content = factory.Sequence(lambda n: "<p>Agreement content %s</p>" % n)
+    agreement_type = models.UserAgreement.UserAgreements.TOS
+    language = ""
+
+    @classmethod
+    def get_url(cls, agreement=None):
+        if agreement is None:
+            agreement = UserAgreementFactory()
+        return "http://testserver" + reverse(
+            "user-agreements-detail", kwargs={"uuid": agreement.uuid.hex}
+        )
+
+    @classmethod
+    def get_list_url(cls, query_params=None):
+        url = "http://testserver" + reverse("user-agreements-list")
+        if query_params:
+            url += "?" + urlencode(query_params)
+        return url
