@@ -629,10 +629,11 @@ class OrganizationGroupAdmin(admin.ModelAdmin):
 
 
 class UserAgreementAdmin(admin.ModelAdmin):
-    fields = ("content", "agreement_type", "created", "modified")
+    fields = ("content", "agreement_type", "language", "created", "modified")
     readonly_fields = ("created", "modified")
     search_fields = ["content"]
-    list_filter = ("agreement_type",)
+    list_filter = ("agreement_type", "language")
+    list_display = ("agreement_type", "language", "created", "modified")
 
 
 class TemplateInline(admin.TabularInline):

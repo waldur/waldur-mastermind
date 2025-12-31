@@ -1,16 +1,221 @@
 # Terms of Service API Documentation
 
-The Terms of Service (ToS) functionality enables service providers to define Terms of Service for their marketplace offerings and track user consent. If consent enforcement is active, users must accept the Terms of Service before accessing certain resources.
+Waldur provides two separate systems for managing legal agreements:
 
-## Overview
+1. **Platform-Wide User Agreements** - Global Terms of Service and Privacy Policy
+   documents that apply to all platform users
+2. **Marketplace Offering Terms of Service** - Per-offering ToS that service providers
+   can define for their specific offerings
 
-The Terms of Service system consists of three main components:
+---
+
+## Platform-Wide User Agreements
+
+Platform-wide user agreements are global documents (Terms of Service and Privacy Policy)
+that apply to all users of the Waldur platform. These are typically displayed during
+user registration or login.
+
+### Overview
+
+- **Agreement Types**: Terms of Service (TOS) and Privacy Policy (PP)
+- **Multilingual Support**: Each agreement type can have multiple language versions
+- **Fallback Mechanism**: If a requested language version doesn't exist, the default
+  version is returned
+- **Public Access**: Agreements can be read by anyone; only staff can modify them
+
+### API Endpoints
+
+Base URL: `/api/user-agreements/`
+
+#### List User Agreements
+
+Get all user agreements or filter by type/language.
+
+```http
+GET /api/user-agreements/
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `agreement_type` | String | Filter by type: `TOS` or `PP` |
+| `language` | String | ISO 639-1 language code (e.g., `en`, `de`, `et`). Returns requested language or falls back to default |
+
+**Example Requests:**
+
+```http
+# Get all agreements
+GET /api/user-agreements/
+
+# Get Terms of Service in German (falls back to default if unavailable)
+GET /api/user-agreements/?agreement_type=TOS&language=de
+
+# Get all agreements in Estonian (each falls back to default if unavailable)
+GET /api/user-agreements/?language=et
+```
+
+**Response:**
+
+```json
+[
+  {
+    "url": "/api/user-agreements/a1b2c3d4-e5f6-7890-1234-567890abcdef/",
+    "uuid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+    "content": "<h1>Terms of Service</h1><p>By using this platform...</p>",
+    "agreement_type": "TOS",
+    "language": "",
+    "created": "2024-01-10T09:00:00Z",
+    "modified": "2024-01-15T14:20:00Z"
+  },
+  {
+    "url": "/api/user-agreements/b2c3d4e5-f678-9012-3456-7890abcdef12/",
+    "uuid": "b2c3d4e5-f678-9012-3456-7890abcdef12",
+    "content": "<h1>Nutzungsbedingungen</h1><p>Durch die Nutzung...</p>",
+    "agreement_type": "TOS",
+    "language": "de",
+    "created": "2024-01-12T10:00:00Z",
+    "modified": "2024-01-12T10:00:00Z"
+  }
+]
+```
+
+**Field Descriptions:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `uuid` | UUID | Unique identifier |
+| `content` | String (HTML) | The agreement content (HTML formatted) |
+| `agreement_type` | String | Type of agreement: `TOS` or `PP` |
+| `language` | String | ISO 639-1 language code. Empty string means default version |
+| `created` | DateTime | When the agreement was created |
+| `modified` | DateTime | When the agreement was last modified |
+
+#### Retrieve a User Agreement
+
+```http
+GET /api/user-agreements/<uuid>/
+```
+
+#### Create a User Agreement (Staff Only)
+
+```http
+POST /api/user-agreements/
+Content-Type: application/json
+Authorization: Token <staff-token>
+
+{
+  "content": "<h1>Privacy Policy</h1><p>We respect your privacy...</p>",
+  "agreement_type": "PP",
+  "language": "et"
+}
+```
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `content` | String (HTML) | No | HTML content of the agreement |
+| `agreement_type` | String | Yes | `TOS` or `PP` |
+| `language` | String | No | ISO 639-1 code. Leave empty for default version |
+
+**Validation:**
+
+- Each `(agreement_type, language)` combination must be unique
+- Only one default version (empty language) per agreement type
+
+#### Update a User Agreement (Staff Only)
+
+```http
+PATCH /api/user-agreements/<uuid>/
+Content-Type: application/json
+Authorization: Token <staff-token>
+
+{
+  "content": "<h1>Updated Privacy Policy</h1><p>...</p>"
+}
+```
+
+#### Delete a User Agreement (Staff Only)
+
+```http
+DELETE /api/user-agreements/<uuid>/
+Authorization: Token <staff-token>
+```
+
+### Language Fallback Behavior
+
+When requesting agreements with a `language` parameter:
+
+1. **Exact match exists**: Returns the localized version
+2. **No exact match**: Falls back to the default version (empty language)
+3. **No default exists**: Returns empty result for that agreement type
+
+**Example:**
+
+```text
+Database contains:
+- TOS (default)     ← language=""
+- TOS (de)          ← language="de"
+- PP (default)      ← language=""
+
+Request: GET /api/user-agreements/?language=de
+
+Result:
+- TOS (de)          ← exact match found
+- PP (default)      ← fallback to default (no German PP exists)
+```
+
+### Management Command
+
+Load agreements from files using the `load_user_agreements` command:
+
+```bash
+# Load default Terms of Service
+waldur load_user_agreements --tos /path/to/tos.html
+
+# Load German version of Terms of Service
+waldur load_user_agreements --tos /path/to/tos_de.html --language de
+
+# Load Estonian Privacy Policy
+waldur load_user_agreements --pp /path/to/pp_et.html --language et
+
+# Force overwrite existing agreement
+waldur load_user_agreements --pp /path/to/pp.html --force
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--tos PATH` | Path to Terms of Service file |
+| `--pp PATH` | Path to Privacy Policy file |
+| `--language CODE` | ISO 639-1 language code (empty for default) |
+| `--force` | Overwrite existing agreement |
+
+### Admin Interface
+
+User agreements can also be managed through the Django admin interface at
+`/admin/structure/useragreement/`.
+
+---
+
+## Marketplace Offering Terms of Service
+
+The Marketplace Terms of Service functionality enables service providers to define
+Terms of Service for their specific marketplace offerings and track user consent.
+If consent enforcement is active, users must accept the Terms of Service before
+accessing certain resources.
+
+### Overview
+
+The Marketplace Terms of Service system consists of three main components:
 
 1. **Terms of Service Configurations** - Service providers define ToS documents with versioning support
 2. **User Consents** - Users grant consent to specific ToS versions for offerings
 3. **Consent Enforcement** - System enforces consent requirements for resource access
 
-## Key Features
+### Key Features
 
 - **Versioning**: Track different versions of Terms of Service
 - **Re-consent Requirements**: Force users to re-consent when ToS is updated
@@ -18,16 +223,16 @@ The Terms of Service system consists of three main components:
 - **Consent Tracking**: Comprehensive tracking of user consents and revocations
 - **Order Integration**: Require ToS acceptance during order creation
 
-## Configuration
+### Configuration
 
-### Enabling ToS Enforcement
+#### Enabling ToS Enforcement
 
 ToS consent enforcement is controlled by the `ENFORCE_USER_CONSENT_FOR_OFFERINGS` setting. When enabled, users must have active consent to access resources from offerings that:
 
 - Have active Terms of Service configured
 - Have `service_provider_can_create_offering_user` enabled in the offering's plugin options
 
-## API Endpoints
+### API Endpoints
 
 ### Terms of Service Management
 

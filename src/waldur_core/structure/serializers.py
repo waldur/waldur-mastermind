@@ -1805,7 +1805,15 @@ class UserAgreementSerializer(
 
     class Meta:
         model = models.UserAgreement
-        fields = ("url", "uuid", "content", "agreement_type", "created", "modified")
+        fields = (
+            "url",
+            "uuid",
+            "content",
+            "agreement_type",
+            "language",
+            "created",
+            "modified",
+        )
         extra_kwargs = {
             "url": {"lookup_field": "uuid", "view_name": "user-agreements-detail"}
         }
