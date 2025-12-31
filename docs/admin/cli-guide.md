@@ -718,14 +718,16 @@ Imports privacy policy and terms of service into DB
 
 ```bash
 
-usage: waldur load_user_agreements [-tos TOS] [-pp PP] [-f FORCE]
+usage: waldur load_user_agreements [-tos TOS] [-pp PP] [-l LANGUAGE] [-f]
 
 options:
   -tos TOS, --tos TOS   Path to a Terms of service file
   -pp PP, --pp PP       Path to a Privacy policy file
-  -f FORCE, --force FORCE
-                        This flag means force loading agreements even if they
-                        are already defined in DB.
+  -l LANGUAGE, --language LANGUAGE
+                        ISO 639-1 language code (e.g., 'en', 'de', 'et').
+                        Leave empty for the default version.
+  -f, --force           Force loading agreements even if they are already
+                        defined in DB.
 
 ```
 
