@@ -299,6 +299,7 @@ class DemoPresetLoadTest(test.APITransactionTestCase):
         "government_cloud",
         "research_institution",
         "hpc_ai_platform",
+        "call_management",
     )
     def test_preset_loads_successfully(self, preset_name):
         """Test that preset can be loaded into the database without errors."""

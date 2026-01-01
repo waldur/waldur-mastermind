@@ -9,6 +9,18 @@
       "Deep learning infrastructure"
     ]
   },
+  "user_agreements": [
+    {
+      "uuid": "4a5b6c7d8e9f0123456789012abcdef4",
+      "agreement_type": "TOS",
+      "content": "# AI/ML Platform Terms of Service\n\n## 1. Acceptable Use\n\nGPU resources are provided for legitimate AI/ML research and development.\n\n## 2. Resource Allocation\n\n- Fair-share scheduling policy\n- Maximum job runtime: 72 hours\n- GPU time allocation based on subscription tier\n\n## 3. Data and Models\n\n- Users retain ownership of trained models\n- Platform provides no warranty for model performance\n- Training data must comply with applicable licenses\n\n## 4. Prohibited Activities\n\n- Cryptocurrency mining\n- Malicious AI development\n- Unauthorized data scraping\n\n## 5. Support\n\nTechnical support available during business hours for model optimization and infrastructure issues."
+    },
+    {
+      "uuid": "5a6b7c8d9e0f1234567890123abcdef5",
+      "agreement_type": "PP",
+      "content": "# AI/ML Platform Privacy Policy\n\n## 1. Training Data\n\n- Users are responsible for data privacy compliance\n- Platform does not access or analyze user training data\n- Data deletion upon project termination\n\n## 2. Model Artifacts\n\n- Model weights and checkpoints stored securely\n- Optional sharing for research collaboration\n- Export functionality available\n\n## 3. Usage Metrics\n\nWe collect:\n- GPU utilization statistics\n- Job completion metrics\n- Resource allocation data\n\n## 4. Research Publications\n\nPlatform usage may be cited in publications with user consent."
+    }
+  ],
   "users": [
     {
       "uuid": "00000000000000000000000000000001",
@@ -156,21 +168,36 @@
       "customer_uuid": "b3000000000000000000000000000003"
     }
   ],
+  "category_groups": [
+    {
+      "uuid": "c1d2e3f4a5b6789012345678abcdef01",
+      "title": "AI/ML Compute",
+      "description": "GPU clusters and AI-optimized infrastructure for machine learning workloads"
+    },
+    {
+      "uuid": "c1d2e3f4a5b6789012345678abcdef02",
+      "title": "ML Data Services",
+      "description": "High-speed storage and data management for machine learning datasets and models"
+    }
+  ],
   "categories": [
     {
       "uuid": "d3000000000000000000000000000001",
       "title": "GPU Compute",
-      "description": "GPU clusters for AI/ML workloads"
+      "description": "GPU clusters for AI/ML workloads",
+      "group_uuid": "c1d2e3f4a5b6789012345678abcdef01"
     },
     {
       "uuid": "d3000000000000000000000000000002",
       "title": "Model Storage",
-      "description": "High-speed storage for ML datasets and models"
+      "description": "High-speed storage for ML datasets and models",
+      "group_uuid": "c1d2e3f4a5b6789012345678abcdef02"
     },
     {
       "uuid": "d3000000000000000000000000000003",
       "title": "AI/ML Kubernetes",
-      "description": "Kubernetes clusters optimized for AI/ML workloads with GPU support"
+      "description": "Kubernetes clusters optimized for AI/ML workloads with GPU support",
+      "group_uuid": "c1d2e3f4a5b6789012345678abcdef01"
     }
   ],
   "service_providers": [
@@ -743,6 +770,144 @@
       "attributes": {},
       "limits": {
         "storage": 50
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000003",
+      "name": "NLP Inference GPU Nodes",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "gpu": 4,
+        "cpu": 64,
+        "ram": 256,
+        "nvme_storage": 2000
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000004",
+      "name": "Diffusion Model Training",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000002",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "gpu": 8,
+        "cpu": 128,
+        "ram": 1024,
+        "nvme_storage": 20000
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000005",
+      "name": "Speech Recognition Cluster",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "gpu": 4,
+        "cpu": 64,
+        "ram": 256,
+        "nvme_storage": 5000
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000006",
+      "name": "Training Dataset Archive",
+      "offering_uuid": "f3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000003",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 200
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000007",
+      "name": "Model Checkpoint Storage",
+      "offering_uuid": "f3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000003",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 100
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000008",
+      "name": "Reinforcement Learning Cluster",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000002",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "gpu": 8,
+        "cpu": 128,
+        "ram": 512,
+        "nvme_storage": 8000
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000009",
+      "name": "MLOps K8s Cluster",
+      "offering_uuid": "f3000000000000000000000000000010",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000010",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "vcpu": 64,
+        "ram": 256,
+        "storage": 2000
+      }
+    },
+    {
+      "uuid": "d300000000000000000000000000000a",
+      "name": "Model Serving K8s",
+      "offering_uuid": "f3000000000000000000000000000010",
+      "project_uuid": "c3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000011",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "vcpu": 48,
+        "ram": 192,
+        "storage": 1500
+      }
+    },
+    {
+      "uuid": "d300000000000000000000000000000b",
+      "name": "Benchmark Dataset Storage",
+      "offering_uuid": "f3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000004",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 30
+      }
+    },
+    {
+      "uuid": "d300000000000000000000000000000c",
+      "name": "Multi-Site AI Training",
+      "offering_uuid": "f3000000000000000000000000000020",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000021",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "vcpu": 256,
+        "ram": 1024,
+        "storage": 10000
       }
     }
   ],

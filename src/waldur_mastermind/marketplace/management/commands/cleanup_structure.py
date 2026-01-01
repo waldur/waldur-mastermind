@@ -15,7 +15,7 @@ from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.logging.models import Event, Feed
 from waldur_core.permissions.models import Role, RolePermission, UserRole
-from waldur_core.structure.models import Customer, Project
+from waldur_core.structure.models import Customer, Project, UserAgreement
 from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
 from waldur_mastermind.invoices import handlers as invoice_handlers
 from waldur_mastermind.invoices.models import (
@@ -26,6 +26,7 @@ from waldur_mastermind.invoices.models import (
 )
 from waldur_mastermind.marketplace.models import (
     Category,
+    CategoryGroup,
     ComponentUsage,
     CourseAccount,
     CustomerServiceAccount,
@@ -38,6 +39,16 @@ from waldur_mastermind.marketplace.models import (
     ProjectServiceAccount,
     Resource,
     ServiceProvider,
+)
+from waldur_mastermind.proposal.models import (
+    Call,
+    CallManagingOrganisation,
+    CallResourceTemplate,
+    Proposal,
+    RequestedOffering,
+    RequestedResource,
+    Review,
+    Round,
 )
 
 
@@ -98,11 +109,22 @@ class Command(BaseCommand):
             "service_providers": {"deleted": 0, "errors": 0},
             "projects": {"deleted": 0, "errors": 0},
             "categories": {"deleted": 0, "errors": 0},
+            "category_groups": {"deleted": 0, "errors": 0},
+            "user_agreements": {"deleted": 0, "errors": 0},
             "customers": {"deleted": 0, "errors": 0},
             "users": {"deleted": 0, "errors": 0},
             "permission_requests": {"deleted": 0, "errors": 0},
             "invitations": {"deleted": 0, "errors": 0},
             "group_invitations": {"deleted": 0, "errors": 0},
+            # Proposal/call management stats
+            "reviews": {"deleted": 0, "errors": 0},
+            "requested_resources": {"deleted": 0, "errors": 0},
+            "proposals": {"deleted": 0, "errors": 0},
+            "call_resource_templates": {"deleted": 0, "errors": 0},
+            "rounds": {"deleted": 0, "errors": 0},
+            "requested_offerings": {"deleted": 0, "errors": 0},
+            "calls": {"deleted": 0, "errors": 0},
+            "call_managing_organisations": {"deleted": 0, "errors": 0},
         }
         self.dry_run = False
 
@@ -204,6 +226,17 @@ class Command(BaseCommand):
             self.cleanup_checklists()
             self.cleanup_checklist_categories()
 
+            # Delete proposal/call management data (reverse dependency order)
+            # reviews -> requested_resources -> proposals -> call_resource_templates -> rounds -> requested_offerings -> calls -> call_managing_organisations
+            self.cleanup_reviews()
+            self.cleanup_requested_resources()
+            self.cleanup_proposals()
+            self.cleanup_call_resource_templates()
+            self.cleanup_rounds()
+            self.cleanup_requested_offerings()
+            self.cleanup_calls()
+            self.cleanup_call_managing_organisations()
+
             # Delete credits (depends on customers, projects)
             self.cleanup_project_credits()
             self.cleanup_customer_credits()
@@ -248,6 +281,8 @@ class Command(BaseCommand):
             self.cleanup_service_providers()
             self.cleanup_projects()
             self.cleanup_categories()
+            self.cleanup_category_groups()
+            self.cleanup_user_agreements()
             self.cleanup_customers()
 
             # Delete users last
@@ -278,6 +313,15 @@ class Command(BaseCommand):
             ("questions", "checklist_question"),
             ("checklists", "checklist_checklist"),
             ("checklist_categories", "checklist_category"),
+            # Proposal/call management (reverse dependency order)
+            ("reviews", "proposal_review"),
+            ("requested_resources", "proposal_requestedresource"),
+            ("proposals", "proposal_proposal"),
+            ("call_resource_templates", "proposal_callresourcetemplate"),
+            ("rounds", "proposal_round"),
+            ("requested_offerings", "proposal_requestedoffering"),
+            ("calls", "proposal_call"),
+            ("call_managing_organisations", "proposal_callmanagingorganisation"),
             # Credits
             ("project_credits", "invoices_projectcredit"),
             ("customer_credits", "invoices_customercredit"),
@@ -309,6 +353,8 @@ class Command(BaseCommand):
             ("service_providers", "marketplace_serviceprovider"),
             ("projects", "structure_project"),
             ("categories", "marketplace_category"),
+            ("category_groups", "marketplace_categorygroup"),
+            ("user_agreements", "structure_useragreement"),
             ("customers", "structure_customer"),
         ]
 
@@ -432,6 +478,38 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.WARNING(f"Failed to delete categories: {e}"))
             self.stats["categories"]["errors"] += 1
+
+    def cleanup_category_groups(self):
+        """Delete all marketplace category group data."""
+        self.stdout.write("Deleting category groups...")
+        try:
+            if not self.dry_run:
+                count = CategoryGroup.objects.count()
+                CategoryGroup.objects.all().delete()
+                self.stats["category_groups"]["deleted"] = count
+            else:
+                self.stats["category_groups"]["deleted"] = CategoryGroup.objects.count()
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete category groups: {e}")
+            )
+            self.stats["category_groups"]["errors"] += 1
+
+    def cleanup_user_agreements(self):
+        """Delete all user agreement data."""
+        self.stdout.write("Deleting user agreements...")
+        try:
+            if not self.dry_run:
+                count = UserAgreement.objects.count()
+                UserAgreement.objects.all().delete()
+                self.stats["user_agreements"]["deleted"] = count
+            else:
+                self.stats["user_agreements"]["deleted"] = UserAgreement.objects.count()
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete user agreements: {e}")
+            )
+            self.stats["user_agreements"]["errors"] += 1
 
     def cleanup_offerings(self):
         """Delete all marketplace offering data."""
@@ -887,6 +965,134 @@ class Command(BaseCommand):
                 self.style.WARNING(f"Failed to delete group invitations: {e}")
             )
             self.stats["group_invitations"]["errors"] += 1
+
+    def cleanup_reviews(self):
+        """Delete all proposal review data."""
+        self.stdout.write("Deleting reviews...")
+        try:
+            if not self.dry_run:
+                count = Review.objects.count()
+                Review.objects.all().delete()
+                self.stats["reviews"]["deleted"] = count
+            else:
+                self.stats["reviews"]["deleted"] = Review.objects.count()
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Failed to delete reviews: {e}"))
+            self.stats["reviews"]["errors"] += 1
+
+    def cleanup_requested_resources(self):
+        """Delete all requested resource data."""
+        self.stdout.write("Deleting requested resources...")
+        try:
+            if not self.dry_run:
+                count = RequestedResource.objects.count()
+                RequestedResource.objects.all().delete()
+                self.stats["requested_resources"]["deleted"] = count
+            else:
+                self.stats["requested_resources"]["deleted"] = (
+                    RequestedResource.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete requested resources: {e}")
+            )
+            self.stats["requested_resources"]["errors"] += 1
+
+    def cleanup_proposals(self):
+        """Delete all proposal data."""
+        self.stdout.write("Deleting proposals...")
+        try:
+            if not self.dry_run:
+                count = Proposal.objects.count()
+                Proposal.objects.all().delete()
+                self.stats["proposals"]["deleted"] = count
+            else:
+                self.stats["proposals"]["deleted"] = Proposal.objects.count()
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Failed to delete proposals: {e}"))
+            self.stats["proposals"]["errors"] += 1
+
+    def cleanup_call_resource_templates(self):
+        """Delete all call resource template data."""
+        self.stdout.write("Deleting call resource templates...")
+        try:
+            if not self.dry_run:
+                count = CallResourceTemplate.objects.count()
+                CallResourceTemplate.objects.all().delete()
+                self.stats["call_resource_templates"]["deleted"] = count
+            else:
+                self.stats["call_resource_templates"]["deleted"] = (
+                    CallResourceTemplate.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete call resource templates: {e}")
+            )
+            self.stats["call_resource_templates"]["errors"] += 1
+
+    def cleanup_rounds(self):
+        """Delete all round data."""
+        self.stdout.write("Deleting rounds...")
+        try:
+            if not self.dry_run:
+                count = Round.objects.count()
+                Round.objects.all().delete()
+                self.stats["rounds"]["deleted"] = count
+            else:
+                self.stats["rounds"]["deleted"] = Round.objects.count()
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Failed to delete rounds: {e}"))
+            self.stats["rounds"]["errors"] += 1
+
+    def cleanup_requested_offerings(self):
+        """Delete all requested offering data."""
+        self.stdout.write("Deleting requested offerings...")
+        try:
+            if not self.dry_run:
+                count = RequestedOffering.objects.count()
+                RequestedOffering.objects.all().delete()
+                self.stats["requested_offerings"]["deleted"] = count
+            else:
+                self.stats["requested_offerings"]["deleted"] = (
+                    RequestedOffering.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete requested offerings: {e}")
+            )
+            self.stats["requested_offerings"]["errors"] += 1
+
+    def cleanup_calls(self):
+        """Delete all call data."""
+        self.stdout.write("Deleting calls...")
+        try:
+            if not self.dry_run:
+                count = Call.objects.count()
+                Call.objects.all().delete()
+                self.stats["calls"]["deleted"] = count
+            else:
+                self.stats["calls"]["deleted"] = Call.objects.count()
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Failed to delete calls: {e}"))
+            self.stats["calls"]["errors"] += 1
+
+    def cleanup_call_managing_organisations(self):
+        """Delete all call managing organisation data."""
+        self.stdout.write("Deleting call managing organisations...")
+        try:
+            if not self.dry_run:
+                count = CallManagingOrganisation.objects.count()
+                CallManagingOrganisation.objects.all().delete()
+                self.stats["call_managing_organisations"]["deleted"] = count
+            else:
+                self.stats["call_managing_organisations"]["deleted"] = (
+                    CallManagingOrganisation.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete call managing organisations: {e}")
+            )
+            self.stats["call_managing_organisations"]["errors"] += 1
 
     def print_summary(self):
         """Print cleanup summary statistics."""

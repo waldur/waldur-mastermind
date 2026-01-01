@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
@@ -15,6 +15,8 @@ from waldur_core.checklist.models import (
     Checklist,
     ChecklistCompletion,
     Question,
+    QuestionDependency,
+    QuestionOption,
 )
 from waldur_core.checklist.models import (
     Category as ChecklistCategory,
@@ -25,7 +27,7 @@ from waldur_core.core.serializers import ConstanceSettingsSerializer
 from waldur_core.logging.models import Event
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.permissions.tasks import sync_user_deactivation_status
-from waldur_core.structure.models import Customer, Project
+from waldur_core.structure.models import Customer, Project, UserAgreement
 from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
 from waldur_mastermind.invoices.models import (
     CustomerCredit,
@@ -35,6 +37,7 @@ from waldur_mastermind.invoices.models import (
 )
 from waldur_mastermind.marketplace.models import (
     Category,
+    CategoryGroup,
     ComponentUsage,
     ComponentUserUsage,
     CourseAccount,
@@ -50,6 +53,16 @@ from waldur_mastermind.marketplace.models import (
     Resource,
     ResourcePlanPeriod,
     ServiceProvider,
+)
+from waldur_mastermind.proposal.models import (
+    Call,
+    CallManagingOrganisation,
+    CallResourceTemplate,
+    Proposal,
+    RequestedOffering,
+    RequestedResource,
+    Review,
+    Round,
 )
 
 
@@ -90,6 +103,7 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "projects": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "category_groups": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "categories": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "offerings": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "roles": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
@@ -147,6 +161,13 @@ class Command(BaseCommand):
             },
             "checklists": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "questions": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "question_options": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "question_dependencies": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "checklist_completions": {
                 "created": 0,
                 "updated": 0,
@@ -177,12 +198,46 @@ class Command(BaseCommand):
                 "skipped": 0,
                 "errors": 0,
             },
+            "user_agreements": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "constance_settings": {
                 "created": 0,
                 "updated": 0,
                 "skipped": 0,
                 "errors": 0,
             },
+            "call_managing_organisations": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "calls": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "requested_offerings": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "call_resource_templates": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "rounds": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "proposals": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "requested_resources": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "reviews": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
         }
         self.dry_run = False
         self.update_existing = False
@@ -317,6 +372,10 @@ class Command(BaseCommand):
             "projects", lambda: self.import_projects(data.get("projects", []))
         )
         self._safe_import(
+            "category_groups",
+            lambda: self.import_category_groups(data.get("category_groups", [])),
+        )
+        self._safe_import(
             "categories", lambda: self.import_categories(data.get("categories", []))
         )
         self._safe_import(
@@ -375,6 +434,75 @@ class Command(BaseCommand):
                 lambda: self.import_role_permissions(data.get("role_permissions", [])),
             )
 
+        # Import checklist data BEFORE calls (calls may reference compliance checklists)
+        # Dependency order: categories -> checklists -> questions -> options -> dependencies
+        self._safe_import(
+            "checklist_categories",
+            lambda: self.import_checklist_categories(
+                data.get("checklist_categories", [])
+            ),
+        )
+        self._safe_import(
+            "checklists", lambda: self.import_checklists(data.get("checklists", []))
+        )
+        self._safe_import(
+            "questions", lambda: self.import_questions(data.get("questions", []))
+        )
+        self._safe_import(
+            "question_options",
+            lambda: self.import_question_options(data.get("question_options", [])),
+        )
+        self._safe_import(
+            "question_dependencies",
+            lambda: self.import_question_dependencies(
+                data.get("question_dependencies", [])
+            ),
+        )
+
+        # Import proposal/call management data BEFORE user_roles (user_roles may scope to Calls)
+        # Dependency order: CMO -> calls -> offerings -> templates -> rounds -> proposals -> resources -> reviews
+        self._safe_import(
+            "call_managing_organisations",
+            lambda: self.import_call_managing_organisations(
+                data.get("call_managing_organisations", [])
+            ),
+        )
+        self._safe_import(
+            "calls",
+            lambda: self.import_calls(data.get("calls", [])),
+        )
+        self._safe_import(
+            "requested_offerings",
+            lambda: self.import_requested_offerings(
+                data.get("requested_offerings", [])
+            ),
+        )
+        self._safe_import(
+            "call_resource_templates",
+            lambda: self.import_call_resource_templates(
+                data.get("call_resource_templates", [])
+            ),
+        )
+        self._safe_import(
+            "rounds",
+            lambda: self.import_rounds(data.get("rounds", [])),
+        )
+        self._safe_import(
+            "proposals",
+            lambda: self.import_proposals(data.get("proposals", [])),
+        )
+        self._safe_import(
+            "requested_resources",
+            lambda: self.import_requested_resources(
+                data.get("requested_resources", [])
+            ),
+        )
+        self._safe_import(
+            "reviews",
+            lambda: self.import_reviews(data.get("reviews", [])),
+        )
+
+        # Import user_roles AFTER proposal entities (user_roles may scope to Calls)
         self._safe_import(
             "user_roles", lambda: self.import_user_roles(data.get("user_roles", []))
         )
@@ -426,6 +554,16 @@ class Command(BaseCommand):
             "questions", lambda: self.import_questions(data.get("questions", []))
         )
         self._safe_import(
+            "question_options",
+            lambda: self.import_question_options(data.get("question_options", [])),
+        )
+        self._safe_import(
+            "question_dependencies",
+            lambda: self.import_question_dependencies(
+                data.get("question_dependencies", [])
+            ),
+        )
+        self._safe_import(
             "checklist_completions",
             lambda: self.import_checklist_completions(
                 data.get("checklist_completions", [])
@@ -471,6 +609,51 @@ class Command(BaseCommand):
             "constance_settings",
             lambda: self.import_constance_settings(data.get("constance_settings", {})),
         )
+
+        # Import user agreements (terms of service, privacy policy)
+        self._safe_import(
+            "user_agreements",
+            lambda: self.import_user_agreements(data.get("user_agreements", [])),
+        )
+
+    def _parse_datetime(self, value):
+        """Parse a datetime string, supporting both ISO format and relative offsets.
+
+        Relative offsets use format 'relative:+30days' or 'relative:-15days'.
+        Returns a timezone-aware datetime or None if parsing fails.
+        """
+        if not value or not isinstance(value, str):
+            return None
+
+        if value.startswith("relative:"):
+            offset_str = value[9:]  # Remove 'relative:' prefix
+            try:
+                import re
+
+                match = re.match(r"([+-]?\d+)(days?|hours?|minutes?)", offset_str)
+                if match:
+                    amount = int(match.group(1))
+                    unit = match.group(2).rstrip("s")  # Normalize to singular
+
+                    now = timezone.now()
+                    if unit == "day":
+                        return now + timedelta(days=amount)
+                    elif unit == "hour":
+                        return now + timedelta(hours=amount)
+                    elif unit == "minute":
+                        return now + timedelta(minutes=amount)
+            except (ValueError, TypeError):
+                pass
+            return None
+
+        # Try to parse as ISO format
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if timezone.is_naive(dt):
+                dt = timezone.make_aware(dt)
+            return dt
+        except (ValueError, TypeError):
+            return None
 
     def _safe_import(self, import_type, import_func):
         """Safely execute an import function with proper transaction handling."""
@@ -1184,6 +1367,59 @@ class Command(BaseCommand):
                 )
                 self.stats["projects"]["errors"] += 1
 
+    def import_category_groups(self, category_groups_data):
+        """Import marketplace category group data."""
+        self.stdout.write("Importing category groups...")
+
+        for group_data in category_groups_data:
+            try:
+                uuid = group_data.get("uuid")
+                title = group_data.get("title")
+
+                if not uuid or not title:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping category group without UUID or title"
+                        )
+                    )
+                    self.stats["category_groups"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "title": title,
+                    "description": group_data.get("description", ""),
+                }
+
+                if not self.dry_run:
+                    existing_group = CategoryGroup.objects.filter(uuid=uuid).first()
+
+                    if existing_group:
+                        if self.update_existing:
+                            CategoryGroup.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["category_groups"]["updated"] += 1
+                        else:
+                            self.stats["category_groups"]["skipped"] += 1
+                    else:
+                        CategoryGroup.objects.create(uuid=uuid, **defaults)
+                        self.stats["category_groups"]["created"] += 1
+                else:
+                    existing = CategoryGroup.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["category_groups"]["updated"] += 1
+                        else:
+                            self.stats["category_groups"]["skipped"] += 1
+                    else:
+                        self.stats["category_groups"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import category group {group_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["category_groups"]["errors"] += 1
+
     def import_categories(self, categories_data):
         """Import marketplace category data."""
         self.stdout.write("Importing categories...")
@@ -1200,6 +1436,18 @@ class Command(BaseCommand):
                     self.stats["categories"]["errors"] += 1
                     continue
 
+                # Resolve category group reference
+                group = None
+                group_uuid = category_data.get("group_uuid")
+                if group_uuid:
+                    group = CategoryGroup.objects.filter(uuid=group_uuid).first()
+                    if not group:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Category group {group_uuid} not found for category {uuid}"
+                            )
+                        )
+
                 defaults = {
                     "title": title,
                     "description": category_data.get("description", ""),
@@ -1213,6 +1461,7 @@ class Command(BaseCommand):
                     "default_tenant_category": category_data.get(
                         "default_tenant_category", False
                     ),
+                    "group": group,
                 }
 
                 if not self.dry_run:
@@ -3411,6 +3660,149 @@ class Command(BaseCommand):
                 )
                 self.stats["questions"]["errors"] += 1
 
+    def import_question_options(self, options_data):
+        """Import question option data for select-type questions."""
+        self.stdout.write("Importing question options...")
+
+        for option_data in options_data:
+            try:
+                uuid = option_data.get("uuid")
+                question_uuid = option_data.get("question_uuid")
+
+                if not uuid or not question_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping question option without UUID or question_uuid"
+                        )
+                    )
+                    self.stats["question_options"]["errors"] += 1
+                    continue
+
+                # Find question
+                question = Question.objects.filter(uuid=question_uuid).first()
+                if not question:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping option {uuid}: question {question_uuid} not found"
+                        )
+                    )
+                    self.stats["question_options"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "question": question,
+                    "label": option_data.get("label", ""),
+                    "order": option_data.get("order", 0),
+                }
+
+                if not self.dry_run:
+                    existing_option = QuestionOption.objects.filter(uuid=uuid).first()
+
+                    if existing_option:
+                        if self.update_existing:
+                            QuestionOption.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["question_options"]["updated"] += 1
+                        else:
+                            self.stats["question_options"]["skipped"] += 1
+                    else:
+                        QuestionOption.objects.create(uuid=UUID(uuid), **defaults)
+                        self.stats["question_options"]["created"] += 1
+                else:
+                    existing = QuestionOption.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["question_options"]["updated"] += 1
+                        else:
+                            self.stats["question_options"]["skipped"] += 1
+                    else:
+                        self.stats["question_options"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import question option {option_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["question_options"]["errors"] += 1
+
+    def import_question_dependencies(self, dependencies_data):
+        """Import question dependency data for conditional visibility."""
+        self.stdout.write("Importing question dependencies...")
+
+        for dep_data in dependencies_data:
+            try:
+                uuid = dep_data.get("uuid")
+                question_uuid = dep_data.get("question_uuid")
+                depends_on_uuid = dep_data.get("depends_on_question_uuid")
+
+                if not uuid or not question_uuid or not depends_on_uuid:
+                    self.stdout.write(
+                        self.style.WARNING("Skipping dependency without required UUIDs")
+                    )
+                    self.stats["question_dependencies"]["errors"] += 1
+                    continue
+
+                # Find both questions
+                question = Question.objects.filter(uuid=question_uuid).first()
+                depends_on = Question.objects.filter(uuid=depends_on_uuid).first()
+
+                if not question:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping dependency {uuid}: question {question_uuid} not found"
+                        )
+                    )
+                    self.stats["question_dependencies"]["errors"] += 1
+                    continue
+
+                if not depends_on:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping dependency {uuid}: depends_on question {depends_on_uuid} not found"
+                        )
+                    )
+                    self.stats["question_dependencies"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "question": question,
+                    "depends_on_question": depends_on,
+                    "required_answer_value": dep_data.get("required_answer_value"),
+                    "operator": dep_data.get("operator", "equals"),
+                }
+
+                if not self.dry_run:
+                    existing_dep = QuestionDependency.objects.filter(uuid=uuid).first()
+
+                    if existing_dep:
+                        if self.update_existing:
+                            QuestionDependency.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["question_dependencies"]["updated"] += 1
+                        else:
+                            self.stats["question_dependencies"]["skipped"] += 1
+                    else:
+                        QuestionDependency.objects.create(uuid=UUID(uuid), **defaults)
+                        self.stats["question_dependencies"]["created"] += 1
+                else:
+                    existing = QuestionDependency.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["question_dependencies"]["updated"] += 1
+                        else:
+                            self.stats["question_dependencies"]["skipped"] += 1
+                    else:
+                        self.stats["question_dependencies"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import question dependency {dep_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["question_dependencies"]["errors"] += 1
+
     def import_checklist_completions(self, completions_data):
         """Import checklist completion data."""
         self.stdout.write("Importing checklist completions...")
@@ -4481,6 +4873,842 @@ class Command(BaseCommand):
                 self.style.WARNING(f"Failed to import constance settings: {e}")
             )
             self.stats["constance_settings"]["errors"] += 1
+
+    def import_call_managing_organisations(self, cmo_data):
+        """Import call managing organisation data."""
+        self.stdout.write("Importing call managing organisations...")
+        for org_data in cmo_data:
+            try:
+                uuid = org_data.get("uuid")
+                customer_uuid = org_data.get("customer_uuid")
+
+                if not uuid or not customer_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping call managing organisation without UUID or customer_uuid"
+                        )
+                    )
+                    self.stats["call_managing_organisations"]["errors"] += 1
+                    continue
+
+                customer = Customer.objects.filter(uuid=customer_uuid).first()
+                if not customer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping call managing organisation {uuid}: customer {customer_uuid} not found"
+                        )
+                    )
+                    self.stats["call_managing_organisations"]["errors"] += 1
+                    continue
+
+                # Note: 'name' is a read-only property that returns customer.name
+                defaults = {
+                    "customer": customer,
+                    "description": org_data.get("description", ""),
+                }
+
+                if not self.dry_run:
+                    existing = CallManagingOrganisation.objects.filter(
+                        uuid=uuid
+                    ).first()
+                    if existing:
+                        if self.update_existing:
+                            CallManagingOrganisation.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["call_managing_organisations"]["updated"] += 1
+                        else:
+                            self.stats["call_managing_organisations"]["skipped"] += 1
+                    else:
+                        # Check if customer already has a CMO
+                        existing_by_customer = CallManagingOrganisation.objects.filter(
+                            customer=customer
+                        ).first()
+                        if existing_by_customer:
+                            if self.update_existing:
+                                CallManagingOrganisation.objects.filter(
+                                    customer=customer
+                                ).update(**defaults)
+                                self.stats["call_managing_organisations"][
+                                    "updated"
+                                ] += 1
+                            else:
+                                self.stats["call_managing_organisations"][
+                                    "skipped"
+                                ] += 1
+                        else:
+                            CallManagingOrganisation.objects.create(
+                                uuid=uuid, **defaults
+                            )
+                            self.stats["call_managing_organisations"]["created"] += 1
+                else:
+                    existing = CallManagingOrganisation.objects.filter(
+                        uuid=uuid
+                    ).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["call_managing_organisations"]["updated"] += 1
+                        else:
+                            self.stats["call_managing_organisations"]["skipped"] += 1
+                    else:
+                        self.stats["call_managing_organisations"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import call managing organisation {org_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["call_managing_organisations"]["errors"] += 1
+
+    def import_calls(self, calls_data):
+        """Import call data."""
+        self.stdout.write("Importing calls...")
+        for call_data in calls_data:
+            try:
+                uuid = call_data.get("uuid")
+                manager_uuid = call_data.get("manager_uuid")
+
+                if not uuid or not manager_uuid:
+                    self.stdout.write(
+                        self.style.WARNING("Skipping call without UUID or manager_uuid")
+                    )
+                    self.stats["calls"]["errors"] += 1
+                    continue
+
+                manager = CallManagingOrganisation.objects.filter(
+                    uuid=manager_uuid
+                ).first()
+                if not manager:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping call {uuid}: manager {manager_uuid} not found"
+                        )
+                    )
+                    self.stats["calls"]["errors"] += 1
+                    continue
+
+                # Resolve created_by user
+                created_by = None
+                if call_data.get("created_by_uuid"):
+                    created_by = User.objects.filter(
+                        uuid=call_data["created_by_uuid"]
+                    ).first()
+
+                # Resolve compliance checklist (optional)
+                compliance_checklist = None
+                if call_data.get("compliance_checklist_uuid"):
+                    compliance_checklist = Checklist.objects.filter(
+                        uuid=call_data["compliance_checklist_uuid"]
+                    ).first()
+
+                defaults = {
+                    "manager": manager,
+                    "name": call_data.get("name", ""),
+                    "description": call_data.get("description", ""),
+                    "state": call_data.get("state", "draft"),
+                    "created_by": created_by,
+                    "external_url": call_data.get("external_url", ""),
+                    "reviewer_identity_visible_to_submitters": call_data.get(
+                        "reviewer_identity_visible_to_submitters", False
+                    ),
+                    "reviews_visible_to_submitters": call_data.get(
+                        "reviews_visible_to_submitters", True
+                    ),
+                    "fixed_duration_in_days": call_data.get("fixed_duration_in_days"),
+                    "compliance_checklist": compliance_checklist,
+                }
+
+                if not self.dry_run:
+                    existing = Call.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            Call.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["calls"]["updated"] += 1
+                        else:
+                            self.stats["calls"]["skipped"] += 1
+                    else:
+                        Call.objects.create(uuid=uuid, **defaults)
+                        self.stats["calls"]["created"] += 1
+                else:
+                    existing = Call.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["calls"]["updated"] += 1
+                        else:
+                            self.stats["calls"]["skipped"] += 1
+                    else:
+                        self.stats["calls"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import call {call_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["calls"]["errors"] += 1
+
+    def import_requested_offerings(self, requested_offerings_data):
+        """Import requested offering data."""
+        self.stdout.write("Importing requested offerings...")
+        for ro_data in requested_offerings_data:
+            try:
+                uuid = ro_data.get("uuid")
+                call_uuid = ro_data.get("call_uuid")
+                offering_uuid = ro_data.get("offering_uuid")
+
+                if not uuid or not call_uuid or not offering_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping requested offering without UUID, call_uuid, or offering_uuid"
+                        )
+                    )
+                    self.stats["requested_offerings"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping requested offering {uuid}: call {call_uuid} not found"
+                        )
+                    )
+                    self.stats["requested_offerings"]["errors"] += 1
+                    continue
+
+                offering = Offering.objects.filter(uuid=offering_uuid).first()
+                if not offering:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping requested offering {uuid}: offering {offering_uuid} not found"
+                        )
+                    )
+                    self.stats["requested_offerings"]["errors"] += 1
+                    continue
+
+                # Resolve optional foreign keys
+                plan = None
+                if ro_data.get("plan_uuid"):
+                    plan = Plan.objects.filter(uuid=ro_data["plan_uuid"]).first()
+
+                created_by = None
+                if ro_data.get("created_by_uuid"):
+                    created_by = User.objects.filter(
+                        uuid=ro_data["created_by_uuid"]
+                    ).first()
+
+                approved_by = None
+                if ro_data.get("approved_by_uuid"):
+                    approved_by = User.objects.filter(
+                        uuid=ro_data["approved_by_uuid"]
+                    ).first()
+
+                defaults = {
+                    "call": call,
+                    "offering": offering,
+                    "plan": plan,
+                    "state": ro_data.get("state", "requested"),
+                    "created_by": created_by,
+                    "approved_by": approved_by,
+                    "description": ro_data.get("description", ""),
+                }
+
+                if not self.dry_run:
+                    existing = RequestedOffering.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            RequestedOffering.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["requested_offerings"]["updated"] += 1
+                        else:
+                            self.stats["requested_offerings"]["skipped"] += 1
+                    else:
+                        RequestedOffering.objects.create(uuid=uuid, **defaults)
+                        self.stats["requested_offerings"]["created"] += 1
+                else:
+                    existing = RequestedOffering.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["requested_offerings"]["updated"] += 1
+                        else:
+                            self.stats["requested_offerings"]["skipped"] += 1
+                    else:
+                        self.stats["requested_offerings"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import requested offering {ro_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["requested_offerings"]["errors"] += 1
+
+    def import_call_resource_templates(self, templates_data):
+        """Import call resource template data."""
+        self.stdout.write("Importing call resource templates...")
+        for template_data in templates_data:
+            try:
+                uuid = template_data.get("uuid")
+                call_uuid = template_data.get("call_uuid")
+                requested_offering_uuid = template_data.get("requested_offering_uuid")
+
+                if not uuid or not call_uuid or not requested_offering_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping call resource template without UUID, call_uuid, or requested_offering_uuid"
+                        )
+                    )
+                    self.stats["call_resource_templates"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping call resource template {uuid}: call {call_uuid} not found"
+                        )
+                    )
+                    self.stats["call_resource_templates"]["errors"] += 1
+                    continue
+
+                requested_offering = RequestedOffering.objects.filter(
+                    uuid=requested_offering_uuid
+                ).first()
+                if not requested_offering:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping call resource template {uuid}: requested offering {requested_offering_uuid} not found"
+                        )
+                    )
+                    self.stats["call_resource_templates"]["errors"] += 1
+                    continue
+
+                created_by = None
+                if template_data.get("created_by_uuid"):
+                    created_by = User.objects.filter(
+                        uuid=template_data["created_by_uuid"]
+                    ).first()
+
+                defaults = {
+                    "call": call,
+                    "requested_offering": requested_offering,
+                    "name": template_data.get("name", ""),
+                    "description": template_data.get("description", ""),
+                    "attributes": template_data.get("attributes", {}),
+                    "limits": template_data.get("limits", {}),
+                    "is_required": template_data.get("is_required", False),
+                    "created_by": created_by,
+                }
+
+                if not self.dry_run:
+                    existing = CallResourceTemplate.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            CallResourceTemplate.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["call_resource_templates"]["updated"] += 1
+                        else:
+                            self.stats["call_resource_templates"]["skipped"] += 1
+                    else:
+                        CallResourceTemplate.objects.create(uuid=uuid, **defaults)
+                        self.stats["call_resource_templates"]["created"] += 1
+                else:
+                    existing = CallResourceTemplate.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["call_resource_templates"]["updated"] += 1
+                        else:
+                            self.stats["call_resource_templates"]["skipped"] += 1
+                    else:
+                        self.stats["call_resource_templates"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import call resource template {template_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["call_resource_templates"]["errors"] += 1
+
+    def import_rounds(self, rounds_data):
+        """Import round data."""
+        self.stdout.write("Importing rounds...")
+        for round_data in rounds_data:
+            try:
+                uuid = round_data.get("uuid")
+                call_uuid = round_data.get("call_uuid")
+
+                if not uuid or not call_uuid:
+                    self.stdout.write(
+                        self.style.WARNING("Skipping round without UUID or call_uuid")
+                    )
+                    self.stats["rounds"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping round {uuid}: call {call_uuid} not found"
+                        )
+                    )
+                    self.stats["rounds"]["errors"] += 1
+                    continue
+
+                # Parse datetime fields (supports ISO format and relative offsets)
+                start_time = self._parse_datetime(round_data.get("start_time"))
+                cutoff_time = self._parse_datetime(round_data.get("cutoff_time"))
+                allocation_date = self._parse_datetime(
+                    round_data.get("allocation_date")
+                )
+
+                if not start_time or not cutoff_time:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping round {uuid}: missing start_time or cutoff_time"
+                        )
+                    )
+                    self.stats["rounds"]["errors"] += 1
+                    continue
+
+                # Parse minimal_average_scoring
+                minimal_average_scoring = None
+                if round_data.get("minimal_average_scoring") is not None:
+                    try:
+                        minimal_average_scoring = Decimal(
+                            str(round_data["minimal_average_scoring"])
+                        )
+                    except (InvalidOperation, TypeError):
+                        pass
+
+                defaults = {
+                    "call": call,
+                    "start_time": start_time,
+                    "cutoff_time": cutoff_time,
+                    "review_strategy": round_data.get("review_strategy", "after_round"),
+                    "deciding_entity": round_data.get("deciding_entity", "automatic"),
+                    "allocation_time": round_data.get("allocation_time", "on_decision"),
+                    "review_duration_in_days": round_data.get(
+                        "review_duration_in_days"
+                    ),
+                    "minimum_number_of_reviewers": round_data.get(
+                        "minimum_number_of_reviewers"
+                    ),
+                    "minimal_average_scoring": minimal_average_scoring,
+                    "allocation_date": allocation_date,
+                }
+
+                if not self.dry_run:
+                    existing = Round.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            Round.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["rounds"]["updated"] += 1
+                        else:
+                            self.stats["rounds"]["skipped"] += 1
+                    else:
+                        Round.objects.create(uuid=uuid, **defaults)
+                        self.stats["rounds"]["created"] += 1
+                else:
+                    existing = Round.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["rounds"]["updated"] += 1
+                        else:
+                            self.stats["rounds"]["skipped"] += 1
+                    else:
+                        self.stats["rounds"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import round {round_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["rounds"]["errors"] += 1
+
+    def import_proposals(self, proposals_data):
+        """Import proposal data."""
+        self.stdout.write("Importing proposals...")
+        for proposal_data in proposals_data:
+            try:
+                uuid = proposal_data.get("uuid")
+                round_uuid = proposal_data.get("round_uuid")
+
+                if not uuid or not round_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping proposal without UUID or round_uuid"
+                        )
+                    )
+                    self.stats["proposals"]["errors"] += 1
+                    continue
+
+                round_obj = Round.objects.filter(uuid=round_uuid).first()
+                if not round_obj:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping proposal {uuid}: round {round_uuid} not found"
+                        )
+                    )
+                    self.stats["proposals"]["errors"] += 1
+                    continue
+
+                # Resolve optional foreign keys
+                project = None
+                if proposal_data.get("project_uuid"):
+                    project = Project.objects.filter(
+                        uuid=proposal_data["project_uuid"]
+                    ).first()
+
+                created_by = None
+                if proposal_data.get("created_by_uuid"):
+                    created_by = User.objects.filter(
+                        uuid=proposal_data["created_by_uuid"]
+                    ).first()
+
+                approved_by = None
+                if proposal_data.get("approved_by_uuid"):
+                    approved_by = User.objects.filter(
+                        uuid=proposal_data["approved_by_uuid"]
+                    ).first()
+
+                defaults = {
+                    "round": round_obj,
+                    "name": proposal_data.get("name", ""),
+                    "description": proposal_data.get("description", ""),
+                    "state": proposal_data.get("state", "draft"),
+                    "project": project,
+                    "created_by": created_by,
+                    "approved_by": approved_by,
+                    "duration_in_days": proposal_data.get("duration_in_days"),
+                    "project_summary": proposal_data.get("project_summary", ""),
+                    "project_duration": proposal_data.get("project_duration"),
+                    "project_is_confidential": proposal_data.get(
+                        "project_is_confidential", False
+                    ),
+                    "project_has_civilian_purpose": proposal_data.get(
+                        "project_has_civilian_purpose", False
+                    ),
+                    "allocation_comment": proposal_data.get("allocation_comment", ""),
+                }
+
+                if not self.dry_run:
+                    existing = Proposal.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            Proposal.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["proposals"]["updated"] += 1
+                        else:
+                            self.stats["proposals"]["skipped"] += 1
+                    else:
+                        Proposal.objects.create(uuid=uuid, **defaults)
+                        self.stats["proposals"]["created"] += 1
+                else:
+                    existing = Proposal.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["proposals"]["updated"] += 1
+                        else:
+                            self.stats["proposals"]["skipped"] += 1
+                    else:
+                        self.stats["proposals"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import proposal {proposal_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["proposals"]["errors"] += 1
+
+    def import_requested_resources(self, requested_resources_data):
+        """Import requested resource data."""
+        self.stdout.write("Importing requested resources...")
+        for rr_data in requested_resources_data:
+            try:
+                uuid = rr_data.get("uuid")
+                proposal_uuid = rr_data.get("proposal_uuid")
+                requested_offering_uuid = rr_data.get("requested_offering_uuid")
+
+                if not uuid or not proposal_uuid or not requested_offering_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping requested resource without UUID, proposal_uuid, or requested_offering_uuid"
+                        )
+                    )
+                    self.stats["requested_resources"]["errors"] += 1
+                    continue
+
+                proposal = Proposal.objects.filter(uuid=proposal_uuid).first()
+                if not proposal:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping requested resource {uuid}: proposal {proposal_uuid} not found"
+                        )
+                    )
+                    self.stats["requested_resources"]["errors"] += 1
+                    continue
+
+                requested_offering = RequestedOffering.objects.filter(
+                    uuid=requested_offering_uuid
+                ).first()
+                if not requested_offering:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping requested resource {uuid}: requested offering {requested_offering_uuid} not found"
+                        )
+                    )
+                    self.stats["requested_resources"]["errors"] += 1
+                    continue
+
+                # Resolve optional foreign keys
+                call_resource_template = None
+                if rr_data.get("call_resource_template_uuid"):
+                    call_resource_template = CallResourceTemplate.objects.filter(
+                        uuid=rr_data["call_resource_template_uuid"]
+                    ).first()
+
+                created_by = None
+                if rr_data.get("created_by_uuid"):
+                    created_by = User.objects.filter(
+                        uuid=rr_data["created_by_uuid"]
+                    ).first()
+
+                resource = None
+                if rr_data.get("resource_uuid"):
+                    resource = Resource.objects.filter(
+                        uuid=rr_data["resource_uuid"]
+                    ).first()
+
+                defaults = {
+                    "proposal": proposal,
+                    "requested_offering": requested_offering,
+                    "call_resource_template": call_resource_template,
+                    "created_by": created_by,
+                    "resource": resource,
+                    "description": rr_data.get("description", ""),
+                    "attributes": rr_data.get("attributes", {}),
+                    "limits": rr_data.get("limits", {}),
+                }
+
+                if not self.dry_run:
+                    existing = RequestedResource.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            RequestedResource.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["requested_resources"]["updated"] += 1
+                        else:
+                            self.stats["requested_resources"]["skipped"] += 1
+                    else:
+                        RequestedResource.objects.create(uuid=uuid, **defaults)
+                        self.stats["requested_resources"]["created"] += 1
+                else:
+                    existing = RequestedResource.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["requested_resources"]["updated"] += 1
+                        else:
+                            self.stats["requested_resources"]["skipped"] += 1
+                    else:
+                        self.stats["requested_resources"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import requested resource {rr_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["requested_resources"]["errors"] += 1
+
+    def import_reviews(self, reviews_data):
+        """Import review data."""
+        self.stdout.write("Importing reviews...")
+        for review_data in reviews_data:
+            try:
+                uuid = review_data.get("uuid")
+                proposal_uuid = review_data.get("proposal_uuid")
+                reviewer_uuid = review_data.get("reviewer_uuid")
+
+                if not uuid or not proposal_uuid or not reviewer_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping review without UUID, proposal_uuid, or reviewer_uuid"
+                        )
+                    )
+                    self.stats["reviews"]["errors"] += 1
+                    continue
+
+                proposal = Proposal.objects.filter(uuid=proposal_uuid).first()
+                if not proposal:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping review {uuid}: proposal {proposal_uuid} not found"
+                        )
+                    )
+                    self.stats["reviews"]["errors"] += 1
+                    continue
+
+                reviewer = User.objects.filter(uuid=reviewer_uuid).first()
+                if not reviewer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping review {uuid}: reviewer {reviewer_uuid} not found"
+                        )
+                    )
+                    self.stats["reviews"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "proposal": proposal,
+                    "reviewer": reviewer,
+                    "state": review_data.get("state", "created"),
+                    "summary_score": review_data.get("summary_score", 0),
+                    "summary_public_comment": review_data.get(
+                        "summary_public_comment", ""
+                    ),
+                    "summary_private_comment": review_data.get(
+                        "summary_private_comment", ""
+                    ),
+                    "comment_project_title": review_data.get("comment_project_title"),
+                    "comment_project_summary": review_data.get(
+                        "comment_project_summary"
+                    ),
+                    "comment_project_description": review_data.get(
+                        "comment_project_description"
+                    ),
+                    "comment_project_duration": review_data.get(
+                        "comment_project_duration"
+                    ),
+                    "comment_project_is_confidential": review_data.get(
+                        "comment_project_is_confidential"
+                    ),
+                    "comment_project_has_civilian_purpose": review_data.get(
+                        "comment_project_has_civilian_purpose"
+                    ),
+                    "comment_project_supporting_documentation": review_data.get(
+                        "comment_project_supporting_documentation"
+                    ),
+                    "comment_resource_requests": review_data.get(
+                        "comment_resource_requests"
+                    ),
+                    "comment_team": review_data.get("comment_team"),
+                }
+
+                if not self.dry_run:
+                    existing = Review.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            Review.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["reviews"]["updated"] += 1
+                        else:
+                            self.stats["reviews"]["skipped"] += 1
+                    else:
+                        Review.objects.create(uuid=uuid, **defaults)
+                        self.stats["reviews"]["created"] += 1
+                else:
+                    existing = Review.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["reviews"]["updated"] += 1
+                        else:
+                            self.stats["reviews"]["skipped"] += 1
+                    else:
+                        self.stats["reviews"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import review {review_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["reviews"]["errors"] += 1
+
+    def import_user_agreements(self, user_agreements_data):
+        """Import user agreement data (Terms of Service, Privacy Policy)."""
+        self.stdout.write("Importing user agreements...")
+
+        for agreement_data in user_agreements_data:
+            try:
+                uuid = agreement_data.get("uuid")
+                agreement_type = agreement_data.get("agreement_type")
+
+                if not uuid or not agreement_type:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping user agreement without UUID or agreement_type"
+                        )
+                    )
+                    self.stats["user_agreements"]["errors"] += 1
+                    continue
+
+                # Validate agreement_type
+                valid_types = [
+                    choice[0] for choice in UserAgreement.UserAgreements.CHOICES
+                ]
+                if agreement_type not in valid_types:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping user agreement {uuid}: invalid agreement_type '{agreement_type}'"
+                        )
+                    )
+                    self.stats["user_agreements"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "content": agreement_data.get("content", ""),
+                    "agreement_type": agreement_type,
+                }
+
+                if not self.dry_run:
+                    # Check if agreement with this type already exists
+                    existing_by_type = UserAgreement.objects.filter(
+                        agreement_type=agreement_type
+                    ).first()
+                    existing_by_uuid = UserAgreement.objects.filter(uuid=uuid).first()
+
+                    if existing_by_uuid:
+                        if self.update_existing:
+                            UserAgreement.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["user_agreements"]["updated"] += 1
+                        else:
+                            self.stats["user_agreements"]["skipped"] += 1
+                    elif existing_by_type:
+                        # Agreement type already exists with different UUID
+                        if self.update_existing:
+                            UserAgreement.objects.filter(
+                                agreement_type=agreement_type
+                            ).update(**defaults)
+                            self.stats["user_agreements"]["updated"] += 1
+                        else:
+                            self.stats["user_agreements"]["skipped"] += 1
+                    else:
+                        UserAgreement.objects.create(uuid=uuid, **defaults)
+                        self.stats["user_agreements"]["created"] += 1
+                else:
+                    existing = UserAgreement.objects.filter(uuid=uuid).exists()
+                    existing_type = UserAgreement.objects.filter(
+                        agreement_type=agreement_type
+                    ).exists()
+                    if existing or existing_type:
+                        if self.update_existing:
+                            self.stats["user_agreements"]["updated"] += 1
+                        else:
+                            self.stats["user_agreements"]["skipped"] += 1
+                    else:
+                        self.stats["user_agreements"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import user agreement {agreement_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["user_agreements"]["errors"] += 1
 
     def _sync_user_activation_status(self):
         """

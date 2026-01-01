@@ -156,21 +156,48 @@
       "customer_uuid": "b2000000000000000000000000000003"
     }
   ],
+  "user_agreements": [
+    {
+      "uuid": "6a7b8c9d0e1f2345678901234abcdef6",
+      "agreement_type": "TOS",
+      "content": "# Research Computing Platform Terms of Service\n\n**Effective Date:** January 1, 2025\n\n## 1. Acceptable Use\n\nThis computing platform is provided exclusively for academic research, education, and related scholarly activities. Users must:\n- Use resources only for legitimate research purposes\n- Comply with all applicable laws and university policies\n- Respect intellectual property rights\n- Not engage in cryptocurrency mining or commercial activities without prior authorization\n\n## 2. Resource Allocation\n\n- Resources are allocated based on project merit and availability\n- Priority scheduling may apply during peak usage periods\n- Unused allocations may be reallocated after 90 days of inactivity\n- Large-scale computations require advance scheduling approval\n\n## 3. Data Management\n\n- Users are responsible for backing up critical data\n- Scratch storage may be purged after 30 days without notice\n- Sensitive data must be handled according to data classification policies\n- Research data retention follows institutional and funder requirements\n\n## 4. Security Requirements\n\n- Users must use strong authentication methods\n- SSH keys must be password-protected\n- Vulnerabilities must be reported immediately\n- Accounts are personal and non-transferable\n\n## 5. Publication and Acknowledgment\n\nResearch outputs using these resources should acknowledge the Research Computing Platform in publications.\n\n## 6. Termination\n\nAccess may be suspended for policy violations, security incidents, or account inactivity exceeding 12 months."
+    },
+    {
+      "uuid": "7a8b9c0d1e2f3456789012345abcdef7",
+      "agreement_type": "PP",
+      "content": "# Research Computing Platform Privacy Policy\n\n**Last Updated:** January 1, 2025\n\n## 1. Information We Collect\n\n### Account Information\n- University credentials and institutional affiliation\n- Name, email address, and department\n- SSH public keys and access credentials\n\n### Usage Data\n- Job submission and execution logs\n- Resource consumption metrics (CPU hours, GPU hours, storage)\n- Login times and IP addresses\n- Software module usage\n\n### Research Data\n- Data you store on our systems for research purposes\n- Metadata associated with computational jobs\n\n## 2. How We Use Your Information\n\n- Provide and maintain computing services\n- Monitor resource usage and capacity planning\n- Ensure system security and detect anomalies\n- Generate anonymized usage reports for funding agencies\n- Communicate service updates and maintenance windows\n\n## 3. Data Sharing\n\nWe may share information with:\n- Funding agencies (anonymized aggregate statistics only)\n- University administration for resource planning\n- Law enforcement when legally required\n\n## 4. Data Security\n\n- All data encrypted in transit and at rest\n- Regular security audits and penetration testing\n- Access logging and intrusion detection systems\n- Physical security in university data centers\n\n## 5. Data Retention\n\n- Account data: Duration of university affiliation plus 5 years\n- Usage logs: 3 years\n- Research data: According to project requirements and funder mandates\n\n## 6. Your Rights\n\nYou may request access to your personal data, correction of inaccuracies, or deletion (subject to retention requirements).\n\n## 7. Contact\n\nData Protection Officer: privacy@university.edu"
+    }
+  ],
+  "category_groups": [
+    {
+      "uuid": "d1e2f3a4b5c6789012345678abcdef01",
+      "title": "Research Compute",
+      "description": "High-performance computing and container orchestration for research workloads"
+    },
+    {
+      "uuid": "d1e2f3a4b5c6789012345678abcdef02",
+      "title": "Research Data",
+      "description": "Storage and data management services for research data"
+    }
+  ],
   "categories": [
     {
       "uuid": "d2000000000000000000000000000001",
       "title": "HPC Compute",
-      "description": "High-performance computing clusters"
+      "description": "High-performance computing clusters",
+      "group_uuid": "d1e2f3a4b5c6789012345678abcdef01"
     },
     {
       "uuid": "d2000000000000000000000000000002",
       "title": "Research Storage",
-      "description": "High-capacity research data storage"
+      "description": "High-capacity research data storage",
+      "group_uuid": "d1e2f3a4b5c6789012345678abcdef02"
     },
     {
       "uuid": "d2000000000000000000000000000003",
       "title": "Research Kubernetes",
-      "description": "Kubernetes clusters for research workloads and containerized applications"
+      "description": "Kubernetes clusters for research workloads and containerized applications",
+      "group_uuid": "d1e2f3a4b5c6789012345678abcdef01"
     }
   ],
   "service_providers": [
@@ -716,6 +743,132 @@
       "attributes": {},
       "limits": {
         "storage": 100
+      }
+    },
+    {
+      "uuid": "d2000000000000000000000000000003",
+      "name": "Quantum Chemistry HPC",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "project_uuid": "c2000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 2000
+      }
+    },
+    {
+      "uuid": "d2000000000000000000000000000004",
+      "name": "Climate Modeling Cluster",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "project_uuid": "c2000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000002",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 8000
+      }
+    },
+    {
+      "uuid": "d2000000000000000000000000000005",
+      "name": "Protein Folding GPU Cluster",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "project_uuid": "c2000000000000000000000000000002",
+      "plan_uuid": "12000000000000000000000000000002",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 3000
+      }
+    },
+    {
+      "uuid": "d2000000000000000000000000000006",
+      "name": "Astrophysics Data Archive",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "project_uuid": "c2000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000003",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 500
+      }
+    },
+    {
+      "uuid": "d2000000000000000000000000000007",
+      "name": "Materials Science Storage",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "project_uuid": "c2000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000003",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 200
+      }
+    },
+    {
+      "uuid": "d2000000000000000000000000000008",
+      "name": "ML Training K8s Cluster",
+      "offering_uuid": "f2000000000000000000000000000010",
+      "project_uuid": "c2000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000011",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "vcpu": 64,
+        "ram": 256,
+        "storage": 2000
+      }
+    },
+    {
+      "uuid": "d2000000000000000000000000000009",
+      "name": "JupyterHub Research K8s",
+      "offering_uuid": "f2000000000000000000000000000010",
+      "project_uuid": "c2000000000000000000000000000002",
+      "plan_uuid": "12000000000000000000000000000010",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "vcpu": 32,
+        "ram": 128,
+        "storage": 1000
+      }
+    },
+    {
+      "uuid": "d200000000000000000000000000000a",
+      "name": "Computational Biology HPC",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "project_uuid": "c2000000000000000000000000000002",
+      "plan_uuid": "12000000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 1500
+      }
+    },
+    {
+      "uuid": "d200000000000000000000000000000b",
+      "name": "CRISPR Analysis Storage",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "project_uuid": "c2000000000000000000000000000002",
+      "plan_uuid": "12000000000000000000000000000003",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 75
+      }
+    },
+    {
+      "uuid": "d200000000000000000000000000000c",
+      "name": "Multi-Site Federated Research",
+      "offering_uuid": "f2000000000000000000000000000020",
+      "project_uuid": "c2000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000021",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "vcpu": 128,
+        "ram": 512,
+        "storage": 5000
       }
     }
   ],

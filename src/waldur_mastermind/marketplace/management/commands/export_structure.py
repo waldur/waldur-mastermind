@@ -11,13 +11,15 @@ from waldur_core.checklist.models import (
     Checklist,
     ChecklistCompletion,
     Question,
+    QuestionDependency,
+    QuestionOption,
 )
 from waldur_core.checklist.models import (
     Category as ChecklistCategory,
 )
 from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
-from waldur_core.structure.models import Customer, Project
+from waldur_core.structure.models import Customer, Project, UserAgreement
 from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
 from waldur_mastermind.invoices.models import (
     CustomerCredit,
@@ -27,6 +29,7 @@ from waldur_mastermind.invoices.models import (
 )
 from waldur_mastermind.marketplace.models import (
     Category,
+    CategoryGroup,
     ComponentUsage,
     CourseAccount,
     CustomerServiceAccount,
@@ -40,6 +43,16 @@ from waldur_mastermind.marketplace.models import (
     Resource,
     ResourcePlanPeriod,
     ServiceProvider,
+)
+from waldur_mastermind.proposal.models import (
+    Call,
+    CallManagingOrganisation,
+    CallResourceTemplate,
+    Proposal,
+    RequestedOffering,
+    RequestedResource,
+    Review,
+    Round,
 )
 
 
@@ -140,6 +153,9 @@ class Command(BaseCommand):
                 "service_providers", self.export_service_providers
             ),
             "projects": self.log_export_step("projects", self.export_projects),
+            "category_groups": self.log_export_step(
+                "category_groups", self.export_category_groups
+            ),
             "categories": self.log_export_step("categories", self.export_categories),
             "offerings": self.log_export_step("offerings", self.export_offerings),
             "roles": self.log_export_step("roles", self.export_roles),
@@ -184,6 +200,12 @@ class Command(BaseCommand):
             ),
             "checklists": self.log_export_step("checklists", self.export_checklists),
             "questions": self.log_export_step("questions", self.export_questions),
+            "question_options": self.log_export_step(
+                "question_options", self.export_question_options
+            ),
+            "question_dependencies": self.log_export_step(
+                "question_dependencies", self.export_question_dependencies
+            ),
             "checklist_completions": self.log_export_step(
                 "checklist_completions", self.export_checklist_completions
             ),
@@ -203,6 +225,27 @@ class Command(BaseCommand):
             "project_credits": self.log_export_step(
                 "project_credits", self.export_project_credits
             ),
+            # User agreements
+            "user_agreements": self.log_export_step(
+                "user_agreements", self.export_user_agreements
+            ),
+            # Proposal/Call management exports
+            "call_managing_organisations": self.log_export_step(
+                "call_managing_organisations", self.export_call_managing_organisations
+            ),
+            "calls": self.log_export_step("calls", self.export_calls),
+            "requested_offerings": self.log_export_step(
+                "requested_offerings", self.export_requested_offerings
+            ),
+            "call_resource_templates": self.log_export_step(
+                "call_resource_templates", self.export_call_resource_templates
+            ),
+            "rounds": self.log_export_step("rounds", self.export_rounds),
+            "proposals": self.log_export_step("proposals", self.export_proposals),
+            "requested_resources": self.log_export_step(
+                "requested_resources", self.export_requested_resources
+            ),
+            "reviews": self.log_export_step("reviews", self.export_reviews),
         }
 
         export_elapsed = time.time() - export_start_time
@@ -455,10 +498,24 @@ class Command(BaseCommand):
             projects.append(project_data)
         return projects
 
+    def export_category_groups(self):
+        """Export marketplace category group data."""
+        category_groups = []
+        for group in CategoryGroup.objects.all().order_by("title"):
+            category_groups.append(
+                {
+                    "uuid": group.uuid.hex,
+                    "title": group.title,
+                    "description": group.description,
+                    "created": group.created.isoformat() if group.created else None,
+                }
+            )
+        return category_groups
+
     def export_categories(self):
         """Export marketplace category data."""
         categories = []
-        for category in Category.objects.all().order_by("title"):
+        for category in Category.objects.select_related("group").order_by("title"):
             categories.append(
                 {
                     "uuid": category.uuid.hex,
@@ -468,6 +525,7 @@ class Command(BaseCommand):
                     "default_vm_category": category.default_vm_category,
                     "default_volume_category": category.default_volume_category,
                     "default_tenant_category": category.default_tenant_category,
+                    "group_uuid": category.group.uuid.hex if category.group else None,
                     "created": category.created.isoformat()
                     if category.created
                     else None,
@@ -1139,6 +1197,39 @@ class Command(BaseCommand):
             )
         return questions
 
+    def export_question_options(self):
+        """Export question option data for select-type questions."""
+        options = []
+        for option in QuestionOption.objects.select_related("question").order_by(
+            "question", "order"
+        ):
+            options.append(
+                {
+                    "uuid": option.uuid.hex,
+                    "question_uuid": option.question.uuid.hex,
+                    "label": option.label,
+                    "order": option.order,
+                }
+            )
+        return options
+
+    def export_question_dependencies(self):
+        """Export question dependency data for conditional visibility."""
+        dependencies = []
+        for dep in QuestionDependency.objects.select_related(
+            "question", "depends_on_question"
+        ).order_by("created"):
+            dependencies.append(
+                {
+                    "uuid": dep.uuid.hex,
+                    "question_uuid": dep.question.uuid.hex,
+                    "depends_on_question_uuid": dep.depends_on_question.uuid.hex,
+                    "required_answer_value": dep.required_answer_value,
+                    "operator": dep.operator,
+                }
+            )
+        return dependencies
+
     def export_checklist_completions(self):
         """Export checklist completion data for projects."""
         completions = []
@@ -1400,3 +1491,276 @@ class Command(BaseCommand):
                 }
             )
         return project_credits
+
+    def export_user_agreements(self):
+        """Export user agreement data (Terms of Service, Privacy Policy)."""
+        user_agreements = []
+        for agreement in UserAgreement.objects.all().order_by("agreement_type"):
+            user_agreements.append(
+                {
+                    "uuid": agreement.uuid.hex,
+                    "agreement_type": agreement.agreement_type,
+                    "content": agreement.content,
+                    "created": agreement.created.isoformat()
+                    if agreement.created
+                    else None,
+                    "modified": agreement.modified.isoformat()
+                    if agreement.modified
+                    else None,
+                }
+            )
+        return user_agreements
+
+    def export_call_managing_organisations(self):
+        """Export call managing organisation data."""
+        organisations = []
+        for org in CallManagingOrganisation.objects.select_related("customer").order_by(
+            "customer__name"
+        ):
+            organisations.append(
+                {
+                    "uuid": org.uuid.hex,
+                    "customer_uuid": org.customer.uuid.hex,
+                    "customer_name": org.customer.name,
+                    "name": org.name,
+                    "description": org.description,
+                    "created": org.created.isoformat() if org.created else None,
+                    "modified": org.modified.isoformat() if org.modified else None,
+                }
+            )
+        return organisations
+
+    def export_calls(self):
+        """Export call data."""
+        calls = []
+        for call in Call.objects.select_related(
+            "manager", "manager__customer", "created_by"
+        ).order_by("name"):
+            calls.append(
+                {
+                    "uuid": call.uuid.hex,
+                    "manager_uuid": call.manager.uuid.hex,
+                    "manager_customer_name": call.manager.customer.name,
+                    "name": call.name,
+                    "description": call.description,
+                    "state": call.state,
+                    "created_by_uuid": call.created_by.uuid.hex
+                    if call.created_by
+                    else None,
+                    "external_url": call.external_url,
+                    "reviewer_identity_visible_to_submitters": call.reviewer_identity_visible_to_submitters,
+                    "reviews_visible_to_submitters": call.reviews_visible_to_submitters,
+                    "fixed_duration_in_days": call.fixed_duration_in_days,
+                    "created": call.created.isoformat() if call.created else None,
+                    "modified": call.modified.isoformat() if call.modified else None,
+                }
+            )
+        return calls
+
+    def export_requested_offerings(self):
+        """Export requested offering data."""
+        requested_offerings = []
+        for ro in RequestedOffering.objects.select_related(
+            "call", "offering", "plan", "created_by", "approved_by"
+        ).order_by("call__name", "offering__name"):
+            requested_offerings.append(
+                {
+                    "uuid": ro.uuid.hex,
+                    "call_uuid": ro.call.uuid.hex,
+                    "call_name": ro.call.name,
+                    "offering_uuid": ro.offering.uuid.hex,
+                    "offering_name": ro.offering.name,
+                    "plan_uuid": ro.plan.uuid.hex if ro.plan else None,
+                    "plan_name": ro.plan.name if ro.plan else None,
+                    "state": ro.state,
+                    "description": ro.description,
+                    "created_by_uuid": ro.created_by.uuid.hex
+                    if ro.created_by
+                    else None,
+                    "approved_by_uuid": ro.approved_by.uuid.hex
+                    if ro.approved_by
+                    else None,
+                    "created": ro.created.isoformat() if ro.created else None,
+                    "modified": ro.modified.isoformat() if ro.modified else None,
+                }
+            )
+        return requested_offerings
+
+    def export_call_resource_templates(self):
+        """Export call resource template data."""
+        templates = []
+        for template in CallResourceTemplate.objects.select_related(
+            "call", "requested_offering", "requested_offering__offering", "created_by"
+        ).order_by("call__name", "name"):
+            templates.append(
+                {
+                    "uuid": template.uuid.hex,
+                    "call_uuid": template.call.uuid.hex,
+                    "call_name": template.call.name,
+                    "requested_offering_uuid": template.requested_offering.uuid.hex,
+                    "offering_name": template.requested_offering.offering.name,
+                    "name": template.name,
+                    "description": template.description,
+                    "attributes": template.attributes,
+                    "limits": template.limits,
+                    "is_required": template.is_required,
+                    "created_by_uuid": template.created_by.uuid.hex
+                    if template.created_by
+                    else None,
+                    "created": template.created.isoformat()
+                    if template.created
+                    else None,
+                    "modified": template.modified.isoformat()
+                    if template.modified
+                    else None,
+                }
+            )
+        return templates
+
+    def export_rounds(self):
+        """Export round data."""
+        rounds = []
+        for round_obj in Round.objects.select_related("call").order_by(
+            "call__name", "start_time"
+        ):
+            rounds.append(
+                {
+                    "uuid": round_obj.uuid.hex,
+                    "call_uuid": round_obj.call.uuid.hex,
+                    "call_name": round_obj.call.name,
+                    "start_time": round_obj.start_time.isoformat()
+                    if round_obj.start_time
+                    else None,
+                    "cutoff_time": round_obj.cutoff_time.isoformat()
+                    if round_obj.cutoff_time
+                    else None,
+                    "review_strategy": round_obj.review_strategy,
+                    "deciding_entity": round_obj.deciding_entity,
+                    "allocation_time": round_obj.allocation_time,
+                    "review_duration_in_days": round_obj.review_duration_in_days,
+                    "minimum_number_of_reviewers": round_obj.minimum_number_of_reviewers,
+                    "minimal_average_scoring": str(round_obj.minimal_average_scoring)
+                    if round_obj.minimal_average_scoring is not None
+                    else None,
+                    "allocation_date": round_obj.allocation_date.isoformat()
+                    if round_obj.allocation_date
+                    else None,
+                    "slug": round_obj.slug,
+                    "created": round_obj.created.isoformat()
+                    if round_obj.created
+                    else None,
+                    "modified": round_obj.modified.isoformat()
+                    if round_obj.modified
+                    else None,
+                }
+            )
+        return rounds
+
+    def export_proposals(self):
+        """Export proposal data."""
+        proposals = []
+        for proposal in Proposal.objects.select_related(
+            "round", "round__call", "project", "created_by", "approved_by"
+        ).order_by("round__call__name", "name"):
+            proposals.append(
+                {
+                    "uuid": proposal.uuid.hex,
+                    "round_uuid": proposal.round.uuid.hex,
+                    "call_name": proposal.round.call.name,
+                    "name": proposal.name,
+                    "description": proposal.description,
+                    "state": proposal.state,
+                    "project_uuid": proposal.project.uuid.hex
+                    if proposal.project
+                    else None,
+                    "project_name": proposal.project.name if proposal.project else None,
+                    "created_by_uuid": proposal.created_by.uuid.hex
+                    if proposal.created_by
+                    else None,
+                    "approved_by_uuid": proposal.approved_by.uuid.hex
+                    if proposal.approved_by
+                    else None,
+                    "duration_in_days": proposal.duration_in_days,
+                    "project_summary": proposal.project_summary,
+                    "project_duration": proposal.project_duration,
+                    "project_is_confidential": proposal.project_is_confidential,
+                    "project_has_civilian_purpose": proposal.project_has_civilian_purpose,
+                    "allocation_comment": proposal.allocation_comment,
+                    "slug": proposal.slug,
+                    "created": proposal.created.isoformat()
+                    if proposal.created
+                    else None,
+                    "modified": proposal.modified.isoformat()
+                    if proposal.modified
+                    else None,
+                }
+            )
+        return proposals
+
+    def export_requested_resources(self):
+        """Export requested resource data."""
+        requested_resources = []
+        for rr in RequestedResource.objects.select_related(
+            "proposal",
+            "requested_offering",
+            "requested_offering__offering",
+            "call_resource_template",
+            "created_by",
+            "resource",
+        ).order_by("proposal__name"):
+            requested_resources.append(
+                {
+                    "uuid": rr.uuid.hex,
+                    "proposal_uuid": rr.proposal.uuid.hex,
+                    "proposal_name": rr.proposal.name,
+                    "requested_offering_uuid": rr.requested_offering.uuid.hex,
+                    "offering_name": rr.requested_offering.offering.name,
+                    "call_resource_template_uuid": rr.call_resource_template.uuid.hex
+                    if rr.call_resource_template
+                    else None,
+                    "description": rr.description,
+                    "attributes": rr.attributes,
+                    "limits": rr.limits,
+                    "created_by_uuid": rr.created_by.uuid.hex
+                    if rr.created_by
+                    else None,
+                    "resource_uuid": rr.resource.uuid.hex if rr.resource else None,
+                    "created": rr.created.isoformat() if rr.created else None,
+                    "modified": rr.modified.isoformat() if rr.modified else None,
+                }
+            )
+        return requested_resources
+
+    def export_reviews(self):
+        """Export review data."""
+        reviews = []
+        for review in Review.objects.select_related(
+            "proposal", "proposal__round__call", "reviewer"
+        ).order_by("proposal__name", "reviewer__username"):
+            reviews.append(
+                {
+                    "uuid": review.uuid.hex,
+                    "proposal_uuid": review.proposal.uuid.hex,
+                    "proposal_name": review.proposal.name,
+                    "reviewer_uuid": review.reviewer.uuid.hex,
+                    "reviewer_username": review.reviewer.username,
+                    "state": review.state,
+                    "summary_score": review.summary_score,
+                    "summary_public_comment": review.summary_public_comment,
+                    "summary_private_comment": review.summary_private_comment,
+                    "comment_project_title": review.comment_project_title,
+                    "comment_project_summary": review.comment_project_summary,
+                    "comment_project_description": review.comment_project_description,
+                    "comment_project_duration": review.comment_project_duration,
+                    "comment_project_is_confidential": review.comment_project_is_confidential,
+                    "comment_project_has_civilian_purpose": review.comment_project_has_civilian_purpose,
+                    "comment_project_supporting_documentation": review.comment_project_supporting_documentation,
+                    "comment_resource_requests": review.comment_resource_requests,
+                    "comment_team": review.comment_team,
+                    "created": review.created.isoformat() if review.created else None,
+                    "modified": review.modified.isoformat()
+                    if review.modified
+                    else None,
+                }
+            )
+        return reviews
