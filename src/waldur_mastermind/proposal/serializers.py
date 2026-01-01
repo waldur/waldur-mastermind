@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime
 
 from constance import config
@@ -991,6 +992,16 @@ class ProtectedCallSerializer(PublicCallSerializer):
     compliance_checklist_name = serializers.CharField(
         source="compliance_checklist.name", read_only=True
     )
+    proposal_slug_template = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        help_text=(
+            "Template for proposal slugs. Supports: {call_slug}, {round_slug}, "
+            "{org_slug}, {year}, {month}, {counter}, {counter_padded}. "
+            "Default: {round_slug}-{counter_padded}"
+        ),
+    )
 
     class Meta(PublicCallSerializer.Meta):
         fields = PublicCallSerializer.Meta.fields + (
@@ -998,6 +1009,7 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "reference_code",
             "compliance_checklist",
             "compliance_checklist_name",
+            "proposal_slug_template",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
@@ -1026,6 +1038,58 @@ class ProtectedCallSerializer(PublicCallSerializer):
                 raise serializers.ValidationError(
                     "Cannot change compliance checklist when proposals exist"
                 )
+        return value
+
+    def validate_proposal_slug_template(self, value):
+        """Validate that the template only uses allowed placeholders."""
+        if not value:
+            return value
+
+        # Extract all placeholders from the template (handle format specs like {counter:03d})
+        placeholders = re.findall(r"\{([^}:]+)", value)
+
+        allowed_placeholders = {
+            "call_slug",
+            "round_slug",
+            "org_slug",
+            "year",
+            "month",
+            "counter",
+            "counter_padded",
+        }
+
+        invalid_placeholders = set(placeholders) - allowed_placeholders
+
+        if invalid_placeholders:
+            raise serializers.ValidationError(
+                f"Invalid placeholders: {', '.join(sorted(invalid_placeholders))}. "
+                f"Allowed: {', '.join(sorted(allowed_placeholders))}"
+            )
+
+        # Validate the template by attempting a test format
+        test_context = {
+            "call_slug": "TEST-CALL",
+            "round_slug": "TEST-ROUND-202401",
+            "org_slug": "TEST-ORG",
+            "year": "2024",
+            "month": "01",
+            "counter": "1",
+            "counter_padded": "001",
+        }
+
+        try:
+            value.format(**test_context)
+        except (KeyError, ValueError) as e:
+            raise serializers.ValidationError(f"Invalid template format: {e}")
+
+        # Prevent changing template if proposals exist
+        call: models.Call = self.instance
+        if call and models.Proposal.objects.filter(round__call=call).exists():
+            if value != call.proposal_slug_template:
+                raise serializers.ValidationError(
+                    "Cannot change proposal slug template when proposals exist"
+                )
+
         return value
 
     def create(self, validated_data):
