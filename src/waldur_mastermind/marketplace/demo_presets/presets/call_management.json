@@ -1,0 +1,1750 @@
+{
+  "_metadata": {
+    "title": "Call Management",
+    "description": "Research proposal management system with calls for proposals, peer review processes, and resource allocation workflows.",
+    "version": "1.0.0",
+    "scenarios": [
+      "Research council managing competitive grants",
+      "Peer review and proposal evaluation",
+      "Resource allocation based on reviews",
+      "Multi-round proposal submission"
+    ]
+  },
+  "users": [
+    {
+      "uuid": "00000000000000000000000000000001",
+      "username": "staff",
+      "email": "staff@demo.waldur.com",
+      "first_name": "Staff",
+      "last_name": "User",
+      "is_staff": true,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001001",
+      "organization": "Research Council",
+      "job_title": "System Administrator"
+    },
+    {
+      "uuid": "00000000000000000000000000000002",
+      "username": "support",
+      "email": "support@demo.waldur.com",
+      "first_name": "Support",
+      "last_name": "User",
+      "is_support": true,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001002",
+      "organization": "Research Council",
+      "job_title": "Support Specialist"
+    },
+    {
+      "uuid": "00000000000000000000000000000003",
+      "username": "owner",
+      "email": "owner@demo.waldur.com",
+      "first_name": "Organization",
+      "last_name": "Owner",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001003",
+      "organization": "Physics Department",
+      "job_title": "Department Head"
+    },
+    {
+      "uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "email": "manager@demo.waldur.com",
+      "first_name": "Project",
+      "last_name": "Manager",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001004",
+      "organization": "Physics Department",
+      "job_title": "Research Coordinator"
+    },
+    {
+      "uuid": "00000000000000000000000000000005",
+      "username": "member",
+      "email": "member@demo.waldur.com",
+      "first_name": "Project",
+      "last_name": "Member",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001005",
+      "organization": "Physics Department",
+      "job_title": "Researcher"
+    },
+    {
+      "uuid": "a4000000000000000000000000000001",
+      "username": "call_director",
+      "email": "director@research-council.edu",
+      "first_name": "Research",
+      "last_name": "Director",
+      "is_active": true,
+      "phone_number": "+37256004001",
+      "organization": "National Research Council",
+      "job_title": "Director of Research Programs"
+    },
+    {
+      "uuid": "a4000000000000000000000000000002",
+      "username": "call_manager",
+      "email": "callmanager@research-council.edu",
+      "first_name": "Call",
+      "last_name": "Manager",
+      "is_active": true,
+      "phone_number": "+37256004002",
+      "organization": "National Research Council",
+      "job_title": "Grants Program Manager"
+    },
+    {
+      "uuid": "a4000000000000000000000000000003",
+      "username": "reviewer_physics",
+      "email": "physics.reviewer@university.edu",
+      "first_name": "Albert",
+      "last_name": "Einstein",
+      "is_active": true,
+      "phone_number": "+37256004003",
+      "organization": "ETH Zurich",
+      "job_title": "Professor of Theoretical Physics"
+    },
+    {
+      "uuid": "a4000000000000000000000000000004",
+      "username": "reviewer_chemistry",
+      "email": "chemistry.reviewer@university.edu",
+      "first_name": "Marie",
+      "last_name": "Curie",
+      "is_active": true,
+      "phone_number": "+37256004004",
+      "organization": "University of Paris",
+      "job_title": "Professor of Physical Chemistry"
+    },
+    {
+      "uuid": "a4000000000000000000000000000005",
+      "username": "reviewer_computing",
+      "email": "computing.reviewer@university.edu",
+      "first_name": "Alan",
+      "last_name": "Turing",
+      "is_active": true,
+      "phone_number": "+37256004005",
+      "organization": "Cambridge University",
+      "job_title": "Professor of Computer Science"
+    },
+    {
+      "uuid": "a4000000000000000000000000000006",
+      "username": "pi_quantum",
+      "email": "quantum.pi@physics.edu",
+      "first_name": "Niels",
+      "last_name": "Bohr",
+      "is_active": true,
+      "phone_number": "+37256004006",
+      "organization": "Copenhagen Institute",
+      "job_title": "Principal Investigator"
+    },
+    {
+      "uuid": "a4000000000000000000000000000007",
+      "username": "pi_materials",
+      "email": "materials.pi@chemistry.edu",
+      "first_name": "Linus",
+      "last_name": "Pauling",
+      "is_active": true,
+      "phone_number": "+37256004007",
+      "organization": "Caltech",
+      "job_title": "Principal Investigator"
+    },
+    {
+      "uuid": "a4000000000000000000000000000008",
+      "username": "pi_climate",
+      "email": "climate.pi@environment.edu",
+      "first_name": "Rachel",
+      "last_name": "Carson",
+      "is_active": true,
+      "phone_number": "+37256004008",
+      "organization": "Environmental Sciences Institute",
+      "job_title": "Principal Investigator"
+    }
+  ],
+  "customers": [
+    {
+      "uuid": "b4000000000000000000000000000001",
+      "name": "National Research Council",
+      "abbreviation": "NRC",
+      "description": "National funding agency managing competitive research grants, HPC allocations, and cloud computing resources for academic institutions.",
+      "email": "grants@research-council.edu",
+      "country": "EE"
+    },
+    {
+      "uuid": "b4000000000000000000000000000002",
+      "name": "Physics Department",
+      "abbreviation": "PHY",
+      "description": "Department of Physics conducting research in quantum mechanics, particle physics, and astrophysics.",
+      "email": "physics@university.edu",
+      "country": "EE"
+    },
+    {
+      "uuid": "b4000000000000000000000000000003",
+      "name": "Chemistry Department",
+      "abbreviation": "CHEM",
+      "description": "Department of Chemistry focusing on materials science, computational chemistry, and sustainable energy research.",
+      "email": "chemistry@university.edu",
+      "country": "EE"
+    },
+    {
+      "uuid": "b4000000000000000000000000000004",
+      "name": "Environmental Sciences Institute",
+      "abbreviation": "ESI",
+      "description": "Research institute dedicated to climate modeling, environmental monitoring, and sustainability studies.",
+      "email": "environment@research.edu",
+      "country": "EE"
+    }
+  ],
+  "projects": [
+    {
+      "uuid": "c4000000000000000000000000000001",
+      "name": "Quantum Computing Simulation",
+      "description": "Large-scale quantum computing simulations for algorithm development",
+      "customer_uuid": "b4000000000000000000000000000002"
+    },
+    {
+      "uuid": "c4000000000000000000000000000002",
+      "name": "Materials Discovery Platform",
+      "description": "AI-driven materials discovery and molecular simulation",
+      "customer_uuid": "b4000000000000000000000000000003"
+    },
+    {
+      "uuid": "c4000000000000000000000000000003",
+      "name": "Climate Modeling Initiative",
+      "description": "High-resolution climate modeling and prediction",
+      "customer_uuid": "b4000000000000000000000000000004"
+    }
+  ],
+  "user_agreements": [
+    {
+      "uuid": "8a9b0c1d2e3f4567890123456abcdef8",
+      "agreement_type": "TOS",
+      "content": "# Research Grant Program Terms of Service\n\n**Effective Date:** January 1, 2025\n\n## 1. Eligibility\n\nGrants are available to:\n- Accredited academic institutions\n- Research organizations with non-profit status\n- Government research agencies\n\n## 2. Proposal Requirements\n\n- Clear scientific objectives and methodology\n- Detailed resource justification\n- Team qualifications and roles\n- Timeline and milestones\n- Budget breakdown\n\n## 3. Review Process\n\nAll proposals undergo:\n- Administrative compliance check\n- Technical feasibility review\n- Scientific merit peer review\n- Resource allocation assessment\n\n## 4. Award Conditions\n\n- Resources must be used for stated purposes\n- Progress reports required quarterly\n- Publications must acknowledge funding\n- Unused allocations may be reclaimed\n\n## 5. Intellectual Property\n\n- Grantees retain IP rights\n- Open access publication encouraged\n- Data sharing requirements apply\n\n## 6. Compliance\n\n- Adhere to ethical research guidelines\n- Follow data protection regulations\n- Report any misconduct immediately"
+    },
+    {
+      "uuid": "9a0b1c2d3e4f5678901234567abcdef9",
+      "agreement_type": "PP",
+      "content": "# Research Grant Program Privacy Policy\n\n**Last Updated:** January 1, 2025\n\n## 1. Information We Collect\n\n### Applicant Information\n- Names, affiliations, and contact details\n- Research credentials and publications\n- Institutional information\n\n### Proposal Data\n- Research descriptions and methodologies\n- Resource requests and justifications\n- Team composition and roles\n\n### Review Data\n- Reviewer assignments and evaluations\n- Scores and comments\n- Decision records\n\n## 2. How We Use Information\n\n- Process and evaluate proposals\n- Assign appropriate reviewers\n- Track resource allocations\n- Generate anonymized statistics\n- Communicate decisions and updates\n\n## 3. Information Sharing\n\n- Reviewers see relevant proposal sections\n- Anonymized data shared in reports\n- Required disclosures to oversight bodies\n\n## 4. Data Retention\n\n- Active proposals: Duration of program\n- Completed proposals: 7 years\n- Review records: 5 years\n\n## 5. Your Rights\n\nYou may request:\n- Access to your data\n- Correction of errors\n- Withdrawal of application\n\n## 6. Contact\n\nData Protection: privacy@research-council.edu"
+    }
+  ],
+  "checklists": [
+    {
+      "uuid": "cb100000000000000000000000000001",
+      "name": "Research Ethics & Data Compliance",
+      "description": "Mandatory compliance checklist covering research ethics, human subjects protection, and data handling requirements for proposal submissions.",
+      "checklist_type": "proposal_compliance"
+    },
+    {
+      "uuid": "cb100000000000000000000000000002",
+      "name": "Administrative Eligibility",
+      "description": "Administrative compliance checklist verifying institutional eligibility, funding rules, and conformance with grant program requirements.",
+      "checklist_type": "proposal_compliance"
+    }
+  ],
+  "questions": [
+    {
+      "uuid": "cb200000000000000000000000000001",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "description": "Does your research involve human subjects?",
+      "question_type": "boolean",
+      "required": true,
+      "order": 1,
+      "user_guidance": "Human subjects include any living individual about whom an investigator obtains data through intervention or interaction, or identifiable private information.",
+      "review_answer_value": true,
+      "operator": "equals"
+    },
+    {
+      "uuid": "cb200000000000000000000000000002",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "description": "Have you obtained ethics committee/IRB approval?",
+      "question_type": "boolean",
+      "required": true,
+      "order": 2,
+      "user_guidance": "Provide documentation of ethics approval from your institutional review board or ethics committee."
+    },
+    {
+      "uuid": "cb200000000000000000000000000003",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "description": "Upload ethics approval documentation",
+      "question_type": "file",
+      "required": false,
+      "order": 3,
+      "user_guidance": "Upload a copy of your ethics approval certificate or letter. Accepted formats: PDF, DOC, DOCX."
+    },
+    {
+      "uuid": "cb200000000000000000000000000004",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "description": "What types of personal data will your research process?",
+      "question_type": "multi_select",
+      "required": true,
+      "order": 4,
+      "user_guidance": "Select all categories of personal data that will be collected, processed, or stored during your research.",
+      "review_answer_value": ["cb300000000000000000000000000003", "cb300000000000000000000000000004"],
+      "operator": "in"
+    },
+    {
+      "uuid": "cb200000000000000000000000000005",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "description": "Describe your data protection and security measures",
+      "question_type": "text_area",
+      "required": true,
+      "order": 5,
+      "user_guidance": "Describe encryption methods, access controls, data storage locations, and data retention policies."
+    },
+    {
+      "uuid": "cb200000000000000000000000000006",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "description": "Will personal data be transferred outside the EU/EEA?",
+      "question_type": "boolean",
+      "required": true,
+      "order": 6,
+      "user_guidance": "International data transfers require specific legal safeguards under GDPR.",
+      "review_answer_value": true,
+      "operator": "equals"
+    },
+    {
+      "uuid": "cb200000000000000000000000000007",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "description": "Legal basis for international data transfer",
+      "question_type": "single_select",
+      "required": false,
+      "order": 7,
+      "user_guidance": "Select the legal mechanism that authorizes the international data transfer."
+    },
+    {
+      "uuid": "cb200000000000000000000000000101",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "What type of institution is the applicant organization?",
+      "question_type": "single_select",
+      "required": true,
+      "order": 1,
+      "user_guidance": "Select the category that best describes your organization."
+    },
+    {
+      "uuid": "cb200000000000000000000000000102",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "Is your institution located in an eligible country?",
+      "question_type": "boolean",
+      "required": true,
+      "order": 2,
+      "user_guidance": "Eligible countries include EU member states, EEA countries, and associated countries. Check the call documentation for the full list.",
+      "review_answer_value": false,
+      "operator": "equals"
+    },
+    {
+      "uuid": "cb200000000000000000000000000103",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "Specify the country where your institution is located",
+      "question_type": "text_input",
+      "required": false,
+      "order": 3,
+      "user_guidance": "If your country is not in the eligible list, provide the country name for review."
+    },
+    {
+      "uuid": "cb200000000000000000000000000104",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "Year your institution was established",
+      "question_type": "number",
+      "required": true,
+      "order": 4,
+      "user_guidance": "Enter the founding year of your institution (e.g., 1950)."
+    },
+    {
+      "uuid": "cb200000000000000000000000000105",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "When did your institution receive its current accreditation?",
+      "question_type": "date",
+      "required": true,
+      "order": 5,
+      "user_guidance": "Provide the date when your institution received its most recent official accreditation or recognition."
+    },
+    {
+      "uuid": "cb200000000000000000000000000106",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "Upload institutional registration or accreditation certificate",
+      "question_type": "file",
+      "required": true,
+      "order": 6,
+      "user_guidance": "Upload official documentation proving your institution's legal status. Accepted formats: PDF, DOC, DOCX."
+    },
+    {
+      "uuid": "cb200000000000000000000000000107",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "Do you have existing funding for this research from other sources?",
+      "question_type": "boolean",
+      "required": true,
+      "order": 7,
+      "user_guidance": "Disclose any current or pending funding for the same or overlapping research activities."
+    },
+    {
+      "uuid": "cb200000000000000000000000000108",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "Specify existing funding sources and amounts",
+      "question_type": "text_area",
+      "required": false,
+      "order": 8,
+      "user_guidance": "List all current and pending funding sources, including grant numbers, amounts, and funding periods."
+    },
+    {
+      "uuid": "cb200000000000000000000000000109",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "Which research areas does this proposal cover?",
+      "question_type": "multi_select",
+      "required": true,
+      "order": 9,
+      "user_guidance": "Select all applicable research domains for your proposal."
+    },
+    {
+      "uuid": "cb200000000000000000000000000110",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "Have you submitted this proposal or substantially similar work to other funding programs?",
+      "question_type": "boolean",
+      "required": true,
+      "order": 10,
+      "user_guidance": "Dual submissions may be prohibited or require disclosure depending on program rules."
+    },
+    {
+      "uuid": "cb200000000000000000000000000111",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "List other submissions (program name, date, status)",
+      "question_type": "text_area",
+      "required": false,
+      "order": 11,
+      "user_guidance": "Provide details of any other submissions including program name, submission date, and current status."
+    },
+    {
+      "uuid": "cb200000000000000000000000000112",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "Upload supporting documents for your application",
+      "question_type": "multiple_files",
+      "required": false,
+      "order": 12,
+      "user_guidance": "Upload any additional documentation supporting your eligibility (letters of support, collaboration agreements, etc.)."
+    },
+    {
+      "uuid": "cb200000000000000000000000000113",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "description": "I confirm that the applicant organization and all key personnel meet the eligibility criteria specified in the call documentation",
+      "question_type": "boolean",
+      "required": true,
+      "order": 13,
+      "user_guidance": "By checking this box, you certify that you have reviewed the eligibility requirements and confirm compliance.",
+      "requires_review": true
+    }
+  ],
+  "question_options": [
+    {
+      "uuid": "cb300000000000000000000000000001",
+      "question_uuid": "cb200000000000000000000000000004",
+      "label": "No personal data",
+      "order": 1
+    },
+    {
+      "uuid": "cb300000000000000000000000000002",
+      "question_uuid": "cb200000000000000000000000000004",
+      "label": "Basic identifiers (name, email, affiliation)",
+      "order": 2
+    },
+    {
+      "uuid": "cb300000000000000000000000000003",
+      "question_uuid": "cb200000000000000000000000000004",
+      "label": "Health or medical data",
+      "order": 3
+    },
+    {
+      "uuid": "cb300000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000004",
+      "label": "Genetic or biometric data",
+      "order": 4
+    },
+    {
+      "uuid": "cb300000000000000000000000000005",
+      "question_uuid": "cb200000000000000000000000000004",
+      "label": "Location or behavioral data",
+      "order": 5
+    },
+    {
+      "uuid": "cb300000000000000000000000000101",
+      "question_uuid": "cb200000000000000000000000000007",
+      "label": "EU Commission adequacy decision",
+      "order": 1
+    },
+    {
+      "uuid": "cb300000000000000000000000000102",
+      "question_uuid": "cb200000000000000000000000000007",
+      "label": "Standard Contractual Clauses (SCCs)",
+      "order": 2
+    },
+    {
+      "uuid": "cb300000000000000000000000000103",
+      "question_uuid": "cb200000000000000000000000000007",
+      "label": "Binding Corporate Rules",
+      "order": 3
+    },
+    {
+      "uuid": "cb300000000000000000000000000104",
+      "question_uuid": "cb200000000000000000000000000007",
+      "label": "Explicit consent from data subjects",
+      "order": 4
+    },
+    {
+      "uuid": "cb300000000000000000000000000201",
+      "question_uuid": "cb200000000000000000000000000101",
+      "label": "Public University",
+      "order": 1
+    },
+    {
+      "uuid": "cb300000000000000000000000000202",
+      "question_uuid": "cb200000000000000000000000000101",
+      "label": "Private University",
+      "order": 2
+    },
+    {
+      "uuid": "cb300000000000000000000000000203",
+      "question_uuid": "cb200000000000000000000000000101",
+      "label": "Research Institute",
+      "order": 3
+    },
+    {
+      "uuid": "cb300000000000000000000000000204",
+      "question_uuid": "cb200000000000000000000000000101",
+      "label": "Government Agency",
+      "order": 4
+    },
+    {
+      "uuid": "cb300000000000000000000000000205",
+      "question_uuid": "cb200000000000000000000000000101",
+      "label": "Non-profit Organization",
+      "order": 5
+    },
+    {
+      "uuid": "cb300000000000000000000000000206",
+      "question_uuid": "cb200000000000000000000000000101",
+      "label": "Industry/Corporate",
+      "order": 6
+    },
+    {
+      "uuid": "cb300000000000000000000000000301",
+      "question_uuid": "cb200000000000000000000000000109",
+      "label": "Natural Sciences",
+      "order": 1
+    },
+    {
+      "uuid": "cb300000000000000000000000000302",
+      "question_uuid": "cb200000000000000000000000000109",
+      "label": "Engineering and Technology",
+      "order": 2
+    },
+    {
+      "uuid": "cb300000000000000000000000000303",
+      "question_uuid": "cb200000000000000000000000000109",
+      "label": "Medical and Health Sciences",
+      "order": 3
+    },
+    {
+      "uuid": "cb300000000000000000000000000304",
+      "question_uuid": "cb200000000000000000000000000109",
+      "label": "Agricultural Sciences",
+      "order": 4
+    },
+    {
+      "uuid": "cb300000000000000000000000000305",
+      "question_uuid": "cb200000000000000000000000000109",
+      "label": "Social Sciences",
+      "order": 5
+    },
+    {
+      "uuid": "cb300000000000000000000000000306",
+      "question_uuid": "cb200000000000000000000000000109",
+      "label": "Humanities and Arts",
+      "order": 6
+    }
+  ],
+  "question_dependencies": [
+    {
+      "uuid": "cb400000000000000000000000000001",
+      "question_uuid": "cb200000000000000000000000000002",
+      "depends_on_question_uuid": "cb200000000000000000000000000001",
+      "required_answer_value": true,
+      "operator": "equals"
+    },
+    {
+      "uuid": "cb400000000000000000000000000002",
+      "question_uuid": "cb200000000000000000000000000003",
+      "depends_on_question_uuid": "cb200000000000000000000000000002",
+      "required_answer_value": true,
+      "operator": "equals"
+    },
+    {
+      "uuid": "cb400000000000000000000000000003",
+      "question_uuid": "cb200000000000000000000000000005",
+      "depends_on_question_uuid": "cb200000000000000000000000000004",
+      "required_answer_value": ["cb300000000000000000000000000001"],
+      "operator": "not_equals"
+    },
+    {
+      "uuid": "cb400000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000007",
+      "depends_on_question_uuid": "cb200000000000000000000000000006",
+      "required_answer_value": true,
+      "operator": "equals"
+    },
+    {
+      "uuid": "cb400000000000000000000000000101",
+      "question_uuid": "cb200000000000000000000000000103",
+      "depends_on_question_uuid": "cb200000000000000000000000000102",
+      "required_answer_value": false,
+      "operator": "equals"
+    },
+    {
+      "uuid": "cb400000000000000000000000000102",
+      "question_uuid": "cb200000000000000000000000000108",
+      "depends_on_question_uuid": "cb200000000000000000000000000107",
+      "required_answer_value": true,
+      "operator": "equals"
+    },
+    {
+      "uuid": "cb400000000000000000000000000103",
+      "question_uuid": "cb200000000000000000000000000111",
+      "depends_on_question_uuid": "cb200000000000000000000000000110",
+      "required_answer_value": true,
+      "operator": "equals"
+    }
+  ],
+  "category_groups": [
+    {
+      "uuid": "e1f2a3b4c5d6789012345678abcdef01",
+      "title": "Research Computing",
+      "description": "High-performance computing and data processing resources for research"
+    },
+    {
+      "uuid": "e1f2a3b4c5d6789012345678abcdef02",
+      "title": "Research Data",
+      "description": "Storage and data management services for research datasets"
+    }
+  ],
+  "categories": [
+    {
+      "uuid": "d4000000000000000000000000000001",
+      "title": "HPC Compute",
+      "description": "High-performance computing clusters for research",
+      "group_uuid": "e1f2a3b4c5d6789012345678abcdef01"
+    },
+    {
+      "uuid": "d4000000000000000000000000000002",
+      "title": "Research Storage",
+      "description": "High-capacity storage for research data",
+      "group_uuid": "e1f2a3b4c5d6789012345678abcdef02"
+    },
+    {
+      "uuid": "d4000000000000000000000000000003",
+      "title": "Cloud Computing",
+      "description": "Virtual machines and cloud resources",
+      "group_uuid": "e1f2a3b4c5d6789012345678abcdef01"
+    }
+  ],
+  "service_providers": [
+    {
+      "uuid": "e4000000000000000000000000000001",
+      "customer_uuid": "b4000000000000000000000000000001",
+      "description": "National Research Council - Provider of research computing resources"
+    }
+  ],
+  "offerings": [
+    {
+      "uuid": "f4000000000000000000000000000001",
+      "name": "HPC Standard Allocation",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d4000000000000000000000000000001",
+      "customer_uuid": "b4000000000000000000000000000001",
+      "description": "Standard HPC allocation for research projects",
+      "getting_started": "## Getting Started with HPC Allocation\n\n### Access\nSSH to hpc.research-council.edu\n\n### Job Submission\nUse SLURM for job scheduling\n\n### Support\nEmail: hpc-support@research-council.edu"
+    },
+    {
+      "uuid": "f4000000000000000000000000000002",
+      "name": "HPC Premium Allocation",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d4000000000000000000000000000001",
+      "customer_uuid": "b4000000000000000000000000000001",
+      "description": "Premium HPC allocation with GPU resources",
+      "getting_started": "## Getting Started with Premium HPC\n\n### GPU Access\nRequest GPU partition in SLURM\n\n### Priority Scheduling\nPremium allocations receive priority\n\n### Support\nDedicated support channel available"
+    },
+    {
+      "uuid": "f4000000000000000000000000000003",
+      "name": "Research Data Storage",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d4000000000000000000000000000002",
+      "customer_uuid": "b4000000000000000000000000000001",
+      "description": "High-performance parallel filesystem for research data",
+      "getting_started": "## Getting Started with Research Storage\n\n### Mount Points\n- /project - Project data\n- /scratch - Temporary storage\n\n### Data Transfer\nUse Globus for large transfers"
+    },
+    {
+      "uuid": "f4000000000000000000000000000004",
+      "name": "Cloud VM Package",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d4000000000000000000000000000003",
+      "customer_uuid": "b4000000000000000000000000000001",
+      "description": "Virtual machine package for flexible computing needs",
+      "getting_started": "## Getting Started with Cloud VMs\n\n### Access Portal\nhttps://cloud.research-council.edu\n\n### VM Management\nUse the web interface or API"
+    }
+  ],
+  "offering_components": [
+    {
+      "uuid": "c4000000000000000000000000000101",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "type": "cpu_hours",
+      "name": "CPU Core Hours",
+      "description": "CPU compute time allocation",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "c4000000000000000000000000000102",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "type": "storage",
+      "name": "Scratch Storage",
+      "description": "Fast scratch storage",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c4000000000000000000000000000201",
+      "offering_uuid": "f4000000000000000000000000000002",
+      "type": "gpu_hours",
+      "name": "GPU Hours",
+      "description": "GPU compute time",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "c4000000000000000000000000000202",
+      "offering_uuid": "f4000000000000000000000000000002",
+      "type": "cpu_hours",
+      "name": "CPU Core Hours",
+      "description": "CPU compute time",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "c4000000000000000000000000000301",
+      "offering_uuid": "f4000000000000000000000000000003",
+      "type": "storage",
+      "name": "Storage Capacity",
+      "description": "Research data storage",
+      "billing_type": "limit",
+      "measured_unit": "TB"
+    },
+    {
+      "uuid": "c4000000000000000000000000000401",
+      "offering_uuid": "f4000000000000000000000000000004",
+      "type": "vcpu",
+      "name": "vCPU Cores",
+      "description": "Virtual CPU cores",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c4000000000000000000000000000402",
+      "offering_uuid": "f4000000000000000000000000000004",
+      "type": "ram",
+      "name": "Memory",
+      "description": "RAM allocation",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    }
+  ],
+  "plans": [
+    {
+      "uuid": "14000000000000000000000000000001",
+      "name": "Standard HPC Plan",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "unit": "month"
+    },
+    {
+      "uuid": "14000000000000000000000000000002",
+      "name": "Premium HPC Plan",
+      "offering_uuid": "f4000000000000000000000000000002",
+      "unit": "month"
+    },
+    {
+      "uuid": "14000000000000000000000000000003",
+      "name": "Research Storage Plan",
+      "offering_uuid": "f4000000000000000000000000000003",
+      "unit": "month"
+    },
+    {
+      "uuid": "14000000000000000000000000000004",
+      "name": "Cloud VM Plan",
+      "offering_uuid": "f4000000000000000000000000000004",
+      "unit": "month"
+    }
+  ],
+  "plan_components": [
+    {
+      "plan_uuid": "14000000000000000000000000000001",
+      "component_uuid": "c4000000000000000000000000000101",
+      "price": "0.05",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000001",
+      "component_uuid": "c4000000000000000000000000000102",
+      "price": "0.01",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000002",
+      "component_uuid": "c4000000000000000000000000000201",
+      "price": "0.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000002",
+      "component_uuid": "c4000000000000000000000000000202",
+      "price": "0.03",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000003",
+      "component_uuid": "c4000000000000000000000000000301",
+      "price": "20.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000004",
+      "component_uuid": "c4000000000000000000000000000401",
+      "price": "5.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000004",
+      "component_uuid": "c4000000000000000000000000000402",
+      "price": "2.50",
+      "amount": 0
+    }
+  ],
+  "call_managing_organisations": [
+    {
+      "uuid": "ca100000000000000000000000000001",
+      "customer_uuid": "b4000000000000000000000000000001",
+      "description": "National Research Council manages competitive research grants and resource allocations for academic and research institutions."
+    }
+  ],
+  "calls": [
+    {
+      "uuid": "ca200000000000000000000000000001",
+      "name": "2025 Spring HPC Allocation Call",
+      "description": "Annual competitive call for HPC resource allocation supporting computational research across all scientific domains.",
+      "manager_uuid": "ca100000000000000000000000000001",
+      "created_by_uuid": "a4000000000000000000000000000002",
+      "state": "active",
+      "reviewer_identity_visible_to_submitters": false,
+      "reviews_visible_to_submitters": true,
+      "fixed_duration_in_days": 365,
+      "compliance_checklist_uuid": "cb100000000000000000000000000001"
+    },
+    {
+      "uuid": "ca200000000000000000000000000002",
+      "name": "2025 GPU Research Program",
+      "description": "Specialized call for GPU-intensive research including machine learning, molecular dynamics, and scientific visualization.",
+      "manager_uuid": "ca100000000000000000000000000001",
+      "created_by_uuid": "a4000000000000000000000000000002",
+      "state": "active",
+      "reviewer_identity_visible_to_submitters": true,
+      "reviews_visible_to_submitters": true,
+      "fixed_duration_in_days": 180,
+      "compliance_checklist_uuid": "cb100000000000000000000000000002"
+    },
+    {
+      "uuid": "ca200000000000000000000000000003",
+      "name": "2024 Fall Research Computing",
+      "description": "Completed call for general research computing allocations.",
+      "manager_uuid": "ca100000000000000000000000000001",
+      "created_by_uuid": "a4000000000000000000000000000001",
+      "state": "archived",
+      "reviewer_identity_visible_to_submitters": false,
+      "reviews_visible_to_submitters": true,
+      "fixed_duration_in_days": 365
+    },
+    {
+      "uuid": "ca200000000000000000000000000004",
+      "name": "2025 Summer Cloud Computing",
+      "description": "Draft call for cloud computing resources - not yet published.",
+      "manager_uuid": "ca100000000000000000000000000001",
+      "created_by_uuid": "a4000000000000000000000000000002",
+      "state": "draft",
+      "reviewer_identity_visible_to_submitters": false,
+      "reviews_visible_to_submitters": false,
+      "fixed_duration_in_days": 180
+    }
+  ],
+  "requested_offerings": [
+    {
+      "uuid": "ca300000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "plan_uuid": "14000000000000000000000000000001",
+      "state": "accepted",
+      "description": "Standard HPC allocation available for this call",
+      "approved_by_uuid": "a4000000000000000000000000000001"
+    },
+    {
+      "uuid": "ca300000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "offering_uuid": "f4000000000000000000000000000003",
+      "plan_uuid": "14000000000000000000000000000003",
+      "state": "accepted",
+      "description": "Research storage available for this call",
+      "approved_by_uuid": "a4000000000000000000000000000001"
+    },
+    {
+      "uuid": "ca300000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000002",
+      "offering_uuid": "f4000000000000000000000000000002",
+      "plan_uuid": "14000000000000000000000000000002",
+      "state": "accepted",
+      "description": "Premium GPU HPC allocation for AI/ML research",
+      "approved_by_uuid": "a4000000000000000000000000000001"
+    },
+    {
+      "uuid": "ca300000000000000000000000000004",
+      "call_uuid": "ca200000000000000000000000000002",
+      "offering_uuid": "f4000000000000000000000000000003",
+      "plan_uuid": "14000000000000000000000000000003",
+      "state": "accepted",
+      "description": "Large-scale storage for training datasets",
+      "approved_by_uuid": "a4000000000000000000000000000001"
+    },
+    {
+      "uuid": "ca300000000000000000000000000005",
+      "call_uuid": "ca200000000000000000000000000003",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "plan_uuid": "14000000000000000000000000000001",
+      "state": "accepted",
+      "description": "HPC allocation for archived call"
+    },
+    {
+      "uuid": "ca300000000000000000000000000006",
+      "call_uuid": "ca200000000000000000000000000004",
+      "offering_uuid": "f4000000000000000000000000000004",
+      "plan_uuid": "14000000000000000000000000000004",
+      "state": "requested",
+      "description": "Cloud VM package pending approval"
+    }
+  ],
+  "call_resource_templates": [
+    {
+      "uuid": "ca400000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "requested_offering_uuid": "ca300000000000000000000000000001",
+      "name": "Standard Compute Package",
+      "description": "Standard HPC compute allocation template",
+      "attributes": {
+        "partition": "general",
+        "max_walltime": "72:00:00"
+      },
+      "limits": {
+        "cpu_hours": 100000,
+        "storage": 1000
+      },
+      "is_required": true
+    },
+    {
+      "uuid": "ca400000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "requested_offering_uuid": "ca300000000000000000000000000002",
+      "name": "Research Storage Package",
+      "description": "Storage allocation for research data",
+      "attributes": {
+        "backup": "daily",
+        "retention": "1year"
+      },
+      "limits": {
+        "storage": 10
+      },
+      "is_required": false
+    },
+    {
+      "uuid": "ca400000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000002",
+      "requested_offering_uuid": "ca300000000000000000000000000003",
+      "name": "GPU Compute Package",
+      "description": "Premium GPU allocation for ML/AI workloads",
+      "attributes": {
+        "partition": "gpu",
+        "gpu_type": "A100",
+        "max_walltime": "48:00:00"
+      },
+      "limits": {
+        "gpu_hours": 5000,
+        "cpu_hours": 50000
+      },
+      "is_required": true
+    },
+    {
+      "uuid": "ca400000000000000000000000000004",
+      "call_uuid": "ca200000000000000000000000000002",
+      "requested_offering_uuid": "ca300000000000000000000000000004",
+      "name": "ML Dataset Storage",
+      "description": "High-capacity storage for training datasets",
+      "attributes": {
+        "performance_tier": "high",
+        "backup": "weekly"
+      },
+      "limits": {
+        "storage": 50
+      },
+      "is_required": true
+    }
+  ],
+  "rounds": [
+    {
+      "uuid": "ca500000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "start_time": "relative:-30days",
+      "cutoff_time": "relative:+60days",
+      "review_strategy": "AFTER_ROUND",
+      "deciding_entity": "BY_CALL_MANAGER",
+      "allocation_time": "FIXED_DATE",
+      "allocation_date": "relative:+120days",
+      "minimum_number_of_reviewers": 3,
+      "minimal_average_scoring": "7.0",
+      "review_duration_in_days": 30
+    },
+    {
+      "uuid": "ca500000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "start_time": "relative:+180days",
+      "cutoff_time": "relative:+270days",
+      "review_strategy": "AFTER_ROUND",
+      "deciding_entity": "BY_CALL_MANAGER",
+      "allocation_time": "FIXED_DATE",
+      "allocation_date": "relative:+330days",
+      "minimum_number_of_reviewers": 3,
+      "minimal_average_scoring": "7.0",
+      "review_duration_in_days": 30
+    },
+    {
+      "uuid": "ca500000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000002",
+      "start_time": "relative:-15days",
+      "cutoff_time": "relative:+350days",
+      "review_strategy": "AFTER_PROPOSAL",
+      "deciding_entity": "AUTOMATIC",
+      "allocation_time": "ON_DECISION",
+      "minimum_number_of_reviewers": 2,
+      "minimal_average_scoring": "6.0",
+      "review_duration_in_days": 14
+    },
+    {
+      "uuid": "ca500000000000000000000000000004",
+      "call_uuid": "ca200000000000000000000000000003",
+      "start_time": "relative:-180days",
+      "cutoff_time": "relative:-90days",
+      "review_strategy": "AFTER_ROUND",
+      "deciding_entity": "BY_CALL_MANAGER",
+      "allocation_time": "FIXED_DATE",
+      "allocation_date": "relative:-60days",
+      "minimum_number_of_reviewers": 3,
+      "minimal_average_scoring": "7.0",
+      "review_duration_in_days": 30
+    }
+  ],
+  "proposals": [
+    {
+      "uuid": "ca600000000000000000000000000001",
+      "name": "Quantum Error Correction Simulations",
+      "round_uuid": "ca500000000000000000000000000001",
+      "state": "submitted",
+      "created_by_uuid": "a4000000000000000000000000000006",
+      "project_summary": "This proposal requests HPC resources for large-scale quantum error correction code simulations. We aim to develop and benchmark novel quantum error correction codes that can be implemented on near-term quantum hardware.",
+      "project_duration": 365,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "oecd_fos_2007_code": "1.3"
+    },
+    {
+      "uuid": "ca600000000000000000000000000002",
+      "name": "Novel Battery Materials Discovery",
+      "round_uuid": "ca500000000000000000000000000001",
+      "state": "in_review",
+      "created_by_uuid": "a4000000000000000000000000000007",
+      "project_summary": "We propose to use high-throughput computational screening to discover new battery electrode materials. Our approach combines DFT calculations with machine learning to accelerate the discovery process.",
+      "project_duration": 365,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "oecd_fos_2007_code": "2.5"
+    },
+    {
+      "uuid": "ca600000000000000000000000000003",
+      "name": "Global Climate Model Enhancement",
+      "round_uuid": "ca500000000000000000000000000001",
+      "state": "draft",
+      "created_by_uuid": "a4000000000000000000000000000008",
+      "project_summary": "This project aims to enhance global climate model resolution using adaptive mesh refinement techniques. We will focus on improving precipitation predictions in mountainous regions.",
+      "project_duration": 365,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "oecd_fos_2007_code": "1.5"
+    },
+    {
+      "uuid": "ca600000000000000000000000000004",
+      "name": "Large Language Model Fine-tuning",
+      "round_uuid": "ca500000000000000000000000000003",
+      "state": "submitted",
+      "created_by_uuid": "00000000000000000000000000000004",
+      "project_summary": "We request GPU resources to fine-tune large language models for scientific text understanding. The models will be optimized for extracting structured information from research papers.",
+      "project_duration": 180,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "oecd_fos_2007_code": "1.2"
+    },
+    {
+      "uuid": "ca600000000000000000000000000005",
+      "name": "Protein Structure Prediction",
+      "round_uuid": "ca500000000000000000000000000003",
+      "state": "in_review",
+      "created_by_uuid": "a4000000000000000000000000000007",
+      "project_summary": "This proposal focuses on using deep learning methods for protein structure prediction. We will develop and train neural networks to predict 3D protein structures from amino acid sequences.",
+      "project_duration": 180,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "oecd_fos_2007_code": "1.6"
+    },
+    {
+      "uuid": "ca600000000000000000000000000006",
+      "name": "Molecular Dynamics of Membrane Proteins",
+      "round_uuid": "ca500000000000000000000000000003",
+      "state": "accepted",
+      "created_by_uuid": "a4000000000000000000000000000006",
+      "approved_by_uuid": "a4000000000000000000000000000002",
+      "project_uuid": "c4000000000000000000000000000001",
+      "project_summary": "We propose large-scale molecular dynamics simulations of membrane protein complexes. This work will provide insights into drug binding mechanisms and membrane transport.",
+      "project_duration": 180,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "allocation_comment": "Excellent proposal with strong scientific merit",
+      "oecd_fos_2007_code": "1.6"
+    },
+    {
+      "uuid": "ca600000000000000000000000000007",
+      "name": "Weather Prediction Neural Network",
+      "round_uuid": "ca500000000000000000000000000003",
+      "state": "rejected",
+      "created_by_uuid": "a4000000000000000000000000000008",
+      "project_summary": "Training neural networks for short-term weather prediction using historical data.",
+      "project_duration": 180,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "allocation_comment": "Insufficient technical detail in methodology",
+      "oecd_fos_2007_code": "1.5"
+    },
+    {
+      "uuid": "ca600000000000000000000000000008",
+      "name": "Particle Physics Event Simulation",
+      "round_uuid": "ca500000000000000000000000000004",
+      "state": "accepted",
+      "created_by_uuid": "a4000000000000000000000000000006",
+      "approved_by_uuid": "a4000000000000000000000000000001",
+      "project_summary": "Monte Carlo simulation of particle physics events for LHC data analysis.",
+      "project_duration": 365,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "allocation_comment": "Strong track record and clear methodology",
+      "oecd_fos_2007_code": "1.3"
+    },
+    {
+      "uuid": "ca600000000000000000000000000009",
+      "name": "Computational Fluid Dynamics Study",
+      "round_uuid": "ca500000000000000000000000000004",
+      "state": "accepted",
+      "created_by_uuid": "00000000000000000000000000000004",
+      "approved_by_uuid": "a4000000000000000000000000000001",
+      "project_summary": "CFD simulations for aerodynamic optimization of wind turbine blades.",
+      "project_duration": 365,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "allocation_comment": "Important application with clear industrial impact",
+      "oecd_fos_2007_code": "2.3"
+    },
+    {
+      "uuid": "ca60000000000000000000000000000a",
+      "name": "Genomic Data Analysis Pipeline",
+      "round_uuid": "ca500000000000000000000000000004",
+      "state": "rejected",
+      "created_by_uuid": "a4000000000000000000000000000007",
+      "project_summary": "Development of genomic analysis pipeline for population genetics studies.",
+      "project_duration": 365,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "allocation_comment": "Resource request not well justified",
+      "oecd_fos_2007_code": "1.6"
+    },
+    {
+      "uuid": "ca60000000000000000000000000000b",
+      "name": "Drug Discovery AI Platform",
+      "round_uuid": "ca500000000000000000000000000003",
+      "state": "draft",
+      "created_by_uuid": "a4000000000000000000000000000007",
+      "project_summary": "AI-powered platform for virtual screening of drug candidates.",
+      "project_duration": 180,
+      "project_is_confidential": true,
+      "project_has_civilian_purpose": true,
+      "oecd_fos_2007_code": "3.1"
+    },
+    {
+      "uuid": "ca60000000000000000000000000000c",
+      "name": "Astrophysical Simulation Project",
+      "round_uuid": "ca500000000000000000000000000001",
+      "state": "canceled",
+      "created_by_uuid": "00000000000000000000000000000005",
+      "project_summary": "N-body simulations of galaxy formation and evolution.",
+      "project_duration": 365,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "oecd_fos_2007_code": "1.3"
+    }
+  ],
+  "requested_resources": [
+    {
+      "uuid": "ca700000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "requested_offering_uuid": "ca300000000000000000000000000001",
+      "call_resource_template_uuid": "ca400000000000000000000000000001",
+      "description": "HPC allocation for quantum simulation codes",
+      "attributes": {
+        "partition": "general",
+        "max_walltime": "72:00:00"
+      },
+      "limits": {
+        "cpu_hours": 80000,
+        "storage": 500
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "requested_offering_uuid": "ca300000000000000000000000000002",
+      "call_resource_template_uuid": "ca400000000000000000000000000002",
+      "description": "Storage for quantum simulation results",
+      "attributes": {
+        "backup": "daily"
+      },
+      "limits": {
+        "storage": 5
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000003",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "requested_offering_uuid": "ca300000000000000000000000000001",
+      "call_resource_template_uuid": "ca400000000000000000000000000001",
+      "description": "HPC for DFT calculations",
+      "attributes": {
+        "partition": "general",
+        "max_walltime": "72:00:00"
+      },
+      "limits": {
+        "cpu_hours": 100000,
+        "storage": 800
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000004",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "requested_offering_uuid": "ca300000000000000000000000000003",
+      "call_resource_template_uuid": "ca400000000000000000000000000003",
+      "description": "GPU allocation for LLM fine-tuning",
+      "attributes": {
+        "partition": "gpu",
+        "gpu_type": "A100"
+      },
+      "limits": {
+        "gpu_hours": 2000,
+        "cpu_hours": 20000
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000005",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "requested_offering_uuid": "ca300000000000000000000000000004",
+      "call_resource_template_uuid": "ca400000000000000000000000000004",
+      "description": "Storage for training datasets",
+      "attributes": {
+        "performance_tier": "high"
+      },
+      "limits": {
+        "storage": 30
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000006",
+      "proposal_uuid": "ca600000000000000000000000000005",
+      "requested_offering_uuid": "ca300000000000000000000000000003",
+      "call_resource_template_uuid": "ca400000000000000000000000000003",
+      "description": "GPU for protein structure prediction",
+      "attributes": {
+        "partition": "gpu",
+        "gpu_type": "A100"
+      },
+      "limits": {
+        "gpu_hours": 4000,
+        "cpu_hours": 40000
+      }
+    },
+    {
+      "uuid": "ca700000000000000000000000000007",
+      "proposal_uuid": "ca600000000000000000000000000006",
+      "requested_offering_uuid": "ca300000000000000000000000000003",
+      "call_resource_template_uuid": "ca400000000000000000000000000003",
+      "description": "GPU for molecular dynamics",
+      "attributes": {
+        "partition": "gpu",
+        "gpu_type": "A100"
+      },
+      "limits": {
+        "gpu_hours": 5000,
+        "cpu_hours": 50000
+      }
+    }
+  ],
+  "reviews": [
+    {
+      "uuid": "ca800000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "reviewer_uuid": "a4000000000000000000000000000003",
+      "state": "submitted",
+      "summary_score": 8,
+      "summary_public_comment": "Excellent proposal with strong scientific rationale and well-defined methodology. The team has demonstrated expertise in this area.",
+      "summary_private_comment": "Recommend funding. Strong track record.",
+      "comment_project_summary": "Clear and well-structured",
+      "comment_resource_requests": "Resource estimates are reasonable",
+      "comment_team": "Strong team composition"
+    },
+    {
+      "uuid": "ca800000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "reviewer_uuid": "a4000000000000000000000000000004",
+      "state": "submitted",
+      "summary_score": 7,
+      "summary_public_comment": "Good proposal addressing an important research question. Some concerns about the timeline feasibility.",
+      "summary_private_comment": "Consider requesting revised timeline.",
+      "comment_project_summary": "Well written",
+      "comment_project_duration": "Timeline seems optimistic",
+      "comment_resource_requests": "Adequate resource request"
+    },
+    {
+      "uuid": "ca800000000000000000000000000003",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "reviewer_uuid": "a4000000000000000000000000000005",
+      "state": "in_review",
+      "summary_score": 0,
+      "summary_public_comment": "",
+      "summary_private_comment": "",
+      "comment_project_summary": "Review in progress"
+    },
+    {
+      "uuid": "ca800000000000000000000000000004",
+      "proposal_uuid": "ca600000000000000000000000000005",
+      "reviewer_uuid": "a4000000000000000000000000000004",
+      "state": "submitted",
+      "summary_score": 9,
+      "summary_public_comment": "Outstanding proposal. Novel approach to protein structure prediction with significant potential impact.",
+      "summary_private_comment": "Highly recommend funding.",
+      "comment_project_summary": "Excellent scientific quality",
+      "comment_resource_requests": "Well justified"
+    },
+    {
+      "uuid": "ca800000000000000000000000000005",
+      "proposal_uuid": "ca600000000000000000000000000005",
+      "reviewer_uuid": "a4000000000000000000000000000005",
+      "state": "created",
+      "summary_score": 0,
+      "summary_public_comment": "",
+      "summary_private_comment": ""
+    },
+    {
+      "uuid": "ca800000000000000000000000000006",
+      "proposal_uuid": "ca600000000000000000000000000006",
+      "reviewer_uuid": "a4000000000000000000000000000003",
+      "state": "submitted",
+      "summary_score": 9,
+      "summary_public_comment": "Excellent scientific merit. Well-planned simulations with clear objectives.",
+      "summary_private_comment": "Strong recommendation for acceptance."
+    },
+    {
+      "uuid": "ca800000000000000000000000000007",
+      "proposal_uuid": "ca600000000000000000000000000006",
+      "reviewer_uuid": "a4000000000000000000000000000004",
+      "state": "submitted",
+      "summary_score": 8,
+      "summary_public_comment": "Very good proposal with practical applications to drug discovery.",
+      "summary_private_comment": "Recommend funding."
+    },
+    {
+      "uuid": "ca800000000000000000000000000008",
+      "proposal_uuid": "ca600000000000000000000000000007",
+      "reviewer_uuid": "a4000000000000000000000000000003",
+      "state": "submitted",
+      "summary_score": 4,
+      "summary_public_comment": "The proposal lacks technical depth. Methodology section needs significant improvement.",
+      "summary_private_comment": "Do not recommend funding in current form."
+    },
+    {
+      "uuid": "ca800000000000000000000000000009",
+      "proposal_uuid": "ca600000000000000000000000000007",
+      "reviewer_uuid": "a4000000000000000000000000000005",
+      "state": "submitted",
+      "summary_score": 5,
+      "summary_public_comment": "Interesting topic but proposal needs more detail on validation approach.",
+      "summary_private_comment": "Suggest major revisions."
+    },
+    {
+      "uuid": "ca80000000000000000000000000000a",
+      "proposal_uuid": "ca600000000000000000000000000008",
+      "reviewer_uuid": "a4000000000000000000000000000003",
+      "state": "submitted",
+      "summary_score": 9,
+      "summary_public_comment": "Outstanding proposal for particle physics simulation. Strong team with proven track record.",
+      "summary_private_comment": "High priority for funding."
+    },
+    {
+      "uuid": "ca80000000000000000000000000000b",
+      "proposal_uuid": "ca600000000000000000000000000008",
+      "reviewer_uuid": "a4000000000000000000000000000004",
+      "state": "submitted",
+      "summary_score": 8,
+      "summary_public_comment": "Well-structured proposal with clear deliverables.",
+      "summary_private_comment": "Recommend acceptance."
+    },
+    {
+      "uuid": "ca80000000000000000000000000000c",
+      "proposal_uuid": "ca600000000000000000000000000008",
+      "reviewer_uuid": "a4000000000000000000000000000005",
+      "state": "submitted",
+      "summary_score": 9,
+      "summary_public_comment": "Excellent proposal addressing important computational challenges in particle physics.",
+      "summary_private_comment": "Strong support for funding."
+    }
+  ],
+  "resources": [
+    {
+      "uuid": "d4000000000000000000000000000001",
+      "name": "Quantum Computing Project HPC",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "project_uuid": "c4000000000000000000000000000001",
+      "plan_uuid": "14000000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 50000,
+        "storage": 500
+      }
+    },
+    {
+      "uuid": "d4000000000000000000000000000002",
+      "name": "Materials Discovery GPU Cluster",
+      "offering_uuid": "f4000000000000000000000000000002",
+      "project_uuid": "c4000000000000000000000000000002",
+      "plan_uuid": "14000000000000000000000000000002",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "gpu_hours": 2000,
+        "cpu_hours": 30000
+      }
+    },
+    {
+      "uuid": "d4000000000000000000000000000003",
+      "name": "Climate Modeling Storage",
+      "offering_uuid": "f4000000000000000000000000000003",
+      "project_uuid": "c4000000000000000000000000000003",
+      "plan_uuid": "14000000000000000000000000000003",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 20
+      }
+    },
+    {
+      "uuid": "d4000000000000000000000000000004",
+      "name": "Physics Simulation HPC",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "project_uuid": "c4000000000000000000000000000001",
+      "plan_uuid": "14000000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 80000,
+        "storage": 800
+      }
+    },
+    {
+      "uuid": "d4000000000000000000000000000005",
+      "name": "Chemistry Lab Cloud VMs",
+      "offering_uuid": "f4000000000000000000000000000004",
+      "project_uuid": "c4000000000000000000000000000002",
+      "plan_uuid": "14000000000000000000000000000004",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "vcpu": 16,
+        "ram": 64
+      }
+    },
+    {
+      "uuid": "d4000000000000000000000000000006",
+      "name": "Research Data Archive",
+      "offering_uuid": "f4000000000000000000000000000003",
+      "project_uuid": "c4000000000000000000000000000001",
+      "plan_uuid": "14000000000000000000000000000003",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 50
+      }
+    },
+    {
+      "uuid": "d4000000000000000000000000000007",
+      "name": "Bioinformatics Pipeline",
+      "offering_uuid": "f4000000000000000000000000000002",
+      "project_uuid": "c4000000000000000000000000000002",
+      "plan_uuid": "14000000000000000000000000000002",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "gpu_hours": 1000,
+        "cpu_hours": 20000
+      }
+    },
+    {
+      "uuid": "d4000000000000000000000000000008",
+      "name": "Environmental Modeling HPC",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "project_uuid": "c4000000000000000000000000000003",
+      "plan_uuid": "14000000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 60000,
+        "storage": 400
+      }
+    },
+    {
+      "uuid": "d4000000000000000000000000000009",
+      "name": "ML Training GPU Allocation",
+      "offering_uuid": "f4000000000000000000000000000002",
+      "project_uuid": "c4000000000000000000000000000001",
+      "plan_uuid": "14000000000000000000000000000002",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "gpu_hours": 3000,
+        "cpu_hours": 25000
+      }
+    },
+    {
+      "uuid": "d400000000000000000000000000000a",
+      "name": "Simulation Results Storage",
+      "offering_uuid": "f4000000000000000000000000000003",
+      "project_uuid": "c4000000000000000000000000000002",
+      "plan_uuid": "14000000000000000000000000000003",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 30
+      }
+    },
+    {
+      "uuid": "d400000000000000000000000000000b",
+      "name": "Development Cloud Environment",
+      "offering_uuid": "f4000000000000000000000000000004",
+      "project_uuid": "c4000000000000000000000000000003",
+      "plan_uuid": "14000000000000000000000000000004",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "vcpu": 8,
+        "ram": 32
+      }
+    },
+    {
+      "uuid": "d400000000000000000000000000000c",
+      "name": "Data Analysis HPC Allocation",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "project_uuid": "c4000000000000000000000000000002",
+      "plan_uuid": "14000000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 40000,
+        "storage": 300
+      }
+    }
+  ],
+  "user_roles": [
+    {
+      "uuid": "04000000000000000000000000000001",
+      "user_uuid": "a4000000000000000000000000000001",
+      "user_username": "call_director",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b4000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000002",
+      "user_uuid": "a4000000000000000000000000000002",
+      "user_username": "call_manager",
+      "role_name": "CUSTOMER.SUPPORT",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b4000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000003",
+      "user_uuid": "00000000000000000000000000000003",
+      "user_username": "owner",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "b4000000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000004",
+      "user_uuid": "a4000000000000000000000000000006",
+      "user_username": "pi_quantum",
+      "role_name": "PROJECT.ADMIN",
+      "scope_type": "structure.project",
+      "scope_uuid": "c4000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000005",
+      "user_uuid": "a4000000000000000000000000000007",
+      "user_username": "pi_materials",
+      "role_name": "PROJECT.ADMIN",
+      "scope_type": "structure.project",
+      "scope_uuid": "c4000000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000006",
+      "user_uuid": "a4000000000000000000000000000008",
+      "user_username": "pi_climate",
+      "role_name": "PROJECT.ADMIN",
+      "scope_type": "structure.project",
+      "scope_uuid": "c4000000000000000000000000000003",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000007",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "manager",
+      "role_name": "PROJECT.MANAGER",
+      "scope_type": "structure.project",
+      "scope_uuid": "c4000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000008",
+      "user_uuid": "00000000000000000000000000000005",
+      "user_username": "member",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "c4000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000009",
+      "user_uuid": "a4000000000000000000000000000003",
+      "user_username": "reviewer_physics",
+      "role_name": "CALL.REVIEWER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000000a",
+      "user_uuid": "a4000000000000000000000000000004",
+      "user_username": "reviewer_chemistry",
+      "role_name": "CALL.REVIEWER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000000b",
+      "user_uuid": "a4000000000000000000000000000005",
+      "user_username": "reviewer_computing",
+      "role_name": "CALL.REVIEWER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000000c",
+      "user_uuid": "a4000000000000000000000000000002",
+      "user_username": "call_manager",
+      "role_name": "CALL.MANAGER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000000d",
+      "user_uuid": "a4000000000000000000000000000003",
+      "user_username": "reviewer_physics",
+      "role_name": "CALL.REVIEWER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000000e",
+      "user_uuid": "a4000000000000000000000000000004",
+      "user_username": "reviewer_chemistry",
+      "role_name": "CALL.REVIEWER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "0400000000000000000000000000000f",
+      "user_uuid": "a4000000000000000000000000000005",
+      "user_username": "reviewer_computing",
+      "role_name": "CALL.REVIEWER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000010",
+      "user_uuid": "a4000000000000000000000000000002",
+      "user_username": "call_manager",
+      "role_name": "CALL.MANAGER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000002",
+      "is_active": true
+    }
+  ],
+  "constance_settings": {
+    "SITE_NAME": "Research Grant Portal",
+    "SITE_DESCRIPTION": "Competitive research grant management platform for proposal submission, peer review, and resource allocation.",
+    "MARKETPLACE_LANDING_PAGE": "Research Computing Services",
+    "CURRENCY_NAME": "EUR"
+  }
+}

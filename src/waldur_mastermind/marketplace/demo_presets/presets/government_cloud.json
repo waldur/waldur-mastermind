@@ -11,6 +11,18 @@
       "E-government services platform"
     ]
   },
+  "user_agreements": [
+    {
+      "uuid": "2a3b4c5d6e7f8901234567890abcdef2",
+      "agreement_type": "TOS",
+      "content": "# Government Cloud Terms of Service\n\n## 1. Scope and Applicability\n\nThese terms govern the use of Government Cloud Authority services by public sector entities.\n\n## 2. Compliance Requirements\n\n- GDPR compliance mandatory\n- Data residency within national borders\n- Security clearance for administrative access\n\n## 3. Data Classification\n\nAll data must be classified according to government security standards:\n- PUBLIC\n- RESTRICTED\n- CONFIDENTIAL\n\n## 4. Security Controls\n\n- Multi-factor authentication required\n- Annual security audits\n- Incident response within 24 hours\n\n## 5. Service Level Agreement\n\nGuaranteed 99.95% uptime for critical services."
+    },
+    {
+      "uuid": "3a4b5c6d7e8f9012345678901abcdef3",
+      "agreement_type": "PP",
+      "content": "# Government Cloud Privacy Policy\n\n## 1. Legal Framework\n\nData processing complies with:\n- General Data Protection Regulation (GDPR)\n- National Data Protection Act\n- Government IT Security Standards\n\n## 2. Data Controller\n\nGovernment Cloud Authority acts as data processor. Each agency remains data controller.\n\n## 3. Data Processing\n\n- Processing only within approved jurisdictions\n- No third-party access without authorization\n- Encryption at rest and in transit\n\n## 4. Data Subject Rights\n\nCitizens retain all rights under GDPR including access, rectification, and erasure.\n\n## 5. Audit Trail\n\nComplete audit logs maintained for 7 years as required by law."
+    }
+  ],
   "users": [
     {
       "uuid": "00000000000000000000000000000001",
@@ -159,26 +171,42 @@
       "customer_uuid": "b1000000000000000000000000000003"
     }
   ],
+  "category_groups": [
+    {
+      "uuid": "b1c2d3e4f5a6789012345678abcdef01",
+      "title": "Secure Compute",
+      "description": "Government-certified compute resources including VMs and container orchestration"
+    },
+    {
+      "uuid": "b1c2d3e4f5a6789012345678abcdef02",
+      "title": "Secure Data Services",
+      "description": "GDPR-compliant storage and database services with encryption"
+    }
+  ],
   "categories": [
     {
       "uuid": "d1000000000000000000000000000001",
       "title": "Secure Compute",
-      "description": "Government-certified secure virtual machines"
+      "description": "Government-certified secure virtual machines",
+      "group_uuid": "b1c2d3e4f5a6789012345678abcdef01"
     },
     {
       "uuid": "d1000000000000000000000000000002",
       "title": "Encrypted Storage",
-      "description": "GDPR and government-compliant encrypted storage"
+      "description": "GDPR and government-compliant encrypted storage",
+      "group_uuid": "b1c2d3e4f5a6789012345678abcdef02"
     },
     {
       "uuid": "d1000000000000000000000000000003",
       "title": "Managed Databases",
-      "description": "Managed database services with compliance features"
+      "description": "Managed database services with compliance features",
+      "group_uuid": "b1c2d3e4f5a6789012345678abcdef02"
     },
     {
       "uuid": "d1000000000000000000000000000004",
       "title": "Secure Container Orchestration",
-      "description": "Government-certified Kubernetes clusters with security hardening"
+      "description": "Government-certified Kubernetes clusters with security hardening",
+      "group_uuid": "b1c2d3e4f5a6789012345678abcdef01"
     }
   ],
   "service_providers": [
@@ -860,6 +888,130 @@
       "state": 2,
       "attributes": {},
       "limits": {
+        "storage": 2000
+      }
+    },
+    {
+      "uuid": "d1000000000000000000000000000004",
+      "name": "Citizen Portal Backend",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "11000000000000000000000000000002",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu": 8,
+        "ram": 32,
+        "storage": 200
+      }
+    },
+    {
+      "uuid": "d1000000000000000000000000000005",
+      "name": "Authentication Service VM",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "11000000000000000000000000000002",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu": 4,
+        "ram": 16,
+        "storage": 50
+      }
+    },
+    {
+      "uuid": "d1000000000000000000000000000006",
+      "name": "E-Health Records DB",
+      "offering_uuid": "f1000000000000000000000000000003",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "11000000000000000000000000000004",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu": 16,
+        "ram": 64,
+        "storage": 1000
+      }
+    },
+    {
+      "uuid": "d1000000000000000000000000000007",
+      "name": "Pension System Archive",
+      "offering_uuid": "f1000000000000000000000000000002",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "11000000000000000000000000000003",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "storage": 5000
+      }
+    },
+    {
+      "uuid": "d1000000000000000000000000000008",
+      "name": "Elections Management System",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "11000000000000000000000000000002",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu": 8,
+        "ram": 32,
+        "storage": 100
+      }
+    },
+    {
+      "uuid": "d1000000000000000000000000000009",
+      "name": "Public Safety Database",
+      "offering_uuid": "f1000000000000000000000000000003",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "11000000000000000000000000000004",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu": 8,
+        "ram": 32,
+        "storage": 300
+      }
+    },
+    {
+      "uuid": "d100000000000000000000000000000a",
+      "name": "Government K8s Cluster",
+      "offering_uuid": "f1000000000000000000000000000010",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "11000000000000000000000000000010",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "vcpu": 64,
+        "ram": 256,
+        "storage": 1000
+      }
+    },
+    {
+      "uuid": "d100000000000000000000000000000b",
+      "name": "Secure K8s Environment",
+      "offering_uuid": "f1000000000000000000000000000010",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "11000000000000000000000000000011",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "vcpu": 32,
+        "ram": 128,
+        "storage": 500
+      }
+    },
+    {
+      "uuid": "d100000000000000000000000000000c",
+      "name": "Multi-Region HA Cluster",
+      "offering_uuid": "f1000000000000000000000000000020",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "11000000000000000000000000000020",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "vcpu": 96,
+        "ram": 384,
         "storage": 2000
       }
     }
