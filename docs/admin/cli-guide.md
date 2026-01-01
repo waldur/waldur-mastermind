@@ -1017,6 +1017,22 @@ positional arguments:
 
 ```
 
+## set_login_logo_language
+
+Set or remove language-specific login logos
+
+```bash
+
+usage: waldur set_login_logo_language -l LANGUAGE [-f FILE] [-r]
+
+options:
+  -l LANGUAGE, --language LANGUAGE
+                        ISO 639-1 language code (e.g., 'de', 'et', 'fr')
+  -f FILE, --file FILE  Path to the logo image file
+  -r, --remove          Remove the language-specific logo
+
+```
+
 ## status
 
 Check status of Waldur MasterMind configured services

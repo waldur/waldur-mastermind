@@ -1533,6 +1533,12 @@ The image rendered at hero section of Call Management landing page. Please, use 
 
 A custom .png image file for login page
 
+#### LOGIN_LOGO_MULTILINGUAL
+
+**Type:** multilingual_image_field
+
+Language-specific login logos. Dict mapping language codes to image paths, e.g., {'de': 'path/to/german_logo.png'}. Falls back to LOGIN_LOGO if requested language not found.
+
 #### FAVICON
 
 **Type:** image_field
