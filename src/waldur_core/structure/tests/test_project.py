@@ -265,10 +265,10 @@ class ProjectCreateTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         payload = self._get_valid_project_payload(self.fixture.customer)
         payload["name"] = "project_with_end_date"
-        payload["end_date"] = "2025-12-31"
+        payload["end_date"] = "2030-12-31"
         response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(str(response.data["end_date"]), "2025-12-31")
+        self.assertEqual(str(response.data["end_date"]), "2030-12-31")
 
     @override_config(PROJECT_END_DATE_MANDATORY=False)
     def test_project_can_be_created_without_end_date_when_setting_disabled(self):
