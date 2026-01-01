@@ -102,6 +102,61 @@ class DictSerializerField(serializers.CharField):
         return value
 
 
+class MultilingualImageSerializerField(serializers.DictField):
+    """
+    A field for handling language-specific image uploads.
+
+    Accepts a dictionary where keys are language codes and values are image files.
+    Example: {"de": <UploadedFile>, "et": <UploadedFile>}
+
+    Returns a dictionary of language codes to stored file paths.
+    """
+
+    child = serializers.ImageField(allow_null=True, required=False)
+
+    def to_internal_value(self, data):
+        if not data:
+            return {}
+
+        # Handle JSON string input (for compatibility with existing data)
+        if isinstance(data, str):
+            try:
+                return json.loads(data)
+            except ValueError as e:
+                raise serializers.ValidationError(f"Invalid JSON format: {str(e)}")
+
+        if not isinstance(data, dict):
+            raise serializers.ValidationError(
+                "Expected a dictionary of language codes to images."
+            )
+
+        result = {}
+        for lang_code, image in data.items():
+            if not isinstance(lang_code, str) or len(lang_code) > 10:
+                raise serializers.ValidationError(
+                    f"Invalid language code '{lang_code}'. Must be a string (max 10 chars)."
+                )
+            # Allow None/empty to remove a language entry
+            if image is None or image == "":
+                continue
+            # If it's already a string path, keep it (for partial updates)
+            if isinstance(image, str):
+                result[lang_code] = image
+            else:
+                # Validate it's a proper image file
+                validated_image = self.child.run_validation(image)
+                result[lang_code] = validated_image
+
+        return result
+
+    def to_representation(self, value):
+        if value is None:
+            return {}
+        if isinstance(value, dict):
+            return value
+        return {}
+
+
 class ObtainAuthTokenSerializer(serializers.Serializer):
     """
     API token serializer loosely based on DRF's default AuthTokenSerializer.
@@ -525,6 +580,8 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 field_class = serializers.BooleanField
             if config_type == "dict_field":
                 field_class = DictSerializerField
+            if config_type == "multilingual_image_field":
+                field_class = MultilingualImageSerializerField
             if config_type == "list_field":
                 field_class = StringListSerializer
             if config_type == "country_list_field":
@@ -563,8 +620,20 @@ class ConstanceSettingsSerializer(serializers.Serializer):
             current = getattr(config, name)
             new = self.validated_data[name]
             if current != new:
+                # Handle single image file
                 if hasattr(new, "name"):
                     new = default_storage.save(new.name, new)
+                # Handle dict of image files (multilingual_image_field)
+                elif isinstance(new, dict):
+                    processed = {}
+                    for key, value in new.items():
+                        if hasattr(value, "name"):
+                            # It's an uploaded file, save it
+                            processed[key] = default_storage.save(value.name, value)
+                        else:
+                            # It's already a path string
+                            processed[key] = value
+                    new = processed
                 setattr(config, name, new)
 
 

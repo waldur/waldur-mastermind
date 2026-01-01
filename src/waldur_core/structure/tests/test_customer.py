@@ -1083,6 +1083,7 @@ class CustomerInetFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
 
 
+@freeze_time("2025-06-01")
 class CustomerResourceQuotasTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()

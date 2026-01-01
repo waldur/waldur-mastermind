@@ -34,6 +34,10 @@ CONSTANCE_ADDITIONAL_FIELDS = {
         {"required": False},
     ],
     "choice_field": ["django.forms.ChoiceField", {"required": False}],
+    "multilingual_image_field": [
+        "waldur_core.core.forms.MultilingualImageField",
+        {"required": False},
+    ],
 }
 CONSTANCE_CONFIG = {
     "SITE_NAME": ("Waldur", "Human-friendly name of the Waldur deployment."),
@@ -230,6 +234,13 @@ CONSTANCE_CONFIG = {
     ),
     "SITE_LOGO": ("", "The image used in marketplace order header.", "image_field"),
     "LOGIN_LOGO": ("", "A custom .png image file for login page", "image_field"),
+    "LOGIN_LOGO_MULTILINGUAL": (
+        {},
+        "Language-specific login logos. Dict mapping language codes to image paths, "
+        "e.g., {'de': 'path/to/german_logo.png'}. "
+        "Falls back to LOGIN_LOGO if requested language not found.",
+        "multilingual_image_field",
+    ),
     "FAVICON": ("", "A custom favicon .png image file", "image_field"),
     "OFFERING_LOGO_PLACEHOLDER": ("", "Default logo for offering", "image_field"),
     # service desk integration settings
@@ -742,6 +753,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "MARKETPLACE_HERO_IMAGE",
         "CALL_MANAGEMENT_HERO_IMAGE",
         "LOGIN_LOGO",
+        "LOGIN_LOGO_MULTILINGUAL",
         "FAVICON",
         "OFFERING_LOGO_PLACEHOLDER",
         "KEYCLOAK_ICON",

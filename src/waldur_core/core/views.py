@@ -522,6 +522,37 @@ def configuration_detail(request):
     return Response(get_public_settings(request))
 
 
+def _parse_bracket_notation(data):
+    """
+    Parse bracket notation keys from multipart form data into nested dicts.
+
+    Converts keys like 'LOGIN_LOGO_MULTILINGUAL[de]' into
+    {'LOGIN_LOGO_MULTILINGUAL': {'de': value}}.
+    """
+    import re
+
+    result = dict(data)
+    bracket_pattern = re.compile(r"^(\w+)\[(\w+)\]$")
+
+    keys_to_remove = []
+    nested_values = {}
+
+    for key, value in data.items():
+        match = bracket_pattern.match(key)
+        if match:
+            base_key, nested_key = match.groups()
+            if base_key not in nested_values:
+                nested_values[base_key] = {}
+            nested_values[base_key][nested_key] = value
+            keys_to_remove.append(key)
+
+    for key in keys_to_remove:
+        result.pop(key, None)
+
+    result.update(nested_values)
+    return result
+
+
 @extend_schema(
     methods=["GET"],
     summary="Get all overridable settings",
@@ -554,7 +585,11 @@ def override_db_settings(request):
         from constance.admin import get_values
 
         return Response(get_values())
-    serializer = ConstanceSettingsSerializer(data=request.data)
+
+    # Parse bracket notation keys for nested dict fields (e.g., multilingual images)
+    data = _parse_bracket_notation(request.data)
+
+    serializer = ConstanceSettingsSerializer(data=data)
     serializer.is_valid(raise_exception=True)
     serializer.save()
     cache.delete("API_CONFIGURATION")
@@ -928,7 +963,18 @@ class QueryViewSet(generics.GenericAPIView):
 @api_view(["GET"])
 @permission_classes((rf_permissions.AllowAny,))
 def get_whitelabeling_logo(request, logo_type, default_image=None):
-    file_name = getattr(config, logo_type)
+    file_name = None
+    language = request.query_params.get("language")
+
+    # Check for language-specific version (only for LOGIN_LOGO)
+    if language and logo_type == "LOGIN_LOGO":
+        multilingual = getattr(config, "LOGIN_LOGO_MULTILINGUAL", None) or {}
+        file_name = multilingual.get(language)
+
+    # Fallback to default setting
+    if not file_name:
+        file_name = getattr(config, logo_type)
+
     if file_name:
         try:
             content_type, encoding = mimetypes.guess_type(file_name)
