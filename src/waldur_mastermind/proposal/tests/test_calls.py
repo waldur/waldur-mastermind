@@ -737,3 +737,127 @@ class AvailableChecklistsTest(test.APITransactionTestCase):
         self.assertIn("questions_count", checklist_data)
         self.assertIn("category_name", checklist_data)
         self.assertIn("category_uuid", checklist_data)
+
+
+class CallProposalSlugTemplateSerializerTest(test.APITransactionTestCase):
+    """Tests for proposal_slug_template field validation in Call serializer."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        # Create a fresh active call without proposals
+        self.call = factories.CallFactory(
+            manager=self.fixture.manager,
+            state=CallStates.ACTIVE,
+            created_by=self.fixture.owner,
+        )
+        # Add call_manager to the new call
+        self.call.add_user(self.fixture.call_manager, CallRole.MANAGER)
+        self.url = factories.CallFactory.get_protected_url(self.call)
+
+    def test_valid_template_accepted(self):
+        """Valid template passes validation."""
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.patch(
+            self.url, {"proposal_slug_template": "{call_slug}-{year}-{counter_padded}"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.call.refresh_from_db()
+        self.assertEqual(
+            self.call.proposal_slug_template,
+            "{call_slug}-{year}-{counter_padded}",
+        )
+
+    def test_valid_template_with_all_variables(self):
+        """Template with all allowed variables passes validation."""
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.patch(
+            self.url,
+            {
+                "proposal_slug_template": "{org_slug}-{call_slug}-{round_slug}-{year}{month}-{counter}-{counter_padded}"
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_empty_template_accepted(self):
+        """Empty template is accepted (uses default)."""
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.patch(self.url, {"proposal_slug_template": ""})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_null_template_accepted(self):
+        """Null template is accepted (uses default)."""
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.patch(self.url, {"proposal_slug_template": None})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_invalid_placeholder_rejected(self):
+        """Invalid placeholder raises validation error."""
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.patch(
+            self.url, {"proposal_slug_template": "{invalid}-{counter_padded}"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Invalid placeholders", str(response.data))
+        self.assertIn("invalid", str(response.data))
+
+    def test_multiple_invalid_placeholders_rejected(self):
+        """Multiple invalid placeholders are listed in error."""
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.patch(
+            self.url, {"proposal_slug_template": "{foo}-{bar}-{counter_padded}"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("bar", str(response.data))
+        self.assertIn("foo", str(response.data))
+
+    def test_malformed_template_rejected(self):
+        """Malformed template raises validation error."""
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.patch(
+            self.url,
+            {"proposal_slug_template": "{call_slug"},  # Missing closing brace
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_cannot_change_template_with_proposals(self):
+        """Cannot change template when proposals exist."""
+        # Create a proposal to lock the template
+        round_obj = factories.RoundFactory(call=self.call)
+        factories.ProposalFactory(round=round_obj)
+
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.patch(
+            self.url, {"proposal_slug_template": "{call_slug}-{counter_padded}"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("proposals exist", str(response.data))
+
+    def test_can_set_same_template_with_proposals(self):
+        """Can set the same template value when proposals exist."""
+        # Set initial template
+        self.call.proposal_slug_template = "{call_slug}-{counter_padded}"
+        self.call.save()
+
+        # Create a proposal
+        round_obj = factories.RoundFactory(call=self.call)
+        factories.ProposalFactory(round=round_obj)
+
+        # Setting the same value should be allowed
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.patch(
+            self.url, {"proposal_slug_template": "{call_slug}-{counter_padded}"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_template_field_in_response(self):
+        """Template field is included in API response."""
+        self.call.proposal_slug_template = "{org_slug}-{counter_padded}"
+        self.call.save()
+
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("proposal_slug_template", response.data)
+        self.assertEqual(
+            response.data["proposal_slug_template"], "{org_slug}-{counter_padded}"
+        )

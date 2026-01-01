@@ -157,6 +157,18 @@ class Call(
         help_text="Compliance checklist that proposals must complete before submission",
     )
 
+    # Proposal slug template configuration
+    proposal_slug_template = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=(
+            "Template for proposal slugs. Supports: {call_slug}, {round_slug}, "
+            "{org_slug}, {year}, {month}, {counter}, {counter_padded}. "
+            "Default: {round_slug}-{counter_padded}"
+        ),
+    )
+
     objects = managers.CallManager()
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
@@ -181,11 +193,15 @@ class Call(
         return self.manager.customer
 
     def clean(self):
-        """Prevent changing checklist if proposals exist."""
-        if self.pk and self.tracker.has_changed("compliance_checklist"):
-            if self.proposal_set.exists():
+        """Prevent changing checklist or slug template if proposals exist."""
+        if self.pk and self.proposal_set.exists():
+            if self.tracker.has_changed("compliance_checklist"):
                 raise ValidationError(
                     "Cannot change compliance checklist when proposals exist"
+                )
+            if self.tracker.has_changed("proposal_slug_template"):
+                raise ValidationError(
+                    "Cannot change proposal slug template when proposals exist"
                 )
 
 
@@ -565,33 +581,71 @@ class Proposal(
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            # Generate slug with Round slug prefix and unique counter
-            round_slug = (
-                self.round.slug if self.round and self.round.slug else "PROPOSAL"
-            )
-            # Clean the round slug but keep the separator hyphen
-            clean_round_slug = core_models.clean_slug_hyphens(round_slug)
-            base_slug = f"{clean_round_slug}-"
-
-            # Find the highest counter for proposals in this round
-            existing_proposals = Proposal.objects.filter(
-                round=self.round, slug__startswith=base_slug
-            ).exclude(pk=self.pk if self.pk else None)
-
-            max_counter = 0
-            for proposal in existing_proposals:
-                try:
-                    # Extract counter from slug (e.g., "ROUND-SLUG-001" -> 1)
-                    suffix = proposal.slug[len(base_slug) :]
-                    if suffix.isdigit():
-                        max_counter = max(max_counter, int(suffix))
-                except (ValueError, IndexError):
-                    continue
-
-            # Set slug with next available counter (capitalized, 3-digit zero-padded)
-            self.slug = f"{base_slug}{max_counter + 1:03d}".upper()
-
+            self.slug = self._generate_slug()
         super().save(*args, **kwargs)
+
+    def _generate_slug(self):
+        """Generate proposal slug using call's template or default pattern."""
+        logger = logging.getLogger(__name__)
+        template = (
+            self.round.call.proposal_slug_template
+            if self.round and self.round.call
+            else None
+        )
+
+        context = self._get_slug_context()
+
+        if template:
+            try:
+                raw_slug = template.format(**context)
+            except (KeyError, ValueError) as e:
+                logger.error(
+                    f"Failed to format proposal slug template '{template}' "
+                    f"for proposal in round {self.round.slug if self.round else 'N/A'}: {e}. "
+                    f"Falling back to default format."
+                )
+                raw_slug = self._get_default_slug(context)
+        else:
+            raw_slug = self._get_default_slug(context)
+
+        return core_models.clean_slug_hyphens(raw_slug).upper()
+
+    def _get_slug_context(self):
+        """Build context dictionary for slug template substitution."""
+        now = timezone.now()
+        counter = self._calculate_counter()
+
+        call = self.round.call if self.round else None
+        round_slug = self.round.slug if self.round and self.round.slug else "PROPOSAL"
+        call_slug = call.slug if call and call.slug else ""
+        org_slug = call.manager.customer.slug if call and call.manager else ""
+
+        return {
+            "call_slug": call_slug,
+            "round_slug": round_slug,
+            "org_slug": org_slug,
+            "year": now.strftime("%Y"),
+            "month": now.strftime("%m"),
+            "counter": str(counter),
+            "counter_padded": f"{counter:03d}",
+        }
+
+    def _get_default_slug(self, context):
+        """Generate default slug format for backwards compatibility."""
+        return f"{context['round_slug']}-{context['counter_padded']}"
+
+    def _calculate_counter(self):
+        """Calculate the next counter value for proposals in this round.
+
+        Simply counts existing proposals in the round + 1 for the next counter.
+        This approach works regardless of the slug template format.
+        """
+        existing_count = (
+            Proposal.objects.filter(round=self.round)
+            .exclude(pk=self.pk if self.pk else None)
+            .count()
+        )
+        return existing_count + 1
 
     def submit(self, user):
         """Submit proposal after validation."""

@@ -630,6 +630,195 @@ class ProposalSlugGenerationTest(test.APITransactionTestCase):
         proposal.delete()
 
 
+class ProposalSlugTemplateTest(test.APITransactionTestCase):
+    """Tests for configurable proposal slug templates."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+
+    def test_default_template_when_none_configured(self):
+        """Proposals use default format when call has no template."""
+        # Ensure no template is set
+        self.fixture.call.proposal_slug_template = None
+        self.fixture.call.save()
+
+        # Create fresh round to avoid counter conflicts
+        fresh_round = models.Round.objects.create(
+            call=self.fixture.call,
+            start_time=datetime.date(2025, 1, 1),
+            cutoff_time=datetime.date(2025, 1, 10),
+        )
+
+        proposal = models.Proposal.objects.create(name="Test", round=fresh_round)
+
+        # Default: {round_slug}-{counter_padded}
+        self.assertTrue(proposal.slug.startswith(fresh_round.slug))
+        self.assertTrue(proposal.slug.endswith("-001"))
+
+        # Clean up
+        proposal.delete()
+        fresh_round.delete()
+
+    def test_custom_template_with_call_slug(self):
+        """Custom template using call_slug variable."""
+        self.fixture.call.proposal_slug_template = "{call_slug}-{counter_padded}"
+        self.fixture.call.save()
+
+        # Create fresh round
+        fresh_round = models.Round.objects.create(
+            call=self.fixture.call,
+            start_time=datetime.date(2025, 2, 1),
+            cutoff_time=datetime.date(2025, 2, 10),
+        )
+
+        proposal = models.Proposal.objects.create(name="Test", round=fresh_round)
+
+        expected = f"{self.fixture.call.slug}-001".upper()
+        self.assertEqual(proposal.slug, expected)
+
+        # Clean up
+        proposal.delete()
+        fresh_round.delete()
+
+    def test_custom_template_with_org_slug(self):
+        """Custom template using org_slug variable."""
+        self.fixture.call.proposal_slug_template = "{org_slug}-{year}-{counter_padded}"
+        self.fixture.call.save()
+
+        # Create fresh round
+        fresh_round = models.Round.objects.create(
+            call=self.fixture.call,
+            start_time=datetime.date(2025, 3, 1),
+            cutoff_time=datetime.date(2025, 3, 10),
+        )
+
+        proposal = models.Proposal.objects.create(name="Test", round=fresh_round)
+
+        # Should contain org slug
+        org_slug = self.fixture.call.manager.customer.slug.upper()
+        self.assertTrue(proposal.slug.startswith(org_slug))
+        self.assertTrue(proposal.slug.endswith("-001"))
+
+        # Clean up
+        proposal.delete()
+        fresh_round.delete()
+
+    def test_custom_template_with_year_month(self):
+        """Custom template using year and month variables."""
+        self.fixture.call.proposal_slug_template = (
+            "{call_slug}-{year}{month}-{counter_padded}"
+        )
+        self.fixture.call.save()
+
+        # Create fresh round
+        fresh_round = models.Round.objects.create(
+            call=self.fixture.call,
+            start_time=datetime.date(2025, 4, 1),
+            cutoff_time=datetime.date(2025, 4, 10),
+        )
+
+        proposal = models.Proposal.objects.create(name="Test", round=fresh_round)
+
+        # Should contain call slug and year/month pattern
+        self.assertTrue(proposal.slug.startswith(self.fixture.call.slug.upper()))
+        # Should have format CALL-YYYYMM-001
+        parts = proposal.slug.split("-")
+        self.assertEqual(parts[-1], "001")
+
+        # Clean up
+        proposal.delete()
+        fresh_round.delete()
+
+    def test_invalid_template_fallback(self):
+        """Invalid template falls back to default format."""
+        self.fixture.call.proposal_slug_template = "{invalid_var}-{counter_padded}"
+        self.fixture.call.save()
+
+        # Create fresh round
+        fresh_round = models.Round.objects.create(
+            call=self.fixture.call,
+            start_time=datetime.date(2025, 5, 1),
+            cutoff_time=datetime.date(2025, 5, 10),
+        )
+
+        proposal = models.Proposal.objects.create(name="Test", round=fresh_round)
+
+        # Should fallback to default format
+        self.assertTrue(proposal.slug.startswith(fresh_round.slug))
+        self.assertTrue(proposal.slug.endswith("-001"))
+
+        # Clean up
+        proposal.delete()
+        fresh_round.delete()
+
+    def test_counter_increments_within_round_with_template(self):
+        """Counter increments for each proposal in the round with custom template."""
+        self.fixture.call.proposal_slug_template = "{call_slug}-{counter_padded}"
+        self.fixture.call.save()
+
+        # Create fresh round
+        fresh_round = models.Round.objects.create(
+            call=self.fixture.call,
+            start_time=datetime.date(2025, 6, 1),
+            cutoff_time=datetime.date(2025, 6, 10),
+        )
+
+        p1 = models.Proposal.objects.create(name="P1", round=fresh_round)
+        p2 = models.Proposal.objects.create(name="P2", round=fresh_round)
+        p3 = models.Proposal.objects.create(name="P3", round=fresh_round)
+
+        self.assertTrue(p1.slug.endswith("-001"))
+        self.assertTrue(p2.slug.endswith("-002"))
+        self.assertTrue(p3.slug.endswith("-003"))
+
+        # Clean up
+        p1.delete()
+        p2.delete()
+        p3.delete()
+        fresh_round.delete()
+
+    def test_slug_is_url_safe_with_template(self):
+        """Generated slugs are URL-safe with templates."""
+        self.fixture.call.proposal_slug_template = "{round_slug}--{counter_padded}"
+        self.fixture.call.save()
+
+        # Create fresh round
+        fresh_round = models.Round.objects.create(
+            call=self.fixture.call,
+            start_time=datetime.date(2025, 7, 1),
+            cutoff_time=datetime.date(2025, 7, 10),
+        )
+
+        proposal = models.Proposal.objects.create(name="Test", round=fresh_round)
+
+        # Double hyphens should be cleaned
+        self.assertNotIn("--", proposal.slug)
+
+        # Clean up
+        proposal.delete()
+        fresh_round.delete()
+
+    def test_slug_is_uppercased_with_template(self):
+        """Generated slugs are uppercased with templates."""
+        self.fixture.call.proposal_slug_template = "{call_slug}-{counter_padded}"
+        self.fixture.call.save()
+
+        # Create fresh round
+        fresh_round = models.Round.objects.create(
+            call=self.fixture.call,
+            start_time=datetime.date(2025, 8, 1),
+            cutoff_time=datetime.date(2025, 8, 10),
+        )
+
+        proposal = models.Proposal.objects.create(name="Test", round=fresh_round)
+
+        self.assertEqual(proposal.slug, proposal.slug.upper())
+
+        # Clean up
+        proposal.delete()
+        fresh_round.delete()
+
+
 class SlugUtilityTest(test.APITransactionTestCase):
     def test_clean_slug_hyphens_function(self):
         """Test the clean_slug_hyphens utility function."""
