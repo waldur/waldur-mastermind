@@ -156,6 +156,39 @@ class UpdateProposalProjectDetailsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(proposal.proposaldocumentation_set.count(), 1)
 
+    def _detach_proposal_document(self, doc_uuids):
+        url = factories.ProposalFactory.get_url(
+            self.proposal, action="detach_documents"
+        )
+        payload = {"documents": doc_uuids}
+        return self.client.post(url, payload)
+
+    @data("staff", "call_manager")
+    def test_detach_documents(self, user):
+        # First upload a document
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        self._upload_proposal_document()
+        proposal = models.Proposal.objects.get(uuid=self.proposal.uuid)
+        self.assertEqual(proposal.proposaldocumentation_set.count(), 1)
+
+        # Then detach it
+        doc = proposal.proposaldocumentation_set.first()
+        response = self._detach_proposal_document([str(doc.uuid)])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.proposaldocumentation_set.count(), 0)
+
+    @data("staff", "call_manager")
+    def test_detach_nonexistent_document(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        # Try to detach a non-existent document - should succeed without error
+        response = self._detach_proposal_document(
+            ["00000000-0000-0000-0000-000000000000"]
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     @data(
         "staff",
         "proposal_creator",

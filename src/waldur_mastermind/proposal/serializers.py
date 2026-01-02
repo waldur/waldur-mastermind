@@ -1191,7 +1191,12 @@ class ProposalDocumentationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.ProposalDocumentation
-        fields = ["file", "file_name", "file_size", "created"]
+        fields = ["uuid", "file", "file_name", "file_size", "created"]
+        read_only_fields = ["uuid"]
+
+
+class ProposalDetachDocumentsSerializer(serializers.Serializer):
+    documents = serializers.ListField(child=serializers.UUIDField())
 
 
 class ProposalUpdateProjectDetailsSerializer(serializers.ModelSerializer):

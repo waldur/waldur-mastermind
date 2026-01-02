@@ -954,6 +954,43 @@ class ProposalViewSet(
     attach_document_serializer_class = serializers.ProposalDocumentationSerializer
 
     @extend_schema(
+        request=serializers.ProposalDetachDocumentsSerializer,
+        responses=None,
+        description="Detach documents from proposal.",
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def detach_documents(self, request, uuid=None):
+        proposal = cast(models.Proposal, self.get_object())
+        # Handle both JSON (list) and form data (QueryDict with getlist)
+        if hasattr(request.data, "getlist"):
+            documents = request.data.getlist("documents", [])
+        else:
+            documents = request.data.get("documents", [])
+        for doc_uuid in documents:
+            try:
+                doc = models.ProposalDocumentation.objects.get(
+                    proposal=proposal,
+                    uuid=doc_uuid,
+                )
+                doc.delete()
+                event_logger.emit(
+                    f"Attachment for proposal {proposal.name} has been removed.",
+                    event_type=EventType.PROPOSAL_DOCUMENT_REMOVED,
+                    event_context={"proposal": proposal},
+                    scopes=[_get_customer(proposal)],
+                )
+                logger.info(f"Attachment for {proposal.name} has been removed.")
+            except models.ProposalDocumentation.DoesNotExist:
+                pass  # Skip non-existent documents
+
+        return response.Response(
+            "Documents removed successfully",
+            status=status.HTTP_200_OK,
+        )
+
+    detach_documents_serializer_class = serializers.ProposalDetachDocumentsSerializer
+
+    @extend_schema(
         description="Approve a proposal.",
         request=serializers.ProposalApproveSerializer,
         responses={status.HTTP_200_OK: None},
