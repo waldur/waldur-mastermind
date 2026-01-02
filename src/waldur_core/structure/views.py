@@ -1592,6 +1592,24 @@ class OrganizationGroupViewSet(core_views.ActionsViewSet):
     ordering_fields = ("name", "customers_count")
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List user agreements",
+        description="Retrieve a list of user agreements (Terms of Service and Privacy Policy). Supports filtering by agreement type and language with fallback behavior.",
+        parameters=[
+            OpenApiParameter(
+                "language",
+                OpenApiTypes.STR,
+                OpenApiParameter.QUERY,
+                description="ISO 639-1 language code (e.g., 'en', 'de', 'et'). Returns requested language or falls back to default version if unavailable.",
+            )
+        ],
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve user agreement",
+        description="Fetch the details of a specific user agreement by its UUID.",
+    ),
+)
 class UserAgreementsViewSet(ActionsViewSet):
     serializer_class = serializers.UserAgreementSerializer
     permission_classes = (core_permissions.ActionsPermission,)
