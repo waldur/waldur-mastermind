@@ -394,11 +394,12 @@ class QuestionAdminSerializer(QuestionSerializer):
                 f"Guidance answer value '{guidance_answer_value}' is not valid for question type '{question_type}'."
             )
 
-        # Validate min/max values for NUMBER questions only
-        if question_type and question_type != "number":
+        # Validate min/max values for NUMBER, YEAR, and RATING questions only
+        numeric_types = ["number", "year", "rating"]
+        if question_type and question_type not in numeric_types:
             if min_value is not None or max_value is not None:
                 raise serializers.ValidationError(
-                    "Min and max values can only be set for NUMBER type questions."
+                    "Min and max values can only be set for NUMBER, YEAR, and RATING type questions."
                 )
 
         # Validate that min_value is not greater than max_value
