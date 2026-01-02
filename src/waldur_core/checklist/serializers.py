@@ -195,6 +195,7 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
     existing_answer = serializers.SerializerMethodField()
     question_options = serializers.SerializerMethodField()
     user_guidance = serializers.SerializerMethodField()
+    dependencies_info = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Question
@@ -213,6 +214,7 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
             "allowed_mime_types",
             "max_file_size_mb",
             "max_files_count",
+            "dependencies_info",
         )
         read_only_fields = (
             "uuid",
@@ -229,6 +231,7 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
             "allowed_mime_types",
             "max_file_size_mb",
             "max_files_count",
+            "dependencies_info",
         )
 
     @extend_schema_field(serializers.DictField(allow_null=True))
@@ -298,6 +301,26 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
             if obj.always_show_guidance:
                 return obj.user_guidance if obj.user_guidance.strip() else None
             return None
+
+    @extend_schema_field(serializers.DictField(allow_null=True))
+    def get_dependencies_info(self, obj):
+        """Return dependency information for conditional questions."""
+        if not obj.is_dependant():
+            return None
+
+        dependencies = obj.dependencies.select_related("depends_on_question").all()
+
+        return {
+            "logic": obj.dependency_logic_operator,
+            "conditions": [
+                {
+                    "question_description": dep.depends_on_question.description,
+                    "operator": dep.operator,
+                    "required_value": dep.required_answer_value,
+                }
+                for dep in dependencies
+            ],
+        }
 
 
 class QuestionWithAnswerReviewerSerializer(QuestionWithAnswerSerializer):

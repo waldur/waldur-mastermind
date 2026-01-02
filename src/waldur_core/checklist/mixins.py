@@ -87,6 +87,15 @@ class UserChecklistMixin(BaseChecklistMixin):
 
     @extend_schema(
         description="Get checklist with questions and existing answers.",
+        parameters=[
+            OpenApiParameter(
+                name="include_all",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                description="If true, returns all questions including hidden ones (for dynamic form visibility). Default: false.",
+                required=False,
+            ),
+        ],
         responses={
             200: checklist_serializers.ChecklistResponseSerializer,
             400: {"description": "No checklist configured"},
@@ -107,8 +116,17 @@ class UserChecklistMixin(BaseChecklistMixin):
 
         checklist = completion.checklist
 
-        # Get visible questions using checklist module logic
-        questions = checklist.get_visible_questions(completion)
+        # Check if client wants all questions (for dynamic form visibility)
+        # Support both DRF Request (query_params) and Django WSGIRequest (GET)
+        query_params = getattr(request, "query_params", request.GET)
+        include_all = query_params.get("include_all", "false").lower() == "true"
+
+        if include_all:
+            # Return ALL questions - frontend handles visibility dynamically
+            questions = checklist.questions.all().order_by("order")
+        else:
+            # Return only visible questions based on saved answers (default)
+            questions = checklist.get_visible_questions(completion)
 
         # Create response data
         response_data = {
@@ -261,7 +279,9 @@ class UserChecklistMixin(BaseChecklistMixin):
         Returns:
             Checklist template with all questions and their visibility rules.
         """
-        parent_uuid = request.query_params.get("parent_uuid")
+        # Support both DRF Request (query_params) and Django WSGIRequest (GET)
+        query_params = getattr(request, "query_params", request.GET)
+        parent_uuid = query_params.get("parent_uuid")
         if not parent_uuid:
             return response.Response(
                 {"detail": "parent_uuid query parameter is required"},

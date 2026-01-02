@@ -1087,8 +1087,9 @@ class CustomerInetFilterTest(test.APITransactionTestCase):
 class CustomerResourceQuotasTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
-        self.current_date = timezone.now()
-        self.previous_month_date = timezone.now() - datetime.timedelta(days=60)
+        # Use fixed dates within the same year to ensure ANNUAL limit period tests work correctly
+        self.current_date = datetime.datetime(2025, 10, 15, tzinfo=datetime.UTC)
+        self.previous_month_date = datetime.datetime(2025, 8, 15, tzinfo=datetime.UTC)
         self.customer = self.fixture.customer
         self.empty_customer = factories.CustomerFactory()
         self.project1 = factories.ProjectFactory(customer=self.customer)
@@ -1213,6 +1214,7 @@ class CustomerResourceQuotasTest(test.APITransactionTestCase):
         self.assertEqual(ram_component["limit"], 24)
         self.assertEqual(ram_component["measured_unit"], "GB")
 
+    @freeze_time("2025-10-15")
     def test_customer_with_resources_for_current_month(self):
         self.client.force_authenticate(self.fixture.staff)
 
@@ -1244,6 +1246,7 @@ class CustomerResourceQuotasTest(test.APITransactionTestCase):
         self.assertEqual(ram_component["limit"], 24)
         self.assertEqual(ram_component["measured_unit"], "GB")
 
+    @freeze_time("2025-10-15")
     def test_customer_with_limit_based_resources(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url)
@@ -1256,6 +1259,7 @@ class CustomerResourceQuotasTest(test.APITransactionTestCase):
         self.assertEqual(disk_component["limit_usage"], 25)
         self.assertEqual(disk_component["measured_unit"], "GB")
 
+    @freeze_time("2025-10-15")
     def test_customer_with_limit_based_resources_for_current_month(self):
         self.client.force_authenticate(self.fixture.staff)
 
