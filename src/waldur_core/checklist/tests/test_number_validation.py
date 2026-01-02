@@ -290,8 +290,8 @@ class NumberValidationSerializerTest(test.APITransactionTestCase):
         )
 
     @data("staff")
-    def test_validation_min_max_only_for_number_questions(self, user):
-        """Test validation rejects min/max for non-NUMBER questions."""
+    def test_validation_min_max_only_for_numeric_questions(self, user):
+        """Test validation rejects min/max for non-numeric questions."""
         user_obj = getattr(self.fixture, user)
         self.client.force_authenticate(user_obj)
 
@@ -308,7 +308,7 @@ class NumberValidationSerializerTest(test.APITransactionTestCase):
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
-            "Min and max values can only be set for NUMBER type questions",
+            "Min and max values can only be set for NUMBER, YEAR, and RATING type questions",
             str(response.content),
         )
 

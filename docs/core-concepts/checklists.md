@@ -44,6 +44,13 @@ Individual questions with configurable types, ordering, conditional user guidanc
 - **Date**: Date selection
 - **File**: Single file upload with validation
 - **Multiple Files**: Multiple file uploads with validation
+- **Phone Number**: Phone number input (string format)
+- **Year**: Year selection with optional min/max validation
+- **Email**: Email address input
+- **URL**: Website URL input
+- **Country**: Country selection (supports `in`/`not_in` operators for regional triggers)
+- **Rating**: Rating scale input (e.g., 1-5, 1-10) with min/max validation
+- **Datetime**: Combined date and time input (ISO 8601 format)
 
 **Features:**
 
@@ -53,17 +60,17 @@ Individual questions with configurable types, ordering, conditional user guidanc
 - Required/optional questions
 - Ordered display
 
-#### NUMBER Question Type Validation
+#### NUMBER, YEAR, and RATING Question Type Validation
 
-NUMBER type questions support optional validation constraints for form generation and server-side validation:
+NUMBER, YEAR, and RATING type questions support optional validation constraints for form generation and server-side validation:
 
 - **min_value**: Minimum allowed numeric value (decimal field with 4 decimal places)
 - **max_value**: Maximum allowed numeric value (decimal field with 4 decimal places)
 - **Validation**: Server-side validation rejects answers outside the specified range
 - **UI Integration**: Min/max values are exposed through serializers for client-side form constraints
-- **Format Support**: Accepts both integer and floating-point numbers
+- **Format Support**: NUMBER accepts integer and floating-point; YEAR and RATING accept integers
 
-**Example API Usage:**
+**Example API Usage - NUMBER:**
 
 ```http
 POST /api/checklists-admin-questions/
@@ -81,13 +88,50 @@ Content-Type: application/json
 }
 ```
 
+**Example API Usage - YEAR:**
+
+```http
+POST /api/checklists-admin-questions/
+Content-Type: application/json
+
+{
+  "description": "Year the organization was established",
+  "question_type": "year",
+  "checklist": "http://localhost:8000/api/checklists-admin/{checklist_uuid}/",
+  "required": true,
+  "min_value": "1900",
+  "max_value": "2030",
+  "order": 2
+}
+```
+
+**Example API Usage - RATING:**
+
+```http
+POST /api/checklists-admin-questions/
+Content-Type: application/json
+
+{
+  "description": "Rate your satisfaction (1-5 stars)",
+  "question_type": "rating",
+  "checklist": "http://localhost:8000/api/checklists-admin/{checklist_uuid}/",
+  "required": true,
+  "min_value": "1",
+  "max_value": "5",
+  "user_guidance": "1 = Very Dissatisfied, 5 = Very Satisfied",
+  "order": 3
+}
+```
+
 **Validation Scenarios:**
 
-- Budget ranges (e.g., $1K - $10M)
-- Percentages (0-100)
-- Age ranges (18-100)
-- Scientific measurements with decimal precision
-- Counts and quantities with natural limits
+- Budget ranges (e.g., $1K - $10M) - NUMBER
+- Percentages (0-100) - NUMBER
+- Age ranges (18-100) - NUMBER
+- Scientific measurements with decimal precision - NUMBER
+- Year of establishment (1900-2030) - YEAR
+- Satisfaction ratings (1-5 or 1-10 scale) - RATING
+- Net Promoter Score (0-10) - RATING
 
 #### FILE and MULTIPLE_FILES Question Type Validation
 
@@ -180,6 +224,140 @@ Processed single file response:
 3. **Set appropriate file size limits** to prevent resource abuse
 4. **Limit file counts** for MULTIPLE_FILES to prevent overwhelming storage
 5. **Use specific MIME types** rather than wildcards when possible for better security
+
+#### PHONE_NUMBER, EMAIL, URL Question Types
+
+These string-based question types provide semantic meaning for contact and web-related inputs:
+
+**Example API Usage - Contact Information:**
+
+```http
+POST /api/checklists-admin-questions/
+Content-Type: application/json
+
+{
+  "description": "Primary contact phone number",
+  "question_type": "phone_number",
+  "checklist": "http://localhost:8000/api/checklists-admin/{checklist_uuid}/",
+  "required": true,
+  "user_guidance": "Include country code (e.g., +1 555-555-5555)",
+  "order": 1
+}
+```
+
+```http
+POST /api/checklists-admin-questions/
+Content-Type: application/json
+
+{
+  "description": "Contact email address",
+  "question_type": "email",
+  "checklist": "http://localhost:8000/api/checklists-admin/{checklist_uuid}/",
+  "required": true,
+  "order": 2
+}
+```
+
+```http
+POST /api/checklists-admin-questions/
+Content-Type: application/json
+
+{
+  "description": "Project website URL",
+  "question_type": "url",
+  "checklist": "http://localhost:8000/api/checklists-admin/{checklist_uuid}/",
+  "required": false,
+  "user_guidance": "Include the full URL with https://",
+  "order": 3
+}
+```
+
+**Operator Support:**
+
+- `equals`/`not_equals`: Exact match comparison
+- `contains`: Substring matching (e.g., check if email contains "@company.com")
+
+#### COUNTRY Question Type
+
+The COUNTRY question type is designed for country/region selection with support for regional triggers:
+
+**Example API Usage:**
+
+```http
+POST /api/checklists-admin-questions/
+Content-Type: application/json
+
+{
+  "description": "Country of operation",
+  "question_type": "country",
+  "checklist": "http://localhost:8000/api/checklists-admin/{checklist_uuid}/",
+  "required": true,
+  "user_guidance": "Select the primary country where your organization operates",
+  "order": 1
+}
+```
+
+**Regional Trigger Example - EU Countries:**
+
+```http
+POST /api/checklists-admin-questions/
+Content-Type: application/json
+
+{
+  "description": "Country of operation",
+  "question_type": "country",
+  "required": true,
+
+  // Trigger GDPR review for EU countries
+  "review_answer_value": ["DE", "FR", "IT", "ES", "NL", "BE", "AT", "PL"],
+  "operator": "in",
+  "always_requires_review": false,
+
+  // Show GDPR guidance for EU countries
+  "user_guidance": "Since you operate in the EU, GDPR compliance is required.",
+  "always_show_guidance": false,
+  "guidance_answer_value": ["DE", "FR", "IT", "ES", "NL", "BE", "AT", "PL"],
+  "guidance_operator": "in"
+}
+```
+
+**Operator Support:**
+
+- `equals`/`not_equals`: Exact country match
+- `in`/`not_in`: Check if country is in a set of countries (ideal for regional triggers)
+
+#### DATETIME Question Type
+
+The DATETIME question type captures both date and time in ISO 8601 format:
+
+**Example API Usage:**
+
+```http
+POST /api/checklists-admin-questions/
+Content-Type: application/json
+
+{
+  "description": "Scheduled deployment date and time",
+  "question_type": "datetime",
+  "checklist": "http://localhost:8000/api/checklists-admin/{checklist_uuid}/",
+  "required": true,
+  "user_guidance": "Select the planned deployment date and time (timezone-aware)",
+  "order": 1
+}
+```
+
+**Answer Format:**
+
+```json
+{
+  "question_uuid": "datetime-question-uuid",
+  "answer_data": "2024-06-15T14:30:00+00:00"
+}
+```
+
+**Operator Support:**
+
+- `equals`/`not_equals`: Exact datetime match
 
 ### QuestionOption
 
@@ -550,27 +728,28 @@ The checklist system supports sophisticated conditional logic through two mechan
 All conditional logic supports these operators, with specific question type compatibility:
 
 - `equals` - Exact match
-  - **Compatible with**: NUMBER, DATE, BOOLEAN, FILE question types
+  - **Compatible with**: NUMBER, DATE, BOOLEAN, FILE, YEAR, RATING, DATETIME, PHONE_NUMBER, EMAIL, URL, COUNTRY question types
   - **Example**: Check if boolean answer is `true`, or if file name equals `"document.pdf"`
 
 - `not_equals` - Not equal to
-  - **Compatible with**: NUMBER, DATE, BOOLEAN, FILE question types
+  - **Compatible with**: NUMBER, DATE, BOOLEAN, FILE, YEAR, RATING, DATETIME, PHONE_NUMBER, EMAIL, URL, COUNTRY question types
   - **Example**: Check if boolean answer is not `false`, or if file name is not `"template.pdf"`
 
 - `contains` - Text contains substring
-  - **Compatible with**: TEXT_INPUT, TEXT_AREA, FILE, MULTIPLE_FILES question types
+  - **Compatible with**: TEXT_INPUT, TEXT_AREA, FILE, MULTIPLE_FILES, PHONE_NUMBER, EMAIL, URL question types
   - **Example**: Check if text answer contains "sensitive", or if file name contains "confidential"
   - **Note**: Case-sensitive matching
 
 - `in` - Value exists in list
-  - **Compatible with**: SINGLE_SELECT, MULTI_SELECT, MULTIPLE_FILES question types
-  - **Example**: Check if selected option is one of `["high", "critical", "urgent"]`, or if any uploaded file name is in a list
+  - **Compatible with**: SINGLE_SELECT, MULTI_SELECT, MULTIPLE_FILES, COUNTRY question types
+  - **Example**: Check if selected option is one of `["high", "critical", "urgent"]`, or if country is in `["DE", "FR", "IT"]`
   - **Note**: For single-select, checks if the selected value is in the condition list
   - **Note**: For multi-select and multiple files, checks if any selected value is in the condition list
+  - **Note**: For country, enables regional triggers (e.g., EU countries, specific regions)
 
 - `not_in` - Value does not exist in list
-  - **Compatible with**: SINGLE_SELECT, MULTI_SELECT, MULTIPLE_FILES question types
-  - **Example**: Check if selected option is not one of `["low", "minimal"]`, or if no uploaded files match a list
+  - **Compatible with**: SINGLE_SELECT, MULTI_SELECT, MULTIPLE_FILES, COUNTRY question types
+  - **Example**: Check if selected option is not one of `["low", "minimal"]`, or if country is not in `["US", "CA"]`
   - **Note**: For single-select, checks if the selected value is not in the condition list
   - **Note**: For multi-select and multiple files, checks if none of the selected values are in the condition list
 

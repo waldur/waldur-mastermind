@@ -14,28 +14,47 @@ def is_valid_operator_for_question_type(question_type, operator):
             enums.QuestionTypes.DATE,
             enums.QuestionTypes.BOOLEAN,
             enums.QuestionTypes.FILE,
+            enums.QuestionTypes.YEAR,
+            enums.QuestionTypes.PHONE_NUMBER,
+            enums.QuestionTypes.EMAIL,
+            enums.QuestionTypes.URL,
+            enums.QuestionTypes.COUNTRY,
+            enums.QuestionTypes.RATING,
+            enums.QuestionTypes.DATETIME,
         ],
         "not_equals": [
             enums.QuestionTypes.NUMBER,
             enums.QuestionTypes.DATE,
             enums.QuestionTypes.BOOLEAN,
             enums.QuestionTypes.FILE,
+            enums.QuestionTypes.YEAR,
+            enums.QuestionTypes.PHONE_NUMBER,
+            enums.QuestionTypes.EMAIL,
+            enums.QuestionTypes.URL,
+            enums.QuestionTypes.COUNTRY,
+            enums.QuestionTypes.RATING,
+            enums.QuestionTypes.DATETIME,
         ],
         "contains": [
             enums.QuestionTypes.TEXT_INPUT,
             enums.QuestionTypes.TEXT_AREA,
             enums.QuestionTypes.FILE,
             enums.QuestionTypes.MULTIPLE_FILES,
+            enums.QuestionTypes.PHONE_NUMBER,
+            enums.QuestionTypes.EMAIL,
+            enums.QuestionTypes.URL,
         ],
         "in": [
             enums.QuestionTypes.MULTI_SELECT,
             enums.QuestionTypes.SINGLE_SELECT,
             enums.QuestionTypes.MULTIPLE_FILES,
+            enums.QuestionTypes.COUNTRY,
         ],
         "not_in": [
             enums.QuestionTypes.MULTI_SELECT,
             enums.QuestionTypes.SINGLE_SELECT,
             enums.QuestionTypes.MULTIPLE_FILES,
+            enums.QuestionTypes.COUNTRY,
         ],
     }
     if question_type in valid_operators[operator]:
@@ -93,6 +112,18 @@ def _is_valid_trigger_value(
             except (ValueError, TypeError):
                 return False
 
+    # YEAR and RATING are integer types
+    if question_type in [enums.QuestionTypes.YEAR, enums.QuestionTypes.RATING]:
+        if isinstance(answer_data, int):
+            return True
+        # Also accept string representations of integers
+        if isinstance(answer_data, str):
+            try:
+                int(answer_data)
+                return True
+            except (ValueError, TypeError):
+                return False
+
     if isinstance(answer_data, bool | type(None)) and question_type in [
         enums.QuestionTypes.BOOLEAN,
     ]:
@@ -117,10 +148,18 @@ def is_valid_condition_value(
     question_type: str,
 ) -> bool:
     """Validates values used in question dependencies and conditions, allowing text lists for text inputs."""
-    if isinstance(answer_data, list) and question_type in [
-        enums.QuestionTypes.TEXT_INPUT,
-        enums.QuestionTypes.TEXT_AREA,
-    ]:
+    if (
+        isinstance(answer_data, list)
+        and question_type
+        in [
+            enums.QuestionTypes.TEXT_INPUT,
+            enums.QuestionTypes.TEXT_AREA,
+            enums.QuestionTypes.PHONE_NUMBER,
+            enums.QuestionTypes.EMAIL,
+            enums.QuestionTypes.URL,
+            enums.QuestionTypes.COUNTRY,  # Allow list of countries for 'in'/'not_in' operators
+        ]
+    ):
         return True
 
     # Handle date strings for DATE type questions
@@ -131,6 +170,23 @@ def is_valid_condition_value(
             return True
         except (ValueError, TypeError):
             return False
+
+    # Handle datetime strings for DATETIME type questions
+    if isinstance(answer_data, str) and question_type == enums.QuestionTypes.DATETIME:
+        try:
+            datetime.datetime.fromisoformat(answer_data)
+            return True
+        except (ValueError, TypeError):
+            return False
+
+    # Handle string values for string-based types in conditions
+    if isinstance(answer_data, str) and question_type in [
+        enums.QuestionTypes.PHONE_NUMBER,
+        enums.QuestionTypes.EMAIL,
+        enums.QuestionTypes.URL,
+        enums.QuestionTypes.COUNTRY,
+    ]:
+        return True
 
     return _is_valid_trigger_value(answer_data, question_type)
 
@@ -143,6 +199,10 @@ def is_valid_answer(
     if isinstance(answer_data, str) and question_type in [
         enums.QuestionTypes.TEXT_INPUT,
         enums.QuestionTypes.TEXT_AREA,
+        enums.QuestionTypes.PHONE_NUMBER,
+        enums.QuestionTypes.EMAIL,
+        enums.QuestionTypes.URL,
+        enums.QuestionTypes.COUNTRY,
     ]:
         return True
 
@@ -151,6 +211,15 @@ def is_valid_answer(
         try:
             # Try to parse the date string using the utility function
             parse_date(answer_data)
+            return True
+        except (ValueError, TypeError):
+            return False
+
+    # Handle datetime strings for DATETIME type questions
+    if isinstance(answer_data, str) and question_type == enums.QuestionTypes.DATETIME:
+        try:
+            # Try to parse the datetime string
+            datetime.datetime.fromisoformat(answer_data)
             return True
         except (ValueError, TypeError):
             return False

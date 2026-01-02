@@ -27,6 +27,13 @@ class QuestionTypes:
     DATE = "date"
     FILE = "file"
     MULTIPLE_FILES = "multiple_files"
+    PHONE_NUMBER = "phone_number"
+    YEAR = "year"
+    EMAIL = "email"
+    URL = "url"
+    COUNTRY = "country"
+    RATING = "rating"
+    DATETIME = "datetime"
 
     CHOICES = [
         (BOOLEAN, _("Yes/No/N/A")),
@@ -38,6 +45,13 @@ class QuestionTypes:
         (DATE, _("Date input")),
         (FILE, _("File input")),
         (MULTIPLE_FILES, _("Multiple files input")),
+        (PHONE_NUMBER, _("Phone number")),
+        (YEAR, _("Year")),
+        (EMAIL, _("Email address")),
+        (URL, _("URL")),
+        (COUNTRY, _("Country")),
+        (RATING, _("Rating")),
+        (DATETIME, _("Date and time")),
     ]
 
 

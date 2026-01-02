@@ -143,20 +143,24 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         help_text=_("This question always requires review regardless of answer"),
     )
 
-    # Number validation fields
+    # Number validation fields (also used for YEAR and RATING types)
     min_value = models.DecimalField(
         max_digits=20,
         decimal_places=4,
         null=True,
         blank=True,
-        help_text=_("Minimum value allowed for NUMBER type questions"),
+        help_text=_(
+            "Minimum value allowed for NUMBER, YEAR, and RATING type questions"
+        ),
     )
     max_value = models.DecimalField(
         max_digits=20,
         decimal_places=4,
         null=True,
         blank=True,
-        help_text=_("Maximum value allowed for NUMBER type questions"),
+        help_text=_(
+            "Maximum value allowed for NUMBER, YEAR, and RATING type questions"
+        ),
     )
 
     # Dependency logic operator
@@ -239,8 +243,11 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         if not utils.is_valid_answer(answer_data, self.question_type):
             return False
 
-        # Additional validation for NUMBER type with min/max constraints
-        if self.question_type == "number" and answer_data is not None:
+        # Additional validation for NUMBER, YEAR, and RATING types with min/max constraints
+        if (
+            self.question_type in ["number", "year", "rating"]
+            and answer_data is not None
+        ):
             # Only apply min/max validation to numeric types (int, float)
             # String values should be handled by the basic type validation first
             # Convert string numbers to float for validation
