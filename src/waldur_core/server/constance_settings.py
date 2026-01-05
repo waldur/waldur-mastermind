@@ -29,6 +29,10 @@ CONSTANCE_ADDITIONAL_FIELDS = {
     "secret_field": ["django.forms.CharField", {"required": False}],
     "dict_field": ["waldur_core.core.serializers.DictField", {"required": False}],
     "list_field": ["waldur_core.core.serializers.ListField", {"required": False}],
+    "json_list_field": [
+        "waldur_core.core.serializers.JsonListField",
+        {"required": False},
+    ],
     "country_list_field": [
         "waldur_core.core.serializers.ListField",
         {"required": False},
@@ -240,6 +244,41 @@ CONSTANCE_CONFIG = {
         "e.g., {'de': 'path/to/german_logo.png'}. "
         "Falls back to LOGIN_LOGO if requested language not found.",
         "multilingual_image_field",
+    ),
+    "LOGIN_PAGE_LAYOUT": (
+        "split-screen",
+        "Login page layout style. Options: split-screen, centered-card, minimal, full-hero, "
+        "gradient, stacked, right-split, glassmorphism, neumorphism, animated-gradient, "
+        "video-background, bottom-sheet, tabbed, wizard, stats, news, carousel, "
+        "logo-watermark, brand-pattern, duotone, diagonal, time-based, seasonal, weather.",
+    ),
+    "LOGIN_PAGE_VIDEO_URL": (
+        "",
+        "Video URL for the video-background login page layout. "
+        "Supports MP4 format. Leave empty to use default sample video.",
+        "url_field",
+    ),
+    "LOGIN_PAGE_STATS": (
+        [],
+        "Stats displayed in the Stats login page layout. "
+        "List of objects with 'value' and 'label' keys, "
+        "e.g., [{'value': '10K+', 'label': 'Active Users'}, {'value': '99.9%', 'label': 'Uptime'}].",
+        "json_list_field",
+    ),
+    "LOGIN_PAGE_CAROUSEL_SLIDES": (
+        [],
+        "Carousel slides displayed in the Carousel login page layout. "
+        "List of objects with 'title' and 'subtitle' keys, "
+        "e.g., [{'title': 'Welcome', 'subtitle': 'Get started with our platform'}].",
+        "json_list_field",
+    ),
+    "LOGIN_PAGE_NEWS": (
+        [],
+        "News items displayed in the News login page layout. "
+        "List of objects with 'date', 'title', 'description', and 'tag' keys. "
+        "Supported tags: Feature, Update, Security, Announcement, Maintenance. "
+        "Example: [{'date': 'Jan 2025', 'title': 'New Feature', 'description': 'Description here', 'tag': 'Feature'}].",
+        "json_list_field",
     ),
     "FAVICON": ("", "A custom favicon .png image file", "image_field"),
     "OFFERING_LOGO_PLACEHOLDER": ("", "Default logo for offering", "image_field"),
@@ -742,6 +781,11 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SIDEBAR_STYLE",
         "BRAND_COLOR",
         "DISABLE_DARK_THEME",
+        "LOGIN_PAGE_LAYOUT",
+        "LOGIN_PAGE_VIDEO_URL",
+        "LOGIN_PAGE_STATS",
+        "LOGIN_PAGE_CAROUSEL_SLIDES",
+        "LOGIN_PAGE_NEWS",
     ),
     "Images": (
         "SITE_LOGO",
@@ -923,6 +967,11 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "COMMON_FOOTER_HTML",
     "LANGUAGE_CHOICES",
     "DISABLE_DARK_THEME",
+    "LOGIN_PAGE_LAYOUT",
+    "LOGIN_PAGE_VIDEO_URL",
+    "LOGIN_PAGE_STATS",
+    "LOGIN_PAGE_CAROUSEL_SLIDES",
+    "LOGIN_PAGE_NEWS",
     "MARKETPLACE_LANDING_PAGE",
     "ENABLE_ORDER_START_DATE",
     "LLM_CHAT_ENABLED",
