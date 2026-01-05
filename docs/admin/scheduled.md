@@ -41,6 +41,7 @@ td:nth-child(4) {
 | `create_customer_permission_reviews` | `waldur_core.structure.create_customer_permission_reviews` | 1 day | Create customer permission reviews for customers that need periodic review of user permissions. |
 | `create_project_permission_reviews` | `waldur_core.structure.create_project_permission_reviews` | 1 day | Create project permission reviews for projects that need periodic review of user permissions. |
 | `delete-dangling-event-subscriptions` | `waldur_core.logging.delete_dangling_event_subscriptions` | 1 hour | No description available |
+| `delete-old-verifications` | `waldur_core.onboarding.delete_old_verifications` | 1 day | Task not found in registry |
 | `delete-stale-event-subscriptions` | `waldur_core.logging.delete_stale_event_subscriptions` | 1 day | No description available |
 | `expire-stale-verifications` | `waldur_core.onboarding.expire_stale_verifications` | 1 hour | Task not found in registry |
 | `expired-reviews-should-be-cancelled` | `waldur_mastermind.proposal.expired_reviews_should_be_cancelled` | 1 hour | Cancel reviews that have expired. |
