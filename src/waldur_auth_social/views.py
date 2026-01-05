@@ -96,6 +96,11 @@ class OAuthViewInit(BaseOAuthView):
             "state": oidc_state,
         }
 
+        # Pass ui_locales for Keycloak language hint (OIDC standard parameter)
+        ui_locales = request.query_params.get("ui_locales")
+        if ui_locales:
+            params["ui_locales"] = ui_locales
+
         if self.config.enable_pkce:
             code_verifier = secrets.token_urlsafe(32)
             code_challenge = generate_code_challenge(code_verifier)
