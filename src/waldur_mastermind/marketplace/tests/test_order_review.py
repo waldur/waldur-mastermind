@@ -687,8 +687,10 @@ class ScriptOfferingOrderReviewTest(test.APITransactionTestCase):
         result = utils.order_should_not_be_reviewed_by_provider(order)
         self.assertFalse(result)
 
-    def test_script_offering_skips_approval_for_service_provider_owner(self):
-        """Test that service provider owners can skip approval even when auto_approve_marketplace_script=False."""
+    def test_script_offering_requires_approval_for_service_provider_owner_when_disabled(
+        self,
+    ):
+        """Test that service provider owners require approval when auto_approve_marketplace_script=False."""
         offering = factories.OfferingFactory(
             customer=self.fixture.customer,
             type=SCRIPT_OFFERING,
@@ -700,6 +702,23 @@ class ScriptOfferingOrderReviewTest(test.APITransactionTestCase):
             created_by=self.fixture.owner,  # Owner is also the offering owner
         )
 
-        # Should return True (skip approval) for service provider owner even when flag is False
+        # Should return False (require approval) even for service provider owner
         result = utils.order_should_not_be_reviewed_by_provider(order)
-        self.assertTrue(result)
+        self.assertFalse(result)
+
+    def test_script_offering_requires_approval_for_staff_when_disabled(self):
+        """Test that staff users require approval when auto_approve_marketplace_script=False."""
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            type=SCRIPT_OFFERING,
+            plugin_options={"auto_approve_marketplace_script": False},
+        )
+        order = factories.OrderFactory(
+            offering=offering,
+            project=self.project,
+            created_by=self.fixture.staff,
+        )
+
+        # Should return False (require approval) even for staff user
+        result = utils.order_should_not_be_reviewed_by_provider(order)
+        self.assertFalse(result)
