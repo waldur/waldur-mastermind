@@ -80,6 +80,37 @@ class ListField(forms.CharField):
         return str(value)
 
 
+class JsonListField(forms.CharField):
+    """
+    A form field for handling JSON lists that can contain dictionaries or any JSON-serializable items.
+    Used by constance admin for settings that need to store lists of objects.
+    """
+
+    def __init__(self, *args, **kwargs):
+        kwargs["widget"] = forms.Textarea
+        super().__init__(*args, **kwargs)
+
+    def to_python(self, value):
+        if not value:
+            return []
+        try:
+            if isinstance(value, str):
+                return json.loads(value)
+            return value
+        except ValueError as e:
+            raise forms.ValidationError(f"Invalid JSON format: {str(e)}")
+
+    def prepare_value(self, value):
+        if value is None:
+            return "[]"
+        if isinstance(value, list):
+            try:
+                return json.dumps(value, indent=2)
+            except (TypeError, ValueError) as e:
+                raise forms.ValidationError(f"Could not serialize list: {str(e)}")
+        return value
+
+
 class DictSerializerField(serializers.CharField):
     def to_internal_value(self, data):
         """Convert JSON string to Python dictionary."""
@@ -99,6 +130,30 @@ class DictSerializerField(serializers.CharField):
                 raise serializers.ValidationError(
                     f"Could not serialize dictionary: {str(e)}"
                 )
+        return value
+
+
+class JsonListSerializerField(serializers.ListField):
+    """
+    A field for handling JSON lists that can contain dictionaries or any JSON-serializable items.
+    Unlike StringListSerializer which only accepts strings, this accepts any JSON array.
+    """
+
+    def to_internal_value(self, data):
+        """Convert JSON string to Python list or pass through if already a list."""
+        if not data:
+            return []
+        try:
+            if isinstance(data, str):
+                return json.loads(data)
+            return data
+        except ValueError as e:
+            raise serializers.ValidationError(f"Invalid JSON format: {str(e)}")
+
+    def to_representation(self, value):
+        """Return the list as-is for JSON serialization."""
+        if value is None:
+            return []
         return value
 
 
@@ -584,6 +639,8 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 field_class = MultilingualImageSerializerField
             if config_type == "list_field":
                 field_class = StringListSerializer
+            if config_type == "json_list_field":
+                field_class = JsonListSerializerField
             if config_type == "country_list_field":
                 field_class = StringListSerializer
             if config_type in (
