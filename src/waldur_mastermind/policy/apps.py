@@ -38,6 +38,7 @@ class PolicyConfig(AppConfig):
                     ),
                     sender=observable_klass,
                     dispatch_uid=f"{klass_name}_handler_for_observable_class",
+                    weak=False,  # Handler is a closure, needs strong reference
                 )
 
         signals.post_save.connect(
