@@ -380,7 +380,7 @@ class ScriptPluginOptionsSerializer(serializers.Serializer):
     auto_approve_marketplace_script = serializers.BooleanField(
         required=False,
         default=True,
-        help_text="If set to False, an order requires manual provider approval",
+        help_text="If set to False, all orders require manual provider approval, including for service provider owners and staff",
     )
 
 
