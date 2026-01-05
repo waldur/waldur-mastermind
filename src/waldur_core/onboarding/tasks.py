@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 
 from celery import shared_task
 from django.utils import timezone
@@ -39,3 +40,33 @@ def expire_stale_verifications():
     )
 
     logger.info(f"Successfully marked {count} verification(s) as EXPIRED.")
+
+
+@shared_task(name="waldur_core.onboarding.delete_old_verifications")
+def delete_old_verifications():
+    """
+    This task runs daily to delete verifications that are in FAILED or EXPIRED
+    status and were last modified more than 30 days ago.
+    """
+
+    now = timezone.now()
+    thirty_days_ago = now - timedelta(days=30)
+
+    # Find all verifications that are old and in FAILED or EXPIRED status
+    old_verifications = OnboardingVerification.objects.filter(
+        modified__lt=thirty_days_ago,
+        status__in=[
+            enums.VerificationStatus.FAILED,
+            enums.VerificationStatus.EXPIRED,
+        ],
+    )
+
+    count = old_verifications.count()
+
+    if count == 0:
+        logger.info("No old verifications found to delete.")
+        return
+
+    old_verifications.delete()
+
+    logger.info(f"Successfully deleted {count} old verification(s).")

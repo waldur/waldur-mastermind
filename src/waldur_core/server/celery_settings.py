@@ -136,6 +136,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(hours=1),
         "args": (),
     },
+    "delete-old-verifications": {
+        "task": "waldur_core.onboarding.delete_old_verifications",
+        "schedule": timedelta(days=1),
+        "args": (),
+    },
     # Software catalog updates - run once daily at 3 AM
     "update-software-catalogs": {
         "task": "marketplace.update_software_catalogs",
