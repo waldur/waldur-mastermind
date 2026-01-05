@@ -145,6 +145,156 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
         self.assertEqual(self.policy.has_fired, False)
         self.assertTrue(self.policy.fired_datetime)
 
+    def test_policy_idempotency_does_not_refire_when_already_fired(self):
+        """Test that immediate actions are not called again when policy is already fired."""
+        with mock.patch.object(
+            ProjectEstimatedCostPolicy,
+            "get_all_actions",
+            return_value=[
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.IMMEDIATE,
+                    method=self.notify_project_team_mock,
+                ),
+            ],
+        ):
+            # First trigger - should fire
+            self.create_or_update_invoice_item(self.policy.limit_cost + 1)
+            self.notify_project_team_mock.assert_called_once()
+            self.policy.refresh_from_db()
+            self.assertTrue(self.policy.has_fired)
+            first_fired_datetime = self.policy.fired_datetime
+
+            self.notify_project_team_mock.reset_mock()
+
+            # Second trigger with higher cost - should NOT fire again
+            self.create_or_update_invoice_item(self.policy.limit_cost + 100)
+            self.notify_project_team_mock.assert_not_called()
+            self.policy.refresh_from_db()
+            self.assertTrue(self.policy.has_fired)
+            # fired_datetime should remain the same
+            self.assertEqual(self.policy.fired_datetime, first_fired_datetime)
+
+    def test_reset_methods_called_when_policy_reset(self):
+        """Test that reset methods are called when policy goes from fired to not fired."""
+        reset_mock = mock.MagicMock()
+        reset_mock.__name__ = "reset_action"
+
+        with mock.patch.object(
+            ProjectEstimatedCostPolicy,
+            "get_all_actions",
+            return_value=[
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.IMMEDIATE,
+                    method=self.notify_project_team_mock,
+                    reset_method=reset_mock,
+                ),
+            ],
+        ):
+            # First trigger - should fire
+            self.create_or_update_invoice_item(self.policy.limit_cost + 1)
+            self.policy.refresh_from_db()
+            self.assertTrue(self.policy.has_fired)
+            reset_mock.assert_not_called()
+
+            self.notify_project_team_mock.reset_mock()
+
+            # Now bring cost below limit - should reset and call reset_method
+            self.create_or_update_invoice_item(self.policy.limit_cost - 1)
+            self.policy.refresh_from_db()
+            self.assertFalse(self.policy.has_fired)
+            reset_mock.assert_called_once_with(self.policy)
+
+    def test_reset_methods_not_called_for_actions_without_reset_method(self):
+        """Test that actions without reset_method don't cause errors on reset."""
+        reset_mock = mock.MagicMock()
+        reset_mock.__name__ = "reset_action"
+
+        with mock.patch.object(
+            ProjectEstimatedCostPolicy,
+            "get_all_actions",
+            return_value=[
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.IMMEDIATE,
+                    method=self.notify_project_team_mock,
+                    reset_method=None,  # No reset method
+                ),
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.THRESHOLD,
+                    method=self.block_creation_of_new_resources_mock,
+                    reset_method=reset_mock,  # Has reset method
+                ),
+            ],
+        ):
+            # Trigger policy
+            self.create_or_update_invoice_item(self.policy.limit_cost + 1)
+            self.policy.refresh_from_db()
+            self.assertTrue(self.policy.has_fired)
+
+            # Reset policy - only actions with reset_method should be called
+            self.create_or_update_invoice_item(self.policy.limit_cost - 1)
+            self.policy.refresh_from_db()
+            self.assertFalse(self.policy.has_fired)
+            reset_mock.assert_called_once_with(self.policy)
+
+    def test_policy_can_refire_after_reset(self):
+        """Test that policy can fire again after being reset."""
+        with mock.patch.object(
+            ProjectEstimatedCostPolicy,
+            "get_all_actions",
+            return_value=[
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.IMMEDIATE,
+                    method=self.notify_project_team_mock,
+                ),
+            ],
+        ):
+            # First trigger
+            self.create_or_update_invoice_item(self.policy.limit_cost + 1)
+            self.notify_project_team_mock.assert_called_once()
+            self.policy.refresh_from_db()
+            self.assertTrue(self.policy.has_fired)
+
+            self.notify_project_team_mock.reset_mock()
+
+            # Reset
+            self.create_or_update_invoice_item(self.policy.limit_cost - 1)
+            self.policy.refresh_from_db()
+            self.assertFalse(self.policy.has_fired)
+            self.notify_project_team_mock.assert_not_called()
+
+            # Re-trigger - should fire again
+            self.create_or_update_invoice_item(self.policy.limit_cost + 1)
+            self.notify_project_team_mock.assert_called_once()
+            self.policy.refresh_from_db()
+            self.assertTrue(self.policy.has_fired)
+
+    def test_reset_not_called_when_policy_was_not_fired(self):
+        """Test that reset methods are not called when policy was never fired."""
+        reset_mock = mock.MagicMock()
+        reset_mock.__name__ = "reset_action"
+
+        with mock.patch.object(
+            ProjectEstimatedCostPolicy,
+            "get_all_actions",
+            return_value=[
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.IMMEDIATE,
+                    method=self.notify_project_team_mock,
+                    reset_method=reset_mock,
+                ),
+            ],
+        ):
+            # Cost is already below limit, policy never fired
+            self.create_or_update_invoice_item(self.policy.limit_cost - 1)
+            self.policy.refresh_from_db()
+            self.assertFalse(self.policy.has_fired)
+
+            # Update cost but still below limit - reset should not be called
+            self.create_or_update_invoice_item(self.policy.limit_cost - 2)
+            self.policy.refresh_from_db()
+            self.assertFalse(self.policy.has_fired)
+            reset_mock.assert_not_called()
+
     def test_compensation(self):
         self.create_or_update_invoice_item(self.policy.limit_cost - 1)
         self.policy.refresh_from_db()

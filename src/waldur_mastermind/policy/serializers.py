@@ -78,26 +78,51 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
         policy = super().save(**kwargs)
 
         if policy.is_triggered():
-            policy.has_fired = True
-            policy.fired_datetime = timezone.now()
-            policy.save()
-            logger.info(
-                "A newly created policy %s has fired.",
-                policy.uuid.hex,
-            )
+            if not policy.has_fired:
+                policy.has_fired = True
+                policy.fired_datetime = timezone.now()
+                policy.save()
+                logger.info(
+                    "Policy %s has fired.",
+                    policy.uuid.hex,
+                )
 
-            # Execute actions after the transaction is committed to ensure
-            # the policy exists in the database when Celery tasks run
-            def execute_actions():
-                for action in policy.get_immediate_actions():
-                    action.method(policy)
-                    logger.info(
-                        "%s action of policy %s has been triggered.",
-                        action.method.__name__,
-                        policy.uuid.hex,
-                    )
+                # Execute actions after the transaction is committed to ensure
+                # the policy exists in the database when Celery tasks run
+                def execute_actions():
+                    for action in policy.get_immediate_actions():
+                        action.method(policy)
+                        logger.info(
+                            "%s action of policy %s has been triggered.",
+                            action.method.__name__,
+                            policy.uuid.hex,
+                        )
 
-            transaction.on_commit(execute_actions)
+                transaction.on_commit(execute_actions)
+        else:
+            # Policy is not triggered - reset has_fired if it was previously fired
+            if policy.has_fired:
+                policy.has_fired = False
+                # Keep fired_datetime as a record of last state change
+                # This preserves the timestamp for auditing purposes
+                policy.save()
+                logger.info(
+                    "Policy %s has been reset (no longer triggered).",
+                    policy.uuid.hex,
+                )
+
+                # Execute reset actions after transaction commit
+                def execute_reset_actions():
+                    for action in policy.get_all_actions():
+                        if action.reset_method:
+                            action.reset_method(policy)
+                            logger.info(
+                                "Reset method %s of policy %s has been executed.",
+                                action.reset_method.__name__,
+                                policy.uuid.hex,
+                            )
+
+                transaction.on_commit(execute_reset_actions)
 
         return policy
 
