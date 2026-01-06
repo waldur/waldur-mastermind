@@ -1,0 +1,14 @@
+Dear {{ user_full_name }},
+
+The review of your organization onboarding application has now been completed.
+
+Organization: {{ organization_name }}
+Submitted on: {{ created_at }}
+
+You can view the outcome and any related details by signing in to your dashboard.
+
+If the application was not approved, it will remain available in your dashboard for 30 days, after which it will be automatically removed.
+
+View details: {{ link_to_homeport_dashboard }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

@@ -1,0 +1,30 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organization Onboarding Application Review</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <p>Dear <strong>{{ user_full_name }}</strong>,</p>
+
+    <p>The review of your organization onboarding application has now been completed.</p>
+
+    <div style="background-color: #f5f5f5; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0;">
+        <p style="margin: 5px 0;"><strong>Organization:</strong> {{ organization_name }}</p>
+        <p style="margin: 5px 0;"><strong>Submitted on:</strong> {{ created_at }}</p>
+    </div>
+
+    <p>You can view the outcome and any related details by signing in to your dashboard.</p>
+
+    <p style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 20px 0;">
+        <strong>Note:</strong> If the application was not approved, it will remain available in your dashboard for 30 days, after which it will be automatically removed.
+    </p>
+
+    <p>
+        <a href="{{ link_to_homeport_dashboard }}">View Details</a>
+    </p>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+
+</body>
+</html>
