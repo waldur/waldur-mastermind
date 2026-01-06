@@ -217,6 +217,39 @@ collections:
         has_limits: true
         resolvers:
           <<: *project_customer_resolvers
+        extra_examples:
+          - name: "Create a VPC with Static Storage Limits"
+            hosts: localhost
+            tasks:
+              - name: Create VPC with static limits
+                waldur.openstack.vpc:
+                  access_token: "{{ waldur_access_token }}"
+                  api_url: "{{ waldur_api_url }}"
+                  name: "vpc-static-limits"
+                  project: "My Project"
+                  offering: "OpenStack.Tenant"
+                  limits:
+                    storage: 102400 # 100 GB in MiB (Static storage limit)
+                    ram: 20480 # 20 GB in MiB
+                    cores: 10
+
+          - name: "Create a VPC with Dynamic Volume Type Limits"
+            hosts: localhost
+            tasks:
+              - name: Create VPC with dynamic limits
+                waldur.openstack.vpc:
+                  access_token: "{{ waldur_access_token }}"
+                  api_url: "{{ waldur_api_url }}"
+                  name: "vpc-dynamic-limits"
+                  project: "My Project"
+                  offering: "OpenStack.Tenant"
+                  limits:
+                    # Dynamic storage limits per volume type (Keys must match 'gigabytes_<volume_type_name>')
+                    # Values are in GB (unlike static storage which is in MiB)
+                    gigabytes_ssd: 500
+                    gigabytes_hpc: 2000
+                    ram: 51200 # 50 GB in MiB
+                    cores: 20
         operations:
           update:
             actions:
