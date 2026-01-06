@@ -1,7 +1,11 @@
 import unittest
 from unittest import mock
 
-from waldur_core.structure.utils import update_pulled_fields
+from waldur_core.core.enums import CoreStates
+from waldur_core.structure.utils import (
+    handle_resource_update_success,
+    update_pulled_fields,
+)
 
 
 class InstanceMock:
@@ -62,3 +66,74 @@ class UpdatePulledFieldsTest(unittest.TestCase):
         )
         update_pulled_fields(vm1, vm2, ("directly_connected_ips",))
         self.assertEqual(vm1.save.call_count, 1)
+
+
+class ResourceMock:
+    """Mock resource for handle_resource_update_success tests."""
+
+    def __init__(self, state=CoreStates.OK, error_message="", task_id=None):
+        self.pk = 1
+        self.state = state
+        self.error_message = error_message
+        self.task_id = task_id
+        self.save = mock.Mock()
+
+    def recover(self):
+        self.state = CoreStates.OK
+
+    def set_ok(self):
+        self.state = CoreStates.OK
+
+
+class HandleResourceUpdateSuccessTest(unittest.TestCase):
+    """Tests for handle_resource_update_success function.
+
+    Fixes PUHURI-PORTALS-DYH (N+1 query issue).
+    """
+
+    def test_save_not_called_when_no_changes_needed(self):
+        """Test that save is not called when resource is OK with no task_id."""
+        resource = ResourceMock(state=CoreStates.OK, error_message="", task_id=None)
+        handle_resource_update_success(resource)
+        self.assertEqual(resource.save.call_count, 0)
+
+    def test_save_called_when_task_id_needs_clearing(self):
+        """Test that save is called when task_id needs to be cleared."""
+        resource = ResourceMock(
+            state=CoreStates.OK, error_message="", task_id="some-task-id"
+        )
+        handle_resource_update_success(resource)
+        self.assertEqual(resource.save.call_count, 1)
+        self.assertIsNone(resource.task_id)
+        # Verify update_fields contains task_id
+        resource.save.assert_called_once()
+        call_kwargs = resource.save.call_args[1]
+        self.assertIn("task_id", call_kwargs["update_fields"])
+
+    def test_save_called_when_error_message_needs_clearing(self):
+        """Test that save is called when error_message needs to be cleared."""
+        resource = ResourceMock(
+            state=CoreStates.OK, error_message="Some error", task_id=None
+        )
+        handle_resource_update_success(resource)
+        self.assertEqual(resource.save.call_count, 1)
+        self.assertEqual(resource.error_message, "")
+
+    def test_save_called_when_state_erred(self):
+        """Test that save is called when state is ERRED."""
+        resource = ResourceMock(state=CoreStates.ERRED, error_message="", task_id=None)
+        handle_resource_update_success(resource)
+        self.assertEqual(resource.save.call_count, 1)
+        self.assertEqual(resource.state, CoreStates.OK)
+
+    def test_multiple_fields_updated_in_single_save(self):
+        """Test that multiple fields are updated in a single save call."""
+        resource = ResourceMock(
+            state=CoreStates.ERRED, error_message="Error", task_id="task-123"
+        )
+        handle_resource_update_success(resource)
+        # Should only call save once, not multiple times
+        self.assertEqual(resource.save.call_count, 1)
+        self.assertEqual(resource.state, CoreStates.OK)
+        self.assertEqual(resource.error_message, "")
+        self.assertIsNone(resource.task_id)
