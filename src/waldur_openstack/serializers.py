@@ -1000,6 +1000,10 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
         required=False,
         write_only=True,
     )
+    skip_creation_of_default_subnet = serializers.BooleanField(
+        default=False,
+        write_only=True,
+    )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Tenant
@@ -1013,6 +1017,7 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
             "subnet_cidr",
             "default_volume_type_name",
             "security_groups",
+            "skip_creation_of_default_subnet",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -1202,24 +1207,26 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
         mtu = validated_data.get("mtu")
         with transaction.atomic():
             tenant: models.Tenant = super().create(validated_data)
-            network = models.Network.objects.create(
-                name=slugified_name + "-int-net",
-                description=_("Internal network for tenant %s") % tenant.name,
-                tenant=tenant,
-                service_settings=tenant.service_settings,
-                project=tenant.project,
-                mtu=mtu,
-            )
-            models.SubNet.objects.create(
-                name=slugified_name + "-sub-net",
-                description=_("SubNet for tenant %s internal network") % tenant.name,
-                network=network,
-                tenant=tenant,
-                service_settings=tenant.service_settings,
-                project=tenant.project,
-                cidr=subnet_cidr,
-                dns_nameservers=service_settings.options.get("dns_nameservers", []),
-            )
+            if not validated_data.get("skip_creation_of_default_subnet"):
+                network = models.Network.objects.create(
+                    name=slugified_name + "-int-net",
+                    description=_("Internal network for tenant %s") % tenant.name,
+                    tenant=tenant,
+                    service_settings=tenant.service_settings,
+                    project=tenant.project,
+                    mtu=mtu,
+                )
+                models.SubNet.objects.create(
+                    name=slugified_name + "-sub-net",
+                    description=_("SubNet for tenant %s internal network")
+                    % tenant.name,
+                    network=network,
+                    tenant=tenant,
+                    service_settings=tenant.service_settings,
+                    project=tenant.project,
+                    cidr=subnet_cidr,
+                    dns_nameservers=service_settings.options.get("dns_nameservers", []),
+                )
             self.create_default_security_groups(tenant, security_groups_data)
 
         return tenant
