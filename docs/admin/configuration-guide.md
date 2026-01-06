@@ -1477,6 +1477,38 @@ Brand color is used for button background.
 
 Toggler to disable dark theme.
 
+#### LOGIN_PAGE_LAYOUT
+
+**Type:** str
+
+**Default value:** split-screen
+
+Login page layout style. Options: split-screen, centered-card, minimal, full-hero, gradient, stacked, right-split, glassmorphism, neumorphism, animated-gradient, video-background, bottom-sheet, tabbed, wizard, stats, news, carousel, logo-watermark, brand-pattern, duotone, diagonal, time-based, seasonal, weather.
+
+#### LOGIN_PAGE_VIDEO_URL
+
+**Type:** url_field
+
+Video URL for the video-background login page layout. Supports MP4 format. Leave empty to use default sample video.
+
+#### LOGIN_PAGE_STATS
+
+**Type:** json_list_field
+
+Stats displayed in the Stats login page layout. List of objects with 'value' and 'label' keys, e.g., [{'value': '10K+', 'label': 'Active Users'}, {'value': '99.9%', 'label': 'Uptime'}].
+
+#### LOGIN_PAGE_CAROUSEL_SLIDES
+
+**Type:** json_list_field
+
+Carousel slides displayed in the Carousel login page layout. List of objects with 'title' and 'subtitle' keys, e.g., [{'title': 'Welcome', 'subtitle': 'Get started with our platform'}].
+
+#### LOGIN_PAGE_NEWS
+
+**Type:** json_list_field
+
+News items displayed in the News login page layout. List of objects with 'date', 'title', 'description', and 'tag' keys. Supported tags: Feature, Update, Security, Announcement, Maintenance. Example: [{'date': 'Jan 2025', 'title': 'New Feature', 'description': 'Description here', 'tag': 'Feature'}].
+
 ### Images
 
 #### SITE_LOGO
