@@ -19,11 +19,14 @@ class IssueCreateTest(smax_base.BaseTest):
         self.caller = self.fixture.support_user.user
         self.smax_issue = Issue(1, "test", "description", "RequestStatusReady")
         self.mock_smax().add_issue.return_value = self.smax_issue
+        # Create a RequestType for issue type validation
+        self.request_type = factories.RequestTypeFactory()
 
     def _get_valid_payload(self, **additional):
         payload = {
             "summary": "test_issue",
             "caller": structure_factories.UserFactory.get_url(user=self.caller),
+            "type": self.request_type.name,
         }
         payload.update(additional)
         return payload

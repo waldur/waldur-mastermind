@@ -498,12 +498,28 @@ class SupportCustomer(models.Model):
 class RequestType(
     BackendNameMixin, core_models.UuidMixin, core_models.NameMixin, models.Model
 ):
-    backend_id = models.IntegerField(unique=True)
+    backend_id = models.IntegerField(
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Backend ID for synced types. Null for manually created types.",
+    )
     issue_type_name = models.CharField(max_length=255)
     fields = models.JSONField(
         default=dict,
         blank=True,
     )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this request type is available for issue creation.",
+    )
+    order = models.PositiveIntegerField(
+        default=0,
+        help_text="Display order. First type (lowest order) is the default.",
+    )
+
+    class Meta:
+        ordering = ["order", "name"]
 
     def __str__(self):
         return self.name

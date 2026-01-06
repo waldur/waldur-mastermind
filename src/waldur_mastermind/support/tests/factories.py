@@ -172,9 +172,26 @@ class RequestTypeFactory(
     class Meta:
         model = models.RequestType
 
-    backend_id = factory.Sequence(lambda n: n)
+    backend_id = (
+        None  # Null by default (manual type), set explicitly to create synced type
+    )
     name = factory.Sequence(lambda n: "request_type_%s" % n)
     issue_type_name = factory.Sequence(lambda n: "issue_type_%s" % n)
+    is_active = True
+    order = factory.Sequence(lambda n: n)
+
+    @classmethod
+    def get_url(cls, request_type=None, action=None):
+        if request_type is None:
+            request_type = RequestTypeFactory()
+        url = "http://testserver" + reverse(
+            "support-request-type-admin-detail", kwargs={"uuid": request_type.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("support-request-type-admin-list")
 
 
 class SupportCustomerFactory(

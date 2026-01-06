@@ -124,6 +124,13 @@ class SupportBackend:
                 return
         return tmpl.template
 
+    def sync_single_issue(self, issue):
+        """
+        Synchronize a single issue's data from backend.
+        Used by both webhooks and manual sync for consistency.
+        """
+        return
+
     def sync_issues(self, *args, **kwargs):
         return
 

@@ -4,7 +4,6 @@ from unittest import mock
 # Mock objects for testing - will be replaced with proper mocks
 from unittest.mock import MagicMock
 
-from constance import config
 from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.conf import settings
@@ -190,11 +189,14 @@ class IssueCreateBaseTest(base.BaseTest):
 
     def _get_valid_payload(self, **additional):
         is_reported_manually = additional.get("is_reported_manually")
-        issue_type = utils.get_atlassian_issue_type()
-        # Map frontend type to backend type using configuration
-        type_mapping = config.ATLASSIAN_SUPPORT_TYPE_MAPPING or {}
-        backend_type = type_mapping.get(issue_type, issue_type)
-        factories.RequestTypeFactory(name=backend_type, issue_type_name=issue_type)
+        issue_type = utils.get_default_request_type()
+        # Create the request type if it doesn't exist
+        if issue_type:
+            factories.RequestTypeFactory(name=issue_type, is_active=True)
+        else:
+            # If no default, create one
+            rt = factories.RequestTypeFactory(name="Test Request", is_active=True)
+            issue_type = rt.name
         payload = {
             "summary": "test_issue",
             "type": issue_type,
@@ -455,8 +457,10 @@ class IssueCreateTest(IssueCreateBaseTest):
             reporter=None, backend_id=None, type="Informational"
         )
         factories.SupportCustomerFactory(user=issue.caller)
-        # Create RequestType for the mapped backend type (Informational -> Get IT help)
-        factories.RequestTypeFactory(name="Get IT help", issue_type_name="Get IT help")
+        # Create RequestType with the same name as issue.type (no mapping anymore)
+        factories.RequestTypeFactory(
+            name="Informational", issue_type_name="Informational"
+        )
         ServiceDeskBackend().create_issue(issue)
         # Check that create_customer_request was called without Original Reporter field
         call_args = self.mock_service_desk_instance.create_customer_request.call_args
@@ -475,8 +479,8 @@ class IssueCreateTest(IssueCreateBaseTest):
             "id": "1",
         }
         issue_type = utils.get_atlassian_issue_type()  # Returns "Informational"
-        # Create RequestType for the mapped backend type (Informational -> Get IT help)
-        factories.RequestTypeFactory(name="Get IT help", issue_type_name="Get IT help")
+        # Create RequestType with the same name as issue.type (no mapping anymore)
+        factories.RequestTypeFactory(name=issue_type, issue_type_name=issue_type)
         issue = factories.IssueFactory(reporter=None, backend_id=None, type=issue_type)
         factories.SupportCustomerFactory(user=issue.caller)
         ServiceDeskBackend().create_issue(issue)
@@ -484,8 +488,6 @@ class IssueCreateTest(IssueCreateBaseTest):
 
     def test_create_issue_if_exist_several_backend_users_with_same_email(self):
         self._mock_jira()
-        # Create RequestType for the mapped backend type (Informational -> Get IT help)
-        factories.RequestTypeFactory(name="Get IT help", issue_type_name="Get IT help")
         factories.SupportUserFactory(user=self.fixture.staff)
         self.client.force_authenticate(self.fixture.staff)
         mock_backend_users = [
