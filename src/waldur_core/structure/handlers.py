@@ -2,6 +2,7 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Sum
 from django.utils import timezone
 
 from waldur_core.checklist.models import ChecklistCompletion
@@ -371,10 +372,94 @@ def delete_service_settings_on_scope_delete(sender, instance, **kwargs):
 
 
 def update_customer_users_count(sender, **kwargs):
-    """Update the user count for all customers."""
-    for customer in Customer.objects.all():
-        usage = count_customer_users(customer)
-        customer.set_quota_usage("nc_user_count", usage)
+    """Update the user count for all customers.
+
+    Optimized to avoid N+1 queries by:
+    1. Fetching all user roles in batch queries
+    2. Computing user counts in memory
+    3. Fetching current quota usages in one query
+    4. Batch creating quota usage deltas
+    """
+    from waldur_core.quotas.models import QuotaUsage
+
+    customer_ct = ContentType.objects.get_for_model(Customer)
+    project_ct = ContentType.objects.get_for_model(Project)
+
+    # Get all customer IDs
+    customer_ids = list(Customer.objects.values_list("id", flat=True))
+    if not customer_ids:
+        return
+
+    # Build a mapping of customer_id -> set of user_ids
+    customer_user_sets: dict[int, set[int]] = {
+        customer_id: set() for customer_id in customer_ids
+    }
+
+    # 1. Get all direct customer users in one query
+    direct_customer_users = UserRole.objects.filter(
+        content_type=customer_ct,
+        is_active=True,
+        object_id__in=customer_ids,
+    ).values_list("object_id", "user_id")
+
+    for customer_id, user_id in direct_customer_users:
+        customer_user_sets[customer_id].add(user_id)
+
+    # 2. Get project->customer mapping for available projects
+    project_customer_map = dict(
+        Project.available_objects.filter(customer_id__in=customer_ids).values_list(
+            "id", "customer_id"
+        )
+    )
+
+    # 3. Get all project users in one query
+    if project_customer_map:
+        project_users = UserRole.objects.filter(
+            content_type=project_ct,
+            is_active=True,
+            object_id__in=project_customer_map.keys(),
+        ).values_list("object_id", "user_id")
+
+        for project_id, user_id in project_users:
+            customer_id = project_customer_map.get(project_id)
+            if customer_id:
+                customer_user_sets[customer_id].add(user_id)
+
+    # 4. Compute user counts per customer
+    customer_user_counts = {
+        customer_id: len(user_ids)
+        for customer_id, user_ids in customer_user_sets.items()
+    }
+
+    # 5. Get current quota usages in one query
+    current_usages = dict(
+        QuotaUsage.objects.filter(
+            content_type=customer_ct,
+            name="nc_user_count",
+            object_id__in=customer_ids,
+        )
+        .values("object_id")
+        .annotate(total=Sum("delta"))
+        .values_list("object_id", "total")
+    )
+
+    # 6. Compute deltas and batch create quota usage records
+    usages_to_create = []
+    for customer_id, new_count in customer_user_counts.items():
+        current = current_usages.get(customer_id) or 0
+        delta = new_count - current
+        if delta:
+            usages_to_create.append(
+                QuotaUsage(
+                    content_type=customer_ct,
+                    object_id=customer_id,
+                    name="nc_user_count",
+                    delta=delta,
+                )
+            )
+
+    if usages_to_create:
+        QuotaUsage.objects.bulk_create(usages_to_create)
 
 
 def change_email_has_been_requested(
