@@ -8478,8 +8478,20 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
     def _expand_result_with_information_of_organization_groups(result):
         data_with_organization_groups = []
 
+        # Collect all offering UUIDs and prefetch offerings with related data in bulk
+        offering_uuids = {record["offering_uuid"] for record in result}
+        offerings = (
+            models.Offering.objects.filter(uuid__in=offering_uuids)
+            .select_related("customer")
+            .prefetch_related("organization_groups")
+        )
+        # Use string keys to handle both UUID objects and string UUIDs from serializers
+        offerings_by_uuid = {str(o.uuid): o for o in offerings}
+
         for record in result:
-            offering = models.Offering.objects.get(uuid=record["offering_uuid"])
+            offering = offerings_by_uuid.get(str(record["offering_uuid"]))
+            if not offering:
+                continue
             record["offering_country"] = offering.country or offering.customer.country
             organization_groups = offering.organization_groups.all()
 
