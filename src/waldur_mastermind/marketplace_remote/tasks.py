@@ -475,7 +475,7 @@ class OfferingUserPullTask(BackgroundPullTask):
             offering_user.user.username: offering_user.username
             for offering_user in models.OfferingUser.objects.filter(
                 offering=local_offering
-            )
+            ).select_related("user")
         }
         usernames = set(remote_offering_users.keys()) | set(local_offering_users.keys())
         user_map = {
