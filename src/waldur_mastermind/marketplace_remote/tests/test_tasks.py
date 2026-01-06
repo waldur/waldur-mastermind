@@ -1214,6 +1214,111 @@ class OfferingUserPullTaskTest(testcases.TransactionTestCase):
         user = models.User.all_objects.get(username=self.deactivated_user.username)
         self.assertFalse(user.is_active, "User should be deactivated")
 
+    @respx.mock
+    def test_new_remote_users_are_created_locally(self):
+        """Test that new users from remote are created as OfferingUser locally."""
+        # Create a local user that exists in the remote system
+        local_user = UserFactory()
+
+        # Mock remote API to return this user
+        respx.get("https://example.com/api/marketplace-offering-users/").respond(
+            200,
+            json=[
+                {
+                    "uuid": uuid.uuid4().hex,
+                    "offering_uuid": self.offering.backend_id,
+                    "user_uuid": uuid.uuid4().hex,
+                    "user_username": local_user.username,
+                    "username": "remote_username_for_user",
+                }
+            ],
+        )
+
+        task = tasks.OfferingUserPullTask()
+        task.pull(self.offering)
+
+        # Verify OfferingUser was created
+        self.assertTrue(
+            models.OfferingUser.objects.filter(
+                user=local_user, offering=self.offering
+            ).exists()
+        )
+        offering_user = models.OfferingUser.objects.get(
+            user=local_user, offering=self.offering
+        )
+        self.assertEqual(offering_user.username, "remote_username_for_user")
+
+    @respx.mock
+    def test_stale_users_are_removed(self):
+        """Test that users not in remote are removed locally."""
+        # Create a local user with OfferingUser
+        local_user = UserFactory()
+        models.OfferingUser.objects.create(
+            user=local_user,
+            offering=self.offering,
+            username="local_username",
+        )
+
+        # Mock remote API to return empty (user no longer exists remotely)
+        respx.get("https://example.com/api/marketplace-offering-users/").respond(
+            200, json=[]
+        )
+
+        task = tasks.OfferingUserPullTask()
+        task.pull(self.offering)
+
+        # Verify OfferingUser was removed
+        self.assertFalse(
+            models.OfferingUser.objects.filter(
+                user=local_user, offering=self.offering
+            ).exists()
+        )
+
+    @respx.mock
+    def test_pull_with_multiple_users_uses_select_related(self):
+        """
+        Test that pulling multiple users doesn't cause N+1 queries.
+        Fixes PUHURI-PORTALS-DX3.
+        """
+        # Create multiple local users with OfferingUser records
+        users = [UserFactory() for _ in range(5)]
+        for user in users:
+            models.OfferingUser.objects.create(
+                user=user,
+                offering=self.offering,
+                username=f"username_{user.username}",
+            )
+
+        # Mock remote API to return all users
+        remote_users = [
+            {
+                "uuid": uuid.uuid4().hex,
+                "offering_uuid": self.offering.backend_id,
+                "user_uuid": uuid.uuid4().hex,
+                "user_username": user.username,
+                "username": f"username_{user.username}",
+            }
+            for user in users
+        ]
+        respx.get("https://example.com/api/marketplace-offering-users/").respond(
+            200, json=remote_users
+        )
+
+        task = tasks.OfferingUserPullTask()
+
+        # The task should complete without N+1 queries
+        # With select_related("user"), fetching local_offering_users should be 1 query
+        # Without it, it would be 1 + N queries (1 for OfferingUser, N for each User)
+        task.pull(self.offering)
+
+        # Verify all users still exist
+        for user in users:
+            self.assertTrue(
+                models.OfferingUser.objects.filter(
+                    user=user, offering=self.offering
+                ).exists()
+            )
+
 
 @freeze_time("2024-01-01T00:00:00Z")
 class UsagePullTest(testcases.TransactionTestCase):
