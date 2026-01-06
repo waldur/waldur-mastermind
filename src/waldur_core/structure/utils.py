@@ -167,7 +167,7 @@ def handle_resource_update_success(resource):
         resource.error_message = ""
         update_fields.append("error_message")
 
-    if hasattr(resource, "task_id"):
+    if hasattr(resource, "task_id") and resource.task_id is not None:
         resource.task_id = None
         update_fields.append("task_id")
 
