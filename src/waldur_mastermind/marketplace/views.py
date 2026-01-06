@@ -6378,6 +6378,16 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     def get_queryset(self):
         queryset = self.queryset.filter_for_service_consumer(self.request.user)
         queryset = filter_queryset_by_user_ip(queryset, self.request)
+        # Avoid N+1 queries when serializing offering fields (image, thumbnail, etc.)
+        queryset = queryset.select_related(
+            "offering",
+            "offering__category",
+            "offering__customer",
+            "offering__parent",
+            "project",
+            "project__customer",
+            "plan",
+        )
         return queryset
 
     @extend_schema(
@@ -6704,7 +6714,18 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
 )
 class ProviderResourceViewSet(BaseResourceViewSet):
     def get_queryset(self):
-        return self.queryset.filter_for_service_provider(self.request.user)
+        # Avoid N+1 queries when serializing offering fields (image, thumbnail, etc.)
+        return self.queryset.filter_for_service_provider(
+            self.request.user
+        ).select_related(
+            "offering",
+            "offering__category",
+            "offering__customer",
+            "offering__parent",
+            "project",
+            "project__customer",
+            "plan",
+        )
 
     @extend_schema(
         summary="Set end date by provider",
