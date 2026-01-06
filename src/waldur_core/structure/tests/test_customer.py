@@ -22,6 +22,8 @@ from waldur_core.permissions.fixtures import (
     ProjectRole,
     ServiceProviderRole,
 )
+from waldur_core.quotas.models import QuotaUsage
+from waldur_core.structure.handlers import update_customer_users_count
 from waldur_core.structure.models import AccessSubnet, Customer, Project
 from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests.utils import (
@@ -591,6 +593,78 @@ class CustomerQuotasTest(test.APITransactionTestCase):
 
     def assert_quota_usage(self, name, value):
         self.assertEqual(value, self.customer.get_quota_usage(name))
+
+
+class UpdateCustomerUsersCountTest(test.APITransactionTestCase):
+    """Test the bulk update_customer_users_count handler used by recalculate_quotas."""
+
+    def test_updates_user_count_for_direct_customer_users(self):
+        customer = factories.CustomerFactory()
+        user = factories.UserFactory()
+        customer.add_user(user, CustomerRole.OWNER)
+
+        # Reset quota to test bulk recalculation
+        QuotaUsage.objects.filter(scope=customer, name="nc_user_count").delete()
+        self.assertEqual(customer.get_quota_usage("nc_user_count"), 0)
+
+        # Trigger bulk recalculation
+        update_customer_users_count(sender=None)
+
+        self.assertEqual(customer.get_quota_usage("nc_user_count"), 1)
+
+    def test_updates_user_count_for_project_users(self):
+        customer = factories.CustomerFactory()
+        project = factories.ProjectFactory(customer=customer)
+        user = factories.UserFactory()
+        project.add_user(user, ProjectRole.ADMIN)
+
+        # Reset quota to test bulk recalculation
+        QuotaUsage.objects.filter(scope=customer, name="nc_user_count").delete()
+        self.assertEqual(customer.get_quota_usage("nc_user_count"), 0)
+
+        # Trigger bulk recalculation
+        update_customer_users_count(sender=None)
+
+        self.assertEqual(customer.get_quota_usage("nc_user_count"), 1)
+
+    def test_counts_unique_users_across_customer_and_project_roles(self):
+        customer = factories.CustomerFactory()
+        project = factories.ProjectFactory(customer=customer)
+        user = factories.UserFactory()
+
+        # Same user has both customer and project roles
+        customer.add_user(user, CustomerRole.OWNER)
+        project.add_user(user, ProjectRole.ADMIN)
+
+        # Reset quota to test bulk recalculation
+        QuotaUsage.objects.filter(scope=customer, name="nc_user_count").delete()
+
+        # Trigger bulk recalculation
+        update_customer_users_count(sender=None)
+
+        # User should only be counted once
+        self.assertEqual(customer.get_quota_usage("nc_user_count"), 1)
+
+    def test_updates_multiple_customers_in_batch(self):
+        customers = [factories.CustomerFactory() for _ in range(3)]
+        for i, customer in enumerate(customers):
+            for _ in range(i + 1):
+                user = factories.UserFactory()
+                customer.add_user(user, CustomerRole.OWNER)
+
+        # Reset all quotas
+        QuotaUsage.objects.filter(name="nc_user_count").delete()
+
+        # Trigger bulk recalculation
+        update_customer_users_count(sender=None)
+
+        # Verify each customer has correct count
+        for i, customer in enumerate(customers):
+            self.assertEqual(
+                customer.get_quota_usage("nc_user_count"),
+                i + 1,
+                f"Customer {i} should have {i + 1} users",
+            )
 
 
 @ddt
