@@ -1321,3 +1321,149 @@ class CountUserIdentitySourceStatsTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class ComponentUsagesStatsTest(test.APITransactionTestCase):
+    """Tests for /api/marketplace-stats/component_usages/ endpoint.
+
+    This endpoint returns component usages for the current month,
+    expanded with offering country and organization group information.
+    Fixes PUHURI-PORTALS-DWP (N+1 query issue).
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = "/api/marketplace-stats/component_usages/"
+        self.organization_group_1 = structure_factories.OrganizationGroupFactory(
+            name="Group A"
+        )
+        self.organization_group_2 = structure_factories.OrganizationGroupFactory(
+            name="Group B"
+        )
+
+    def _create_component_usage(self, offering, component_type="cpu", usage=100):
+        """Helper to create a component usage for the current month."""
+        now = timezone.now()
+        plan = factories.PlanFactory(offering=offering)
+        resource = factories.ResourceFactory(offering=offering, plan=plan)
+        # Get or create component to avoid unique constraint violation
+        component, _ = models.OfferingComponent.objects.get_or_create(
+            offering=offering, type=component_type
+        )
+        plan_period = models.ResourcePlanPeriod.objects.create(
+            start=now, resource=resource, plan=plan
+        )
+        return models.ComponentUsage.objects.create(
+            resource=resource,
+            component=component,
+            billing_period=now.replace(day=1).date(),
+            plan_period=plan_period,
+            usage=usage,
+            date=now,
+        )
+
+    @data("staff", "global_support")
+    def test_user_can_get_component_usages(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        self._create_component_usage(self.fixture.offering)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("owner", "customer_support", "admin", "manager")
+    def test_user_cannot_get_component_usages(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_component_usages_include_offering_country(self):
+        """Test that offering country is included in the response."""
+        offering = factories.OfferingFactory(country="FI")
+        self._create_component_usage(offering)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["offering_country"], "FI")
+
+    def test_component_usages_fallback_to_customer_country(self):
+        """Test that customer country is used when offering country is not set."""
+        customer = structure_factories.CustomerFactory(country="EE")
+        offering = factories.OfferingFactory(country="", customer=customer)
+        self._create_component_usage(offering)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["offering_country"], "EE")
+
+    def test_component_usages_expanded_by_organization_groups(self):
+        """Test that usages are expanded per organization group."""
+        offering = factories.OfferingFactory()
+        offering.organization_groups.add(
+            self.organization_group_1, self.organization_group_2
+        )
+        self._create_component_usage(offering)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should have 2 entries - one per organization group
+        self.assertEqual(len(response.data), 2)
+        group_names = {item["organization_group_name"] for item in response.data}
+        self.assertEqual(group_names, {"Group A", "Group B"})
+
+    def test_component_usages_no_organization_groups(self):
+        """Test that usages without organization groups have empty group fields."""
+        offering = factories.OfferingFactory()
+        self._create_component_usage(offering)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["organization_group_name"], "")
+        self.assertEqual(response.data[0]["organization_group_uuid"], "")
+
+    def test_component_usages_aggregates_by_offering_and_component(self):
+        """Test that usages are aggregated by offering and component type."""
+        offering = factories.OfferingFactory()
+        # Create two usages for the same offering/component
+        self._create_component_usage(offering, component_type="cpu", usage=100)
+        self._create_component_usage(offering, component_type="cpu", usage=50)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should have aggregated usage (API returns usage as string)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(float(response.data[0]["usage"]), 150.0)
+
+    def test_component_usages_multiple_offerings_with_groups(self):
+        """Test handling of multiple offerings with different organization groups.
+
+        This test ensures the N+1 query fix works correctly by using
+        bulk prefetching for offerings and their organization groups.
+        """
+        # Offering 1 with Group A
+        offering1 = factories.OfferingFactory(country="FI")
+        offering1.organization_groups.add(self.organization_group_1)
+        self._create_component_usage(offering1, component_type="cpu", usage=100)
+
+        # Offering 2 with Group B
+        offering2 = factories.OfferingFactory(country="SE")
+        offering2.organization_groups.add(self.organization_group_2)
+        self._create_component_usage(offering2, component_type="ram", usage=200)
+
+        # Offering 3 with no groups
+        offering3 = factories.OfferingFactory(country="NO")
+        self._create_component_usage(offering3, component_type="storage", usage=300)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # 3 entries: one for each offering (2 with groups, 1 without)
+        self.assertEqual(len(response.data), 3)
+
+        # Verify data integrity
+        countries = {item["offering_country"] for item in response.data}
+        self.assertEqual(countries, {"FI", "SE", "NO"})
